@@ -133,8 +133,13 @@ requeue an operation, because requeue can re-issue a purchase (`OPS-20`).
 **API-30** Where a front service proxies customer requests using one admin identity plus the
 tenant-override header (`API-5`), the override is the *entire* tenancy boundary for the
 product, and this system cannot check it. `API-6` validates the identifier's character set
-(`DOM-1`); it cannot validate that the tenant *exists*, because the same requirement says this
-system "does not maintain a tenant registry." Every request legitimately carries admin plus override, so there is no anomalous case to
+(`DOM-1`); whether it can validate that the tenant *exists* depends entirely on which branch of
+`DOM-1a` the deployment chose. **With no registry, it cannot** — a well-formed identifier is
+indistinguishable from a correct one, and this requirement applies in full. **With a registry,
+this objection largely dissolves**: the override becomes checkable, and the remaining risk is
+the ordinary one that the front service resolves the wrong tenant, which the registry cannot
+detect but which is no longer unbounded. Deployments choosing a registry MAY treat the options
+below as advisory rather than mandatory. Every request legitimately carries admin plus override, so there is no anomalous case to
 alarm on. A proxy bug — a cached header, a reused connection, a wrong variable — silently maps
 one customer's request onto another customer's machines, and nothing here notices.
 
