@@ -20,8 +20,10 @@
 | GET | `/v1/operations/{id}` | ✓ | Poll one operation |
 | POST | `/v1/operations/{id}/actions/requeue` | | Operator requeue |
 
-**API-1** Every non-`GET` endpoint MUST return `202 Accepted` with an operation view.
-None of them returns the completed result inline.
+**API-1** Every non-`GET` endpoint that *accepts* a valid, authorized request MUST return
+`202 Accepted` with an operation view; none returns the completed result inline. Requests
+rejected before enqueue return their mapped error status (`API-24`) — `400`, `401`, `404`,
+`409` and `501` are all reachable on write endpoints.
 
 **API-2** `{id}` in a path is always an internal UUID. A provider-side identifier MUST
 NOT appear in a client-constructed path (`DOM-5`).
@@ -114,6 +116,30 @@ CR or LF.
 tenant* and MUST return `404` — not `403` — when it does not exist there. Existence of
 another tenant's machine MUST NOT be observable.
 
+**API-17a** **The same rule applies to operations, and it is easy to miss because operations
+are not machine-scoped.** `GET /v1/operations/{id}` MUST resolve within the caller's tenant and
+return `404` otherwise; `GET /v1/operations` MUST be tenant-filtered before pagination. An
+operation record carries the tenant, the provider account, the result and the error — enough to
+enumerate another customer's estate from a stolen or guessed identifier. Specifying pagination
+without specifying isolation is how this gets missed.
+
+**API-17b** **Creation needs an authorization rule, and it is the only operation that has no
+target to authorize against.** Every other verb is gated by a machine record the tenant already
+owns. Create is gated by nothing: a tenant names a provider account and spends the operator's
+money in it. `allow_orders` and a per-request purchase acknowledgement prevent *accidents*, not
+*unauthorized* spending, and `DOM-3` says naming an account MUST grant nothing — which create
+currently contradicts.
+
+A deployment MUST therefore define, before accepting creates from more than one tenant:
+
+- **which provider accounts a tenant may create in** — an explicit assignment, not "all
+  configured ones"; and
+- **that tenant's spending authority** — a ceiling per interval (`SEC-39`), a prepaid balance,
+  or an operator approval step.
+
+Absent both, any tenant can order unbounded billable hardware in any configured account, and no
+other requirement in this document stops it.
+
 **API-18** Adoption MUST require proof that the caller is entitled to the machine. Being
 able to name a provider account and an external identifier is not proof: the credentials
 belong to the operator, not the tenant, and every tenant can name them. Acceptable
@@ -139,7 +165,13 @@ indistinguishable from a correct one, and this requirement applies in full. **Wi
 this objection largely dissolves**: the override becomes checkable, and the remaining risk is
 the ordinary one that the front service resolves the wrong tenant, which the registry cannot
 detect but which is no longer unbounded. Deployments choosing a registry MAY treat the options
-below as advisory rather than mandatory. Every request legitimately carries admin plus override, so there is no anomalous case to
+below as satisfied by the registry itself, and need not additionally implement one.
+
+**A registry is not a complete answer.** It proves an override names an *existing* tenant. It
+cannot detect the case that actually happens — a cached header, a reused connection, a wrong
+variable — where the front service confidently selects the *wrong existing* tenant. Only
+per-tenant proof carried from the client closes that, and `API-30`'s options below are about
+the first problem, not the second. Every request legitimately carries admin plus override, so there is no anomalous case to
 alarm on. A proxy bug — a cached header, a reused connection, a wrong variable — silently maps
 one customer's request onto another customer's machines, and nothing here notices.
 
@@ -149,7 +181,7 @@ A deployment using this pattern MUST therefore do one of:
   this system holds and verifies. Preferred: it makes the override falsifiable.
 - **Keep a synced allowlist.** This system maintains an out-of-band-synchronised set of valid
   tenant identifiers and rejects overrides outside it. This is a tenant registry, so a
-  deployment choosing it MUST amend `DOM-1` rather than leave the contradiction implicit.
+  deployment choosing it MUST select `DOM-1a`'s registry branch explicitly.
 - **Accept and document.** Record explicitly that the front service's proxy is the single
   point of tenancy enforcement, that this system's tenancy tests (`CNF-4`–`CNF-7`) prove
   nothing about it, and that the front service needs its own equivalents.

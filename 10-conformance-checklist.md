@@ -55,14 +55,14 @@ item for `OVR-10a`, which had none — that is `CNF-71`–`CNF-75` below.
 
 ### Assignments
 
-**BLOCKING** — `CNF-1`, `CNF-3` (the epistemic pair: every other checkmark is testimony from
+**BLOCKING** (50 items) — `CNF-1`, `CNF-3` (the epistemic pair: every other checkmark is testimony from
 this witness); `CNF-4`–`CNF-9` (tenancy — three internal tenants exist from day one, so
 cross-tenant control is takeover plus destruction before any external customer arrives);
 `CNF-10`–`CNF-13` (injection — path injection reaches the wrong machine in the operator's whole
 account, shell metacharacters reach root on the rescue system); `CNF-14`–`CNF-17` (redaction —
 create responses carry machine root passwords, rescue passwords are root on customer machines);
 `CNF-19`, `CNF-20` (capability gating, the enforcement direction); `CNF-21`–`CNF-23`, `CNF-25`,
-`CNF-26`, `CNF-27`, `CNF-28`, `CNF-29`, `CNF-31` (create and ambiguity rows), `CNF-32`
+`CNF-26`, `CNF-27`, `CNF-28`, `CNF-29`, `CNF-31a` (the create and ambiguity rows only — see the split below), `CNF-32`
 (idempotency and double-mutation — the money-out core; `CNF-32` is `OVR-5`, the spec's
 self-declared most important property); `CNF-36`–`CNF-38`, `CNF-40`, `CNF-41`, `CNF-43`,
 `CNF-44`, `CNF-46` (rescue safety); `CNF-49`–`CNF-51`, `CNF-53` (image supply chain — each ends
@@ -72,13 +72,15 @@ still billing" is unbounded operator money-out); `CNF-71`–`CNF-75` (the `OVR-1
 which in the single-component form is the only structural defence there is).
 
 **PRE-SCALE** — `CNF-2` (lint: hygiene, not harm — free, so do it early, but it gates nothing),
-`CNF-18`, `CNF-24`, `CNF-30`, `CNF-31` (the remaining rows), `CNF-33`, `CNF-34` (becomes
+`CNF-18`, `CNF-24`, `CNF-30`, `CNF-31b` (the remaining rows), `CNF-33`, `CNF-34` (becomes
 blocking the moment anything but the API writes the store), `CNF-35`, `CNF-39`, `CNF-42`,
 `CNF-45`, `CNF-47`, `CNF-48`, `CNF-52`, `CNF-56`–`CNF-60` (`CNF-58` must land before any
 rolling deploy or version skew exists), `CNF-61`, `CNF-65`, `CNF-70`.
 
-**DEFERRED** — `CNF-62` (separate audit destination: tamper-resistance maturity; no adversary
-model requires it below the PRE-SCALE trigger).
+**DEFERRED** — nothing, after audit. `CNF-62` (separate audit destination) was listed here
+while the area sort below calls its parent `SEC-33` PRE-SCALE; the area sort is right, so
+`CNF-62` is **PRE-SCALE**. Likewise `CNF-60` is PRE-SCALE while `API-21`, which it tests, was
+sorted DEFERRED — `API-21` is corrected to PRE-SCALE.
 
 **N/A UNTIL SPLIT** — `CNF-66`–`CNF-68`. These are conditional on the admin-plus-override front
 service, which the single-component form of `OVR-10` deletes. Marked this way rather than
@@ -133,7 +135,7 @@ does not.
 
 ### The honest finding about this exercise
 
-Tiering buys less relief than expected: roughly 44 of 75 land blocking. That is not tier
+Tiering buys less relief than expected: 50 of 75 land blocking. That is not tier
 inflation. This checklist was distilled from the defect list of a discarded implementation of a
 destructive-operations product, so it was already the sharp end. **The real relief lives in
 tiering the full requirement set**, where the deferrable long tail actually is — pagination,
@@ -240,9 +242,14 @@ only structural defence there is.
 - [ ] **CNF-29** A `running` operation whose lease expires is swept to
       `needs_reconciliation` — never back to `queued`. (`OPS-14`)
 - [ ] **CNF-30** The sweeper does not overwrite an error already recorded. (`OPS-16`)
-- [ ] **CNF-31** The full classification table in `OPS-11` is covered, one case per row.
-      In particular: a create failing with a provider 4xx is `failed`; a create failing
-      with a provider 5xx, a network error, or a timeout is `needs_reconciliation`.
+- [ ] **CNF-31a** The rows of `OPS-11` where a misclassification causes a repeated provider
+      mutation. A create failing with a provider 4xx is `failed`; a create failing with a
+      provider 5xx, a network error, or a timeout is `needs_reconciliation`; every install
+      failure that is not a deterministic caller error is `needs_reconciliation`. Getting these
+      wrong invites the caller to retry a mutation that already happened.
+- [ ] **CNF-31b** The remaining rows of `OPS-11`, for exhaustiveness — including that the table
+      is *total*: every error kind in `DOM-17` has a defined classification for every operation
+      kind, with no implicit default.
 - [ ] **CNF-32** Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** An operation is executed correctly after a full process restart between
@@ -339,7 +346,7 @@ Applies only to deployments using the admin-plus-override proxy pattern.
       about the front service.
 - [ ] **CNF-67** If per-tenant signing was chosen: a forwarded request whose override does not
       match its signature is rejected. If an allowlist was chosen: an override outside the
-      allowlist is rejected, and `DOM-1` has been amended. (`API-30`)
+      allowlist is rejected, and `DOM-1a`'s registry branch was selected. (`API-30`)
 - [ ] **CNF-68** The front service's own audit log attributes each action to a customer and
       joins to the control plane's records by correlation id. (`API-31`, `API-28`)
 

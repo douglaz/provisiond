@@ -175,7 +175,7 @@ The distinguishing property is simple: **a ceiling is something the caller canno
 itself.** Any control the caller supplies in its own request is advisory.
 
 **SEC-40** Ceilings MUST be enforced where per-principal state exists. In a deployment where
-this system holds no tenant registry (`DOM-1`), that is not here — it is the front service
+the deployment chose `DOM-1a`'s no-registry branch, that is not here — it is the front service
 (`API-30`), and the deployment MUST say so rather than assuming the control plane enforces
 something it cannot.
 

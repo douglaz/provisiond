@@ -26,6 +26,7 @@ requirement not to repeat it.
 | `08-provider-notes.md` | Per-provider API facts worth preserving, and their caveats |
 | `09-known-defects.md` | Defects found in the reference implementation, as prohibitions |
 | `10-conformance-checklist.md` | What a reimplementation must demonstrate before it serves traffic |
+| `11-open-findings.md` | **Read this before building.** An independent audit's 21 findings, which are fixed and which are open, and the three questions a builder must ask first |
 
 Read `00`, `01`, and `03` first. `03` is the heart of the design — the operation
 lifecycle and its treatment of uncertainty is the part that distinguishes this from a

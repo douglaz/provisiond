@@ -97,8 +97,19 @@ This is `OVR-5` made concrete.
 | Operation | Classification rule |
 |---|---|
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
-| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. Only deterministic caller errors (`invalid_request`, `not_found`, `unsupported`) are `failed`. An install that got far enough to fail may have already begun overwriting a disk. |
+| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
+
+**The table MUST be total.** Every kind in `DOM-17` MUST have a defined classification for every
+operation kind. There is no implicit default, because the two possible defaults are both wrong:
+defaulting to `failed` invites a caller to retry a mutation that may have happened, and
+defaulting to `needs_reconciliation` pages a human for a typo. `CNF-31b` tests totality.
+
+One case needs stating because two requirements appear to disagree. `PRV-22` says end-rescue
+failure is *always* ambiguous. That does not conflict with the install row: an install whose
+*rescue exit* fails has already done its work and reached the provider, so it is never a
+deterministic caller error, and the install row classifies it `needs_reconciliation` regardless
+of which error kind the driver reports.
 
 A failure is **ambiguous** when:
 
@@ -118,7 +129,7 @@ other name (no backoff loop, no "safe" re-poll that re-issues the mutation). The
 **OPS-13** When a mutation's outcome is unknown, the surviving evidence MUST be preserved
 and pointed at: the error details MUST record what was attempted, any provider-side
 identifiers that were created (transaction ids, key fingerprints, action ids), and the
-location of any retained recovery credential (`RSC-17`).
+location of any retained recovery credential (`RSC-19`).
 
 ## Interrupted workers
 
