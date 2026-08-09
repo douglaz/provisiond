@@ -242,6 +242,11 @@ only structural defence there is.
 - [ ] **CNF-29** A `running` operation whose lease expires is swept to
       `needs_reconciliation` — never back to `queued`. (`OPS-14`)
 - [ ] **CNF-30** The sweeper does not overwrite an error already recorded. (`OPS-16`)
+- **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
+      different stakes: rows where a misclassification causes a repeated provider mutation, and
+      rows that only need covering for exhaustiveness. They belong in different tiers, and the
+      undivided item was consequently listed in two of them. Identifier retained rather than
+      reused, per the append-only convention in the README.
 - [ ] **CNF-31a** The rows of `OPS-11` where a misclassification causes a repeated provider
       mutation. A create failing with a provider 4xx is `failed`; a create failing with a
       provider 5xx, a network error, or a timeout is `needs_reconciliation`; every install
