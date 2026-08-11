@@ -16,8 +16,33 @@ those terminal states means *I do not know*.
 **OPS-1** Every mutating request MUST create or return a durable operation record before
 any provider call is made, and MUST respond `202 Accepted` with that record.
 
-**OPS-2** An operation record MUST persist the full request payload, so a worker can
-execute it after a process restart without the original HTTP request.
+**OPS-2** **AMENDED 2026-08-12.** An operation record MUST persist the full request payload
+**while the operation is live**, so a worker can execute it after a process restart without the
+original HTTP request. At any terminal state the payload is purged and replaced by a redacted
+summary (`ADR-0005`, `STO-9`).
+
+The original text said "MUST persist the full request payload" without qualification, and
+`ADR-0005` narrowed it in a different document without editing this sentence — leaving two
+normative statements with opposite meanings. Three things depended on the unqualified version and
+are corrected by `OPS-34`.
+
+**OPS-34** **Requeue after purge.** `OPS-20` required requeue to "re-execute the original request
+verbatim", and both requeue-eligible states (`failed`, `needs_reconciliation`) are terminal — so
+after `ADR-0005` the payload is always gone and requeue as specified cannot work at all. Since
+`API-19`, `OPS-31` and `DEF-17` all rest on it, the resolution is:
+
+- **Requeue MUST carry a fresh payload supplied by the operator**, and the system MUST verify it
+  is equivalent to the stored summary in every respect the summary records (kind, machine,
+  provider account, target). It is no longer a replay of bytes the system holds; it is a new
+  submission checked against what survived.
+- Where the summary cannot establish equivalence, requeue MUST be refused and `OPS-31`'s
+  resolution verbs are the only road.
+- `API-11`'s idempotency comparison has the same problem and the same answer (`API-38`).
+
+**OPS-35** The provider account MUST be resolved and written to the operation record **before**
+any driver call. `05` marks it nullable, and a create whose reply is lost is precisely the case
+where reconciliation must know which account to search — a search that cannot begin if the
+account was only ever determined inside the call that vanished.
 
 ## States
 
@@ -172,7 +197,7 @@ outcome forbids. Until this section existed, `needs_reconciliation` was a termin
 exit and `OPS-25` retained its records "until an operator resolves them" through a mechanism
 that did not exist.
 
-The cost of leaving one unresolved is no longer merely operational. A create places a hold on
+The cost of leaving one unresolved is no longer merely operational. A create places a commitment on
 the customer's balance; while the operation sits unresolved, **those satoshis are frozen** — not
 spendable, not returned. Resolution latency is money the customer cannot use.
 
@@ -180,11 +205,38 @@ spendable, not returned. Resolution latency is money the customer cannot use.
 searches the provider for the operation's correlator (`PRV-26`, `PRV-27`) and takes one of three
 outcomes:
 
-| Finding | Resolution | Effect on the hold |
+| Finding | Resolution | Effect on the commitment |
 |---|---|---|
-| A resource bearing this operation's correlator exists | **Resolved-observed.** Attach it to the machine record and complete the operation as though it had succeeded. | Converted to the normal hold for a running machine |
-| The provider's search is authoritative and returns nothing, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Released in full |
-| The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or the driver declares no correlator | **Unresolved.** Escalate to an operator. | Remains frozen; this MUST be surfaced (`API-18`) |
+| Exactly one resource bears this operation's correlator | **Resolved-observed.** Attach it and complete the operation as though it had succeeded. | Becomes the machine's running commitment (`OPS-36` where it was already released) |
+| The provider's search is authoritative and returns nothing, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Closed and released in full (`LDG-32`) |
+| More than one resource bears the correlator | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
+| The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`API-18`). | Released per `OPS-33`, which applies here too |
+
+**OPS-36** **A correlator match may arrive after `OPS-33` released the commitment and the tenant
+spent the balance.** The specification previously had no branch for this and the three available
+readings each broke something: attaching unfunded contradicts `ADR-0002`, re-committing
+contradicts `LDG-10`, and cancelling contradicts row 1's instruction to attach.
+
+The rule is: **attach the machine, then immediately route it through the exhaustion path**
+(`LDG-13`). Attach, because the machine exists and belongs to that tenant and pretending
+otherwise creates an orphan the operator pays for. Then cancel, because it has no funding and
+`ADR-0002` admits no unfunded machine. If the tenant's balance can fund a fresh commitment, the
+machine survives; if not, it is cancelled like any exhausted machine. **This is the branch that
+makes `OPS-33`'s early release safe**, and without it that release was a hole rather than a
+decision.
+
+**OPS-37** **The last row applies to the commitment exactly as `OPS-33` does.** An earlier version
+said an unresolved outcome leaves the money "frozen" while `OPS-33` said it MUST be released —
+the same trigger with opposite MUSTs, and the unresolved row is the *expected* path for any
+provider that cannot filter server-side. `OPS-33` governs: the commitment is released and the
+operation stays open. **Nothing about a customer's balance may depend on which provider's search
+API is weaker.**
+
+**OPS-38** Correlator matching MUST define cardinality: zero, one, or many. Many is reachable by
+a documented procedure — `OPS-20` requeue re-executes an operation that already wrote its
+correlator, so a late-succeeding first attempt and a successful second both bear it. A driver
+MUST reject a caller-supplied label that collides with the correlator's reserved key, and
+`OPS-31`'s operator verbs MUST be able to record which of several duplicates was kept.
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
@@ -202,21 +254,39 @@ MUST NOT claim a resource whose operation is still `running` and holding its lea
 **OPS-31** Operator verbs MUST exist for the unresolved case and MUST be distinct from requeue:
 record an observed resource by its external identifier, record that nothing was created, or
 abandon the operation and accept the loss. Each MUST record who resolved it and on what
-evidence, and abandonment MUST state explicitly what happens to the hold.
+evidence, and abandonment MUST close the commitment and release it in full (`LDG-32`).
 
-**OPS-32** Periodic reconciliation SHOULD run across each provider account independently of any
-stuck operation, comparing what the provider reports against what this system believes exists.
-This costs nothing beyond the machine-lookup every driver already implements (`PRV-3`), and it
-catches drift no operation record would reveal: machines created by hand, machines deleted
-behind the system's back, and orphans from an operation whose correlator search had already
-been given up on. A machine found this way that bears no known correlator MUST NOT be
-auto-attached to any tenant (`OPS-29`); it is reported to the operator as unclaimed.
+**OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
+Periodic reconciliation MUST run across each provider account independently of any stuck
+operation, comparing what the provider reports against what this system believes exists. It
+catches drift no operation record would reveal: machines created by hand, machines deleted behind
+the system's back, and orphans from an operation whose correlator search was given up on.
 
-**OPS-33** A negative search MUST NOT hold a customer's balance indefinitely. Once a bounded
-negative window has elapsed — a small multiple of the provider's measured worst-case allocation
-latency, on the order of hours — the hold MUST be released even though the operation remains
-open, and `OPS-32`'s account sweep MUST continue searching for the correlator indefinitely
-afterwards.
+**A machine is unclaimed when it is absent from the `machines` table by
+`(provider_account, external_id)`** — *not* when it bears no correlator. The previous wording
+would have reported as unclaimed, on every sweep forever, **every Hetzner Robot machine** (whose
+correlator lives on the order, never on the server) and **every adopted machine** (`PRV-28`) —
+a 100% false-positive rate on the dedicated product line this specification exists for. An
+unclaimed machine MUST NOT be auto-attached to any tenant (`OPS-29`); it is reported to the
+operator.
+
+It was raised from SHOULD because `OPS-33` releases a customer's commitment on the promise that a
+late-appearing machine will be *detected as the operator's own problem*. A MUST that gives money
+away, compensated by a SHOULD that recovers it, is not a bounded loss — it is an unbounded one
+with an optional remedy.
+
+**OPS-33** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
+negative window has elapsed, the commitment MUST be closed and released in full even though the
+operation remains open, and `OPS-32`'s account sweep MUST continue searching for the correlator
+indefinitely afterwards. `OPS-36` governs what happens if the machine then appears.
+
+**The window MUST be derived per provider from that provider's own allocation behaviour.** An
+earlier version said "on the order of hours", which is wrong for the product that matters:
+robot-style dedicated orders poll through an `in process` state with no documented bound, and
+`08-provider-notes.md` records a 30-day transaction listing precisely because orders stay
+resolvable that long. Cloud VMs allocate in seconds; a dedicated order may not resolve the same
+day. **A single figure across providers is guaranteed to be wrong for one of them, and it is
+wrong in the direction that costs the operator a setup fee plus a period cap.**
 
 The reasoning is about **who carries the residual risk**, not about confidence in the search.
 Releasing early moves the risk from the customer to the operator: a machine that appears late
@@ -229,7 +299,7 @@ takes the visible loss.
 The window MUST be recorded per provider and MUST be derived from measurement rather than
 assumed. For the robot-style ordering shape it interacts with the transaction listing window
 (`08-provider-notes.md`): past that horizon automatic resolution is impossible and `OPS-31` is
-the only road, but the hold was released long before.
+the only road, but the commitment was released long before.
 
 ## Worker algorithm
 

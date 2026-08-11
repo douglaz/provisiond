@@ -95,21 +95,27 @@ The sum of all customer balances — what the operator owes at any instant. The 
 margin is not part of it.
 _Avoid_: reserves, customer funds, AUM
 
-**Hold**:
-The portion of a balance that is committed to a running machine and cannot be spent on anything
-else. Placed when a create is authorized, released when the machine stops billing.
-_Avoid_: lock, freeze, escrow
+**Commitment**:
+Satoshis reserved against one machine and unavailable for anything else. It **decreases** as the
+machine is consumed, so ordinary use neither frees nor freezes anything. Not a ledger entry — a
+record of its own (`LDG-30`).
+_Avoid_: **hold** (banned — see flagged ambiguities), lock, freeze, escrow, authorization
 
 **Reserve**:
-The *amount* a hold must be sized to: enough that the operator is never left paying a provider
-for a machine the customer walked away from. A calculation; a **hold** is the ledger entry that
-results from it.
+The *amount* a commitment must be sized to: enough that the operator is never left paying a
+provider for a machine the customer walked away from. A calculation; a **commitment** is the
+record that results from it.
 _Avoid_: buffer, deposit, collateral, margin
 
 **Debit**:
 Moving satoshis out of a balance permanently, because compute was consumed or a non-refundable
-provider fee was incurred. Distinct from a **hold**, which is reversible.
+provider fee was incurred. Distinct from a **commitment**, which is released if unused.
 _Avoid_: charge, capture, settle
+
+**Meter**:
+What measures billable machine time and produces the debits that draw a commitment down. Its
+absence is what made the first version of the ledger unimplementable.
+_Avoid_: usage tracker, billing loop
 
 **Runway**:
 How long a machine is guaranteed to keep running before an exhausted balance can cancel it.
@@ -147,8 +153,15 @@ involved, and reserve **delete** for gone-and-not-billing.
 "held", "backed", "reserved", "segregated" or "your bitcoin" about a balance — those words are
 the difference between a merchant and a regulated custodian (`ADR-0004`).
 
-**"Hold" is the ledger entry; "reserve" is the calculation.** They are not synonyms, and the
-schema has both.
+**"Hold" is banned.** It is a card-payments word — authorize once, capture once, against a
+discrete purchase — and importing it made the first ledger draft model a reservation that never
+shrank, which drives the available balance negative one hour into the first machine's life. Use
+**commitment**, which decays. "Reserve" remains the *calculation* that sizes it; the two are not
+synonyms and the schema has both.
+
+**This glossary is not normative.** It says so above, and it once contained the only statement in
+the entire set of when a reservation is released — a requirement hiding in a file that disclaims
+having any. If a rule matters, it belongs in a numbered requirement.
 
 **"Provision"** is banned as a verb for installing an OS. It means acquiring a machine from a
 provider. Use **create** for acquisition and **install** for putting an image on a disk.

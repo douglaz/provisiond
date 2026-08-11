@@ -68,12 +68,92 @@ endpoints, the create request gained a runway field (`PRV-13d`), and machines ga
 caller-readable runway (`LDG-15`) — none with a request or response body. See `F19`. **This is
 now the largest single gap in the set.**
 
-**F24. Nothing decided on 2026-08-11 has been reviewed by anyone but its author.** The material
-that produced `docs/adr/` and `12-billing-and-ledger.md` was reasoned out in a single session and
-validated only against itself. The last body of work with that provenance was audited and
-returned 21 findings, 5 critical. **Confidence in this batch should be no higher than confidence
-in that one was, before the audit.** The money model deserves the most scepticism, because it is
-the part where being wrong costs satoshis rather than time.
+**F24. CLOSED by being right.** It warned that nothing decided on 2026-08-11 had been reviewed by
+anyone but its author, and that confidence should be no higher than it was before the previous
+audit. Two independent audits on 2026-08-12 returned **NO** with roughly forty distinct findings
+between them, six confirmed by both models separately. The warning was correct and the money
+model was, as predicted, the worst part.
+
+## The second audit — 2026-08-12
+
+**The root defect: the hold was the wrong primitive.** A hold is a card-payments idea — authorize
+once, capture once, against a discrete purchase of known size. Machine time is continuous
+consumption. Twelve requirements placed, gated, subtracted, raised and released a hold; **none
+made it shrink as the machine was used**, so the ordinary happy path drove the available balance
+negative one hour into the first machine's life. Six further findings were downstream of the same
+mistake, and the tell was that `PRV-13b` consumed an `accrued_unbilled_usage` term that no
+requirement produced — the author knew a meter must exist, wrote it into the formula, and never
+specified it.
+
+`12-billing-and-ledger.md` was rewritten around a **commitment that decays as it is consumed**
+(`LDG-30`–`LDG-36`), and the consumption half — the meter (`LDG-37`–`LDG-39`), the rate source
+(`LDG-40`–`LDG-41`), and the funding path (`LDG-42`–`LDG-44`) — now exists.
+
+**Fixed 2026-08-12.** Available going negative in normal operation; nothing releasing a
+reservation on `failed`, `succeeded` or delete (the only statement of it lived in `CONTEXT.md`,
+which declares itself non-normative); the setup fee reserved rather than debited, making a
+create-delete loop cost the operator a setup fee per iteration and the tenant almost nothing;
+the double-count between `LDG-9` and `LDG-5`–`LDG-7`; no serialization on the authorization read,
+so two concurrent creates spend one balance; **no money-in path at all** — sixteen endpoints and
+none took money, while `CNF-94` was BLOCKING and tested a payment notification with no endpoint;
+one satoshi defeating the enrolment time-to-live; `DOM-17` having no way to say *insufficient
+balance*, so four BLOCKING items asserted a rejection the taxonomy could not express; `OPS-32`
+reporting 100% of Robot and adopted machines as unclaimed forever; `OPS-27` and `OPS-33` giving
+opposite MUSTs for the same trigger; `OPS-36`'s missing late-arrival branch; requeue and
+idempotency comparison both broken by the payload purge; `API-7`'s normative step list containing
+no authorization check at all; `STO-21` forbidding what enrolment requires; the `commitments`
+table not existing while `CNF-96` tested writes to it.
+
+**The correlator claim was overstated and is corrected.** `PRV-26` writes the *create* operation's
+id; a cancellation is a different operation with nothing written provider-side. That premise had
+been used to shrink `wind_down_cost`, so a reconciliation error was propagating into systematic
+under-reserving across the fleet. `PRV-29` now states the real rule — non-create mutations resolve
+by reading provider state for a known `external_id` — and `wind_down_cost` is reduced only where a
+driver can distinguish *rejected*, *accepted-pending*, *scheduled* and *complete*.
+
+**Settled:** customer authentication is a caller-supplied public key (`API-39`). Both audits
+reached it independently.
+
+## Open after the second audit
+
+**F25. `LDG-19` versus `ADR-0004` §4 — put this to a lawyer first.** `LDG-17` requires holding
+satoshis equal to the float and `LDG-19` required *publishing* that invariant, while `ADR-0004`
+§4 forbids describing balances as "held", "backed", "reserved" or "segregated". A published
+one-to-one asset-to-claim ratio is what safekeeping on behalf of clients looks like from outside,
+whatever the contract says — so the publication requirement was demanding exactly the substance
+`ADR-0003`'s defence exists to deny. Publication is now withheld pending advice. **This precedes
+the refund question `ADR-0003` nominates as first.**
+
+**F26. `PRV-13b` needs the earliest-cancellation date before the create that reveals it.**
+`PRV-13c` says that per-machine constraint is learned after ordering; `LDG-12` forbids the
+provider call before the commitment exists. For an offer that does not expose contract terms up
+front, the commitment can only be sized after making the purchase it is meant to authorize.
+
+**F27. `ADR-0003`'s "matched at all times" is not what `PRV-13e` delivers.** The matching argument
+needs unthrottled re-pricing; `PRV-13e` deliberately caps per-tick increases and requires a
+deficiency to persist — with no cap value stated. On the −49% move the ADR itself cites, every
+running machine is under-reserved by the uncapped remainder for at least two derivation periods.
+The dissent recorded in that ADR is about MiCA; **this objection is arithmetic, and it is the one
+that costs satoshis.**
+
+**F28. `ADR-0004` §5 (B2B only) is unenforceable under `ADR-0005`.** Nothing may be recorded, so
+nothing distinguishes a business from a consumer, and the consumer withdrawal right §5 exists to
+avoid is still reachable. Relatedly `API-18`'s adoption entitlement has no workable option under
+self-serve enrolment: two of its three require an operator step the product deleted, and the
+third requires access to a machine the tenant does not yet have.
+
+**F29. `PRV-30` — the Hetzner Robot `comment` field may force manual order processing.** Claimed
+by one audit, citing the Robot documentation; **not verified** — the docs page truncates before
+the ordering section and the client libraries carry no note. If true, the Robot correlator turns
+every order into a human-latency order and invalidates the measured negative window for that
+provider. Check before shipping the Robot driver.
+
+**F30. Conformance items still lag the rewrite.** `CNF-76`–`CNF-115` were written against the
+hold model. They need re-pointing at commitments, plus new items for the meter, the rate source,
+the funding path, `OPS-36`'s late arrival, cardinality in correlator matching, and per-tenant
+serialization. Several existing tiers are wrong: `CNF-99` is PRE-SCALE while testing a path that
+destroys a disk, and `CNF-77`, `CNF-24`, `CNF-113` and `CNF-115` are each a tier below the item
+that depends on them.
 
 ## Critical — closed 2026-08-11 (second pass)
 

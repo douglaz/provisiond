@@ -30,8 +30,35 @@ NOT appear in a client-constructed path (`DOM-5`).
 
 ## Authentication and tenancy
 
-**API-3** Requests MUST authenticate with a bearer token. The server MUST hold tokens
-only as digests in memory and MUST compare in constant time.
+**API-3** **AMENDED 2026-08-12.** Operator requests authenticate with a bearer token, held only
+as a digest in memory and compared in constant time. **Customer requests authenticate with a
+caller-supplied public key** (`API-39`). The original text mandated bearer tokens universally and
+required digests be held "in memory", which the runtime-issued customer credential of `API-32`
+contradicts twice over — a self-serve tenant's credential must persist across restarts.
+
+**API-39** **Customer authentication is a caller-supplied public key, and requests are signed.**
+Both independent audits reached this conclusion separately, and it settles the sub-decision this
+document previously recorded as open.
+
+- Enrolment registers a key the caller generated; **no secret ever crosses the wire**, so
+  `API-33`'s delayed-issuance apparatus — which existed to protect the one moment a generated
+  token is transmitted — collapses into "register this key; you are pending until funded".
+- A full compromise of this system's store discloses nothing usable, which is the strongest
+  available answer to `F13` and matters more here because `ADR-0001` put the public surface in
+  the same process as provider credentials and, now, the ledger.
+- It converts `API-37`'s dead end into something provable. With a token, "I lost it" and "I stole
+  it" are permanently indistinguishable. With a key, a caller that still controls it can
+  demonstrate control, and **rotation is a signed request registering a second key** — the only
+  honest recovery story available under `ADR-0005`.
+- Most of the cost is already sunk: `API-12` already requires a canonical serialization, and
+  `API-8`'s idempotency key with `STO-25`'s retention rule is already the replay cache.
+
+The signing scheme MUST be specified precisely enough for two implementations to interoperate:
+signature algorithm, the exact byte string signed (method, path, canonical body digest,
+idempotency key, timestamp), the clock-skew tolerance, and the rotation procedure including a
+mandatory overlap window. **A key registered at enrolment with no proof of possession is a
+credential an attacker can register on someone else's behalf**, so enrolment MUST require a
+signature over the enrolment request itself.
 
 **API-4** **AMENDED — it now applies to operator credentials only.** Operator tokens MUST be
 supplied through the environment, named — not valued — by the configuration. A minimum length
@@ -58,11 +85,21 @@ MUST NOT be able to make the server do parsing or policy work. See `DEF-4`.
 Order of operations for every write endpoint, normatively:
 
 1. authenticate, resolve tenant;
-2. validate the idempotency key;
-3. authorize the target resource against the tenant;
-4. deserialize and validate the body;
-5. enqueue;
-6. respond `202`.
+2. reject unless the tenant is active — a pending tenant fails `not_activated` (`API-35`);
+3. validate the idempotency key;
+4. authorize the target resource against the tenant;
+5. deserialize and validate the body;
+6. **compute the required commitment and check spending authority** — insufficient available
+   balance fails `insufficient_balance`, and a failing solvency or rate gate fails `halted`
+   (`LDG-9`, `LDG-20`, `LDG-40`);
+7. **open the commitment and enqueue in one transaction** (`LDG-11`), serialized per tenant
+   (`LDG-35`);
+8. respond `202`.
+
+Steps 2, 6 and 7 were absent until 2026-08-12. The list was described as normative "for every
+write endpoint", so **a builder following it literally shipped a create with no authorization at
+all** — the money check existed in `12-billing-and-ledger.md` and in no sequence any handler
+author would read.
 
 ## Enrolment
 
@@ -86,9 +123,18 @@ deleted, along with its credential. This is what caps the table at *enrolment ra
 than letting it grow without limit, and it is the requirement to test — an implementation that
 ships `API-33` without `API-34` has bought delay and no bound.
 
-**API-35** A tenant MUST NOT graduate out of pending until a payment has been credited to it. An
-unfunded tenant can do nothing under `ADR-0002` in any case, so pending is the correct place for
-it to wait, and funding is the only event that proves a real customer.
+**API-35** **AMENDED.** A tenant MUST NOT graduate out of pending until a payment **meeting a
+configured minimum** has been credited to it (`LDG-44`). The original said "a payment", so one
+satoshi produced a permanently activated row that `API-34`'s time-to-live could never reclaim —
+an attacker could mint immortal tenants for a rounding error each. The minimum MUST be large
+enough to purchase something, since a balance that cannot buy compute is not a customer.
+
+**API-42** A tenant MUST NOT be deleted while a payment attributable to it is in flight, and a
+payment that arrives after its tenant was deleted MUST be recorded as unattributed rather than
+dropped (`LDG-43`). The failure this prevents is specific and unrecoverable: the ledger is
+append-only and exempt from retention, `ADR-0004` forbids a refund, and `ADR-0005` forbids
+retaining anything that could identify the payer — so **money credited to a tenant that no longer
+exists is money kept from someone the operator has made itself unable to find.**
 
 **API-36** Enrolment MUST be rate-limited (`API-29`). Rate-limiting state MUST be held in memory
 and MUST NOT be persisted — retaining caller addresses to defend the enrolment endpoint would
@@ -100,14 +146,28 @@ would be an account-takeover mechanism wearing a helpful name. A lost credential
 balance. The caller is software and can store a secret reliably — but it MUST be told that it
 has to.
 
-> **Open decision: what kind of credential.** The above assumes a server-generated bearer token
-> held as a digest (`API-3`). The alternative is for the caller to supply a **public key** at
-> enrolment and sign its requests, so that this system stores no customer secret at all and a
-> full database compromise yields nothing an attacker can act with. That is materially stronger
-> here than it would be elsewhere, because `ADR-0001` puts the public surface in the same process
-> as credentials to every customer's machine, and it turns `API-37`'s "no recovery" into the
-> customer's own key backup. Its cost is a request-signing specification — canonicalisation, a
-> nonce, clock-skew tolerance. Recorded rather than decided.
+**API-40** Enrolment and every other write MUST be reachable under the general rules, and three
+of those rules do not fit an unauthenticated, pre-tenant request. They are resolved here rather
+than left as exceptions a builder must invent:
+
+- **`API-7` (authenticate before validating)** — enrolment authenticates by verifying the
+  caller's signature against the key it is presenting (`API-39`), which proves possession without
+  proving identity. That check runs first, in `API-7`'s position.
+- **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
+  returns its handle directly. It creates no provider mutation, so it needs no durable operation,
+  and `operations.tenant_id` could not name a tenant that does not exist yet.
+- **`API-8`/`API-10` (idempotency scoped to `(tenant, key)`)** — enrolment scopes idempotency to
+  the presented public key instead. Re-sending the same enrolment MUST return the same pending
+  tenant rather than creating a second one.
+
+**API-41** Enrolment MUST be sheddable under load ahead of every other endpoint, and a deployment
+MUST set a **global** ceiling on pending tenants, not only a per-caller rate limit. `API-36`'s
+limiter holds its state in memory, so it resets on every restart of the single process
+(`ADR-0001`) and is trivially defeated by distributed sources. The damage is not row count: the
+time-to-live sweep of `API-34` is a large periodic delete against the same single-writer store
+that serves the operation queue's atomic claim (`STO-1`, `STO-6`), and `DEF-11` records that this
+store has already been starved once by a needless periodic write loop. **Enrolment at line rate
+becomes a write-lock generator that stalls machine creation and commitment re-derivation.**
 
 ## Idempotency
 
@@ -127,6 +187,19 @@ MUST NOT create a second operation.
 **API-12** Equivalence MUST be computed over a canonical serialization of the stored and
 incoming requests, not over raw request bytes, so that key ordering and whitespace do not
 produce spurious conflicts.
+
+**API-38** **Equivalence after the payload is purged.** `ADR-0005` purges the stored request at
+terminal state, so for a completed operation there is nothing left to compare against and
+`API-11`/`API-12` become unexecutable — `CNF-21` is BLOCKING and tests a comparison that cannot
+be performed. The resolution is to persist, alongside the summary, a **canonical digest of the
+request** computed at submission time. It survives the purge, carries no caller secret, and makes
+equivalence a hash comparison rather than a field-by-field one.
+
+This is not a detail. Without it an implementer picks between two failures, and **both end in a
+duplicate purchase**: return `409` for a legitimate retry, after which an autonomous caller
+generates a fresh idempotency key and buys a second machine; or return the existing operation
+without checking, which breaks `API-11`'s promise that a *different* request under a reused key
+is refused.
 
 ## Validation
 

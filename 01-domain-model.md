@@ -253,6 +253,21 @@ One closed set of error kinds, used by drivers, the rescue engine, and the API a
 | `timeout` | Operation exceeded its deadline | 502 |
 | `integrity` | Digest or host-key verification failed | 422 |
 | `internal` | Defect in this system | 500 |
+| `insufficient_balance` | Available balance cannot fund the required commitment (`LDG-9`) | 402 |
+| `not_activated` | Tenant exists but is still pending funding (`API-35`) | 403 |
+| `halted` | Refused because a solvency or rate-availability gate is failing (`LDG-20`, `LDG-40`) | 503 |
+
+**DOM-20** The three rows above were added on 2026-08-12. `DOM-17`'s set is closed and `API-24`
+forbids a handler choosing a status independently, so before they existed **four BLOCKING
+conformance items asserted a rejection this taxonomy could not express** — `CNF-95` (insufficient
+balance), `CNF-78` (tenant still pending), `CNF-69` (ceiling), `CNF-101` (solvency halt) — and
+every one of them would have arrived at the caller as `invalid_request` / 400.
+
+That distinction matters more here than in an ordinary API. The caller is an autonomous agent,
+and **"top up" and "fix your request" are different actions.** Collapsing them means a correctly
+formed create that merely needs money is indistinguishable from a malformed one, so the agent's
+only recovery is to mutate its request and retry — which is how a retry loop becomes a duplicate
+purchase.
 
 **DOM-17** Every error MUST carry a kind, a human-readable message, a boolean
 `retryable`, and a structured `details` object. `retryable` describes whether repeating

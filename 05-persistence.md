@@ -189,20 +189,70 @@ an environment variable (`API-4` as amended).
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
 
-**STO-21** Nothing beyond these columns may be stored about a tenant. No address, no contact, no
-declared name, no origin. `ADR-0005` is a schema constraint, and the place a privacy policy
-actually fails is a column somebody added because it seemed harmless.
+**STO-21** **AMENDED 2026-08-12 — the original forbade what the rest of the specification
+requires.** It said "nothing beyond these columns may be stored about a tenant", while
+`API-17b`/`SEC-43` require a provider-account assignment, `API-33` requires an enrolment handle,
+`SEC-39` requires ceiling counters, and `LDG-25` requires operation meters. Read strictly,
+enrolment was unbuildable; read loosely, it constrained nothing and `CNF-80` — the only privacy
+conformance item in the set — was satisfiable by moving the column to another table.
 
-### `ledger_entries` and `holds`
+The rule that carries the intent is a **prohibition on categories, not on columns**: no
+information that could identify, locate or contact a natural or legal person, and no information
+derived from the network path a request arrived on. Operational state a tenant needs in order to
+function — account assignment, counters, meters, cached balance — is permitted and MUST live in
+named tables. `CNF-80` tests the prohibition, not the column count.
 
-Specified in `12-billing-and-ledger.md` (`LDG-5`–`LDG-8`), which is normative for their contents.
-Two constraints belong here because they are storage properties:
+`ADR-0005` remains a schema constraint. The place a privacy policy actually fails is still a
+column somebody added because it seemed harmless — but a rule that forbids the whole system from
+working gets deleted by the first engineer who needs it, and then nothing is enforced at all.
+
+### `ledger_entries`
+
+Contents are specified by `LDG-5`–`LDG-8`.
 
 **STO-22** `ledger_entries` MUST be append-only at the storage layer, not merely by convention —
 no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 
-**STO-23** A hold and the operation that caused it MUST be written in one transaction
-(`LDG-11`), which is why `operations.hold_id` exists rather than a lookup by convention.
+**STO-26** `ledger_entries` MUST NOT carry a foreign key to `tenants`. The ledger is append-only
+and exempt from retention (`LDG-22`), while a pending tenant is deleted at its time-to-live
+(`API-34`) — so a constraint between them makes one of the two rules unenforceable. Attribution
+is by tenant identifier, and `LDG-43`'s unattributed state is what a deleted tenant's entry uses.
+
+### `commitments`
+
+The reservation record (`LDG-30`). **This table did not exist before 2026-08-12** — the previous
+version named a `holds` table, delegated its contents to `12-billing-and-ledger.md`, and that
+document specified only ledger entries. `operations.hold_id` was a foreign key to nothing, and
+`CNF-96` was a BLOCKING test that wrote to a table no document defined.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `tenant_id` | text | not null |
+| `machine_id` | UUID | nullable until the machine record exists |
+| `operation_id` | UUID | the operation that opened it |
+| `reserved_sats` | integer | **decreases** as consumption is debited (`LDG-31`) |
+| `state` | enum | `open` \| `closed` |
+| `version` | integer | for the conditional write in `LDG-34` |
+| `opened_at`, `closed_at` | timestamp | |
+
+Constraints: index on `(tenant_id, state)` for the availability computation; at most one `open`
+commitment per machine.
+
+**STO-23** A commitment and the operation that caused it MUST be written in one transaction
+(`LDG-11`), which is why `operations.hold_id` — now the commitment id — exists rather than a
+lookup by convention.
+
+**STO-27** Computing available balance and opening a commitment MUST be serialized per tenant
+(`LDG-35`). The store MUST provide a primitive for it — a per-tenant lock row, a serializable
+transaction, or a conditional write against a versioned balance — and the deployment MUST record
+which. **`STO-6` invites replacing the embedded single-writer engine and lists the primitives a
+replacement must reproduce; this one was missing from that list**, so a deployment could move to
+a server engine and silently lose the only thing preventing two creates from spending the same
+balance.
+
+**STO-28** Decrementing a commitment MUST be a conditional write on its `version` (`LDG-34`), and
+posting a `usage_debit` MUST happen in the same transaction as the decrement (`LDG-31`).
 
 ## Migrations
 

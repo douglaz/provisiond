@@ -175,19 +175,30 @@ now separated:
   power, not the operator's coverage. Movement is handled by re-deriving the hold each period
   (`PRV-13e`), not by over-collateralising it once.
 
-**`wind_down_cost` is smaller than this document used to claim, and the reason is worth
-recording.** The previous text sized it against an on-call rota — 24 to 72 hours, "72 if the
-rota does not cover weekends" — because a failed cancellation classified to
-`needs_reconciliation`, which at the time had no exit and therefore meant *wait for a human*.
-`OPS-27` changed that: a cancellation's true outcome is readable from provider state through the
-machine lookup every driver already implements (`PRV-3`), so the normal case now resolves in
-minutes without anyone waking up. Size `wind_down_cost` as **detection interval + measured
-confirmed-cancellation latency + margin**, and reserve the pager-latency figure for the case
-where provider state cannot be read at all.
+**`wind_down_cost` is conditional, and an earlier revision of this paragraph got it wrong in a way
+worth recording.** That revision claimed `OPS-27` had reduced it from an on-call-rota figure
+(24–72 hours) to minutes, because "a cancellation's true outcome is readable from provider
+state." **The premise was false as stated.** `PRV-26`'s correlator is written by *create* and
+identifies the create operation; a cancellation is a different operation with a different id and
+nothing written provider-side, so there is no correlator to search for. That mistake mattered
+because the claim was used to shrink a number every machine's reserve depends on — a
+reconciliation error propagating into systematic under-reserving across the whole fleet.
 
-*This is the clearest illustration in the document of why `F1` was worth fixing: giving
-`needs_reconciliation` an exit did not merely tidy a state machine, it removed days of human
-latency from a number that every customer pays for in frozen balance.*
+What is actually true is narrower and is now stated as `PRV-29`: a cancellation's outcome is
+recoverable **if and only if** the driver can read enough provider state to distinguish
+*rejected*, *accepted-pending*, *scheduled for a future date* and *complete*. Where it can, size
+`wind_down_cost` as **detection interval + measured confirmed-cancellation latency + margin**.
+**Where it cannot, the pager-latency figure stands** — and `PRV-13c`'s exception branch is
+exactly where it cannot, because a scheduled cancellation's cost runs to its effective date
+regardless.
+
+**PRV-29** For any ambiguous mutation **other than create**, resolution MUST proceed by reading
+provider state for the machine's known `external_id` (`PRV-12`) — the identifier is known,
+which is precisely what a lost create reply lacks. The driver MUST expose cancellation state
+richly enough to separate *rejected*, *accepted-pending*, *scheduled with an effective date*, and
+*complete*; a driver that can only answer "the machine still exists" cannot resolve a
+cancellation, because all four states can look identical from outside. A driver that cannot make
+the distinction MUST declare so, and its machines MUST carry the unreduced `wind_down_cost`.
 
 **Where billing is capped per period, that cap is a catastrophe bound worth having.**
 
@@ -330,7 +341,13 @@ into the request path safely (`PRV-6`).
 This is not an operation. It is an obligation on **create**, and it is what makes automated
 recovery from an ambiguous outcome possible at all.
 
-**PRV-26** A create MUST carry the operation's identifier into the provider, using whatever
+**PRV-26** **This applies to create and to nothing else.** A create is the only mutation whose
+target identifier is unknown when the reply is lost; every other operation names a machine whose
+`external_id` the system already holds, and resolves by reading its state instead (`PRV-29`).
+Stating the scope matters because an earlier revision quietly assumed correlators covered
+cancellation too, and priced the reserve accordingly.
+
+A create MUST carry the operation's identifier into the provider, using whatever
 caller-controlled field that provider offers, and the driver MUST be able to find resources
 bearing it afterwards. Every provider examined offers such a field (`08-provider-notes.md`), so
 a driver that cannot do this is asserting something unusual about its provider and MUST say so
@@ -348,12 +365,29 @@ Three constraints on what is written:
 - **It MUST survive the payload purge.** The correlator is a provider-side identifier, which
   `OPS-13` already requires be retained, so it outlives the request body it was derived from.
 
-**PRV-27** Where the provider's caller-controlled field lives on an *order* rather than on the
-resulting machine — the robot-style ordering shape — the driver MUST record the provider's own
-transaction identifier before treating the outcome as ambiguous, and MUST use the provider's
-transaction listing to resolve. This is a stronger position than label search, not a weaker one:
-it answers "which orders did I place" directly, rather than inferring it from which machines
-exist. Its limit is the provider's listing window (`08-provider-notes.md`).
+**PRV-27** **AMENDED — the original required something impossible.** It said the driver "MUST
+record the provider's own transaction identifier **before** treating the outcome as ambiguous."
+The ambiguity that matters is the one where the order's *reply was lost*, so the transaction
+identifier was generated by the provider and never arrived. The requirement was satisfiable only
+in the cases that did not need it, and `CNF-90` tested exactly the impossible case.
+
+What the driver MUST actually do, where the caller-controlled field lives on an *order* rather
+than on the resulting machine (the robot-style shape):
+
+- **resolve by searching the provider's transaction listing for the correlator**, which answers
+  "which orders did I place" directly rather than inferring it from which machines exist;
+- record the transaction identifier **when it is observed** — on a successful response, or on a
+  poll timeout that carries it (`PRV-11`) — as an accelerator, never as a precondition;
+- treat the listing window as the horizon beyond which automatic resolution is impossible
+  (`08-provider-notes.md`), and `OPS-31` as the only remaining road.
+
+**PRV-30** **[verify — decision-changing]** A provider's caller-controlled field MUST NOT alter
+how the order is processed. There is a specific unverified claim that supplying Hetzner Robot's
+`comment` field causes standard and auction orders to be processed **manually**, which would
+turn every correlated order into a human-latency order and invalidate the measured negative
+window (`OPS-33`) for that provider. This MUST be checked before the Robot correlator ships. If
+it holds, the correlator must move to another field or the Robot path must resolve by transaction
+listing without one.
 
 ## Adding a driver
 
