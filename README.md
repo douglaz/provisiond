@@ -27,36 +27,35 @@ requirement not to repeat it.
 | `09-known-defects.md` | Defects found in the reference implementation, as prohibitions |
 | `10-conformance-checklist.md` | What a reimplementation must demonstrate before it serves traffic |
 | `11-open-findings.md` | **Read this before building.** An independent audit's 21 findings, which are fixed and which are open, and the three questions a builder must ask first |
+| `12-billing-and-ledger.md` | The ledger, holds, reserves, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
+| `CONTEXT.md` | Glossary. Which word means what, and which words are banned |
+| `docs/adr/` | The decisions, and what was rejected to reach them |
 
 Read `00`, `01`, and `03` first. `03` is the heart of the design — the operation
 lifecycle and its treatment of uncertainty is the part that distinguishes this from a
 thin API proxy, and it is the part most implementations get wrong.
 
-## Two decisions to make before reading anything else
+## The decisions this specification is built on
 
-Both change *which requirements apply to you*. Neither has a default, and inheriting one by
-accident is how a deployment ends up with requirements it cannot satisfy and defences it does
-not have.
+Earlier revisions opened with two unanswered questions — the separation form (`OVR-10`) and the
+tenant registry (`DOM-1a`) — and warned that inheriting either by accident produces a deployment
+with requirements it cannot satisfy. **Both are now answered, along with the product decisions
+that followed from them.** They live in `docs/adr/`, and each records what was rejected:
 
-**1. Where is the boundary between customer-facing and credential-holding? (`OVR-10`)**
+| ADR | Decision |
+|---|---|
+| `0001` | One deployable, not a customer-facing service in front of a credential-holding engine. Settles `OVR-10`; `OVR-10a` is therefore the only structural credential defence left |
+| `0002` | Self-serve enrolment, with a prepaid balance as the entire spending authority. Settles `DOM-1a` in favour of a registry |
+| `0003` | The customer float is denominated in satoshis, with a recorded dissent |
+| `0004` | The regulatory perimeter is held by product design — no withdrawal, no transfer, no fiat refund, B2B only |
+| `0005` | Collect nothing about customers; purge caller payload at terminal state |
+| `0006` | v1 is pass-through: setup fees at cost, no machine reuse. Inventory and the VM line are deferred together |
+| `0007` | Margin is a percentage of machine time; installs and rescue are free but metered |
 
-A separate service in front, or a module boundary inside one deployable. The separate service
-keeps the public surface away from provider credentials, but puts the tenancy boundary on a
-header the engine cannot verify (`API-30`) and splits money from lifecycle across two stores
-with no shared transaction. The single component gets one transaction and a tenancy boundary the
-engine can actually check — at the cost of running the public surface in the same address space
-as credentials to every customer's machines. If you choose the single component, **`OVR-10a` is
-not optional hardening; it is the only structural defence you have left**, and `CNF-71`–`CNF-75`
-are the items that prove it.
-
-**2. Do you maintain a tenant registry? (`DOM-1a`)**
-
-Self-serve enrolment requires one, because a new tenant must be writable at runtime.
-Operator-configured deployments do not need one and are simpler without. Earlier revisions of
-this document asserted flatly that no registry is maintained; that was a description of one
-implementation promoted to a rule, and it has been withdrawn.
-
-Record both answers where the next reader will find them.
+**Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
+dissent before treating satoshi denomination as settled. The one open sub-decision is what kind
+of credential enrolment issues — a server-generated token or a caller-supplied public key —
+recorded in `04-api-contract.md` after `API-37`.
 
 ## How much to trust this
 
@@ -103,6 +102,7 @@ tests, and issue trackers:
 | `RSC-n` | Rescue and image installation |
 | `SEC-n` | Security |
 | `DEF-n` | Defect prohibitions |
+| `LDG-n` | Billing and the ledger |
 | `CNF-n` | Conformance checklist items |
 
 Identifiers are append-only. If a requirement is withdrawn, mark it `WITHDRAWN` in

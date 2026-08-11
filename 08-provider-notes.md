@@ -197,6 +197,40 @@ disk and RAID options passed through. **[observed]**
 
 ---
 
+---
+
+## Correlators: the caller-controlled identifier each provider offers
+
+Checked 2026-08-11, because `OPS-27` reconciliation depends on being able to ask a provider
+*"did my lost request create anything?"* and get an answer that names the specific operation
+rather than a machine that merely looks similar. **Every provider in this set offers a
+caller-controlled field**, and three of the four can filter on it server-side.
+
+| Provider shape | Field carried at create | Shape | Find it afterwards | Confidence |
+|---|---|---|---|---|
+| Hetzner Cloud | `labels` | `map[string]string` | `label_selector` query parameter on list | **[observed — official `hcloud-go` client, `ServerCreateOpts.Labels` and `ListOpts.LabelSelector` → `label_selector`]** |
+| Hetzner Robot | `comment` on the order | free text | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one | **[observed — endpoint list and `hrobot-rs` `list_recent_product_transactions()`]** |
+| Cherry Servers | `tags` | `map[string]string` | returned on the server object | **[observed — official `cherrygo` client]**; server-side filtering **[verify]** |
+| DigitalOcean | `tags` | `[]string` — flat strings, **not** key/value | `ListByTag` | **[observed — official `godo` client]** |
+
+Notes that change driver code:
+
+- **DigitalOcean tags are not key/value.** Encode the correlator as a single string with a fixed
+  prefix. The permitted character set is **[verify]** before choosing a separator.
+- **Robot's correlator does not live on the machine.** It goes on the order, and the resulting
+  server carries no caller field at create — `server_name` is settable only afterwards, via
+  `POST /server/{server-number}`, which is precisely the follow-up call `PRV-26` forbids relying
+  on. So Robot reconciles through the transaction list, not through machine search.
+- **Robot's transaction listing is time-bounded** — the client library documents the last 30
+  days. **[verify]** the exact window, because it is the hard limit on how long an unresolved
+  ambiguous order stays automatically recoverable. After it, resolution is manual.
+- Hetzner Cloud's label constraints (key/value character set, length, count) are **[verify]** —
+  the Go client performs no validation of its own, so the server enforces whatever it enforces.
+
+A pleasing incidental confirmation: Robot's order request carries a field literally named
+`i_want_to_spend_money_to_purchase_a_server`. `API-15`'s explicit purchase acknowledgement is not
+this specification being paranoid — it is a pattern the provider itself arrived at.
+
 ## Writing a new adapter
 
 Answer these before writing code, and record the answers here:
@@ -216,3 +250,7 @@ Answer these before writing code, and record the answers here:
    permitted for this provider at all (`SEC-24`).
 5. **Is ordering idempotent?** Determines the requeue policy for creates (`OPS-20`).
 6. **What is the identifier character set?** Determines the validation in `PRV-6`.
+7. **Which caller-controlled field can carry a correlator at create, and can you search by
+   it?** Determines whether ambiguous creates resolve automatically or wait for a human
+   (`PRV-26`, `PRV-27`, `OPS-27`). If the field lives on an order rather than the machine,
+   record the listing window too — it bounds how long automatic recovery is possible.

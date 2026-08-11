@@ -165,6 +165,72 @@ response or documentation, and SHOULD refuse to requeue an operation kind that i
 to be non-idempotent at the provider unless the caller passes a second, distinct
 acknowledgement. Requeueing a create is a purchase decision, not a retry.
 
+## Resolving `needs_reconciliation`
+
+Requeue is not a resolution. It replays the mutation, which is the one thing an ambiguous
+outcome forbids. Until this section existed, `needs_reconciliation` was a terminal state with no
+exit and `OPS-25` retained its records "until an operator resolves them" through a mechanism
+that did not exist.
+
+The cost of leaving one unresolved is no longer merely operational. A create places a hold on
+the customer's balance; while the operation sits unresolved, **those satoshis are frozen** — not
+spendable, not returned. Resolution latency is money the customer cannot use.
+
+**OPS-27** The system MUST attempt automatic resolution before asking a human. Resolution
+searches the provider for the operation's correlator (`PRV-26`, `PRV-27`) and takes one of three
+outcomes:
+
+| Finding | Resolution | Effect on the hold |
+|---|---|---|
+| A resource bearing this operation's correlator exists | **Resolved-observed.** Attach it to the machine record and complete the operation as though it had succeeded. | Converted to the normal hold for a running machine |
+| The provider's search is authoritative and returns nothing, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Released in full |
+| The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or the driver declares no correlator | **Unresolved.** Escalate to an operator. | Remains frozen; this MUST be surfaced (`API-18`) |
+
+**OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
+that nothing exists does not authorize creating it; that is a new decision by the caller, and a
+new purchase.
+
+**OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
+creation time or any other heuristic, because two of a tenant's own concurrent creates can look
+identical, and attaching the wrong machine gives one customer another's server. Where no
+correlator exists, the correct outcome is *unresolved*, not a guess.
+
+**OPS-30** Resolution MUST be idempotent and MUST NOT race a healthy in-flight operation. A
+resource bearing operation X's correlator belongs to operation X and to nothing else; a sweep
+MUST NOT claim a resource whose operation is still `running` and holding its lease.
+
+**OPS-31** Operator verbs MUST exist for the unresolved case and MUST be distinct from requeue:
+record an observed resource by its external identifier, record that nothing was created, or
+abandon the operation and accept the loss. Each MUST record who resolved it and on what
+evidence, and abandonment MUST state explicitly what happens to the hold.
+
+**OPS-32** Periodic reconciliation SHOULD run across each provider account independently of any
+stuck operation, comparing what the provider reports against what this system believes exists.
+This costs nothing beyond the machine-lookup every driver already implements (`PRV-3`), and it
+catches drift no operation record would reveal: machines created by hand, machines deleted
+behind the system's back, and orphans from an operation whose correlator search had already
+been given up on. A machine found this way that bears no known correlator MUST NOT be
+auto-attached to any tenant (`OPS-29`); it is reported to the operator as unclaimed.
+
+**OPS-33** A negative search MUST NOT hold a customer's balance indefinitely. Once a bounded
+negative window has elapsed — a small multiple of the provider's measured worst-case allocation
+latency, on the order of hours — the hold MUST be released even though the operation remains
+open, and `OPS-32`'s account sweep MUST continue searching for the correlator indefinitely
+afterwards.
+
+The reasoning is about **who carries the residual risk**, not about confidence in the search.
+Releasing early moves the risk from the customer to the operator: a machine that appears late
+appears as an *unclaimed machine in the operator's own account*, which the sweep detects and
+which immediate cancellation bounds to a setup fee. That is a cost the operator can see, price
+and absorb. A frozen balance is a cost the customer can neither see nor escape, and for an agent
+buying compute it is indistinguishable from theft. Where the two are in tension, the operator
+takes the visible loss.
+
+The window MUST be recorded per provider and MUST be derived from measurement rather than
+assumed. For the robot-style ordering shape it interacts with the transaction listing window
+(`08-provider-notes.md`): past that horizon automatic resolution is impossible and `OPS-31` is
+the only road, but the hold was released long before.
+
 ## Worker algorithm
 
 ```

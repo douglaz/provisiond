@@ -83,8 +83,36 @@ while the area sort below calls its parent `SEC-33` PRE-SCALE; the area sort is 
 sorted DEFERRED — `API-21` is corrected to PRE-SCALE.
 
 **N/A UNTIL SPLIT** — `CNF-66`–`CNF-68`. These are conditional on the admin-plus-override front
-service, which the single-component form of `OVR-10` deletes. Marked this way rather than
+service, which `ADR-0001` deletes by choosing the single component. Marked this way rather than
 deferred so they resurrect automatically if the architecture ever splits.
+
+### Assignments for `CNF-76`–`CNF-115` (added 2026-08-11)
+
+These cover enrolment, reconciliation, the ledger and blast radius. **The ledger items are
+disproportionately BLOCKING for one reason: under `ADR-0002` a prepaid balance is the only thing
+that authorizes spending, so a ledger bug is an authorization bug, not an accounting one.**
+
+**BLOCKING** — `CNF-78`, `CNF-81` (an unfunded or privilege-escalated tenant is money-out and
+boundary-crossed); `CNF-82`, `CNF-84`, `CNF-85`, `CNF-86`, `CNF-87` (reconciliation correctness —
+a wrong attach hands one customer another's machine, and `CNF-87` is the difference between a
+frozen balance and a released one); `CNF-83` (a linkable value written into a provider console
+cannot be un-disclosed); `CNF-91`–`CNF-97` (ledger integrity, i.e. authorization integrity);
+`CNF-100` (destroyed data, and the documentation half is what makes it survivable); `CNF-101`
+(the insolvency gate, including that it must not block the operations that reduce exposure);
+`CNF-106` (under-holding every machine by exactly the margin); `CNF-107` (tenant→tenant
+destruction — this was `F15`); `CNF-108`, `CNF-109` (unbounded billing and duplicate purchase);
+`CNF-111`, `CNF-112` (an account termination cannot be undone with money or an apology, and
+`CNF-112` is what makes `CNF-111` real rather than believed).
+
+**PRE-SCALE** — `CNF-76`, `CNF-77`, `CNF-79`, `CNF-80`, `CNF-88`, `CNF-89`, `CNF-90`, `CNF-98`,
+`CNF-99`, `CNF-102`–`CNF-105`, `CNF-110`, `CNF-113`–`CNF-115`.
+
+**DEFERRED** — none.
+
+That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
+of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
+prepaid balance did not merely add features, it added a money system whose correctness gates
+launch. A reader deciding whether that trade was worth it now has the number.
 
 ### Tiering the other 234 requirements — first pass
 
@@ -363,6 +391,104 @@ Applies only to deployments using the admin-plus-override proxy pattern.
 - [ ] **CNF-62** Audit records go to a destination separate from the operation store.
       (`SEC-33`)
 
+## Enrolment and credentials
+
+- [ ] **CNF-76** Enrolment returns no usable credential before the configured delay elapses,
+      and the not-yet response does not disclose the remaining time precisely. (`API-33`)
+- [ ] **CNF-77** An unfunded pending tenant is deleted at its TTL together with its credential.
+      Verified by clock advance, not by reading the code. (`API-34`)
+- [ ] **CNF-78** A pending tenant can perform no authorized action of any kind until a payment
+      has been credited. (`API-35`)
+- [ ] **CNF-79** Enrolment rate-limiting state is never persisted — no caller address reaches
+      the store or the logs. (`API-36`, `ADR-0005`)
+- [ ] **CNF-80** The `tenants` table holds no column beyond those specified. Asserted by a schema
+      test that **fails when a column is added**, because the way a privacy policy dies is one
+      harmless-looking column. (`STO-21`)
+- [ ] **CNF-81** Operator credentials still come only from the environment, and no runtime-issued
+      customer credential can become one. (`API-4`)
+
+## Reconciliation and correlators
+
+- [ ] **CNF-82** A create writes the operation id into the provider's caller-controlled field
+      **in the same request that performs the mutation** — verified against a recorded provider
+      request, not against a follow-up call. (`PRV-26`)
+- [ ] **CNF-83** The correlator carries no tenant identifier, customer-chosen hostname, or other
+      linkable value. Anyone reading the operator's provider console learns nothing. (`PRV-26`,
+      `ADR-0005`)
+- [ ] **CNF-84** Resolution attaches a resource only on an **exact** correlator match. A machine
+      matching on hostname, offer and creation window but carrying no correlator is left
+      unresolved, not attached. (`OPS-29`)
+- [ ] **CNF-85** Resolution performs no mutation. A driver whose search path mutates fails this
+      item. (`OPS-28`)
+- [ ] **CNF-86** A sweep does not claim a resource whose operation is still `running` under a
+      live lease. (`OPS-30`)
+- [ ] **CNF-87** A hold is released once the negative window elapses, even though the operation
+      remains open, and the sweep keeps searching afterwards. (`OPS-33`)
+- [ ] **CNF-88** The account-wide sweep reports an unclaimed machine to the operator and attaches
+      it to no tenant. (`OPS-32`)
+- [ ] **CNF-89** Resolution columns are write-once; a second resolution of the same record is
+      refused. (`STO-19`)
+- [ ] **CNF-90** An order-shaped driver records the provider's transaction identifier **before**
+      the outcome can be classified ambiguous. (`PRV-27`)
+
+## Ledger and money
+
+- [ ] **CNF-91** No floating-point type appears anywhere in a money path. Asserted at the type
+      level, not by inspection. (`LDG-1`)
+- [ ] **CNF-92** Adding two amounts with different currency codes is refused — never silently
+      converted. (`LDG-3`)
+- [ ] **CNF-93** The ledger has no update or delete path at the storage layer. Attempting one
+      fails; convention is not the control. (`LDG-5`, `STO-22`)
+- [ ] **CNF-94** A replayed top-up notification carrying the same idempotency key credits exactly
+      once. (`LDG-8`)
+- [ ] **CNF-95** A create whose available balance is one satoshi short is rejected and **no
+      provider call is made**. (`LDG-9`, `LDG-12`)
+- [ ] **CNF-96** A hold and its operation are written in one transaction: killing the process
+      between them leaves neither. (`LDG-11`, `STO-23`)
+- [ ] **CNF-97** No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
+- [ ] **CNF-98** Remaining runway is readable from the machine view before exhaustion.
+      (`LDG-15`)
+- [ ] **CNF-99** A single adverse rate read cannot cancel a machine: the deficiency must persist
+      across derivations and the per-tick increase is capped. (`PRV-13e`, `LDG-16`)
+- [ ] **CNF-100** At end of runway the machine is cancelled and its disk destroyed — and the
+      caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
+- [ ] **CNF-101** Under a failing solvency check, every bill-increasing operation is refused
+      while cancel and delete continue to work. **The operations that reduce exposure are never
+      gated by the check that fires because exposure is too high.** (`LDG-20`)
+- [ ] **CNF-102** The ledger contains no caller address, payment counterparty, preimage or ecash
+      token. (`LDG-21`)
+- [ ] **CNF-103** Retention never deletes a ledger entry. (`LDG-22`, `STO-24`)
+- [ ] **CNF-104** Customer price is produced by exactly one function; no call site reads a
+      provider price string directly. (`LDG-23`)
+- [ ] **CNF-105** Privileged operations are metered although they are free. (`LDG-25`)
+- [ ] **CNF-106** The reserve holds **customer** price for machine time and the setup fee **at
+      cost** — a reserve computed from provider cost under-holds by exactly the margin.
+      (`PRV-13b`)
+
+## Ownership, deletion and duplication
+
+- [ ] **CNF-107** Two tenants cannot both hold the same `(provider_account, external_id)`. The
+      constraint is enforced by the store, not by application code. (`STO-17`)
+- [ ] **CNF-108** A machine with an unreleased billable attachment cannot be tombstoned.
+      (`STO-18`)
+- [ ] **CNF-109** An idempotency key reused after its operation was retained-out either returns
+      the original or is refused — it never performs the mutation a second time. (`STO-25`)
+- [ ] **CNF-110** A requeue preserves the previous error and the stated reason, and the next
+      attempt does not overwrite them. (`STO-20`, `OPS-19`)
+
+## Blast radius
+
+- [ ] **CNF-111** Tenants are distributed across more than one provider account. An assignment
+      policy that places every tenant in one account fails this item even though it satisfies
+      `API-17b`. (`SEC-43`)
+- [ ] **CNF-112** The provider's account-linkage practice has been verified in writing. Until it
+      is, `CNF-111` proves nothing. (`SEC-44`)
+- [ ] **CNF-113** One operator action terminates a tenant and every machine it owns, fast enough
+      to meet the provider's abuse-notice deadline. (`SEC-45`)
+- [ ] **CNF-114** Loss of a provider account releases the affected holds back to available
+      balance. (`SEC-46`)
+- [ ] **CNF-115** Balances and holds are answerable with every provider unreachable. (`SEC-47`)
+
 ## Before production
 
 Beyond the checklist, the following are judgement calls a deployment must make
@@ -376,3 +502,10 @@ explicitly and record:
 6. Who is on the rota for `needs_reconciliation`, and what the response procedure is
    (`OPS-26`).
 7. Where persisted recovery keys are inventoried and how they get destroyed (`RSC-21`).
+8. Whether enrolment issues a server-generated token or registers a caller-supplied public key
+   (`API-37`, and the note recorded after it).
+9. The negative window per provider, and the measurement it was derived from (`OPS-33`).
+10. The margin, per provider account or product class (`LDG-24`).
+11. The tenant-to-provider-account assignment policy, which is simultaneously the authorization
+    rule (`API-17b`) and the blast-radius control (`SEC-43`).
+12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).

@@ -217,3 +217,37 @@ the provider supports scoped credentials.
 
 **SEC-38** Credential rotation procedures MUST exist for API tokens, provider
 credentials, and any persisted recovery key.
+
+## Surviving an account-level termination
+
+`SEC-41` records the contractual fact; these are the requirements that follow from it once
+`ADR-0002` lets anonymous strangers run arbitrary code on the operator's accounts.
+
+**SEC-43** Tenants MUST be distributed across **multiple provider accounts** at the same
+provider, so that an account-level termination takes a fraction of the customer base rather than
+all of it. This is the purpose `API-17b`'s account assignment serves — it is not merely an
+authorization rule, it is the blast-radius control, and an assignment policy that puts every
+tenant in one account satisfies `API-17b` while defeating this requirement.
+
+**SEC-44** **[verify]** Whether a provider treats separately-registered accounts as genuinely
+separate MUST be checked before relying on `SEC-43`. Providers commonly link accounts sharing a
+payment method, a contact address or a beneficial owner, and terminate them together — in which
+case the isolation is illusory and real separation requires distinct legal entities. **A control
+that has not been verified against the provider's actual practice is a belief, not a defence.**
+
+**SEC-45** A deployment MUST be able to terminate one tenant and every machine it owns in a
+single operator action, fast enough to meet the provider's abuse-notice deadline. Under
+`ADR-0005` there is no identity to appeal to and no relationship to repair; responsiveness is the
+entire remedy, and it MUST NOT depend on the operator enumerating machines by hand under time
+pressure.
+
+**SEC-46** When a provider account is lost, the affected tenants' **holds MUST be released back
+to available balance**. The customers did nothing wrong, their machines are gone, and continuing
+to freeze satoshis against machines that no longer exist would convert the operator's misfortune
+into the customer's loss. This is not a refund — `ADR-0004` prohibits those — it is the same
+release any cancelled machine triggers, and the ledger already expresses it (`LDG-9`).
+
+**SEC-47** The ledger MUST NOT depend on any provider account remaining reachable. Balances,
+holds and history are this system's own records; losing an account is an inventory event, not a
+financial one, and a design that reads provider state to answer "what do I owe this customer"
+loses the answer at the worst moment.

@@ -33,9 +33,17 @@ NOT appear in a client-constructed path (`DOM-5`).
 **API-3** Requests MUST authenticate with a bearer token. The server MUST hold tokens
 only as digests in memory and MUST compare in constant time.
 
-**API-4** Tokens MUST be supplied through the environment, named — not valued — by the
-configuration. A minimum length MUST be enforced at startup (24 bytes is a reasonable
-floor) and duplicate tokens across identities MUST fail startup.
+**API-4** **AMENDED — it now applies to operator credentials only.** Operator tokens MUST be
+supplied through the environment, named — not valued — by the configuration. A minimum length
+MUST be enforced at startup (24 bytes is a reasonable floor) and duplicate tokens across
+identities MUST fail startup.
+
+The original text applied this to every token, which `ADR-0002` made impossible: a self-serve
+tenant appears at runtime and cannot have been named in an environment variable at startup.
+This was `F2`, recorded as unbuildable, and the split resolves it. **Customer credentials are
+issued at runtime and governed by `API-32`–`API-37`.** Operator credentials remain static,
+environment-supplied, and outside the tenant model entirely — which is also what keeps `API-19`
+(requeue is a purchase) genuinely operator-only.
 
 **API-5** Each token maps to exactly one tenant and an admin flag. An admin token MAY act
 for another tenant by sending a tenant override header; a non-admin token MUST NOT, and
@@ -55,6 +63,51 @@ Order of operations for every write endpoint, normatively:
 4. deserialize and validate the body;
 5. enqueue;
 6. respond `202`.
+
+## Enrolment
+
+Self-serve enrolment (`ADR-0002`) with no identity collected (`ADR-0005`) means the only thing
+standing between a script and an unbounded table of tenant rows is this section.
+
+**API-32** An unauthenticated enrolment endpoint MUST exist. It creates a tenant in a **pending**
+state and returns an enrolment handle. It MUST NOT return a usable credential immediately.
+
+**API-33** Credential issuance MUST be deferred by a configured delay after enrolment. The caller
+retries or polls with its handle; before the delay elapses the endpoint MUST report *not yet*
+rather than an error, and MUST NOT reveal the remaining time to the nearest instant (it is a free
+oracle for tuning an attack).
+
+**A delay is a real control against a naive script and a weak one against a parallel attacker**,
+because concurrency makes wall-clock free. It is specified here as the operator's chosen friction,
+not as the storage bound. `API-34` is the storage bound.
+
+**API-34** A pending tenant that has not been funded within a configured time-to-live MUST be
+deleted, along with its credential. This is what caps the table at *enrolment rate × TTL* rather
+than letting it grow without limit, and it is the requirement to test — an implementation that
+ships `API-33` without `API-34` has bought delay and no bound.
+
+**API-35** A tenant MUST NOT graduate out of pending until a payment has been credited to it. An
+unfunded tenant can do nothing under `ADR-0002` in any case, so pending is the correct place for
+it to wait, and funding is the only event that proves a real customer.
+
+**API-36** Enrolment MUST be rate-limited (`API-29`). Rate-limiting state MUST be held in memory
+and MUST NOT be persisted — retaining caller addresses to defend the enrolment endpoint would
+give up `ADR-0005` to protect a table.
+
+**API-37** **There is no credential recovery, and this MUST be stated to the caller at issuance.**
+No identity is collected, so there is nothing to prove ownership with; any recovery mechanism
+would be an account-takeover mechanism wearing a helpful name. A lost credential means a lost
+balance. The caller is software and can store a secret reliably — but it MUST be told that it
+has to.
+
+> **Open decision: what kind of credential.** The above assumes a server-generated bearer token
+> held as a digest (`API-3`). The alternative is for the caller to supply a **public key** at
+> enrolment and sign its requests, so that this system stores no customer secret at all and a
+> full database compromise yields nothing an attacker can act with. That is materially stronger
+> here than it would be elsewhere, because `ADR-0001` puts the public surface in the same process
+> as credentials to every customer's machine, and it turns `API-37`'s "no recovery" into the
+> customer's own key backup. Its cost is a request-signing specification — canonicalisation, a
+> nonce, clock-skew tolerance. Recorded rather than decided.
 
 ## Idempotency
 

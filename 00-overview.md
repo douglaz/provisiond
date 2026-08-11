@@ -130,16 +130,31 @@ URLs in the former, recovery private keys in the latter.
 The following are explicitly out of scope. A deployment that needs them MUST obtain
 them elsewhere, and the specification does not pretend to provide them:
 
-- customer billing, invoicing, or quota enforcement;
-- end-user KYC or abuse handling;
+- end-user identity verification or KYC — deliberately unnecessary, because a prepaid
+  balance is the entire spending authority (`ADR-0002`) and an unpaid stranger can do
+  nothing;
 - automatic reconciliation of duplicated provider resources;
 - image signature verification beyond a caller-supplied content digest;
 - console proxying or KVM-over-IP;
 - network, firewall, or DNS-zone orchestration beyond reverse DNS;
-- cancellation of dedicated-server contracts (ordering may be supported; termination of
-  a billing contract is a business process, not an API call);
 - automatic filesystem expansion after a raw-image write beyond a single optional
   partition-grow step.
+
+**Three entries were withdrawn from this list on 2026-08-10** and are recorded here rather
+than deleted, because a reader who remembers them needs to know they were reversed
+deliberately.
+
+- **"Customer billing, invoicing, or quota enforcement."** Withdrawn. Self-serve enrolment
+  plus prepaid balance (`ADR-0002`) makes a ledger, holds, and balance enforcement part of
+  this system's core. Nothing else can hold the reserve at the instant a create is
+  authorized (`API-17b`).
+- **"Abuse handling."** Withdrawn. It was defensible when tenants were operator-configured;
+  once a stranger's agent can enrol itself it is this system's problem (`SEC-41`, `SEC-42`).
+- **"Cancellation of dedicated-server contracts… a business process, not an API call."**
+  Withdrawn as both wrong and dangerous. Wrong: Hetzner Robot cancels immediately over its
+  API with no minimum term (`PRV-13c`). Dangerous: under prepaid authority, **automated
+  cancellation is the enforcement mechanism.** A balance that reaches zero with no way to
+  stop the meter converts a customer's exhausted credit into the operator's ongoing loss.
 
 **OVR-13** The list above MUST be kept current. A capability that is modelled but not
 implemented MUST return an explicit "unsupported" error rather than failing obscurely

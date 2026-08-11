@@ -93,6 +93,21 @@ details carry the transaction identifier.
 **PRV-12** Get machine MUST be read-only and free of side effects. It is called
 opportunistically after other actions and during reconciliation.
 
+**PRV-28** **Adoption is not a driver operation, and this resolves `F10`'s complaint that
+`adopt_existing` is declared as a capability and exposed by the API while no driver operation
+implements it.** Adopting is get-machine (`PRV-12`) followed by writing a local row; every driver
+already implements the only provider call it needs. The `adopt_existing` capability therefore
+gates *the control plane's willingness to adopt against that provider*, not a distinct driver
+method — which is worth stating, because a reader looking for the missing operation will not find
+one and may add a redundant method to the trait.
+
+`OPS-27`'s resolved-observed outcome takes exactly this path: a machine discovered by its
+correlator is attached by reading it and writing the row. Two consequences follow. Attachment
+inherits `PRV-12`'s side-effect-free guarantee, so reconciliation cannot mutate anything
+(`OPS-28`) even by accident. And an adopted machine has **no correlator**, because nothing wrote
+one at its creation — so `STO-17`'s cross-tenant uniqueness, not the correlator, is what stops
+two tenants adopting the same machine.
+
 ### Delete machine
 
 **Input** — `external_id`.
@@ -125,25 +140,73 @@ exposure before taking money. That requires, per product: an API path to stop th
 **measured** worst-case delay before cost actually stops, and cleanup for every billable
 attachment (`PRV-13a`).
 
-The reserve MUST cover, at minimum:
+The reserve is computed **in the provider's billing currency** and converted once, at hold time,
+into the ledger unit:
 
 ```
-reserve = setup_fee                                  # non-refundable, incurred at order
-        + accrued_unbilled_usage
-        + max( time_to_confirmed_cancellation × rate,   # NOT one billing tick
-               cost_through_earliest_cancellation_date ) # exception branch only
-        + billable_attachments                        # PRV-13a
-        × fx_haircut                                  # if the reserve is held in a volatile asset
+reserve_native = setup_fee                              # at cost, no markup (ADR-0006)
+               + accrued_unbilled_usage
+               + requested_runway × customer_rate       # PRV-13d, customer-chosen
+               + wind_down_cost                         # see below
+               + billable_attachments                   # PRV-13a
+               + cost_through_earliest_cancellation_date # exception branch only (PRV-13c)
+
+hold = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 ```
 
-Two parts are routinely got wrong.
+**`customer_rate`, not provider cost.** The reserve must cover what the *customer* is committing
+to spend, and since `customer_rate ≥ provider_rate` by construction, holding the customer price
+also covers the operator's exposure. Using provider cost here would under-hold every machine by
+exactly the margin. **The setup fee is the exception and is held at cost**, because `ADR-0006`
+passes it through unmarked — the operator does not profit from a fee it did not earn, and it is
+also the one term that is entirely lost if the customer vanishes an hour later, so it MUST be
+fully collected before the order is placed.
 
-**`time_to_confirmed_cancellation` is pager latency, not one billing tick.** Between the
-trigger and the provider confirming cancellation sit: the enqueue, a worker claim, the API
-call, and — per `OPS-11` — an ambiguous outcome that is the *default* classification for a
-failed mutation, meaning a human must look. Size this against the on-call rota, not the happy
-path. Twenty-four to seventy-two hours is a realistic band; seventy-two if the rota does not
-cover weekends.
+**`F18` fixed: there is one haircut and it belongs to the conversion, not to the sum.** The
+earlier text trailed `× fx_haircut` after the formula without saying whether it multiplied the
+whole reserve or only the foreign-currency part, and it conflated two different risks. They are
+now separated:
+
+- The **conversion haircut** covers the spread and the rate's staleness at the instant of
+  conversion. It applies to the conversion, once.
+- **There is no volatile-asset haircut**, because the reserve is no longer held in a volatile
+  asset relative to its own liability. Under `ADR-0003` the ledger is denominated in satoshis
+  and so is the customer's balance, so a bitcoin move re-prices the *customer's* purchasing
+  power, not the operator's coverage. Movement is handled by re-deriving the hold each period
+  (`PRV-13e`), not by over-collateralising it once.
+
+**`wind_down_cost` is smaller than this document used to claim, and the reason is worth
+recording.** The previous text sized it against an on-call rota — 24 to 72 hours, "72 if the
+rota does not cover weekends" — because a failed cancellation classified to
+`needs_reconciliation`, which at the time had no exit and therefore meant *wait for a human*.
+`OPS-27` changed that: a cancellation's true outcome is readable from provider state through the
+machine lookup every driver already implements (`PRV-3`), so the normal case now resolves in
+minutes without anyone waking up. Size `wind_down_cost` as **detection interval + measured
+confirmed-cancellation latency + margin**, and reserve the pager-latency figure for the case
+where provider state cannot be read at all.
+
+*This is the clearest illustration in the document of why `F1` was worth fixing: giving
+`needs_reconciliation` an exit did not merely tidy a state machine, it removed days of human
+latency from a number that every customer pays for in frozen balance.*
+
+**Where billing is capped per period, that cap is a catastrophe bound worth having.**
+
+**PRV-13d** A create MAY carry a caller-requested **runway** — how long the machine should be
+guaranteed to run before an exhausted balance can cancel it. The deployment MUST enforce a floor
+equal to `wind_down_cost`'s duration, below which the operator is not covered, and MUST reject a
+create whose available balance cannot fund the resulting hold. Making runway a caller input
+rather than an operator constant matters because the caller is software that knows its own
+intent: a two-hour scratch box and a machine meant to survive a month should not freeze the same
+amount of a customer's balance.
+
+**PRV-13e** The hold MUST be re-derived each billing period from current prices and the current
+rate, not fixed at create. Where the re-derived hold exceeds the current one and the balance can
+cover the difference, an additional hold is placed; where it cannot, the machine enters the same
+balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
+MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to
+become insufficient. A single-tick increase MUST be capped and a deficiency MUST persist across
+more than one derivation before it can trigger cancellation, so that one bad rate read cannot
+cancel a paying customer's machine.
 
 **Where billing is capped per period, that cap is a catastrophe bound worth having.** If total
 failure to cancel costs at most `setup_fee + one period cap` per machine, record it: the
@@ -261,6 +324,36 @@ direct driver use.
 **PRV-25** The caller-supplied IP MUST have been verified by the control plane to belong
 to the machine before the driver is called (`API-16`). The driver MUST still encode it
 into the request path safely (`PRV-6`).
+
+### Carrying a correlator
+
+This is not an operation. It is an obligation on **create**, and it is what makes automated
+recovery from an ambiguous outcome possible at all.
+
+**PRV-26** A create MUST carry the operation's identifier into the provider, using whatever
+caller-controlled field that provider offers, and the driver MUST be able to find resources
+bearing it afterwards. Every provider examined offers such a field (`08-provider-notes.md`), so
+a driver that cannot do this is asserting something unusual about its provider and MUST say so
+in its notes — because it thereby forfeits automated reconciliation (`OPS-27`) and hands every
+ambiguous create to a human.
+
+Three constraints on what is written:
+
+- **It MUST be opaque.** The operation UUID and nothing else. It MUST NOT encode the tenant, a
+  customer identifier, a hostname the customer chose, or anything else linkable to a person
+  (`ADR-0005`). Anyone reading the operator's provider console sees a UUID.
+- **It MUST be written in the same request that performs the mutation**, never as a follow-up
+  call. A correlator applied afterwards is absent in exactly the case it exists for — the
+  request whose reply was lost.
+- **It MUST survive the payload purge.** The correlator is a provider-side identifier, which
+  `OPS-13` already requires be retained, so it outlives the request body it was derived from.
+
+**PRV-27** Where the provider's caller-controlled field lives on an *order* rather than on the
+resulting machine — the robot-style ordering shape — the driver MUST record the provider's own
+transaction identifier before treating the outcome as ambiguous, and MUST use the provider's
+transaction listing to resolve. This is a stronger position than label search, not a weaker one:
+it answers "which orders did I place" directly, rather than inferring it from which machines
+exist. Its limit is the provider's listing window (`08-provider-notes.md`).
 
 ## Adding a driver
 

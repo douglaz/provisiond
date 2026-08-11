@@ -54,10 +54,45 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
 | `metadata` | json | redacted (`DOM-6`) |
+| `correlator` | UUID | the operation id written into the provider at create (`PRV-26`); nullable for adopted machines |
+| `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
+| `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
+| `reserve_sats` | integer | the currently held reserve |
+| `reserve_native_minor`, `reserve_currency` | integer, text | the same reserve in the provider's billing currency (`LDG-2`) |
+| `reserve_rate_num`, `reserve_rate_den` | integer | the exact rational used (`LDG-4`) |
+| `reserve_computed_at` | timestamp | drives re-derivation (`PRV-13e`) |
+| `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`) |
 | `created_at`, `updated_at` | timestamp | |
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; index on
-`(tenant_id, updated_at desc)`.
+`(tenant_id, updated_at desc)`; index on `(correlator)` for reconciliation lookup (`OPS-27`);
+index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
+
+**STO-17** `(provider_account, external_id)` MUST additionally be unique **across all tenants**,
+not merely within one. `SEC-10` and `CNF-6` require that a provider machine belong to at most one
+tenant, and the constraint written above — which includes `tenant_id` — permits exactly the
+duplicate it was meant to prevent. Two tenants adopting the same machine would each be authorized
+to destroy the other's server. This was `F15`.
+
+### `machine_attachments`
+
+Resources that survive machine deletion and keep billing (`PRV-13a`). Without this table there is
+no way to represent "machine gone, storage still charging", and `PRV-13a`'s prohibition on
+reporting such a machine deleted cannot be enforced.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `machine_id` | UUID | not null |
+| `kind` | enum | volume, snapshot, backup, reserved address, … |
+| `external_id` | text | provider-side identifier |
+| `billable` | boolean | whether it continues to accrue cost after machine deletion |
+| `cleanup` | enum | `api` (the driver can delete it) \| `manual` (named operator procedure) |
+| `released_at` | timestamp | nullable |
+
+**STO-18** A machine MUST NOT be tombstoned while any `billable` attachment with a null
+`released_at` remains. `STO-8` says tombstone when the resource is gone; `PRV-13a` says a machine
+whose storage still bills is not gone. This constraint is where the two are reconciled.
 
 **STO-8** Machines MUST be tombstoned, not deleted, when a provider deletion succeeds.
 Operation records reference them, and an operator investigating a
@@ -80,9 +115,14 @@ deleted rows.
 | `status` | enum | see `03-operation-lifecycle.md` |
 | `machine_id` | UUID | nullable; set on completion for create |
 | `provider_account` | text | nullable |
-| `request` | json | full request payload (`OPS-2`) |
+| `request` | json | caller payload — **live operations only**, purged at terminal state (`ADR-0005`) |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers (`OPS-13`) |
+| `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
+| `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` (`OPS-27`, `OPS-31`) |
+| `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
+| `hold_id` | UUID | nullable; the hold placed in the same transaction as the enqueue (`LDG-11`) |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `claimed_by` | text | nullable; worker identity |
@@ -93,8 +133,16 @@ Constraints: unique `(tenant_id, idempotency_key)`; index on
 `(status, available_at, created_at)` for the claim; index on `(tenant_id, created_at
 desc)` for listing.
 
-**STO-9** `request` contains caller secrets — signed image URLs above all. It MUST NOT be
-returned by the API (`API-21`) and the volume MUST be encrypted at rest (`OVR-12`).
+**STO-9** `request` contains caller secrets — signed image URLs, SSH keys, and up to 1 MiB of
+post-install script. It MUST NOT be returned by the API (`API-21`), the volume MUST be encrypted
+at rest (`OVR-12`), and **it MUST be purged when the operation reaches any terminal state**,
+including `needs_reconciliation` (`ADR-0005`). Encryption is not the control here; not having the
+data is. `request_summary` is what an operator investigating a stuck record actually reads, and
+`OPS-13` is satisfied by identifiers rather than secrets.
+
+**STO-19** `resolution` and its evidence columns MUST be write-once. A `needs_reconciliation`
+record that can be silently re-resolved is an audit trail that can be edited, and these records
+exist precisely for the cases where money moved and nobody is sure.
 
 **STO-10** An unrecognized `status` value read back from the store MUST be a hard error,
 not a silent default. Corruption or a downgrade MUST NOT be interpreted as `queued`.
@@ -117,10 +165,44 @@ lock exclusive.
 |---|---|---|
 | `operation_id` | UUID | |
 | `idempotency_key` | text | |
+| `reason` | text | not null; the operator's stated reason (`OPS-19`) |
+| `previous_error` | json | not null; the error being requeued past, preserved before it is overwritten (`OPS-19`) |
 | `created_at` | timestamp | |
 
 Primary key `(operation_id, idempotency_key)`, giving requeue its idempotency
 (`OPS-18`).
+
+**STO-20** `reason` and `previous_error` are not optional. `OPS-19` requires requeue to preserve
+an audit trail, and a table holding only the operation, the key and a timestamp cannot satisfy
+it — the error it requeued past is overwritten by the next attempt and lost. This was `F9`.
+
+### `tenants`
+
+Required by `ADR-0002`: a self-serve tenant appears at runtime, so it must be a row rather than
+an environment variable (`API-4` as amended).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | text | primary key; opaque, no personal data (`ADR-0005`) |
+| `credential_digest` | text | not null; never the credential itself (`API-3`) |
+| `status` | enum | `pending` \| `active` \| `suspended` |
+| `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
+| `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
+
+**STO-21** Nothing beyond these columns may be stored about a tenant. No address, no contact, no
+declared name, no origin. `ADR-0005` is a schema constraint, and the place a privacy policy
+actually fails is a column somebody added because it seemed harmless.
+
+### `ledger_entries` and `holds`
+
+Specified in `12-billing-and-ledger.md` (`LDG-5`–`LDG-8`), which is normative for their contents.
+Two constraints belong here because they are storage properties:
+
+**STO-22** `ledger_entries` MUST be append-only at the storage layer, not merely by convention —
+no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
+
+**STO-23** A hold and the operation that caused it MUST be written in one transaction
+(`LDG-11`), which is why `operations.hold_id` exists rather than a lookup by convention.
 
 ## Migrations
 
@@ -136,6 +218,17 @@ running instance of the previous version, or startup MUST take an exclusive lock
 
 **STO-14** A retention job MUST remove terminal operations older than a configured age,
 excluding `needs_reconciliation` (`OPS-25`).
+
+**STO-24** Retention MUST NOT reach `ledger_entries` (`LDG-22`). A financial record outlives the
+request that caused it; it contains no caller secrets to purge only because `LDG-21` kept them
+out.
+
+**STO-25** Idempotency records MUST outlive the operations they guard, or be replaced by a
+tombstone that still refuses a reused key. `API-11` promises that reusing a key returns the
+existing operation; `STO-14` deletes that operation; after which the same key performs the
+mutation again — **a duplicate purchase, by design.** Either retention preserves the
+`(tenant, key)` pair beyond the operation, or `API-11`'s promise must be given an explicit
+expiry that the API states to callers. This was `F8`.
 
 **STO-15** The database volume and the rescue recovery directory MUST be encrypted at
 rest (`OVR-12`), and the recovery directory MUST be restricted to the service account
