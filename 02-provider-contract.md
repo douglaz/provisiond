@@ -50,7 +50,8 @@ check and on every `GET /v1/providers`.
 
 **Input** — none.
 **Output** — offers (`DOM-9`).
-**Capability** — none; a driver that cannot enumerate offers returns `unsupported`.
+**Capability** — `list_offers` (`DOM-22`); a driver that cannot enumerate offers does not
+declare it, and the endpoint answers `unsupported` for that account.
 
 May aggregate several provider endpoints (for example a standard catalog and an auction
 market). Offers from different channels MUST be distinguishable by their identifier so

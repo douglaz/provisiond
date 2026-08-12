@@ -86,8 +86,14 @@ including create (`DOM-10`). A driver-internal check is defense in depth, not th
 
 ## Image trust
 
-**SEC-16** A content digest MUST be required for every custom image, verified on the
-rescue host (`DOM-14`, `RSC-25`).
+**SEC-16** **AMENDED.** A content digest MUST be required for every image **whose bytes this
+system writes** — `rootfs_tarball` and `raw_disk`, exactly `DOM-14`'s scope, verified on the
+rescue host (`RSC-25`). The original said "every custom image", which `F12` flagged as
+conflicting with `DOM-14` — and the conflict resolves on a capability fact, not a preference:
+for an iPXE script the booting machine fetches whatever the script names at boot time, so there
+are no bytes here to verify and a digest would attest nothing. Where this system does not touch
+the bytes, integrity is out of its reach and MUST NOT be implied; `SEC-17`'s provenance note
+applies with double force.
 
 **SEC-17** Digest verification is *not* signature verification. It proves the bytes match
 what the caller asked for; it proves nothing about who authored them. Deployments that

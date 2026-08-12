@@ -807,6 +807,10 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
 - [ ] **CNF-171** On the scheduled-cancellation branch, a shortfall that available cannot top is
       surfaced to the operator as a named deficiency — not silently absorbed, not billed to the
       customer twice. (`LDG-63`)
+- [ ] **CNF-172** A create/install carrying a signed URL whose expiry is inside the stated
+      admission-to-start bound is rejected at accept; at claim, a URL that cannot outlive the
+      install fails the operation with no provider mutation and no rescue entry. (`OPS-40`,
+      `SEC-21`)
 
 **PRE-SCALE** — `CNF-165` (an operator procedure with a human already in the loop).
 
@@ -820,7 +824,10 @@ provider invoice); `CNF-170` (write-skew on the money path, the `LDG-35` case in
 **PRE-SCALE** — `CNF-168`, `CNF-171` (visibility items; the harm they catch is bounded and
 operator-absorbable at concierge scale).
 
-With the five promotions above and these, the blocking set moves to **117**.
+**BLOCKING** — `CNF-172` (the gate stands between a doomed input and a destructive write that
+has already wiped a disk by the time the doom arrives).
+
+With the five promotions above and these, the blocking set moves to **118**.
 
 ## Ownership, deletion and duplication
 

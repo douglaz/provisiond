@@ -422,11 +422,18 @@ directly contradicted `DOM-3`. → **`API-17b`.**
 
 ## High — open
 
-**F6. Password-only rescue is impossible under the declared interface.** Begin-rescue always
+**F6. Re-scoped 2026-08-12: gates the Cherry driver, which `ADR-0010` left out of v1.** The only
+password-only rescue in the notes is Cherry's; Robot rescue is key-based and Hetzner Cloud
+accepts keys, so no launch-set driver hits this. The interface gap is real and stands for
+whenever Cherry ships: begin-rescue always
 receives an ephemeral public key, and `PRV-17` forbids accepting-then-ignoring it. No
 alternative access-request variant exists, so a password-rescue provider cannot conform.
 
-**F10. The capability model has dead branches** — *partially closed.* `adopt_existing` is
+**F10. CLOSED 2026-08-12** (`DOM-22`): `remote_console` withdrawn (non-goal with no operation
+behind it), `attach_iso` and the `iso` image source withdrawn from v1 (no driver operation ever
+specified, no launch provider exposes it), `list_offers` added so `OVR-2`'s discovery rule holds
+for the offers endpoint. The `adopt_existing` half had already closed via `PRV-28`. *Original
+text:* `adopt_existing` is
 resolved: `PRV-28` states that adoption is get-machine plus a local write, so the missing driver
 operation was never needed and a reader looking for it should not add one. **Still open:**
 `remote_console` has no operation while console proxying is a non-goal; `attach_iso` gates an
@@ -508,8 +515,11 @@ haircut applies at all, because `ADR-0003` matched the ledger's denomination to 
 
 ## Medium — open
 
-**F12. Digest policy conflicts.** `DOM-14` requires digests for rootfs and raw disk only; ISO's
-is explicitly optional and iPXE has none. `SEC-16` requires one for "every custom image."
+**F12. CLOSED 2026-08-12.** The conflict resolved on a capability fact: for iPXE (and the now-
+withdrawn ISO mode) this system never touches the bytes, so `SEC-16`'s "every custom image" was
+demanding an attestation nothing could check. `SEC-16` AMENDED to `DOM-14`'s scope — digests for
+what the system writes — with the out-of-reach cases stated as out of reach rather than implied
+covered.
 
 **F18. Several MUSTs are untestable as written:** "measured worst-case delay," "materially in
 the future" (`PRV-13c`), ceilings "per interval" (`SEC-39`), "enforce what it can" (`SEC-42`),
@@ -525,7 +535,10 @@ nobody wrote, so every implementer invents one and the checklist blesses it. `AP
 omits `PRV-8`'s minimum-one-key create rule. **Two competent implementations will not
 interoperate.**
 
-**F20. Durable queueing conflicts with short-lived signed image URLs.** `OPS-2` persists the
+**F20. CLOSED 2026-08-12** by `OPS-40`: minimum URL validity checked at accept against the
+stated admission-to-start bound, a deterministic pre-destructive gate at claim, mid-stream expiry
+classified as an ordinary install failure, and requeue's fresh payload (`OPS-34`) as the refresh
+path. *Original:* `OPS-2` persists the
 request; `SEC-21` wants short URL lifetimes. A URL can expire between enqueue, restart,
 deferral and execution, and there is no refresh or caller-replacement mechanism.
 

@@ -160,7 +160,7 @@ how to get it onto the disk.
 | `rootfs_tarball` | `url`, `sha256`, `format` (`tar`, `gzip`, `bzip2`, `xz`, `zstd`) |
 | `raw_disk` | `url`, `sha256`, `compression` (`none`, `gzip`, `xz`, `zstd`, `bzip2`) |
 | `ipxe` | `script` |
-| `iso` | `url`, optional `sha256` |
+| ~~`iso`~~ | **WITHDRAWN 2026-08-12** — see `DOM-22` |
 
 | Strategy | Meaning |
 |---|---|
@@ -175,7 +175,7 @@ invalid-request error before the operation is enqueued:
 |---|---|
 | `rootfs_via_rescue` | `rootfs_tarball` |
 | `raw_disk` | `raw_disk` |
-| `provider_native` | `catalog`, `ipxe`, `iso` |
+| `provider_native` | `catalog`, `ipxe` (~~`iso`~~ withdrawn, `DOM-22`) |
 
 **DOM-14** A digest MUST be required for `rootfs_tarball` and `raw_disk`, and MUST be
 exactly 64 hexadecimal characters, compared case-insensitively.
@@ -199,8 +199,7 @@ documents.
 | `install_rootfs_via_rescue` | The provider's OS installer accepts a root filesystem archive |
 | `install_raw_disk_via_rescue` | A raw image can be streamed to a block device in rescue |
 | `custom_ipxe` | Booting a caller-supplied iPXE script |
-| `attach_iso` | Attaching an ISO as boot media |
-| `remote_console` | Console or KVM access |
+| `list_offers` | Enumerating purchasable offers (`DOM-22`) |
 | `reverse_dns` | Setting PTR records for assigned addresses |
 
 **DOM-10** Every operation MUST be gated on the corresponding capability before the
@@ -220,11 +219,25 @@ Mapping from operation to required capability:
 | hard reset | `hard_reset` |
 | install, `provider_native` + `catalog` | `native_rebuild` |
 | install, `provider_native` + `ipxe` | `custom_ipxe` |
-| install, `provider_native` + `iso` | `attach_iso` |
+| list offers | `list_offers` |
 | install, `rootfs_via_rescue` | `install_rootfs_via_rescue` |
 | install, `raw_disk` | `install_raw_disk_via_rescue` |
 | reverse DNS | `reverse_dns` |
 | delete | `delete_machine` |
+
+**DOM-22** Three edits to the capability model on 2026-08-12, closing the rest of `F10`:
+
+- **`remote_console` is withdrawn.** Console proxying is a stated non-goal (`00-overview.md`),
+  so the capability had no operation behind it and never could — a declared capability with no
+  reachable code path is exactly what `DOM-15` calls a defect.
+- **`attach_iso` and the `iso` image source are withdrawn from v1.** No driver operation for
+  attaching boot media was ever specified, and no launch-set provider (`ADR-0010`) exposes
+  arbitrary caller-supplied ISO attachment. The pairing returns only with a specified driver
+  operation behind it.
+- **`list_offers` is added.** The offers endpoint previously documented itself as having no
+  capability, which contradicted `OVR-2`'s rule that capability is discoverable rather than
+  inferred — a caller had no way to know whether an empty offer list meant "nothing for sale"
+  or "cannot enumerate".
 
 **DOM-15** A capability that is declared but whose code path returns "unsupported" is a
 defect. Declaration and implementation MUST agree; the conformance checklist tests this

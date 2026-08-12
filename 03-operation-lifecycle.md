@@ -238,6 +238,18 @@ correlator, so a late-succeeding first attempt and a successful second both bear
 MUST reject a caller-supplied label that collides with the correlator's reserved key, and
 `OPS-31`'s operator verbs MUST be able to record which of several duplicates was kept.
 
+**OPS-40** **A signed image URL is validated against the queue's latency, twice** (`F20`).
+`OPS-2` persists a request so it can be executed after restarts and deferrals; `SEC-21` wants the
+signed URLs inside it short-lived. The two meet as follows: at **accept**, a request carrying a
+signed URL MUST be rejected unless the URL's expiry exceeds the deployment's stated worst-case
+admission-to-start bound; at **claim**, a worker MUST fail the operation deterministically —
+before any provider mutation and before rescue is entered — if the URL cannot outlive the
+install's stated worst-case duration, with an error kind and message telling the caller to
+re-submit with a fresh URL. An expiry mid-stream after that gate is an ordinary install failure
+under `OPS-11`'s classification. **The gate exists because the alternative is entering rescue and
+beginning a destructive write fed by a URL that is already doomed.** Operator requeue already
+carries a fresh payload (`OPS-34`), so no refresh mechanism inside the record is needed.
+
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
 new purchase.
