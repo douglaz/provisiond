@@ -139,7 +139,11 @@ reports a machine deleted while its storage continues to accrue cost is reportin
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
 exposure before taking money. That requires, per product: an API path to stop the cost, a
 **measured** worst-case delay before cost actually stops, and cleanup for every billable
-attachment (`PRV-13a`).
+attachment (`PRV-13a`). *"Measured" has a procedure (`F18`): the worst observed
+request-to-billing-stop latency over at least twenty real deletions on that product, in seconds,
+recorded with its sample size and date in the adapter notes — re-measured when the provider
+changes the API. Until twenty samples exist, the driver MUST carry a declared conservative bound
+instead, marked as unmeasured.*
 
 The reserve is computed **in the provider's billing currency** and converted once, when the
 commitment is opened or re-sized, into the ledger unit:
@@ -248,7 +252,10 @@ per-contract facts that change, differ between a provider's own product lines, a
 between a machine you ordered and a machine you adopted.
 
 The required shape is read-and-branch: order or adopt, **read** the provider's per-machine
-cancellation constraint, and branch to the exception path when it is materially in the future
+cancellation constraint, and branch to the exception path when it is **materially in the
+future** — defined (`F18`) as later than now plus one re-derivation period plus the product's
+wind-down bound; anything nearer is indistinguishable from the ordinary exhaustion path and
+needs no exception —
 (`DOM-19`). A machine on the exception branch MUST either carry a machine-specific reserve of
 cost-through-that-date, or not be sold on prepaid terms at all.
 

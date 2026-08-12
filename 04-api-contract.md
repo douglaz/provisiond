@@ -24,6 +24,7 @@
 | POST | `/v1/deposits` | ✓ | Mint a deposit: amount, expiry, both destinations (`API-43`) |
 | GET | `/v1/deposits/{id}` | ✓ | Read one deposit |
 | GET | `/v1/balance` | ✓ | Balance, available, and open commitments (`API-47`) |
+| POST | `/v1/machines/{id}/actions/extend-runway` | ✓ | Grow the machine's commitment from available (`LDG-62`, `WIR-24`) |
 
 **The last five rows were absent until 2026-08-12** — enrolment shipped on 2026-08-11 and funding
 earlier the same day as this note, each with requirements and no place on the surface. A table
@@ -223,6 +224,13 @@ Both exemptions have the same justification: **neither causes a provider mutatio
 needs a durable operation, and `operations.tenant_id` cannot name a tenant that does not exist yet
 (enrolment). Any endpoint added later that *does* touch a provider MUST obey `API-1`; this list is
 closed, not a pattern.
+
+**AMENDED (2026-08-12, `WIR-24`): `POST /v1/machines/{id}/actions/extend-runway` joins the list**,
+under the same justification — it is a pure ledger action (`LDG-62`), returns the updated machine
+view synchronously, and mints no operation per `OPS-39`'s rule that pure balance events are the
+ledger's to record. The list being closed is why this amendment is written here rather than the
+endpoint quietly exempting itself — which is exactly how the last two exemptions went unlisted
+for a day.
 
 **API-46** Funding MUST be rate-limited per tenant. Each request creates an address the operator
 must watch until expiry (`LDG-57`) and a binding it retains afterwards (`STO-29`), so an unlimited

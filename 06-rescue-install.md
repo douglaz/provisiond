@@ -157,7 +157,10 @@ documented in the API. A mismatch leaves the disk partially or wholly overwritte
 operation MUST fail with an `integrity` error and route to reconciliation (`OPS-11`).
 
 **RSC-30** Because of `RSC-29`, the deployment MUST host custom images on controlled,
-immutable storage, and the caller SHOULD verify the digest independently before
+immutable storage — defined (`F18`) as storage where the bytes behind a URL cannot change after
+the digest is computed: a content-addressed store, or object storage with versioning or object
+lock where the URL pins the version. A mutable path behind a signed URL fails this even though
+the URL is signed. The caller SHOULD verify the digest independently before
 submitting. An implementation MAY offer a two-pass mode (download to scratch, verify,
 then write) for hosts with sufficient scratch space, and if it does, that mode SHOULD be
 the default.

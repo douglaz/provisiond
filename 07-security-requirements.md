@@ -159,7 +159,12 @@ acceptable-use policy from the provider's own terms and enforce what it can.** A
 is arbitrary code running on hardware rented in the operator's name. Typical provider
 prohibitions that a reseller inherits and must pass on: no manual MAC address changes, no
 scanning of foreign networks, no source-IP spoofing, no cryptocurrency mining, and no combining
-customer-owned OS licences with provider-leased ones. The deployment MUST state which of these
+customer-owned OS licences with provider-leased ones. *"Enforce what it can" is bounded (`F18`):
+enforceable means checkable at request time from data the system already holds (image source
+pairings, provider options, capability gates) — each such rule MUST be enforced and named;
+everything only observable on the running machine is explicitly a terms obligation backed by
+`SEC-45`'s termination, and MUST be listed as such rather than implied enforced.* The deployment
+MUST state which of these
 it can technically enforce, which it can only contractually require, and what it does on a
 provider abuse notice.
 
@@ -171,7 +176,9 @@ and the safety property it was carrying quietly disappears while the field is st
 and still `true`.
 
 A deployment whose callers are autonomous MUST therefore enforce **server-side ceilings per
-principal** — at minimum machines destroyed per interval, machines created per interval,
+principal** — the interval is a stated deployment parameter, **default one hour**, and each
+ceiling is a stated integer (`F18`) — at minimum machines destroyed per interval, machines
+created per interval,
 and images written per interval, plus a spend ceiling where the deployment prices its own
 resources. The acknowledgement field is retained as a statement of intent and as a defence
 against the accidental call; it MUST NOT be the only thing standing between a looping agent

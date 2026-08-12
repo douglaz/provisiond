@@ -811,6 +811,16 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       admission-to-start bound is rejected at accept; at claim, a URL that cannot outlive the
       install fails the operation with no provider mutation and no rescue entry. (`OPS-40`,
       `SEC-21`)
+- [ ] **CNF-174** Published test vectors — a fixed key, timestamp, body and idempotency key with
+      their exact signed byte string and signature — verify against an independent
+      implementation of `WIR-6`. Two implementations that disagree on any vector do not
+      interoperate, and authentication is where that failure is silent. (`WIR-6`, `API-39`)
+- [ ] **CNF-175** A request with an unknown body field is rejected naming the field, and a
+      response with an extra field is accepted by the reference client. Both directions of
+      `WIR-2`, tested separately. (`WIR-2`)
+- [ ] **CNF-176** Every example body in `13-wire-contract.md` validates against the
+      implementation's actual parser — the examples are test fixtures, not illustrations.
+      (`F19`)
 - [ ] **CNF-173** After startup, enumerating the process environment from inside the
       customer-facing module yields no provider credential — asserted by actually reading the
       environment at runtime, not by reviewing the scrub call, because a runtime that caches the
@@ -828,12 +838,17 @@ provider invoice); `CNF-170` (write-skew on the money path, the `LDG-35` case in
 **PRE-SCALE** — `CNF-168`, `CNF-171` (visibility items; the harm they catch is bounded and
 operator-absorbable at concierge scale).
 
-**BLOCKING** — `CNF-172` (the gate stands between a doomed input and a destructive write that
+**BLOCKING** — `CNF-174` (interoperability of authentication fails silently — a second
+implementation that computes the byte string differently locks every customer out or, worse,
+verifies nothing); `CNF-172` (the gate stands between a doomed input and a destructive write that
 has already wiped a disk by the time the doom arrives); `CNF-173` (escaped-secret family — the
 only structural credential defence `ADR-0001` left standing, finally given a test that measures
 reachability instead of type visibility).
 
-With the five promotions above and these, the blocking set moves to **119**.
+**PRE-SCALE** — `CNF-175`, `CNF-176` (contract-drift catchers; they harden the wire, they do
+not move money).
+
+With the five promotions above and these, the blocking set moves to **120**.
 
 ## Ownership, deletion and duplication
 

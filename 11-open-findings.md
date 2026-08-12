@@ -63,7 +63,13 @@ after deletion; `STO-18` forbids tombstoning while a billable attachment survive
 
 ## Critical — open
 
-**F23. The wire contract is now further behind than when `F19` was written.** Enrolment added
+**F23. CLOSED 2026-08-12 with `F19` — `13-wire-contract.md` exists.** Thirty-two `WIR`
+requirements: conventions (JCS canonicalization, reject-unknown-on-write), the `API-39` signing
+byte string with algorithm and encodings fixed (Ed25519, `WIR-6`), the error envelope, the
+operation and machine views, and a body for all twenty-two endpoints — including
+`extend-runway`, which `LDG-62` created and no surface row carried until this document forced
+the enumeration. Panel review pending; until it lands the document should be treated as one
+author's draft of the most interoperability-critical text in the set. *Original:* Enrolment added
 endpoints, the create request gained a runway field (`PRV-13d`), and machines gained
 caller-readable runway (`LDG-15`) — none with a request or response body. See `F19`. **This is
 now the largest single gap in the set.**
@@ -523,13 +529,20 @@ demanding an attestation nothing could check. `SEC-16` AMENDED to `DOM-14`'s sco
 what the system writes — with the out-of-reach cases stated as out of reach rather than implied
 covered.
 
-**F18. Several MUSTs are untestable as written:** "measured worst-case delay," "materially in
+**F18. CLOSED 2026-08-12.** Each vague MUST now carries units and a procedure in place:
+"measured" = worst observed over ≥20 real deletions, recorded with sample size and date, with a
+declared conservative bound until then (`PRV-13b`); "materially in the future" = beyond one
+re-derivation period plus wind-down (`PRV-13c`); `SEC-39`'s interval defaults to one hour with
+stated integer ceilings; `SEC-42`'s "enforce what it can" = checkable at request time from held
+data, everything else explicitly a terms obligation; `RSC-30`'s storage = content-addressed or
+version-pinned; `API-26`'s range = 1–200 default 50 (`WIR-32`). `PRV-13b`'s haircut ambiguity
+had already been fixed with `F18`'s earlier half. *Original:* "measured worst-case delay," "materially in
 the future" (`PRV-13c`), ceilings "per interval" (`SEC-39`), "enforce what it can" (`SEC-42`),
 "a sane range" (`API-26`), "controlled, immutable storage" (`RSC-30`). No units, thresholds,
 measurement procedure or pass/fail boundary. `PRV-13b`'s formula also leaves ambiguous whether
 the FX haircut multiplies the whole reserve or only part of it.
 
-**F19. The wire contract does not exist.** In ~2,600 lines there is exactly one JSON example —
+**F19. CLOSED 2026-08-12 — see `F23`.** *Original:* In ~2,600 lines there is exactly one JSON example —
 the error envelope. No request or response body for any endpoint. The idempotency header is
 required by `API-8` and never named; likewise the tenant-override header and the destructive
 and purchase acknowledgement fields. `CNF-21` tests "byte-equivalent body" against a contract

@@ -29,6 +29,7 @@ requirement not to repeat it.
 | `11-open-findings.md` | **Read this before building.** An independent audit's 21 findings, which are fixed and which are open, and the three questions a builder must ask first |
 | `12-billing-and-ledger.md` | The ledger, commitments, the meter, funding, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
 | `CONTEXT.md` | Glossary. Which word means what, and which words are banned |
+| `13-wire-contract.md` | Bodies, headers, the signing byte-string, the error envelope. Closes `F19` |
 | `docs/adr/` | The decisions, and what was rejected to reach them |
 
 Read `00`, `01`, and `03` first. `03` is the heart of the design — the operation
@@ -85,9 +86,11 @@ product model and have not been re-read against the final one. `03` is also the 
 README calls the heart of the design. Weight accordingly.
 
 **A green conformance checklist certifies the requirements that are written down.** It says
-nothing about what is missing — and a builder will have to invent a wire format, an adopt
-driver operation, and the resolution path out of `needs_reconciliation`, none of which this set
-specifies (see `10-conformance-checklist.md` for what tiering does and does not cover).
+nothing about what is missing. The three inventions this paragraph used to list — a wire format,
+an adopt operation, the resolution path out of `needs_reconciliation` — now exist
+(`13-wire-contract.md`, `PRV-28`, `OPS-27`–`OPS-38`), which does not retire the warning: what is
+missing is, by construction, whatever nobody has noticed yet, and `F24` records how that went
+last time.
 
 ## Requirement conventions
 
@@ -107,6 +110,7 @@ tests, and issue trackers:
 | `SEC-n` | Security |
 | `DEF-n` | Defect prohibitions |
 | `LDG-n` | Billing and the ledger |
+| `WIR-n` | Wire contract |
 | `CNF-n` | Conformance checklist items |
 
 Identifiers are append-only. If a requirement is withdrawn, mark it `WITHDRAWN` in
