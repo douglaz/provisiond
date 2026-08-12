@@ -242,6 +242,17 @@ MUST reject a caller-supplied label that collides with the correlator's reserved
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
 new purchase.
 
+**OPS-39** **System-initiated provider mutations MUST be operations, and the tenant MUST see
+them.** Exhaustion cancelling a machine (`LDG-14`), `OPS-36`'s attach-then-cancel, and any other
+mutation the deployment performs on a tenant's machine without a caller request MUST go through
+this queue — lock, lease, terminal states, `needs_reconciliation` included, because a cancel
+whose outcome is ambiguous is ambiguous regardless of who asked for it — and MUST appear in the
+tenant's operation list marked `requested_by: system` with a stated reason (`exhausted`,
+`late_attach_cleanup`, `account_lost`). Without this, `GET /v1/operations` is not the history of
+a tenant's fleet, and the hole sits exactly where the most alarming event does: the machine that
+vanished overnight (`F31`). A pure balance event with no provider mutation — a commitment
+release, a re-derivation — mints **no** operation; the ledger is already that record.
+
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look
 identical, and attaching the wrong machine gives one customer another's server. Where no

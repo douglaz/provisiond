@@ -131,6 +131,8 @@ deleted rows.
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `hold_id` | UUID | nullable; the hold placed in the same transaction as the enqueue (`LDG-11`) |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
+| `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
+| `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost` |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `claimed_by` | text | nullable; worker identity |

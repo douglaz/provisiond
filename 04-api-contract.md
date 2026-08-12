@@ -389,9 +389,11 @@ records by correlation id (`API-28`).
 
 ## Operation views
 
-**API-20** The operation view returned to clients MUST include: id, tenant, idempotency
-key, kind, status, machine id, provider account, result, error, attempt count, and
-timestamps.
+**API-20** **AMENDED 2026-08-12.** The operation view returned to clients MUST include: id,
+tenant, idempotency key, kind, status, machine id, provider account, result, error, attempt
+count, timestamps, `revision` (`API-53`), `retryable` (`API-51`), and `requested_by` with its
+`system_reason` when system-initiated (`OPS-39`). For a non-terminal operation the view carries
+`poll_after_ms` (`API-49`).
 
 **API-21** The operation view MUST NOT include the stored request payload. It can contain
 signed image URLs and other caller secrets that need not be echoed back.

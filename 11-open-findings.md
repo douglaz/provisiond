@@ -293,11 +293,15 @@ observe its own activation — the funnel's happy path ended in probe-by-purchas
 re-send (`DOM-21`'s `gone`, `STO-33` aligning the two horizons `STO-14` and `STO-25` had left
 free to cross).
 
-**Still open from this thread:** whether system-initiated mutations — exhaustion cancelling a
-machine (`LDG-14`), `OPS-36`'s late attach-then-cancel, `SEC-46`'s account-loss release — mint
-tenant-visible operation records. If they do not, `GET /v1/operations` is not the history of
-what happened to a tenant's fleet, and machine/balance polling papers over the gap only until a
-customer asks *why* a machine vanished. This is **F31**.
+**F31 — opened and closed the same day.** Whether system-initiated mutations mint tenant-visible
+operation records. → `OPS-39`: **yes, for provider mutations** — exhaustion cancels and late-
+attach cleanup go through the queue (lock, lease, `needs_reconciliation` and all, because an
+ambiguous cancel is ambiguous regardless of who asked) and appear in the tenant's list as
+`requested_by: system` with a reason. Pure balance events mint nothing; the ledger is already
+that record. The deciding observation: these mutations need the queue's safety machinery
+*anyway* — an exhaustion cancel outside it is a blind mutation against a customer machine — so
+tenant visibility was the only genuinely open part, and hiding a machine's destruction from its
+owner's history had nothing arguing for it. `CNF-159` is BLOCKING.
 
 ## The launch set — 2026-08-12
 

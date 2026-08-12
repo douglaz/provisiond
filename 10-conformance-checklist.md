@@ -201,7 +201,12 @@ and burn rate-limit budget; they do not move money. `CNF-152` graduates to BLOCK
 second independent client implementation exists, because at that point the invariant is the only
 shared contract.
 
-The blocking set moves to **102**.
+**BLOCKING** (added with `OPS-39`) — `CNF-159`. It is the destroyed-data event routed through the
+queue's safety machinery: an exhaustion cancel outside the queue has no lock, no lease and no
+`needs_reconciliation` path, which is a blind mutation against a customer machine — the thing
+`OVR-5` calls the single most important thing this system refuses to do.
+
+The blocking set moves to **103**.
 
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
@@ -723,6 +728,11 @@ Added 2026-08-12 with `API-49`–`API-54`.
 - [ ] **CNF-158** Reading an operation past the retention horizon answers `gone`, not
       `not_found`, and the published observability horizon equals the idempotency horizon.
       (`DOM-21`, `STO-33`)
+- [ ] **CNF-159** Driving a tenant's balance to exhaustion produces a tenant-visible operation
+      with `requested_by: system` and reason `exhausted`, holding the machine lock, and capable
+      of ending in `needs_reconciliation` like any cancel. The test is that the customer-facing
+      history contains the event **before** the machine record shows it gone. (`OPS-39`,
+      `LDG-14`)
 
 ## Ownership, deletion and duplication
 
