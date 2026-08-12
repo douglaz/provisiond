@@ -208,17 +208,53 @@ conformance item (`CNF-94`) while specifying no endpoint that takes money — th
 turns a stranger into a customer was missing entirely.
 
 **AMENDED — this requirement previously listed what a deployment must decide; `ADR-0008` decided
-it.** `LDG-46`–`LDG-53` are the decisions. What survives as a deployment obligation is narrower:
-the confirmation depth of `LDG-48`, the per-rail floors of `LDG-52`, the invoice expiry of
-`LDG-51`, and the channel-balance treatment of `LDG-53` are all deployment parameters, and each
-MUST be stated rather than left to an implementer's judgement.
+it.** `LDG-46`–`LDG-57` are the decisions. What survives as a deployment obligation is narrower:
+the confirmation depth of `LDG-48`, the per-rail floors of `LDG-52`, the **deposit expiry** of
+`LDG-54`, and the channel-balance treatment of `LDG-53` are all deployment parameters, and each
+MUST be stated rather than left to an implementer's judgement. The expiry is the load-bearing one:
+it is simultaneously the customer's deadline, the operator's disclosure (`LDG-54`) and the bound
+on the watch set (`LDG-57`), so choosing it short to save work shortens the customer's window and
+choosing it long to be generous grows an obligation the operator cannot shed.
 
-**LDG-46** **Two rails ship: Lightning primary, on-chain fallback** (`ADR-0008`). A deployment
-MUST offer both. Lightning has a ceiling the customer cannot see — a top-up exceeding inbound
-capacity presents as a payment that simply does not route — so a funding request whose amount
-cannot be invoiced MUST be answered with an on-chain destination rather than an error, and the
-caller MUST be told which rail it was given. **A rail is a property of the funding request, not of
-the tenant**: the same tenant funds over Lightning on Monday and on-chain on Tuesday.
+**LDG-46** **AMENDED. A deposit is one object with two ways to pay it.** A funding request MUST
+mint a single **deposit** carrying an **amount** and an **expiry**, and MUST return *both* a
+Lightning destination and an on-chain destination for it. **The deployment MUST NOT select the
+rail; the payer selects it at payment time.**
+
+*The withdrawn text made the rail an operator choice at mint, answering on-chain whenever the
+amount exceeded inbound capacity. That is wrong in two ways. It forces a guess about liquidity
+that can be stale by the time the customer pays, and it makes the awkward case — the large
+first top-up — the one where the operator's guess is load-bearing. Offering both moves the choice
+to the party who knows their own constraints.*
+
+**LDG-54** **The deposit's expiry governs both rails, and on-chain it is a promise rather than a
+mechanism.** A Lightning invoice enforces its own expiry: after it, the payment cannot be made. An
+address does not and cannot — it stays payable forever, and nothing the operator does changes
+that. So on the on-chain rail the expiry means only that **the operator stops watching**, and that
+distinction MUST be disclosed to the caller at mint, in those terms. **An address that still looks
+payable but is no longer watched is the trap this requirement exists to prevent**, and it is the
+one place in the funding design where a customer can lose money by doing something that looks
+correct.
+
+**LDG-55** **Settlement on one rail MUST NOT stop watching the other before expiry.** Both
+destinations are live for the deposit's whole life, so a customer may pay both — most plausibly by
+paying on-chain, waiting, losing patience, and paying over Lightning. Each payment MUST be
+credited on its own terms (`LDG-47`); the deposit is not a receivable that closes on first
+settlement. Treating first settlement as closure strands the second payment, which is `LDG-43`'s
+forbidden outcome reached through an optimisation.
+
+**LDG-56** **Paying a deposit twice credits twice, and there is no refund.** This follows from
+`LDG-47` and `ADR-0004` and is stated separately because it is the one consequence a customer
+will experience as surprising. It MUST be disclosed alongside `LDG-54`'s expiry disclosure. The
+alternative — refusing or holding the second payment — would strand money the operator is
+forbidden from returning, which is worse.
+
+**LDG-57** **The active watch set is bounded by the expiry, and this is what makes on-chain
+funding affordable.** A deployment MUST watch only unexpired deposits' addresses, so the set is
+bounded by *mint rate × expiry window* regardless of how long an attacker persists. Retaining the
+expired binding is a storage question and a cheap one (`STO-29`); **watching is the expensive
+obligation, and the expiry is what bounds it.** An implementation that watches every address ever
+issued has re-created an unbounded, un-reclaimable commitment minted by a free action.
 
 **LDG-47** **Credit what arrived, never what was intended.** One rule, both rails. On-chain the
 payer bears the network fee, so the credit is the received output value; on Lightning the invoice
@@ -236,32 +272,40 @@ amount** — a replaceable transaction would buy a machine whose setup fee is al
 non-refundable the instant the order lands (`LDG-39`), which is a self-funding attack rather than
 a risk to be priced.
 
-**LDG-49** **Attribution is by destination, never by payer.** A funding request MUST mint a
-destination bound to exactly one tenant — a payment hash on Lightning, a derived address
-on-chain — and the credit MUST be posted against that binding. Destinations MUST NOT be shared
-between tenants. The destination-to-tenant map is the operator's own record and identifies no
-counterparty, so it satisfies `LDG-21` and `ADR-0005` while doing the work that knowing the payer
-would otherwise be needed for.
+**LDG-49** **Attribution is by deposit, never by payer.** Each of a deposit's two destinations —
+the payment hash and the derived address — MUST resolve to exactly one deposit and therefore to
+exactly one tenant, and the credit MUST be posted against that binding. Destinations MUST NOT be
+shared between deposits or between tenants. The destination-to-deposit map is the operator's own
+record and identifies no counterparty, so it satisfies `LDG-21` and `ADR-0005` while doing the
+work that knowing the payer would otherwise be needed for.
 
-**LDG-50** **A fresh on-chain address per funding request.** Reusing one address per tenant
-publicly links every top-up that tenant ever makes, on a ledger that is permanent and worldwide.
-That is a larger privacy harm than anything `ADR-0005` prevents by not writing logs, and it is
-inflicted by the operator's own address policy rather than by the customer's choice.
+**LDG-50** **A fresh on-chain address per deposit.** Reusing one address per tenant publicly links
+every top-up that tenant ever makes, on a ledger that is permanent and worldwide. That is a larger
+privacy harm than anything `ADR-0005` prevents by not writing logs, and it is inflicted by the
+operator's own address policy rather than by the customer's choice.
 
-**LDG-51** **Expiry ends payability, not the binding.** A Lightning invoice MUST carry an expiry
-after which it can no longer be paid. **An on-chain address has no such property** — anyone may
-pay a derived address forever, and nothing the operator does can prevent it. Therefore the
-destination-to-tenant binding MUST be retained beyond the lifetime of the funding request that
-created it, and a payment arriving at an expired destination belonging to a live tenant MUST be
-credited normally. A payment arriving for a tenant that no longer exists is governed by `LDG-43`
-and is the one case the two rails genuinely differ on, because only the on-chain rail can receive
-one.
+**LDG-51** **AMENDED. Expiry ends watching; the binding outlives it.** A payment arriving at an
+expired deposit's address, for a live tenant, MUST be credited if it is observed at all — the
+binding is retained (`STO-29`) precisely so that a late payment brought to the operator's
+attention can still be attributed rather than being unrecoverable by construction. What expires is
+the obligation to *notice* it (`LDG-57`), not the ability to resolve it. A payment for a tenant
+that no longer exists is governed by `LDG-43`.
 
-**LDG-52** **`LDG-44`'s minimum is per-rail, and the on-chain floor is higher.** It MUST exceed
-the cost of eventually spending the output the payment creates. A top-up smaller than its own
-future sweep fee reduces the satoshis the operator holds while increasing the float, so it does
-not underfund a tenant — it moves `LDG-17` in the wrong direction, and does so more the more
+*The withdrawn text said "expiry ends payability, not the binding" and treated an address's
+permanent payability as the anomaly. Under `LDG-54` the anomaly is named directly and the
+consequence is split in two: watching stops, resolution does not.*
+
+**LDG-52** **AMENDED. `LDG-44`'s minimum is per-rail, and the on-chain floor is higher.** It MUST
+exceed the cost of eventually spending the output the payment creates. A top-up smaller than its
+own future sweep fee reduces the satoshis the operator holds while increasing the float, so it
+does not underfund a tenant — it moves `LDG-17` in the wrong direction, and does so more the more
 often it happens.
+
+**Because a deposit is payable over either rail (`LDG-46`), the floor cannot be enforced at
+mint.** A deposit whose amount clears the Lightning floor but not the on-chain floor MUST still be
+mintable; what the deployment MUST do is disclose the on-chain floor with the destination, and
+credit an under-floor on-chain payment at its received value (`LDG-47`) rather than refusing it.
+**Refusing it would strand it**, since `ADR-0004` forbids sending it back.
 
 **LDG-53** **Solvency counts both rails** (`LDG-17`). Satoshis actually held MUST include channel
 balances and confirmed on-chain outputs. A channel balance is encumbered by channel state and a

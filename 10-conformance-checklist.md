@@ -109,7 +109,7 @@ destruction — this was `F15`); `CNF-108`, `CNF-109` (unbounded billing and dup
 
 **DEFERRED** — none.
 
-### Assignments for `CNF-116`–`CNF-127` (added 2026-08-12)
+### Assignments for `CNF-116`–`CNF-131` (added 2026-08-12)
 
 The funding items, for `ADR-0008`'s two rails. Applying the three questions honestly puts almost
 all of them in the top tier, and the reason is structural rather than pessimistic: **money-in is
@@ -121,16 +121,25 @@ caller that retries reaches it by accident.
 
 **BLOCKING** — `CNF-116`, `CNF-117`, `CNF-118`, `CNF-119` (each one credits satoshis that were
 not received, or refuses satoshis that were); `CNF-120` (a shared destination credits one
-customer's payment to another); `CNF-121` (both halves: minting a fresh address per retry makes a
+customer's payment to another); `CNF-121` (both halves: minting a fresh deposit per retry makes a
 caller pay twice for one top-up); `CNF-123`, `CNF-124` (the two ways a real payment is
 irrecoverably lost or silently doubled); `CNF-125` (without it, enrolment cannot complete and the
-product does not exist).
+product does not exist); `CNF-128` (closing a deposit on first settlement strands the second
+payment, and `ADR-0004` forbids returning it); `CNF-129` (a watch set that does not survive
+restart loses real customers' money, and **raises no error while doing it** — the operator would
+not know); `CNF-131` (the disclosure is the only thing standing between a customer and an
+unwatched address, so an implementation that omits it has no control at all, not a weak one).
 
-**PRE-SCALE** — `CNF-122`, `CNF-126`, `CNF-127`.
+**PRE-SCALE** — `CNF-122`, `CNF-126`, `CNF-127`, `CNF-130`.
 
 **DEFERRED** — none.
 
-The blocking set moves from 73 to **82**.
+`CNF-130` is PRE-SCALE rather than BLOCKING on the argument that an unbounded watch set degrades
+service rather than losing money — **which is the same argument that put `CNF-99` in the wrong
+tier** (`F30`). It is recorded here so that whoever re-tiers `CNF-99` re-examines this one in the
+same pass.
+
+The blocking set moves from 73 to **86**.
 
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
@@ -494,7 +503,7 @@ Added 2026-08-12 with `ADR-0008`. Every item here is a way to mint satoshis that
 to strand satoshis that do.
 
 - [ ] **CNF-116** A payment settling for less than the requested amount credits the **settled**
-      value. A credit derived from `funding_destinations.requested_sats` is the defect — assert it
+      value. A credit derived from `deposits.requested_sats` is the defect — assert it
       at the call site, not by reading the number back. (`LDG-47`, `STO-29`)
 - [ ] **CNF-117** An overpayment is credited in full and is never refused or truncated. (`LDG-47`)
 - [ ] **CNF-118** No credit is posted for an unconfirmed on-chain transaction at any amount, and
@@ -502,17 +511,17 @@ to strand satoshis that do.
       or none — never the original. (`LDG-48`)
 - [ ] **CNF-119** An accepted-but-unsettled Lightning HTLC posts no credit. A held invoice that is
       later cancelled leaves the balance untouched. (`LDG-48`)
-- [ ] **CNF-120** Two funding requests never produce the same destination, and two tenants never
-      share one. (`LDG-49`)
+- [ ] **CNF-120** Two funding requests never produce the same destination on either rail, and two
+      tenants never share one. (`LDG-49`)
 - [ ] **CNF-121** Two funding requests from one tenant produce two distinct on-chain addresses;
-      the same request retried with the same idempotency key produces **one**. Both halves must
-      hold — the first is the privacy rule, the second is the double-payment rule. (`LDG-50`,
-      `API-45`)
-- [ ] **CNF-122** A payment arriving after its destination expired, to a live tenant, is credited
-      normally. (`LDG-51`)
-- [ ] **CNF-123** Deleting a pending tenant at its time-to-live leaves its funding destinations
-      intact, and a later payment to one of them is recorded as unattributed rather than lost or
-      dropped. (`STO-29`, `LDG-43`, `API-42`)
+      the same request retried with the same idempotency key produces **one deposit** — same
+      invoice, same address. Both halves must hold — the first is the privacy rule, the second is
+      the double-payment rule. (`LDG-50`, `API-45`)
+- [ ] **CNF-122** A payment observed at an expired deposit's address, for a live tenant, is
+      credited rather than refused. Expiry ends watching, not resolution. (`LDG-51`, `LDG-54`)
+- [ ] **CNF-123** Deleting a pending tenant at its time-to-live leaves its deposits intact, and a
+      later payment to one of them is recorded as unattributed rather than lost or dropped.
+      (`STO-29`, `LDG-43`, `API-42`)
 - [ ] **CNF-124** Killing the process between crediting the ledger and marking the destination
       settled leaves the payment credited exactly once after recovery — not twice, not zero times.
       Replaying the rail's settlement stream produces no second entry. (`STO-30`, `STO-31`)
@@ -521,8 +530,22 @@ to strand satoshis that do.
 - [ ] **CNF-126** The solvency check counts channel balances and confirmed on-chain outputs, and
       the deployment's stated treatment of an encumbered channel balance is the one implemented.
       (`LDG-53`, `LDG-17`)
-- [ ] **CNF-127** An on-chain funding request below the floor that covers spending its own output
-      is refused at request time, not discovered at credit time. (`LDG-52`)
+- [ ] **CNF-127** An on-chain payment below the floor that covers spending its own output is
+      **credited at its received value, not refused** — and the floor was disclosed with the
+      destination. A deposit is payable over either rail, so the floor cannot gate the mint.
+      (`LDG-52`, `LDG-47`)
+- [ ] **CNF-128** One deposit paid on **both** rails credits **both** payments. Settling the
+      invoice does not stop the address being watched before expiry. This is the test that catches
+      an implementation which closes a deposit on first settlement. (`LDG-55`, `LDG-56`)
+- [ ] **CNF-129** The watch set survives a restart: deposits minted before the process died are
+      still being watched after it comes back, and a payment to one of them is credited. Asserted
+      by killing the process, not by reading the start-up code. (`STO-32`)
+- [ ] **CNF-130** The watch set contains no expired deposit. Minting deposits at the rate limit
+      for longer than the expiry window leaves the set bounded rather than growing. (`LDG-57`)
+- [ ] **CNF-131** The funding response states, in words a customer would understand, that an
+      expired address still accepts payments the operator will not see, and that paying twice
+      credits twice with no refund. **The disclosure is the control** — there is no mechanism
+      behind it. (`LDG-54`, `LDG-56`, `API-44`)
 
 ## Ownership, deletion and duplication
 

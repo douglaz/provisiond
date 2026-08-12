@@ -90,16 +90,22 @@ _Avoid_: wallet, account, deposit, funds, credit line
 A customer payment that increases a balance. The only way a balance goes up.
 _Avoid_: deposit, funding, recharge, payment
 
-**Rail**:
-A way money arrives — Lightning or on-chain (`ADR-0008`). A property of one payment, never of a
-customer: the same tenant may use either, and which one it is given depends on the amount.
-_Avoid_: payment method, channel, network
+**Deposit**:
+One request to add funds: an amount, an expiry, and **two** destinations — a Lightning invoice and
+an on-chain address — either of which pays it (`ADR-0008`). One object, two ways in. Not a
+receivable: it promises nothing and can be paid twice, once, or never.
+_Avoid_: top-up (that is the resulting *entry*), invoice, payment request, order
 
-**Funding destination**:
-The thing a customer pays: a Lightning invoice or a freshly derived on-chain address, bound to
-exactly one tenant. It is what makes a payment attributable **without knowing who paid**, which is
-how the collect-nothing posture and the need to credit the right balance are satisfied at once.
-_Avoid_: address, invoice, payment request (each names one rail only)
+**Destination**:
+One of a deposit's two payable things. What makes a payment attributable **without knowing who
+paid** — which is how the collect-nothing posture and the need to credit the right balance are
+satisfied by the same mechanism.
+_Avoid_: address, invoice (each names one rail only)
+
+**Rail**:
+Which of the two a payment actually came in over. **Discovered, not assigned** — the payer picks
+at payment time and the operator does not choose for them.
+_Avoid_: payment method, channel, network, fallback
 
 **Float**:
 The sum of all customer balances — what the operator owes at any instant. The operator's own
@@ -173,6 +179,12 @@ synonyms and the schema has both.
 **This glossary is not normative.** It says so above, and it once contained the only statement in
 the entire set of when a reservation is released — a requirement hiding in a file that disclaims
 having any. If a rule matters, it belongs in a numbered requirement.
+
+**"Expired" means two different things and the difference can cost a customer money.** An expired
+Lightning invoice *cannot be paid* — the network refuses it. An expired on-chain address is
+*still perfectly payable*; all that expired is the operator's watching of it. Never write "the
+deposit expired" without saying which is meant, and never let a customer-facing string imply the
+address stopped working (`LDG-54`).
 
 **"Provision"** is banned as a verb for installing an OS. It means acquiring a machine from a
 provider. Use **create** for acquisition and **install** for putting an image on a disk.

@@ -168,25 +168,34 @@ a payment is credited, so an endpoint that refuses pending tenants makes activat
 and enrolment a dead end. Every other authenticated endpoint MUST continue to reject a pending
 tenant with `not_activated` (`DOM-20`).
 
-**API-44** A funding request MUST carry the amount the caller intends to pay, and the response MUST
-name the rail it was given (`LDG-46`) along with a destination and, for Lightning, an expiry. The
-amount is required because it selects the rail — a request that cannot be invoiced within inbound
-capacity is answered on-chain — and because `LDG-52`'s floor is per-rail, so a caller cannot know
-whether its intended amount is fundable without being told which rail applies.
+**API-44** A funding request MUST carry the amount the caller intends to pay. The response MUST
+return one **deposit** (`LDG-46`) carrying that amount, an expiry, and **both** destinations — the
+Lightning invoice and the on-chain address — because the payer chooses the rail, not the
+deployment.
+
+The response MUST also carry two disclosures, and they are requirements rather than courtesies:
+
+- **that the on-chain expiry is when the operator stops watching, not when the address stops
+  working** (`LDG-54`). The address will still accept a payment afterwards and that payment may be
+  lost;
+- **that paying both destinations credits both, and nothing is refundable** (`LDG-56`).
 
 **The amount is an intent, not a commitment.** `LDG-47` credits what arrives. A funding request
-MUST NOT reserve, promise or pre-credit anything, and MUST NOT be treated as a receivable.
+MUST NOT reserve, promise or pre-credit anything, and MUST NOT be treated as a receivable — on
+either rail or on both.
 
 **API-45** A funding request MUST be idempotent per `(tenant, idempotency key)` like every other
-write (`API-8`), and re-sending one MUST return the **same** destination rather than minting a
-second one. Minting a fresh address per retry is how a caller that retries on timeout leaves a
-trail of derived addresses the operator must monitor forever (`LDG-51` makes them permanently
-payable), and how it eventually pays two of them for one intended top-up.
+write (`API-8`), and re-sending one MUST return the **same** deposit — the same invoice and the
+same address — rather than minting a second one. Minting a fresh deposit per retry is how a
+caller that retries on timeout leaves a trail of addresses the operator must watch (`LDG-57`),
+and how it eventually pays two of them for one intended top-up and is charged for both
+(`LDG-56`).
 
-**API-46** Funding MUST be rate-limited per tenant. Each request creates a destination that must
-be watched for the rest of the deployment's life (`LDG-51`), so an unlimited funding endpoint is
-an unbounded, un-reclaimable monitoring obligation minted by an unauthenticated-adjacent caller —
-`API-34`'s time-to-live deletes a pending tenant, but `LDG-51` forbids forgetting its addresses.
+**API-46** Funding MUST be rate-limited per tenant. Each request creates an address the operator
+must watch until expiry (`LDG-57`) and a binding it retains afterwards (`STO-29`), so an unlimited
+funding endpoint lets an unauthenticated-adjacent caller mint monitoring work at no cost. **The
+expiry bounds the damage and the rate limit bounds the rate**; neither alone is sufficient,
+because `API-34`'s time-to-live deletes a pending tenant while its deposits outlive it.
 
 **API-41** Enrolment MUST be sheddable under load ahead of every other endpoint, and a deployment
 MUST set a **global** ceiling on pending tenants, not only a per-caller rate limit. `API-36`'s

@@ -192,17 +192,43 @@ Authentication is structural on both rails: settlement is read from the operator
 there is no inbound notification to forge and `LDG-42`'s minting risk is designed out rather than
 defended against.
 
-`LDG-46`–`LDG-53`, `API-43`–`API-46`, `STO-29`–`STO-31` and `CNF-116`–`CNF-127` are the result.
-**The blocking set moves from 73 to 82**, and nine of the twelve new items are BLOCKING for one
-structural reason: money-in is the only path in this specification where a bug *creates* satoshis
-rather than moving them, after which `LDG-17` reports solvency against a float that is partly
-fictional.
+**The first draft of that decision was withdrawn within the hour, and the correction is the
+interesting part.** It had the operator select the rail at mint — Lightning unless the amount
+exceeded inbound capacity, then on-chain. That forced a liquidity guess that can be stale by the
+time the customer pays, and it made the operator's guess load-bearing in precisely the case where
+being wrong costs most.
 
-Two consequences are open rather than settled. **The confirmation depth, the per-rail floors, the
-invoice expiry and the channel-balance treatment are deployment parameters** that `LDG-42` now
-requires to be stated and this set does not state. And the on-chain rail is where the operator
-learns a payer's address whether or not it wants to — `ADR-0005` still forbids retaining it, and
-that discipline is harder here than on Lightning because the information arrives unbidden.
+**A deposit is now one object — an amount and an expiry — with two destinations, and the payer
+chooses** (`LDG-46`). The consequence that matters is not the ergonomics: it is that **expiry now
+applies on-chain too**, which is the only available bound on an obligation that is otherwise
+permanent. Minting a deposit is free, so anything attached to one forever is something an attacker
+mints without limit; with an expiry, the active watch set is bounded by *mint rate × expiry
+window* regardless of anyone's patience (`LDG-57`). A whole line of defensive design — restricting
+addresses to already-funded tenants, which would have put friction on the largest customer's first
+payment — became unnecessary and was recorded in `ADR-0008` as rejected rather than dropped.
+
+`LDG-46`–`LDG-57`, `API-43`–`API-46`, `STO-29`–`STO-32` and `CNF-116`–`CNF-131` are the result.
+**The blocking set moves from 73 to 86**, and thirteen of the sixteen new items are BLOCKING for
+one structural reason: money-in is the only path in this specification where a bug *creates*
+satoshis rather than moving them, after which `LDG-17` reports solvency against a float that is
+partly fictional.
+
+Three consequences are open rather than settled.
+
+**The deployment parameters are unset.** The confirmation depth, the per-rail floors, the deposit
+expiry and the channel-balance treatment are all things `LDG-42` now requires be stated, and this
+set does not state them. The expiry is the one to think hardest about: it is simultaneously the
+customer's deadline, the operator's disclosure and the bound on the watch set, so short-to-save-
+work and long-to-be-generous are both wrong in ways that hit different people.
+
+**One hazard has no mechanism behind it, only words.** An expired address still accepts payments
+nobody is looking for. `LDG-54` requires the disclosure and `CNF-131` tests it, but a disclosure
+is not a control, and this is the single place in the funding design where a customer can lose
+money by doing something that looks correct.
+
+**The on-chain rail hands the operator a payer's address whether it wants one or not.**
+`ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
+because the information arrives unbidden rather than being asked for.
 
 ## Critical — closed 2026-08-11 (second pass)
 

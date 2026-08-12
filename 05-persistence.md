@@ -254,34 +254,42 @@ balance.
 **STO-28** Decrementing a commitment MUST be a conditional write on its `version` (`LDG-34`), and
 posting a `usage_debit` MUST happen in the same transaction as the decrement (`LDG-31`).
 
-### `funding_destinations`
+### `deposits`
 
-The destination-to-tenant binding that makes attribution possible without recording a payer
-(`LDG-49`, `ADR-0008`).
+One row per funding request (`LDG-46`), carrying **both** destinations. This is the binding that
+makes attribution possible without recording a payer (`LDG-49`, `ADR-0008`).
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID | primary key |
-| `tenant_id` | text | not null; exactly one tenant per destination (`LDG-49`) |
-| `rail` | enum | `lightning` \| `onchain` (`LDG-46`) |
-| `destination` | text | payment hash, or the derived address |
-| `derivation_index` | integer | nullable; on-chain only, so the address is re-derivable from the operator's own key material rather than stored as the sole copy |
+| `tenant_id` | text | not null; exactly one tenant per deposit (`LDG-49`) |
 | `requested_sats` | integer | the caller's stated intent (`API-44`) — **never** the credit (`LDG-47`) |
+| `payment_hash` | text | the Lightning destination |
+| `address` | text | the on-chain destination |
+| `derivation_index` | integer | so the address is re-derivable from the operator's own key material rather than stored as the sole copy |
 | `idempotency_key` | text | not null; re-sending a funding request returns this row (`API-45`) |
-| `expires_at` | timestamp | nullable; the invoice expiry. **Meaningless on-chain** (`LDG-51`) |
-| `credited_entry_id` | UUID | nullable; the `topup` entry, once settled |
+| `expires_at` | timestamp | not null. Enforced on Lightning, **disclosed** on-chain (`LDG-54`) |
 | `created_at` | timestamp | |
 
-Constraints: unique on `destination`; unique on `(tenant_id, idempotency_key)`.
+Constraints: unique on `payment_hash`; unique on `address`; unique on `(tenant_id,
+idempotency_key)`; index on `expires_at` for the watch set (`LDG-57`).
 
-**STO-29** **`funding_destinations` MUST NOT be deleted, and MUST NOT carry a foreign key to
-`tenants`.** An on-chain address stays payable forever (`LDG-51`), so forgetting the row converts
-a future payment from *attributable* into *unattributable* — manufacturing the exact `LDG-43`
-outcome the design forbids, on a delay, silently. `API-34`'s time-to-live deletes pending tenants;
-this table outlives them, and a payment to a departed tenant's address resolves through `LDG-43`
-rather than through a lookup that no longer works.
+**There is no `credited_entry_id` and no settled flag**, because a deposit can be paid on both
+rails (`LDG-55`) and a single-settlement column would encode the assumption `LDG-55` forbids.
+Credits are `ledger_entries` rows keyed to the payment, per `STO-31`.
 
-**STO-30** A settled payment MUST credit its ledger entry and mark the destination in **one**
+**STO-29** **`deposits` MUST NOT be deleted, and MUST NOT carry a foreign key to `tenants`.** An
+address stays payable after expiry (`LDG-54`), so discarding the row converts a late payment from
+*resolvable* into *unattributable by construction* — and `LDG-51` retains the binding precisely so
+a payment brought to the operator's attention can still be credited. `API-34`'s time-to-live
+deletes pending tenants; this table outlives them, and a payment for a departed tenant resolves
+through `LDG-43` rather than through a lookup that no longer works.
+
+**The retained row is cheap; the watch is not.** `LDG-57` bounds the *watch set* by expiry, and
+that is the bound that matters. Retention here is storage, and storage is not what an attacker
+minting free funding requests was ever able to threaten.
+
+**STO-30** A settled payment MUST credit its ledger entry and record the payment in **one**
 transaction. Two transactions permit a crash between them, and the recovery reads identically to
 an uncredited payment — so the retry credits it twice, which is minting rather than double-billing
 and is not caught by the solvency check (`LDG-17`) until the operator is already short.
@@ -289,7 +297,13 @@ and is not caught by the solvency check (`LDG-17`) until the operator is already
 **STO-31** Watching for settlement MUST be idempotent and MUST tolerate replay from the rail. Both
 rails re-announce: a node replays invoice settlements on reconnect, and a chain re-scan re-reports
 confirmed outputs. `LDG-8`'s per-entry idempotency key MUST therefore be derived from the
-*payment* — the payment hash, or the outpoint — and never from the observation event.
+*payment* — the payment hash, or the outpoint — and never from the observation event, and never
+from the deposit, which may legitimately produce two credits (`LDG-55`).
+
+**STO-32** The **watch set MUST be derived by query, not maintained by hand** — the unexpired rows
+of `deposits`, re-derived on start-up. A watch list assembled incrementally as deposits are minted
+loses its contents on restart, and the failure is silent: payments to forgotten addresses simply
+never arrive, and no error is raised by anything.
 
 ## Migrations
 
