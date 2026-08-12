@@ -185,20 +185,62 @@ it be fully collected before the order; collected means **debited**.
 
 ## The rate
 
-**LDG-40** **A rate source MUST be named, and its trust model, staleness bound and unavailable
-behaviour stated.** Every commitment, every re-derivation and every price depends on a
-satoshi-to-provider-currency rate, and the first version of this document specified none — a
-load-bearing external dependency with no requirements and no threat model.
+**LDG-40** **AMENDED — the source is now specified as a construction (`LDG-58`–`LDG-61`), not
+left to be named.** What remains a deployment obligation is the trust model, the staleness bound,
+the quorum and the unavailable behaviour below. Every commitment, every re-derivation and every
+price depends on a satoshi-to-provider-currency rate, and the first version of this document
+specified none — a load-bearing external dependency with no requirements and no threat model.
 
-A deployment MUST state: the source; the maximum age at which a rate may still be used; and, for
-each of the following, whether it proceeds on a stale rate or halts — **create** (MUST halt: it
-is a purchase priced at an unknown rate), **re-derivation** (MUST halt rather than under-reserve,
-and the halt MUST NOT itself trigger exhaustion), **the exhaustion sweep** (MUST continue: it
-reduces exposure), and **the solvency check** (MUST fail closed).
+A deployment MUST state: the maximum age at which a source's price may still be used (`LDG-59`);
+and, for each of the following, the behaviour when no rate is available — **create** (MUST halt:
+it is a purchase priced at an unknown rate), **re-derivation** (MUST halt rather than
+under-reserve, and the halt MUST NOT itself trigger exhaustion), **the exhaustion sweep** (MUST
+continue: it reduces exposure), and **the solvency check** (MUST fail closed).
+
+*The withdrawn wording asked whether each of these "proceeds on a stale rate or halts", which
+`LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
+having no rate at all, and its four answers are unchanged.*
 
 **LDG-41** A rate MUST be treated as attacker-influenced input. A manipulated or erroneous rate
 under-reserves the entire fleet simultaneously, so `PRV-13e`'s per-tick cap and multi-derivation
 persistence rule (`LDG-16`) are security controls, not smoothing.
+
+**And past those controls it is the only external input that destroys customer data.** A rate that
+understates the satoshi makes solvent customers look exhausted; `LDG-14` then cancels the machine
+and destroys its disk. Every other external dependency in this specification can at worst cost the
+operator money or stop the service. This one reaches the customer's data.
+
+**LDG-58** **The rate MUST be the median of at least three independent sources.** *Independent*
+means not sharing a venue, an operator or an upstream feed — two front-ends onto the same order
+book are one source, and counting them as two produces a quorum that a single venue controls. The
+count MUST be odd, so the median is an observed price rather than an average of two.
+
+**LDG-59** **Each source MUST carry a staleness bound, and a stale source MUST be excluded rather
+than used.** A deployment MUST state a **quorum**: the minimum number of live, non-excluded
+sources below which there is **no rate**, at which point `LDG-40`'s per-operation behaviour
+applies — create halts, re-derivation halts without triggering exhaustion, the exhaustion sweep
+continues, the solvency check fails closed. **Falling back to the last known rate MUST NOT
+happen.** A stale rate is not a degraded rate; it is a number that was true once and is now being
+used to price a purchase, which is exactly the condition `LDG-40` makes create halt for.
+
+**LDG-60** **A source deviating from the median by more than a stated band MUST be excluded**, and
+exclusion MUST reduce the count for `LDG-59`'s quorum test rather than being silently tolerated.
+Repeated exclusion of the same source MUST be visible to the operator — this is operational data
+about a price feed, not information about a customer, so `LDG-21` does not restrict it.
+
+**LDG-61** **The source set MUST be fixed at deployment and MUST NOT be settable at runtime by any
+API path, tenant input or database write.** This mirrors `SEC-50` for the same reason: an attacker
+who can add a source can move the median, and moving the median moves every reserve, every price
+and every exhaustion decision in the fleet at once. A rate feed the process can be told to trust
+is not a control, it is a second front door.
+
+**Why there is no ADR for this.** Two of the three tests fail. The trade-off is real and the
+alternatives were considered — a single named exchange, a published reference index, and
+abandoning the rate entirely by pricing in satoshis — but **the decision is cheap to reverse**:
+swapping the median for an index, or adding and removing sources, is a contained change behind
+`LDG-40`'s interface. What is *not* cheap to reverse is `LDG-40`'s halt matrix and `LDG-59`'s
+refusal to fall back, and those are recorded as requirements because they are product-visible
+availability behaviour, not implementation.
 
 ## Money in
 

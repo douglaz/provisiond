@@ -149,6 +149,18 @@ A provider's one-time charge for a dedicated machine. Non-refundable, passed to 
 cost, and the one component entirely lost if a customer vanishes immediately.
 _Avoid_: onboarding fee, installation fee, deposit
 
+**Rate**:
+What a satoshi is worth in a provider's billing currency. The median of several independent
+sources (`LDG-58`), never one venue's price. **The only external input that can reach a customer's
+disk**: understate the satoshi and solvent customers look exhausted, after which `LDG-14` cancels
+and destroys.
+_Avoid_: price (that is what a customer pays), spot, exchange rate, oracle
+
+**Quorum**:
+The fewest live, non-excluded rate sources that still produce a rate. Below it there is **no
+rate** — not a stale one, not the last known good one — and `LDG-40`'s halt matrix applies.
+_Avoid_: threshold, minimum sources
+
 **Channel ceiling**:
 The most the operator lets sit in Lightning channels before sweeping the excess beyond the running
 system's reach. Lightning cannot be made cold, so this number *is* the blast radius of a full

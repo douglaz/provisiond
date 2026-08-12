@@ -152,7 +152,19 @@ an operator quietly re-introduce the hot key `ADR-0009` removed.
 `CNF-137` is additionally a **before production** item: a recovery procedure that has never been
 run is a belief about a procedure.
 
-The blocking set moves from 73 to **92**.
+### Assignments for `CNF-138`–`CNF-143` (added 2026-08-12)
+
+**BLOCKING** — `CNF-138`, `CNF-139`, `CNF-141` (each one is a path to a wrong fleet-wide price, and
+`LDG-14` turns a sufficiently wrong price into a destroyed disk — the operator cannot undo it and
+would not know until a customer complains); `CNF-142` (a settable source list is a second front
+door onto every price in the system).
+
+**PRE-SCALE** — `CNF-140`, `CNF-143`. `CNF-140` is the ordinary case `CNF-141` covers the hard
+version of; `CNF-143` is a configuration review rather than a test, and **independence cannot be
+verified by any code**, which is worth stating plainly rather than pretending the checklist
+proves it.
+
+The blocking set moves from 73 to **96**.
 
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
@@ -584,6 +596,31 @@ takes the machines *and* the float" partly false.
 - [ ] **CNF-137** The cold key's recovery procedure has been executed end to end, from backup to a
       signed spend, by someone other than whoever wrote it. Before the first customer payment.
       (`SEC-53`)
+
+## The rate
+
+Added 2026-08-12. Past the per-tick cap and the persistence rule, a wrong rate is the only
+external input in this specification that reaches a customer's disk (`LDG-41`, `LDG-14`).
+
+- [ ] **CNF-138** With every rate source unavailable, a create is refused, re-derivation halts
+      **without** cancelling anything, the exhaustion sweep still runs, and the solvency check
+      fails closed. All four, from one fault injection. (`LDG-40`, `LDG-59`)
+- [ ] **CNF-139** No code path uses a rate older than the stated bound, and there is no
+      last-known-good fallback anywhere. Asserted by removing every source and confirming the
+      system reports *no rate* rather than a number. (`LDG-59`)
+- [ ] **CNF-140** One source returning an extreme price does not move the rate, and that source is
+      excluded rather than averaged in. (`LDG-60`)
+- [ ] **CNF-141** Exclusions count against the quorum: with three sources, one stale and one
+      outlying, the result is *no rate* — not a rate derived from the single survivor. **This is
+      the item that catches an implementation which degrades quietly to one source.** (`LDG-59`,
+      `LDG-60`)
+- [ ] **CNF-142** The source set cannot be changed by any API call, tenant input, or database
+      write. Attempting each fails. (`LDG-61`, and `CNF-135` for the same property applied to the
+      sweep destination)
+- [ ] **CNF-143** Two sources that are front-ends onto the same venue are configured, and the
+      deployment's quorum treats them as one. **Independence is a claim about the world that no
+      code can check**, so this is a review item against the configured list, not a runtime test.
+      (`LDG-58`)
 
 ## Ownership, deletion and duplication
 

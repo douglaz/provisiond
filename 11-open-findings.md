@@ -230,6 +230,34 @@ money by doing something that looks correct.
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
 
+## The rate — 2026-08-12
+
+`LDG-40` had required that a rate source "MUST be named" and none was, leaving the last
+load-bearing external dependency in the money path unspecified. It is now a **median of at least
+three independent sources** with per-source staleness, outlier exclusion, and a quorum below which
+there is no rate at all (`LDG-58`–`LDG-61`).
+
+**Two consequences are worth separating from the choice itself**, because they are the parts that
+are not cheap to change later:
+
+- **There is no fallback to the last known rate** (`LDG-59`). A stale rate is not a degraded rate;
+  it is a number that was true once being used to price a purchase, which is the exact condition
+  `LDG-40` already made create halt for. `CNF-141` is the item that catches an implementation
+  degrading quietly to a single surviving source.
+- **A wrong rate reaches the customer's disk.** Every other external dependency here can at worst
+  cost the operator money or stop the service; this one understates the satoshi, makes solvent
+  customers look exhausted, and `LDG-14` then cancels the machine and destroys it (`LDG-41`).
+
+**No ADR was written, deliberately.** The trade-off was real and the alternatives — one named
+exchange, a published index, or abandoning the rate by pricing in satoshis — were considered. But
+the *choice* is cheap to reverse behind `LDG-40`'s interface, and an ADR for a reversible decision
+trains a reader to skim the ones that matter. What is expensive to reverse is the halt matrix and
+the no-fallback rule, and those are requirements.
+
+**`LDG-58`'s independence rule cannot be enforced by code.** Two front-ends onto one order book
+are one source, and nothing at runtime can tell. `CNF-143` is a configuration review, stated as
+such rather than dressed as a test.
+
 ## Key custody — 2026-08-12
 
 **`ADR-0009` makes the process unable to spend the float**, which is the first requirement in this
