@@ -210,12 +210,15 @@ rather than an operator constant matters because the caller is software that kno
 intent: a two-hour scratch box and a machine meant to survive a month should not freeze the same
 amount of a customer's balance.
 
-**PRV-13e** **AMENDED.** The commitment MUST be re-derived each billing period from current
-prices and the current rate, not fixed at create. Where the re-derived amount exceeds the current
-one and the balance can cover the difference, **the machine's single commitment is re-sized
-upward** by the conditional write of `LDG-34` — *the withdrawn text said "an additional hold is
-placed", and stacking a second reservation on one machine reintroduces exactly the double-count
-`LDG-9` was amended to remove.* Where the balance cannot cover it, the machine enters the same
+**PRV-13e** **AMENDED twice, same day — the history is the lesson.** Re-derivation MUST run each
+billing period at the current rate, and what it recomputes is **`runway_until`, not the
+commitment** (`LDG-33`, `ADR-0011`). The commitment is fixed at open and only a caller action
+(`LDG-62`) or the scheduled-cancellation exception (`LDG-63`) increases it. *Version one said a
+higher re-derivation places "an additional hold" — stacking a second reservation, the double-count
+`LDG-9` was amended to remove. Version two re-sized the single commitment upward automatically —
+solving the operator's anxiety with the customer's money, and creating a freeze surface where one
+bad rate reading grabs every tenant's available balance.* Where the recomputed runway has already
+run out, the machine enters the same
 balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
 MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to
 become insufficient. A single-tick increase MUST be capped and a deficiency MUST persist across

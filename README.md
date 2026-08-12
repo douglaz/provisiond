@@ -54,6 +54,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0008` | A deposit is one object — amount and expiry — payable over Lightning or on-chain; the payer chooses. Attribution is by destination, never by payer |
 | `0009` | The process is watch-only and cannot spend the float. Lightning is hot and therefore capped; that cap is the blast radius |
 | `0010` | v1 ships three drivers — Hetzner Cloud, Hetzner Robot, DigitalOcean — for both machine shapes across two companies. Settles `D3` |
+| `0011` | Commitments are fixed at open and never auto-widen; a price move shifts the runway date instead. Closes `F27`; amends `ADR-0003`'s matching claim |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:

@@ -121,17 +121,24 @@ permanently** — there is no withdrawal (`ADR-0004`), no expiry, and under `ADR
 to appeal with, so an ordinary retry loop against a contended offer would otherwise render a
 balance unusable forever.
 
-**LDG-33** Re-derivation (`PRV-13e`) MUST compute the required reservation from **remaining**
-runway, not from the runway originally requested, and MUST adjust the commitment in **both**
-directions. A re-derivation that can only increase is not a correction, it is a ratchet.
+**LDG-33** **AMENDED (`ADR-0011`).** Re-derivation (`PRV-13e`) MUST recompute **`runway_until`**
+from the machine's fixed remaining commitment at the current rate, in **both** directions — and
+MUST NOT resize the commitment. A commitment is sized once at open, decays as usage is debited
+(`LDG-31`), and **is never increased without a caller action** (`LDG-62`; the scheduled-
+cancellation branch is the one exception, `LDG-63`). *The withdrawn text resized the commitment
+to preserve the runway date, which spent three design rounds on widening speed before the
+interviewee's observation dissolved it: every authorization prices at the current rate, usage
+debits at spot, so a price move belongs to the runway date — the customer's purchasing power —
+not to an automatic grab of their available balance.*
 
 **LDG-34** A commitment adjustment MUST be a conditional write on the commitment's current
 amount — a compare-and-swap or equivalent — so two workers re-deriving the same machine in the
 same period cannot both apply the delta.
 
 **LDG-10** A balance MUST NOT go negative, and `available` MUST NOT go negative. Any operation
-that would do either MUST fail rather than proceed, including a re-derivation that raises a
-commitment — which routes to the exhaustion path rather than borrowing.
+that would do either MUST fail rather than proceed, including a runway extension (`LDG-62`) or
+an exception-branch top-up (`LDG-63`) that available cannot fund — which route to the exhaustion
+path and the operator-deficiency ledger respectively, never to borrowing.
 
 **LDG-35** **The authorization read and the commitment write MUST be serialized per tenant.**
 Computing `available` and opening a commitment in one transaction is not sufficient: two
@@ -415,11 +422,30 @@ on exactly the branch where cost cannot be stopped.
 
 **LDG-15** Remaining runway MUST be readable from the machine view, so a caller can act on it. A
 caller that is software will act on a number long before it would act on an email, and there is
-no email.
+no email. **`runway_until` floats with the price** (`LDG-33`): the read is the customer's whole
+visibility into repricing, which is why it is a MUST and not a nicety.
 
-**LDG-16** A rate or price movement MUST NOT have its own cancellation machinery; it reaches the
-machine through `PRV-13e`'s re-derivation and then this same path, with a per-tick cap and a
-deficiency that must persist across more than one derivation.
+**LDG-62** **Extending runway is a caller write, authorized like a purchase.** It increases the
+machine's commitment from available balance at the **current** rate, under `LDG-35`'s per-tenant
+serialization and `LDG-10`'s no-negative rule, in one transaction. It is the only way a
+commitment grows outside `LDG-63`, and it MUST be idempotent per `API-8` — two concurrent
+extends must not reserve twice.
+
+**LDG-63** **The scheduled-cancellation branch is the exception, because the operator cannot
+exit.** For a machine whose billing runs to an effective date regardless (`DOM-19`, `PRV-13c`),
+re-derivation MUST top the commitment from available so it covers cost through that date at the
+current rate; where available cannot fund it, the shortfall is **operator-borne** — there is no
+customer action to wait for and no faster cancellation to route to — and MUST be surfaced to the
+operator as a named deficiency, bounded per machine by `PRV-31`'s declared worst case. This is
+one of the two exceptions `ADR-0003`'s amended matching claim names.
+
+**LDG-16** **AMENDED (`ADR-0011`).** A rate or price movement MUST NOT have its own cancellation
+machinery; it reaches the machine by moving `runway_until` (`LDG-33`) into this same exhaustion
+path. A machine MUST be routed into that path while its remaining commitment still covers
+wind-down **at the current rate** — that invariant, not commitment widening, is what keeps the
+operator whole — and cancellation MUST still require the deficiency to persist across more than
+one derivation, so a single bad rate reading can move a date but can never destroy a disk. *The
+per-tick cap on commitment adjustment is withdrawn with the adjustment itself.*
 
 ## Solvency
 

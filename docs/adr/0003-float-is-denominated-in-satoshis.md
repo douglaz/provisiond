@@ -8,7 +8,7 @@ acquiring fiat to back it, **the balance is denominated in satoshis**, matching 
 the asset actually held.
 
 A customer deposits 100k sats and holds 100k sats of credit. Machines are priced in sats at spot
-each billing period. The operator holds sats and owes sats, and is matched at all times. Sats are
+each billing period. The operator holds sats and owes sats, and is matched at all times¹. Sats are
 sold only at the moment consumption creates a provider invoice.
 
 ## Why this beats the alternatives
@@ -64,3 +64,15 @@ That defence rests entirely on `ADR-0004`'s absolute no-refund rule, because ref
 the natural refund form under sat denomination and would make the custody reading materially
 stronger. **This is the first question to put to a lawyer**, and this dissent is recorded rather
 than resolved.
+
+---
+
+¹ **Amended by `ADR-0011` (2026-08-12).** "At all times" has two bounded exceptions, recorded
+rather than papered over: the persistence window (cancellation requires a deficiency to survive
+more than one derivation, so a real crash gets a few extra hours of partially-covered burn on
+machines already at the edge), and the scheduled-cancellation branch (`LDG-63`), where billing
+cannot be stopped before its effective date and a commitment that available cannot top leaves the
+gap with the operator, bounded per machine by `PRV-31`. Everywhere else the matching is delivered
+by `ADR-0011`'s mechanism — usage debits at spot, a fixed commitment, and a runway date that
+floats — not by re-sizing reservations after the fact. `F27` was the finding; this footnote is
+its closure.

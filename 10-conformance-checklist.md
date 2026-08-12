@@ -792,13 +792,35 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       that bound — later reduced, never raised, by the machine's actual date. (`PRV-31`,
       `PRV-13c`, `LDG-12`)
 
+- [ ] **CNF-167** A rate halving increases **no** commitment anywhere in the fleet, except
+      machines on the scheduled-cancellation branch. What moves is every affected machine's
+      `runway_until`. Fault-inject the rate; diff the commitments table. (`LDG-33`, `ADR-0011`)
+- [ ] **CNF-168** `runway_until` moves at re-derivation in **both** directions and the machine
+      view reflects it on the next read. (`LDG-33`, `LDG-15`)
+- [ ] **CNF-169** A machine is routed into the exhaustion path while its remaining commitment
+      still covers wind-down at the current rate — at cancellation time the operator is not out
+      of pocket. Drive a machine to exhaustion under a falling rate and assert the invariant at
+      the moment of cancellation, not at the end of the test. (`LDG-16`)
+- [ ] **CNF-170** Two concurrent runway extensions against a balance that can fund one result in
+      one extension and one `insufficient_balance`, and replaying an extension with its
+      idempotency key does not reserve twice. (`LDG-62`, `LDG-35`, `API-8`)
+- [ ] **CNF-171** On the scheduled-cancellation branch, a shortfall that available cannot top is
+      surfaced to the operator as a named deficiency — not silently absorbed, not billed to the
+      customer twice. (`LDG-63`)
+
 **PRE-SCALE** — `CNF-165` (an operator procedure with a human already in the loop).
 
 **BLOCKING** — `CNF-166` (an order whose exposure could not be bounded before purchase is
 unauthorized spending of the operator's money, which is the exact thing `PRV-13b` exists to
-prevent).
+prevent); `CNF-167` (an automatic commitment increase is the freeze surface `ADR-0011` removed —
+its reappearance is a security regression, not a tuning choice); `CNF-169` (the single invariant
+that keeps the operator whole under repricing; its failure is silent money-out discovered on a
+provider invoice); `CNF-170` (write-skew on the money path, the `LDG-35` case in a new costume).
 
-With the five promotions above and these, the blocking set moves to **114**.
+**PRE-SCALE** — `CNF-168`, `CNF-171` (visibility items; the harm they catch is bounded and
+operator-absorbable at concierge scale).
+
+With the five promotions above and these, the blocking set moves to **117**.
 
 ## Ownership, deletion and duplication
 

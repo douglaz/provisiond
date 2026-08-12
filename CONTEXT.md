@@ -135,9 +135,11 @@ absence is what made the first version of the ledger unimplementable.
 _Avoid_: usage tracker, billing loop
 
 **Runway**:
-How long a machine is guaranteed to keep running before an exhausted balance can cancel it.
-Chosen by the caller at create, prepaid, and readable at any time.
-_Avoid_: grace period, term, credit, trial
+How long a machine's committed satoshis keep it running at current prices. Chosen by the caller
+at create, committed (not prepaid), readable at any time — and **the date floats with the price
+of bitcoin** (`ADR-0011`): a price drop shortens it, and the caller extends it with an explicit
+action, never by an automatic grab of its balance.
+_Avoid_: grace period, term, credit, trial, guarantee (the date moves)
 
 **Correlator**:
 The operation identifier written into a provider-side field at create, so that a machine created

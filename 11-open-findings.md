@@ -146,12 +146,19 @@ a driver-declared pre-create bound per offer, with *no declared bound MUST NOT b
 terms*; it is a bounded edit, not a structural one. **Recorded so the next reader does not
 re-derive the alarm from the finding's original wording.**
 
-**F27. `ADR-0003`'s "matched at all times" is not what `PRV-13e` delivers.** The matching argument
-needs unthrottled re-pricing; `PRV-13e` deliberately caps per-tick increases and requires a
-deficiency to persist — with no cap value stated. On the −49% move the ADR itself cites, every
-running machine is under-reserved by the uncapped remainder for at least two derivation periods.
-The dissent recorded in that ADR is about MiCA; **this objection is arithmetic, and it is the one
-that costs satoshis.**
+**F27. CLOSED 2026-08-12 — and the interviewee's question dissolved it rather than any of the
+interviewer's three proposed fixes.** The finding said `PRV-13e`'s throttle contradicts
+`ADR-0003`'s "matched at all times"; three design rounds went into how fast commitments should
+widen (symmetric cap, asymmetric grow-fast-shrink-slow, a repricing-race scenario). The user's
+objection — *every authorization prices at the current rate, so nothing can be overcommitted at
+stale prices* — unravelled the premise: usage debits at spot, so a fixed satoshi commitment
+simply drains faster after a crash, and **the price move belongs to the customer's runway date,
+not to the operator's coverage**. `ADR-0011` records the resulting model: fixed commitment,
+floating `runway_until`, no automatic widening ever (`LDG-33`, `LDG-16`, `PRV-13e` all AMENDED;
+`LDG-62` runway extension as an authorized caller write; `LDG-63` the scheduled-cancellation
+exception). The freeze-attack surface three questions were spent on does not exist in the final
+design, because nothing automatic remains to trigger. `ADR-0003`'s claim now carries a footnote
+naming its two bounded exceptions instead of an absolute it never delivered.
 
 **F28. `ADR-0004` §5 (B2B only) is unenforceable under `ADR-0005`.** Nothing may be recorded, so
 nothing distinguishes a business from a consumer, and the consumer withdrawal right §5 exists to
