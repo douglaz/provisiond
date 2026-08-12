@@ -811,6 +811,10 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       admission-to-start bound is rejected at accept; at claim, a URL that cannot outlive the
       install fails the operation with no provider mutation and no rescue entry. (`OPS-40`,
       `SEC-21`)
+- [ ] **CNF-173** After startup, enumerating the process environment from inside the
+      customer-facing module yields no provider credential — asserted by actually reading the
+      environment at runtime, not by reviewing the scrub call, because a runtime that caches the
+      environment makes the scrub a no-op. (`OVR-10c`, `F13`)
 
 **PRE-SCALE** — `CNF-165` (an operator procedure with a human already in the loop).
 
@@ -825,9 +829,11 @@ provider invoice); `CNF-170` (write-skew on the money path, the `LDG-35` case in
 operator-absorbable at concierge scale).
 
 **BLOCKING** — `CNF-172` (the gate stands between a doomed input and a destructive write that
-has already wiped a disk by the time the doom arrives).
+has already wiped a disk by the time the doom arrives); `CNF-173` (escaped-secret family — the
+only structural credential defence `ADR-0001` left standing, finally given a test that measures
+reachability instead of type visibility).
 
-With the five promotions above and these, the blocking set moves to **118**.
+With the five promotions above and these, the blocking set moves to **119**.
 
 ## Ownership, deletion and duplication
 

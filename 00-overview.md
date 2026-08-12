@@ -117,6 +117,16 @@ without it the single-component form has no defence at all.
 lifecycle side MUST NOT see a customer credential or a payment. Shared storage is permitted;
 shared secrets are not.
 
+**OVR-10c** **Provider credentials MUST be read from the environment exactly once, at startup, by
+the credential-owning module — and then removed from the process environment.** `OVR-7` puts
+secrets in the environment to keep them out of configuration files, but an environment variable
+is ambient: any code in the process can read it forever, which reduces `OVR-10a`'s carefully
+typed boundary to decoration (`F13`). Scrubbing after the single read makes the boundary
+structural — after initialization, the only copy lives inside the owning type, and a defect in
+the public surface that dumps the environment discloses nothing. The scrub MUST be verified, not
+assumed (`CNF-173`), because some runtimes cache the environment at startup and "removed" can
+mean "removed from a copy".
+
 **OVR-14** **v1 ships three drivers: Hetzner Cloud, Hetzner Robot and DigitalOcean** (`ADR-0010`)
 — both machine shapes across two unrelated companies. **This is a scope statement, not a licence
 to specialise.** Nothing in `01`–`07` may name a provider, and `PRV-13c` continues to forbid

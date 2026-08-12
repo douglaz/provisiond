@@ -456,10 +456,12 @@ visibility, because repeating `CNF-71`'s mistake here would prove nothing about 
 **The credential half is also closed:** `API-39` settled on caller-supplied public keys, so the
 mitigation this finding called cheapest and untaken has been taken.
 
-**What remains open is the original finding**, unchanged and now isolated: nothing proves
-customer-facing code cannot read provider credentials out of the process environment. That is a
-provider-credential problem, not a money problem, and it is the last thing `ADR-0001` left
-undefended.
+**The last piece closed 2026-08-12: `OVR-10c`.** Credentials are read once at startup by the
+owning module and scrubbed from the process environment, so after initialization the only copy
+lives inside the owning type and an environment dump from the public surface discloses nothing.
+`CNF-173` (BLOCKING) tests it by reading the environment at runtime rather than reviewing the
+scrub call — the type-visibility mistake `CNF-71` made, not repeated. What survives of `F13` is
+implementation proof, which is where a specification finding is supposed to end.
 
 **F17. Tier assignments change under honest application of the rule** — *partially closed.*
 `ADR-0001` chose the single-component form, so `CNF-71`–`CNF-74` apply and `CNF-66`–`CNF-68` do
