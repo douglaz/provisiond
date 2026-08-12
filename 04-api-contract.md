@@ -19,6 +19,17 @@
 | GET | `/v1/operations` | ✓ | List operations, filterable by status |
 | GET | `/v1/operations/{id}` | ✓ | Poll one operation |
 | POST | `/v1/operations/{id}/actions/requeue` | | Operator requeue |
+| POST | `/v1/enrol` | ✓ | Create a pending tenant, return a handle (`API-32`) |
+| GET | `/v1/enrol/{handle}` | ✓ | Collect the credential once the delay elapses (`API-33`) |
+| POST | `/v1/deposits` | ✓ | Mint a deposit: amount, expiry, both destinations (`API-43`) |
+| GET | `/v1/deposits/{id}` | ✓ | Read one deposit |
+| GET | `/v1/balance` | ✓ | Balance, available, and open commitments (`API-47`) |
+
+**The last five rows were absent until 2026-08-12** — enrolment shipped on 2026-08-11 and funding
+earlier the same day as this note, each with requirements and no place on the surface. A table
+that omits an endpoint the requirements mandate is `F19` in miniature, and it is the reason
+`API-48` now states the synchronous exemptions in one place instead of leaving each new endpoint
+to contradict `API-1` on its own.
 
 **API-1** Every non-`GET` endpoint that *accepts* a valid, authorized request MUST return
 `202 Accepted` with an operation view; none returns the completed result inline. Requests
@@ -190,6 +201,28 @@ same address — rather than minting a second one. Minting a fresh deposit per r
 caller that retries on timeout leaves a trail of addresses the operator must watch (`LDG-57`),
 and how it eventually pays two of them for one intended top-up and is charged for both
 (`LDG-56`).
+
+**API-47** **A caller MUST be able to read its own balance**, and the view MUST distinguish the
+ledger sum, the **available** figure that actually authorizes a purchase, and the satoshis held by
+open commitments (`LDG-30`). Until 2026-08-12 no endpoint returned any of these: under `ADR-0002`
+a prepaid balance is the entire spending authority, and the caller — software, acting without a
+human — could learn its own solvency only by having a create rejected with `insufficient_balance`.
+**That makes an ordinary check into a failed write**, and pushes an autonomous agent toward
+retrying purchases to discover whether it can afford one.
+
+The view MUST also expose what `LDG-15` already requires per machine — remaining runway — in
+aggregate, so a caller can see the whole fleet's exhaustion horizon without walking every machine.
+
+**API-48** **The synchronous endpoints are exactly: every `GET`, plus `POST /v1/enrol` and `POST
+/v1/deposits`.** These are the exemptions from `API-1`'s "every accepted write returns `202` and
+an operation", and they are listed together because each was previously exempted in its own
+paragraph — `API-40` for enrolment, `API-43` implicitly for funding — which is how a general rule
+acquires undocumented exceptions.
+
+Both exemptions have the same justification: **neither causes a provider mutation**, so neither
+needs a durable operation, and `operations.tenant_id` cannot name a tenant that does not exist yet
+(enrolment). Any endpoint added later that *does* touch a provider MUST obey `API-1`; this list is
+closed, not a pattern.
 
 **API-46** Funding MUST be rate-limited per tenant. Each request creates an address the operator
 must watch until expiry (`LDG-57`) and a binding it retains afterwards (`STO-29`), so an unlimited

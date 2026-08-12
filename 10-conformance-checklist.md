@@ -177,6 +177,17 @@ the leak it catches gets harder to reverse the longer it sits.
 
 The blocking set moves from 73 to **98**.
 
+### Assignments for `CNF-149`–`CNF-151` (added 2026-08-12)
+
+**BLOCKING** — `CNF-150`. It looks like an ergonomics item and is not: without it the only way an
+autonomous caller can discover whether it can afford a machine is to try to buy one, which is
+question (3) of the tiering rule answered *yes* for a provider mutation.
+
+**PRE-SCALE** — `CNF-149`, `CNF-151`. Both are consistency checks the operator can run by reading,
+and both catch drift rather than harm.
+
+The blocking set moves to **99**.
+
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
 prepaid balance did not merely add features, it added a money system whose correctness gates
@@ -656,6 +667,19 @@ rather than acquiring a default.
 - [ ] **CNF-148** `PRV-30`'s manual-processing claim has been verified against Hetzner Robot in
       writing, before the Robot driver is written. Until it is, the Robot correlator and the
       negative window derived from it are beliefs. (`F29`, `PRV-30`, `OPS-33`)
+
+## Surface completeness
+
+- [ ] **CNF-149** Every endpoint the requirements mandate appears in the surface table, and every
+      row in the surface table has a requirement behind it. Run as a diff, both directions —
+      enrolment and funding were each mandated and unlisted for a day. (`API-48`, `F19`)
+- [ ] **CNF-150** A caller can read its balance, its available figure and its committed satoshis
+      without attempting a purchase. **A create rejected with `insufficient_balance` is not an
+      acceptable way to answer "can I afford this"**, because an autonomous caller responds to it
+      by retrying. (`API-47`, `DOM-20`)
+- [ ] **CNF-151** Exactly the endpoints named in `API-48` are synchronous; every other write
+      returns `202` with an operation. Asserted against the routing table, so that adding an
+      endpoint later cannot quietly extend the exemption. (`API-48`, `API-1`)
 
 ## Ownership, deletion and duplication
 

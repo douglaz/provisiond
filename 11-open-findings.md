@@ -237,6 +237,26 @@ money by doing something that looks correct.
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
 
+## Two holes found while checking the surface — 2026-08-12
+
+Looking at `04-api-contract.md`'s surface table to answer a different question turned up two
+things neither audit caught, because both audits read the requirements and the table is not one.
+
+**There was no way to read a balance.** Under `ADR-0002` a prepaid balance is the entire spending
+authority, and no endpoint returned it. A caller — software, with no human — could learn its own
+solvency only by attempting a create and being rejected with `insufficient_balance`. That turns an
+ordinary question into a failed write and pushes an autonomous agent toward **retrying purchases
+to discover whether it can afford one**, which is the tiering rule's question (3) answered yes for
+a provider mutation. `API-47` fixes it; `CNF-150` is BLOCKING.
+
+**The surface table was a day behind the requirements, twice.** Enrolment shipped 2026-08-11 and
+funding on 2026-08-12, each with mandated endpoints that appeared nowhere in the table — and each
+exempted itself from `API-1`'s `202`-and-an-operation rule in its own paragraph. `API-48` now
+states the synchronous set once and closes it. `CNF-149` runs the diff in both directions.
+
+*This is `F19` in miniature and the same root cause: the wire surface is maintained by hand in
+prose, so it drifts silently every time a decision adds an endpoint.*
+
 ## The launch set — 2026-08-12
 
 **`ADR-0010` settles `D3`**, open since the first session and never asked: v1 ships **Hetzner
