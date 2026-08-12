@@ -787,9 +787,18 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
 `CNF-163` (two creates spending one balance is authorization failure, the write-skew case);
 `CNF-164` (a machine running free or destroyed with no record — both irreversible).
 
+- [ ] **CNF-166** A create against an offer with no declared cancellation bound is refused
+      before any provider call, and a create against one with a bound opens a commitment sized to
+      that bound — later reduced, never raised, by the machine's actual date. (`PRV-31`,
+      `PRV-13c`, `LDG-12`)
+
 **PRE-SCALE** — `CNF-165` (an operator procedure with a human already in the loop).
 
-With the five promotions above and these, the blocking set moves to **113**.
+**BLOCKING** — `CNF-166` (an order whose exposure could not be bounded before purchase is
+unauthorized spending of the operator's money, which is the exact thing `PRV-13b` exists to
+prevent).
+
+With the five promotions above and these, the blocking set moves to **114**.
 
 ## Ownership, deletion and duplication
 

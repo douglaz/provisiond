@@ -130,8 +130,11 @@ whatever the contract says — so the publication requirement was demanding exac
 `ADR-0003`'s defence exists to deny. Publication is now withheld pending advice. **This precedes
 the refund question `ADR-0003` nominates as first.**
 
-**F26. `PRV-13b` needs the earliest-cancellation date before the create that reveals it** —
-*narrowed 2026-08-12, and the narrowing came from a document already in this set.* `PRV-13c` says
+**F26. CLOSED 2026-08-12** by `PRV-31`: a driver declares a per-offer worst-case cancellation
+bound before any order, the commitment is sized to it at create, and the machine's actual date —
+read after ordering — re-sizes it downward at the first re-derivation. An offer with no declared
+bound is not sellable on prepaid terms. `CNF-166` tests it. *The narrowing that made this a
+bounded edit rather than a structural one came from a document already in this set:* `PRV-13c` says
 the per-machine constraint is learned after ordering; `LDG-12` forbids the provider call before
 the commitment exists. But `08-provider-notes.md` records that current Robot dedicated servers
 carry **no minimum term** and that a newly ordered machine's `earliest_cancellation_date` is

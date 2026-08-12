@@ -226,6 +226,18 @@ cancel a paying customer's machine.
 failure to cancel costs at most `setup_fee + one period cap` per machine, record it: the
 reserve above is the expected case, and the cap is the provable upper bound.
 
+**PRV-31** **A driver MUST declare, per offer and before any order, a worst-case cancellation
+bound** — the latest `earliest_cancellation_date` a machine bought from that offer can carry —
+and an offer with **no declared bound MUST NOT be sold on prepaid terms.** This closes `F26`'s
+circularity: `PRV-13c` learns the per-machine constraint *after* ordering, while `LDG-12` forbids
+the order before the commitment exists, so for an offer that hides its terms the commitment could
+only be sized after the purchase it authorizes. The declared bound sizes the commitment at
+create; the machine's *actual* date, read after ordering, re-sizes it downward at the first
+re-derivation (`PRV-13e`). In practice the bound is trivial for the launch set — current Robot
+dedicated servers have no minimum term and a new machine's date is normally today
+(`08-provider-notes.md`) — and adoption never needs it, because an adopted machine's date is read
+before its commitment opens (`PRV-28`, `LDG-36`).
+
 **PRV-13c** **A deployment MUST NOT encode any provider's current commercial terms as
 constants.** Minimum term, notice period, cancellation immediacy and billing granularity are
 per-contract facts that change, differ between a provider's own product lines, and differ
