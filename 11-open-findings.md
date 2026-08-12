@@ -169,20 +169,17 @@ verification belongs before that driver is written rather than before anything s
 Robot-only, this unverified claim would have been a single point of failure for the entire
 product.
 
-**F30. The rewrite landed in two files and stopped** — *wider than first recorded.* The
-commitment replaced the hold in `12-billing-and-ledger.md` and `CONTEXT.md`; **everywhere else
-still says hold**, including `PRV-13b`'s reserve formula (`hold = to_ledger_unit(...)`),
-`operations.hold_id`, `SEC-46`, and thirteen uses in the checklist. One is wrong in substance
-rather than wording: `PRV-13e` says a re-derivation that comes out higher means "an additional
-hold is placed", but there is **one** commitment per machine and it is *re-sized* — stacking a
-second reservation reintroduces exactly the double-count `LDG-9` was withdrawn for.
-
-The conformance half stands as written: `CNF-76`–`CNF-115` still need re-pointing at commitments,
-plus items for the meter, the rate source, `OPS-36`'s late arrival, cardinality in correlator
-matching, and per-tenant serialization. Several tiers are wrong: `CNF-99` is PRE-SCALE while
-testing a path that destroys a disk, and `CNF-77`, `CNF-24`, `CNF-113` and `CNF-115` are each a
-tier below the item that depends on them. *The funding path is no longer on this list — see
-below.*
+**F30. CLOSED 2026-08-12.** The rewrite had landed in two files and stopped; the sweep is now
+done. The rename reached `PRV-13b`'s formula (`commitment_sats = …`), `operations.commitment_id`,
+`SEC-46`, `00`'s withdrawn-non-goal note and the checklist's four remaining money uses. The one
+substantive defect is fixed in place: **`PRV-13e` is AMENDED** — a higher re-derivation re-sizes
+the machine's single commitment via `LDG-34`'s conditional write; the withdrawn "an additional
+hold is placed" would have reintroduced the double-count `LDG-9` was amended to remove. The
+missing tests exist (`CNF-160`–`CNF-165`: the meter's idempotent debit-plus-decrement, billable
+`stopped` and `cancellation_scheduled`, the setup-fee debit, per-tenant serialization under load,
+`OPS-36`'s late arrival, `OPS-38`'s many-case), and the five mis-tiered items are promoted with
+the reasoning recorded in the checklist's tier-corrections note (`CNF-99`, `CNF-77`, `CNF-24`,
+`CNF-113`, `CNF-115`). Blocking set 113.
 
 ## The funding decision — 2026-08-12
 

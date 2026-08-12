@@ -129,7 +129,7 @@ deleted rows.
 | `error` | json | nullable, redacted |
 | `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` (`OPS-27`, `OPS-31`) |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
-| `hold_id` | UUID | nullable; the hold placed in the same transaction as the enqueue (`LDG-11`) |
+| `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost` |
@@ -232,7 +232,8 @@ is by tenant identifier, and `LDG-43`'s unattributed state is what a deleted ten
 
 The reservation record (`LDG-30`). **This table did not exist before 2026-08-12** — the previous
 version named a `holds` table, delegated its contents to `12-billing-and-ledger.md`, and that
-document specified only ledger entries. `operations.hold_id` was a foreign key to nothing, and
+document specified only ledger entries. `operations.commitment_id` (then `hold_id`) was a foreign
+key to nothing, and
 `CNF-96` was a BLOCKING test that wrote to a table no document defined.
 
 | Column | Type | Notes |
@@ -250,8 +251,7 @@ Constraints: index on `(tenant_id, state)` for the availability computation; at 
 commitment per machine.
 
 **STO-23** A commitment and the operation that caused it MUST be written in one transaction
-(`LDG-11`), which is why `operations.hold_id` — now the commitment id — exists rather than a
-lookup by convention.
+(`LDG-11`), which is why `operations.commitment_id` exists rather than a lookup by convention.
 
 **STO-27** Computing available balance and opening a commitment MUST be serialized per tenant
 (`LDG-35`). The store MUST provide a primitive for it — a per-tenant lock row, a serializable

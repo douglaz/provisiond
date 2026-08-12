@@ -140,8 +140,8 @@ exposure before taking money. That requires, per product: an API path to stop th
 **measured** worst-case delay before cost actually stops, and cleanup for every billable
 attachment (`PRV-13a`).
 
-The reserve is computed **in the provider's billing currency** and converted once, at hold time,
-into the ledger unit:
+The reserve is computed **in the provider's billing currency** and converted once, when the
+commitment is opened or re-sized, into the ledger unit:
 
 ```
 reserve_native = setup_fee                              # at cost, no markup (ADR-0006)
@@ -151,13 +151,13 @@ reserve_native = setup_fee                              # at cost, no markup (AD
                + billable_attachments                   # PRV-13a
                + cost_through_earliest_cancellation_date # exception branch only (PRV-13c)
 
-hold = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
+commitment_sats = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 ```
 
 **`customer_rate`, not provider cost.** The reserve must cover what the *customer* is committing
-to spend, and since `customer_rate ≥ provider_rate` by construction, holding the customer price
-also covers the operator's exposure. Using provider cost here would under-hold every machine by
-exactly the margin. **The setup fee is the exception and is held at cost**, because `ADR-0006`
+to spend, and since `customer_rate ≥ provider_rate` by construction, committing the customer
+price also covers the operator's exposure. Using provider cost here would under-commit every
+machine by exactly the margin. **The setup fee is the exception and is debited at cost (`LDG-39`)**, because `ADR-0006`
 passes it through unmarked — the operator does not profit from a fee it did not earn, and it is
 also the one term that is entirely lost if the customer vanishes an hour later, so it MUST be
 fully collected before the order is placed.
@@ -172,8 +172,8 @@ now separated:
 - **There is no volatile-asset haircut**, because the reserve is no longer held in a volatile
   asset relative to its own liability. Under `ADR-0003` the ledger is denominated in satoshis
   and so is the customer's balance, so a bitcoin move re-prices the *customer's* purchasing
-  power, not the operator's coverage. Movement is handled by re-deriving the hold each period
-  (`PRV-13e`), not by over-collateralising it once.
+  power, not the operator's coverage. Movement is handled by re-deriving the commitment each
+  period (`PRV-13e`), not by over-collateralising it once.
 
 **`wind_down_cost` is conditional, and an earlier revision of this paragraph got it wrong in a way
 worth recording.** That revision claimed `OPS-27` had reduced it from an on-call-rota figure
@@ -205,14 +205,17 @@ the distinction MUST declare so, and its machines MUST carry the unreduced `wind
 **PRV-13d** A create MAY carry a caller-requested **runway** — how long the machine should be
 guaranteed to run before an exhausted balance can cancel it. The deployment MUST enforce a floor
 equal to `wind_down_cost`'s duration, below which the operator is not covered, and MUST reject a
-create whose available balance cannot fund the resulting hold. Making runway a caller input
+create whose available balance cannot fund the resulting commitment. Making runway a caller input
 rather than an operator constant matters because the caller is software that knows its own
 intent: a two-hour scratch box and a machine meant to survive a month should not freeze the same
 amount of a customer's balance.
 
-**PRV-13e** The hold MUST be re-derived each billing period from current prices and the current
-rate, not fixed at create. Where the re-derived hold exceeds the current one and the balance can
-cover the difference, an additional hold is placed; where it cannot, the machine enters the same
+**PRV-13e** **AMENDED.** The commitment MUST be re-derived each billing period from current
+prices and the current rate, not fixed at create. Where the re-derived amount exceeds the current
+one and the balance can cover the difference, **the machine's single commitment is re-sized
+upward** by the conditional write of `LDG-34` — *the withdrawn text said "an additional hold is
+placed", and stacking a second reservation on one machine reintroduces exactly the double-count
+`LDG-9` was amended to remove.* Where the balance cannot cover it, the machine enters the same
 balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
 MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to
 become insufficient. A single-tick increase MUST be capped and a deficiency MUST persist across

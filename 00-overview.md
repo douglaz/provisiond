@@ -165,7 +165,7 @@ than deleted, because a reader who remembers them needs to know they were revers
 deliberately.
 
 - **"Customer billing, invoicing, or quota enforcement."** Withdrawn. Self-serve enrolment
-  plus prepaid balance (`ADR-0002`) makes a ledger, holds, and balance enforcement part of
+  plus prepaid balance (`ADR-0002`) makes a ledger, commitments, and balance enforcement part of
   this system's core. Nothing else can hold the reserve at the instant a create is
   authorized (`API-17b`).
 - **"Abuse handling."** Withdrawn. It was defensible when tenants were operator-configured;

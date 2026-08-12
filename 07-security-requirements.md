@@ -246,8 +246,8 @@ be closed and their reserved satoshis returned to available balance** (`LDG-32`)
 did nothing wrong, their machines are gone, and continuing to reserve satoshis against machines
 that no longer exist would convert the operator's misfortune into the customer's loss. This is not
 a refund — `ADR-0004` prohibits those — it is the same release any cancelled machine triggers.
-*The original said "holds" and cited `LDG-9`, both withdrawn when the hold became a commitment
-that decays.*
+*The original said "holds" and cited `LDG-9`'s withdrawn wording; the hold became a commitment
+that decays, and `LDG-9` survives AMENDED as the availability formula.*
 
 **SEC-47** The ledger MUST NOT depend on any provider account remaining reachable. Balances,
 commitments and history are this system's own records; losing an account is an inventory event,

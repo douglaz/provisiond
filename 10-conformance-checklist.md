@@ -61,7 +61,7 @@ cross-tenant control is takeover plus destruction before any external customer a
 `CNF-10`–`CNF-13` (injection — path injection reaches the wrong machine in the operator's whole
 account, shell metacharacters reach root on the rescue system); `CNF-14`–`CNF-17` (redaction —
 create responses carry machine root passwords, rescue passwords are root on customer machines);
-`CNF-19`, `CNF-20` (capability gating, the enforcement direction); `CNF-21`–`CNF-23`, `CNF-25`,
+`CNF-19`, `CNF-20` (capability gating, the enforcement direction); `CNF-21`–`CNF-25`,
 `CNF-26`, `CNF-27`, `CNF-28`, `CNF-29`, `CNF-31a` (the create and ambiguity rows only — see the split below), `CNF-32`
 (idempotency and double-mutation — the money-out core; `CNF-32` is `OVR-5`, the spec's
 self-declared most important property); `CNF-36`–`CNF-38`, `CNF-40`, `CNF-41`, `CNF-43`,
@@ -72,7 +72,7 @@ still billing" is unbounded operator money-out); `CNF-71`–`CNF-75` (the `OVR-1
 which in the single-component form is the only structural defence there is).
 
 **PRE-SCALE** — `CNF-2` (lint: hygiene, not harm — free, so do it early, but it gates nothing),
-`CNF-18`, `CNF-24`, `CNF-30`, `CNF-31b` (the remaining rows), `CNF-33`, `CNF-34` (becomes
+`CNF-18`, `CNF-30`, `CNF-31b` (the remaining rows), `CNF-33`, `CNF-34` (becomes
 blocking the moment anything but the API writes the store), `CNF-35`, `CNF-39`, `CNF-42`,
 `CNF-45`, `CNF-47`, `CNF-48`, `CNF-52`, `CNF-56`–`CNF-60` (`CNF-58` must land before any
 rolling deploy or version skew exists), `CNF-61`, `CNF-65`, `CNF-70`.
@@ -102,10 +102,31 @@ cannot be un-disclosed); `CNF-91`–`CNF-97` (ledger integrity, i.e. authorizati
 `CNF-106` (under-holding every machine by exactly the margin); `CNF-107` (tenant→tenant
 destruction — this was `F15`); `CNF-108`, `CNF-109` (unbounded billing and duplicate purchase);
 `CNF-111`, `CNF-112` (an account termination cannot be undone with money or an apology, and
-`CNF-112` is what makes `CNF-111` real rather than believed).
+`CNF-112` is what makes `CNF-111` real rather than believed); `CNF-77`, `CNF-99`, `CNF-113`,
+`CNF-115` (promoted 2026-08-12 — see the tier corrections below).
 
-**PRE-SCALE** — `CNF-76`, `CNF-77`, `CNF-79`, `CNF-80`, `CNF-88`, `CNF-89`, `CNF-90`, `CNF-98`,
-`CNF-99`, `CNF-102`–`CNF-105`, `CNF-110`, `CNF-113`–`CNF-115`.
+### Tier corrections — 2026-08-12 (`F30`)
+
+Five items sat a tier below either their own harm or the BLOCKING item that depends on them.
+Applying the three questions again, honestly:
+
+- **`CNF-99`** tests that one adverse rate read cannot cancel a machine. Cancellation destroys
+  the disk (`LDG-14`) — that is the *destroyed data* family, not a degraded service. It was
+  PRE-SCALE because the trigger felt operational; the harm is not.
+- **`CNF-77`** (time-to-live deletion) is what `CNF-123` — BLOCKING — exercises the second half
+  of, and it is the storage bound that makes unauthenticated enrolment safe at all (`API-34`).
+- **`CNF-24`** (key-order canonicalization): a spurious idempotency conflict tells an autonomous
+  caller its request was wrong, and its documented recovery is to mutate the request and retry —
+  a duplicate purchase reached through a JSON serializer. `CNF-21`–`CNF-23` were already
+  BLOCKING; this is the same family.
+- **`CNF-113`** (one-action tenant termination) is the mechanism `CNF-111`/`CNF-112` — both
+  BLOCKING — assume exists; a control's test cannot gate less than the tests that rely on it.
+- **`CNF-115`** (balances answerable with every provider unreachable): the insolvency gate
+  (`CNF-101`, BLOCKING) and `SEC-46`'s release both read balances at exactly the moment a
+  provider has vanished.
+
+**PRE-SCALE** — `CNF-76`, `CNF-79`, `CNF-80`, `CNF-88`, `CNF-89`, `CNF-90`, `CNF-98`,
+`CNF-102`–`CNF-105`, `CNF-110`, `CNF-114`.
 
 **DEFERRED** — none.
 
@@ -521,8 +542,9 @@ Applies only to deployments using the admin-plus-override proxy pattern.
       item. (`OPS-28`)
 - [ ] **CNF-86** A sweep does not claim a resource whose operation is still `running` under a
       live lease. (`OPS-30`)
-- [ ] **CNF-87** A hold is released once the negative window elapses, even though the operation
-      remains open, and the sweep keeps searching afterwards. (`OPS-33`)
+- [ ] **CNF-87** A commitment is closed and its reserved satoshis returned once the negative
+      window elapses, even though the operation remains open, and the sweep keeps searching
+      afterwards. (`OPS-33`)
 - [ ] **CNF-88** The account-wide sweep reports an unclaimed machine to the operator and attaches
       it to no tenant. (`OPS-32`)
 - [ ] **CNF-89** Resolution columns are write-once; a second resolution of the same record is
@@ -542,8 +564,8 @@ Applies only to deployments using the admin-plus-override proxy pattern.
       once. (`LDG-8`)
 - [ ] **CNF-95** A create whose available balance is one satoshi short is rejected and **no
       provider call is made**. (`LDG-9`, `LDG-12`)
-- [ ] **CNF-96** A hold and its operation are written in one transaction: killing the process
-      between them leaves neither. (`LDG-11`, `STO-23`)
+- [ ] **CNF-96** A commitment and its operation are written in one transaction: killing the
+      process between them leaves neither. (`LDG-11`, `STO-23`)
 - [ ] **CNF-97** No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
 - [ ] **CNF-98** Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
@@ -734,6 +756,41 @@ Added 2026-08-12 with `API-49`–`API-54`.
       history contains the event **before** the machine record shows it gone. (`OPS-39`,
       `LDG-14`)
 
+## The meter and serialization
+
+Added 2026-08-12 closing `F30`'s list of untested requirements from the commitment rewrite.
+
+- [ ] **CNF-160** Posting the same `(machine, billing period, kind)` usage debit twice moves the
+      balance once, and the debit and its commitment decrement land in one transaction — killing
+      the process between them leaves neither. (`LDG-38`, `LDG-31`, `STO-28`)
+- [ ] **CNF-161** A machine powered off for a full billing period is billed for it, and a machine
+      in `cancellation_scheduled` is billed through its effective date. The meter stopping at
+      cancellation *acceptance* is the defect. (`LDG-37`, `DOM-19`)
+- [ ] **CNF-162** The setup fee is **debited** when the order is placed. A create-then-delete
+      cycle costs the tenant the fee; run twice, it costs it twice. An implementation that
+      reserves-then-releases it fails by refunding the unrefundable. (`LDG-39`)
+- [ ] **CNF-163** Two concurrent creates against a balance that can fund exactly one result in
+      one commitment and one `insufficient_balance` — under load, not by code review. This is
+      the per-tenant serialization primitive `STO-27` exists for. (`LDG-35`, `STO-27`)
+- [ ] **CNF-164** A machine whose correlator arrives after `OPS-33` released the commitment is
+      attached to its tenant and then routed through the ordinary exhaustion path — not silently
+      adopted free, not destroyed without a record. (`OPS-36`)
+- [ ] **CNF-165** When correlator search returns **many**, no automatic attach occurs, the
+      operator is shown all candidates, and the recorded choice names which duplicate was kept
+      and why the others are believed spurious. (`OPS-38`, `OPS-31`)
+
+### Assignments for `CNF-160`–`CNF-165`
+
+**BLOCKING** — `CNF-160` (double-billing or an unmetered machine, and the crash window mints the
+difference); `CNF-161` (under-billing exactly the machines the operator is still paying for);
+`CNF-162` (the €39-per-iteration pump the setup-fee rewrite closed — this is its test);
+`CNF-163` (two creates spending one balance is authorization failure, the write-skew case);
+`CNF-164` (a machine running free or destroyed with no record — both irreversible).
+
+**PRE-SCALE** — `CNF-165` (an operator procedure with a human already in the loop).
+
+With the five promotions above and these, the blocking set moves to **113**.
+
 ## Ownership, deletion and duplication
 
 - [ ] **CNF-107** Two tenants cannot both hold the same `(provider_account, external_id)`. The
@@ -754,9 +811,11 @@ Added 2026-08-12 with `API-49`–`API-54`.
       is, `CNF-111` proves nothing. (`SEC-44`)
 - [ ] **CNF-113** One operator action terminates a tenant and every machine it owns, fast enough
       to meet the provider's abuse-notice deadline. (`SEC-45`)
-- [ ] **CNF-114** Loss of a provider account releases the affected holds back to available
+- [ ] **CNF-114** Loss of a provider account closes the affected commitments, returning their
+      reserved satoshis to available
       balance. (`SEC-46`)
-- [ ] **CNF-115** Balances and holds are answerable with every provider unreachable. (`SEC-47`)
+- [ ] **CNF-115** Balances and commitments are answerable with every provider unreachable.
+      (`SEC-47`)
 
 ## Before production
 
