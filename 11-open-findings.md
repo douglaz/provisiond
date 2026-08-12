@@ -160,11 +160,16 @@ exception). The freeze-attack surface three questions were spent on does not exi
 design, because nothing automatic remains to trigger. `ADR-0003`'s claim now carries a footnote
 naming its two bounded exceptions instead of an absolute it never delivered.
 
-**F28. `ADR-0004` §5 (B2B only) is unenforceable under `ADR-0005`.** Nothing may be recorded, so
-nothing distinguishes a business from a consumer, and the consumer withdrawal right §5 exists to
-avoid is still reachable. Relatedly `API-18`'s adoption entitlement has no workable option under
-self-serve enrolment: two of its three require an operator step the product deleted, and the
-third requires access to a machine the tenant does not yet have.
+**F28. CLOSED 2026-08-12, both halves, by decisions rather than mechanisms.** The B2B half: the
+operator decided **not to chase jurisdictional consumer-law compliance** — the regimes differ
+everywhere and cannot all be satisfied by a seller who deliberately knows nothing about the
+buyer. The control is terms clarity: **no refunds, ever, stated unmistakably** (`ADR-0004` §5
+AMENDED, with the declined checkbox alternatives recorded). The residual withdrawal exposure is
+knowingly operator-borne and joins `F25`'s lawyer list as context. The adoption half dissolved on
+inspection: under self-serve, machines exist only in the operator's accounts, so a customer has
+nothing to adopt — **adoption is operator-only** (`API-18` AMENDED), the entitlement problem
+disappears with the customer-facing feature that carried it, and the challenge token leaves v1
+scope.
 
 **F29. `PRV-30` — the Hetzner Robot `comment` field may force manual order processing.** Claimed
 by one audit, citing the Robot documentation; **not verified** — the docs page truncates before

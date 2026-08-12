@@ -29,10 +29,22 @@ prohibitions, and each one is load-bearing.
    MUST state plainly that they are unsecured claims and that funds are used in the business.
    There is no EU safeguarding duty on an unlicensed business, and misdescribing the arrangement
    is what converts an unregulated position into misrepresentation.
-5. **Sell to businesses only.** The Consumer Rights Directive Art. 9 gives consumers a 14-day
-   distance-contract withdrawal right that cannot be drafted away, reintroducing exactly the
-   refund liability this design assumes away; Dir. 93/13 can strike expiry and forfeiture terms
-   as unfair. For agents acting on behalf of businesses this costs nothing and deletes a regime.
+5. **Sell to businesses only — AMENDED 2026-08-12 to say what this can and cannot be.** The
+   Consumer Rights Directive Art. 9 gives consumers a 14-day distance-contract withdrawal right
+   that cannot be drafted away; Dir. 93/13 can strike expiry and forfeiture terms as unfair. But
+   `ADR-0005` collects nothing, so nothing distinguishes a business from a consumer, and `F28`
+   correctly called the original rule unenforceable as written. **The decision (operator's, made
+   explicitly): do not chase jurisdictional compliance.** Consumer-protection regimes differ
+   across every country this product is reachable from and cannot all be satisfied — least of all
+   by a seller who deliberately knows nothing about the buyer. The control is the *terms*: they
+   MUST state, prominently and unmistakably, that there are **no refunds, ever**, that the
+   service is sold for business use, and that balances are non-refundable prepaid claims. A
+   consumer who buys anyway does so against explicit terms; the residual — a withdrawal claim on
+   an unconsumed balance in some jurisdiction — is knowingly operator-borne, bounded by that
+   customer's own top-ups, and sits on `F25`'s list for the lawyer as context, not as a blocker.
+   *Rejected in the same decision: a business self-declaration checkbox and an
+   express-performance consent ritual — offered as near-free controls, declined in favour of
+   terms clarity alone.*
 6. **Do not rely on PSD2's limited-network exception.** Invoking it is a *concession* that the
    activity might be a payment service, and it carries a €1m notification after which the
    national authority — not the operator — decides. Document being **outside** the definition,

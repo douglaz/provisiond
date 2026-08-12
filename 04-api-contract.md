@@ -336,18 +336,17 @@ A deployment MUST therefore define, before accepting creates from more than one 
 Absent both, any tenant can order unbounded billable hardware in any configured account, and no
 other requirement in this document stops it.
 
-**API-18** Adoption MUST require proof that the caller is entitled to the machine. Being
-able to name a provider account and an external identifier is not proof: the credentials
-belong to the operator, not the tenant, and every tenant can name them. Acceptable
-mechanisms, in rough order of preference:
-
-- an operator-maintained assignment of external machine identifiers to tenants, checked
-  before adoption;
-- a challenge the caller must place on the machine (a token in a well-known file or a DNS
-  record) that the control plane verifies;
-- restricting adoption to admin tokens acting on a tenant's behalf.
-
-A deployment MUST choose one and MUST document it. See `DEF-1`.
+**API-18** **AMENDED 2026-08-12 — adoption is an operator-only verb.** Under self-serve
+enrolment every machine lives in the operator's provider accounts, so a customer cannot have a
+machine there to adopt; adoption's only real use is the operator assigning a pre-existing machine
+to a tenant. Entitlement is therefore the first of the original mechanisms — an
+operator-maintained assignment of external machine identifiers to tenants, checked before
+adoption — and the caller-facing adopt endpoint MUST reject tenant credentials outright, like
+requeue (`API-19`). *The withdrawn text offered three mechanisms; `F28` observed two required an
+operator step the self-serve product deleted and the third required access to a machine the
+tenant does not have. All true, and moot: the feature they were defending was never reachable by
+a customer under this product shape. The challenge-token mechanism is deleted from v1 scope and
+returns only with a bring-your-own-machine product, which would need its own ADR.* See `DEF-1`.
 
 **API-19** Requeue MUST be restricted to operators. A tenant token MUST NOT be able to
 requeue an operation, because requeue can re-issue a purchase (`OPS-20`).
