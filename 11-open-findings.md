@@ -230,6 +230,34 @@ money by doing something that looks correct.
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
 
+## Key custody — 2026-08-12
+
+**`ADR-0009` makes the process unable to spend the float**, which is the first requirement in this
+set that makes half of `F13` untrue. Deriving addresses (`ADR-0008`) meant holding key material,
+which turned that finding from an abstraction into a specific key on a specific disk — and the
+answer available here is not available to most businesses that hold customer money: **this one may
+never need to spend on-chain at all**, because `ADR-0004` forbids paying anyone out and provider
+invoices are settled with the operator's ordinary money.
+
+Lightning cannot go cold, so it is bounded instead (`SEC-49`) and the ceiling *is* the blast
+radius, stated as a number. `SEC-48`–`SEC-53` and `CNF-132`–`CNF-137` follow. The blocking set
+moves to **92**.
+
+**The luckiest interaction in the set is worth naming**, because it is the reason a manual refill
+is affordable: `ADR-0008` gives every deposit both destinations, so exhausted inbound capacity
+degrades funding from *fast* to *slow* rather than from *working* to *down*. Without the second
+rail, `SEC-51` would make an operator's sleep into a sales outage — and an operator who cannot
+sell while asleep will quietly re-introduce the hot key this decision removed. `CNF-136` exists to
+catch that pressure before it becomes a change.
+
+**Two things got worse, not better.** The risk moved from compromise to **custody**, and custody
+is not smaller by default — losing the cold key destroys the float with no attacker involved, no
+insurance and nobody to appeal to, which is why `SEC-53` requires the recovery procedure to have
+been *executed* rather than written. And the watch-only material is now a privacy secret of
+unusual concentration: an extended public key discloses every deposit address ever derived, so
+leaking it publishes the operator's whole payment history with customers linked to each other —
+`ADR-0005`'s prohibited outcome reached with nothing stolen (`SEC-52`).
+
 ## Critical — closed 2026-08-11 (second pass)
 
 **F22. The conformance checklist covered nothing decided on 2026-08-11.** → `CNF-76`–`CNF-115`,
@@ -270,10 +298,21 @@ raised the stakes rather than lowering them.* Provider secrets originate in the 
 environment, which customer-facing code can read without ever referencing the private credential
 type; `CNF-71`/`CNF-72` prove *type visibility*, not inability to read the environment or inspect
 shared process state. The single-deployable decision is now final, so this is the only structural
-defence, and it does not yet hold. **It got worse:** the same process is now specified to hold
-the ledger and payment rails, so one compromise takes the machines *and* the float. The
-sub-decision recorded after `API-37` — caller-supplied public keys instead of server-held tokens
-— is the cheapest available mitigation and is not yet taken.
+defence, and it does not yet hold.
+
+**Half of it closed 2026-08-12.** The "and the float" clause is no longer true by design:
+`ADR-0009` makes the process watch-only, so a full compromise costs the machines and whatever sits
+under `SEC-49`'s channel ceiling rather than every satoshi ever deposited. The blast radius is now
+a number the operator chooses. `CNF-132` deliberately tests *reachability* rather than type
+visibility, because repeating `CNF-71`'s mistake here would prove nothing about the money.
+
+**The credential half is also closed:** `API-39` settled on caller-supplied public keys, so the
+mitigation this finding called cheapest and untaken has been taken.
+
+**What remains open is the original finding**, unchanged and now isolated: nothing proves
+customer-facing code cannot read provider credentials out of the process environment. That is a
+provider-credential problem, not a money problem, and it is the last thing `ADR-0001` left
+undefended.
 
 **F17. Tier assignments change under honest application of the rule** — *partially closed.*
 `ADR-0001` chose the single-component form, so `CNF-71`–`CNF-74` apply and `CNF-66`–`CNF-68` do

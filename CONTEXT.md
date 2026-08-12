@@ -149,6 +149,12 @@ A provider's one-time charge for a dedicated machine. Non-refundable, passed to 
 cost, and the one component entirely lost if a customer vanishes immediately.
 _Avoid_: onboarding fee, installation fee, deposit
 
+**Channel ceiling**:
+The most the operator lets sit in Lightning channels before sweeping the excess beyond the running
+system's reach. Lightning cannot be made cold, so this number *is* the blast radius of a full
+compromise (`ADR-0009`).
+_Avoid_: hot wallet limit, float cap, reserve (taken — see **Reserve**)
+
 **Solvency invariant**:
 The rule that satoshis actually held must cover the float. Stated publicly on purpose
 (`ADR-0004`).

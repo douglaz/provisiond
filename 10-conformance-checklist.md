@@ -139,7 +139,20 @@ service rather than losing money — **which is the same argument that put `CNF-
 tier** (`F30`). It is recorded here so that whoever re-tiers `CNF-99` re-examines this one in the
 same pass.
 
-The blocking set moves from 73 to **86**.
+### Assignments for `CNF-132`–`CNF-137` (added 2026-08-12)
+
+**BLOCKING** — all six. Applying the three questions to key custody gives the same answer every
+time, and it is worth saying why rather than asserting it. The operator cannot undo a drained
+float: there is no chargeback, no insurance and no counterparty. They would not know until the
+solvency check fails, by which point the money is gone. And `CNF-136` is here for the opposite
+reason — it is not a money-loss test at all, it is the test that keeps `SEC-51`'s manual refill
+from turning every exhausted channel into a sales outage, which is the failure most likely to make
+an operator quietly re-introduce the hot key `ADR-0009` removed.
+
+`CNF-137` is additionally a **before production** item: a recovery procedure that has never been
+run is a belief about a procedure.
+
+The blocking set moves from 73 to **92**.
 
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
@@ -546,6 +559,31 @@ to strand satoshis that do.
       expired address still accepts payments the operator will not see, and that paying twice
       credits twice with no refund. **The disclosure is the control** — there is no mechanism
       behind it. (`LDG-54`, `LDG-56`, `API-44`)
+
+## Key custody
+
+Added 2026-08-12 with `ADR-0009`. These are the first items that make `F13`'s "one compromise
+takes the machines *and* the float" partly false.
+
+- [ ] **CNF-132** No spending key or seed is reachable from the process — not in its environment,
+      its configuration, its filesystem or any service it can call. Asserted by attempting to
+      construct a spend from inside it and failing. **Type-level absence is not the test**;
+      `CNF-71`'s weakness was proving visibility rather than reachability, and repeating it here
+      would prove nothing about the money. (`SEC-48`, `F13`)
+- [ ] **CNF-133** Address derivation and payment observation both work with watch-only material
+      only. Removing everything but the extended public key breaks nothing in the funding path.
+      (`SEC-48`, `LDG-50`, `LDG-57`)
+- [ ] **CNF-134** The solvency check completes with no spending key present. (`LDG-53`, `LDG-17`)
+- [ ] **CNF-135** Channel balance above the stated ceiling is swept to cold, and the sweep
+      destination cannot be changed by any runtime input — configuration, API, environment or
+      database write. Attempting to change it fails. (`SEC-49`, `SEC-50`)
+- [ ] **CNF-136** With inbound capacity fully exhausted, a funding request still succeeds and the
+      resulting deposit is payable on-chain. **This is the test that makes `SEC-51`'s manual
+      refill survivable** — without it, an operator asleep is an operator not selling. (`SEC-51`,
+      `LDG-46`)
+- [ ] **CNF-137** The cold key's recovery procedure has been executed end to end, from backup to a
+      signed spend, by someone other than whoever wrote it. Before the first customer payment.
+      (`SEC-53`)
 
 ## Ownership, deletion and duplication
 

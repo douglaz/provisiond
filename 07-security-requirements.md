@@ -241,13 +241,58 @@ single operator action, fast enough to meet the provider's abuse-notice deadline
 entire remedy, and it MUST NOT depend on the operator enumerating machines by hand under time
 pressure.
 
-**SEC-46** When a provider account is lost, the affected tenants' **holds MUST be released back
-to available balance**. The customers did nothing wrong, their machines are gone, and continuing
-to freeze satoshis against machines that no longer exist would convert the operator's misfortune
-into the customer's loss. This is not a refund — `ADR-0004` prohibits those — it is the same
-release any cancelled machine triggers, and the ledger already expresses it (`LDG-9`).
+**SEC-46** **AMENDED.** When a provider account is lost, the affected tenants' **commitments MUST
+be closed and their reserved satoshis returned to available balance** (`LDG-32`). The customers
+did nothing wrong, their machines are gone, and continuing to reserve satoshis against machines
+that no longer exist would convert the operator's misfortune into the customer's loss. This is not
+a refund — `ADR-0004` prohibits those — it is the same release any cancelled machine triggers.
+*The original said "holds" and cited `LDG-9`, both withdrawn when the hold became a commitment
+that decays.*
 
 **SEC-47** The ledger MUST NOT depend on any provider account remaining reachable. Balances,
-holds and history are this system's own records; losing an account is an inventory event, not a
-financial one, and a design that reads provider state to answer "what do I owe this customer"
-loses the answer at the worst moment.
+commitments and history are this system's own records; losing an account is an inventory event,
+not a financial one, and a design that reads provider state to answer "what do I owe this
+customer" loses the answer at the worst moment.
+
+## Key custody
+
+`ADR-0009`. These requirements exist because `ADR-0008` made the deployment derive Bitcoin
+addresses, which turned `F13` — one compromise takes the machines *and* the float — from a worry
+into a key on a disk.
+
+**SEC-48** **The process MUST hold watch-only key material for the on-chain float and MUST NOT
+hold anything that can construct a spend.** An extended public key or output descriptor is
+sufficient to derive every deposit address (`LDG-50`) and to observe every payment (`LDG-57`);
+nothing in the specified behaviour requires more. **The key that can move on-chain funds MUST live
+outside the deployment**, and no code path in the deployment may reach it.
+
+**SEC-49** **Lightning is necessarily hot, so it MUST be bounded.** A deployment MUST state a
+**channel ceiling** in satoshis and sweep the excess to cold. That ceiling is the blast radius of
+a full compromise expressed as a number, and it MUST be chosen against the size of the float
+rather than against the convenience of not sweeping.
+
+**SEC-50** **The sweep destination MUST be fixed at deployment and MUST NOT be settable at
+runtime.** A process that can be told where to sweep can be told to sweep to an attacker, which
+converts the ceiling from a bound into a delay.
+
+**SEC-51** **Refilling channels from cold MUST be a manual operator action** and MUST NOT be
+automatable by any path the process controls. Automating it would be a path from the compromised
+process back to the cold key, which is the whole thing `SEC-48` buys.
+
+This is affordable only because of how `ADR-0008` shaped deposits: a deposit carries **both**
+destinations, so exhausted inbound capacity does not stop funding — the customer pays the address
+instead. **Without the second rail this requirement would make an operator's sleep into an
+outage.**
+
+**SEC-52** **The watch-only key material MUST be treated as confidential although it grants no
+spending.** An extended public key reveals every address ever derived from it, so disclosing it
+publishes the operator's entire deposit history with every customer's payments linked together —
+`ADR-0005`'s exact prohibited outcome, reached without a single credential being stolen. It is a
+privacy secret rather than a spending secret, and the distinction is a reason to handle it
+carefully, not casually.
+
+**SEC-53** **The cold key's backup and recovery procedure MUST be documented and MUST have been
+tested before the first customer payment is accepted.** `ADR-0009` moves risk from compromise to
+custody, and custody is only the smaller risk if this exists. Losing the key destroys the entire
+float with no recovery, no insurance and no counterparty to appeal to — and unlike a compromise,
+it can happen with no attacker involved at all.

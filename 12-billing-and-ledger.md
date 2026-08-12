@@ -308,11 +308,16 @@ credit an under-floor on-chain payment at its received value (`LDG-47`) rather t
 **Refusing it would strand it**, since `ADR-0004` forbids sending it back.
 
 **LDG-53** **Solvency counts both rails** (`LDG-17`). Satoshis actually held MUST include channel
-balances and confirmed on-chain outputs. A channel balance is encumbered by channel state and a
-force-close returns it on a timelock, so a deployment MUST state whether the solvency check
-counts a channel balance at face value — and if it does, that a fully-drained inbound position
-can be solvent on paper while unable to fund a withdrawal it is in any case forbidden from
-making (`ADR-0004`).
+balances and confirmed on-chain outputs at addresses derived from the operator's key material. A
+channel balance is encumbered by channel state and a force-close returns it on a timelock, so a
+deployment MUST state whether the solvency check counts a channel balance at face value — and if
+it does, that a fully-drained inbound position can be solvent on paper while unable to fund a
+withdrawal it is in any case forbidden from making (`ADR-0004`).
+
+**The check MUST be computable watch-only** (`SEC-48`). Counting what is held is a read, so the
+invariant this whole design rests on needs no key that can spend — which is the property that
+made `ADR-0009` affordable. An implementation that reaches for a spending key to answer "am I
+solvent" has either misunderstood the question or acquired a capability `SEC-48` forbids.
 
 **LDG-43** A payment that cannot be attributed to a live tenant MUST be recorded as unattributed
 and MUST NOT be silently dropped, and a tenant MUST NOT be deleted while a payment attributable
