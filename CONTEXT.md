@@ -90,6 +90,17 @@ _Avoid_: wallet, account, deposit, funds, credit line
 A customer payment that increases a balance. The only way a balance goes up.
 _Avoid_: deposit, funding, recharge, payment
 
+**Rail**:
+A way money arrives — Lightning or on-chain (`ADR-0008`). A property of one payment, never of a
+customer: the same tenant may use either, and which one it is given depends on the amount.
+_Avoid_: payment method, channel, network
+
+**Funding destination**:
+The thing a customer pays: a Lightning invoice or a freshly derived on-chain address, bound to
+exactly one tenant. It is what makes a payment attributable **without knowing who paid**, which is
+how the collect-nothing posture and the need to credit the right balance are satisfied at once.
+_Avoid_: address, invoice, payment request (each names one rail only)
+
 **Float**:
 The sum of all customer balances — what the operator owes at any instant. The operator's own
 margin is not part of it.

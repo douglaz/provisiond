@@ -160,6 +160,34 @@ than left as exceptions a builder must invent:
   the presented public key instead. Re-sending the same enrolment MUST return the same pending
   tenant rather than creating a second one.
 
+## Funding
+
+**API-43** **A funding endpoint MUST exist**, and it MUST be reachable by a **pending** tenant.
+This is the one exception to `API-7`'s activation check: `API-35` will not graduate a tenant until
+a payment is credited, so an endpoint that refuses pending tenants makes activation unreachable
+and enrolment a dead end. Every other authenticated endpoint MUST continue to reject a pending
+tenant with `not_activated` (`DOM-20`).
+
+**API-44** A funding request MUST carry the amount the caller intends to pay, and the response MUST
+name the rail it was given (`LDG-46`) along with a destination and, for Lightning, an expiry. The
+amount is required because it selects the rail — a request that cannot be invoiced within inbound
+capacity is answered on-chain — and because `LDG-52`'s floor is per-rail, so a caller cannot know
+whether its intended amount is fundable without being told which rail applies.
+
+**The amount is an intent, not a commitment.** `LDG-47` credits what arrives. A funding request
+MUST NOT reserve, promise or pre-credit anything, and MUST NOT be treated as a receivable.
+
+**API-45** A funding request MUST be idempotent per `(tenant, idempotency key)` like every other
+write (`API-8`), and re-sending one MUST return the **same** destination rather than minting a
+second one. Minting a fresh address per retry is how a caller that retries on timeout leaves a
+trail of derived addresses the operator must monitor forever (`LDG-51` makes them permanently
+payable), and how it eventually pays two of them for one intended top-up.
+
+**API-46** Funding MUST be rate-limited per tenant. Each request creates a destination that must
+be watched for the rest of the deployment's life (`LDG-51`), so an unlimited funding endpoint is
+an unbounded, un-reclaimable monitoring obligation minted by an unauthenticated-adjacent caller —
+`API-34`'s time-to-live deletes a pending tenant, but `LDG-51` forbids forgetting its addresses.
+
 **API-41** Enrolment MUST be sheddable under load ahead of every other endpoint, and a deployment
 MUST set a **global** ceiling on pending tenants, not only a per-caller rate limit. `API-36`'s
 limiter holds its state in memory, so it resets on every restart of the single process

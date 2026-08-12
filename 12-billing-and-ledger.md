@@ -207,11 +207,68 @@ activation on "a payment has been credited" (`API-35`) and made a payment notifi
 conformance item (`CNF-94`) while specifying no endpoint that takes money — the only path that
 turns a stranger into a customer was missing entirely.
 
-A deployment MUST define: how a tenant obtains a payment destination; how a payment is observed
-and **authenticated**, given that an unauthenticated credit notification mints money directly;
-how a payment binds to a tenant without recording a counterparty (`LDG-21`); what constitutes
-finality per rail; and how a Lightning amount, an on-chain amount and an ecash note each become
-an integer satoshi credit, including who bears the rail's fee.
+**AMENDED — this requirement previously listed what a deployment must decide; `ADR-0008` decided
+it.** `LDG-46`–`LDG-53` are the decisions. What survives as a deployment obligation is narrower:
+the confirmation depth of `LDG-48`, the per-rail floors of `LDG-52`, the invoice expiry of
+`LDG-51`, and the channel-balance treatment of `LDG-53` are all deployment parameters, and each
+MUST be stated rather than left to an implementer's judgement.
+
+**LDG-46** **Two rails ship: Lightning primary, on-chain fallback** (`ADR-0008`). A deployment
+MUST offer both. Lightning has a ceiling the customer cannot see — a top-up exceeding inbound
+capacity presents as a payment that simply does not route — so a funding request whose amount
+cannot be invoiced MUST be answered with an on-chain destination rather than an error, and the
+caller MUST be told which rail it was given. **A rail is a property of the funding request, not of
+the tenant**: the same tenant funds over Lightning on Monday and on-chain on Tuesday.
+
+**LDG-47** **Credit what arrived, never what was intended.** One rule, both rails. On-chain the
+payer bears the network fee, so the credit is the received output value; on Lightning the invoice
+amount is exact and routing is paid by the payer on top. An overpayment MUST be credited in full
+— refusing it would strand money `ADR-0004` forbids returning. An underpayment MUST also be
+credited at its received value, and simply fails to activate a pending tenant if it does not
+clear `LDG-52`'s floor. **A credit derived from the requested amount rather than the settled
+amount mints the difference**, and does so silently, on every partial payment.
+
+**LDG-48** **Finality is per-rail and both MUST be stated.** On Lightning, credit MUST NOT be
+posted before the invoice is settled and its preimage is known to the operator's node; an
+accepted-but-held HTLC is not a payment. On-chain, credit MUST NOT be posted before a stated
+confirmation depth, and **zero-confirmation credit MUST NOT be offered on any rail or for any
+amount** — a replaceable transaction would buy a machine whose setup fee is already
+non-refundable the instant the order lands (`LDG-39`), which is a self-funding attack rather than
+a risk to be priced.
+
+**LDG-49** **Attribution is by destination, never by payer.** A funding request MUST mint a
+destination bound to exactly one tenant — a payment hash on Lightning, a derived address
+on-chain — and the credit MUST be posted against that binding. Destinations MUST NOT be shared
+between tenants. The destination-to-tenant map is the operator's own record and identifies no
+counterparty, so it satisfies `LDG-21` and `ADR-0005` while doing the work that knowing the payer
+would otherwise be needed for.
+
+**LDG-50** **A fresh on-chain address per funding request.** Reusing one address per tenant
+publicly links every top-up that tenant ever makes, on a ledger that is permanent and worldwide.
+That is a larger privacy harm than anything `ADR-0005` prevents by not writing logs, and it is
+inflicted by the operator's own address policy rather than by the customer's choice.
+
+**LDG-51** **Expiry ends payability, not the binding.** A Lightning invoice MUST carry an expiry
+after which it can no longer be paid. **An on-chain address has no such property** — anyone may
+pay a derived address forever, and nothing the operator does can prevent it. Therefore the
+destination-to-tenant binding MUST be retained beyond the lifetime of the funding request that
+created it, and a payment arriving at an expired destination belonging to a live tenant MUST be
+credited normally. A payment arriving for a tenant that no longer exists is governed by `LDG-43`
+and is the one case the two rails genuinely differ on, because only the on-chain rail can receive
+one.
+
+**LDG-52** **`LDG-44`'s minimum is per-rail, and the on-chain floor is higher.** It MUST exceed
+the cost of eventually spending the output the payment creates. A top-up smaller than its own
+future sweep fee reduces the satoshis the operator holds while increasing the float, so it does
+not underfund a tenant — it moves `LDG-17` in the wrong direction, and does so more the more
+often it happens.
+
+**LDG-53** **Solvency counts both rails** (`LDG-17`). Satoshis actually held MUST include channel
+balances and confirmed on-chain outputs. A channel balance is encumbered by channel state and a
+force-close returns it on a timelock, so a deployment MUST state whether the solvency check
+counts a channel balance at face value — and if it does, that a fully-drained inbound position
+can be solvent on paper while unable to fund a withdrawal it is in any case forbidden from
+making (`ADR-0004`).
 
 **LDG-43** A payment that cannot be attributed to a live tenant MUST be recorded as unattributed
 and MUST NOT be silently dropped, and a tenant MUST NOT be deleted while a payment attributable

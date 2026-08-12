@@ -27,7 +27,7 @@ requirement not to repeat it.
 | `09-known-defects.md` | Defects found in the reference implementation, as prohibitions |
 | `10-conformance-checklist.md` | What a reimplementation must demonstrate before it serves traffic |
 | `11-open-findings.md` | **Read this before building.** An independent audit's 21 findings, which are fixed and which are open, and the three questions a builder must ask first |
-| `12-billing-and-ledger.md` | The ledger, holds, reserves, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
+| `12-billing-and-ledger.md` | The ledger, commitments, the meter, funding, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
 | `CONTEXT.md` | Glossary. Which word means what, and which words are banned |
 | `docs/adr/` | The decisions, and what was rejected to reach them |
 
@@ -51,11 +51,12 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0005` | Collect nothing about customers; purge caller payload at terminal state |
 | `0006` | v1 is pass-through: setup fees at cost, no machine reuse. Inventory and the VM line are deferred together |
 | `0007` | Margin is a percentage of machine time; installs and rescue are free but metered |
+| `0008` | Two funding rails — Lightning primary, on-chain fallback. Attribution is by destination, never by payer |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
-dissent before treating satoshi denomination as settled. The one open sub-decision is what kind
-of credential enrolment issues — a server-generated token or a caller-supplied public key —
-recorded in `04-api-contract.md` after `API-37`.
+dissent before treating satoshi denomination as settled. The credential question is settled:
+enrolment issues against a **caller-supplied public key** (`API-39`), so nothing secret crosses
+the wire and compromising the credential store grants an attacker nothing.
 
 ## How much to trust this
 

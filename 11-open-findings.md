@@ -68,6 +68,12 @@ endpoints, the create request gained a runway field (`PRV-13d`), and machines ga
 caller-readable runway (`LDG-15`) — none with a request or response body. See `F19`. **This is
 now the largest single gap in the set.**
 
+*Worse on 2026-08-12.* Funding added a request that carries an amount and a response that must
+name a rail, a destination and an expiry (`API-44`) — with no body for either. This is the one
+endpoint where an implementer's invention is not merely incompatible but dangerous: a caller that
+reads the requested amount back out of the response and treats it as credited has re-created the
+`LDG-47` defect on the client side, and nothing in a checklist the *server* passes will catch it.
+
 **F24. CLOSED by being right.** It warned that nothing decided on 2026-08-11 had been reviewed by
 anyone but its author, and that confidence should be no higher than it was before the previous
 audit. Two independent audits on 2026-08-12 returned **NO** with roughly forty distinct findings
@@ -124,10 +130,18 @@ whatever the contract says — so the publication requirement was demanding exac
 `ADR-0003`'s defence exists to deny. Publication is now withheld pending advice. **This precedes
 the refund question `ADR-0003` nominates as first.**
 
-**F26. `PRV-13b` needs the earliest-cancellation date before the create that reveals it.**
-`PRV-13c` says that per-machine constraint is learned after ordering; `LDG-12` forbids the
-provider call before the commitment exists. For an offer that does not expose contract terms up
-front, the commitment can only be sized after making the purchase it is meant to authorize.
+**F26. `PRV-13b` needs the earliest-cancellation date before the create that reveals it** —
+*narrowed 2026-08-12, and the narrowing came from a document already in this set.* `PRV-13c` says
+the per-machine constraint is learned after ordering; `LDG-12` forbids the provider call before
+the commitment exists. But `08-provider-notes.md` records that current Robot dedicated servers
+carry **no minimum term** and that a newly ordered machine's `earliest_cancellation_date` is
+normally *today*, so a create rarely lands on the exception branch at all; and `PRV-13c` names
+**adoption** as that branch's main road, where the machine already exists and `PRV-28` makes
+adopt a get-machine plus a local write — so the constraint is read *before* the commitment is
+opened. What remains is a create at a provider whose offer does not disclose its term. That wants
+a driver-declared pre-create bound per offer, with *no declared bound MUST NOT be sold on prepaid
+terms*; it is a bounded edit, not a structural one. **Recorded so the next reader does not
+re-derive the alarm from the finding's original wording.**
 
 **F27. `ADR-0003`'s "matched at all times" is not what `PRV-13e` delivers.** The matching argument
 needs unthrottled re-pricing; `PRV-13e` deliberately caps per-tick increases and requires a
@@ -148,12 +162,47 @@ the ordering section and the client libraries carry no note. If true, the Robot 
 every order into a human-latency order and invalidates the measured negative window for that
 provider. Check before shipping the Robot driver.
 
-**F30. Conformance items still lag the rewrite.** `CNF-76`–`CNF-115` were written against the
-hold model. They need re-pointing at commitments, plus new items for the meter, the rate source,
-the funding path, `OPS-36`'s late arrival, cardinality in correlator matching, and per-tenant
-serialization. Several existing tiers are wrong: `CNF-99` is PRE-SCALE while testing a path that
-destroys a disk, and `CNF-77`, `CNF-24`, `CNF-113` and `CNF-115` are each a tier below the item
-that depends on them.
+**F30. The rewrite landed in two files and stopped** — *wider than first recorded.* The
+commitment replaced the hold in `12-billing-and-ledger.md` and `CONTEXT.md`; **everywhere else
+still says hold**, including `PRV-13b`'s reserve formula (`hold = to_ledger_unit(...)`),
+`operations.hold_id`, `SEC-46`, and thirteen uses in the checklist. One is wrong in substance
+rather than wording: `PRV-13e` says a re-derivation that comes out higher means "an additional
+hold is placed", but there is **one** commitment per machine and it is *re-sized* — stacking a
+second reservation reintroduces exactly the double-count `LDG-9` was withdrawn for.
+
+The conformance half stands as written: `CNF-76`–`CNF-115` still need re-pointing at commitments,
+plus items for the meter, the rate source, `OPS-36`'s late arrival, cardinality in correlator
+matching, and per-tenant serialization. Several tiers are wrong: `CNF-99` is PRE-SCALE while
+testing a path that destroys a disk, and `CNF-77`, `CNF-24`, `CNF-113` and `CNF-115` are each a
+tier below the item that depends on them. *The funding path is no longer on this list — see
+below.*
+
+## The funding decision — 2026-08-12
+
+**`ADR-0008` chose two rails: Lightning primary, on-chain fallback.** `LDG-42` had required a
+funding path and then named three candidate rails without picking one, so the endpoint, the
+finality rule, the fee-bearer and the tenant binding were all unwritten while `ADR-0002` made the
+money path v1-blocking.
+
+The mechanism worth recording is that **attribution comes from the destination, not the payer**
+(`LDG-49`). A funding request mints a destination bound to one tenant, and the credit is posted
+against that binding — which satisfies `ADR-0005`'s collect-nothing posture and `LDG-42`'s
+attribution requirement with the *same* mechanism instead of trading one against the other.
+Authentication is structural on both rails: settlement is read from the operator's own node, so
+there is no inbound notification to forge and `LDG-42`'s minting risk is designed out rather than
+defended against.
+
+`LDG-46`–`LDG-53`, `API-43`–`API-46`, `STO-29`–`STO-31` and `CNF-116`–`CNF-127` are the result.
+**The blocking set moves from 73 to 82**, and nine of the twelve new items are BLOCKING for one
+structural reason: money-in is the only path in this specification where a bug *creates* satoshis
+rather than moving them, after which `LDG-17` reports solvency against a float that is partly
+fictional.
+
+Two consequences are open rather than settled. **The confirmation depth, the per-rail floors, the
+invoice expiry and the channel-balance treatment are deployment parameters** that `LDG-42` now
+requires to be stated and this set does not state. And the on-chain rail is where the operator
+learns a payer's address whether or not it wants to — `ADR-0005` still forbids retaining it, and
+that discipline is harder here than on Lightning because the information arrives unbidden.
 
 ## Critical — closed 2026-08-11 (second pass)
 

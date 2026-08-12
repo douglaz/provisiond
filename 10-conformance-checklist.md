@@ -109,6 +109,29 @@ destruction — this was `F15`); `CNF-108`, `CNF-109` (unbounded billing and dup
 
 **DEFERRED** — none.
 
+### Assignments for `CNF-116`–`CNF-127` (added 2026-08-12)
+
+The funding items, for `ADR-0008`'s two rails. Applying the three questions honestly puts almost
+all of them in the top tier, and the reason is structural rather than pessimistic: **money-in is
+the only path where a bug creates satoshis instead of moving them.** Everywhere else in this
+specification the worst case is that the operator pays for a machine; here the worst case is that
+the ledger records value the operator never received, and `LDG-17` then reports solvency against
+a float that is partly fictional. The operator cannot undo it, would not know, and an autonomous
+caller that retries reaches it by accident.
+
+**BLOCKING** — `CNF-116`, `CNF-117`, `CNF-118`, `CNF-119` (each one credits satoshis that were
+not received, or refuses satoshis that were); `CNF-120` (a shared destination credits one
+customer's payment to another); `CNF-121` (both halves: minting a fresh address per retry makes a
+caller pay twice for one top-up); `CNF-123`, `CNF-124` (the two ways a real payment is
+irrecoverably lost or silently doubled); `CNF-125` (without it, enrolment cannot complete and the
+product does not exist).
+
+**PRE-SCALE** — `CNF-122`, `CNF-126`, `CNF-127`.
+
+**DEFERRED** — none.
+
+The blocking set moves from 73 to **82**.
+
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
 prepaid balance did not merely add features, it added a money system whose correctness gates
@@ -461,9 +484,45 @@ Applies only to deployments using the admin-plus-override proxy pattern.
 - [ ] **CNF-104** Customer price is produced by exactly one function; no call site reads a
       provider price string directly. (`LDG-23`)
 - [ ] **CNF-105** Privileged operations are metered although they are free. (`LDG-25`)
-- [ ] **CNF-106** The reserve holds **customer** price for machine time and the setup fee **at
-      cost** — a reserve computed from provider cost under-holds by exactly the margin.
+- [ ] **CNF-106** The reserve commits **customer** price for machine time and the setup fee **at
+      cost** — a reserve computed from provider cost under-commits by exactly the margin.
       (`PRV-13b`)
+
+## Funding
+
+Added 2026-08-12 with `ADR-0008`. Every item here is a way to mint satoshis that do not exist or
+to strand satoshis that do.
+
+- [ ] **CNF-116** A payment settling for less than the requested amount credits the **settled**
+      value. A credit derived from `funding_destinations.requested_sats` is the defect — assert it
+      at the call site, not by reading the number back. (`LDG-47`, `STO-29`)
+- [ ] **CNF-117** An overpayment is credited in full and is never refused or truncated. (`LDG-47`)
+- [ ] **CNF-118** No credit is posted for an unconfirmed on-chain transaction at any amount, and
+      an RBF replacement that lowers the value before the stated depth results in the lower credit
+      or none — never the original. (`LDG-48`)
+- [ ] **CNF-119** An accepted-but-unsettled Lightning HTLC posts no credit. A held invoice that is
+      later cancelled leaves the balance untouched. (`LDG-48`)
+- [ ] **CNF-120** Two funding requests never produce the same destination, and two tenants never
+      share one. (`LDG-49`)
+- [ ] **CNF-121** Two funding requests from one tenant produce two distinct on-chain addresses;
+      the same request retried with the same idempotency key produces **one**. Both halves must
+      hold — the first is the privacy rule, the second is the double-payment rule. (`LDG-50`,
+      `API-45`)
+- [ ] **CNF-122** A payment arriving after its destination expired, to a live tenant, is credited
+      normally. (`LDG-51`)
+- [ ] **CNF-123** Deleting a pending tenant at its time-to-live leaves its funding destinations
+      intact, and a later payment to one of them is recorded as unattributed rather than lost or
+      dropped. (`STO-29`, `LDG-43`, `API-42`)
+- [ ] **CNF-124** Killing the process between crediting the ledger and marking the destination
+      settled leaves the payment credited exactly once after recovery — not twice, not zero times.
+      Replaying the rail's settlement stream produces no second entry. (`STO-30`, `STO-31`)
+- [ ] **CNF-125** A pending tenant can reach the funding endpoint and **only** the funding
+      endpoint; every other authenticated endpoint answers `not_activated`. (`API-43`, `DOM-20`)
+- [ ] **CNF-126** The solvency check counts channel balances and confirmed on-chain outputs, and
+      the deployment's stated treatment of an encumbered channel balance is the one implemented.
+      (`LDG-53`, `LDG-17`)
+- [ ] **CNF-127** An on-chain funding request below the floor that covers spending its own output
+      is refused at request time, not discovered at credit time. (`LDG-52`)
 
 ## Ownership, deletion and duplication
 
