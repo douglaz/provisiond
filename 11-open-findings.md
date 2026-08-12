@@ -257,6 +257,48 @@ states the synchronous set once and closes it. `CNF-149` runs the diff in both d
 *This is `F19` in miniature and the same root cause: the wire surface is maintained by hand in
 prose, so it drifts silently every time a decision adds an endpoint.*
 
+## Completion — 2026-08-12
+
+**How the caller learns an operation finished was never specified**, and the question was put to
+a three-model panel (Fable, Opus, Codex) after the interviewer's own recommendation — a cursored
+change feed — was challenged. **All three independently rejected it for v1** and converged on the
+same answer: polling with server-chosen pacing, written as `API-49`–`API-54`, `STO-33`, `DOM-21`,
+`CNF-152`–`CNF-158`. No ADR, by the rate-source precedent: the transport is cheap to reverse
+behind the endpoint; what is expensive — the pacing contract, the rate-limit invariant, the
+retention horizon — landed as requirements.
+
+The shared reasoning is worth one paragraph because it corrects a framing error. The durable
+operation record already *is* the completion guarantee — `OVR-4` made every outcome a persistent
+row, so a missed event is impossible by construction, and every push mechanism would re-deliver
+what the store already promises. And the list endpoint already gives one request per interval
+regardless of fleet size, so the feed's headline benefit existed before the feed. What was
+actually missing was the half nobody had written: who sets the polling cadence (`API-49`), what
+the rate limit promises a compliant poller (`API-50`), and what an autonomous caller may do with
+`needs_reconciliation` (`API-51` — re-issuing under a fresh key is a second purchase, and the
+panel unanimously called this the most expensive way for "finding out" to go wrong).
+
+**Rejected, with the reasons recorded:** SSE (browser `EventSource` cannot carry `API-39`'s
+signed headers; a held stream caches an authorization decision, so a suspended tenant keeps
+streaming past `SEC-45`'s deadline); long-poll (its naive implementation — parked handlers
+polling the store on a timer — rebuilds `DEF-11` with customers as the trigger); webhooks (the
+process holding every provider credential initiating outbound connections to caller-chosen hosts
+is an SSRF primitive and an egress path out of `OVR-10a`'s boundary — this holds even if
+server-side integrators appear, so their appearance does not reopen the question); the change
+feed (deferred, not refused — `STO-6` now carries the note on what its cursor requires, because
+that primitive silently breaks on a server engine).
+
+**The panel also found two defects the question wasn't about.** A pending tenant could not
+observe its own activation — the funnel's happy path ended in probe-by-purchase (`API-52`,
+`CNF-155` BLOCKING). And a poll past the retention horizon answered "never existed," inviting a
+re-send (`DOM-21`'s `gone`, `STO-33` aligning the two horizons `STO-14` and `STO-25` had left
+free to cross).
+
+**Still open from this thread:** whether system-initiated mutations — exhaustion cancelling a
+machine (`LDG-14`), `OPS-36`'s late attach-then-cancel, `SEC-46`'s account-loss release — mint
+tenant-visible operation records. If they do not, `GET /v1/operations` is not the history of
+what happened to a tenant's fleet, and machine/balance polling papers over the gap only until a
+customer asks *why* a machine vanished. This is **F31**.
+
 ## The launch set — 2026-08-12
 
 **`ADR-0010` settles `D3`**, open since the first session and never asked: v1 ships **Hetzner

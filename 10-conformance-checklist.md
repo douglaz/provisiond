@@ -188,6 +188,21 @@ and both catch drift rather than harm.
 
 The blocking set moves to **99**.
 
+### Assignments for `CNF-152`–`CNF-158` (added 2026-08-12)
+
+**BLOCKING** — `CNF-154` (the duplicate-purchase path an autonomous caller reaches through the
+completion mechanism itself — the panel's unanimous "most expensive way for finding out to go
+wrong"); `CNF-155` (without it enrolment's happy path ends in a probe-by-purchase, and the funnel
+teaches every new customer the exact behaviour `CNF-150` bans); `CNF-157` (a customer-triggered
+`DEF-11` is a denial of service on the store that also runs the money).
+
+**PRE-SCALE** — `CNF-152`, `CNF-153`, `CNF-156`, `CNF-158`. Pacing and staleness degrade service
+and burn rate-limit budget; they do not move money. `CNF-152` graduates to BLOCKING the day a
+second independent client implementation exists, because at that point the invariant is the only
+shared contract.
+
+The blocking set moves to **102**.
+
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
 prepaid balance did not merely add features, it added a money system whose correctness gates
@@ -680,6 +695,34 @@ rather than acquiring a default.
 - [ ] **CNF-151** Exactly the endpoints named in `API-48` are synchronous; every other write
       returns `202` with an operation. Asserted against the routing table, so that adding an
       endpoint later cannot quietly extend the exemption. (`API-48`, `API-1`)
+
+## Completion and pacing
+
+Added 2026-08-12 with `API-49`–`API-54`.
+
+- [ ] **CNF-152** A simulated caller that obeys every `Retry-After` it receives — across a
+      non-terminal list poll, a balance poll and a machines poll at the finest advertised
+      cadence — receives zero `429`s over a sustained run. **The invariant is the test**, because
+      any fixed rate-limit number stops being tested the day the fleet grows. (`API-50`)
+- [ ] **CNF-153** Every non-terminal operation response carries `Retry-After` and a matching
+      `poll_after_ms`, values differ by operation kind and state, and the enrolment poll carries
+      no delay-derived value — the one endpoint where the pacing hint is a forbidden oracle.
+      (`API-49`, `API-33`)
+- [ ] **CNF-154** An operation in `needs_reconciliation` is delivered with `retryable: false`,
+      and the client documentation states that re-issuing under a fresh idempotency key is a
+      second purchase. The test is the field; the sentence is checked by reading. (`API-51`)
+- [ ] **CNF-155** A pending tenant that has paid can observe `active` on its enrolment handle
+      without attempting a create. A pending tenant that has not paid still cannot reach anything
+      but funding and that handle. (`API-52`, `API-43`)
+- [ ] **CNF-156** Two interleaved polls delivered out of order leave the caller holding the
+      higher `revision`; the operation's revision strictly increases across every client-visible
+      change, verified by killing and restarting the process mid-operation. (`API-53`)
+- [ ] **CNF-157** No `GET` takes a write transaction, asserted at the storage layer over the
+      whole test suite's traffic, not by code review. A polling customer must be unable to
+      trigger what `DEF-11`'s internal loop triggered. (`API-54`)
+- [ ] **CNF-158** Reading an operation past the retention horizon answers `gone`, not
+      `not_found`, and the published observability horizon equals the idempotency horizon.
+      (`DOM-21`, `STO-33`)
 
 ## Ownership, deletion and duplication
 

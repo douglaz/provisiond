@@ -256,6 +256,14 @@ One closed set of error kinds, used by drivers, the rescue engine, and the API a
 | `insufficient_balance` | Available balance cannot fund the required commitment (`LDG-9`) | 402 |
 | `not_activated` | Tenant exists but is still pending funding (`API-35`) | 403 |
 | `halted` | Refused because a solvency or rate-availability gate is failing (`LDG-20`, `LDG-40`) | 503 |
+| `gone` | Resource existed and was removed by retention (`STO-14`, `STO-33`) | 410 |
+
+**DOM-21** The `gone` row was added 2026-08-12, by the append-only rule rather than by a handler
+inventing a status. A caller polling an operation id past the retention horizon would otherwise
+receive `not_found` — indistinguishable from "never existed," which for an autonomous caller
+suggests the write was lost and invites a re-send. `gone` says the opposite: it existed, it
+reached a terminal state, and the record aged out; the safe reaction is to consult the machine
+list and balance, never to re-issue.
 
 **DOM-20** The three rows above were added on 2026-08-12. `DOM-17`'s set is closed and `API-24`
 forbids a handler choosing a status independently, so before they existed **four BLOCKING

@@ -31,6 +31,13 @@ and MUST NOT be run as multiple replicas against a shared file. Horizontal avail
 requires replacing the store with a transactional server-based engine, and the claim and
 lock primitives above are what a replacement must reproduce.
 
+*Note for a future change feed (deferred 2026-08-12 — see `11-open-findings.md`): if one is ever
+built, its cursor needs a per-tenant sequence allocated in the same transaction as each state
+change. On this engine, commit order and allocation order coincide because there is one writer;
+on a server engine they **decouple**, and a `since=seq` reader then silently skips changes that
+committed after a higher sequence was already read. That primitive would join this list — recorded
+now because `STO-27` exists precisely because a primitive was once left off it.*
+
 **STO-7** Connection-scoped settings (foreign-key enforcement, busy timeout, write-ahead
 logging) MUST be applied to *every* pooled connection, not once at migration time.
 Applying them inside a migration affects only the connection that ran the migration, and
@@ -123,6 +130,7 @@ deleted rows.
 | `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` (`OPS-27`, `OPS-31`) |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `hold_id` | UUID | nullable; the hold placed in the same transaction as the enqueue (`LDG-11`) |
+| `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `claimed_by` | text | nullable; worker identity |
@@ -304,6 +312,15 @@ from the deposit, which may legitimately produce two credits (`LDG-55`).
 of `deposits`, re-derived on start-up. A watch list assembled incrementally as deposits are minted
 loses its contents on restart, and the failure is silent: payments to forgotten addresses simply
 never arrive, and no error is raised by anything.
+
+**STO-33** **A terminal operation MUST remain readable at least as long as its idempotency record
+can refuse a reused key, and the two horizons MUST be stated to callers as one number.** `STO-14`
+deletes terminal operations; `STO-25` makes idempotency records outlive them. Misalign the two in
+either direction and an autonomous caller is pushed toward a duplicate purchase: if the record
+ages out first, a caller polling its id gets what looks like "never existed" and re-sends (now
+softened to `gone` by `DOM-21`, but the horizon still matters); if the key ages out first,
+`STO-25`'s own named failure occurs. The `operations` row also carries `revision` (`API-53`),
+incremented in the same statement as any client-visible change.
 
 ## Migrations
 

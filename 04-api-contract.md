@@ -453,3 +453,69 @@ handling the request.
 
 **API-29** The service SHOULD rate-limit per tenant (`OPS-24`). Unauthenticated requests
 MUST be rate-limited.
+
+## Completion and pacing
+
+Every write returns `202` and a ticket (`API-1`), which left the other half unstated: how the
+caller — software that does not get bored — finds out the work finished, and at what request rate.
+Decided 2026-08-12 by a three-model panel that reached the same answer independently; the
+alternatives it rejected are recorded in `11-open-findings.md`. **The completion mechanism is
+polling with server-chosen pacing.** No webhook, stream, long-poll or change feed ships in v1;
+each is additively possible later, and none may be assumed by a client.
+
+**API-49** **The server paces the caller.** Every response describing a non-terminal operation
+MUST carry a `Retry-After` header and the same value as a `poll_after_ms` body field (proxies
+strip headers; the body survives, and a browser caller cannot read non-safelisted headers without
+`Access-Control-Expose-Headers`). The value is server-derived per operation kind, provider and
+current state — never a client-side constant (`DEF-5` is on the defect list for exactly that) —
+and MAY grow over an operation's life: seconds for a power cycle, minutes for a dedicated order
+sitting `in process`. It is a next-check instruction, never a completion estimate.
+
+**The fleet pattern is the list, not the loop.** `GET /v1/operations?terminal=false` is one
+request per interval regardless of fleet size (`API-23`'s filtering plus `API-26`'s pagination),
+and the documentation MUST steer fleet-scale callers to it. The status filter MUST accept a
+`terminal=false` predicate.
+
+**Exception (`API-33`):** the enrolment poll MUST NOT carry a delay-derived `Retry-After` — on
+that one endpoint the pacing hint is the timing oracle `API-33` forbids. Absent, or a constant
+unrelated to the remaining delay.
+
+**API-50** **A caller that obeys every `Retry-After` it receives MUST never receive `429`.** This
+is the rate-limit contract stated as a relationship rather than a number, because any number is
+wrong after the fleet grows. Read limits MUST be budgeted separately from write limits and MUST
+admit, at minimum, one non-terminal list poll plus one balance poll plus one machines poll at the
+finest advertised cadence. Every `429` anywhere MUST itself carry `Retry-After`, and a `429` on a
+read carries **no information about any operation's outcome** — an autonomous caller MUST NOT
+treat a throttled poll as a failed operation, and **a read being rate-limited MUST never become
+the reason a caller re-issues a write** (the `CNF-150` pathology: when the read path is closed,
+an agent discovers state by mutating).
+
+**API-51** **`retryable` is normative for callers, not advisory to operators.** An operation in
+`needs_reconciliation` MUST be delivered with `retryable: false`, and the contract MUST state in
+words that re-issuing the request under a fresh idempotency key **is a second purchase**, not a
+retry. `OPS-12` forbids the *system* from retrying an ambiguous mutation and `API-19` makes
+requeue operator-only, but nothing else stops the *customer's* agent from buying the duplicate
+server `OPS-20` exists to prevent — `SEC-39`'s per-principal ceiling is the backstop, and this
+field is the signal. This is the single most expensive way for "finding out" to go wrong.
+
+**API-52** **A pending tenant MUST be able to observe its own activation without attempting a
+purchase.** `API-43` grants a pending tenant the funding endpoint and nothing else, and
+`GET /v1/balance` answers `not_activated` — so a freshly enrolled agent that has already paid
+could learn it was active only by issuing a create and reading the rejection, which is the exact
+pathology `API-47` was written out of the post-activation path. `GET /v1/enrol/{handle}` MUST
+answer with the tenant's current status (`pending` | `active`) after credential issuance, and is
+added to `API-43`'s reachable-while-pending set alongside funding.
+
+**API-53** **Every operation view carries a `revision`**: a per-operation counter that strictly
+increases on each client-visible modification. A response bearing a lower revision than one the
+caller has already observed is stale and MUST be discarded by the caller; the contract promises
+no ordering across *different* operations. This exists because two polls can arrive out of order,
+and `updated_at` cannot arbitrate — clock reads tie at millisecond resolution and step backwards
+under NTP. A tenant-wide sequence was considered and deferred with the change feed; `STO-6`'s
+note records what a future feed must add.
+
+**API-54** **A read MUST NOT take a write transaction.** No `GET` may run a sweep, refresh
+provider state, bump a `last_seen`, or otherwise write — `DEF-11` records this store being
+starved by one internal periodic writer, and a read path that writes hands that trigger to every
+polling customer. Rate-limiter state stays in memory (`API-36` already requires this for
+enrolment; it is general).
