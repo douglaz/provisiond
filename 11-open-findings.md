@@ -162,6 +162,13 @@ the ordering section and the client libraries carry no note. If true, the Robot 
 every order into a human-latency order and invalidates the measured negative window for that
 provider. Check before shipping the Robot driver.
 
+*Re-scoped by `ADR-0010`, and in the direction that matters.* Robot is now the flagship product
+rather than one of several, which raises the stakes — but the launch set also contains two
+providers this does not touch. **So `F29` blocks the Robot driver, not the launch**, and the
+verification belongs before that driver is written rather than before anything ships. Had v1 been
+Robot-only, this unverified claim would have been a single point of failure for the entire
+product.
+
 **F30. The rewrite landed in two files and stopped** — *wider than first recorded.* The
 commitment replaced the hold in `12-billing-and-ledger.md` and `CONTEXT.md`; **everywhere else
 still says hold**, including `PRV-13b`'s reserve formula (`hold = to_ledger_unit(...)`),
@@ -229,6 +236,33 @@ money by doing something that looks correct.
 **The on-chain rail hands the operator a payer's address whether it wants one or not.**
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
+
+## The launch set — 2026-08-12
+
+**`ADR-0010` settles `D3`**, open since the first session and never asked: v1 ships **Hetzner
+Cloud, Hetzner Robot and DigitalOcean** — both machine shapes across two unrelated companies
+(`OVR-14`–`OVR-16`).
+
+The reason this was worth deciding rather than deferring is that **almost every difficult
+requirement in this set exists for the dedicated shape**, and a cloud-only launch runs none of
+them. The setup fee debited before the order, the reserve covering a cancellation date,
+`cancellation_scheduled`, `PRV-13c`'s exception branch, `ADR-0006`'s pass-through — all written,
+all unexercised. Specifications turn out to be wrong precisely in the parts that never ran.
+
+Each driver earns its place differently: **Robot is the product**, **Cloud is the cheap machine**
+that keeps the conformance checklist affordable to run and is the fallback if `F29` is true, and
+**DigitalOcean is the proof the driver contract abstracts anything at all** — two drivers against
+one company's API house style can share assumptions neither author notices.
+
+**The cost is stated rather than minimised: three drivers before the first customer**, which is
+more work than any alternative considered and is undertaken with nothing yet validated against a
+real transaction. That trade — breadth of proof over speed to a first sale — is the opposite of
+the one the *fourth question* at the top of this file argues for, and a reader should notice the
+tension rather than have it smoothed over.
+
+Two open findings are re-scoped by it. `F29` now blocks the Robot driver rather than the launch.
+And `F10`'s dead capability branches stop being theoretical: three genuinely different capability
+sets is the first configuration where `OVR-2`'s runtime discovery does real work (`OVR-16`).
 
 ## The rate — 2026-08-12
 

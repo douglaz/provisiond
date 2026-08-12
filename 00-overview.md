@@ -117,6 +117,26 @@ without it the single-component form has no defence at all.
 lifecycle side MUST NOT see a customer credential or a payment. Shared storage is permitted;
 shared secrets are not.
 
+**OVR-14** **v1 ships three drivers: Hetzner Cloud, Hetzner Robot and DigitalOcean** (`ADR-0010`)
+— both machine shapes across two unrelated companies. **This is a scope statement, not a licence
+to specialise.** Nothing in `01`–`07` may name a provider, and `PRV-13c` continues to forbid
+encoding any provider's commercial terms as constants; the launch set exists so that the
+provider-neutral contract is *tested* against difference, not so that it can quietly acquire a
+default.
+
+**OVR-15** The three drivers MUST NOT share provider-specific behaviour through `core`. Two of
+them face one company's API house style, and the risk this requirement addresses is specific: an
+assumption true of both Hetzner products migrating into shared code where it reads as a general
+rule. **DigitalOcean's role in the launch set is to make that migration fail visibly** — a
+capability, an error shape or a cancellation semantic that only makes sense at Hetzner MUST break
+against it rather than being absorbed.
+
+**OVR-16** The **capability matrix MUST be exercised, not asserted.** Three drivers with different
+capability sets is the first configuration in which `OVR-2`'s runtime discovery does real work, so
+a deployment MUST verify that a caller reading `GET /v1/providers` can distinguish what each
+provider can actually do — including the capabilities `F10` records as having no operation behind
+them.
+
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive
 password helper for SSH.

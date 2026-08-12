@@ -164,7 +164,18 @@ version of; `CNF-143` is a configuration review rather than a test, and **indepe
 verified by any code**, which is worth stating plainly rather than pretending the checklist
 proves it.
 
-The blocking set moves from 73 to **96**.
+### Assignments for `CNF-144`–`CNF-148` (added 2026-08-12)
+
+**BLOCKING** — `CNF-147` (it is the only item that runs the dedicated money path against a real
+machine, and every requirement it touches was written without ever having been executed);
+`CNF-148` (an unverified provider fact underneath the reconciliation design — the same class of
+belief `F1` was closed on).
+
+**PRE-SCALE** — `CNF-144`, `CNF-145`, `CNF-146`. These protect the contract's generality, which
+degrades slowly and visibly rather than losing money; `CNF-145` is the one to run first, because
+the leak it catches gets harder to reverse the longer it sits.
+
+The blocking set moves from 73 to **98**.
 
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
@@ -621,6 +632,30 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       deployment's quorum treats them as one. **Independence is a claim about the world that no
       code can check**, so this is a review item against the configured list, not a runtime test.
       (`LDG-58`)
+
+## The launch set
+
+Added 2026-08-12 with `ADR-0010`. These test that three drivers made the contract *more* general
+rather than acquiring a default.
+
+- [ ] **CNF-144** No module under `core` names a provider, branches on one, or contains a constant
+      that is any provider's commercial term. Asserted against the source, not by inspection of
+      behaviour. (`OVR-14`, `OVR-15`, `PRV-13c`)
+- [ ] **CNF-145** Removing the DigitalOcean driver from the build leaves the other two compiling
+      and passing, and removing **both** Hetzner drivers leaves DigitalOcean compiling and
+      passing. The second half is the real test — it is where an assumption shared by two drivers
+      of one house style shows up as a dependency. (`OVR-15`)
+- [ ] **CNF-146** `GET /v1/providers` reports three distinguishable capability sets, and a caller
+      that acts only on what it reports never invokes an operation a provider does not have.
+      (`OVR-16`, `OVR-2`)
+- [ ] **CNF-147** The dedicated path is exercised end to end against a real Hetzner Robot machine:
+      a setup fee debited before the order, a commitment sized to include cost through the
+      earliest cancellation date, a cancellation that schedules rather than deletes, and billing
+      that continues until the effective date. **The requirements this tests were all written
+      before any of them had run.** (`LDG-39`, `PRV-13b`, `PRV-13c`, `DOM-19`)
+- [ ] **CNF-148** `PRV-30`'s manual-processing claim has been verified against Hetzner Robot in
+      writing, before the Robot driver is written. Until it is, the Robot correlator and the
+      negative window derived from it are beliefs. (`F29`, `PRV-30`, `OPS-33`)
 
 ## Ownership, deletion and duplication
 
