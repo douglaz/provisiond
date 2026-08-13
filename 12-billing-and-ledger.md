@@ -101,10 +101,27 @@ available = Σ(ledger entries) − Σ(reserved amount of open commitments)
 The spending authority check is `available ≥ required_commitment`, and it is the only
 authorization a create or an adopt receives (`ADR-0002`, `API-17b`).
 
-**LDG-31** **Consumption MUST debit the ledger and decrement the commitment by the same amount,
-in one transaction.** This is the requirement whose absence broke the first version. Its effect
-is that ordinary consumption leaves `available` **unchanged** — which is correct, because
-spending what you already committed neither frees nor freezes anything:
+**LDG-31** **AMENDED — every debit against a machine, not only consumption.** Posting **any**
+debit attributable to a machine with an open commitment — `usage_debit`, `setup_fee_debit`,
+`operation_fee_debit` — MUST decrement that commitment by the same amount, in one transaction.
+
+*The withdrawn text said "consumption", and `LDG-38` named only `usage_debit`. `PRV-13b` puts the
+setup fee **inside** the commitment while `LDG-39` debits it, so on the ordinary funded dedicated
+create the ledger sum fell, the reservation did not, and `available` went negative by exactly the
+setup fee — violating `LDG-10`, which then requires the fee-post itself to fail. **This is the
+2026-08-12 double-count reintroduced through the one entry kind the pairing rule forgot to
+name**, and both independent reviewers found it.*
+
+**The decrement clamps at zero and the excess is the operator's.** Where a debit exceeds the
+commitment's remaining amount — reachable through the wind-down window, `LDG-16`'s persistence
+delay and `LDG-64`'s deferred postings — the commitment decrements to zero, the tenant is debited
+only up to the authority it granted, and the remainder is recorded as an **operator deficiency**
+in the manner of `LDG-63`. It MUST NOT be taken from available balance: that would be the
+automatic seizure `ADR-0011` exists to forbid, arriving through the meter instead of through
+re-derivation.
+
+Its effect on the ordinary path is unchanged — consumption leaves `available` **unchanged**,
+because spending what you already committed neither frees nor freezes anything:
 
 | event | Σ entries | reserved | available |
 |---|---:|---:|---:|
@@ -113,17 +130,44 @@ spending what you already committed neither frees nor freezes anything:
 | one hour consumed: `usage_debit` −100, commitment → 71,900 | 71,900 | 71,900 | 0 |
 | machine deleted, commitment closed | 71,900 | 0 | 71,900 |
 
-**LDG-32** A commitment MUST be closed, and its remaining amount released in full, on **every**
-terminal outcome: the machine stops billing; the create fails deterministically; the create is
-resolved absent (`OPS-27`); the operation is abandoned (`OPS-31`); or the provider account is
-lost (`SEC-46`). **A terminal path with no close rule strands a customer's satoshis
+**LDG-32** **AMENDED.** A commitment MUST be closed, and its remaining amount released in full,
+on **every** terminal outcome: the machine stops billing **and every billable attachment it left
+behind has stopped billing** (`PRV-13a`, `STO-18`); the create fails deterministically; the create
+is resolved absent (`OPS-27`); or the operation is abandoned (`OPS-31`).
+
+**Attachments keep the commitment open, and metering follows them.** `PRV-13a` models volumes,
+snapshots and reserved addresses that survive machine deletion and keep costing money; `PRV-13b`
+reserves for them; but the meter (`LDG-37`) was machine-only, so a released commitment left them
+billing against nothing. A deployment MUST meter each billable attachment on its own identity
+until `released_at` is set, and MUST NOT sell an offer whose attachments have no bounded automatic
+cleanup unless the operator has explicitly accepted and capped that exposure.
+
+**Losing a provider account is not evidence that billing stopped** — see `SEC-46`, amended for the
+same reason. **A terminal path with no close rule strands a customer's satoshis
 permanently** — there is no withdrawal (`ADR-0004`), no expiry, and under `ADR-0005` no identity
 to appeal with, so an ordinary retry loop against a contended offer would otherwise render a
 balance unusable forever.
 
-**LDG-33** **AMENDED (`ADR-0011`).** Re-derivation (`PRV-13e`) MUST recompute **`runway_until`**
-from the machine's fixed remaining commitment at the current rate, in **both** directions — and
-MUST NOT resize the commitment. A commitment is sized once at open, decays as usage is debited
+**LDG-33** **AMENDED (`ADR-0011`), with the formula now stated** — it was missing, and the
+obvious reading was wrong in the operator's disfavour. Re-derivation (`PRV-13e`) MUST recompute
+**`runway_until`** from the machine's fixed remaining commitment at the current rate, in **both**
+directions — and MUST NOT resize the commitment.
+
+```
+protected_sats = at the current rate, rounded up:
+                   wind_down_cost
+                 + surviving billable attachments (PRV-13a)
+                 + cost through any effective cancellation date (DOM-19)
+usable_sats    = max(0, reserved_sats − protected_sats)
+runway_until   = now + floor(usable_sats / current_customer_rate)
+```
+
+**Exhaustion begins when `usable_sats` reaches zero, not when the commitment does.** Dividing the
+*whole* commitment by the usage rate — which is what the fixture and the absent formula together
+implied — advertises the wind-down reserve as runnable time and guarantees the operator is short
+at the exact moment of cancellation, on every ordinary exhaustion rather than only on a crash.
+`LDG-16`'s invariant ("still covers wind-down at the current rate") is satisfiable only with
+`protected_sats` subtracted first. A commitment is sized once at open, decays as usage is debited
 (`LDG-31`), and **is never increased without a caller action** (`LDG-62`; the scheduled-
 cancellation branch is the one exception, `LDG-63`). *The withdrawn text resized the commitment
 to preserve the runway date, which spent three design rounds on widening speed before the
@@ -181,14 +225,47 @@ exist. A deployment MUST define, and record:
   the window `DOM-19` was written to make visible;
 - **the treatment of a partial period**, rounded per `LDG-28`.
 
-**LDG-38** A `usage_debit` MUST be idempotent per `(machine, billing period, kind)` (`LDG-8`), and
-posting one MUST decrement the machine's commitment in the same transaction (`LDG-31`).
+**LDG-38** **AMENDED.** A `usage_debit` MUST be idempotent per `(machine, billing period, kind)`
+(`LDG-8`), and posting **any** machine-attributable debit MUST decrement that machine's commitment
+in the same transaction (`LDG-31`).
 
-**LDG-39** **The setup fee MUST be debited when the order is placed, not reserved.** It is
-non-refundable at the provider the instant the order lands, so modelling it as a reversible
-reservation makes a create-then-delete cycle cost the tenant almost nothing and the operator the
-entire fee — repeatable indefinitely for the price of one machine's balance. `PRV-13b` requires
-it be fully collected before the order; collected means **debited**.
+**Rounding MUST be applied to the cumulative charge, never per tick.** `LDG-28` rounds debits up;
+applied to each posting, that makes a customer's price depend on how often the meter happens to
+run — a deployment that meters every minute charges more than one that meters hourly, for
+identical consumption. The rule is therefore:
+
+```
+posted_debit = ceil(cumulative_exact_charge) − Σ(previous debits for this machine and period)
+```
+
+with the exact charge carried as a rational (`LDG-4`). **Observation cadence is an operational
+choice; it MUST NOT be a pricing input.** A conformance test MUST prove that arbitrary
+subdivision of a period yields the same total.
+
+**LDG-39** **AMENDED — the setup fee has a lifecycle, not a single moment.** It is committed at
+create as part of `PRV-13b`'s sizing, and it becomes a debit **only when the order is known to
+have landed**, at which point `LDG-31` decrements the commitment by the same amount so
+`available` does not move. The full table, because every row was previously either wrong or
+unstated:
+
+| Outcome | Setup fee |
+|---|---|
+| Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
+| Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
+| Ambiguous — `needs_reconciliation` | **Held in the commitment**, neither debited nor released, until resolution |
+| Resolved *observed* (`OPS-27`) | **Debited** — the order did land |
+| Resolved *absent* | **Released in full**; no fee was incurred at the provider |
+
+*Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
+a deterministic rejection or a resolved-absent create left the customer paying a non-refundable
+fee the operator never incurred — the operator keeping money for nothing, which `ADR-0006`'s
+at-cost pass-through forbids and which an autonomous retrying caller reaches repeatedly. And
+debiting without decrementing is `LDG-31`'s double-count.
+
+**The original concern still holds and is still answered:** the fee must not be a *reversible*
+reservation on the accepted path, or a create-then-delete cycle costs the tenant nothing and the
+operator the whole fee. Acceptance is the trigger; reversal happens only where the provider never
+charged.
 
 ## The rate
 
@@ -203,6 +280,8 @@ and, for each of the following, the behaviour when no rate is available — **cr
 it is a purchase priced at an unknown rate), **re-derivation** (MUST halt rather than
 under-reserve, and the halt MUST NOT itself trigger exhaustion), **the exhaustion sweep** (MUST
 continue: it reduces exposure), and **the solvency check** (MUST fail closed).
+
+**The fifth row — metering — was missing, and it is the one that costs money** (`LDG-64`).
 
 *The withdrawn wording asked whether each of these "proceeds on a stale rate or halts", which
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
@@ -240,6 +319,26 @@ API path, tenant input or database write.** This mirrors `SEC-50` for the same r
 who can add a source can move the median, and moving the median moves every reserve, every price
 and every exhaustion decision in the fleet at once. A rate feed the process can be told to trust
 is not a control, it is a second front door.
+
+**LDG-64** **A rate outage is operator-borne, time-bounded, and never billed retroactively.**
+While there is no rate (`LDG-59`), a machine keeps running and the provider keeps charging, but
+usage cannot be converted to satoshis. A deployment MUST:
+
+- **meter in the provider's own currency** for the duration, recording elapsed billable time and
+  its native cost (`LDG-2`), attributed to the machine;
+- **charge the customer nothing for that window.** The native accrual is an **operator
+  deficiency** in the manner of `LDG-63`. **Deferred satoshi debits at a later rate MUST NOT be
+  posted** — a customer would be billed for hours at a price that did not exist while it was
+  consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
+  against because the commitment was already open;
+- **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,
+  and **cancel machines at that bound** if no rate has returned. The bound is the operator's own
+  loss limit, and it MUST be stated with the other deployment parameters (`LDG-42`).
+
+**LDG-65** **The exhaustion sweep continues during an outage on the last derived
+`runway_until`** (`LDG-40` requires it keep running), which remains correct because `LDG-33`
+recomputes the date only when a rate exists. A machine whose runway expires mid-outage is
+cancelled normally; what is suspended is *pricing*, not *protection*.
 
 **Why there is no ADR for this.** Two of the three tests fail. The trade-off is real and the
 alternatives were considered — a single named exchange, a published reference index, and
@@ -344,8 +443,15 @@ that no longer exists is governed by `LDG-43`.
 permanent payability as the anomaly. Under `LDG-54` the anomaly is named directly and the
 consequence is split in two: watching stops, resolution does not.*
 
-**LDG-52** **AMENDED. `LDG-44`'s minimum is per-rail, and the on-chain floor is higher.** It MUST
-exceed the cost of eventually spending the output the payment creates. A top-up smaller than its
+**LDG-52** **AMENDED twice — a rail floor is not the activation minimum, and conflating them
+stranded customers.** The two are separate parameters doing different jobs: **`LDG-44`'s
+activation minimum** is a threshold on the tenant's **cumulative credited balance**, and
+**activation MUST occur atomically the moment that cumulative total reaches it** — two credited
+payments of 60,000 against a 100,000 minimum activate the tenant, where the withdrawn per-payment
+reading left it pending forever holding 120,000 non-refundable satoshis. A **rail floor** is an
+economic and disclosure parameter only (`WIR-14`) and gates nothing.
+
+The on-chain floor MUST exceed the cost of eventually spending the output the payment creates. A top-up smaller than its
 own future sweep fee reduces the satoshis the operator holds while increasing the float, so it
 does not underfund a tenant — it moves `LDG-17` in the wrong direction, and does so more the more
 often it happens.

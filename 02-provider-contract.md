@@ -226,9 +226,13 @@ bad rate reading grabs every tenant's available balance.* Where the recomputed r
 run out, the machine enters the same
 balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
 MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to
-become insufficient. A single-tick increase MUST be capped and a deficiency MUST persist across
-more than one derivation before it can trigger cancellation, so that one bad rate read cannot
-cancel a paying customer's machine.
+become insufficient. **A deficiency MUST persist across more than one derivation** before it can
+trigger cancellation, so that one bad rate read cannot cancel a paying customer's machine.
+
+*The per-tick increase cap that stood here is **withdrawn** with the resizing it governed
+(`LDG-16`): under `ADR-0011` nothing increases per tick, so capping the increase capped nothing.
+The persistence rule survives on its own merits and is the control that matters — it is what
+stands between a glitching price feed and a destroyed disk.*
 
 **Where billing is capped per period, that cap is a catastrophe bound worth having.** If total
 failure to cancel costs at most `setup_fee + one period cap` per machine, record it: the
@@ -240,8 +244,11 @@ and an offer with **no declared bound MUST NOT be sold on prepaid terms.** This 
 circularity: `PRV-13c` learns the per-machine constraint *after* ordering, while `LDG-12` forbids
 the order before the commitment exists, so for an offer that hides its terms the commitment could
 only be sized after the purchase it authorizes. The declared bound sizes the commitment at
-create; the machine's *actual* date, read after ordering, re-sizes it downward at the first
-re-derivation (`PRV-13e`). In practice the bound is trivial for the launch set — current Robot
+create. **The machine's *actual* date, read after ordering, updates the protected wind-down
+component that `LDG-33` subtracts before deriving `runway_until` — it MUST NOT resize the
+commitment.** A shorter actual term therefore lengthens the customer's runway rather than
+returning satoshis, which is the same money reaching the customer through the mechanism
+`ADR-0011` sanctions instead of through an automatic resize it forbids. In practice the bound is trivial for the launch set — current Robot
 dedicated servers have no minimum term and a new machine's date is normally today
 (`08-provider-notes.md`) — and adoption never needs it, because an adopted machine's date is read
 before its commitment opens (`PRV-28`, `LDG-36`).
