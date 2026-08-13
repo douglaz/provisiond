@@ -260,7 +260,7 @@ queue's safety machinery: an exhaustion cancel outside the queue has no lock, no
 
 See **The blocking count** below.
 
-That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
+That is 23 more BLOCKING items, the count at that time is superseded — see **The blocking count**. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
 prepaid balance did not merely add features, it added a money system whose correctness gates
 launch. A reader deciding whether that trade was worth it now has the number.
@@ -791,10 +791,12 @@ rather than acquiring a default.
 - [ ] **CNF-194** Suspending a tenant blocks every write, enqueues one deduplicated cancellation
       per machine, leaves ledger and machine reads working, and reports per-machine outcomes
       including any `needs_reconciliation`. (`API-58`, `OPS-39`, `SEC-45`)
-- [ ] **CNF-195** An unreachable provider account and rejected credentials both leave commitments
-      **open**; only confirmed termination releases them, and the carried exposure appears as an
-      operator deficiency. Tests `SEC-46`'s amended table directly — the amendment was written on
-      2026-08-13, failed to apply, and shipped as prose claiming it had. (`SEC-46`, `LDG-66`)
+- [ ] **CNF-195** **MERGED INTO `CNF-188`** — both tested `SEC-46`'s retained-commitments table
+      and both were counted BLOCKING, double-counting one control. `CNF-188` is the survivor and
+      gains this item's second half: the carried exposure MUST appear as an operator deficiency
+      (`LDG-66`), and the test MUST be run against `07-security-requirements.md` itself, because
+      that amendment was written on 2026-08-13, failed to apply, and shipped as prose claiming it
+      had.
 - [ ] **CNF-196** Enrolment ignores an `Idempotency-Key`: two signups presenting the same key
       receive **different** handles and different credentials. The withdrawn rule returned the
       same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
@@ -820,6 +822,22 @@ rather than acquiring a default.
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
 - [ ] **CNF-204** A pending tenant cannot defer its own reaping: a deposit minted late in the
       signup window expires no later than the signup itself. (`API-34`)
+- [ ] **CNF-205** A meter cadence that subdivides a billing period posts every increment under the
+      widened key, and two billable attachments on one machine never collide. Directly tests that
+      `LDG-8` and `LDG-38` agree — they disagreed for a full pass. (`LDG-8`, `LDG-38`)
+- [ ] **CNF-206** A disk identifier matching **two** devices aborts `integrity` with no write, and
+      an offer whose devices expose no unique identifier is unsellable for rescue installs.
+      (`RSC-26`)
+- [ ] **CNF-207** A rootfs install body round-trips `partitions`, `raid.level` and per-drive
+      identifiers through the parser. This fixture was silently broken by a fix in the previous
+      pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
+- [ ] **CNF-208** The enrolment status poll never returns `issuable_at`; only the enrolment
+      response does. (`WIR-13`, `API-33`)
+- [ ] **CNF-209** A suspended tenant can still revoke its spending token. Gating maintenance on an
+      active tenant locks the owner out exactly when revocation matters. (`API-7`, `API-56`)
+- [ ] **CNF-210** An orphaned deposit is credited to a named tenant exactly once through the
+      operator attribution endpoint; a second call naming a different tenant is `409`. (`WIR-42`,
+      `API-34`)
 - [ ] **CNF-183** No customer-facing surface — terms, API documentation, error text, marketing —
       states or implies that satoshis are held, backed, reserved or segregated against a balance,
       **and** the terms do state that a balance is an unsecured claim. Both halves: silence about
@@ -1043,6 +1061,14 @@ explicitly and record:
     rule (`API-17b`) and the blast-radius control (`SEC-43`).
 12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).
 
+
+### Assignments for `CNF-205`–`CNF-210` (multi-reviewer loop, pass 2)
+
+**BLOCKING** — `CNF-205` (deduplicated postings are unbilled machine time), `CNF-206` (destroyed
+data on an ambiguous identifier), `CNF-207` (an invalid install body on the primary path),
+`CNF-209` (a locked-out owner cannot stop a thief).
+
+**PRE-SCALE** — `CNF-208`, `CNF-210`.
 
 ### Assignments for `CNF-195`–`CNF-204` (added 2026-08-13, from the multi-reviewer loop)
 

@@ -27,8 +27,8 @@ normative statements with opposite meanings. Three things depended on the unqual
 are corrected by `OPS-34`.
 
 **OPS-34** **Requeue after purge.** `OPS-20` required requeue to "re-execute the original request
-verbatim", and both requeue-eligible states (`failed`, `needs_reconciliation`) are terminal — so
-after `ADR-0005` the payload is always gone and requeue as specified cannot work at all. Since
+verbatim", and the payload is purged on entry to **either** requeue-eligible state — `failed` (terminal) and
+`needs_reconciliation` (resolution-pending, `OPS-3`) — so after `ADR-0005` it is always gone and requeue as specified cannot work at all. Since
 `API-19`, `OPS-31` and `DEF-17` all rest on it, the resolution is:
 
 - **Requeue MUST carry a fresh payload supplied by the operator**, and the system MUST verify it
@@ -148,6 +148,7 @@ This is `OVR-5` made concrete.
 | Operation | Classification rule |
 |---|---|
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
+| suspend_tenant | Never fails as a whole: it is a parent whose per-machine children carry their own outcomes (`WIR-39`). It settles `succeeded` once every child has settled, **including children that settled `needs_reconciliation`** — an unresolved child is a child-level fact, and blocking the parent on it would leave a suspended tenant's record permanently open. |
 | preflight | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
@@ -260,7 +261,10 @@ The rule is: **attach the machine, then immediately route it through the exhaust
 otherwise creates an orphan the operator pays for. Then cancel, because it has no funding and
 `ADR-0002` admits no unfunded machine.
 
-**AMENDED 2026-08-13: the system MUST NOT open a fresh commitment on the tenant's behalf.** The
+**AMENDED 2026-08-13: the system MUST NOT open a fresh commitment sized to keep the machine
+running.** Funding the *cancel* is different in kind and is required — an unfunded cancel is a
+machine the operator pays for indefinitely — and it is bounded by the wind-down floor, which is
+the smallest amount that ends the exposure rather than any amount that continues it. The
 withdrawn sentence said "if the tenant's balance can fund a fresh commitment, the machine
 survives" — which is an automatic seizure of available balance the customer may have already
 re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring the
@@ -309,8 +313,8 @@ that nothing exists does not authorize creating it; that is a new decision by th
 new purchase.
 
 **OPS-39** **AMENDED — deduplicated, and never blocked by a caller's ceiling.** Each triggering
-episode MUST mint a durable `system_trigger_id`, and `(machine_id, system_reason,
-system_trigger_id)` MUST be unique — otherwise a sweep that runs every minute enqueues a fresh
+episode MUST mint a durable `system_trigger_id` (`operations.system_trigger_id`, `STO`), and
+`(machine_id, system_reason, system_trigger_id)` MUST be unique at the storage layer — otherwise a sweep that runs every minute enqueues a fresh
 cancellation every minute for the same exhausted machine, which is repeated provider mutation by
 timer.
 

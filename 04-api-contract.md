@@ -26,6 +26,7 @@
 | GET | `/v1/deposits/{id}` | ✓ | Read one deposit |
 | GET | `/v1/balance` | ✓ | Balance, available, and open commitments (`API-47`) |
 | POST | `/v1/recovery/revoke` | ✓ | Revoke the spending token, get a fresh one (`API-56`, `WIR-38`) |
+| POST | `/v1/deposits/{id}/actions/attribute` | ✓ | Operator: credit an orphaned deposit to a tenant (`API-34`, `WIR-42`) |
 | POST | `/v1/operations/{id}/actions/resolve` | ✓ | Operator reconciliation verbs (`OPS-31`, `WIR-35`) |
 | POST | `/v1/tenants/{tenant_id}/actions/suspend` | | Operator: suspend and cancel the fleet (`API-58`, `WIR-39`) |
 | POST | `/v1/tenants/{tenant_id}/actions/resume` | ✓ | Operator: clear the suspension (`API-58`, `WIR-41`) |
@@ -122,7 +123,10 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 
 1. authenticate, resolve principal;
 2. reject unless the tenant is active — a pending tenant fails `not_activated` (`API-35`),
-   **except** the `API-43` allowlist;
+   **except** the `API-43` allowlist and the **maintenance actions**: revoke (`API-56`), resolve
+   and resume are authorized by principal rather than by tenant state, and gating them on an
+   active tenant would make a suspended or pending tenant unable to replace a stolen credential —
+   locking the owner out at exactly the moment the mechanism exists for;
 3. validate the idempotency key;
 4. authorize the target resource against the tenant;
 5. deserialize and validate the body;
@@ -139,14 +143,15 @@ The tail then depends on what the endpoint does:
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
 | **resume, resolve, revoke** | operator or recovery-credential principal; synchronous, `200`, no provider mutation (`API-48`) |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
-| **deposit** | synchronous; allowed while pending; ledger write plus idempotency record in one transaction; `200` |
+| **deposit** | synchronous; allowed while pending; **mints a destination and writes NO ledger entry** — a deposit is not money until it settles (`LDG-47`) — plus an idempotency record, in one transaction; `200` |
 | **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200` |
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a
 machine during a rate outage — the one action that would have stopped the bleeding.*
 
-Steps 2, 6 and 7 were absent until 2026-08-12. The list was described as normative "for every
+The activation check, the spending-authority check and the commit-and-enqueue transaction were
+all absent until 2026-08-12. The list was described as normative "for every
 write endpoint", so **a builder following it literally shipped a create with no authorization at
 all** — the money check existed in `12-billing-and-ledger.md` and in no sequence any handler
 author would read.
@@ -210,9 +215,14 @@ unpaid deposit can never outlive the signup that created it, so the two rules st
 `ADR-0005`.** Collecting nothing means the system holds no proof of who paid, so no self-serve
 flow can bind a retained deposit to a new tenant — a caller claiming a deposit id it merely
 guessed or observed would be claiming someone else's money. The customer presents its deposit
-identifier to the operator, who attributes it through the operator surface. **This is a genuine
-limitation, not a mechanism**, and it MUST be disclosed at mint (`WIR-14`) rather than implied by
-the word "re-attributable".
+identifier to the operator, who credits it to a *named* tenant through
+`POST /v1/deposits/{id}/actions/attribute` (operator-only, `WIR-42`) — a real endpoint, because
+"the operator surface" with no route is the gap this loop has now found four times.
+
+**The limitation MUST be disclosed at mint** (`WIR-14`) in those terms: recovery requires
+contacting the operator and is not self-serve, because `ADR-0005` leaves the system no way to tell
+a returning customer from someone who observed a deposit identifier. Calling the credit
+"re-attributable" without saying that implies a self-serve flow that cannot exist.
 
 **API-35** **AMENDED twice.** A tenant MUST NOT graduate out of pending until its **cumulative
 credited balance** reaches a configured minimum (`LDG-44`, `LDG-52`), and activation MUST occur
@@ -271,7 +281,11 @@ balance and its commitments untouched. **Rotation authorized by the token itself
 sufficient and MUST NOT be offered**: a thief holding the token would rotate first and lock the
 owner out permanently, converting credential theft into total loss of the tenant.
 
-Revocation MUST be idempotent per `API-8` and MUST NOT be reachable while a tenant is `pending`
+Revocation MUST carry an idempotency key and MUST replace the token **at most once per key**
+(`STO-35`) — a replay returns `409` with `details.reason: "credential_already_replaced"` rather
+than re-returning the new token, because storing a replayable body would mean persisting a live
+bearer secret. This is a deliberate narrowing of `API-8`'s replay contract, and it is safe
+precisely because the recovery credential can always mint another replacement and MUST NOT be reachable while a tenant is `pending`
 before `issuable_at` — that window has no credential worth replacing.
 
 **API-57** **A tenant MUST be assigned at least one provider account, automatically, in the same

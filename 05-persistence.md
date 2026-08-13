@@ -132,7 +132,8 @@ deleted rows.
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
-| `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost` |
+| `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`), `rate_outage_bound` (`LDG-64`) |
+| `system_trigger_id` | text | nullable; `OPS-39`'s durable episode identifier. Unique with `(machine_id, system_reason)` — the constraint that stops a per-minute sweep enqueueing a fresh cancel every minute |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `claimed_by` | text | nullable; worker identity |
@@ -194,7 +195,8 @@ an environment variable (`API-4` as amended).
 | Column | Type | Notes |
 |---|---|---|
 | `id` | text | primary key; opaque, no personal data (`ADR-0005`) |
-| `credential_digest` | text | not null; never the credential itself (`API-3`) |
+| `credential_digest` | text | not null; the **spending token** hash, never the credential itself (`API-3`). Replaced in place by `WIR-38` |
+| `recovery_digest` | text | not null; the **recovery credential** hash (`API-55`). Minted with the row and never replaced by a spending-token revocation |
 | `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no write but retains ledger and machine reads) |
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
@@ -336,7 +338,8 @@ a token rather than recovering it.
 success body carries a freshly minted spending token, and persisting that would defeat `API-3`'s
 hash-only rule and make a database leak yield a live credential — so a replayed revocation
 returns `409 conflict` with `details.reason: "credential_already_replaced"` rather than the stored
-token. The owner re-revokes with the recovery credential, which is exactly what that credential
+token — and `API-56` is worded to match, so "idempotent" there means *at most one replacement per
+key*, not *a replayable body*. The owner re-revokes with the recovery credential, which is exactly what that credential
 is for; the old token is already dead either way, so the replay cannot be silently swallowed. **One store for the whole protocol.** Operations, deposits and
 runway extensions each had their own arrangement or none, and the two synchronous writes had a
 mandated transactional guarantee with nowhere to keep it: `WIR-24` requires the extension and its
@@ -350,7 +353,8 @@ transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home
 returned an empty list to every customer forever.
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
-`currency`, `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss`),
+`currency`, `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
+`late_attach_cleanup` (`OPS-36`'s wind-down shortfall) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 

@@ -164,6 +164,13 @@ document satisfied.
 `RSC-27`'s path validation still applies to whatever device path the identifier resolves to at
 write time. **The identifier is authoritative; the path is derived.**
 
+**An identifier that does not resolve to exactly one device MUST abort `integrity` before any
+write.** Zero matches is the stale-inventory case; **more than one is the dangerous case** —
+duplicate or empty serials are real on consumer and virtualised disks, and "pick the first" there
+is the same coin-flip over which disk gets destroyed that naming `/dev/sda` was. The driver MUST
+prefer WWN where the provider exposes it and MUST declare an offer unsellable for `raw_disk` and
+`rootfs_via_rescue` where no per-device unique identifier is available at all.
+
 **This binds every strategy that names a disk, not only `raw_disk`.** `RSC-22`'s installer layout
 carries a `drives` list, and those are device names with exactly the same instability — a rootfs
 install that partitions `/dev/sda` after the ordering shifted destroys the same customer data, and

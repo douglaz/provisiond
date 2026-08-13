@@ -188,6 +188,7 @@ per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
   "provider_account": "hetzner-cloud-1",
   "committed_sats": 71900,
   "runway_until": "2026-09-11T14:00:00Z",
+  "rate_outage_deadline": null,
   "effective_cancellation_date": null,
   "earliest_cancellation_date": null,
   "created_at": "2026-08-12T14:03:00Z", "updated_at": "2026-08-12T15:03:00Z"
@@ -238,7 +239,11 @@ handle — and the handle yields the credentials. A duplicate signup is free and
 a leaked capability is not.
 
 **WIR-13** **AMENDED** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
-ever**: `{"status": "not_yet" | "pending" | "active", "issuable_at": "...", "expires_at": "..."}`.
+ever**: `{"status": "not_yet" | "pending" | "active", "expires_at": "2026-08-16T14:00:00Z"}`.
+**`issuable_at` MUST NOT appear here.** It is returned once, in the enrolment response
+(`WIR-12`), to the caller that created the signup; echoing it on an unauthenticated
+handle-addressable endpoint hands an attacker the exact instant to start polling, which is the
+timing oracle `API-33` forbids.
 No delay-derived `Retry-After` (`API-33`, `API-49`'s exception). This is how a pending tenant
 observes activation (`API-52`).
 
@@ -251,13 +256,20 @@ balance and its commitments are untouched.
 **WIR-39** `POST /v1/tenants/{tenant_id}/actions/suspend` — **operator-only** (`WIR-34`),
 `{"acknowledge_destruction": true}`, since it cancels the tenant's fleet (`API-58`, `SEC-45`).
 Returns `202` with an ordinary **operation view** of kind `suspend_tenant` (`WIR-10a`), whose
-`result` is `{"cancellations": ["<operation id>", ...]}` — one child operation per machine
+`result` is `{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` — one entry per machine — one child operation per machine
 (`OPS-39`), so partial failure and `needs_reconciliation` stay visible per machine and are read
 through the existing `GET /v1/operations` surface.
 
 *No "termination record" entity is introduced.* An earlier draft returned an id for one, which had
 no schema, no store and no read endpoint — the `commitments`-table gap for the fourth time. A
 parent operation already has all three.
+
+**WIR-42** `POST /v1/deposits/{id}/actions/attribute` — **operator-only** (`WIR-34`), body
+`{"tenant_id": "...", "evidence": "..."}`, synchronous `200`. Credits a deposit whose tenant was
+reaped (`API-34`) to a live tenant. `evidence` is the operator's own record of why it believed the
+claimant — the system cannot verify it (`ADR-0005`), and writing that down is what keeps the
+decision auditable rather than invisible. Attribution MUST be idempotent per deposit: a second
+call naming a different tenant is `409`, never a re-credit.
 
 **WIR-41** `POST /v1/tenants/{tenant_id}/actions/resume` — **operator-only**, body `{}`,
 **synchronous** `200` with the tenant's status: it clears the suspension flag and touches no
@@ -380,7 +392,7 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 { "strategy": "rootfs_via_rescue",
   "source": {"type": "rootfs_tarball", "url": "https://...", "sha256": "<64 hex>", "format": "zstd"},
   "authorized_keys": ["ssh-ed25519 AAAA..."],
-  "layout": { "drives": [{"identifier": "S4EVNF0N123456", "inventory_fingerprint": "b7f1c2..."}], "raid": {"enabled": false}, "bootloader": "grub" },
+  "layout": { "drives": [{"identifier": "S4EVNF0N123456"}], "inventory_fingerprint": "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1", "raid": {"enabled": false, "level": null}, "partitions": [{"mount": "/boot", "size": "1G", "fs": "ext3"}, {"mount": "/", "size": "all", "fs": "ext4"}], "bootloader": "grub" },
   "post_install_script": null,
   "trust": {"use_provider_keys": true},
   "on_failure": "exit_rescue",
