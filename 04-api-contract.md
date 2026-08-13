@@ -13,6 +13,7 @@
 | GET | `/v1/machines/{id}` | ✓ | Read one machine |
 | POST | `/v1/machines/{id}/actions/refresh` | | Re-read from the provider |
 | POST | `/v1/machines/{id}/actions/power` | | Power on/off, reboot, hard reset |
+| POST | `/v1/machines/{id}/actions/preflight` | | Read-only disk inventory before an install (`RSC-38`, `WIR-40`) |
 | POST | `/v1/machines/{id}/actions/install` | | Install an image |
 | POST | `/v1/machines/{id}/actions/reverse-dns` | | Set a PTR record |
 | POST | `/v1/machines/{id}/actions/delete` | | Delete the machine |

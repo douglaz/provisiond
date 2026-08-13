@@ -142,8 +142,34 @@ This path is safe: nothing has been written to the target disk yet.
 
 ## Raw-disk installation
 
-**RSC-26** The target block device MUST be named explicitly by the caller. The engine
-MUST NOT guess a target.
+**RSC-26** **AMENDED — naming a device is not enough, because the name is not stable.** The
+target block device MUST be named explicitly by the caller and the engine MUST NOT guess one.
+**But `/dev/sda` is an ordering artefact that can differ across boots, between the rescue
+environment and the installed system, and after any hardware change** — so a caller that reads an
+inventory today and installs tomorrow can name a device that has since become a different disk.
+On a two-disk machine that is the customer's data, destroyed, with every requirement in this
+document satisfied.
+
+**The target MUST therefore be bound to identity, not to a name:**
+
+- **`RSC-38` makes preflight its own non-destructive operation** returning the block-device
+  inventory with **stable identifiers** — serial and WWN — plus an opaque `inventory_fingerprint`
+  over the whole device set.
+- **An install request MUST carry both** the chosen device's stable identifier and the
+  `inventory_fingerprint` it was chosen from (`WIR-20`).
+- **The worker MUST re-read the inventory immediately before any disk I/O** and abort with
+  `integrity` — before writing a single byte — if the fingerprint differs, if the named identifier
+  is absent, or if the inventory fails to parse (`RSC-34` keeps the raw capture).
+
+`RSC-27`'s path validation still applies to whatever device path the identifier resolves to at
+write time. **The identifier is authoritative; the path is derived.**
+
+**RSC-38** **Preflight is a first-class read-only operation.** It boots rescue, collects the
+`RSC-33` report, and returns it without writing anything. It exists because the previous design
+gave a caller no way to see the inventory *before* committing to a destructive write — the
+information arrived attached to the result of the operation that had already destroyed the disk.
+Preflight MUST be free of side effects beyond entering and exiting rescue, and its report MUST
+carry the same `inventory_fingerprint` an install will be checked against.
 
 **RSC-27** The target MUST be validated as a simple path under the device directory, and
 the remote script MUST additionally verify at runtime that it is a block device.

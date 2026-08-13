@@ -165,15 +165,16 @@ commitment reserved, so a caller reads what it spent without diffing `GET /v1/ba
 `system_reason` non-null only when `requested_by` is `system` (`OPS-39`).
 
 **WIR-10a** **The closed enums**, so two strict parsers agree: `kind` ∈ {`create_machine`,
-`adopt_machine`, `power`, `install`, `reverse_dns`, `delete_machine`}; `status` ∈ {`queued`,
+`adopt_machine`, `refresh`, `preflight`, `power`, `install`, `reverse_dns`, `delete_machine`}; `status` ∈ {`queued`,
 `running`, `succeeded`, `failed`, `needs_reconciliation`} (`OPS-3`); `requested_by` ∈ {`caller`,
 `system`, `operator`} (`OPS-39`).
 
 **WIR-10b** **`result` and `error` shapes.** `error`, when non-null, is exactly `WIR-9`'s inner
 object (`kind`/`message`/`retryable`/`details`), without the envelope. `result`, when non-null, is
-per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` → `{"machine_id"}`;
-`install` → `{"preflight": { ...RSC-33 report... }}`; `power`/`reverse_dns`/`delete_machine` →
-`{}`. An ambiguous outcome additionally records provider identifiers in `result` per `OPS-13`.
+per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` → `{"machine_id": "<uuid>"}`;
+`install` and `preflight` → `{"preflight": {"devices": [{"identifier": "...", "path": "...",
+"size_bytes": 0, "model": "...", "type": "..."}], "uefi": true, "inventory_fingerprint": "..."}}`
+(`RSC-33`, `RSC-38`); `power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`. An ambiguous outcome additionally records provider identifiers in `result` per `OPS-13`.
 
 **WIR-11** The **machine view** (`CNF-176` counts this as a fixture, so a full example is given):
 
@@ -349,9 +350,20 @@ trust decision (`RSC-3`/`RSC-4`), the layout (`RSC-22`) and the installed keys (
 three of four strategies were unsendable and the security-critical trust choice had no field.
 
 Common to every variant: `acknowledge_destruction: true` (`API-14`); `on_failure` ∈
-{`leave_in_rescue`, `power_off`} (`RSC`); and a **`trust`** object — exactly one of
-`{"expected_host_keys": ["ssh-ed25519 ..."]}` or `{"accept_unpinned": true}` (`RSC-3` first-use
-opt-in, `RSC-4` mutually exclusive). Per variant:
+{`exit_rescue` (**default**), `leave_in_rescue`}; and a **`trust`** object — exactly one of three,
+not two:
+
+| `trust` | Meaning |
+|---|---|
+| `{"use_provider_keys": true}` | Pin the host keys the driver publishes at rescue activation. **Abort `integrity` if none appear** before `RSC-9`'s deadline |
+| `{"expected_host_keys": [...]}` | Pin caller-supplied keys (`RSC-3`) |
+| `{"accept_unpinned": true}` | First-use trust, the explicit per-request opt-in `SEC-22` requires |
+
+**The provider-keys variant was missing and its absence was a silent security downgrade.** It is
+`RSC-3`'s *strongest* row and the only one reachable on Hetzner Robot, where rescue host keys are
+published at activation and a customer cannot know them out of band (`08-provider-notes.md`). With
+only two variants, every install on the flagship product had to declare `accept_unpinned` — the
+security-critical decision in the whole workflow, downgraded by a body schema. Per variant:
 
 ```json
 { "strategy": "rootfs_via_rescue",
@@ -359,14 +371,16 @@ opt-in, `RSC-4` mutually exclusive). Per variant:
   "authorized_keys": ["ssh-ed25519 AAAA..."],
   "layout": { "drives": ["/dev/nvme0n1"], "raid": {"enabled": false}, "partitions": [ ... ], "bootloader": "grub" },
   "post_install_script": null,
-  "trust": {"expected_host_keys": ["ssh-ed25519 AAAA..."]},
-  "on_failure": "leave_in_rescue",
+  "trust": {"use_provider_keys": true},
+  "on_failure": "exit_rescue",
   "acknowledge_destruction": true }
 ```
 
-- `raw_disk`: `source.type` `raw_disk` (`url`, `sha256`, `compression`), a required
-  `target_device` (`RSC-26` — the engine MUST NOT guess), optional `grow_partition` (`RSC-31`),
-  no `authorized_keys` (`RSC-14` forbids injecting into an opaque image).
+- `raw_disk`: `source.type` `raw_disk` (`url`, `sha256`, `compression` ∈ {`none`, `gzip`, `xz`,
+  `zstd`, `bzip2`}), a required **`target`** object — `{"identifier": "<serial or WWN>",
+  "inventory_fingerprint": "<from RSC-38 preflight>"}`, **not a device path** (`RSC-26`) —
+  optional `grow_partition` (boolean, default `false`, `RSC-31`), and no `authorized_keys`
+  (`RSC-14` forbids injecting into an opaque image).
 - `provider_native`: `source.type` ∈ {`catalog` (`image`), `ipxe` (`script`)}; no `layout`, no
   `trust` (no rescue is entered); `catalog` MAY carry `authorized_keys`.
 
@@ -421,7 +435,17 @@ the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the
 `{"resolution": "absent", "evidence": "..."}` records that nothing was created and releases the
 commitment (`LDG-32`); `{"resolution": "abandoned", "evidence": "..."}` gives up. `external_id` is
 required for `observed`. It is distinct from requeue and is the only road out of the unresolved
-row (`OPS-33`).
+row (`OPS-33`). **Synchronous** — it records an operator decision against an existing operation
+and mints no provider mutation — returning `200` with the updated operation view, under
+`API-48`'s exemption and `STO-35`'s idempotency record. Minting an operation *about* an operation
+is a recursion `API-1` never intended.
+
+**WIR-40** `POST /v1/machines/{id}/actions/preflight` — `RSC-38`'s read-only inventory pass. Body
+`{}`; returns `202` and an operation whose result carries the device inventory with **stable
+identifiers** and the `inventory_fingerprint` an install must echo back (`WIR-20`, `RSC-26`). It
+enters and exits rescue and writes nothing. This exists because a caller previously had no way to
+see the disk inventory *before* committing to a destructive write — the information arrived
+attached to the result of the operation that had already destroyed the disk.
 
 **WIR-29** `GET /v1/providers` — customer auth returns only the accounts assigned to the tenant
 (`DOM-3`, `API-17b`); operator auth returns all configured accounts.

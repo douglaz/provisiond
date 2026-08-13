@@ -76,9 +76,30 @@ account was only ever determined inside the call that vanished.
                          +--- operator requeue ---> queued
 ```
 
-**OPS-3** `succeeded`, `failed`, and `needs_reconciliation` MUST be the only terminal
-states, and a transition into any of them MUST be conditional on the worker still
-holding the lease. A worker that has lost its lease MUST NOT overwrite the record.
+**OPS-3** **AMENDED — `needs_reconciliation` is *resolution-pending*, not terminal.** `succeeded`
+and `failed` are the terminal states. A transition into any settled state MUST be conditional on
+the worker still holding the lease; a worker that has lost its lease MUST NOT overwrite the record.
+
+*Calling it terminal contradicted every requirement that resolves it.* `OPS-27` transitions it
+automatically on a correlator match, `OPS-31`/`WIR-35` transition it by operator verb, and `OPS-4`
+forbade both by forbidding transitions out of terminal states. The permitted transitions are
+exactly:
+
+```
+needs_reconciliation --resolved observed--> succeeded
+needs_reconciliation --resolved absent|abandoned--> failed
+needs_reconciliation --operator requeue--> queued
+```
+
+**What was actually load-bearing about "terminal" survives unchanged**, and it is `OVR-5`: the
+system MUST NOT retry the mutation automatically, MUST NOT clear the state on its own timer, and
+MUST NOT let a caller drive it. Only evidence (`OPS-27`) or an operator (`OPS-31`) moves it. The
+caller-facing `terminal` flag (`WIR-10`) is `false` in this state, and `retryable` is `false`
+(`API-51`) — the operation is not finished, and it is not the caller's to retry.
+
+The payload purge (`ADR-0005`) happens **on entry** to `needs_reconciliation` rather than at a
+terminal state, and that is an explicit privacy exception recorded here so a reader does not
+find it contradictory.
 
 **OPS-4** Only `failed` and `needs_reconciliation` MAY be requeued, and only by an
 explicit operator action (`API-19`). There is no automatic transition out of a terminal
@@ -125,8 +146,12 @@ This is `OVR-5` made concrete.
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
 
-**The table MUST be total.** Every kind in `DOM-17` MUST have a defined classification for every
-operation kind. There is no implicit default, because the two possible defaults are both wrong:
+**The table MUST be total, and four kinds added later were missing.** `insufficient_balance`,
+`not_activated`, `halted` and `gone` (`DOM-20`, `DOM-21`) are **admission-only**: they are decided
+before any driver call, they MUST NOT be emitted by a worker or a driver, and any pre-provider
+occurrence classifies deterministically as `failed` for every operation kind. Nothing was
+destroyed and nothing was ordered, so ambiguity cannot arise. Every kind in `DOM-17` MUST have a
+defined classification for every operation kind. There is no implicit default, because the two possible defaults are both wrong:
 defaulting to `failed` invites a caller to retry a mutation that may have happened, and
 defaulting to `needs_reconciliation` pages a human for a typo. `CNF-31b` tests totality.
 
@@ -184,11 +209,18 @@ repeating a requeue with the same idempotency key MUST NOT enqueue the work twic
 **OPS-19** Requeue MUST preserve an audit trail: the previous error, the stated reason,
 and the requeue timestamp MUST survive on the record.
 
-**OPS-20** Requeue re-executes the original request verbatim. For an ordering operation
-that means placing a second order. The API MUST make this consequence explicit in its
-response or documentation, and SHOULD refuse to requeue an operation kind that is known
-to be non-idempotent at the provider unless the caller passes a second, distinct
-acknowledgement. Requeueing a create is a purchase decision, not a retry.
+**OPS-20** **AMENDED.** Requeue executes the **fresh operator-supplied payload** `OPS-34`
+requires, after verifying every comparison the retained summary supports. *It is not a byte replay
+of the original request: `ADR-0005` purges that at terminal state, so the withdrawn wording
+("re-executes the original request verbatim") described something that no longer exists while
+`API-19`, `OPS-31` and `DEF-17` all rested on it.*
+
+For an ordering operation a requeue means **placing a second order**. The API MUST make that
+explicit in its response or documentation, and MUST refuse to requeue a provider-non-idempotent
+kind unless the request carries a **second, distinct acknowledgement**
+(`acknowledge_duplicate_purchase`, `WIR-28`) — the fresh payload's own `acknowledge_purchase` does
+not satisfy it, because that one merely says "a purchase is intended", not "a *duplicate* purchase
+is intended". Requeueing a create is a purchase decision, not a retry.
 
 ## Resolving `needs_reconciliation`
 
@@ -220,10 +252,22 @@ contradicts `LDG-10`, and cancelling contradicts row 1's instruction to attach.
 The rule is: **attach the machine, then immediately route it through the exhaustion path**
 (`LDG-13`). Attach, because the machine exists and belongs to that tenant and pretending
 otherwise creates an orphan the operator pays for. Then cancel, because it has no funding and
-`ADR-0002` admits no unfunded machine. If the tenant's balance can fund a fresh commitment, the
-machine survives; if not, it is cancelled like any exhausted machine. **This is the branch that
-makes `OPS-33`'s early release safe**, and without it that release was a hole rather than a
-decision.
+`ADR-0002` admits no unfunded machine.
+
+**AMENDED 2026-08-13: the system MUST NOT open a fresh commitment on the tenant's behalf.** The
+withdrawn sentence said "if the tenant's balance can fund a fresh commitment, the machine
+survives" — which is an automatic seizure of available balance the customer may have already
+re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring the
+`max_commitment_sats` cap the original create may have set. That is precisely the surface
+`ADR-0011` abolished, reappearing through reconciliation.
+
+The machine is attached, a commitment is opened **only to the wind-down floor** so the cancel
+itself is funded, and it is routed into exhaustion immediately (`requested_by: system`,
+`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may
+`extend-runway` (`LDG-62`) against the attached machine before the exhaustion sweep reaches it,
+which is an explicit, capped, idempotent authorization rather than an inference about what it
+would have wanted. **This is the branch that makes `OPS-33`'s early release safe**, and without it
+that release was a hole rather than a decision.
 
 **OPS-37** **The last row applies to the commitment exactly as `OPS-33` does.** An earlier version
 said an unresolved outcome leaves the money "frozen" while `OPS-33` said it MUST be released —
@@ -254,8 +298,19 @@ carries a fresh payload (`OPS-34`), so no refresh mechanism inside the record is
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
 new purchase.
 
-**OPS-39** **System-initiated provider mutations MUST be operations, and the tenant MUST see
-them.** Exhaustion cancelling a machine (`LDG-14`), `OPS-36`'s attach-then-cancel, and any other
+**OPS-39** **AMENDED — deduplicated, and never blocked by a caller's ceiling.** Each triggering
+episode MUST mint a durable `system_trigger_id`, and `(machine_id, system_reason,
+system_trigger_id)` MUST be unique — otherwise a sweep that runs every minute enqueues a fresh
+cancellation every minute for the same exhausted machine, which is repeated provider mutation by
+timer.
+
+**Exposure-reducing system cancellations MUST be exempt from `SEC-39`'s per-principal destruction
+ceiling.** That ceiling exists to bound what a runaway *caller* can destroy; applying it to the
+system's own exhaustion cancels means a tenant that hit its destruction limit keeps running
+machines it cannot pay for, with the operator paying. Pacing MAY delay such a cancellation
+briefly; nothing may deny it.
+
+**System-initiated provider mutations MUST be operations, and the tenant MUST see them.** Exhaustion cancelling a machine (`LDG-14`), `OPS-36`'s attach-then-cancel, and any other
 mutation the deployment performs on a tenant's machine without a caller request MUST go through
 this queue — lock, lease, terminal states, `needs_reconciliation` included, because a cancel
 whose outcome is ambiguous is ambiguous regardless of who asked for it — and MUST appear in the
