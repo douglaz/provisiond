@@ -170,9 +170,11 @@ compromise (`ADR-0009`).
 _Avoid_: hot wallet limit, float cap, reserve (taken — see **Reserve**)
 
 **Solvency invariant**:
-The rule that satoshis actually held must cover the float. Stated publicly on purpose
-(`ADR-0004`).
-_Avoid_: reserve ratio, backing, proof of reserves
+The rule that satoshis actually held must cover the float. **Internal and unpublished on purpose**
+(`LDG-19`): the operator maintains it and never advertises it, because every public phrasing
+drifts into the custody words `ADR-0004` §4 bans. The terms still state that a balance is an
+unsecured claim (`LDG-19a`) — silence about the ratio, not about the arrangement.
+_Avoid_: reserve ratio, backing, proof of reserves, "fully reserved" (all four are the phrasings that cause the problem)
 
 ## Flagged ambiguities
 

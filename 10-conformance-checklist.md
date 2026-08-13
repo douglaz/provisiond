@@ -195,7 +195,10 @@ server, and it is exactly what a builder reaches for when the correlator is miss
 
 `CNF-180` is **before production** rather than blocking: it gates the *Robot driver*, not the
 launch — `ADR-0010`'s other two drivers are unaffected, which is the payoff for having chosen a
-launch set spanning two companies. **`CNF-182` is BLOCKING**, and it is new: `PRV-34`'s test mode
+launch set spanning two companies. **`CNF-183` is BLOCKING** — describing a balance in custody words is the misstep `ADR-0004`'s
+whole perimeter is built to avoid, it cannot be un-said once published, and the operator would not
+learn it was wrong from anything but an enforcement letter. **`CNF-182` is BLOCKING** too, and it
+is new: `PRV-34`'s test mode
 is only a safety net if the default points at it, and a flag that defaults the wrong way converts
 every accidental conformance run into a purchased dedicated server — money out, unrecoverable,
 exactly the family the tiering rule puts in the top tier.
@@ -723,6 +726,10 @@ rather than acquiring a default.
       `authorized_key[].fingerprint` matches the key sent. If simulated transactions do not appear
       in the listing, one real order closes the remaining half. Failing that, the driver declares
       no correlator (`PRV-33`). (`PRV-32`, `PRV-34`)
+- [ ] **CNF-183** No customer-facing surface — terms, API documentation, error text, marketing —
+      states or implies that satoshis are held, backed, reserved or segregated against a balance,
+      **and** the terms do state that a balance is an unsecured claim. Both halves: silence about
+      the ratio, disclaimer about the arrangement. (`LDG-19`, `LDG-19a`, `ADR-0004` §4)
 - [ ] **CNF-182** The Robot driver's order test flag **defaults to test mode**, and a real
       purchase requires an explicit spend intent that is set exactly once, where `API-15`'s
       acknowledgement and `PRV-10`'s `allow_orders` both hold. Asserted by placing an order with

@@ -146,13 +146,32 @@ panel showed the signing scheme guarded a non-extractable asset at outsized inte
 
 ## Open after the second audit
 
-**F25. `LDG-19` versus `ADR-0004` §4 — put this to a lawyer first.** `LDG-17` requires holding
-satoshis equal to the float and `LDG-19` required *publishing* that invariant, while `ADR-0004`
-§4 forbids describing balances as "held", "backed", "reserved" or "segregated". A published
-one-to-one asset-to-claim ratio is what safekeeping on behalf of clients looks like from outside,
-whatever the contract says — so the publication requirement was demanding exactly the substance
-`ADR-0003`'s defence exists to deny. Publication is now withheld pending advice. **This precedes
-the refund question `ADR-0003` nominates as first.**
+**F25. CLOSED 2026-08-13 by operator decision — and not the decision the finding expected.** The
+finding framed this as needing counsel: `LDG-17` requires holding satoshis equal to the float,
+`LDG-19` required *publishing* that invariant, and `ADR-0004` §4 forbids describing balances as
+"held", "backed", "reserved" or "segregated" — a published one-to-one asset-to-claim ratio being
+what safekeeping looks like from outside whatever the contract says.
+
+**The operator resolved it without a lawyer, on plainness rather than law: say nothing.** Any
+public statement here requires the reader to hold two apparently opposed ideas at once — the
+operator is fully reserved, *and* the customer holds only a contractual claim — and every shorter
+phrasing collapses toward the banned custody words. A statement a reader will misunderstand is
+worse than silence.
+
+**What it costs is recorded rather than glossed:** publishing was the only mechanism converting a
+later solvency breach into actionable misrepresentation, and that protection is now gone; a
+customer's recourse on operator failure is unsecured creditor status. `ADR-0004`'s consequence
+bullet asserting the opposite is reversed in place.
+
+**`LDG-19a` guards the obvious misreading:** silence about the *ratio* is not silence about the
+*arrangement*. The terms MUST still state that a balance is an unsecured claim, because saying
+nothing at all lets a customer assume safeguarding — the same misrepresentation reached by
+omission. Publish no assurance; publish the disclaimer. Nothing internal changes: `LDG-17`,
+`LDG-18` and `LDG-20` all stand, so **the operator remains fully reserved and simply declines to
+advertise it.**
+
+*This leaves the refund question `ADR-0003` nominates as the first item for counsel — no longer
+second to anything.*
 
 **F26. CLOSED 2026-08-12** by `PRV-31`: a driver declares a per-offer worst-case cancellation
 bound before any order, the commitment is sized to it at create, and the machine's actual date —

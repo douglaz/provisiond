@@ -465,11 +465,33 @@ operator holds satoshis equal to the sum of customer balances" *is* that descrip
 maintained one-to-one asset-to-claim ratio is what safekeeping on behalf of clients looks like
 from outside, whatever the contract says.
 
-The two requirements were written the same day and neither noticed the other. **A deployment MUST
-NOT publish the invariant until counsel has ruled on it**, and this — not the refund question —
-is the first item to put to a lawyer, because `ADR-0003`'s entire defence is that a custody
-characterisation is answerable by drafting, and `LDG-19` was requiring publication of the
-substance the drafting exists to deny.
+The two requirements were written the same day and neither noticed the other.
+
+**SETTLED 2026-08-13 by operator decision: the invariant MUST NOT be published, ever — not
+pending advice.** The reasoning was not legal caution but plainness: *any* public statement in
+this area is confusing to the reader, because the true position ("we hold enough, and you still
+have only a contractual claim") requires a customer to hold two apparently opposed ideas at once,
+and every shorter phrasing of it drifts toward the custody words `ADR-0004` §4 bans. **A statement
+a reader will misunderstand is worse than silence**, and the enforceability benefit the original
+text chased is not worth buying with a sentence that misleads.
+
+**What is given up, stated plainly:** the original reasoning was sound on its own terms —
+publishing converts a later breach into actionable misrepresentation, which was the only
+enforcement the perimeter otherwise supplies. That protection is now absent, and the customer's
+recourse if the operator fails is ordinary unsecured creditor status and nothing more. `ADR-0004`
+is amended to record the reversal.
+
+**LDG-19a** **Silence about the invariant is not silence about the arrangement, and the two MUST
+NOT be conflated.** `LDG-19` prohibits publishing the solvency *ratio*; `ADR-0004` §4 continues to
+**require** the terms to state that a balance is an **unsecured claim** and that funds are used in
+the business. Saying nothing at all would leave a customer to assume their money is safeguarded —
+which is the misrepresentation `ADR-0004` §4 exists to prevent, arrived at by omission instead of
+by wording. The rule is therefore: **publish no assurance, and publish the disclaimer.**
+
+The internal obligation is untouched: `LDG-17` still requires the satoshis actually be held,
+`LDG-18` still forbids pledging them, and `LDG-20` still gates operations on the solvency check.
+**This decision changes what is said, not what is done** — the operator remains fully reserved and
+simply declines to advertise it.
 
 **LDG-20** **AMENDED.** Solvency MUST be checked against stress: the provider-currency pair
 adverse by 15%, an inaccessible venue for seven days, no new top-ups, and every existing balance

@@ -61,9 +61,18 @@ prohibitions, and each one is load-bearing.
   BaFin decides limited-network status, and unauthorised payment or e-money business is criminal
   under ZAG § 63 with up to five years. Member-state AML scope extensions are permitted and
   unaudited across 27 states.
-- **Publishing the solvency invariant is a feature, not a disclosure risk.** Stating it and then
-  pledging the backing converts an unregulated act into actionable misrepresentation — which is
-  the only enforcement the perimeter otherwise fails to supply.
+- ~~**Publishing the solvency invariant is a feature, not a disclosure risk.**~~ **REVERSED
+  2026-08-13.** The original read: *"Stating it and then pledging the backing converts an
+  unregulated act into actionable misrepresentation — which is the only enforcement the perimeter
+  otherwise fails to supply."* The argument was sound and it collided with §4 of this very ADR:
+  publishing "we hold satoshis equal to customer balances" **is** the description §4 bans, and a
+  maintained one-to-one asset-to-claim ratio is what safekeeping looks like from outside whatever
+  the contract says. The operator settled it by choosing silence — *any* public phrasing of the
+  true position confuses a reader, and every short version drifts toward the banned words.
+  **`LDG-19` now prohibits publication outright.** The cost is accepted and recorded: the
+  enforcement this bullet described no longer exists, and a customer's recourse on operator
+  failure is unsecured creditor status. §4's *disclaimer* requirement is unaffected and still
+  mandatory (`LDG-19a`) — silence about the ratio is not silence about the arrangement.
 - Timing: MiCA's transition ended EU-wide 1 July 2026 with no grandfathering left; the AMLR
   applies from 10 July 2027.
 - Fedimint ecash is **legally untested** under MiCA's "or similar technology" limb. The exposure
