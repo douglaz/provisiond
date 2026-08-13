@@ -24,6 +24,10 @@
 | POST | `/v1/deposits` | ✓ | Mint a deposit: amount, expiry, both destinations (`API-43`) |
 | GET | `/v1/deposits/{id}` | ✓ | Read one deposit |
 | GET | `/v1/balance` | ✓ | Balance, available, and open commitments (`API-47`) |
+| POST | `/v1/recovery/revoke` | ✓ | Revoke the spending token, get a fresh one (`API-56`, `WIR-38`) |
+| POST | `/v1/operations/{id}/actions/resolve` | ✓ | Operator reconciliation verbs (`OPS-31`, `WIR-35`) |
+| POST | `/v1/tenants/{id}/actions/suspend` | | Operator: suspend and cancel the fleet (`API-58`, `WIR-39`) |
+| POST | `/v1/tenants/{id}/actions/resume` | | Operator: resume a suspended tenant (`API-58`) |
 | POST | `/v1/machines/{id}/actions/extend-runway` | ✓ | Grow the machine's commitment from available (`LDG-62`, `WIR-24`) |
 
 **The last five rows were absent until 2026-08-12** — enrolment shipped on 2026-08-11 and funding
@@ -104,19 +108,32 @@ the header MUST be ignored rather than honoured for it.
 unauthenticated caller MUST NOT be able to learn anything from validation error text, and
 MUST NOT be able to make the server do parsing or policy work. See `DEF-4`.
 
-Order of operations for every write endpoint, normatively:
+**AMENDED — the tail is per endpoint class, because one universal pipeline was wrong for four of
+the five classes.** Steps 1–5 are common to every authenticated write:
 
-1. authenticate, resolve tenant;
-2. reject unless the tenant is active — a pending tenant fails `not_activated` (`API-35`);
+1. authenticate, resolve principal;
+2. reject unless the tenant is active — a pending tenant fails `not_activated` (`API-35`),
+   **except** the `API-43` allowlist;
 3. validate the idempotency key;
 4. authorize the target resource against the tenant;
 5. deserialize and validate the body;
-6. **compute the required commitment and check spending authority** — insufficient available
-   balance fails `insufficient_balance`, and a failing solvency or rate gate fails `halted`
-   (`LDG-9`, `LDG-20`, `LDG-40`);
-7. **open the commitment and enqueue in one transaction** (`LDG-11`), serialized per tenant
-   (`LDG-35`);
-8. respond `202`.
+5a. **compute the request fingerprint and check it** (`WIR-3`): an equal fingerprint under the
+    same `(tenant, key)` returns the stored result, a different one fails `conflict`. This step
+    needs the parsed body, which is why it cannot live at step 3.
+
+The tail then depends on what the endpoint does:
+
+| Class | Tail |
+|---|---|
+| **create, adopt** | spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
+| **power, install, reverse-DNS, refresh** | enqueue an operation, then `202`. **No commitment**: they are not purchases |
+| **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
+| **deposit** | synchronous; allowed while pending; ledger write plus idempotency record in one transaction; `200` |
+| **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200` |
+
+*The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
+literal builder opened a purchase commitment on a reboot and could be blocked from deleting a
+machine during a rate outage — the one action that would have stopped the bleeding.*
 
 Steps 2, 6 and 7 were absent until 2026-08-12. The list was described as normative "for every
 write endpoint", so **a builder following it literally shipped a create with no authorization at
@@ -131,19 +148,46 @@ standing between a script and an unbounded table of tenant rows is this section.
 **API-32** An unauthenticated enrolment endpoint MUST exist. It creates a tenant in a **pending**
 state and returns an enrolment handle. It MUST NOT return a usable credential immediately.
 
-**API-33** Credential issuance MUST be deferred by a configured delay after enrolment. The caller
-retries or polls with its handle; before the delay elapses the endpoint MUST report *not yet*
-rather than an error, and MUST NOT reveal the remaining time to the nearest instant (it is a free
-oracle for tuning an attack).
+**API-33** **AMENDED — the token is minted and returned at enrolment, and is simply not usable
+until the delay elapses.** The enrolment response carries the spending token, the recovery
+credential (`API-55`) and an `issuable_at` instant; the server stores only their hashes; and every
+authenticated request before `issuable_at` fails `not_activated`. The caller polls its handle for
+**status only** — never for the credential.
+
+*The withdrawn model delivered the token once, later, from `GET /v1/enrol/{handle}`, and that
+cannot survive a lost HTTP response: the server has marked it delivered and kept only a hash, so
+it can neither re-send nor re-derive it, and a customer who has already funded is permanently
+locked out of a tenant nobody else can reach either.* Concurrent polls had the same race. Minting
+at enrolment keeps `API-33`'s throttle — the credential still does nothing until the delay
+passes, which is what defeats a naive script — while removing the single-delivery trap entirely.
+
+The status poll MUST NOT reveal the remaining time to the nearest instant (it is a free oracle for
+tuning an attack).
 
 **A delay is a real control against a naive script and a weak one against a parallel attacker**,
 because concurrency makes wall-clock free. It is specified here as the operator's chosen friction,
 not as the storage bound. `API-34` is the storage bound.
 
-**API-34** A pending tenant that has not been funded within a configured time-to-live MUST be
-deleted, along with its credential. This is what caps the table at *enrolment rate × TTL* rather
-than letting it grow without limit, and it is the requirement to test — an implementation that
-ships `API-33` without `API-34` has bought delay and no bound.
+**API-34** **AMENDED — the time-to-live has a floor, and it is not free to choose.** A pending
+tenant that has not been funded within a configured time-to-live MUST be deleted along with its
+credential hashes. This caps the table at *enrolment rate × TTL* rather than letting it grow
+without limit, and it is the requirement to test — an implementation that ships `API-33` without
+`API-34` has bought delay and no bound.
+
+**The TTL MUST exceed the deposit expiry (`LDG-54`) plus the maximum on-chain finality window**,
+and a tenant MUST NOT be deleted while any deposit of its own remains inside that window
+(`API-42`). Choose it shorter and a live, correctly-paid, still-watched deposit outlives the
+tenant it belongs to — manufacturing `LDG-43`'s stranded payment out of configuration alone. With
+a day-scale deposit expiry the floor lands around two days; a value of several days is the
+sensible default, long enough that a slow payment does not cost a real customer their signup.
+
+**A credited balance below the activation minimum does not extend the TTL.** When the signup
+expires holding one, the tenant row is reaped as normal and the credit becomes an unattributed
+ledger record (`LDG-43`) whose deposit binding is retained forever (`STO-29`) — so the money is
+neither extinguished nor silently kept, and a customer returning with their deposit can have it
+attributed. Exempting any credited tenant from the TTL would instead let a dust payment mint a
+permanent row, reopening the immortal-tenant attack `API-35`'s minimum closed. `WIR-14`'s
+disclosures MUST state this.
 
 **API-35** **AMENDED.** A tenant MUST NOT graduate out of pending until a payment **meeting a
 configured minimum** has been credited to it (`LDG-44`). The original said "a payment", so one
@@ -162,13 +206,57 @@ exists is money kept from someone the operator has made itself unable to find.**
 and MUST NOT be persisted — retaining caller addresses to defend the enrolment endpoint would
 give up `ADR-0005` to protect a table.
 
-**API-37** **There is no credential recovery, and this MUST be stated to the caller at issuance.**
-No identity is collected, so there is nothing to prove ownership with; any recovery mechanism
-would be an account-takeover mechanism wearing a helpful name. A lost token means a lost
+**API-37** **AMENDED — there is no *identity* recovery, but there is a recovery *credential*
+(`API-55`).** No identity is collected, so nothing an operator could verify proves ownership; any
+mechanism built on that would be account takeover wearing a helpful name. What replaces it is
+possession of a second secret issued at enrolment, which proves control without proving identity. A lost token means a lost
 balance, and so does a compromised one — the remedy for either is to stop funding it and let its
 machines self-cancel at exhaustion (`LDG-14`), not to recover it. The caller is software and can
 store a secret reliably — but it MUST be told at issuance that it has to, and that there is no
 second chance.
+
+**API-55** **Enrolment issues two secrets, and only one of them is used day to day.** The
+**spending token** authenticates ordinary requests. The **recovery credential** is issued in the
+same response, stored by the server as a hash only, never sent again, and used for nothing except
+`API-56`. The caller MUST be told to store it somewhere its everyday agent does not reach, and
+that losing both is a lost balance.
+
+**This exists because the earlier reasoning about credential theft was wrong.** The reversal to
+bearer tokens (`API-39`) argued that a stolen customer credential can only burn the victim's
+prepaid balance, since there are no withdrawals. **A customer credential also authorizes `install`
+— which wipes a disk — and `delete`, which destroys a machine.** The asset behind it is the
+customer's data and running infrastructure, not a prepaid arcade card, and that holds identically
+for a key or a token, so it does not disturb `API-39`'s choice — only the conclusion drawn from
+it, that revocation earned nothing.
+
+**API-56** **The recovery credential MAY revoke the spending token and obtain a fresh one; the
+spending token MUST NOT be able to do either.** A revocation invalidates the current token
+immediately, issues a replacement in the same response, and leaves the tenant, its machines, its
+balance and its commitments untouched. **Rotation authorized by the token itself is not
+sufficient and MUST NOT be offered**: a thief holding the token would rotate first and lock the
+owner out permanently, converting credential theft into total loss of the tenant.
+
+Revocation MUST be idempotent per `API-8` and MUST NOT be reachable while a tenant is `pending`
+before `issuable_at` — that window has no credential worth replacing.
+
+**API-57** **A tenant MUST be assigned at least one provider account, automatically, in the same
+transaction that activates it.** `API-17b` requires an explicit assignment and the provider views
+return only assigned accounts (`WIR-29`, `WIR-30`) — but **nothing produced one**, so a literal
+build gave every enrolled customer an empty provider list forever, on the product's only revenue
+path. Both reviewers found it independently.
+
+Assignment MUST follow a stated configured policy over the accounts flagged assignable, MUST
+distribute tenants across accounts rather than filling one (`SEC-43`), and MUST be recorded
+durably (`STO-34`). **It cannot be an operator step**: `ADR-0002` chose self-serve enrolment, and
+an agent enrolling at 3am has no human to wait for.
+
+**API-58** **A funded tenant MUST be suspended, never deleted.** Suspension is an operator action
+that (1) marks the tenant `suspended` atomically so no further write is authorized, then (2)
+enqueues a system cancellation per machine (`OPS-39`), then (3) aggregates their outcomes,
+including any that end `needs_reconciliation`. Reads of the ledger and machine list MUST continue
+to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
+it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to
+**unfunded pending** tenants, which have no machines and no ledger.
 
 **API-40** Enrolment and every other write MUST be reachable under the general rules, and three
 of those rules do not fit an unauthenticated, pre-tenant request. They are resolved here rather
@@ -249,6 +337,13 @@ Both exemptions have the same justification: **neither causes a provider mutatio
 needs a durable operation, and `operations.tenant_id` cannot name a tenant that does not exist yet
 (enrolment). Any endpoint added later that *does* touch a provider MUST obey `API-1`; this list is
 closed, not a pattern.
+
+**AMENDED (2026-08-13): three more join the list** — `POST /v1/recovery/revoke` (`WIR-38`, a pure
+credential action), `POST /v1/operations/{id}/actions/resolve` (`WIR-35`, an operator decision
+recorded against an existing operation; minting an operation *about* an operation is exactly the
+recursion `API-1` never intended), and `GET`-shaped reads as always. Suspension (`WIR-39`) is
+**not** synchronous: it cancels a fleet, so it returns `202` and its child cancellations are
+ordinary operations.
 
 **AMENDED (2026-08-12, `WIR-24`): `POST /v1/machines/{id}/actions/extend-runway` joins the list**,
 under the same justification — it is a pure ledger action (`LDG-62`), returns the updated machine

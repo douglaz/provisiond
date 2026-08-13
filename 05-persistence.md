@@ -195,7 +195,7 @@ an environment variable (`API-4` as amended).
 |---|---|---|
 | `id` | text | primary key; opaque, no personal data (`ADR-0005`) |
 | `credential_digest` | text | not null; never the credential itself (`API-3`) |
-| `status` | enum | `pending` \| `active` \| `suspended` |
+| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no write but retains ledger and machine reads) |
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
 
@@ -314,6 +314,31 @@ from the deposit, which may legitimately produce two credits (`LDG-55`).
 of `deposits`, re-derived on start-up. A watch list assembled incrementally as deposits are minted
 loses its contents on restart, and the failure is silent: payments to forgotten addresses simply
 never arrive, and no error is raised by anything.
+
+### `enrolments`, `idempotency_records`, `tenant_provider_accounts`
+
+Three tables that requirements mandated and no schema defined — the `commitments` gap recurring
+three times over. Both 2026-08-13 reviewers found all three.
+
+**STO-34** **`enrolments`** — `handle` (unique), `tenant_id`, `issuable_at`, `spending_token_hash`,
+`recovery_credential_hash`, `created_at`, `expires_at`. The tenant row may carry a null credential
+hash only before `issuable_at`. Both secrets are minted at enrolment and stored **hashed only**
+(`API-33`, `API-55`); nothing recoverable is retained, which is why `API-56`'s revocation replaces
+a token rather than recovering it.
+
+**STO-35** **`idempotency_records`** — `scope_kind`, `scope_id`, `key`, `fingerprint`,
+`resource_kind`, `resource_id`, `status`, `response_body`, `created_at`, `expires_at`, unique on
+`(scope_kind, scope_id, key)`. **One store for the whole protocol.** Operations, deposits and
+runway extensions each had their own arrangement or none, and the two synchronous writes had a
+mandated transactional guarantee with nowhere to keep it: `WIR-24` requires the extension and its
+exact response body commit together, which is unimplementable without this row. The record MUST be
+written in the same transaction as the write it guards, and retained for the horizon `STO-33`
+states.
+
+**STO-36** **`tenant_provider_accounts`** — `tenant_id`, `provider_account`, `assigned_at`,
+`policy_version`, unique on `(tenant_id, provider_account)`. Populated in the activation
+transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home and `WIR-29`
+returned an empty list to every customer forever.
 
 **STO-33** **A terminal operation MUST remain readable at least as long as its idempotency record
 can refuse a reused key, and the two horizons MUST be stated to callers as one number.** `STO-14`

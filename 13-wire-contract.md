@@ -92,10 +92,11 @@ timestamp is signed. **TLS remains the confidentiality layer** (`API-27`); a bea
 secret in transit and MUST NOT appear in a URL, a log line, or an operation record (`SEC-3`,
 `API-25`).
 
-**WIR-8** **WITHDRAWN 2026-08-13.** Was key rotation. There are no customer keys to rotate, and
-token rotation is out of v1 scope (`API-39`): a lost token cannot be recovered and a stolen one
-cannot extract value, so a rotation endpoint earns nothing v1 needs. The remedy for a compromised
-token is to stop funding it (`API-37`).
+**WIR-8** **WITHDRAWN 2026-08-13 — superseded, not deleted.** Was Ed25519 key rotation. There are
+no customer keys; **credential replacement is `WIR-38`**, authorized by the recovery credential
+(`API-55`, `API-56`). *An intermediate version of this requirement said rotation was out of v1
+scope because a stolen credential "cannot extract value" — that reasoning was wrong. A customer
+credential authorizes `install` and `delete`, so theft costs data and machines, not just balance.*
 
 ## The error envelope
 
@@ -205,31 +206,51 @@ idempotency is keyed on the header alone and it MUST NOT *require* one (`API-40`
 are principal-scoped** (`WIR-36`): a lookup naming a resource outside the authenticated tenant
 returns `404` and never reveals whether it exists.
 
-**WIR-12** **AMENDED** `POST /v1/enrol` — unauthenticated (`API-32`). Body `{}`. Response `200`:
+**WIR-12** **AMENDED twice** `POST /v1/enrol` — unauthenticated (`API-32`), **no
+`Idempotency-Key`**. Body `{}`. Response `200`, and **this is the only time either secret is ever
+transmitted**:
 
 ```json
 {
   "handle": "0198c1f0-4b3c-7d5e-9a0b-2c4e6a8c0e30",
+  "tenant_id": "t-0198c1f0",
   "status": "not_yet",
-  "token": null,
-  "disclosures": ["A lost token is a lost balance. There is no recovery and no refund (API-37)."]
+  "issuable_at": "2026-08-13T14:30:00Z",
+  "spending_token": "pvd_s_7Qk2mXbW9tR4vL8nZaC3yH6eJ1gP5dF0sK7wN2xB4uT",
+  "recovery_credential": "pvd_r_3mYq8LbN5tX2vK9pZfC6yH4eJ7gR1dW0sM3wQ5xA8uV",
+  "disclosures": [
+    {"code": "store_both_secrets", "text": "These are shown once. Store the recovery credential where your everyday agent cannot reach it; it is the only thing that can revoke a stolen token."},
+    {"code": "no_identity_recovery", "text": "Losing both is a lost balance. There is no identity to recover against and no refund."},
+    {"code": "signup_expiry", "text": "An unfunded signup expires at expires_at. A credit below the activation minimum does not extend it; such a credit is retained and re-attributable, never refunded."}
+  ]
 }
 ```
 
-The token is **not** minted here: `API-33` defers issuance, so `token` is `null` until the delay
-elapses (`WIR-13`). Idempotency is scoped to the `Idempotency-Key` header alone, since there is no
-tenant yet (`API-40`); re-sending under the same key returns the same handle. *The withdrawn
-version registered a caller public key; under `API-39` the credential is a server-issued token
-returned by `WIR-13`.*
+Both secrets are stored **hashed only** (`STO-34`) and the token does nothing until `issuable_at`
+(`API-33`). *Two withdrawn versions: the first registered a caller public key; the second minted
+the token later and returned it **once** from `WIR-13`, which cannot survive a lost response — the
+server marks it delivered, keeps only a hash, and a funded customer is locked out of a tenant
+nobody can reach.* **Enrolment carries no idempotency replay at all** (`API-40`): the key space
+was global and unauthenticated, so two callers choosing the same low-entropy key received the same
+handle — and the handle yields the credentials. A duplicate signup is free and `API-34` reaps it;
+a leaked capability is not.
 
-**WIR-13** **AMENDED** `GET /v1/enrol/{handle}` — unauthenticated; the handle is the bearer
-capability, and its unpredictable UUID is not authorization, so it discloses only its own
-enrolment (`WIR-36`). Before the issuance delay: `{"status": "not_yet", "token": null}`, with no
-delay-derived `Retry-After` (`API-33`, `API-49`'s exception). At or after the delay, **once**:
-`{"status": "pending", "token": "<opaque secret>", "tenant_id": "<id>"}` — the single moment the
-token crosses the wire (`API-39`). On every later read `token` is `null` and `status` reflects
-funding: `pending` until a qualifying payment, then `active` (`API-35`, `API-52`). Reachable while
-pending (`API-43`). The closed status enum is {`not_yet`, `pending`, `active`}.
+**WIR-13** **AMENDED** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
+ever**: `{"status": "not_yet" | "pending" | "active", "issuable_at": "...", "expires_at": "..."}`.
+No delay-derived `Retry-After` (`API-33`, `API-49`'s exception). This is how a pending tenant
+observes activation (`API-52`).
+
+**WIR-38** `POST /v1/recovery/revoke` — authenticated by the **recovery credential**, never by the
+spending token (`API-56`). Body `{}`; response `200` with a fresh
+`{"spending_token": "...", "revoked_at": "..."}`. Synchronous — a pure credential action with no
+provider mutation — and added to `API-48`'s list on that basis. The tenant, its machines, its
+balance and its commitments are untouched.
+
+**WIR-39** `POST /v1/tenants/{id}/actions/suspend` and `.../resume` — **operator-only**
+(`WIR-34`), `{"acknowledge_destruction": true}` on suspend, since it cancels the tenant's fleet
+(`API-58`, `SEC-45`). Returns `202` with a **termination record** id whose child cancellations are
+ordinary operations (`OPS-39`), so partial failure and `needs_reconciliation` are visible per
+machine rather than hidden behind one status.
 
 **WIR-14** `POST /v1/deposits` (`API-43`, `API-44`) — body: `{"amount_sats": 250000}`.
 Response `200`:
