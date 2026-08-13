@@ -407,10 +407,17 @@ than on the resulting machine (the robot-style shape):
 - treat the listing window as the horizon beyond which automatic resolution is impossible
   (`08-provider-notes.md`), and `OPS-31` as the only remaining road.
 
-**PRV-30** **CONFIRMED 2026-08-13 — no longer `[verify]`, and it removes a field the design was
-relying on.** A provider's caller-controlled field MUST NOT alter how the order is processed, and
-**Hetzner Robot's order `comment` violates exactly that**: Hetzner states that supplying it routes
-standard and auction orders to **manual** processing. **The `comment` field MUST NOT be used as a
+**PRV-30** **CONFIRMED IN WRITING 2026-08-13 — no longer `[verify]`, and it removes a field the
+design was relying on.** A provider's caller-controlled field MUST NOT alter how the order is
+processed, and **Hetzner Robot's order `comment` violates exactly that.** The `hrobot-rs` client
+documents it on the field itself:
+
+> `/// Comment for the order. Note that comments require manual provisioning,`
+> `/// which can increase the processing time for the purchase request.`
+> — `MathiasPius/hrobot-rs`, `src/api/ordering/models.rs`, `ProductOrder::comment`
+
+The same caveat appears on the auction-market order. This is the written verification `CNF-148`
+demanded. **The `comment` field MUST NOT be used as a
 correlator, or for anything else, on a Robot order.** Using it would convert every dedicated order
 into a human-latency order and invalidate the negative window (`OPS-33`) for the one product where
 a lost reply is most expensive.
@@ -428,17 +435,40 @@ requires the driver to register a temporary key per order, so making it **unique
 nothing and its fingerprint is a stamp the operator chose. Resolution then lists recent order
 transactions (`08-provider-notes.md`) and matches on that fingerprint.
 
-**Two things MUST be established against the live API before this ships**, and until both hold the
-driver MUST declare it has no correlator:
+**Both conditions were verified 2026-08-13 and the hypothesis holds.**
 
-1. the order-transaction listing actually **returns** the authorized key or its fingerprint, so the
-   match is possible at all; and
-2. supplying a distinct key per order does **not** trigger the manual-processing behaviour or any
-   other change in handling (`PRV-30`).
+1. **The transaction listing returns the key, with its fingerprint.** Two independent client
+   libraries agree: `hrobot-rs` deserializes a purchased product's
+   `#[serde(rename = "authorized_key")] pub authorized_keys: Vec<InitialProductSshKey>`, where
+   `InitialProductSshKey { name, fingerprint, algorithm, bits }`; and `appscode/go-hetzner`
+   declares `Transaction.AuthorizedKey []struct{ Key *AuthorizedKey } \`json:"authorized_key"\``
+   with `AuthorizedKey.Fingerprint`. Both the standard and the auction-market transaction carry
+   it. **The match is therefore exact and server-side data, not an inference.**
+2. **A distinct key per order changes nothing about handling.** `authorized_key[]` is not free
+   text — it is one arm of the order's mandatory authorization choice
+   (`AuthorizationMethod::Keys` versus `Password`), so every keyed order already supplies it and
+   `PRV-8` already requires one. **Only `comment` carries a processing caveat**; no client
+   documents any for the key field, and a differing *value* in a structured field has no mechanism
+   by which to summon a human, where free text plainly does.
 
-**If either fails, the Robot path has no correlator and `PRV-33` governs.** This requirement is
-written as a hypothesis with its falsification conditions attached, because the last unverified
-provider premise in this document survived three audits before turning out to be false.
+**The residual is empirical, not structural, and `PRV-34` makes it free to close.** Condition 2 is
+established by exclusion and by the field's role; a test-mode order confirms it end to end at zero
+cost, and `CNF-180` requires that confirmation before the driver ships. Until it passes, the
+driver MUST declare no correlator and `PRV-33` governs.
+
+**PRV-34** **Robot orders have a test mode, and the driver MUST use it in conformance testing.**
+The order request carries a `test` parameter; with `test=true` the API **simulates** the purchase
+and returns a `Cancelled` transaction instead of buying anything. This is a genuinely valuable
+provider fact and it was missed until 2026-08-13: it means the entire dedicated ordering path —
+request shape, authorization, the transaction listing, and the correlator round-trip of `PRV-32` —
+can be exercised against the **live** API without a setup fee or a server.
+
+A deployment MUST therefore: default its conformance runs to `test=true`; treat the *absence* of
+an explicit spend intent as test mode rather than as a real order; and verify that a live purchase
+sets `test=false` exactly once, at the point `API-15`'s acknowledgement and `PRV-10`'s
+`allow_orders` both hold. **A driver whose test flag defaults to "real purchase" turns every
+mistaken conformance run into a bought server**, which is the same money-out family as a duplicate
+order.
 
 **PRV-33** **Where a provider offers no verified correlator, an ambiguous create MUST resolve to
 an operator, never to a guess.** The driver MUST declare the absence, the deployment MUST surface

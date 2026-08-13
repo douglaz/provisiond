@@ -195,7 +195,10 @@ server, and it is exactly what a builder reaches for when the correlator is miss
 
 `CNF-180` is **before production** rather than blocking: it gates the *Robot driver*, not the
 launch — `ADR-0010`'s other two drivers are unaffected, which is the payoff for having chosen a
-launch set spanning two companies.
+launch set spanning two companies. **`CNF-182` is BLOCKING**, and it is new: `PRV-34`'s test mode
+is only a safety net if the default points at it, and a flag that defaults the wrong way converts
+every accidental conformance run into a purchased dedicated server — money out, unrecoverable,
+exactly the family the tiering rule puts in the top tier.
 
 **PRE-SCALE** — `CNF-144`, `CNF-145`, `CNF-146`. These protect the contract's generality, which
 degrades slowly and visibly rather than losing money; `CNF-145` is the one to run first, because
@@ -714,10 +717,18 @@ rather than acquiring a default.
 - [ ] **CNF-148** **The Robot order `comment` field is never populated, by any code path** —
       Hetzner routes commented orders to manual processing (`PRV-30`, confirmed). Asserted against
       the outbound request, not by reading the driver.
-- [ ] **CNF-180** `PRV-32`'s substitute is verified against the live Robot API before the driver
-      ships: a real order carries a unique SSH key, the transaction listing returns that key or
-      its fingerprint, and the order is **not** manually processed. Both halves, or the driver
-      declares no correlator. (`PRV-32`, `PRV-30`)
+- [ ] **CNF-180** `PRV-32`'s correlator round-trip is confirmed against the live Robot API before
+      the driver ships — **using `test=true`, so it costs nothing** (`PRV-34`): an order carrying a
+      unique SSH key is placed, the transaction is fetched, and the returned
+      `authorized_key[].fingerprint` matches the key sent. If simulated transactions do not appear
+      in the listing, one real order closes the remaining half. Failing that, the driver declares
+      no correlator (`PRV-33`). (`PRV-32`, `PRV-34`)
+- [ ] **CNF-182** The Robot driver's order test flag **defaults to test mode**, and a real
+      purchase requires an explicit spend intent that is set exactly once, where `API-15`'s
+      acknowledgement and `PRV-10`'s `allow_orders` both hold. Asserted by placing an order with
+      the acknowledgement absent and confirming the API returns a `Cancelled` transaction and no
+      server. **A driver defaulting to "real purchase" turns every mistaken conformance run into a
+      bought server.** (`PRV-34`, `API-15`, `PRV-10`)
 - [ ] **CNF-181** With no verified correlator, an ambiguous Robot create ends in
       `needs_reconciliation` awaiting an operator, the recent-order listing is surfaced as
       evidence, and **no automatic attach occurs on any hostname or timing similarity**. The

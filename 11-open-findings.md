@@ -205,10 +205,20 @@ how the provider handles the request is not a free field.
 reply is most expensive: a duplicate order means a second physical server and a second
 non-refundable setup fee. `PRV-32` nominates a substitute — a **per-order throwaway SSH key**,
 whose fingerprint is a caller-chosen stamp and which `PRV-9` already requires the driver to
-create, so uniqueness is free — but it is written as a hypothesis with two explicit falsification
-conditions (the transaction listing must actually return the key or its fingerprint; a distinct
-key per order must trigger no handling change of its own). **Until both are verified against the
-live API, the Robot driver declares no correlator.**
+create, so uniqueness is free — and **both of its falsification conditions were checked the same
+day and held**:
+
+- *the transaction listing returns the key* — **verified in two independent client libraries.**
+  `hrobot-rs` deserializes `#[serde(rename = "authorized_key")] authorized_keys:
+  Vec<InitialProductSshKey>` with a `fingerprint` field; `appscode/go-hetzner` independently
+  declares `Transaction.AuthorizedKey` → `AuthorizedKey.Fingerprint`. Standard and auction-market
+  transactions both carry it;
+- *a distinct key per order changes no handling* — `authorized_key[]` is structured data and one
+  arm of the order's mandatory authorization choice (the other is `password`), not free text. Only
+  `comment` carries a processing caveat, and a differing value in a structured field has no
+  mechanism by which to summon a human.
+
+**The Robot correlator therefore survives, by a different field than the design assumed.**
 
 **If it fails, `PRV-33` governs and the guarantee holds anyway:** an ambiguous Robot create
 resolves to an **operator**, never to a timing-based guess. `OPS-29`'s prohibition on heuristic
@@ -218,10 +228,26 @@ consequence, stated rather than hidden: for such a provider the `OPS-33` negativ
 bounded by operator response time, and the commitment is still released on it (`OPS-33`), so a
 customer's satoshis are never held hostage to how fast a human looks.
 
-*The methodological lesson is the one worth keeping: the whole correlator design rested on a
-provider fact nobody had checked, and `F1` was closed on it. **A caller-controlled field is only a
-correlator if writing to it is free**, and absence of a documented side effect is not evidence
-(`PRV-30`).*
+**Two further facts came out of actually reading the clients**, and one of them is worth more
+than the finding that prompted it:
+
+- **Robot orders have a `test` mode** (`PRV-34`). `test=true` simulates the purchase and returns a
+  `Cancelled` transaction. The entire dedicated ordering path — the most expensive thing to get
+  wrong in this specification, and the one `CNF-147` could previously only test by buying a
+  server — is exercisable against the live API for free. It also creates a new blocking item
+  (`CNF-182`): the flag must **default to test**, or an accidental conformance run buys a machine.
+- **This document had misattributed `API-15`'s design.** A note claimed Hetzner's own order
+  request carries a field named `i_want_to_spend_money_to_purchase_a_server`, offered as evidence
+  that the provider independently arrived at explicit purchase acknowledgement. That identifier is
+  `hrobot-rs`'s *Rust field name*; the wire parameter is plain `test`. The claim is corrected in
+  place in `08-provider-notes.md`.
+
+*The methodological lesson is the one worth keeping, and it now has three instances rather than
+one: the whole correlator design rested on a provider fact nobody had checked (`F1`); the
+disqualifying detail was documented in a client library the whole time; and a flattering claim
+about the provider turned out to be about a library author. **A caller-controlled field is only a
+correlator if writing to it is free**, absence of a documented side effect is not evidence
+(`PRV-30`), and reading the client source is cheaper than every audit that missed this.*
 
 *Re-scoped by `ADR-0010`, and in the direction that matters.* Robot is now the flagship product
 rather than one of several, which raises the stakes — but the launch set also contains two

@@ -212,7 +212,7 @@ by `PRV-30`.
 | Provider shape | Field carried at create | Shape | Find it afterwards | Confidence |
 |---|---|---|---|---|
 | Hetzner Cloud | `labels` | `map[string]string` | `label_selector` query parameter on list | **[observed — official `hcloud-go` client, `ServerCreateOpts.Labels` and `ListOpts.LabelSelector` → `label_selector`]** |
-| Hetzner Robot | ~~`comment`~~ **UNUSABLE** → per-order SSH key **[verify]** | fingerprint | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one | **`comment` CONFIRMED UNUSABLE 2026-08-13** — Hetzner routes commented orders to manual processing (`PRV-30`). Key-fingerprint substitute is **[verify]** (`PRV-32`) |
+| Hetzner Robot | ~~`comment`~~ **UNUSABLE** → per-order SSH key | key **fingerprint** | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one | **`comment` CONFIRMED UNUSABLE** — comments require manual provisioning (`PRV-30`). **Key substitute [observed]** — the transaction returns `authorized_key[].fingerprint`, confirmed in two independent clients (`PRV-32`) |
 | Cherry Servers | `tags` | `map[string]string` | returned on the server object | **[observed — official `cherrygo` client]**; server-side filtering **[verify]** |
 | DigitalOcean | `tags` | `[]string` — flat strings, **not** key/value | `ListByTag` | **[observed — official `godo` client]** |
 
@@ -226,11 +226,22 @@ Notes that change driver code:
   everything else. This was `F29`, carried as `[verify]` through three audits and now resolved
   against the design's assumption.
 - **The substitute is a per-order throwaway SSH key** (`PRV-32`), whose fingerprint acts as the
-  stamp. `PRV-9` already requires a temporary key per order, so uniqueness is free. **[verify]**
-  two things before the Robot driver ships: that the transaction listing returns the key or its
-  fingerprint, and that a distinct key per order triggers no handling change of its own. If either
-  fails, Robot has no correlator and resolution is an operator action (`PRV-33`), never a
-  timing-based guess.
+  stamp, and **both conditions verified on 2026-08-13**. The order transaction returns the
+  authorized keys with fingerprints — `hrobot-rs` deserializes
+  `#[serde(rename = "authorized_key")] authorized_keys: Vec<InitialProductSshKey>` where
+  `InitialProductSshKey` carries `fingerprint`, and `appscode/go-hetzner` independently declares
+  `Transaction.AuthorizedKey` → `AuthorizedKey.Fingerprint`. **[observed — two independent
+  clients, 2026-08-13]** And `authorized_key[]` is structured, mandatory-in-effect data (the other
+  arm of the auth choice is `password`), not free text, so a distinct value per order has no
+  mechanism to summon a human the way a comment does.
+- **Robot orders have a `test` mode, and this was missed until 2026-08-13.** Setting `test=true`
+  makes the API **simulate** the purchase and return a `Cancelled` transaction. **[observed —
+  `hrobot-rs` encodes the flag explicitly; `appscode/go-hetzner` declares `Test bool
+  \`url:"test"\``]** This is the single most useful fact in this document for conformance
+  testing: the whole dedicated ordering path, including the correlator round-trip, is exercisable
+  against the live API for free (`PRV-34`, `CNF-180`). **[verify]** whether a simulated
+  transaction appears in the transaction listing — if it does, the entire round-trip is free; if
+  not, the listing half needs one real order.
 - **Robot's correlator does not live on the machine.** It goes on the order, and the resulting
   server carries no caller field at create — `server_name` is settable only afterwards, via
   `POST /server/{server-number}`, which is precisely the follow-up call `PRV-26` forbids relying
@@ -241,9 +252,17 @@ Notes that change driver code:
 - Hetzner Cloud's label constraints (key/value character set, length, count) are **[verify]** —
   the Go client performs no validation of its own, so the server enforces whatever it enforces.
 
-A pleasing incidental confirmation: Robot's order request carries a field literally named
+**A correction to an earlier note in this document, because the pattern matters more than the
+fact.** It read: *"Robot's order request carries a field literally named
 `i_want_to_spend_money_to_purchase_a_server`. `API-15`'s explicit purchase acknowledgement is not
-this specification being paranoid — it is a pattern the provider itself arrived at.
+this specification being paranoid — it is a pattern the provider itself arrived at."*
+
+**The provider did not arrive at it.** That identifier is `hrobot-rs`'s *Rust field name*; the
+wire parameter is plain `test`, as `appscode/go-hetzner`'s `Test bool \`url:"test"\`` shows.
+The naming — and the `ImSeriousAboutSpendingMoney` enum around it — is the Rust author's joke, and
+this document attributed a client library's API design to Hetzner. The underlying encouragement
+stands and is arguably stronger: **hrobot-rs defaults to test mode**, so a caller must opt in to
+spending money. `API-15` remains well-founded; it just has a different author than claimed.
 
 ## Writing a new adapter
 
