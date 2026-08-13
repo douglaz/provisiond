@@ -625,8 +625,11 @@ to strand satoshis that do.
 - [ ] **CNF-124** Killing the process between crediting the ledger and marking the destination
       settled leaves the payment credited exactly once after recovery — not twice, not zero times.
       Replaying the rail's settlement stream produces no second entry. (`STO-30`, `STO-31`)
-- [ ] **CNF-125** A pending tenant can reach the funding endpoint and **only** the funding
-      endpoint; every other authenticated endpoint answers `not_activated`. (`API-43`, `DOM-20`)
+- [ ] **CNF-125** A pending tenant can reach exactly `POST /v1/deposits`, `GET /v1/deposits/{id}`
+      for its own deposit, and the unauthenticated enrolment handle — and **nothing else**; every
+      other authenticated endpoint answers `not_activated`. The deposit-read half is what lets a
+      tenant that paid below the activation minimum see what happened to unrefundable money.
+      (`API-43`, `API-52`, `DOM-20`)
 - [ ] **CNF-126** The solvency check counts channel balances and confirmed on-chain outputs, and
       the deployment's stated treatment of an encumbered channel balance is the one implemented.
       (`LDG-53`, `LDG-17`)

@@ -189,11 +189,21 @@ than left as exceptions a builder must invent:
 
 ## Funding
 
-**API-43** **A funding endpoint MUST exist**, and it MUST be reachable by a **pending** tenant.
-This is the one exception to `API-7`'s activation check: `API-35` will not graduate a tenant until
-a payment is credited, so an endpoint that refuses pending tenants makes activation unreachable
-and enrolment a dead end. Every other authenticated endpoint MUST continue to reject a pending
-tenant with `not_activated` (`DOM-20`).
+**API-43** **AMENDED — the pending-tenant allowlist is exactly three things, named here so no
+endpoint has to guess.** `API-35` will not graduate a tenant until a payment is credited, so an
+enrolment that cannot pay is a dead end. A **pending** tenant MAY reach:
+
+1. **`POST /v1/deposits`** — mint a funding destination;
+2. **`GET /v1/deposits/{id}`** — read *its own* deposit. This was omitted until 2026-08-13, and
+   the omission was a money-visibility hole: a pending tenant that pays **below** the activation
+   minimum (`LDG-44`) stays pending, its satoshis are non-refundable (`ADR-0004`), and without
+   this endpoint it could not see what had been credited — only that it was still, unexplainedly,
+   pending;
+3. **`GET /v1/enrol/{handle}`** — unauthenticated, so not strictly an exception, but listed
+   because it is how a pending tenant learns it has become active (`API-52`).
+
+**Every other authenticated endpoint MUST reject a pending tenant with `not_activated`**
+(`DOM-20`).
 
 **API-44** A funding request MUST carry the amount the caller intends to pay. The response MUST
 return one **deposit** (`LDG-46`) carrying that amount, an expiry, and **both** destinations — the
