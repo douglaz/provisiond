@@ -189,8 +189,13 @@ proves it.
 
 **BLOCKING** — `CNF-147` (it is the only item that runs the dedicated money path against a real
 machine, and every requirement it touches was written without ever having been executed);
-`CNF-148` (an unverified provider fact underneath the reconciliation design — the same class of
-belief `F1` was closed on).
+`CNF-148` (populating `comment` turns every dedicated order into a human-latency order —
+confirmed, not suspected); `CNF-181` (a timing-based attach hands one customer another's physical
+server, and it is exactly what a builder reaches for when the correlator is missing).
+
+`CNF-180` is **before production** rather than blocking: it gates the *Robot driver*, not the
+launch — `ADR-0010`'s other two drivers are unaffected, which is the payoff for having chosen a
+launch set spanning two companies.
 
 **PRE-SCALE** — `CNF-144`, `CNF-145`, `CNF-146`. These protect the contract's generality, which
 degrades slowly and visibly rather than losing money; `CNF-145` is the one to run first, because
@@ -706,9 +711,17 @@ rather than acquiring a default.
       earliest cancellation date, a cancellation that schedules rather than deletes, and billing
       that continues until the effective date. **The requirements this tests were all written
       before any of them had run.** (`LDG-39`, `PRV-13b`, `PRV-13c`, `DOM-19`)
-- [ ] **CNF-148** `PRV-30`'s manual-processing claim has been verified against Hetzner Robot in
-      writing, before the Robot driver is written. Until it is, the Robot correlator and the
-      negative window derived from it are beliefs. (`F29`, `PRV-30`, `OPS-33`)
+- [ ] **CNF-148** **The Robot order `comment` field is never populated, by any code path** —
+      Hetzner routes commented orders to manual processing (`PRV-30`, confirmed). Asserted against
+      the outbound request, not by reading the driver.
+- [ ] **CNF-180** `PRV-32`'s substitute is verified against the live Robot API before the driver
+      ships: a real order carries a unique SSH key, the transaction listing returns that key or
+      its fingerprint, and the order is **not** manually processed. Both halves, or the driver
+      declares no correlator. (`PRV-32`, `PRV-30`)
+- [ ] **CNF-181** With no verified correlator, an ambiguous Robot create ends in
+      `needs_reconciliation` awaiting an operator, the recent-order listing is surfaced as
+      evidence, and **no automatic attach occurs on any hostname or timing similarity**. The
+      negative window still releases the commitment in full. (`PRV-33`, `OPS-29`, `OPS-33`)
 
 ## Surface completeness
 

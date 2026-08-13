@@ -38,17 +38,23 @@ rather than lowers, the value of the first real transaction.
 ## Critical — closed 2026-08-11
 
 **F1. `needs_reconciliation` had no resolution path.** → `OPS-27`–`OPS-33`. The mechanism turned
-out to depend on a fact nobody had checked: **every provider in the set offers a caller-controlled
-field** that a create can write an operation id into, and three of four can filter on it
-server-side (`08-provider-notes.md`). That converts resolution from a heuristic match on hostname
-and timing — which `OPS-29` now forbids — into an exact lookup. `OPS-33` additionally bounds how
-long a customer's balance may stay frozen by an unresolved record, which is a cost that did not
-exist when this finding was written.
+out to depend on a fact nobody had checked: that every provider offers a caller-controlled field a
+create can write an operation id into. **That premise was partly false, and it took until
+2026-08-13 to find out.** Hetzner Cloud, Cherry and DigitalOcean do (`08-provider-notes.md`);
+**Hetzner Robot does not** — its only candidate field, the order `comment`, routes the order to
+manual processing (`PRV-30`, `F29` confirmed), so it is unusable. Where a correlator exists,
+resolution is an exact lookup rather than a heuristic match on hostname and timing (`OPS-29`
+forbids the latter); where it does not, resolution is an **operator** action (`PRV-33`) and
+`OPS-29` still forbids guessing. `OPS-33` bounds how long a customer's balance stays frozen by an
+unresolved record either way — a cost that did not exist when this finding was written, and the
+reason the no-correlator branch is survivable at all.
 
 *Both auditors had named this the highest-value remaining edit, and advised writing it from the
-transcript of a real ambiguous outcome rather than from imagination. That advice was not followed
-and the reason should be recorded: the correlator design makes the mechanism verifiable from
-provider APIs rather than from experience. **The negative window in `OPS-33` is still a guess**,
+transcript of a real ambiguous outcome rather than from imagination. That advice was not followed,
+on the reasoning that the correlator design made the mechanism verifiable from provider APIs rather
+than from experience — **and the Robot case is what that shortcut cost**: the field was verifiable
+in principle and nobody verified it, so a mechanism the design leaned on for its most expensive
+product survived three audits before failing. **The negative window in `OPS-33` is still a guess**,
 and it is the part a real transaction would calibrate.*
 
 **F2. The registry branch of `DOM-1a` was not buildable.** → `API-4` split. Operator credentials
@@ -189,11 +195,33 @@ nothing to adopt — **adoption is operator-only** (`API-18` AMENDED), the entit
 disappears with the customer-facing feature that carried it, and the challenge token leaves v1
 scope.
 
-**F29. `PRV-30` — the Hetzner Robot `comment` field may force manual order processing.** Claimed
-by one audit, citing the Robot documentation; **not verified** — the docs page truncates before
-the ordering section and the client libraries carry no note. If true, the Robot correlator turns
-every order into a human-latency order and invalidates the measured negative window for that
-provider. Check before shipping the Robot driver.
+**F29. CLOSED 2026-08-13 — CONFIRMED TRUE, and the design loses the field.** Hetzner does state
+that supplying the order `comment` sends standard and auction orders to **manual processing**. The
+claim survived three audits as `[verify]`; the operator confirmed it. `comment` is now prohibited
+outright (`PRV-30`) — not merely as a correlator — because a caller-controlled field that changes
+how the provider handles the request is not a free field.
+
+**What it costs.** Robot loses its exact recovery stamp, and Robot is the product where a lost
+reply is most expensive: a duplicate order means a second physical server and a second
+non-refundable setup fee. `PRV-32` nominates a substitute — a **per-order throwaway SSH key**,
+whose fingerprint is a caller-chosen stamp and which `PRV-9` already requires the driver to
+create, so uniqueness is free — but it is written as a hypothesis with two explicit falsification
+conditions (the transaction listing must actually return the key or its fingerprint; a distinct
+key per order must trigger no handling change of its own). **Until both are verified against the
+live API, the Robot driver declares no correlator.**
+
+**If it fails, `PRV-33` governs and the guarantee holds anyway:** an ambiguous Robot create
+resolves to an **operator**, never to a timing-based guess. `OPS-29`'s prohibition on heuristic
+matching is not relaxed by the correlator being unavailable — the temptation runs precisely the
+other way, and a wrong match hands one customer another customer's physical server. The visible
+consequence, stated rather than hidden: for such a provider the `OPS-33` negative window is
+bounded by operator response time, and the commitment is still released on it (`OPS-33`), so a
+customer's satoshis are never held hostage to how fast a human looks.
+
+*The methodological lesson is the one worth keeping: the whole correlator design rested on a
+provider fact nobody had checked, and `F1` was closed on it. **A caller-controlled field is only a
+correlator if writing to it is free**, and absence of a documented side effect is not evidence
+(`PRV-30`).*
 
 *Re-scoped by `ADR-0010`, and in the direction that matters.* Robot is now the flagship product
 rather than one of several, which raises the stakes — but the launch set also contains two

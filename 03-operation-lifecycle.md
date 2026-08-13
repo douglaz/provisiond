@@ -303,6 +303,12 @@ negative window has elapsed, the commitment MUST be closed and released in full 
 operation remains open, and `OPS-32`'s account sweep MUST continue searching for the correlator
 indefinitely afterwards. `OPS-36` governs what happens if the machine then appears.
 
+**Where a provider has no verified correlator** (`PRV-33` — Hetzner Robot is the live case after
+`PRV-30` disqualified its `comment` field), the window MUST still be bounded and the commitment
+MUST still be released on it, but the search it bounds is an **operator** search, not an automatic
+one. The release rule does not weaken: a customer's satoshis are not held hostage to how quickly a
+human looks.
+
 **The window MUST be derived per provider from that provider's own allocation behaviour.** An
 earlier version said "on the order of hours", which is wrong for the product that matters:
 robot-style dedicated orders poll through an `in process` state with no documented bound, and

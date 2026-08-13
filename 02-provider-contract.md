@@ -407,13 +407,51 @@ than on the resulting machine (the robot-style shape):
 - treat the listing window as the horizon beyond which automatic resolution is impossible
   (`08-provider-notes.md`), and `OPS-31` as the only remaining road.
 
-**PRV-30** **[verify — decision-changing]** A provider's caller-controlled field MUST NOT alter
-how the order is processed. There is a specific unverified claim that supplying Hetzner Robot's
-`comment` field causes standard and auction orders to be processed **manually**, which would
-turn every correlated order into a human-latency order and invalidate the measured negative
-window (`OPS-33`) for that provider. This MUST be checked before the Robot correlator ships. If
-it holds, the correlator must move to another field or the Robot path must resolve by transaction
-listing without one.
+**PRV-30** **CONFIRMED 2026-08-13 — no longer `[verify]`, and it removes a field the design was
+relying on.** A provider's caller-controlled field MUST NOT alter how the order is processed, and
+**Hetzner Robot's order `comment` violates exactly that**: Hetzner states that supplying it routes
+standard and auction orders to **manual** processing. **The `comment` field MUST NOT be used as a
+correlator, or for anything else, on a Robot order.** Using it would convert every dedicated order
+into a human-latency order and invalidate the negative window (`OPS-33`) for the one product where
+a lost reply is most expensive.
+
+This is the second correlator premise to fail on inspection (`PRV-26`'s create-only scope was the
+first), and the pattern is worth stating: **a caller-controlled field is only a correlator if
+writing to it is free.** A driver MUST NOT adopt a field as a correlator without evidence that
+carrying it changes nothing about how the provider handles the request — latency, routing, or
+review. Absence of a documented side effect is not evidence.
+
+**PRV-32** **The Robot correlator is a per-order throwaway SSH key, and it MUST be verified before
+the Robot driver ships.** With `comment` unusable, the remaining caller-set field on a Robot order
+that plausibly carries no processing side effect is the **authorized SSH key**: `PRV-9` already
+requires the driver to register a temporary key per order, so making it **unique per order** costs
+nothing and its fingerprint is a stamp the operator chose. Resolution then lists recent order
+transactions (`08-provider-notes.md`) and matches on that fingerprint.
+
+**Two things MUST be established against the live API before this ships**, and until both hold the
+driver MUST declare it has no correlator:
+
+1. the order-transaction listing actually **returns** the authorized key or its fingerprint, so the
+   match is possible at all; and
+2. supplying a distinct key per order does **not** trigger the manual-processing behaviour or any
+   other change in handling (`PRV-30`).
+
+**If either fails, the Robot path has no correlator and `PRV-33` governs.** This requirement is
+written as a hypothesis with its falsification conditions attached, because the last unverified
+provider premise in this document survived three audits before turning out to be false.
+
+**PRV-33** **Where a provider offers no verified correlator, an ambiguous create MUST resolve to
+an operator, never to a guess.** The driver MUST declare the absence, the deployment MUST surface
+the recent-order listing to the operator as evidence, and attaching a discovered machine to a
+tenant MUST be an operator action (`OPS-31`, `WIR-35`) — `OPS-29`'s prohibition on heuristic
+matching by hostname and timing is not relaxed by the correlator being unavailable. **The
+temptation runs the other way**: it is precisely when automatic matching is impossible that
+timing-based matching looks reasonable, and a wrong match hands one customer another customer's
+physical server.
+
+The cost MUST be stated rather than hidden: for such a provider the `OPS-33` negative window is
+bounded by **operator response time**, not by an automatic lookup, and `OPS-26`'s rota is what
+determines how long a customer's balance stays committed behind a stuck order.
 
 ## Adding a driver
 

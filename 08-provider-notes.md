@@ -204,12 +204,15 @@ disk and RAID options passed through. **[observed]**
 Checked 2026-08-11, because `OPS-27` reconciliation depends on being able to ask a provider
 *"did my lost request create anything?"* and get an answer that names the specific operation
 rather than a machine that merely looks similar. **Every provider in this set offers a
-caller-controlled field**, and three of the four can filter on it server-side.
+caller-controlled field** — **and that turned out to be wrong for Hetzner Robot** (see below), the
+one product where a lost order costs a physical server and a non-refundable setup fee. Three of the
+four offer a usable field and can filter on it server-side; Robot's only candidate is disqualified
+by `PRV-30`.
 
 | Provider shape | Field carried at create | Shape | Find it afterwards | Confidence |
 |---|---|---|---|---|
 | Hetzner Cloud | `labels` | `map[string]string` | `label_selector` query parameter on list | **[observed — official `hcloud-go` client, `ServerCreateOpts.Labels` and `ListOpts.LabelSelector` → `label_selector`]** |
-| Hetzner Robot | `comment` on the order | free text | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one | **[observed — endpoint list and `hrobot-rs` `list_recent_product_transactions()`]** |
+| Hetzner Robot | ~~`comment`~~ **UNUSABLE** → per-order SSH key **[verify]** | fingerprint | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one | **`comment` CONFIRMED UNUSABLE 2026-08-13** — Hetzner routes commented orders to manual processing (`PRV-30`). Key-fingerprint substitute is **[verify]** (`PRV-32`) |
 | Cherry Servers | `tags` | `map[string]string` | returned on the server object | **[observed — official `cherrygo` client]**; server-side filtering **[verify]** |
 | DigitalOcean | `tags` | `[]string` — flat strings, **not** key/value | `ListByTag` | **[observed — official `godo` client]** |
 
@@ -217,6 +220,17 @@ Notes that change driver code:
 
 - **DigitalOcean tags are not key/value.** Encode the correlator as a single string with a fixed
   prefix. The permitted character set is **[verify]** before choosing a separator.
+- **Robot's `comment` field is confirmed unusable, 2026-08-13.** Hetzner states that supplying a
+  comment on a standard or auction order sends it to **manual processing**. That is a
+  decision-changing side effect (`PRV-30`), so the field is out — for correlation and for
+  everything else. This was `F29`, carried as `[verify]` through three audits and now resolved
+  against the design's assumption.
+- **The substitute is a per-order throwaway SSH key** (`PRV-32`), whose fingerprint acts as the
+  stamp. `PRV-9` already requires a temporary key per order, so uniqueness is free. **[verify]**
+  two things before the Robot driver ships: that the transaction listing returns the key or its
+  fingerprint, and that a distinct key per order triggers no handling change of its own. If either
+  fails, Robot has no correlator and resolution is an operator action (`PRV-33`), never a
+  timing-based guess.
 - **Robot's correlator does not live on the machine.** It goes on the order, and the resulting
   server carries no caller field at create — `server_name` is settable only afterwards, via
   `POST /server/{server-number}`, which is precisely the follow-up call `PRV-26` forbids relying
