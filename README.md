@@ -29,7 +29,7 @@ requirement not to repeat it.
 | `11-open-findings.md` | **Read this before building.** An independent audit's 21 findings, which are fixed and which are open, and the three questions a builder must ask first |
 | `12-billing-and-ledger.md` | The ledger, commitments, the meter, funding, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
 | `CONTEXT.md` | Glossary. Which word means what, and which words are banned |
-| `13-wire-contract.md` | Bodies, headers, the signing byte-string, the error envelope. Closes `F19` |
+| `13-wire-contract.md` | Bodies, headers, bearer auth, the error envelope. Closes `F19`, panel-reviewed |
 | `docs/adr/` | The decisions, and what was rejected to reach them |
 
 Read `00`, `01`, and `03` first. `03` is the heart of the design — the operation
@@ -59,8 +59,10 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
-enrolment issues against a **caller-supplied public key** (`API-39`), so nothing secret crosses
-the wire and compromising the credential store grants an attacker nothing.
+customer requests carry a **server-issued bearer token, stored hashed** (`API-39`, reversed
+2026-08-13 from a caller-supplied-key scheme after a wire-contract panel found the signing
+protocol guarded a non-extractable balance at outsized interop cost). A leaked table of token
+hashes discloses nothing usable.
 
 ## How much to trust this
 

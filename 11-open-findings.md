@@ -64,12 +64,22 @@ after deletion; `STO-18` forbids tombstoning while a billable attachment survive
 ## Critical — open
 
 **F23. CLOSED 2026-08-12 with `F19` — `13-wire-contract.md` exists.** Thirty-two `WIR`
-requirements: conventions (JCS canonicalization, reject-unknown-on-write), the `API-39` signing
-byte string with algorithm and encodings fixed (Ed25519, `WIR-6`), the error envelope, the
-operation and machine views, and a body for all twenty-two endpoints — including
-`extend-runway`, which `LDG-62` created and no surface row carried until this document forced
-the enumeration. Panel review pending; until it lands the document should be treated as one
-author's draft of the most interoperability-critical text in the set. *Original:* Enrolment added
+requirements: conventions (I-JSON, JCS for idempotency, reject-unknown-on-write), the error
+envelope with a machine-readable `details` table, the operation and machine views, and a body for
+every endpoint — including `extend-runway`, which `LDG-62` created and no surface row carried
+until this document forced the enumeration.
+
+**Panel-reviewed and revised 2026-08-13.** A three-model panel (Fable, Opus, Codex) returned ~30
+findings, six critical; the reconciled fix pass produced `WIR-1a`, `WIR-4a`, `WIR-5a`, `WIR-9a`,
+`WIR-9b`, `WIR-10a`, `WIR-10b`, `WIR-33`–`WIR-37` and amended most of the rest. **The largest
+consequence was not a wire fix but an auth reversal:** the panel's six P0s were concentrated in
+the Ed25519 signing scheme (`WIR-6`), and re-examining why it existed showed it guarded a
+non-extractable asset at the cost of the most interop-fragile construct in the set — so `API-39`
+was reversed to a hashed bearer token and `WIR-6`–`WIR-8` withdrawn. The surviving panel fixes:
+CORS preflight (`WIR-4a` — without it the browser client could not make one request), the
+method+target idempotency fingerprint (`WIR-3`), the complete install body (`WIR-20`), the
+operator resolution endpoint `OPS-31` had always mandated with no route (`WIR-35`), principal-
+scoped ids (`WIR-36`), and the operator-listener separation (`WIR-34`). *Original:* Enrolment added
 endpoints, the create request gained a runway field (`PRV-13d`), and machines gained
 caller-readable runway (`LDG-15`) — none with a request or response body. See `F19`. **This is
 now the largest single gap in the set.**
@@ -123,8 +133,10 @@ under-reserving across the fleet. `PRV-29` now states the real rule — non-crea
 by reading provider state for a known `external_id` — and `wind_down_cost` is reduced only where a
 driver can distinguish *rejected*, *accepted-pending*, *scheduled* and *complete*.
 
-**Settled:** customer authentication is a caller-supplied public key (`API-39`). Both audits
-reached it independently.
+**Settled, then re-settled:** customer authentication was a caller-supplied public key
+(`API-39`, both audits) — reversed 2026-08-13 to a hashed bearer token after the wire-contract
+panel showed the signing scheme guarded a non-extractable asset at outsized interop cost. See the
+`F23` closure below.
 
 ## Open after the second audit
 
@@ -295,8 +307,9 @@ the rate limit promises a compliant poller (`API-50`), and what an autonomous ca
 `needs_reconciliation` (`API-51` — re-issuing under a fresh key is a second purchase, and the
 panel unanimously called this the most expensive way for "finding out" to go wrong).
 
-**Rejected, with the reasons recorded:** SSE (browser `EventSource` cannot carry `API-39`'s
-signed headers; a held stream caches an authorization decision, so a suspended tenant keeps
+**Rejected, with the reasons recorded:** SSE (browser `EventSource` could not carry the signed
+headers `API-39` then required — now moot since auth is a bearer token, but `EventSource` still
+cannot set `Authorization`; a held stream caches an authorization decision, so a suspended tenant keeps
 streaming past `SEC-45`'s deadline); long-poll (its naive implementation — parked handlers
 polling the store on a timer — rebuilds `DEF-11` with customers as the trigger); webhooks (the
 process holding every provider credential initiating outbound connections to caller-chosen hosts
@@ -459,8 +472,10 @@ under `SEC-49`'s channel ceiling rather than every satoshi ever deposited. The b
 a number the operator chooses. `CNF-132` deliberately tests *reachability* rather than type
 visibility, because repeating `CNF-71`'s mistake here would prove nothing about the money.
 
-**The credential half is also closed:** `API-39` settled on caller-supplied public keys, so the
-mitigation this finding called cheapest and untaken has been taken.
+**The credential half is also closed** — though the mechanism changed: `API-39` first chose
+caller-supplied keys, then reversed (2026-08-13) to a **hashed** bearer token. Either way the
+store holds no usable customer secret, which is the mitigation this finding called cheapest and
+untaken; hashing gets it without a signing protocol.
 
 **The last piece closed 2026-08-12: `OVR-10c`.** Credentials are read once at startup by the
 owning module and scrubbed from the process environment, so after initialization the only copy

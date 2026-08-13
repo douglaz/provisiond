@@ -811,16 +811,30 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       admission-to-start bound is rejected at accept; at claim, a URL that cannot outlive the
       install fails the operation with no provider mutation and no rescue entry. (`OPS-40`,
       `SEC-21`)
-- [ ] **CNF-174** Published test vectors — a fixed key, timestamp, body and idempotency key with
-      their exact signed byte string and signature — verify against an independent
-      implementation of `WIR-6`. Two implementations that disagree on any vector do not
-      interoperate, and authentication is where that failure is silent. (`WIR-6`, `API-39`)
+- [ ] **CNF-174** A customer request authenticates by `Authorization: Bearer <token>` compared
+      to a stored **hash** in constant time; the raw token appears in no log line, URL, or
+      operation record; and an unknown or malformed token fails `authentication` before any body
+      parsing (`API-7`). *Withdrawn signing-vector test: the Ed25519 scheme this checked
+      (`WIR-6`) was withdrawn 2026-08-13; a bearer token has no signing string to interoperate
+      on.* (`WIR-5`, `API-39`, `API-3`)
 - [ ] **CNF-175** A request with an unknown body field is rejected naming the field, and a
       response with an extra field is accepted by the reference client. Both directions of
       `WIR-2`, tested separately. (`WIR-2`)
 - [ ] **CNF-176** Every example body in `13-wire-contract.md` validates against the
-      implementation's actual parser — the examples are test fixtures, not illustrations.
-      (`F19`)
+      implementation's actual parser — the examples are test fixtures, not illustrations, and
+      contain no `...` placeholder inside an object (`WIR-37`). (`F19`)
+- [ ] **CNF-177** A browser-origin preflight (`OPTIONS` with the `Authorization` and
+      `Idempotency-Key` request headers) succeeds **unauthenticated** and returns the allow-lists
+      of `WIR-4a`; a customer request from a wasm client then completes end to end. Run from an
+      actual cross-origin fetch, because this is the failure that is invisible in server-only
+      tests. (`WIR-4a`, `API-49`)
+- [ ] **CNF-178** A body reusing an idempotency key against a **different** machine or endpoint is
+      `409`, not a replay of the first result; and a body with a duplicate JSON member, or an
+      integer above 2^53, is rejected. (`WIR-3`, `WIR-1a`)
+- [ ] **CNF-179** An operator resolves a `needs_reconciliation` operation through
+      `POST /.../actions/resolve` in each of its three forms, the `absent` form releases the
+      commitment, and a customer-authenticated request to that route — and to adopt and requeue —
+      returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`)
 - [ ] **CNF-173** After startup, enumerating the process environment from inside the
       customer-facing module yields no provider credential — asserted by actually reading the
       environment at runtime, not by reviewing the scrub call, because a runtime that caches the
@@ -838,17 +852,20 @@ provider invoice); `CNF-170` (write-skew on the money path, the `LDG-35` case in
 **PRE-SCALE** — `CNF-168`, `CNF-171` (visibility items; the harm they catch is bounded and
 operator-absorbable at concierge scale).
 
-**BLOCKING** — `CNF-174` (interoperability of authentication fails silently — a second
-implementation that computes the byte string differently locks every customer out or, worse,
-verifies nothing); `CNF-172` (the gate stands between a doomed input and a destructive write that
-has already wiped a disk by the time the doom arrives); `CNF-173` (escaped-secret family — the
+**BLOCKING** — `CNF-177` (as written the browser-wasm caller cannot complete one request
+until the preflight passes — the product is unreachable from its own client); `CNF-178` (an
+idempotency fingerprint missing method+target replays a destructive action against the wrong
+target); `CNF-179` (without the resolve verbs a frozen ambiguous operation strands a customer's
+commitment with no operator road out); `CNF-172` (the gate stands between a doomed input and a
+destructive write that has already wiped a disk by the time the doom arrives); `CNF-173` (escaped-secret family — the
 only structural credential defence `ADR-0001` left standing, finally given a test that measures
 reachability instead of type visibility).
 
-**PRE-SCALE** — `CNF-175`, `CNF-176` (contract-drift catchers; they harden the wire, they do
-not move money).
+**PRE-SCALE** — `CNF-174`, `CNF-175`, `CNF-176` (contract-drift and auth-hygiene catchers;
+they harden the wire, they do not move money — `CNF-174` dropped from blocking when the fragile
+signing scheme it guarded was withdrawn).
 
-With the five promotions above and these, the blocking set moves to **120**.
+With the five promotions above and these, the blocking set moves to **122**.
 
 ## Ownership, deletion and duplication
 
@@ -889,8 +906,8 @@ explicitly and record:
 6. Who is on the rota for `needs_reconciliation`, and what the response procedure is
    (`OPS-26`).
 7. Where persisted recovery keys are inventoried and how they get destroyed (`RSC-21`).
-8. Whether enrolment issues a server-generated token or registers a caller-supplied public key
-   (`API-37`, and the note recorded after it).
+8. ~~Whether enrolment issues a server-generated token or registers a caller-supplied public
+   key~~ — **settled 2026-08-13: a server-issued bearer token, stored hashed** (`API-39`).
 9. The negative window per provider, and the measurement it was derived from (`OPS-33`).
 10. The margin, per provider account or product class (`LDG-24`).
 11. The tenant-to-provider-account assignment policy, which is simultaneously the authorization

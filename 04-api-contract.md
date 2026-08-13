@@ -42,35 +42,45 @@ NOT appear in a client-constructed path (`DOM-5`).
 
 ## Authentication and tenancy
 
-**API-3** **AMENDED 2026-08-12.** Operator requests authenticate with a bearer token, held only
-as a digest in memory and compared in constant time. **Customer requests authenticate with a
-caller-supplied public key** (`API-39`). The original text mandated bearer tokens universally and
-required digests be held "in memory", which the runtime-issued customer credential of `API-32`
-contradicts twice over — a self-serve tenant's credential must persist across restarts.
+**API-3** **AMENDED twice; the history matters.** Operator **and** customer requests both
+authenticate with a bearer token — `Authorization: Bearer <token>` — held only as a **hash** and
+compared in constant time. The operator token is environment-supplied and static (`API-4`); the
+customer token is server-issued at enrolment and its hash persists in the `tenants` table
+(`STO-21`), so "held in memory" is true only of the operator's. The first amendment (2026-08-12)
+switched customer auth to a caller-supplied public key; the second (2026-08-13) reversed it back
+to a token — see `API-39` for why.
 
-**API-39** **Customer authentication is a caller-supplied public key, and requests are signed.**
-Both independent audits reached this conclusion separately, and it settles the sub-decision this
-document previously recorded as open.
+**API-39** **AMENDED 2026-08-13 — customer authentication is a server-issued bearer token,
+stored hashed. The earlier caller-supplied-key decision is reversed, and the reversal is the more
+interesting record.** Enrolment mints a high-entropy token, returns it once, and persists only its
+hash (`STO-21`), exactly as the operator token is handled (`API-3`). A customer sends it as
+`Authorization: Bearer <token>`; the server hashes what arrives and compares in constant time.
 
-- Enrolment registers a key the caller generated; **no secret ever crosses the wire**, so
-  `API-33`'s delayed-issuance apparatus — which existed to protect the one moment a generated
-  token is transmitted — collapses into "register this key; you are pending until funded".
-- A full compromise of this system's store discloses nothing usable, which is the strongest
-  available answer to `F13` and matters more here because `ADR-0001` put the public surface in
-  the same process as provider credentials and, now, the ledger.
-- It converts `API-37`'s dead end into something provable. With a token, "I lost it" and "I stole
-  it" are permanently indistinguishable. With a key, a caller that still controls it can
-  demonstrate control, and **rotation is a signed request registering a second key** — the only
-  honest recovery story available under `ADR-0005`.
-- Most of the cost is already sunk: `API-12` already requires a canonical serialization, and
-  `API-8`'s idempotency key with `STO-25`'s retention rule is already the replay cache.
+The key scheme was adopted (2026-08-12, on both audit models' recommendation) to keep every
+secret off the wire and out of the store. Reconsidered against this product it did not earn its
+cost:
 
-The signing scheme MUST be specified precisely enough for two implementations to interoperate:
-signature algorithm, the exact byte string signed (method, path, canonical body digest,
-idempotency key, timestamp), the clock-skew tolerance, and the rotation procedure including a
-mandatory overlap window. **A key registered at enrolment with no proof of possession is a
-credential an attacker can register on someone else's behalf**, so enrolment MUST require a
-signature over the enrolment request itself.
+- **The asset it protected is nearly worthless to a thief.** A stolen customer credential — key or
+  token — can only *burn the victim's prepaid balance on compute*; there are no withdrawals
+  (`ADR-0004`), so nothing can be extracted. Elaborate authentication was guarding a prepaid
+  arcade card.
+- **The store-compromise benefit is obtained by hashing.** A leaked table of token *hashes* of
+  high-entropy secrets discloses nothing usable — the same answer to `F13` a public key gives,
+  without a signing protocol. The process compromise that actually matters takes the provider
+  credentials and the float regardless; customer credentials were never the prize.
+- **The signing scheme was the most interop-fragile thing in the set.** A three-model panel found
+  ~30 issues in it, six critical: signatures that replayed across deployments, a malleable body
+  hash, ambiguous path/header canonicalization, unspecified Ed25519 strictness. None of those
+  failure modes exists for a bearer token.
+
+The residual advantage keys held — the secret never travels, so a request captured after TLS
+yields a one-request signature rather than a reusable credential — is real but modest against a
+non-extractable asset, and did not justify the cost. **`API-33`'s delayed issuance therefore
+un-collapses** (a generated token *is* transmitted at issuance, so the throttle protecting that
+moment matters again), and `API-37`'s no-recovery rule stands unchanged: a lost token, like a lost
+key, is a lost balance, because `ADR-0005` leaves no identity to recover against. Rotation is out
+of v1 scope for the same reason it was moot — a lost token cannot be recovered and a stolen one
+cannot extract, so there is nothing a rotation endpoint would earn that v1 needs.
 
 **API-4** **AMENDED — it now applies to operator credentials only.** Operator tokens MUST be
 supplied through the environment, named — not valued — by the configuration. A minimum length
@@ -154,23 +164,28 @@ give up `ADR-0005` to protect a table.
 
 **API-37** **There is no credential recovery, and this MUST be stated to the caller at issuance.**
 No identity is collected, so there is nothing to prove ownership with; any recovery mechanism
-would be an account-takeover mechanism wearing a helpful name. A lost credential means a lost
-balance. The caller is software and can store a secret reliably — but it MUST be told that it
-has to.
+would be an account-takeover mechanism wearing a helpful name. A lost token means a lost
+balance, and so does a compromised one — the remedy for either is to stop funding it and let its
+machines self-cancel at exhaustion (`LDG-14`), not to recover it. The caller is software and can
+store a secret reliably — but it MUST be told at issuance that it has to, and that there is no
+second chance.
 
 **API-40** Enrolment and every other write MUST be reachable under the general rules, and three
 of those rules do not fit an unauthenticated, pre-tenant request. They are resolved here rather
 than left as exceptions a builder must invent:
 
-- **`API-7` (authenticate before validating)** — enrolment authenticates by verifying the
-  caller's signature against the key it is presenting (`API-39`), which proves possession without
-  proving identity. That check runs first, in `API-7`'s position.
+- **`API-7` (authenticate before validating)** — enrolment is unauthenticated by definition
+  (`API-32`); there is no tenant yet. `API-7`'s ordering applies to authenticated endpoints, and
+  enrolment's own defences are `API-33`'s issuance delay, `API-36`'s rate limit and `API-41`'s
+  global ceiling.
 - **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
   returns its handle directly. It creates no provider mutation, so it needs no durable operation,
   and `operations.tenant_id` could not name a tenant that does not exist yet.
-- **`API-8`/`API-10` (idempotency scoped to `(tenant, key)`)** — enrolment scopes idempotency to
-  the presented public key instead. Re-sending the same enrolment MUST return the same pending
-  tenant rather than creating a second one.
+- **`API-8`/`API-10` (idempotency scoped to `(tenant, key)`)** — enrolment has no tenant to scope
+  by, so it scopes idempotency to the `Idempotency-Key` header alone. Re-sending the same
+  enrolment under the same key MUST return the same pending tenant and the same handle rather than
+  creating a second one; a retry without a key MAY create a new pending tenant, which `API-34`'s
+  time-to-live reclaims.
 
 ## Funding
 
