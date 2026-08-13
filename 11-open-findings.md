@@ -340,6 +340,60 @@ money by doing something that looks correct.
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
 
+## The fourth audit — 2026-08-13, and the verdict was NO again
+
+Two independent reviewers (Fable; Codex, running three parallel passes) read the full set after
+the wire contract, the auth reversal and `ADR-0011` landed. **Both returned "not buildable as-is"
+— 42 findings from one, 37 from the other, roughly 35 distinct blocking issues after
+deduplication.** The convergence matters more than the count: they agreed, independently, on where
+the set was weakest.
+
+**The root defect was the same class as the last two: an entry kind the pairing rule forgot.**
+`PRV-13b` put the setup fee inside the commitment; `LDG-39` debited it; nothing decremented the
+commitment when it was debited — so on the *ordinary funded dedicated create* the ledger sum fell,
+the reservation did not, and `available` went negative by exactly the fee, violating `LDG-10`.
+**That is the 2026-08-12 hold double-count, reintroduced through `setup_fee_debit` while the
+rewrite that fixed it was still the newest text in the file.** `CNF-162` tested the debit and
+never the decrement.
+
+**The most serious finding was one neither I nor two prior audits had seen: a path to destroying
+the wrong disk.** A caller names `/dev/sdX` before any inventory exists, device ordering can
+differ across boots and between rescue and the installed system, and nothing forced an abort on
+mismatch. Every requirement in `06-rescue-install.md` could be satisfied while the customer's data
+was destroyed. `RSC-26`/`RSC-38` now bind the target to a serial or WWN plus an inventory
+fingerprint, re-verified immediately before disk I/O.
+
+**And one finding corrected my own reasoning, on which a decision had already been made.** The
+2026-08-13 auth reversal argued that a stolen customer credential "can only burn the victim's
+prepaid balance — nothing extracts". **A customer credential also authorizes `install` and
+`delete`.** The asset is the customer's data and running machines, not a prepaid card. That does
+not disturb `API-39`'s choice of bearer tokens — a stolen key authorizes exactly the same
+destruction — but it demolishes the conclusion drawn from it, that revocation earned nothing.
+`API-55`/`API-56` add a recovery credential, and rotation authorized by the spending token is now
+explicitly **forbidden**: a thief would rotate first and lock the owner out permanently.
+
+**Fixed 2026-08-13** — in six batches, each committed separately: the setup-fee double-count and
+its missing refund path; the absent `runway_until` formula (the obvious reading spent the
+wind-down reserve, guaranteeing the operator was short at cancellation on *every* ordinary
+exhaustion); per-tick rounding making price depend on metering cadence; rate-outage accounting
+(`LDG-64`); debits exceeding the commitment; billable attachments outliving it; commitments
+released on mere provider *unreachability*; `API-7`'s universal pipeline opening purchase
+commitments on reboots and blocking deletion during a rate outage; the token-delivery model that
+could strand a funded tenant on one lost HTTP response; enrolment idempotency as a global
+unauthenticated namespace handing out other callers' capabilities; the three tables nobody defined
+(`STO-34`–`STO-36`); provider-account assignment, which no requirement produced; tenant
+suspension; `needs_reconciliation` being simultaneously terminal and expected to transition;
+`OPS-36` seizing balance automatically; system cancels without deduplication and blocked by caller
+ceilings; `WIR-20`'s missing provider-published host-key variant, which was silently downgrading
+every Robot install to first-use trust.
+
+**Still open from this audit**, and recorded rather than quietly dropped: the DigitalOcean section
+now exists but is almost entirely `[verify]`, and **it is not established that DigitalOcean offers
+an SSH-reachable rescue at all** — if it does not, that driver ships without the differentiator and
+`ADR-0010`'s "both shapes across two companies" framing needs a caveat. This is `F29`'s pattern
+with the ink still wet: a launch decision resting on provider facts nobody had written down.
+**F32.**
+
 ## Two holes found while checking the surface — 2026-08-12
 
 Looking at `04-api-contract.md`'s surface table to answer a different question turned up two

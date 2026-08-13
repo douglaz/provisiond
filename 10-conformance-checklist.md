@@ -74,8 +74,13 @@ which in the single-component form is the only structural defence there is).
 **PRE-SCALE** — `CNF-2` (lint: hygiene, not harm — free, so do it early, but it gates nothing),
 `CNF-18`, `CNF-30`, `CNF-31b` (the remaining rows), `CNF-33`, `CNF-34` (becomes
 blocking the moment anything but the API writes the store), `CNF-35`, `CNF-39`, `CNF-42`,
-`CNF-45`, `CNF-47`, `CNF-48`, `CNF-52`, `CNF-56`–`CNF-60` (`CNF-58` must land before any
-rolling deploy or version skew exists), `CNF-61`, `CNF-65`, `CNF-70`.
+`CNF-45`, `CNF-47`, `CNF-48`, `CNF-52`, `CNF-56`, `CNF-57`, `CNF-59`, `CNF-60`, `CNF-61`,
+`CNF-70`.
+
+**PROMOTED TO BLOCKING 2026-08-13**, under this checklist's own rule rather than by opinion:
+`CNF-58` (an unknown stored status that can become `queued` repeats a provider mutation — question
+3 answered yes) and `CNF-65` (autonomous deletion leaving unbounded billable attachments is
+unstoppable billing — the money-out family, and `LDG-32` now depends on it).
 
 **DEFERRED** — nothing, after audit. `CNF-62` (separate audit destination) was listed here
 while the area sort below calls its parent `SEC-33` PRE-SCALE; the area sort is right, so
@@ -185,6 +190,21 @@ version of; `CNF-143` is a configuration review rather than a test, and **indepe
 verified by any code**, which is worth stating plainly rather than pretending the checklist
 proves it.
 
+### Assignments for `CNF-184`–`CNF-194` (added 2026-08-13)
+
+**BLOCKING** — `CNF-184` (retroactive billing at a rate the customer never saw, or an unbounded
+operator loss); `CNF-185` (metering cadence changing the price is a silent, systematic
+overcharge); `CNF-186` (a customer stranded pending while holding non-refundable satoshis above
+the minimum); `CNF-187`, `CNF-188` (both are unstoppable provider billing against a closed
+commitment); `CNF-190` (without it a stolen credential is permanent, and it authorizes disk
+destruction); `CNF-191` (without it no tenant can buy anything, ever); `CNF-192` (destroyed data,
+and the only test that catches the device-identity binding); `CNF-194` (`SEC-45`'s abuse-deadline
+response is the operator's entire remedy under `ADR-0005`).
+
+**PRE-SCALE** — `CNF-189`, `CNF-193`. Both bound storage and recoverability rather than money in
+flight; `CNF-193` graduates the moment on-chain funding is enabled in production, because that is
+when the finality window becomes real.
+
 ### Assignments for `CNF-144`–`CNF-148` (added 2026-08-12)
 
 **BLOCKING** — `CNF-147` (it is the only item that runs the dedicated money path against a real
@@ -207,7 +227,7 @@ exactly the family the tiering rule puts in the top tier.
 degrades slowly and visibly rather than losing money; `CNF-145` is the one to run first, because
 the leak it catches gets harder to reverse the longer it sits.
 
-The blocking set moves from 73 to **98**.
+See **The blocking count** below.
 
 ### Assignments for `CNF-149`–`CNF-151` (added 2026-08-12)
 
@@ -218,7 +238,7 @@ question (3) of the tiering rule answered *yes* for a provider mutation.
 **PRE-SCALE** — `CNF-149`, `CNF-151`. Both are consistency checks the operator can run by reading,
 and both catch drift rather than harm.
 
-The blocking set moves to **99**.
+See **The blocking count** below.
 
 ### Assignments for `CNF-152`–`CNF-158` (added 2026-08-12)
 
@@ -238,7 +258,7 @@ queue's safety machinery: an exhaustion cancel outside the queue has no lock, no
 `needs_reconciliation` path, which is a blind mutation against a customer machine — the thing
 `OVR-5` calls the single most important thing this system refuses to do.
 
-The blocking set moves to **103**.
+See **The blocking count** below.
 
 That is 23 more BLOCKING items, taking the blocking set from 50 to 73. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
@@ -532,7 +552,11 @@ Applies only to deployments using the admin-plus-override proxy pattern.
       has been credited. (`API-35`)
 - [ ] **CNF-79** Enrolment rate-limiting state is never persisted — no caller address reaches
       the store or the logs. (`API-36`, `ADR-0005`)
-- [ ] **CNF-80** The `tenants` table holds no column beyond those specified. Asserted by a schema
+- [ ] **CNF-80** **REWRITTEN 2026-08-13** — testing "no column beyond those specified" now fails
+      every *conforming* implementation, since `STO-34`'s handle, issuance and assignment state
+      must exist. It tests the prohibition instead: **no column in any table holds anything that
+      could identify, locate or contact a person, or that derives from the caller's network path**
+      (`ADR-0005`). *Withdrawn text:* The `tenants` table holds no column beyond those specified. Asserted by a schema
       test that **fails when a column is added**, because the way a privacy policy dies is one
       harmless-looking column. (`STO-21`)
 - [ ] **CNF-81** Operator credentials still come only from the environment, and no runtime-issued
@@ -560,7 +584,11 @@ Applies only to deployments using the admin-plus-override proxy pattern.
       it to no tenant. (`OPS-32`)
 - [ ] **CNF-89** Resolution columns are write-once; a second resolution of the same record is
       refused. (`STO-19`)
-- [ ] **CNF-90** An order-shaped driver records the provider's transaction identifier **before**
+- [ ] **CNF-90** **REWRITTEN 2026-08-13** — the old item tested the case `PRV-27` calls
+      impossible (recording a transaction identifier the provider never returned because the reply
+      was lost). It now tests: the identifier is recorded **when the provider returned one**, and
+      resolution succeeds **without** it via the durable correlator (`PRV-32`, `OPS-27`).
+      *Withdrawn text follows.* An order-shaped driver records the provider's transaction identifier **before**
       the outcome can be classified ambiguous. (`PRV-27`)
 
 ## Ledger and money
@@ -581,7 +609,8 @@ Applies only to deployments using the admin-plus-override proxy pattern.
 - [ ] **CNF-98** Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
 - [ ] **CNF-99** A single adverse rate read cannot cancel a machine: the deficiency must persist
-      across derivations and the per-tick increase is capped. (`PRV-13e`, `LDG-16`)
+      across derivations. *The per-tick cap clause is withdrawn with the construct it tested
+      (`ADR-0011`).* (`PRV-13e`, `LDG-16`)
 - [ ] **CNF-100** At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
 - [ ] **CNF-101** Under a failing solvency check, every bill-increasing operation is refused
@@ -729,6 +758,39 @@ rather than acquiring a default.
       `authorized_key[].fingerprint` matches the key sent. If simulated transactions do not appear
       in the listing, one real order closes the remaining half. Failing that, the driver declares
       no correlator (`PRV-33`). (`PRV-32`, `PRV-34`)
+- [ ] **CNF-184** A rate outage bills the customer **nothing** for the window: no deferred
+      satoshi debit is posted when the rate returns, the native accrual appears as an operator
+      deficiency, and machines are cancelled at the stated maximum outage if no rate comes back.
+      (`LDG-64`, `LDG-65`)
+- [ ] **CNF-185** Metering the same period at one-minute and one-hour cadence produces the
+      **identical** total charge. Rounding is cumulative, not per tick — a property test over
+      arbitrary subdivision. (`LDG-38`, `LDG-28`)
+- [ ] **CNF-186** Two credited payments each below the activation minimum, summing above it,
+      activate the tenant atomically. (`LDG-52`, `API-35`)
+- [ ] **CNF-187** A machine deleted while a billable attachment survives keeps its commitment
+      open and keeps metering that attachment; the commitment closes only when the last billable
+      resource stops. (`LDG-32`, `PRV-13a`, `STO-18`)
+- [ ] **CNF-188** An unreachable provider account or rejected credentials leave commitments
+      **open**; only confirmed termination releases them. (`SEC-46`)
+- [ ] **CNF-189** The enrolment response carries both secrets **once**, they are stored hashed
+      only, and neither is ever returned by the handle poll. Losing the response loses the
+      credentials — and the tenant is unfunded, so nothing of value is stranded. (`API-33`,
+      `API-55`, `STO-34`, `WIR-12`)
+- [ ] **CNF-190** The recovery credential revokes the spending token and issues a fresh one; the
+      **spending token cannot revoke or rotate itself**. Both halves — the second is what stops a
+      thief locking the owner out. (`API-56`, `WIR-38`)
+- [ ] **CNF-191** A freshly activated tenant has at least one assigned provider account,
+      recorded durably, and successive tenants are spread across accounts rather than filling one.
+      (`API-57`, `STO-36`, `SEC-43`)
+- [ ] **CNF-192** An install naming a device identifier absent from a freshly re-read inventory,
+      or carrying a stale `inventory_fingerprint`, aborts `integrity` **with no bytes written**.
+      Verified by mutating the inventory between preflight and install. (`RSC-26`, `RSC-38`)
+- [ ] **CNF-193** A pending tenant's signup time-to-live exceeds the deposit expiry plus the
+      finality window, and no tenant is deleted while a deposit of its own is inside that window.
+      (`API-34`, `API-42`, `LDG-54`)
+- [ ] **CNF-194** Suspending a tenant blocks every write, enqueues one deduplicated cancellation
+      per machine, leaves ledger and machine reads working, and reports per-machine outcomes
+      including any `needs_reconciliation`. (`API-58`, `OPS-39`, `SEC-45`)
 - [ ] **CNF-183** No customer-facing surface — terms, API documentation, error text, marketing —
       states or implies that satoshis are held, backed, reserved or segregated against a balance,
       **and** the terms do state that a balance is an unsecured claim. Both halves: silence about
@@ -800,9 +862,12 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
 - [ ] **CNF-161** A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at
       cancellation *acceptance* is the defect. (`LDG-37`, `DOM-19`)
-- [ ] **CNF-162** The setup fee is **debited** when the order is placed. A create-then-delete
-      cycle costs the tenant the fee; run twice, it costs it twice. An implementation that
-      reserves-then-releases it fails by refunding the unrefundable. (`LDG-39`)
+- [ ] **CNF-162** **REWRITTEN.** The setup fee follows `LDG-39`'s table: debited **on confirmed
+      acceptance** and the commitment decremented in the **same transaction** (kill the process
+      between them and neither survives); **released in full** on deterministic rejection and on
+      resolved-absent; **held** through `needs_reconciliation`. Assert `available` never goes
+      negative across the whole sequence — that is the bug this item missed by testing only the
+      debit. (`LDG-39`, `LDG-31`, `LDG-10`)
 - [ ] **CNF-163** Two concurrent creates against a balance that can fund exactly one result in
       one commitment and one `insufficient_balance` — under load, not by code review. This is
       the per-tenant serialization primitive `STO-27` exists for. (`LDG-35`, `STO-27`)
@@ -831,8 +896,9 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       `runway_until`. Fault-inject the rate; diff the commitments table. (`LDG-33`, `ADR-0011`)
 - [ ] **CNF-168** `runway_until` moves at re-derivation in **both** directions and the machine
       view reflects it on the next read. (`LDG-33`, `LDG-15`)
-- [ ] **CNF-169** A machine is routed into the exhaustion path while its remaining commitment
-      still covers wind-down at the current rate — at cancellation time the operator is not out
+- [ ] **CNF-169** `runway_until` is derived with `protected_sats` subtracted (`LDG-33`), and a
+      machine is routed into the exhaustion path while its remaining commitment still covers
+      wind-down at the current rate — at cancellation time the operator is not out
       of pocket. Drive a machine to exhaustion under a falling rate and assert the invariant at
       the moment of cancellation, not at the end of the test. (`LDG-16`)
 - [ ] **CNF-170** Two concurrent runway extensions against a balance that can fund one result in
@@ -899,7 +965,7 @@ reachability instead of type visibility).
 they harden the wire, they do not move money — `CNF-174` dropped from blocking when the fragile
 signing scheme it guarded was withdrawn).
 
-With the five promotions above and these, the blocking set moves to **122**.
+See **The blocking count** at the end of this document; it is stated in one place only.
 
 ## Ownership, deletion and duplication
 
@@ -947,3 +1013,16 @@ explicitly and record:
 11. The tenant-to-provider-account assignment policy, which is simultaneously the authorization
     rule (`API-17b`) and the blast-radius control (`SEC-43`).
 12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).
+
+
+## The blocking count
+
+**Stated here and nowhere else, because it was wrong twice** (`F16`, then again on 2026-08-12 when
+three separate running totals disagreed by one). Every other passage that used to carry a number
+now points here.
+
+**Recount from the enumerated assignments above, not from memory.** As of 2026-08-13 the blocking
+set is **approximately 135 items**, and the approximation is deliberate: an exact figure that
+nobody re-derives is how the last three wrong numbers happened. **Before launch, count the
+BLOCKING labels mechanically and record the result with its date.** A checklist whose own
+arithmetic is folklore is the failure `CNF-1`/`CNF-3` exist to prevent, applied to itself.

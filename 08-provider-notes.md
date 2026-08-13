@@ -199,6 +199,48 @@ disk and RAID options passed through. **[observed]**
 
 ---
 
+## Cloud VPS, tag-based (DigitalOcean shape)
+
+**Added 2026-08-13, and its absence was a finding.** `ADR-0010` made DigitalOcean a **mandatory
+launch driver** and this document had no section for it — while Cherry, which the same ADR cut
+from v1, had a full one. Both reviewers called it the `F29` pattern with the ink still wet: a
+launch decision resting on provider facts nobody had written down. **Everything below is
+`[verify]` unless marked otherwise**, and the honest state is that this driver is the least
+researched of the three.
+
+**Auth** — bearer token, JSON bodies. The official Go client is `digitalocean/godo`.
+**[observed — client library]**
+
+**Correlator** — `tags`, a flat list of strings (not key/value, unlike Hetzner Cloud's labels),
+filterable server-side via `ListByTag`. Encode the operation UUID as a single string with a fixed
+prefix. The permitted character set is **[verify]** before a separator is chosen.
+**[observed — `godo`]**
+
+**Deletion** — believed immediate destroy with billing stopping at deletion, the cloud shape.
+**[verify]** — and specifically **[verify]** what survives: volumes, snapshots and reserved IPs
+are separately billable resources on this provider, so `PRV-13a`'s attachment model is likely to
+matter *more* here than on Hetzner Cloud, not less.
+
+**Rescue** — **[verify], and this is the one that could invalidate `ADR-0010`'s framing.** It is
+not established that DigitalOcean offers an SSH-reachable rescue environment of the kind `RSC`
+assumes; its recovery story is built around a recovery ISO and a browser console. If there is no
+SSH-reachable rescue, the driver cannot declare `rescue_ssh`, `install_rootfs_via_rescue` or
+`install_raw_disk_via_rescue` — it would ship as a create/delete/power driver only, and
+`ADR-0010`'s claim that the launch set covers "both machine shapes across two companies" needs a
+caveat, because the *differentiator* would then exist on Hetzner alone.
+
+**Key handling** — **[verify]** whether SSH keys are copied at droplet creation or read later
+(`PRV-9`, `DEF-6` — the defect that produced a machine nobody could log into).
+
+**Account termination scope** — **[verify]** whether DigitalOcean links and terminates related
+accounts together (`SEC-44`). `SEC-43`'s spread-tenants-across-accounts control is a belief until
+this is answered for every provider it spans.
+
+**What this section is for.** `OVR-14` makes DigitalOcean the proof that the driver contract
+abstracts anything at all. That proof is only worth having if the driver is built against
+recorded facts rather than assumptions about "the cloud shape" — which is exactly how the Robot
+`comment` field survived three audits.
+
 ## Correlators: the caller-controlled identifier each provider offers
 
 Checked 2026-08-11, because `OPS-27` reconciliation depends on being able to ask a provider
