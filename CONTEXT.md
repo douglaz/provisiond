@@ -65,9 +65,11 @@ entity: every write creates one, and the API returns it rather than a result.
 _Avoid_: job, task, request, action
 
 **needs_reconciliation**:
-The terminal operation state meaning *the outcome is unknown* — provisiond cannot tell whether
-the provider acted. A first-class answer, not an error.
-_Avoid_: pending, stuck, errored, retryable
+The operation state meaning *the outcome is unknown* — provisiond cannot tell whether the provider
+acted. A first-class answer, not an error. **Resolution-pending, not terminal** (`OPS-3`): it
+settles to `succeeded` or `failed` on evidence or an operator verb, and nothing else moves it —
+no automatic retry, no timer, no caller action.
+_Avoid_: terminal (withdrawn 2026-08-13), stuck, errored, retryable
 
 **Rescue**:
 A provider-supplied minimal OS booted in place of the installed one, over which provisiond

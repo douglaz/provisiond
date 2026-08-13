@@ -164,6 +164,13 @@ document satisfied.
 `RSC-27`'s path validation still applies to whatever device path the identifier resolves to at
 write time. **The identifier is authoritative; the path is derived.**
 
+**This binds every strategy that names a disk, not only `raw_disk`.** `RSC-22`'s installer layout
+carries a `drives` list, and those are device names with exactly the same instability — a rootfs
+install that partitions `/dev/sda` after the ordering shifted destroys the same customer data, and
+scoping the rule to raw-disk would have left the launch product's primary install path on the
+unstable identifier. Every caller-supplied disk reference MUST be a stable identifier checked
+against the same `inventory_fingerprint`.
+
 **RSC-38** **Preflight is a first-class read-only operation.** It boots rescue, collects the
 `RSC-33` report, and returns it without writing anything. It exists because the previous design
 gave a caller no way to see the inventory *before* committing to a destructive write — the

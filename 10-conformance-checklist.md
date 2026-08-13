@@ -791,6 +791,35 @@ rather than acquiring a default.
 - [ ] **CNF-194** Suspending a tenant blocks every write, enqueues one deduplicated cancellation
       per machine, leaves ledger and machine reads working, and reports per-machine outcomes
       including any `needs_reconciliation`. (`API-58`, `OPS-39`, `SEC-45`)
+- [ ] **CNF-195** An unreachable provider account and rejected credentials both leave commitments
+      **open**; only confirmed termination releases them, and the carried exposure appears as an
+      operator deficiency. Tests `SEC-46`'s amended table directly — the amendment was written on
+      2026-08-13, failed to apply, and shipped as prose claiming it had. (`SEC-46`, `LDG-66`)
+- [ ] **CNF-196** Enrolment ignores an `Idempotency-Key`: two signups presenting the same key
+      receive **different** handles and different credentials. The withdrawn rule returned the
+      same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
+- [ ] **CNF-197** A resolution transition out of `needs_reconciliation` succeeds with **no worker
+      and no lease** — by sweep and by operator verb — while a lease-less *worker* write is still
+      refused. Both halves. (`OPS-3`, `STO-19`, `STO-3`)
+- [ ] **CNF-198** Metering a period at a cadence that subdivides it posts every increment: no
+      posting is deduplicated away by the idempotency key, and two billable attachments on one
+      machine do not collide. (`LDG-8`, `LDG-38`)
+- [ ] **CNF-199** A late-attach cleanup on a tenant whose balance is **below** the wind-down floor
+      still funds and executes the cancel, recording the shortfall as an operator deficiency, and
+      never drives available negative. (`OPS-36`, `LDG-10`, `LDG-66`)
+- [ ] **CNF-200** A rootfs install naming a drive by unstable device path is rejected; the layout
+      carries stable identifiers checked against the inventory fingerprint, exactly as raw-disk
+      does. (`RSC-26`, `RSC-22`, `WIR-20`)
+- [ ] **CNF-201** A preflight carries a trust policy and is capability-gated on `rescue_ssh`; an
+      ambiguous preflight failure classifies like an install, not like a refresh — the machine can
+      be left in rescue. (`WIR-40`, `DOM-10`, `OPS-11`)
+- [ ] **CNF-202** Suspending a tenant returns a `suspend_tenant` operation whose children are
+      readable through `GET /v1/operations`; resume is synchronous and restores no machines.
+      (`WIR-39`, `WIR-41`, `API-58`)
+- [ ] **CNF-203** A replayed revocation returns `409` and no stored bearer token appears anywhere
+      in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
+- [ ] **CNF-204** A pending tenant cannot defer its own reaping: a deposit minted late in the
+      signup window expires no later than the signup itself. (`API-34`)
 - [ ] **CNF-183** No customer-facing surface — terms, API documentation, error text, marketing —
       states or implies that satoshis are held, backed, reserved or segregated against a balance,
       **and** the terms do state that a balance is an unsecured claim. Both halves: silence about
@@ -1014,6 +1043,18 @@ explicitly and record:
     rule (`API-17b`) and the blast-radius control (`SEC-43`).
 12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).
 
+
+### Assignments for `CNF-195`–`CNF-204` (added 2026-08-13, from the multi-reviewer loop)
+
+**BLOCKING** — `CNF-195` (an amendment that silently failed to apply, releasing customer money
+while machines still bill); `CNF-196` (credential disclosure by guessing a low-entropy string);
+`CNF-198` (deduplicated postings stop the commitment decaying — unbilled machine time);
+`CNF-199` (either a negative balance or an unfunded cancel, on the branch's own common input);
+`CNF-200` (destroyed data on the launch product's primary install path); `CNF-203` (a live bearer
+token persisted in a replay table).
+
+**PRE-SCALE** — `CNF-197`, `CNF-201`, `CNF-202`, `CNF-204`. Each blocks a workflow or leaves a
+machine in rescue rather than losing money or data.
 
 ## The blocking count
 

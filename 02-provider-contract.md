@@ -162,7 +162,10 @@ commitment_sats = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 **`customer_rate`, not provider cost.** The reserve must cover what the *customer* is committing
 to spend, and since `customer_rate ≥ provider_rate` by construction, committing the customer
 price also covers the operator's exposure. Using provider cost here would under-commit every
-machine by exactly the margin. **The setup fee is the exception and is debited at cost (`LDG-39`)**, because `ADR-0006`
+machine by exactly the margin. **The setup fee is committed at cost and debited only on confirmed
+acceptance (`LDG-39`)** — *this text previously said "debited... before the order is placed",
+which charged a customer for a fee the operator never incurred whenever the order was rejected or
+resolved absent*, because `ADR-0006`
 passes it through unmarked — the operator does not profit from a fee it did not earn, and it is
 also the one term that is entirely lost if the customer vanishes an hour later, so it MUST be
 fully collected before the order is placed.
@@ -177,8 +180,9 @@ now separated:
 - **There is no volatile-asset haircut**, because the reserve is no longer held in a volatile
   asset relative to its own liability. Under `ADR-0003` the ledger is denominated in satoshis
   and so is the customer's balance, so a bitcoin move re-prices the *customer's* purchasing
-  power, not the operator's coverage. Movement is handled by re-deriving the commitment each
-  period (`PRV-13e`), not by over-collateralising it once.
+  power, not the operator's coverage. Movement is handled by re-deriving **`runway_until`** each
+  period (`PRV-13e`, `LDG-33`) — *not by re-deriving the commitment, which `ADR-0011` withdrew* —
+  and not by over-collateralising it once.
 
 **`wind_down_cost` is conditional, and an earlier revision of this paragraph got it wrong in a way
 worth recording.** That revision claimed `OPS-27` had reduced it from an on-call-rota figure

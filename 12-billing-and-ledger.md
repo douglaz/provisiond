@@ -239,7 +239,14 @@ posted_debit = ceil(cumulative_exact_charge) − Σ(previous debits for this mac
 ```
 
 with the exact charge carried as a rational (`LDG-4`). **Observation cadence is an operational
-choice; it MUST NOT be a pricing input.** A conformance test MUST prove that arbitrary
+choice; it MUST NOT be a pricing input.**
+
+**The idempotency key MUST therefore widen.** `LDG-8`'s `(machine, billing period, kind)` admits
+exactly one posting per period, which the cumulative rule above contradicts the moment cadence
+subdivides a period — later postings would be deduplicated away and the commitment would stop
+decaying. The key is **`(subject, billing period, kind, posting index)`**, where *subject* is the
+machine **or the individual billable attachment** (`LDG-32`) — attachments metered under the
+machine's identity collide on the same tuple for the same reason. A conformance test MUST prove that arbitrary
 subdivision of a period yields the same total.
 
 **LDG-39** **AMENDED — the setup fee has a lifecycle, not a single moment.** It is committed at
@@ -287,9 +294,11 @@ continue: it reduces exposure), and **the solvency check** (MUST fail closed).
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
 having no rate at all, and its four answers are unchanged.*
 
-**LDG-41** A rate MUST be treated as attacker-influenced input. A manipulated or erroneous rate
-under-reserves the entire fleet simultaneously, so `PRV-13e`'s per-tick cap and multi-derivation
-persistence rule (`LDG-16`) are security controls, not smoothing.
+**LDG-41** **AMENDED.** A rate MUST be treated as attacker-influenced input. A manipulated or
+erroneous rate mis-prices the entire fleet simultaneously, so `LDG-16`'s **multi-derivation
+persistence rule** is a security control, not smoothing. *The per-tick cap this requirement used
+to name alongside it is withdrawn with the commitment resizing it governed (`ADR-0011`,
+`PRV-13e`): nothing increases per tick, so capping the increase capped nothing.*
 
 **And past those controls it is the only external input that destroys customer data.** A rate that
 understates the satoshi makes solvent customers look exhausted; `LDG-14` then cancels the machine
@@ -332,8 +341,22 @@ usage cannot be converted to satoshis. A deployment MUST:
   consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
   against because the commitment was already open;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,
-  and **cancel machines at that bound** if no rate has returned. The bound is the operator's own
+  and **cancel machines at that bound** if no rate has returned. **The bound MUST be disclosed
+  before purchase and the deadline exposed while an outage is live** (`LDG-15`'s machine view
+  gains it): otherwise a machine whose advertised `runway_until` is months away is destroyed for a
+  reason its owner was never told about and cannot act on — `LDG-14` promises destruction at
+  runway exhaustion and this is a second, undisclosed trigger. The bound is the operator's own
   loss limit, and it MUST be stated with the other deployment parameters (`LDG-42`).
+
+**LDG-66** **An operator deficiency is a durable record of its own, and it is NOT a ledger
+entry.** `LDG-7`'s entry kinds are closed and every one of them moves *tenant* satoshis, so the
+native-currency accruals this document now creates in four places — `LDG-31`'s clamp overflow,
+`LDG-63`'s exception branch, `LDG-64`'s rate outage, and `SEC-46`'s unconfirmed account loss —
+have nowhere legal to live. A deployment MUST persist them in a separate record (`STO-37`)
+carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), the cause,
+and an idempotency key; they MUST feed provider payables in the solvency check (`LDG-17`) and MUST
+NOT alter any tenant balance. **Nothing here is billable to a customer** — that is the whole point
+of calling it the operator's.
 
 **LDG-65** **The exhaustion sweep continues during an outage on the last derived
 `runway_until`** (`LDG-40` requires it keep running), which remains correct because `LDG-33`

@@ -254,11 +254,26 @@ single operator action, fast enough to meet the provider's abuse-notice deadline
 entire remedy, and it MUST NOT depend on the operator enumerating machines by hand under time
 pressure.
 
-**SEC-46** **AMENDED.** When a provider account is lost, the affected tenants' **commitments MUST
-be closed and their reserved satoshis returned to available balance** (`LDG-32`). The customers
-did nothing wrong, their machines are gone, and continuing to reserve satoshis against machines
-that no longer exist would convert the operator's misfortune into the customer's loss. This is not
-a refund — `ADR-0004` prohibits those — it is the same release any cancelled machine triggers.
+**SEC-46** **AMENDED twice — and "lost" turned out to mean three different things.** Only one of
+them establishes that billing has stopped, and releasing on the other two hands the customer their
+satoshis back while the operator keeps paying for machines that are still running:
+
+| State | Meaning | Commitments |
+|---|---|---|
+| `account_unreachable` | API down, network partition | **Retained** — the machines are almost certainly still running and still billing |
+| `credentials_rejected` | Auth failing; the account may be intact | **Retained** — losing the key is not losing the servers |
+| Confirmed termination | The provider states the resources are gone | **Closed, released in full** (`LDG-32`) |
+
+Where exposure must be carried without confirmation, it MUST be recorded as an **operator
+deficiency** (`LDG-66`) rather than left implicit. On confirmed termination the customers did
+nothing wrong, their machines are genuinely gone, and continuing to reserve against them would
+convert the operator's misfortune into the customer's loss — that release is not a refund
+(`ADR-0004` prohibits those), it is the same release any cancelled machine triggers.
+
+*The first amendment fixed "holds"/`LDG-9`. **This second one was written on 2026-08-13, failed to
+apply, and shipped as prose claiming it had** — `LDG-32` cited it as amended and `CNF-188` tested
+the amended behaviour while this requirement still mandated the opposite. Two reviewers caught it
+independently.*
 *The original said "holds" and cited `LDG-9`'s withdrawn wording; the hold became a commitment
 that decays, and `LDG-9` survives AMENDED as the availability formula.*
 

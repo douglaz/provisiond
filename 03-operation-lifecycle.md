@@ -52,7 +52,7 @@ account was only ever determined inside the call that vanished.
 | `running` | Claimed by a worker under a lease | no |
 | `succeeded` | Completed; result recorded | yes |
 | `failed` | Completed unsuccessfully; provider state is known | yes |
-| `needs_reconciliation` | Outcome unknown; a human must inspect the provider | yes |
+| `needs_reconciliation` | Outcome unknown; resolution pending (`OPS-3`) | **no** — settles to `succeeded` or `failed` |
 
 ```
                     +----------+
@@ -77,8 +77,13 @@ account was only ever determined inside the call that vanished.
 ```
 
 **OPS-3** **AMENDED — `needs_reconciliation` is *resolution-pending*, not terminal.** `succeeded`
-and `failed` are the terminal states. A transition into any settled state MUST be conditional on
-the worker still holding the lease; a worker that has lost its lease MUST NOT overwrite the record.
+and `failed` are the terminal states. **A transition made *by a worker* MUST be conditional on that
+worker still holding the lease** (`STO-3`); a worker that has lost its lease MUST NOT overwrite the
+record. **Resolution transitions out of `needs_reconciliation` are made by no worker and under no
+lease** — by `OPS-27`'s sweep or `OPS-31`/`WIR-35`'s operator verb — and are guarded instead by
+`STO-19`'s write-once resolution columns. Scoping the lease clause to workers is required, not
+stylistic: read unscoped it forbids every transition this amendment enumerates, since an operation
+in `needs_reconciliation` has no lease for anyone to hold.
 
 *Calling it terminal contradicted every requirement that resolves it.* `OPS-27` transitions it
 automatically on a correlator match, `OPS-31`/`WIR-35` transition it by operator verb, and `OPS-4`
@@ -143,6 +148,7 @@ This is `OVR-5` made concrete.
 | Operation | Classification rule |
 |---|---|
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
+| preflight | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
 
@@ -261,8 +267,12 @@ re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring th
 `max_commitment_sats` cap the original create may have set. That is precisely the surface
 `ADR-0011` abolished, reappearing through reconciliation.
 
-The machine is attached, a commitment is opened **only to the wind-down floor** so the cancel
-itself is funded, and it is routed into exhaustion immediately (`requested_by: system`,
+The machine is attached, and the cancel is funded **to the wind-down floor from available balance
+if it is there, and from an operator deficiency (`LDG-66`) if it is not** — the branch's own
+premise is that the tenant spent the balance, so on the common input available is *below* the
+floor and `LDG-10` forbids driving it negative. Naming only the commitment left a builder choosing
+between two MUSTs with no rule for the remainder. The machine is then routed into exhaustion
+immediately (`requested_by: system`,
 `system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may
 `extend-runway` (`LDG-62`) against the attached machine before the exhaustion sweep reaches it,
 which is an explicit, capped, idempotent authorization rather than an inference about what it

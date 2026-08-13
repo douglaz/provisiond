@@ -320,15 +320,24 @@ never arrive, and no error is raised by anything.
 Three tables that requirements mandated and no schema defined — the `commitments` gap recurring
 three times over. Both 2026-08-13 reviewers found all three.
 
-**STO-34** **`enrolments`** — `handle` (unique), `tenant_id`, `issuable_at`, `spending_token_hash`,
-`recovery_credential_hash`, `created_at`, `expires_at`. The tenant row may carry a null credential
-hash only before `issuable_at`. Both secrets are minted at enrolment and stored **hashed only**
+**STO-34** **`enrolments`** — `handle` (unique), `tenant_id`, `issuable_at`, `created_at`,
+`expires_at`. **The credential hashes live in `tenants` and nowhere else**: `API-3` and `WIR-5`
+both say the customer token hash is read from the tenant row, and a second home would leave
+`WIR-38`'s replacement rewriting an unstated one. `tenants.credential_digest` therefore stays
+`NOT NULL` and is populated **at enrolment**, in the same transaction that mints the row — the
+delay in `API-33` gates *usability* (`issuable_at`), not existence, so no null window is needed
+and none is permitted. Both secrets are minted at enrolment and stored **hashed only**
 (`API-33`, `API-55`); nothing recoverable is retained, which is why `API-56`'s revocation replaces
 a token rather than recovering it.
 
 **STO-35** **`idempotency_records`** — `scope_kind`, `scope_id`, `key`, `fingerprint`,
 `resource_kind`, `resource_id`, `status`, `response_body`, `created_at`, `expires_at`, unique on
-`(scope_kind, scope_id, key)`. **One store for the whole protocol.** Operations, deposits and
+`(scope_kind, scope_id, key)`. **`response_body` MUST NOT contain a bearer secret.** `WIR-38`'s
+success body carries a freshly minted spending token, and persisting that would defeat `API-3`'s
+hash-only rule and make a database leak yield a live credential — so a replayed revocation
+returns `409 conflict` with `details.reason: "credential_already_replaced"` rather than the stored
+token. The owner re-revokes with the recovery credential, which is exactly what that credential
+is for; the old token is already dead either way, so the replay cannot be silently swallowed. **One store for the whole protocol.** Operations, deposits and
 runway extensions each had their own arrangement or none, and the two synchronous writes had a
 mandated transactional guarantee with nowhere to keep it: `WIR-24` requires the extension and its
 exact response body commit together, which is unimplementable without this row. The record MUST be
@@ -339,6 +348,11 @@ states.
 `policy_version`, unique on `(tenant_id, provider_account)`. Populated in the activation
 transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home and `WIR-29`
 returned an empty list to every customer forever.
+
+**STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
+`currency`, `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss`),
+`idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
+a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 
 **STO-33** **A terminal operation MUST remain readable at least as long as its idempotency record
 can refuse a reused key, and the two horizons MUST be stated to callers as one number.** `STO-14`

@@ -165,7 +165,8 @@ commitment reserved, so a caller reads what it spent without diffing `GET /v1/ba
 `system_reason` non-null only when `requested_by` is `system` (`OPS-39`).
 
 **WIR-10a** **The closed enums**, so two strict parsers agree: `kind` ∈ {`create_machine`,
-`adopt_machine`, `refresh`, `preflight`, `power`, `install`, `reverse_dns`, `delete_machine`}; `status` ∈ {`queued`,
+`adopt_machine`, `refresh`, `preflight`, `power`, `install`, `reverse_dns`, `delete_machine`,
+`suspend_tenant`}; `status` ∈ {`queued`,
 `running`, `succeeded`, `failed`, `needs_reconciliation`} (`OPS-3`); `requested_by` ∈ {`caller`,
 `system`, `operator`} (`OPS-39`).
 
@@ -247,11 +248,21 @@ spending token (`API-56`). Body `{}`; response `200` with a fresh
 provider mutation — and added to `API-48`'s list on that basis. The tenant, its machines, its
 balance and its commitments are untouched.
 
-**WIR-39** `POST /v1/tenants/{id}/actions/suspend` and `.../resume` — **operator-only**
-(`WIR-34`), `{"acknowledge_destruction": true}` on suspend, since it cancels the tenant's fleet
-(`API-58`, `SEC-45`). Returns `202` with a **termination record** id whose child cancellations are
-ordinary operations (`OPS-39`), so partial failure and `needs_reconciliation` are visible per
-machine rather than hidden behind one status.
+**WIR-39** `POST /v1/tenants/{tenant_id}/actions/suspend` — **operator-only** (`WIR-34`),
+`{"acknowledge_destruction": true}`, since it cancels the tenant's fleet (`API-58`, `SEC-45`).
+Returns `202` with an ordinary **operation view** of kind `suspend_tenant` (`WIR-10a`), whose
+`result` is `{"cancellations": ["<operation id>", ...]}` — one child operation per machine
+(`OPS-39`), so partial failure and `needs_reconciliation` stay visible per machine and are read
+through the existing `GET /v1/operations` surface.
+
+*No "termination record" entity is introduced.* An earlier draft returned an id for one, which had
+no schema, no store and no read endpoint — the `commitments`-table gap for the fourth time. A
+parent operation already has all three.
+
+**WIR-41** `POST /v1/tenants/{tenant_id}/actions/resume` — **operator-only**, body `{}`,
+**synchronous** `200` with the tenant's status: it clears the suspension flag and touches no
+provider, so it mints no operation and is in `API-48`'s list. It does **not** restore cancelled
+machines; those are gone (`OPS-39`), and the tenant's balance and ledger are untouched throughout.
 
 **WIR-14** `POST /v1/deposits` (`API-43`, `API-44`) — body: `{"amount_sats": 250000}`.
 Response `200`:
@@ -369,7 +380,7 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 { "strategy": "rootfs_via_rescue",
   "source": {"type": "rootfs_tarball", "url": "https://...", "sha256": "<64 hex>", "format": "zstd"},
   "authorized_keys": ["ssh-ed25519 AAAA..."],
-  "layout": { "drives": ["/dev/nvme0n1"], "raid": {"enabled": false}, "partitions": [ ... ], "bootloader": "grub" },
+  "layout": { "drives": [{"identifier": "S4EVNF0N123456", "inventory_fingerprint": "b7f1c2..."}], "raid": {"enabled": false}, "bootloader": "grub" },
   "post_install_script": null,
   "trust": {"use_provider_keys": true},
   "on_failure": "exit_rescue",
@@ -441,7 +452,10 @@ and mints no provider mutation — returning `200` with the updated operation vi
 is a recursion `API-1` never intended.
 
 **WIR-40** `POST /v1/machines/{id}/actions/preflight` — `RSC-38`'s read-only inventory pass. Body
-`{}`; returns `202` and an operation whose result carries the device inventory with **stable
+carries the same **`trust`** object as an install (`WIR-20`) and nothing else: preflight enters
+rescue over SSH, so it faces the identical host-key decision, and an empty body could express
+neither a pinned key nor the explicit unpinned opt-in `SEC-22` requires — making it unusable on a
+strict driver or a silent trust downgrade on a lax one. returns `202` and an operation whose result carries the device inventory with **stable
 identifiers** and the `inventory_fingerprint` an install must echo back (`WIR-20`, `RSC-26`). It
 enters and exits rescue and writes nothing. This exists because a caller previously had no way to
 see the disk inventory *before* committing to a destructive write — the information arrived

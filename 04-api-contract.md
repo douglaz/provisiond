@@ -27,8 +27,8 @@
 | GET | `/v1/balance` | ✓ | Balance, available, and open commitments (`API-47`) |
 | POST | `/v1/recovery/revoke` | ✓ | Revoke the spending token, get a fresh one (`API-56`, `WIR-38`) |
 | POST | `/v1/operations/{id}/actions/resolve` | ✓ | Operator reconciliation verbs (`OPS-31`, `WIR-35`) |
-| POST | `/v1/tenants/{id}/actions/suspend` | | Operator: suspend and cancel the fleet (`API-58`, `WIR-39`) |
-| POST | `/v1/tenants/{id}/actions/resume` | | Operator: resume a suspended tenant (`API-58`) |
+| POST | `/v1/tenants/{tenant_id}/actions/suspend` | | Operator: suspend and cancel the fleet (`API-58`, `WIR-39`) |
+| POST | `/v1/tenants/{tenant_id}/actions/resume` | ✓ | Operator: clear the suspension (`API-58`, `WIR-41`) |
 | POST | `/v1/machines/{id}/actions/extend-runway` | ✓ | Grow the machine's commitment from available (`LDG-62`, `WIR-24`) |
 
 **The last five rows were absent until 2026-08-12** — enrolment shipped on 2026-08-11 and funding
@@ -42,7 +42,10 @@ to contradict `API-1` on its own.
 rejected before enqueue return their mapped error status (`API-24`) — `400`, `401`, `404`,
 `409` and `501` are all reachable on write endpoints.
 
-**API-2** `{id}` in a path is always an internal UUID. A provider-side identifier MUST
+**API-2** **AMENDED.** `{id}` in a machine or operation path is always an internal UUID; a
+`{tenant_id}` component follows `DOM-1`'s grammar instead, which is wider than a UUID (`agent-7`
+is valid). The original said "always", which a strict router applies to `/v1/tenants/{tenant_id}`
+and rejects every valid tenant. A provider-side identifier MUST
 NOT appear in a client-constructed path (`DOM-5`).
 
 ## Authentication and tenancy
@@ -82,10 +85,15 @@ The residual advantage keys held — the secret never travels, so a request capt
 yields a one-request signature rather than a reusable credential — is real but modest against a
 non-extractable asset, and did not justify the cost. **`API-33`'s delayed issuance therefore
 un-collapses** (a generated token *is* transmitted at issuance, so the throttle protecting that
-moment matters again), and `API-37`'s no-recovery rule stands unchanged: a lost token, like a lost
-key, is a lost balance, because `ADR-0005` leaves no identity to recover against. Rotation is out
-of v1 scope for the same reason it was moot — a lost token cannot be recovered and a stolen one
-cannot extract, so there is nothing a rotation endpoint would earn that v1 needs.
+moment matters again).
+
+**AMENDED again 2026-08-13: revocation and replacement are IN scope** (`API-55`, `API-56`,
+`WIR-38`). This paragraph previously excluded them, on the reasoning that a stolen token "cannot
+extract" value — **which is false.** A customer credential authorizes `install`, which wipes a
+disk, and `delete`, which destroys a machine; the asset behind it is the customer's data and
+running infrastructure. `API-37`'s rule is narrowed accordingly: losing *both* the spending token
+and the recovery credential is a lost balance, because `ADR-0005` leaves no identity to recover
+against — losing only the spending token is not.
 
 **API-4** **AMENDED — it now applies to operator credentials only.** Operator tokens MUST be
 supplied through the environment, named — not valued — by the configuration. A minimum length
@@ -127,7 +135,9 @@ The tail then depends on what the endpoint does:
 | Class | Tail |
 |---|---|
 | **create, adopt** | spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
-| **power, install, reverse-DNS, refresh** | enqueue an operation, then `202`. **No commitment**: they are not purchases |
+| **power, install, reverse-DNS, refresh, preflight** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
+| **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
+| **resume, resolve, revoke** | operator or recovery-credential principal; synchronous, `200`, no provider mutation (`API-48`) |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
 | **deposit** | synchronous; allowed while pending; ledger write plus idempotency record in one transaction; `200` |
 | **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200` |
@@ -190,8 +200,25 @@ attributed. Exempting any credited tenant from the TTL would instead let a dust 
 permanent row, reopening the immortal-tenant attack `API-35`'s minimum closed. `WIR-14`'s
 disclosures MUST state this.
 
-**API-35** **AMENDED.** A tenant MUST NOT graduate out of pending until a payment **meeting a
-configured minimum** has been credited to it (`LDG-44`). The original said "a payment", so one
+**A pending tenant's deposit expiry MUST be capped at its remaining signup time-to-live.**
+Otherwise a caller mints a fresh unpaid deposit just before each window closes and the
+"do not delete while a deposit is in flight" rule defers reaping forever — one free signup
+occupying a slot in `API-41`'s global ceiling indefinitely, at no cost. Capping it means an
+unpaid deposit can never outlive the signup that created it, so the two rules stop fighting.
+
+**Re-attribution of a retained credit is an operator action, and the honest reason is
+`ADR-0005`.** Collecting nothing means the system holds no proof of who paid, so no self-serve
+flow can bind a retained deposit to a new tenant — a caller claiming a deposit id it merely
+guessed or observed would be claiming someone else's money. The customer presents its deposit
+identifier to the operator, who attributes it through the operator surface. **This is a genuine
+limitation, not a mechanism**, and it MUST be disclosed at mint (`WIR-14`) rather than implied by
+the word "re-attributable".
+
+**API-35** **AMENDED twice.** A tenant MUST NOT graduate out of pending until its **cumulative
+credited balance** reaches a configured minimum (`LDG-44`, `LDG-52`), and activation MUST occur
+atomically the moment it does. *The 2026-08-13 amendment replaced "a payment meeting a minimum":
+under the per-payment reading two credited payments of 60,000 against a 100,000 minimum left the
+tenant pending forever holding 120,000 non-refundable satoshis.* The original said "a payment", so one
 satoshi produced a permanently activated row that `API-34`'s time-to-live could never reclaim —
 an attacker could mint immortal tenants for a rounding error each. The minimum MUST be large
 enough to purchase something, since a balance that cannot buy compute is not a customer.
@@ -210,7 +237,14 @@ give up `ADR-0005` to protect a table.
 **API-37** **AMENDED — there is no *identity* recovery, but there is a recovery *credential*
 (`API-55`).** No identity is collected, so nothing an operator could verify proves ownership; any
 mechanism built on that would be account takeover wearing a helpful name. What replaces it is
-possession of a second secret issued at enrolment, which proves control without proving identity. A lost token means a lost
+possession of a second secret issued at enrolment, which proves control without proving identity.
+
+**So the client instruction changes and MUST be stated correctly at issuance:** a lost or
+compromised *spending token* is **recoverable** while the recovery credential survives
+(`API-56`) — the caller replaces it and keeps the tenant, its machines and its balance. Only
+losing **both** is unrecoverable. *The withdrawn wording told a caller to abandon the tenant and
+let its machines self-cancel, which on a funded, recoverable tenant destroys running machines for
+no reason.* A lost token means a lost
 balance, and so does a compromised one — the remedy for either is to stop funding it and let its
 machines self-cancel at exhaustion (`LDG-14`), not to recover it. The caller is software and can
 store a secret reliably — but it MUST be told at issuance that it has to, and that there is no
@@ -270,11 +304,13 @@ than left as exceptions a builder must invent:
 - **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
   returns its handle directly. It creates no provider mutation, so it needs no durable operation,
   and `operations.tenant_id` could not name a tenant that does not exist yet.
-- **`API-8`/`API-10` (idempotency scoped to `(tenant, key)`)** — enrolment has no tenant to scope
-  by, so it scopes idempotency to the `Idempotency-Key` header alone. Re-sending the same
-  enrolment under the same key MUST return the same pending tenant and the same handle rather than
-  creating a second one; a retry without a key MAY create a new pending tenant, which `API-34`'s
-  time-to-live reclaims.
+- **`API-8`/`API-10` (idempotency scoped to `(tenant, key)`)** — **AMENDED: enrolment carries no
+  idempotency replay at all** (`WIR-12`). The withdrawn rule scoped it to the `Idempotency-Key`
+  header alone, which is a **global unauthenticated key space**: two callers choosing the same
+  low-entropy key would receive the same handle, and under `API-33` that handle's response carries
+  the spending token *and* the recovery credential. That is credential disclosure reached by
+  guessing a string. A duplicate signup is free and `API-34` reclaims it; a leaked capability is
+  not. An `Idempotency-Key` presented to enrolment MUST be ignored, never honoured.
 
 ## Funding
 
@@ -338,6 +374,11 @@ Both exemptions have the same justification: **neither causes a provider mutatio
 needs a durable operation, and `operations.tenant_id` cannot name a tenant that does not exist yet
 (enrolment). Any endpoint added later that *does* touch a provider MUST obey `API-1`; this list is
 closed, not a pattern.
+
+**AMENDED (2026-08-13, second time): `POST /v1/tenants/{tenant_id}/actions/resume` also joins**
+(`WIR-41`) — it clears a flag and touches no provider. Suspension does **not**: it cancels a
+fleet, so it returns `202` with a `suspend_tenant` operation whose children are the per-machine
+cancellations.
 
 **AMENDED (2026-08-13): three more join the list** — `POST /v1/recovery/revoke` (`WIR-38`, a pure
 credential action), `POST /v1/operations/{id}/actions/resolve` (`WIR-35`, an operator decision
