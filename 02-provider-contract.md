@@ -9,10 +9,14 @@ invariants. It deliberately does not give a signature in any language.
 **PRV-1** Every operation MUST be safe to call concurrently on the same driver instance.
 The control plane serializes work per machine (`OPS-8`) but not per provider account.
 
-**PRV-2** Every operation except *describe capabilities* and *get machine* MUST have a
+**PRV-2** Every operation except *describe capabilities*, *get machine* and *refresh rescue
+session* MUST have a
 default implementation that fails with an `unsupported` error naming the operation and
 the account. A driver opts in by overriding; it MUST NOT be possible to add an operation
 to the interface and silently get a wrong default behaviour in every existing driver.
+The first two are MUST-implement (`PRV-3`) rather than defaulted; the third is the one operation
+with an explicit non-failing default — `PRV-19` returns the session unchanged, which is safe
+only because `PRV-20` forbids a refresh that downgrades one.
 
 **PRV-3** *Get machine* MUST be implemented by every driver. It is the refresh primitive
 the whole lifecycle depends on.
@@ -251,7 +255,7 @@ circularity: `PRV-13c` learns the per-machine constraint *after* ordering, while
 the order before the commitment exists, so for an offer that hides its terms the commitment could
 only be sized after the purchase it authorizes. The declared bound sizes the commitment at
 create. **The machine's *actual* date, read after ordering, updates the
-`cost_through_effective_cancellation_date` term of `LDG-33`'s `protected_sats` — it MUST NOT
+cost-through-earliest-cancellation-date term of `LDG-33`'s `protected_sats` — it MUST NOT
 resize the commitment.** A shorter actual term therefore lengthens the customer's runway rather than
 returning satoshis, which is the same money reaching the customer through the mechanism
 `ADR-0011` sanctions instead of through an automatic resize it forbids. In practice the bound is trivial for the launch set — current Robot

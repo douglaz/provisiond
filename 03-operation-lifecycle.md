@@ -80,11 +80,13 @@ account was only ever determined inside the call that vanished.
                          |                   |
                          +--- operator requeue ---> queued
 
-   queued --- tenant suspended, never claimed (API-58) ---> failed, kind `suspended`
+   queued --- tenant suspended, never claimed (API-58) ---> failed, system_reason tenant_suspended
 ```
 
 `needs_reconciliation` is **resolution-pending, not terminal** (`OPS-3`): it settles by evidence
-(`OPS-27`) or by an operator verb (`OPS-31`), and nothing automatic or caller-driven moves it.
+(`OPS-27`) or by an operator verb (`OPS-31`), and by nothing else — no automatic retry of the
+mutation, no timer, no caller action. `OPS-27`'s evidence sweep is itself automatic and does move
+the state; what the system MUST NOT do automatically is retry (`OVR-5`).
 
 **OPS-3** **AMENDED — `needs_reconciliation` is *resolution-pending*, not terminal.** `succeeded`
 and `failed` are the terminal states. **A transition made *by a worker* MUST be conditional on that
@@ -278,13 +280,17 @@ outcomes:
 | More than one resource bears the correlator | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
 | The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
-**Resolved-observed MUST be one transaction**, in the manner of `LDG-11`. The resolution write on
-the operation (`STO-19`'s write-once columns), the machine attach, the setup-fee debit, the
-clearing of `LDG-67`'s pending-fee columns, and the commitment decrement where a commitment is
-still open (`LDG-31`) MUST commit together, under `LDG-35`'s per-tenant serialization because the
-debit reads the balance. A partial commit leaves a state nothing in the record can repair: an
-attach whose fee is still parked bills that setup a second time when the obligation is next read,
-and a debit without the attach charges a customer for a machine no tenant owns.
+**A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
+This is one rule with **two entry points** — the provider **accepting the order in its reply**, and
+`OPS-27` **resolving-observed** a create whose reply was lost — because both write the same set of
+effects and a partial commit of either is unrepairable. Those effects are: the terminal write on
+the operation (`STO-19`'s write-once columns), the machine row, the setup-fee debit (`LDG-39`), the
+clearing of any parked `LDG-67` pending-fee record, and the commitment decrement where a commitment
+is still open (`LDG-31`). They MUST commit together, under `LDG-35`'s per-tenant serialization
+because the debit reads the balance. A partial commit leaves a state nothing in the record can
+repair: a machine whose fee is still parked bills that setup a second time when the obligation is
+next read, a debit without the machine row charges a customer for a machine no tenant owns, and a
+machine row without its debit runs a create nobody paid for.
 
 **OPS-36** **A correlator match may arrive after `OPS-33` released the commitment and the tenant
 spent the balance.** The specification previously had no branch for this and the three available
@@ -317,8 +323,9 @@ immediately (`requested_by: system`,
 `system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may
 `extend-runway` (`LDG-62`) against the attached machine **before the exhaustion sweep reaches
 it**, which is an explicit, capped, idempotent authorization rather than an inference about what
-it would have wanted. **Where the branch opened no commitment**, `LDG-62` **creates** one at the
-extension's size rather than growing an absent record — otherwise the survival path is
+it would have wanted. **Where the branch opened no commitment**, `LDG-62` **creates** one, sized as
+`LDG-62` requires — the requested runway at the current rate **plus `protected_sats`** — rather
+than growing an absent record; otherwise the survival path is
 unreachable for exactly the broke tenant this branch is about. **This is the branch that makes
 `OPS-33`'s early release safe**, and without it that release was a hole rather than a decision.
 
@@ -352,11 +359,17 @@ that nothing exists does not authorize creating it; that is a new decision by th
 new purchase.
 
 **OPS-39** **AMENDED — deduplicated, and never blocked by a caller's ceiling.** Each triggering
-episode MUST mint **one** durable `system_trigger_id` (`operations.system_trigger_id`, `STO`) and
+episode MUST mint **one** durable `system_trigger_id` and
 **reuse it on every subsequent sweep until that episode is resolved** — the id identifies the
-*condition* (this machine's exhaustion, this account's loss), not the sweep that noticed it. With
-`(machine_id, system_reason, system_trigger_id)` unique at the storage layer, the second sweep's
-insert then conflicts and no duplicate cancellation is enqueued. **The constraint bounds new
+*condition* (this machine's exhaustion, this account's loss), not the sweep that noticed it.
+**The uniqueness is over the machine's retained set, not over `operations`.** At most one **open**
+entry may exist per `(machine_id, system_reason)` in `machines.system_trigger_ids`
+(`05-persistence.md`), and a sweep MUST claim that entry — atomically, in the manner of `STO-2` —
+before it enqueues anything, so the second sweep finds the episode already open and enqueues no
+duplicate cancellation. `operations.system_trigger_id` is a **convenience copy** carried for
+querying and for requeue under an existing id; a matching constraint over `operations` is a
+redundant guard and MUST NOT be the only one, because `STO-14` deletes the very rows it
+constrains and leaves it nothing to check. **The constraint bounds new
 enqueues, not recovery**: an operation that failed deterministically may still be requeued under
 its existing trigger id (`API-19`, `OPS-20`), because a cancellation that did not happen must
 remain retryable or the machine bills forever. **Minting a fresh id per sweep
@@ -367,8 +380,8 @@ timer.
 **The id MUST outlive the operations that carry it.** `STO-14` deletes settled operations after a
 configured age, and an id stored only there vanishes with them — after which the next sweep of the
 same unresolved condition mints a new one and re-enqueues, reaching the identical defect through
-retention instead of through a timer. The id is therefore also recorded on the **machine** row,
-keyed by `system_reason` (`machines.system_trigger_ids`, `05-persistence.md`), and is removed only
+retention instead of through a timer. The id is therefore held on the **machine** row, keyed by
+`system_reason` (`machines.system_trigger_ids`, `05-persistence.md`), and is removed only
 when the episode resolves. A tombstoned machine keeps it (`STO-8`), because a machine whose
 cancellation was never established is exactly the row a later sweep reads.
 

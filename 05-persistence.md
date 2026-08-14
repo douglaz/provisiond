@@ -67,6 +67,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `external_id` | text | not null |
 | `name` | text | not null |
 | `kind` | enum | `virtual` \| `bare_metal` |
+| `offer_id` | text | nullable; the offer this machine was created from, retained so the install gate can read that offer's `install_strategies` (`DOM-13`, `WIR-30`). Null for adopted machines, which came from no offer |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
@@ -79,12 +80,18 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `reserve_rate_num`, `reserve_rate_den` | integer | the exact rational used (`LDG-4`) |
 | `reserve_computed_at` | timestamp | drives re-derivation (`PRV-13e`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`) |
-| `system_trigger_ids` | json | `OPS-39`'s open episode identifiers, keyed by `system_reason`. The same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
+| `system_trigger_ids` | json | `OPS-39`'s open episode identifiers, keyed by `system_reason`, and the **enforcing** home of its uniqueness: at most one open entry per `(machine_id, system_reason)`, claimed atomically before a sweep enqueues anything. The same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
 | `created_at`, `updated_at` | timestamp | |
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; index on
 `(tenant_id, updated_at desc)`; index on `(correlator_value)` for reconciliation lookup (`OPS-27`);
 index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
+
+**`offer_id` is what the offer-level install gate evaluates against.** `DOM-13` and `WIR-30` gate
+an install strategy on the **offer's** `install_strategies`, which is unreachable at install time
+unless the machine records the offer it was created from. An **adopted** machine came from no
+offer: its `offer_id` is null, and its permitted strategies fall back to the provider account's
+declared capabilities (`DOM-10`) alone.
 
 **STO-17** `(provider_account, external_id)` MUST additionally be unique **across all tenants**,
 not merely within one. `SEC-10` and `CNF-6` require that a provider machine belong to at most one
@@ -147,7 +154,7 @@ deleted rows.
 | `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. All three are cleared on resolution, and on an operator requeue, whose fresh attempt carries its own fee (`LDG-67`) |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`), `rate_outage_bound` (`LDG-64`) |
-| `system_trigger_id` | text | nullable; `OPS-39`'s durable episode identifier. Unique with `(machine_id, system_reason)` — the constraint that stops a per-minute sweep enqueueing a fresh cancel every minute |
+| `system_trigger_id` | text | nullable; a **convenience copy** of `OPS-39`'s durable episode identifier, carried for querying and for requeue under an existing id. A `(machine_id, system_reason, system_trigger_id)` constraint here is a redundant guard, never the enforcing one — `STO-14` deletes these rows and takes it with them. The enforcing uniqueness is on `machines.system_trigger_ids` |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `claimed_by` | text | nullable; worker identity |
@@ -403,8 +410,9 @@ running instance of the previous version, or startup MUST take an exclusive lock
 **STO-14** A retention job MUST remove **settled** operations older than a configured age;
 `needs_reconciliation` is not settled (`OPS-3`) and is excluded (`OPS-25`).
 
-**Retention MUST NOT be the thing that resets `OPS-39`'s deduplication.** The `system_trigger_id`
-lives on the operation, which this job deletes; the durable copy is `machines.system_trigger_ids`,
+**Retention MUST NOT be the thing that resets `OPS-39`'s deduplication.** The operation's
+`system_trigger_id` is only a convenience copy and this job deletes it, taking any constraint
+stated over `operations` with it; the enforcing home is `machines.system_trigger_ids`,
 which retention does not reach and which a tombstoned machine keeps (`STO-8`). Without it a
 re-triggered sweep mints a fresh id past the retention horizon and enqueues the same cancellation
 again — repeated provider mutation by retention rather than by timer.

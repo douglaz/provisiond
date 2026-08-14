@@ -260,10 +260,11 @@ queue's safety machinery: an exhaustion cancel outside the queue has no lock, no
 
 See **The blocking count** below.
 
-That is 23 more BLOCKING items, the count at that time is superseded — see **The blocking count**. **This is the honest cost
+That added a further block of BLOCKING items; the total lives in **The blocking count** and
+nowhere else, this passage included. **This is the honest cost
 of the 2026-08-11 decisions** and it should be read as such: choosing self-serve enrolment and a
 prepaid balance did not merely add features, it added a money system whose correctness gates
-launch. A reader deciding whether that trade was worth it now has the number.
+launch. A reader deciding whether that trade was worth it will find the number there.
 
 ### Tiering the other 234 requirements — first pass
 
@@ -406,7 +407,10 @@ not optional hardening — they are the only structural defence there is.
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
 - [ ] **CNF-20** Every operation on a driver that declares nothing returns `unsupported`,
-      not a panic and not a wrong default. (`PRV-2`)
+      not a panic and not a wrong default — except `PRV-2`'s three named exceptions, each
+      asserted for its own stated behaviour instead: describe capabilities and get machine are
+      implemented (`PRV-3`), and refresh rescue session returns the session unchanged (`PRV-19`).
+      (`PRV-2`)
 
 ## Idempotency
 
@@ -863,7 +867,9 @@ rather than acquiring a default.
       (`LDG-39`, `LDG-67`, `LDG-31`)
 - [ ] **CNF-212** Two consecutive exhaustion sweeps over the same machine enqueue **one**
       cancellation: the second reuses the episode's trigger id and conflicts. Minting a fresh id
-      per sweep is the failure. (`OPS-39`)
+      per sweep is the failure. Run the second sweep again **after retention has deleted the first
+      sweep's operation row** (`STO-14`) and assert it still enqueues nothing — the machine's
+      retained `system_trigger_ids` entry, not the operation, is what holds. (`OPS-39`, `STO-14`)
 - [ ] **CNF-213** Attributing an orphaned deposit posts **one `correction` pair per settled
       payment** — never a second `topup`, which would mint satoshis the original settlement already
       credited — and `operator_ref` holds no name, address or contact string. A deposit paid on
@@ -1077,7 +1083,9 @@ See **The blocking count** at the end of this document; it is stated in one plac
 Beyond the checklist, the following are judgement calls a deployment must make
 explicitly and record:
 
-1. Which adoption entitlement mechanism is in force (`API-18`).
+1. ~~Which adoption entitlement mechanism is in force~~ — **settled 2026-08-12: adoption is
+   operator-only, and entitlement is the operator-maintained assignment of external machine
+   identifiers to tenants** (`API-18`).
 2. Whether first-use trust is permitted at all, and for which providers (`SEC-24`).
 3. Whether the raw-disk path runs in single-pass or two-pass mode (`RSC-30`).
 4. What the image host allowlist is (`SEC-19`).

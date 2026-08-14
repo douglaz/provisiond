@@ -9,7 +9,7 @@
 | GET | `/v1/providers/{account}/offers` | ✓ | Purchasable offers for one account |
 | GET | `/v1/machines` | ✓ | List the caller's machines |
 | POST | `/v1/machines` | | Create a machine |
-| POST | `/v1/machines/adopt` | | Import an existing machine |
+| POST | `/v1/machines/adopt` | | Operator: import an existing machine (`API-18`, `WIR-18`) |
 | GET | `/v1/machines/{id}` | ✓ | Read one machine |
 | POST | `/v1/machines/{id}/actions/refresh` | | Re-read from the provider |
 | POST | `/v1/machines/{id}/actions/power` | | Power on/off, reboot, hard reset |
@@ -49,6 +49,15 @@ rejected before enqueue return their mapped error status (`API-24`) — `400`, `
 is valid). The original said "always", which a strict router applies to `/v1/tenants/{tenant_id}`
 and rejects every valid tenant. A provider-side identifier MUST
 NOT appear in a client-constructed path (`DOM-5`).
+
+**In a path, `DOM-1`'s grammar is necessary and not sufficient.** A `{tenant_id}` component MUST
+be matched as exactly **one** path segment, never as a greedy remainder, and MUST be validated
+**after** percent-decoding and **rejected rather than normalised**. The decoded segment MUST NOT
+be `.` or `..` and MUST NOT contain `/` or `\` in any encoding. `DOM-1` admits `.`, so `.` and
+`..` are well-formed tenant identifiers, and a router or proxy that resolves them re-points the
+request at a route the caller did not name; `/` is outside the grammar but arrives through `%2F`
+unless the check runs after decoding. This is `PRV-6` pointed the other way — that one guards the
+path this system *writes* to a provider, this one guards the path a caller writes to it.
 
 ## Authentication and tenancy
 
@@ -150,7 +159,7 @@ The tail then depends on what the endpoint does:
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
 | **resume, resolve, revoke** | operator or recovery-credential principal; synchronous, `200`, no provider mutation (`API-48`) |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
-| **deposit** | synchronous; allowed while pending; **mints a destination and writes NO ledger entry** — a deposit is not money until it settles (`LDG-47`) — plus an idempotency record, in one transaction; `200` |
+| **deposit** | synchronous; allowed while pending; **refused `halted` while `LDG-20`'s solvency halt is in force** — that halt stops top-ups *first*, and minting a destination invites exactly the payment it forbids; otherwise **mints a destination and writes NO ledger entry** — a deposit is not money until it settles (`LDG-47`) — plus an idempotency record, in one transaction; `200` |
 | **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200` |
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
@@ -219,6 +228,13 @@ Otherwise a caller mints a fresh unpaid deposit just before each window closes a
 "do not delete while a deposit is in flight" rule defers reaping forever — one free signup
 occupying a slot in `API-41`'s global ceiling indefinitely, at no cost. Capping it means an
 unpaid deposit can never outlive the signup that created it, so the two rules stop fighting.
+
+**Where that cap has already passed, the request MUST be refused rather than satisfied with an
+already-expired deposit.** A signup with less than one finality window left to run has no room to
+mint one: a deposit whose lifetime is zero or negative cannot be paid, and returning it as though
+it could invites exactly the stranded payment (`LDG-43`) the cap exists to prevent. The refusal is
+`conflict` (`DOM-17`) — what is wrong is the signup's remaining time, not the request — and the
+caller's remedy is a fresh enrolment, which costs nothing.
 
 **Re-attribution of a retained credit is an operator action, and the honest reason is
 `ADR-0005`.** Collecting nothing means the system holds no proof of who paid, so no self-serve
@@ -339,8 +355,12 @@ to settle rather than abandoned mid-order, and its machine is then cancelled by 
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
 then (3) enqueues a system cancellation per machine (`OPS-39`) — **the suspension flag and the
 full fan-out MUST commit together, or a crash mid-fan-out leaves a suspended tenant with machines
-nobody will ever cancel and no write path left to notice** — then (4) **transitions work already `queued` but never claimed straight to `failed` with
-`suspended`** — it has touched no provider, so cancelling it needs no operation — and lets anything already `running` settle, **then re-sweeps: a create that
+nobody will ever cancel and no write path left to notice** — then (4) **transitions work already
+`queued` but never claimed straight to `failed`, carrying `system_reason: tenant_suspended`** — it
+has touched no provider, so cancelling it needs no operation, and it does **not** carry the error
+kind `suspended`, which `OPS-11` classifies as admission-only and forbids a worker to emit: that
+kind stays an admission-time rejection of a *caller's* write (`DOM-20`) — and lets anything
+already `running` settle, **then re-sweeps: a create that
 settled after the fan-out has produced a machine the first pass never saw, and it MUST be
 cancelled by a second pass rather than left running against a suspended tenant** — the fan-out
 repeats until a pass finds no un-cancelled machine; then (5) aggregates the outcomes,
@@ -593,9 +613,10 @@ proxying customer requests under one admin identity plus a tenant override.** Wa
 the override header carried the entire tenancy boundary on a string this system could not check,
 obliging a deployment to sign per tenant, keep a synced allowlist, or accept and document. Both
 premises are gone: the override is now checkable against `DOM-1a`'s registry (`ADR-0002`), and
-tenancy is enforced in this process by `API-5`, `API-17` and `SEC-8`–`SEC-10`. *`CNF-66`–`CNF-68`
-are left **N/A UNTIL SPLIT** rather than withdrawn, so they resurrect if the architecture ever
-splits.*
+tenancy is enforced in this process by `API-5`, `API-17` and `SEC-8`–`SEC-10`. *For what becomes
+of `CNF-66`–`CNF-68`, the checklist governs: it marks them **N/A UNTIL SPLIT** rather than
+deferred, so they resurrect automatically if the architecture ever splits
+(`10-conformance-checklist.md`).*
 
 **API-31** **WITHDRAWN — same reason as `API-30` (`ADR-0001`).** Was the requirement that a
 proxying front service keep its own request→customer audit log, because every record here would
@@ -715,12 +736,13 @@ server `OPS-20` exists to prevent — `SEC-39`'s per-principal ceiling is the ba
 field is the signal. This is the single most expensive way for "finding out" to go wrong.
 
 **API-52** **A pending tenant MUST be able to observe its own activation without attempting a
-purchase.** `API-43` grants a pending tenant the funding endpoint and nothing else, and
-`GET /v1/balance` answers `not_activated` — so a freshly enrolled agent that has already paid
+purchase.** `API-43` owns the reachable-while-pending set and this requirement does not restate
+it. Whatever else that set contains, `GET /v1/balance` is not in it and answers `not_activated` —
+so a freshly enrolled agent that has already paid
 could learn it was active only by issuing a create and reading the rejection, which is the exact
 pathology `API-47` was written out of the post-activation path. `GET /v1/enrol/{handle}` MUST
-answer with the tenant's current status (`pending` | `active`) after credential issuance, and is
-added to `API-43`'s reachable-while-pending set alongside funding.
+answer with the tenant's current status (`pending` | `active`) after credential issuance, and
+`API-43` lists it for exactly this reason.
 
 **API-53** **Every operation view carries a `revision`**: a per-operation counter that strictly
 increases on each client-visible modification. A response bearing a lower revision than one the

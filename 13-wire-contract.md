@@ -548,17 +548,21 @@ unassigned account `404`s (`WIR-36`):
   "min_runway_seconds": 3600,
   "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
   "max_rate_outage_seconds": 21600,
-  "install_strategies": ["provider_native", "rootfs_via_rescue", "raw_disk"]
+  "install_strategies": ["provider_native", "raw_disk"]
 }]}
 ```
 
 **`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them.** The
 account's `capabilities` (`WIR-29`) say what the driver can do at all; eligibility for a
 rescue-based install is a property of the **offer**, because an auction listing and a standard
-product at the same provider can differ on it. An install naming a strategy absent from its
+product at the same provider can differ on it. The fixture above is a cloud VPS, which is why it
+omits `rootfs_via_rescue`: no cloud product in the reference set offers one
+(`08-provider-notes.md`). An install naming a strategy absent from its
 machine's offer MUST be rejected as `invalid_request` before the operation is enqueued, exactly
 as an invalid pairing is. The list MUST be present on every offer; an empty list means no install
-is available for that offer.
+is available for that offer. The machine's offer is the one recorded in its `offer_id`
+(`05-persistence.md`); an **adopted** machine has none, and its permitted strategies are gated by
+the provider account's declared capabilities (`DOM-10`) alone.
 
 `max_rate_outage_seconds` is `LDG-64`'s bound, disclosed before purchase because past it a
 machine is cancelled regardless of its runway. Prices are integers of satoshis, already margined by

@@ -172,9 +172,17 @@ protected_sats = at the current rate, rounded up:
                    wind_down_cost
                  + surviving billable attachments (PRV-13a)
                  + cost through any effective cancellation date (DOM-19)
+                 + cost through any earliest cancellation date not yet passed (PRV-13c)
 usable_sats    = max(0, reserved_sats − protected_sats)
 runway_until   = now + floor(usable_sats / current_customer_rate)
 ```
+
+**The two date terms are not additive.** Where both an effective cancellation date (`DOM-19`) and
+an earliest cancellation date still in the future (`PRV-13c`) apply to the same machine, the
+protected cost runs to the **later** of the two and is counted once. The earliest date is a
+minimum-term constraint that exists from create (`PRV-31`), not something a cancellation creates,
+so the cost of running to it is unavoidable from the moment the machine exists and MUST NOT be
+advertised as spendable runway while it is still in the future.
 
 **Exhaustion begins when `usable_sats` reaches zero, not when the commitment does.** Dividing the
 *whole* commitment by the usage rate — which is what the fixture and the absent formula together
@@ -253,13 +261,22 @@ billable_seconds = elapsed billable time for this SUBJECT and period
                  − Σ(absorbed_seconds on its deficiency records, LDG-66)
 
 posted_debit     = ceil(cumulative_exact_charge over billable_seconds)
-                 − Σ(previous **usage** debits for this SUBJECT and period)
+                 − Σ(previous **usage** debits for this SUBJECT and period,
+                     NET of every correction naming one of them, LDG-5, LDG-7)
 ```
 
 with the exact charge carried as a rational (`LDG-4`). **Deficiency-absorbed time is subtracted in
 seconds, before conversion — never as a satoshi amount.** An outage deficiency accrues precisely
 while no rate exists (`LDG-64`), so there is no rate at which it could be converted; removing the
 time it absorbed needs none, and the units never mix.
+
+**Corrections net against the debits they name.** `LDG-5` makes a correction a new entry rather
+than an edit, so the corrected `usage_debit` row survives unchanged and a gross subtraction cannot
+see it. The next posting would then re-charge whatever a correction added, or hand back a second
+time whatever it refunded — the customer paying twice, or the operator, for a row that exists
+precisely because the first figure was wrong. The subtraction is therefore over the **net**: the
+prior usage debits for that subject and period, plus every `correction` (`LDG-7`) naming one of
+them. A correction naming an entry of any other kind is not part of this sum.
 
 **The subject's high-water mark is the greatest `increment end` already posted for it** — derived
 by reading its own `usage_debit` rows, whose idempotency key carries that instant (`LDG-8`). It is
@@ -593,11 +610,13 @@ resolvable per provider account or product class, and MUST NOT be a constant in 
 v1 but MUST be metered from the first release. A price cannot be introduced later for something
 that was never counted.
 
-**LDG-26** **AMENDED.** The offers endpoint MUST return customer prices. It MUST NOT return the
-operator's own cost as a *field* — but `DOM-9`'s offer carries the provider's price and raw
-metadata, so a deployment MUST either strip those on the customer-facing path or accept that cost
-is disclosed. The previous text prohibited returning provider cost while the offer type it
-returns is defined as containing it.
+**LDG-26** **AMENDED twice.** The offers endpoint MUST return customer prices. It MUST NOT return
+the operator's own cost as a *field* — and because `DOM-9`'s offer carries the provider's price
+and raw metadata, a deployment MUST **strip** them on the customer-facing path. `WIR-30` says the
+same at the wire: the provider's currency, price string and raw metadata MUST NOT appear.
+*The first text prohibited returning provider cost while the offer type it returns is defined as
+containing it. The second offered a choice — strip, or accept that cost is disclosed — which
+`WIR-30` does not permit; the choice is withdrawn.*
 
 ## Exhaustion
 
@@ -625,7 +644,11 @@ visibility into repricing, which is why it is a MUST and not a nicety.
 **LDG-62** **Extending runway is a caller write, authorized like a purchase.** It increases the
 machine's commitment — **or opens one where the machine has none**, which is `OPS-36`'s
 deficiency-funded late-attach branch — from available balance at the **current** rate, under `LDG-35`'s per-tenant
-serialization and `LDG-10`'s no-negative rule, in one transaction. It is the only way a
+serialization and `LDG-10`'s no-negative rule, in one transaction. **A commitment *opened* by an
+extension MUST be sized `requested runway × current customer rate + protected_sats` (`LDG-33`)**,
+the same shape a create uses: sized at the requested runway alone it would advertise as runnable
+time the satoshis wind-down and any cancellation date already need, which is exactly the error
+`LDG-33` exists to prevent. It is the only way a
 commitment grows outside `LDG-63`, and it MUST be idempotent per `API-8` — two concurrent
 extends must not reserve twice.
 

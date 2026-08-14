@@ -19,6 +19,7 @@ create and opening the commitment must be one transaction**, and two stores cann
 - The public customer surface runs in the same address space as credentials to every customer's
   machine. `OVR-10a`'s in-code credential boundary is therefore **not optional hardening — it is
   the only structural defence left**, and `CNF-71`–`CNF-75` are the items that prove it.
+  *`CNF-75` is since withdrawn — this decision made the form a constant, so `CNF-71`–`CNF-74` prove it.*
 - `API-27` applies in its single-component form: customer routes public, operator and
   reconciliation routes on a separate listener.
 - `CNF-66`–`CNF-68` (separate-service items) do not apply. `CNF-71`–`CNF-74` do. `F17` in
