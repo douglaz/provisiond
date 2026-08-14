@@ -260,15 +260,27 @@ identical consumption. The rule is therefore:
 billable_seconds = elapsed billable time for this SUBJECT and period
                  − Σ(absorbed_seconds on its deficiency records, LDG-66)
 
+already_charged  = the MAGNITUDE already charged for this SUBJECT and period
+                 = − Σ(signed amounts of the previous **usage** debits for this SUBJECT
+                       and period, plus every correction naming one of them,
+                       LDG-5, LDG-7)
+
 posted_debit     = ceil(cumulative_exact_charge over billable_seconds)
-                 − Σ(previous **usage** debits for this SUBJECT and period,
-                     NET of every correction naming one of them, LDG-5, LDG-7)
+                 − already_charged
 ```
 
 with the exact charge carried as a rational (`LDG-4`). **Deficiency-absorbed time is subtracted in
 seconds, before conversion — never as a satoshi amount.** An outage deficiency accrues precisely
 while no rate exists (`LDG-64`), so there is no rate at which it could be converted; removing the
 time it absorbed needs none, and the units never mix.
+
+**What is subtracted is a magnitude, because `LDG-1` makes a debit negative.** The signed sum of
+the prior usage debits is a negative number — the worked table above posts `usage_debit` −100 for
+the first hour — so negating it is what turns it into the amount already charged. Subtracting that
+signed sum *unnegated* would add it back: a second tick whose cumulative charge is 200, against a
+prior debit of −100, would post `200 − (−100) = 300` and the period would collect 400 for 200 of
+consumption, over-charging by the running total on every tick after the first. `posted_debit` is a
+magnitude for the same reason, and the entry `LDG-6` writes for it carries `LDG-1`'s debit sign.
 
 **Corrections net against the debits they name.** `LDG-5` makes a correction a new entry rather
 than an edit, so the corrected `usage_debit` row survives unchanged and a gross subtraction cannot
@@ -277,6 +289,14 @@ time whatever it refunded — the customer paying twice, or the operator, for a 
 precisely because the first figure was wrong. The subtraction is therefore over the **net**: the
 prior usage debits for that subject and period, plus every `correction` (`LDG-7`) naming one of
 them. A correction naming an entry of any other kind is not part of this sum.
+
+**A correction carries its own sign, and the netting must respect it.** A correction that
+*reduces* a charge is a positive entry: it moves the negative net toward zero and therefore
+**lowers** `already_charged`, so the next tick posts more, not less. A correction that *increases*
+a charge is negative and raises `already_charged`. Netting the signed amounts and negating once,
+as the formula does, is what makes both directions come out right; taking the absolute value of
+each entry before summing would make a refund add to the amount already charged and re-charge the
+customer for money handed back.
 
 **The subject's high-water mark is the greatest `increment end` already posted for it** — derived
 by reading its own `usage_debit` rows, whose idempotency key carries that instant (`LDG-8`). It is

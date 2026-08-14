@@ -132,12 +132,17 @@ MUST NOT be able to make the server do parsing or policy work. See `DEF-4`.
 the five classes.** Steps 1–5 are common to every authenticated write:
 
 1. authenticate, resolve principal;
-2. reject unless the tenant is active — a pending tenant fails `not_activated` (`API-35`),
-   **except** the `API-43` allowlist and the **maintenance actions**: revoke (`API-56`), resolve,
-   resume and requeue are authorized by principal rather than by tenant state, and gating them on
-   an active tenant would leave a suspended or pending tenant unable to replace a stolen
-   credential —
-   locking the owner out at exactly the moment the mechanism exists for;
+2. **reject a tenant that has never been activated** — a `pending` tenant fails `not_activated`
+   (`API-35`), **except** the `API-43` allowlist and the **maintenance actions**: revoke
+   (`API-56`), resolve, resume and requeue are authorized by principal rather than by tenant state,
+   and gating them on an activated tenant would leave a suspended or pending tenant unable to
+   replace a stolen credential —
+   locking the owner out at exactly the moment the mechanism exists for. **This step is the
+   issuance check and nothing else: it MUST NOT look at suspension.** A `suspended` tenant passes
+   it and is rejected at 5b instead. *The withdrawn wording — "reject unless the tenant is active"
+   — rejected a suspended tenant here, which made 5b unreachable and defeated its stated reason
+   for existing: every write retried after its tenant was suspended lost the stored idempotent
+   result `API-11` promises it, including a suspend whose own `202` was lost;*
 3. validate the idempotency key;
 4. authorize the target resource against the tenant;
 5. deserialize and validate the body;
@@ -145,9 +150,10 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     same `(tenant, key)` returns the stored result, a different one fails `conflict`. This step
     needs the parsed body, which is why it cannot live at step 3;
 5b. **reject with `suspended`** if the tenant is suspended and this is not a maintenance action
-    (`API-58`, `DOM-20`). It sits *after* 5a deliberately: a write replayed from before the
-    suspension must return its stored result rather than a spurious rejection, and only the
-    fingerprint check can tell a replay from a new write.
+    (`API-58`, `DOM-20`). **This is the only step that rejects for suspension** — step 2 passes a
+    suspended tenant through on purpose. It sits *after* 5a deliberately: a write replayed from
+    before the suspension must return its stored result rather than a spurious rejection, and only
+    the fingerprint check can tell a replay from a new write.
 
 The tail then depends on what the endpoint does:
 
@@ -356,10 +362,21 @@ because abandoning an in-flight order is how a machine ends up bought, unrecorde
 then (3) enqueues a system cancellation per machine (`OPS-39`) — **the suspension flag and the
 full fan-out MUST commit together, or a crash mid-fan-out leaves a suspended tenant with machines
 nobody will ever cancel and no write path left to notice** — then (4) **transitions work already
-`queued` but never claimed straight to `failed`, carrying `system_reason: tenant_suspended`** — it
+`queued` but never claimed straight to `failed`, carrying the reason in the operation's `error`:
+`conflict`, with `details.reason: "tenant_suspended"`** (`WIR-9a`, `WIR-10b`) — it
 has touched no provider, so cancelling it needs no operation, and it does **not** carry the error
 kind `suspended`, which `OPS-11` classifies as admission-only and forbids a worker to emit: that
-kind stays an admission-time rejection of a *caller's* write (`DOM-20`) — and lets anything
+kind stays an admission-time rejection of a *caller's* write (`DOM-20`).
+**Its `requested_by` stays `caller` and its `system_reason` stays null**, because `WIR-10` permits
+a non-null `system_reason` only on `requested_by: system`, and re-labelling the request `system`
+to make room for one would attribute the caller's own create to the system and destroy the record
+of who asked for it. The reason belongs in the error, which is where a caller reads why its work
+did not run. *`system_reason: tenant_suspended` was the withdrawn form and it produced an
+operation view no strict parser should accept.* The value stays legal on the step-(3)
+cancellations, which the system really did request (`OPS-39`). This transition is also **not** a
+worker classification: nothing was claimed and no driver was called, so `OPS-11`'s install row —
+which sends `conflict` to `needs_reconciliation` — does not reach it, and the operation goes
+straight to `failed` as stated. The fan-out then lets anything
 already `running` settle, **then re-sweeps: a create that
 settled after the fan-out has produced a machine the first pass never saw, and it MUST be
 cancelled by a second pass rather than left running against a suspended tenant** — the fan-out
@@ -373,6 +390,11 @@ it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion a
 **pending** tenants, which have no machines. They MAY hold a below-minimum credit, whose ledger
 entries survive them (`STO-26`, `LDG-22`) and remain re-attributable through `WIR-42` — so
 "no ledger" was wrong, and it is the case `API-34` exists to handle.
+
+**Because the fan-out re-sweeps, resume MUST NOT be accepted while this parent is unsettled**
+(`WIR-41`): a machine created after an early resume is exactly what the re-sweep is built to find,
+and it would be cancelled by a suspension the operator already lifted. The parent's state is the
+fence, and the refusal is a `conflict` naming the running suspension.
 
 **API-40** Enrolment and every other write MUST be reachable under the general rules, and three
 of those rules do not fit an unauthenticated, pre-tenant request. They are resolved here rather

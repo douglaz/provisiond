@@ -403,13 +403,14 @@ to a human.
 
 Three constraints on what is written:
 
-- **It MUST be opaque and unique per operation.** The operation UUID where the provider offers a
-  free caller-controlled field; where it does not, a per-operation artifact durably bound to the
-  operation before the order is sent (`PRV-32`'s SSH key fingerprint is the live case). Nothing
-  else. Whichever it is, the kind and the value MUST be recorded on the operation row —
-  `operations.correlator_kind` and `operations.correlator_value` (`05-persistence.md`) — before
-  the order is sent, because a create whose reply was lost has no machine row to carry them and
-  reconciliation would otherwise have nothing durable to search for. It MUST NOT encode the
+- **It MUST be opaque and unique per operation, and it is recorded once per attempt.** The
+  operation UUID where the provider offers a free caller-controlled field; where it does not, a
+  per-order artifact durably bound to the operation before the order is sent (`PRV-32`'s SSH key
+  fingerprint is the live case). Nothing else. Whichever it is, the kind and the value MUST be
+  recorded on the operation row — `operations.correlator_kind` and
+  `operations.correlator_value` (`05-persistence.md`) — before the order is sent, because a
+  create whose reply was lost has no machine row to carry them and reconciliation would
+  otherwise have nothing durable to search for. It MUST NOT encode the
   tenant, a customer identifier, a hostname the customer chose, or anything else linkable to a
   person (`ADR-0005`). Anyone reading the operator's provider console sees an opaque token.
 - **It MUST be written in the same request that performs the mutation**, never as a follow-up
@@ -417,6 +418,20 @@ Three constraints on what is written:
   request whose reply was lost.
 - **It MUST survive the payload purge.** The correlator is a provider-side identifier, which
   `OPS-13` already requires be retained, so it outlives the request body it was derived from.
+
+**AMENDED — the record is a list, one entry per attempt, and a requeue appends to it rather than
+replacing it.** `OPS-20` requeue of an ordering operation places a **second physical order**, and
+where the correlator is a per-order artifact rather than a free field — `PRV-32`'s SSH key, which
+is unique per order because `PRV-32` says so and `PRV-9` registers a throwaway key for each order
+anyway — that second order necessarily carries a *different* value. A single stored pair forced a choice between two broken outcomes: replace it and
+the first attempt's machine becomes unfindable forever, or reuse the first attempt's key and break
+the per-order uniqueness `PRV-32` rests on. So `correlator_value` holds one entry per attempt in
+the order the attempts were made, and **an entry is never removed or overwritten**;
+`correlator_kind` is one value for the operation, because the kind is a property of the driver and
+does not change between attempts. `OPS-27`'s search MUST try **every** recorded entry and combine
+what they return, which is what lets `OPS-38`'s many-case see a duplicate that two different orders
+produced. Where the correlator is the operation UUID the list simply holds that one value, however
+many attempts were made.
 
 **PRV-27** **AMENDED — the original required something impossible.** It said the driver "MUST
 record the provider's own transaction identifier **before** treating the outcome as ambiguous."

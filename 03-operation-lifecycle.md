@@ -80,7 +80,9 @@ account was only ever determined inside the call that vanished.
                          |                   |
                          +--- operator requeue ---> queued
 
-   queued --- tenant suspended, never claimed (API-58) ---> failed, system_reason tenant_suspended
+   queued --- tenant suspended, never claimed (API-58) ---> failed, error conflict
+                                                            (details.reason tenant_suspended;
+                                                             requested_by stays caller)
 ```
 
 `needs_reconciliation` is **resolution-pending, not terminal** (`OPS-3`): it settles by evidence
@@ -270,15 +272,16 @@ the customer's balance; while the operation sits unresolved, **those satoshis ar
 spendable, not returned. Resolution latency is money the customer cannot use.
 
 **OPS-27** The system MUST attempt automatic resolution before asking a human. Resolution
-searches the provider for the operation's correlator (`PRV-26`, `PRV-27`) and takes one of three
-outcomes:
+searches the provider for **every correlator the operation recorded** — one per attempt, and a
+requeue appends rather than replaces (`PRV-26`, `PRV-27`) — takes the union of what those
+searches return, and reaches one of three outcomes:
 
 | Finding | Resolution | Effect on the commitment |
 |---|---|---|
-| Exactly one resource bears this operation's correlator | **Resolved-observed.** Attach it and complete the operation as though it had succeeded. | Becomes the machine's running commitment (`OPS-36` where it was already released) |
-| The provider's search is authoritative and returns nothing, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Closed and released in full (`LDG-32`) |
-| More than one resource bears the correlator | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
-| The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
+| Exactly one resource across all of this operation's correlators | **Resolved-observed.** Attach it and complete the operation as though it had succeeded. | Becomes the machine's running commitment (`OPS-36` where it was already released) |
+| The provider's search is authoritative and returns nothing for any of them, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Closed and released in full (`LDG-32`) |
+| More than one resource across all of this operation's correlators | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
+| Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
 **A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
 This is one rule with **two entry points** — the provider **accepting the order in its reply**, and
@@ -336,11 +339,16 @@ provider that cannot filter server-side. `OPS-33` governs: the commitment is rel
 operation stays open. **Nothing about a customer's balance may depend on which provider's search
 API is weaker.**
 
-**OPS-38** Correlator matching MUST define cardinality: zero, one, or many. Many is reachable by
-a documented procedure — `OPS-20` requeue re-executes an operation that already wrote its
-correlator, so a late-succeeding first attempt and a successful second both bear it. A driver
-MUST reject a caller-supplied label that collides with the correlator's reserved key, and
-`OPS-31`'s operator verbs MUST be able to record which of several duplicates was kept.
+**OPS-38** Correlator matching MUST define cardinality: zero, one, or many — counted over the
+**union** of every attempt's correlator (`OPS-27`), never over one attempt's alone. Many is
+reachable by a documented procedure: `OPS-20` requeue places a second order, so a late-succeeding
+first attempt and a successful second are two machines. Where the correlator is a free field both
+orders carry the same operation UUID and one search finds both; where it is a per-order artifact
+(`PRV-32`) each order carries its own, and only the union sees the pair — **a search of the latest
+attempt alone would report *one* and attach it, leaving the first attempt's machine billing
+undiscovered.** A driver MUST reject a caller-supplied label that collides with the correlator's
+reserved key, and `OPS-31`'s operator verbs MUST be able to record which of several duplicates was
+kept.
 
 **OPS-40** **A signed image URL is validated against the queue's latency, twice** (`F20`).
 `OPS-2` persists a request so it can be executed after restarts and deferrals; `SEC-21` wants the

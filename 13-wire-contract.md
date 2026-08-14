@@ -127,7 +127,7 @@ agent to parse English. Minimum keys:
 | `rate_limited` | `retry_after_ms` |
 | `halted` | `retry_after_ms`, `gate` (`"solvency"` \| `"rate_unavailable"`) |
 | `gone` | `retained_until` — and the safe reaction is to read machines and balance, never re-issue (`DOM-21`) |
-| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`)) |
+| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`)) |
 | `unsupported` | `provider_account`, `capability` (`DOM-10`) |
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
@@ -308,6 +308,18 @@ second call naming a different tenant is `409`, never a re-credit.
 **synchronous** `200` with the tenant's status: it clears the suspension flag and touches no
 provider, so it mints no operation and is in `API-48`'s list. It does **not** restore cancelled
 machines; those are gone (`OPS-39`), and the tenant's balance and ledger are untouched throughout.
+
+**Resume MUST be refused while the tenant's `suspend_tenant` parent is unsettled** — `409`
+`conflict` with `details.reason: "suspension_in_flight"` (`WIR-9a`). `API-58` requires that parent
+to keep re-sweeping until a pass finds no un-cancelled machine, so clearing the flag under a live
+fan-out lets a machine the tenant legitimately created *after* the resume be discovered by the
+still-running sweep and cancelled — the tenant is un-suspended and its new machines die anyway,
+for a reason nothing in the record explains. **The parent operation's own state is the fence**, so
+no generation counter is introduced — the record that says whether the fan-out is still running
+already exists. The operator retries the resume once
+that operation settles, which it does without assistance — `API-58` forbids it ending in
+`needs_reconciliation` or requiring an operator — and follows it through
+`GET /v1/operations` (`WIR-39` returns its id).
 
 **WIR-14** `POST /v1/deposits` (`API-43`, `API-44`) — body: `{"amount_sats": 250000}`.
 Response `200`:
@@ -558,11 +570,15 @@ rescue-based install is a property of the **offer**, because an auction listing 
 product at the same provider can differ on it. The fixture above is a cloud VPS, which is why it
 omits `rootfs_via_rescue`: no cloud product in the reference set offers one
 (`08-provider-notes.md`). An install naming a strategy absent from its
-machine's offer MUST be rejected as `invalid_request` before the operation is enqueued, exactly
-as an invalid pairing is. The list MUST be present on every offer; an empty list means no install
-is available for that offer. The machine's offer is the one recorded in its `offer_id`
-(`05-persistence.md`); an **adopted** machine has none, and its permitted strategies are gated by
-the provider account's declared capabilities (`DOM-10`) alone.
+machine's recorded list MUST be rejected as `invalid_request` before the operation is enqueued,
+exactly as an invalid pairing is. The list MUST be present on every offer; an empty list means no
+install is available for that offer. **The gate reads the copy the machine took at create —
+`machines.install_strategies` (`05-persistence.md`) — not the offer as it stands at install time**,
+because an offer is a live listing that can change or disappear between the two, and re-resolving
+it either fails an install on a machine that is running and paid for or answers from terms its
+owner never bought. `offer_id` remains the provenance record of which offer that copy came from.
+An **adopted** machine has no offer and therefore no copied list, and its permitted strategies are
+gated by the provider account's declared capabilities (`DOM-10`) alone.
 
 `max_rate_outage_seconds` is `LDG-64`'s bound, disclosed before purchase because past it a
 machine is cancelled regardless of its runway. Prices are integers of satoshis, already margined by

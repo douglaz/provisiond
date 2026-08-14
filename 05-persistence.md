@@ -67,12 +67,13 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `external_id` | text | not null |
 | `name` | text | not null |
 | `kind` | enum | `virtual` \| `bare_metal` |
-| `offer_id` | text | nullable; the offer this machine was created from, retained so the install gate can read that offer's `install_strategies` (`DOM-13`, `WIR-30`). Null for adopted machines, which came from no offer |
+| `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null for adopted machines, which came from no offer |
+| `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) and never re-resolved afterwards. An empty list means the offer permitted no install; null means there was no offer — the adopted case, where `DOM-10`'s account capabilities gate alone |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
 | `metadata` | json | redacted (`DOM-6`) |
-| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). Nullable for adopted machines. *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
+| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**, which on a requeued create is the attempt that produced it. Nullable for adopted machines. *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `reserve_sats` | integer | the currently held reserve |
@@ -87,11 +88,17 @@ Constraints: unique `(tenant_id, provider_account, external_id)`; index on
 `(tenant_id, updated_at desc)`; index on `(correlator_value)` for reconciliation lookup (`OPS-27`);
 index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
 
-**`offer_id` is what the offer-level install gate evaluates against.** `DOM-13` and `WIR-30` gate
-an install strategy on the **offer's** `install_strategies`, which is unreachable at install time
-unless the machine records the offer it was created from. An **adopted** machine came from no
-offer: its `offer_id` is null, and its permitted strategies fall back to the provider account's
-declared capabilities (`DOM-10`) alone.
+**The install gate evaluates the machine's own copy, not the offer.** `DOM-13` and `WIR-30` gate
+an install strategy on the **offer's** `install_strategies`, and the machine records that list at
+create, in the same write that records `offer_id`. **The gate MUST read `machines.install_strategies`
+and MUST NOT re-resolve the offer at install time.** An offer is a live provider listing (`DOM-9`,
+`WIR-30`) — it can be re-priced, withdrawn, or have its terms changed between create and install —
+so resolving eligibility through `offer_id` then either fails for a machine that is running and
+paid for, or silently answers from terms the customer never bought. Eligibility was decided when
+the machine was created; the copy is what makes that decision durable. `offer_id` is kept for
+provenance and MUST NOT be repurposed as the gate's input. An **adopted** machine came from no
+offer: its `offer_id` and its `install_strategies` are both null, and its permitted strategies fall
+back to the provider account's declared capabilities (`DOM-10`) alone.
 
 **STO-17** `(provider_account, external_id)` MUST additionally be unique **across all tenants**,
 not merely within one. `SEC-10` and `CNF-6` require that a provider machine belong to at most one
@@ -140,7 +147,7 @@ deleted rows.
 | `status` | enum | see `03-operation-lifecycle.md` |
 | `machine_id` | UUID | nullable; set on completion for create |
 | `provider_account` | text | nullable |
-| `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create |
+| `correlator_kind`, `correlator_value` | text, json | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). `correlator_value` is a **list, one entry per attempt in attempt order**, because an `OPS-20` requeue places a second order carrying its own per-order artifact; a requeue **appends**, and an entry is never removed or overwritten (`PRV-26`). Each entry is written **before** its own provider call, like `provider_account` (`OPS-35`), and the column is null for every operation kind other than create |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
 | `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers (`OPS-13`) |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
@@ -153,7 +160,7 @@ deleted rows.
 | `pending_fee_native_minor`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee in the **provider's** currency (`LDG-2`) |
 | `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. All three are cleared on resolution, and on an operator requeue, whose fresh attempt carries its own fee (`LDG-67`) |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
-| `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`), `rate_outage_bound` (`LDG-64`) |
+| `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`'s per-machine cancellations, never the caller's own queued work that the same fan-out fails: that keeps `requested_by = caller`, a null `system_reason`, and carries the reason in `error`), `rate_outage_bound` (`LDG-64`) |
 | `system_trigger_id` | text | nullable; a **convenience copy** of `OPS-39`'s durable episode identifier, carried for querying and for requeue under an existing id. A `(machine_id, system_reason, system_trigger_id)` constraint here is a redundant guard, never the enforcing one — `STO-14` deletes these rows and takes it with them. The enforcing uniqueness is on `machines.system_trigger_ids` |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
