@@ -365,7 +365,8 @@ billable machines including `cancellation_scheduled`, and is `null` when there a
 
 `ssh_public_keys` MUST be non-empty (`PRV-8`, `API-13`). `acknowledge_purchase` MUST be literal
 `true` (`API-15`, `PRV-10`). `image` (nullable, a catalog identifier), `user_data` (nullable,
-≤1 MiB, `API-13`) and `labels` (string→string, reserved keys per `DOM-6`) are the create inputs
+≤1 MiB, `API-13`) and `labels` (string→string; the correlator's reserved key is the driver's, `PRV-26`, and a caller
+label colliding with it MUST be rejected, `OPS-38`) are the create inputs
 the other requirements accept and this body previously omitted — under `WIR-2` a conforming server
 would otherwise reject them. `runway_seconds` is `PRV-13d`'s caller-chosen runway; a value **below**
 the wind-down floor MUST be **rejected** `invalid_request` with `details.min_runway_seconds`, never

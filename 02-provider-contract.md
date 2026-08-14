@@ -395,7 +395,10 @@ ambiguous create to a human.
 
 Three constraints on what is written:
 
-- **It MUST be opaque.** The operation UUID and nothing else. It MUST NOT encode the tenant, a
+- **It MUST be opaque and unique per operation.** The operation UUID where the provider offers a
+  free caller-controlled field; where it does not, a per-operation artifact durably bound to the
+  operation before the order is sent (`PRV-32`'s SSH key fingerprint is the live case), recorded
+  in `operations.correlator`. Nothing else. It MUST NOT encode the tenant, a
   customer identifier, a hostname the customer chose, or anything else linkable to a person
   (`ADR-0005`). Anyone reading the operator's provider console sees a UUID.
 - **It MUST be written in the same request that performs the mutation**, never as a follow-up

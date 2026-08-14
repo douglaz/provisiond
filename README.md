@@ -75,7 +75,8 @@ before treating a checklist tick as assurance.
 - **Provider facts carry explicit markers** — `[design]`, `[observed]`, `[verify]` — in
   `08-provider-notes.md`. Treat `[verify]` as unverified, because it is.
 - **Requirements are reversed in place when they turn out wrong, and the reversals are recorded**
-  where they happened rather than tidied away: `DOM-1a`, `PRV-13c`, `OVR-10`.
+  where they happened rather than tidied away: `DOM-1a`, `PRV-13c` and `OVR-10` were the first three; there have been many since, and the
+  amendment markers in place are the record.
 
 That last point cuts the opposite way to how it reads. Recorded corrections mark where a review
 happened to collide with the text — they are not evidence that errors get caught. **The honest

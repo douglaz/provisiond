@@ -131,12 +131,13 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 3. validate the idempotency key;
 4. authorize the target resource against the tenant;
 5. deserialize and validate the body;
-2a. reject with `suspended` if the tenant is suspended and the endpoint is not a maintenance
-    action — checked **after** step 2's replay lookup would have matched, so a replayed write
-    from before the suspension returns its stored result rather than a spurious rejection;
 5a. **compute the request fingerprint and check it** (`WIR-3`): an equal fingerprint under the
     same `(tenant, key)` returns the stored result, a different one fails `conflict`. This step
-    needs the parsed body, which is why it cannot live at step 3.
+    needs the parsed body, which is why it cannot live at step 3;
+5b. **reject with `suspended`** if the tenant is suspended and this is not a maintenance action
+    (`API-58`, `DOM-20`). It sits *after* 5a deliberately: a write replayed from before the
+    suspension must return its stored result rather than a spurious rejection, and only the
+    fingerprint check can tell a replay from a new write.
 
 The tail then depends on what the endpoint does:
 
@@ -229,7 +230,8 @@ through
 `POST /v1/deposits/{id}/actions/attribute` (operator-only, `WIR-42`) — a real endpoint, because
 "the operator surface" with no route is the gap this loop has now found four times.
 
-**The limitation MUST be disclosed at mint** (`WIR-14`) in those terms: recovery requires
+**The limitation MUST be disclosed at mint** — `WIR-14`'s `orphan_recovery_is_operator_only`
+entry is that disclosure, and it says in those terms: recovery requires
 contacting the operator and is not self-serve, because `ADR-0005` leaves the system no way to tell
 a returning customer from someone who observed a deposit identifier. Calling the credit
 "re-attributable" without saying that implies a self-serve flow that cannot exist.
@@ -317,8 +319,9 @@ able to revoke a stolen credential (`API-56`, `CNF-209`) — then (2)
 **fences work already in flight** — a create claimed before the suspension landed MUST be allowed
 to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
-then (3) enqueues a system cancellation per machine (`OPS-39`), then (4) aggregates their
-outcomes,
+then (3) enqueues a system cancellation per machine (`OPS-39`) — **the suspension flag and the
+full fan-out MUST commit together, or a crash mid-fan-out leaves a suspended tenant with machines
+nobody will ever cancel and no write path left to notice** — then (4) aggregates their outcomes,
 including any that end `needs_reconciliation`. Reads of the ledger and machine list MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
 it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to

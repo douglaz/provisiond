@@ -209,7 +209,10 @@ submitting. An implementation MAY offer a two-pass mode (download to scratch, ve
 then write) for hosts with sufficient scratch space, and if it does, that mode SHOULD be
 the default.
 
-**RSC-31** Optional post-write partition growth MUST be one-based and MUST reject zero.
+**RSC-31** **AMENDED.** Optional post-write growth applies to the **final** partition and is
+requested by the boolean `grow_partition` (`WIR-20`). *The withdrawn one-based-index form has no
+wire representation and never had one; growing anything but the last partition is not a thing the
+installer can do.*
 It MUST be best-effort and MUST NOT fail the operation if the growth tool is absent.
 
 **RSC-32** After writing, buffers MUST be flushed and the partition table re-read before

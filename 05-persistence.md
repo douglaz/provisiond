@@ -14,6 +14,8 @@ insert-if-absent, or take-over-if-expired, or no-op-if-held-by-another (`OPS-9`)
 
 **STO-3** **AMENDED.** Every settled-state write **made by a worker** MUST be guarded on
 `(id, status = running, claimant = me)` and MUST report whether it affected a row (`OPS-22`).
+**Entry *into* `needs_reconciliation` is a worker write** and carries `STO-3`'s ordinary
+`(id, status = running, claimant = me)` guard; only the transitions *out* of it are not.
 **Resolution transitions out of `needs_reconciliation` are not worker writes** (`OPS-3`): they are
 guarded instead on `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s
 write-once rule expressed as the same kind of conditional write. *Unscoped, this requirement
@@ -203,7 +205,7 @@ an environment variable (`API-4` as amended).
 | `id` | text | primary key; opaque, no personal data (`ADR-0005`) |
 | `credential_digest` | text | not null; the **spending token** hash, never the credential itself (`API-3`). Replaced in place by `WIR-38` |
 | `recovery_digest` | text | not null; the **recovery credential** hash (`API-55`). Minted with the row and never replaced by a spending-token revocation |
-| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no write but retains ledger and machine reads) |
+| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger and machine reads, and retains the maintenance actions of `API-7` step 2) |
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
 
@@ -385,8 +387,8 @@ running instance of the previous version, or startup MUST take an exclusive lock
 
 ## Retention and encryption
 
-**STO-14** A retention job MUST remove terminal operations older than a configured age,
-excluding `needs_reconciliation` (`OPS-25`).
+**STO-14** A retention job MUST remove **settled** operations older than a configured age;
+`needs_reconciliation` is not settled (`OPS-3`) and is excluded (`OPS-25`).
 
 **STO-24** Retention MUST NOT reach `ledger_entries` (`LDG-22`). A financial record outlives the
 request that caused it; it contains no caller secrets to purge only because `LDG-21` kept them

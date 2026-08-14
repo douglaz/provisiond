@@ -564,7 +564,7 @@ Applies only to deployments using the admin-plus-override proxy pattern.
 
 ## Reconciliation and correlators
 
-- [ ] **CNF-82** A create writes the operation id into the provider's caller-controlled field
+- [ ] **CNF-82** A create writes its correlator into the provider — the operation id where a free field exists, otherwise the per-operation artifact `PRV-32` defines — and records it against the operation before the order is sent
       **in the same request that performs the mutation** — verified against a recorded provider
       request, not against a follow-up call. (`PRV-26`)
 - [ ] **CNF-83** The correlator carries no tenant identifier, customer-chosen hostname, or other
@@ -825,7 +825,8 @@ rather than acquiring a default.
 - [ ] **CNF-203** A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
 - [ ] **CNF-204** A pending tenant cannot defer its own reaping: a deposit minted late in the
-      signup window expires no later than the signup itself. (`API-34`)
+      signup window expires early enough that its **finality window** also closes before the
+      signup does (`API-34`), not merely by the signup instant. (`API-34`)
 - [ ] **CNF-205** **WITHDRAWN — duplicate of `CNF-198`**, which already tests the widened meter
       key and the attachment collision. `CNF-198` absorbs the one thing this added: assert that
       `LDG-8` and `LDG-38` state the *same* key, since they disagreed for a full pass.

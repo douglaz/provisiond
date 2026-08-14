@@ -61,8 +61,9 @@ _Avoid_: import, register, claim
 
 **Operation**:
 The durable record of one requested mutation, with an explicit settled state — or the
-resolution-pending `needs_reconciliation`. The central
-entity: every write creates one, and the API returns it rather than a result.
+resolution-pending `needs_reconciliation`. The central entity: every write that reaches a provider creates one, and the API returns it
+rather than a result. *A small closed set of local-only writes is synchronous instead
+(`API-48`).*
 _Avoid_: job, task, request, action
 
 **needs_reconciliation**:
@@ -90,7 +91,9 @@ satoshi (`ADR-0003`, `ADR-0004`).
 _Avoid_: wallet, account, deposit, funds, credit line
 
 **Top-up**:
-A customer payment that increases a balance. The only way a balance goes up.
+A customer payment that increases a balance — the ordinary way one goes up. *An operator
+attribution of an orphaned deposit (`WIR-42`) also credits, as a `correction` naming the entry it
+moves; it re-homes an existing credit rather than creating one.*
 _Avoid_: deposit, funding, recharge, payment
 
 **Deposit**:

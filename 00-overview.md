@@ -33,10 +33,10 @@ MUST NOT be tied to the lifetime of an HTTP connection.
 
 **OVR-5** **AMENDED.** *Uncertainty is a first-class state, not an error.* When the system
 cannot determine whether a provider mutation took effect, the operation MUST enter a distinct
-**resolution-pending** state (`OPS-3`) that requires evidence or human inspection to leave. **The
-mutation MUST NOT be retried automatically**; automatic *resolution* by correlator search
-(`OPS-27`) is not a retry and is expressly permitted — it establishes what happened rather than
-doing it again. *"Terminal" was withdrawn 2026-08-13: the state settles to
+**resolution-pending** state (`OPS-3`) that requires evidence or human inspection to leave. **The mutation MUST NOT be retried automatically, and no timer may clear the state**; automatic
+*resolution* by correlator search (`OPS-27`) is expressly permitted and required — it establishes
+what happened rather than doing it again, and forbidding it would strand every automatically
+resolvable operation on an operator's desk. *"Terminal" was withdrawn 2026-08-13: the state settles to
 `succeeded` or `failed` on resolution, and calling it terminal forbade the very transitions
 `OPS-27` and `OPS-31` mandate. What was load-bearing about the word survives intact — nothing
 automatic and nothing caller-driven moves it.*

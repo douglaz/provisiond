@@ -246,11 +246,15 @@ run — a deployment that meters every minute charges more than one that meters 
 identical consumption. The rule is therefore:
 
 ```
-posted_debit = ceil(cumulative_exact_charge) − Σ(previous debits for this SUBJECT and period)
+posted_debit = ceil(cumulative_exact_charge)
+              − Σ(previous debits for this SUBJECT and period)
+              − Σ(amounts already carried as operator deficiencies for it, LDG-66)
 ```
 
-with the exact charge carried as a rational (`LDG-4`). **The cumulative sum and the insert MUST
-occur in one serialized transaction** (`LDG-35`): computing the sum outside it lets two concurrent
+with the exact charge carried as a rational (`LDG-4`). **An increment whose end instant is at or before the subject's high-water mark MUST be
+discarded, not posted** — a re-meter after restart re-observes elapsed time it has already
+charged, and without the mark the deduplication key protects only exact replays, not overlapping
+ones. **The cumulative sum and the insert MUST occur in one serialized transaction** (`LDG-35`): computing the sum outside it lets two concurrent
 runs both read the same prior total and both post. **Observation cadence is an operational
 choice; it MUST NOT be a pricing input.**
 
@@ -347,7 +351,8 @@ usage cannot be converted to satoshis. A deployment MUST:
   posted** — a customer would be billed for hours at a price that did not exist while it was
   consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
   against because the commitment was already open;
-- **persist the outage's start instant and its deadline**, so a restart mid-outage does not reset
+- **persist the outage's start instant and the exact computed deadline** (not the duration, which
+  a restart would re-apply from a fresh start), so a restart mid-outage does not reset
   the clock and quietly extend the exposure past the bound — the deficiency record (`STO-37`) is
   where they live;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,

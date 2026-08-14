@@ -64,9 +64,11 @@ provider-side `external_id`.
 | `metadata` | Redacted provider payload, for operator debugging |
 | `created_at`, `updated_at` | Timestamps |
 
-**DOM-4** `(tenant_id, provider_account, external_id)` MUST be unique. Note that this
-does *not* prevent two tenants from mapping the same external machine; preventing that
-is an authorization concern, see `SEC-6`.
+**DOM-4** **AMENDED.** `(provider_account, external_id)` MUST be unique **across all tenants**
+(`STO-17`) — not merely within one. *The original added `tenant_id` to the key and then observed
+that this "does not prevent two tenants from mapping the same external machine"; `F15` established
+that permitting it lets each tenant destroy the other's server, so `STO-17` closed it and this
+requirement was left stating the hole.*
 
 **DOM-5** Clients MUST address machines only by internal UUID. `external_id` MUST NOT
 appear in a URL path constructed by the client.
@@ -282,7 +284,7 @@ suggests the write was lost and invites a re-send. `gone` says the opposite: it 
 reached a terminal state, and the record aged out; the safe reaction is to consult the machine
 list and balance, never to re-issue.
 
-**DOM-20** The three rows above were added on 2026-08-12. `DOM-17`'s set is closed and `API-24`
+**DOM-20** The rows above marked 2026-08-12 or later were added after the fact. `DOM-17`'s set is closed and `API-24`
 forbids a handler choosing a status independently, so before they existed **four BLOCKING
 conformance items asserted a rejection this taxonomy could not express** — `CNF-95` (insufficient
 balance), `CNF-78` (tenant still pending), `CNF-69` (ceiling), `CNF-101` (solvency halt) — and

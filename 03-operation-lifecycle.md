@@ -11,8 +11,8 @@ way to tell "the order did not happen" from "the order happened and I lost the r
 and a control plane that retries on failure will eventually buy two servers.
 
 So every write becomes a durable record with an explicit settled state — plus a third state,
-*I do not know*, which is resolution-pending rather than terminal (`OPS-3`): nothing automatic
-leaves it.
+*I do not know*, which is resolution-pending rather than terminal (`OPS-3`): no retry and no
+timer leaves it, though evidence does (`OPS-27`).
 
 **OPS-1** Every mutating request MUST create or return a durable operation record before
 any provider call is made, and MUST respond `202 Accepted` with that record.
@@ -276,8 +276,10 @@ re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring th
 `max_commitment_sats` cap the original create may have set. That is precisely the surface
 `ADR-0011` abolished, reappearing through reconciliation.
 
-The machine is attached, and the cancel is funded **to the wind-down floor from available balance
-if it is there, and from an operator deficiency (`LDG-66`) if it is not** — the branch's own
+The machine is attached. Where available balance covers the wind-down floor, a commitment of that
+size is opened; **where it does not, no commitment is opened at all** and the wind-down is carried
+as an operator deficiency (`LDG-66`) — a commitment the balance cannot fund is not a commitment,
+and `LDG-10` forbids pretending otherwise — the branch's own
 premise is that the tenant spent the balance, so on the common input available is *below* the
 floor and `LDG-10` forbids driving it negative. Naming only the commitment left a builder choosing
 between two MUSTs with no rule for the remainder. The machine is then routed into exhaustion
@@ -466,9 +468,9 @@ of the service, or edited in the store. Validation is cheap; a wrong install is 
 strategy SHOULD provide per-tenant fairness, and the API layer SHOULD rate-limit
 enqueues per tenant.
 
-**OPS-25** The operation log grows without bound. A retention policy MUST exist: terminal
-operations older than a configured age are archived or deleted, except those in
-`needs_reconciliation`, which MUST be retained until an operator resolves them.
+**OPS-25** The operation log grows without bound. A retention policy MUST exist: settled
+operations older than a configured age are archived or deleted, and operations in
+`needs_reconciliation` (which is not settled, `OPS-3`), which MUST be retained until an operator resolves them.
 
 **OPS-26** Operators MUST be able to enumerate operations by status through the API —
 specifically every operation in `needs_reconciliation` (`API-23`). A design that tells
