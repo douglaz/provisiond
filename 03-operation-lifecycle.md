@@ -155,7 +155,7 @@ This is `OVR-5` made concrete.
 | Operation | Classification rule |
 |---|---|
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
-| suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. **A child that settles `needs_reconciliation` counts as complete for the parent** — it has reached a state only evidence or an operator moves, and holding the parent open on it would leave every suspended tenant's record permanently unfinished: it is a parent whose per-machine children carry their own outcomes (`WIR-39`). It settles `succeeded` once every child has settled, **including children that settled `needs_reconciliation`** — an unresolved child is a child-level fact, and blocking the parent on it would leave a suspended tenant's record permanently open. |
+| suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. It is a parent whose per-machine children carry their own outcomes (`WIR-39`), and it settles `succeeded` once every child has either settled or **reached `needs_reconciliation`** — a child that reached that state counts as complete for the parent. `needs_reconciliation` is not itself settled (`OPS-3`); it is a state only evidence or an operator moves, so an unresolved child is a child-level fact, and blocking the parent on it would leave every suspended tenant's record permanently open. |
 | preflight | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
@@ -287,18 +287,18 @@ re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring th
 The machine is attached. Where available balance covers the wind-down floor, a commitment of that
 size is opened; **where it does not, no commitment is opened at all** and the wind-down is carried
 as an operator deficiency (`LDG-66`) — a commitment the balance cannot fund is not a commitment,
-and `LDG-10` forbids pretending otherwise — the branch's own
+and `LDG-10` forbids pretending otherwise. The branch's own
 premise is that the tenant spent the balance, so on the common input available is *below* the
 floor and `LDG-10` forbids driving it negative. Naming only the commitment left a builder choosing
 between two MUSTs with no rule for the remainder. The machine is then routed into exhaustion
 immediately (`requested_by: system`,
-`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may `extend-runway` (`LDG-62`) against the attached machine. **Where the branch opened
-no commitment**, `LDG-62` **creates** one at the extension's size rather than growing an absent
-record — otherwise the survival path this sentence promises is unreachable for exactly the broke
-tenant the branch is about. before the exhaustion sweep reaches it,
-which is an explicit, capped, idempotent authorization rather than an inference about what it
-would have wanted. **This is the branch that makes `OPS-33`'s early release safe**, and without it
-that release was a hole rather than a decision.
+`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may
+`extend-runway` (`LDG-62`) against the attached machine **before the exhaustion sweep reaches
+it**, which is an explicit, capped, idempotent authorization rather than an inference about what
+it would have wanted. **Where the branch opened no commitment**, `LDG-62` **creates** one at the
+extension's size rather than growing an absent record — otherwise the survival path is
+unreachable for exactly the broke tenant this branch is about. **This is the branch that makes
+`OPS-33`'s early release safe**, and without it that release was a hole rather than a decision.
 
 **OPS-37** **The last row applies to the commitment exactly as `OPS-33` does.** An earlier version
 said an unresolved outcome leaves the money "frozen" while `OPS-33` said it MUST be released —

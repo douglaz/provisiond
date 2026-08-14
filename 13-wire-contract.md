@@ -254,9 +254,15 @@ observes activation (`API-52`).
 
 **WIR-38** `POST /v1/recovery/revoke` — authenticated by the **recovery credential**, never by the
 spending token (`API-56`). Body `{}`; response `200` with a fresh
-`{"spending_token": "pvd_s_9Rn4pYcX2vT7kM1qZbD5wH8eJ3gL6fA0sN2xB7uV", "revoked_at": "2026-08-14T09:12:00Z"}`. Synchronous — a pure credential action with no
+`{"spending_token": "pvd_s_9Rn4pYcX2vT7kM1qZbD5wH8eJ3gL6fA0sN2xB7uV", "credential_generation": 7, "revoked_at": "2026-08-14T09:12:00Z"}`. Synchronous — a pure credential action with no
 provider mutation — and added to `API-48`'s list on that basis. The tenant, its machines, its
 balance and its commitments are untouched.
+
+**`credential_generation` is the tenant's generation after this revocation** (`API-56`,
+`05-persistence.md`), and it is not decoration: revocations are serialized, so a second one
+invalidates the token the first minted, and a delayed first response would otherwise hand its
+caller a dead token it cannot distinguish from a live one. A caller that sees a generation higher
+than its own token's MUST re-revoke rather than use that token.
 
 **WIR-39** `POST /v1/tenants/{tenant_id}/actions/suspend` — **operator-only** (`WIR-34`),
 `{"acknowledge_destruction": true}`, since it cancels the tenant's fleet (`API-58`, `SEC-45`).

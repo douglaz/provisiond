@@ -115,6 +115,9 @@ authorization a create or an adopt receives (`ADR-0002`, `API-17b`).
 **LDG-31** **AMENDED — every debit against a machine, not only consumption.** Posting **any**
 debit attributable to a machine **with an open commitment** — `usage_debit`, `setup_fee_debit`,
 `operation_fee_debit` — MUST decrement that commitment by the same amount, in one transaction.
+**The one exception is `LDG-39`'s late setup fee**: where the create's own commitment was already
+released by `OPS-33`, the fee is debited without a decrement, and a wind-down commitment `OPS-36`
+opened afterwards is a different operation's authority and is not what it pairs with.
 
 *The withdrawn text said "consumption", and `LDG-38` named only `usage_debit`. `PRV-13b` puts the
 setup fee **inside** the commitment while `LDG-39` debits it, so on the ordinary funded dedicated
@@ -246,18 +249,27 @@ run — a deployment that meters every minute charges more than one that meters 
 identical consumption. The rule is therefore:
 
 ```
-posted_debit = ceil(cumulative_exact_charge)
-              − Σ(previous **usage** debits for this SUBJECT and period)
-              − Σ(deficiency-absorbed time for it, converted at the rate recorded
-                  on each deficiency record, LDG-66)
+billable_seconds = elapsed billable time for this SUBJECT and period
+                 − Σ(absorbed_seconds on its deficiency records, LDG-66)
+
+posted_debit     = ceil(cumulative_exact_charge over billable_seconds)
+                 − Σ(previous **usage** debits for this SUBJECT and period)
 ```
 
-with the exact charge carried as a rational (`LDG-4`). **An increment whose end instant is at or before the subject's high-water mark MUST be
-discarded, not posted** — a re-meter after restart re-observes elapsed time it has already
-charged, and without the mark the deduplication key protects only exact replays, not overlapping
-ones. **The cumulative sum and the insert MUST occur in one serialized transaction** (`LDG-35`): computing the sum outside it lets two concurrent
-runs both read the same prior total and both post. **Observation cadence is an operational
-choice; it MUST NOT be a pricing input.**
+with the exact charge carried as a rational (`LDG-4`). **Deficiency-absorbed time is subtracted in
+seconds, before conversion — never as a satoshi amount.** An outage deficiency accrues precisely
+while no rate exists (`LDG-64`), so there is no rate at which it could be converted; removing the
+time it absorbed needs none, and the units never mix.
+
+**The subject's high-water mark is the greatest `increment end` already posted for it** — derived
+by reading its own `usage_debit` rows, whose idempotency key carries that instant (`LDG-8`). It is
+a query over the ledger, not a stored column, and this requirement adds no schema. **An increment
+whose end instant is at or before that mark MUST be discarded, not posted** — a re-meter after
+restart re-observes elapsed time it has already charged, and without the mark the deduplication key
+protects only exact replays, not overlapping ones. **The mark, the cumulative sum and the insert
+MUST occur in one serialized transaction** (`LDG-35`): computing them outside it lets two
+concurrent runs both read the same prior total and both post. **Observation cadence is an
+operational choice; it MUST NOT be a pricing input.**
 
 **`LDG-8` owns the key**; this requirement does not restate it. *A restatement here said `(subject, billing period, kind, posting index)` — the form `LDG-8` withdrew as unable to deduplicate — which is the duplication habit this set keeps paying for.*
 
@@ -272,7 +284,7 @@ unstated:
 | Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
 | Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
 | Ambiguous — `needs_reconciliation` | **Remains reserved in the commitment**, and is *additionally* recorded as a pending fee obligation on the operation (`LDG-67`). The record exists because `OPS-33` releases the commitment in full at the negative window while the operation stays open — so the obligation must survive that release, not replace the reservation before it |
-| Resolved *observed* (`OPS-27`) | **Debited — and the source depends on whether the commitment is still open.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. Once the window has elapsed and `OPS-33` has closed it, the fee is debited from available balance **without a commitment decrement**, which is the one debit `LDG-31`'s pairing rule does not cover — there is no commitment left to pair with. Any shortfall is an operator deficiency (`LDG-66`). *Asserting one source was the defect: it double-counted the fee on early resolution, or invented a deficiency that did not exist* |
+| Resolved *observed* (`OPS-27`) | **Debited — and the source depends on whether the commitment is still open.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. Once the window has elapsed and `OPS-33` has closed it, the fee is debited from available balance **without a commitment decrement**, which is the one debit `LDG-31`'s pairing rule does not cover — there is no commitment left **for this create** to pair with. Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. Any shortfall is an operator deficiency (`LDG-66`). *Asserting one source was the defect: it double-counted the fee on early resolution, or invented a deficiency that did not exist* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider |
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
@@ -353,12 +365,16 @@ usage cannot be converted to satoshis. A deployment MUST:
   consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
   against because the commitment was already open;
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
-  a restart would re-apply from a fresh start). **The deficiency record carries no rate during an
-  outage** — there is none — so its `rate_num`/`rate_den` are null until a rate returns, at which
-  point the record is stamped with the first rate available and becomes subtractable by `LDG-38`;
-  an outage deficiency is never converted at a rate that did not exist while it accrued, so a restart mid-outage does not reset
-  the clock and quietly extend the exposure past the bound — the deficiency record (`STO-37`) is
-  where they live;
+  a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
+  and quietly extend the exposure past the bound. The deficiency record (`STO-37`) is where they
+  live;
+- **keep the outage deficiency native-only: it is never converted, at any later rate.** Its
+  `rate_num`/`rate_den` stay null for good (`LDG-66`), because there was no rate while it accrued
+  and stamping it with the first one to return would price those hours at a number that did not
+  exist during them — the retroactive bill this requirement exists to forbid. The meter still has
+  to know the window was paid for, and it does that in time rather than in satoshis: `LDG-38`
+  subtracts the **elapsed time** the deficiency absorbed (`absorbed_seconds`), which needs no rate
+  at any point;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,
   and **cancel machines at that bound** if no rate has returned. **The bound MUST be disclosed
   before purchase (`WIR-30`'s offer) and the live deadline exposed on the machine view as
@@ -375,11 +391,17 @@ wind-down shortfall and `LDG-39`'s unrecoverable setup fee —
 have nowhere legal to live — six sources, not the four an earlier draft counted. A deployment
 MUST persist them in a separate record (`STO-37`)
 carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), **the
-elapsed billable time it absorbed and the rate in force when it was opened** (`LDG-4`) — without
-those two the meter cannot subtract it from a satoshi equation without mixing units — the cause,
-and an idempotency key; they MUST feed provider payables in the solvency check (`LDG-17`) and MUST
-NOT alter any tenant balance. **Nothing here is billable to a customer** — that is the whole point
-of calling it the operator's.
+elapsed billable time it absorbed** — without which the meter cannot remove that window from the
+charge at all (`LDG-38` subtracts it in seconds) — the cause, and an idempotency key; they MUST
+feed provider payables in the solvency check (`LDG-17`) and MUST NOT alter any tenant balance.
+**Nothing here is billable to a customer** — that is the whole point of calling it the operator's.
+
+**The rate is nullable and is required only for a cause that had one.** Where a rate existed when
+the deficiency was opened — the clamp overflow, the exception branch, an account loss, a wind-down
+shortfall, an unrecoverable setup fee — the record MUST carry it as `rate_num`/`rate_den` (`LDG-4`),
+because that is what the operator's loss was worth at the moment it was taken. A rate-outage
+deficiency (`LDG-64`) opens precisely when there is no rate, so it carries none, ever, and nothing
+in this specification converts it: `absorbed_seconds` alone is what the meter needs.
 
 **LDG-65** **The exhaustion sweep continues during an outage on the last derived
 `runway_until`** (`LDG-40` requires it keep running), which remains correct because `LDG-33`
@@ -534,16 +556,21 @@ row that `API-34`'s time-to-live could never reclaim.
 
 **LDG-67** **A pending fee obligation is a record, not an entry.** `LDG-39`'s ambiguous row parks
 the setup fee on the operation until resolution, and that needs a home: `operations` carries
-`pending_fee_native_minor` and `pending_fee_currency` (`STO`), in the provider's currency because
-the fee is not yet a satoshi obligation, It records the **satoshi amount authorized at create** alongside the native figure, so a late
-resolution debits what the customer actually authorized rather than a re-conversion at whatever
-the rate has since become. Cleared when the fee is debited (resolved-observed) or dropped
-(resolved-absent, deterministic rejection). **On `abandoned`
-(`OPS-31`) the fee is an operator deficiency** (`LDG-66`): the operator gave up establishing
-whether the order landed, and charging a customer for an outcome nobody established is not
-defensible. It moves no satoshis
-while it sits there, so it is not a `LDG-7` entry kind — the same reason `LDG-66`'s deficiencies
-are not.
+`pending_fee_native_minor` and `pending_fee_currency` (`05-persistence.md`), in the provider's
+currency because the fee is not yet a satoshi obligation. Alongside the native figure it carries
+`pending_fee_sats`, the **satoshi amount authorized at create**, so a late resolution debits what
+the customer actually authorized rather than a re-conversion at whatever the rate has since
+become.
+
+All three columns are cleared when the fee is debited (resolved-observed) or dropped
+(resolved-absent, deterministic rejection). **On `abandoned` (`OPS-31`) the fee is an operator
+deficiency** (`LDG-66`): the operator gave up establishing whether the order landed, and charging
+a customer for an outcome nobody established is not defensible. **On an operator requeue**
+(`OPS-3`'s `needs_reconciliation → queued`, `OPS-4`) **the parked fee is cleared and nothing is
+debited for it**: the requeue re-executes the order, and the fresh attempt commits and settles its
+own setup fee under `LDG-39`, so keeping the old obligation alive would bill one machine's setup
+twice. It moves no satoshis while it sits there, so it is not a `LDG-7` entry kind — the same
+reason `LDG-66`'s deficiencies are not.
 
 ## Pricing
 

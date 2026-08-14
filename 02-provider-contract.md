@@ -399,10 +399,13 @@ Three constraints on what is written:
 
 - **It MUST be opaque and unique per operation.** The operation UUID where the provider offers a
   free caller-controlled field; where it does not, a per-operation artifact durably bound to the
-  operation before the order is sent (`PRV-32`'s SSH key fingerprint is the live case), recorded
-  in `operations.correlator`. Nothing else. It MUST NOT encode the tenant, a
-  customer identifier, a hostname the customer chose, or anything else linkable to a person
-  (`ADR-0005`). Anyone reading the operator's provider console sees a UUID.
+  operation before the order is sent (`PRV-32`'s SSH key fingerprint is the live case). Nothing
+  else. Whichever it is, the kind and the value MUST be recorded on the operation row —
+  `operations.correlator_kind` and `operations.correlator_value` (`05-persistence.md`) — before
+  the order is sent, because a create whose reply was lost has no machine row to carry them and
+  reconciliation would otherwise have nothing durable to search for. It MUST NOT encode the
+  tenant, a customer identifier, a hostname the customer chose, or anything else linkable to a
+  person (`ADR-0005`). Anyone reading the operator's provider console sees an opaque token.
 - **It MUST be written in the same request that performs the mutation**, never as a follow-up
   call. A correlator applied afterwards is absent in exactly the case it exists for — the
   request whose reply was lost.

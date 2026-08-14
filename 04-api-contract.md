@@ -296,15 +296,28 @@ balance and its commitments untouched. **Rotation authorized by the token itself
 sufficient and MUST NOT be offered**: a thief holding the token would rotate first and lock the
 owner out permanently, converting credential theft into total loss of the tenant.
 
-Revocation MUST be **serialized per tenant** (`LDG-35`'s primitive), so two concurrent
-revocations under different keys cannot both mint a replacement and leave one silently dead. Each replacement MUST carry a **generation number** so a token minted by an earlier revocation
-cannot be resurrected by a replay of that earlier call. It MUST carry an idempotency key and MUST
-replace the token **at most once per key**
+Revocation MUST be **serialized per tenant** (`LDG-35`'s primitive), so two concurrent revocations
+under different keys cannot interleave into a state where neither replacement is the live one.
+**Serialization alone does not hand both callers a working token, and MUST NOT be described as if
+it did**: ordering two revocations means the second invalidates the token the first had just
+minted, so a delayed first response delivers a token that is already dead.
+
+**The generation number is what makes that detectable.** Each replacement MUST carry one — the
+tenant's `credential_generation`, incremented by every revocation (`05-persistence.md`) — and it
+MUST be returned to the caller in the revocation response (`WIR-38`). **A caller whose replacement
+token carries a generation lower than one it has since seen for that tenant MUST treat its token as
+dead and re-revoke with the recovery credential**, rather than assume the token works — a token
+that came from enrolment (`WIR-12`) is at the tenant's initial generation, so any revocation
+supersedes it. The generation also stops a token minted by an earlier revocation from being
+resurrected by a replay of that earlier call.
+
+Revocation MUST carry an idempotency key and MUST replace the token **at most once per key**
 (`STO-35`) — a replay returns `409` with `details.reason: "credential_already_replaced"` rather
 than re-returning the new token, because storing a replayable body would mean persisting a live
 bearer secret. This is a deliberate narrowing of `API-8`'s replay contract, and it is safe
-precisely because the recovery credential can always mint another replacement and MUST NOT be reachable while a tenant is `pending`
-before `issuable_at` — that window has no credential worth replacing.
+precisely because the recovery credential can always mint another replacement. **Revocation MUST
+NOT be reachable while a tenant is `pending`** before `issuable_at` — that window has no
+credential worth replacing.
 
 **API-57** **A tenant MUST be assigned at least one provider account, automatically, in the same
 transaction that activates it.** `API-17b` requires an explicit assignment and the provider views

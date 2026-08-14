@@ -71,7 +71,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
 | `metadata` | json | redacted (`DOM-6`) |
-| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). Nullable for adopted machines. *A single UUID column could not hold Robot's* |
+| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). Nullable for adopted machines. *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `reserve_sats` | integer | the currently held reserve |
@@ -82,7 +82,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `created_at`, `updated_at` | timestamp | |
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; index on
-`(tenant_id, updated_at desc)`; index on `(correlator)` for reconciliation lookup (`OPS-27`);
+`(tenant_id, updated_at desc)`; index on `(correlator_value)` for reconciliation lookup (`OPS-27`);
 index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
 
 **STO-17** `(provider_account, external_id)` MUST additionally be unique **across all tenants**,
@@ -132,6 +132,7 @@ deleted rows.
 | `status` | enum | see `03-operation-lifecycle.md` |
 | `machine_id` | UUID | nullable; set on completion for create |
 | `provider_account` | text | nullable |
+| `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
 | `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers (`OPS-13`) |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
@@ -142,7 +143,7 @@ deleted rows.
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
 | `pending_fee_native_minor`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee in the **provider's** currency (`LDG-2`) |
-| `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. Both cleared on resolution |
+| `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. All three are cleared on resolution, and on an operator requeue, whose fresh attempt carries its own fee (`LDG-67`) |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`), `rate_outage_bound` (`LDG-64`) |
 | `system_trigger_id` | text | nullable; `OPS-39`'s durable episode identifier. Unique with `(machine_id, system_reason)` — the constraint that stops a per-minute sweep enqueueing a fresh cancel every minute |
@@ -366,8 +367,11 @@ transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home
 returned an empty list to every customer forever.
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
-`currency`, `absorbed_seconds`, `rate_num`, `rate_den` (`LDG-66`: the rate in force when opened,
-so the meter can subtract it without mixing currencies), `outage_started_at`, `outage_deadline`
+`currency`, `absorbed_seconds` (the elapsed billable time absorbed, which is what `LDG-38`
+subtracts — in seconds, never converted), `rate_num`, `rate_den` (**nullable**; the rate in force
+when the record was opened, required only for a cause that had one and permanently null for a
+rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`),
+`outage_started_at`, `outage_deadline`
 (`LDG-64`, both persisted so a restart cannot re-apply the bound from a fresh start),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s wind-down shortfall) | `unrecoverable_setup_fee` (`LDG-39`)),
