@@ -21,7 +21,7 @@
 | GET | `/v1/operations/{id}` | ✓ | Poll one operation |
 | POST | `/v1/operations/{id}/actions/requeue` | | Operator requeue |
 | POST | `/v1/enrol` | ✓ | Create a pending tenant, return a handle (`API-32`) |
-| GET | `/v1/enrol/{handle}` | ✓ | Collect the credential once the delay elapses (`API-33`) |
+| GET | `/v1/enrol/{handle}` | ✓ | Enrolment **status only**; never returns a credential (`API-33`, `WIR-13`) |
 | POST | `/v1/deposits` | ✓ | Mint a deposit: amount, expiry, both destinations (`API-43`) |
 | GET | `/v1/deposits/{id}` | ✓ | Read one deposit |
 | GET | `/v1/balance` | ✓ | Balance, available, and open commitments (`API-47`) |
@@ -43,7 +43,7 @@ to contradict `API-1` on its own.
 rejected before enqueue return their mapped error status (`API-24`) — `400`, `401`, `404`,
 `409` and `501` are all reachable on write endpoints.
 
-**API-2** **AMENDED.** `{id}` in a machine or operation path is always an internal UUID; a
+**API-2** **AMENDED.** `{id}` in a machine, operation or deposit path is always an internal UUID; a
 `{tenant_id}` component follows `DOM-1`'s grammar instead, which is wider than a UUID (`agent-7`
 is valid). The original said "always", which a strict router applies to `/v1/tenants/{tenant_id}`
 and rejects every valid tenant. A provider-side identifier MUST
@@ -300,7 +300,9 @@ durably (`STO-34`). **It cannot be an operator step**: `ADR-0002` chose self-ser
 an agent enrolling at 3am has no human to wait for.
 
 **API-58** **A funded tenant MUST be suspended, never deleted.** Suspension is an operator action
-that (1) marks the tenant `suspended` atomically so no further write is authorized, then (2)
+that (1) marks the tenant `suspended` atomically so no further **tenant-authorized** write succeeds —
+the maintenance actions of `API-7` step 2 remain reachable, because a suspended owner must still be
+able to revoke a stolen credential (`API-56`, `CNF-209`) — then (2)
 enqueues a system cancellation per machine (`OPS-39`), then (3) aggregates their outcomes,
 including any that end `needs_reconciliation`. Reads of the ledger and machine list MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
@@ -388,6 +390,9 @@ Both exemptions have the same justification: **neither causes a provider mutatio
 needs a durable operation, and `operations.tenant_id` cannot name a tenant that does not exist yet
 (enrolment). Any endpoint added later that *does* touch a provider MUST obey `API-1`; this list is
 closed, not a pattern.
+
+**AMENDED (2026-08-14): `POST /v1/deposits/{id}/actions/attribute` also joins** (`WIR-42`) — it
+posts a ledger entry and touches no provider.
 
 **AMENDED (2026-08-13, second time): `POST /v1/tenants/{tenant_id}/actions/resume` also joins**
 (`WIR-41`) — it clears a flag and touches no provider. Suspension does **not**: it cancels a

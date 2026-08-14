@@ -313,8 +313,12 @@ that nothing exists does not authorize creating it; that is a new decision by th
 new purchase.
 
 **OPS-39** **AMENDED — deduplicated, and never blocked by a caller's ceiling.** Each triggering
-episode MUST mint a durable `system_trigger_id` (`operations.system_trigger_id`, `STO`), and
-`(machine_id, system_reason, system_trigger_id)` MUST be unique at the storage layer — otherwise a sweep that runs every minute enqueues a fresh
+episode MUST mint **one** durable `system_trigger_id` (`operations.system_trigger_id`, `STO`) and
+**reuse it on every subsequent sweep until that episode is resolved** — the id identifies the
+*condition* (this machine's exhaustion, this account's loss), not the sweep that noticed it. With
+`(machine_id, system_reason, system_trigger_id)` unique at the storage layer, the second sweep's
+insert then conflicts and no duplicate cancellation is enqueued. **Minting a fresh id per sweep
+would make the constraint fire never**, which is the defect this rule exists to prevent — otherwise a sweep that runs every minute enqueues a fresh
 cancellation every minute for the same exhausted machine, which is repeated provider mutation by
 timer.
 
@@ -326,7 +330,7 @@ briefly; nothing may deny it.
 
 **System-initiated provider mutations MUST be operations, and the tenant MUST see them.** Exhaustion cancelling a machine (`LDG-14`), `OPS-36`'s attach-then-cancel, and any other
 mutation the deployment performs on a tenant's machine without a caller request MUST go through
-this queue — lock, lease, terminal states, `needs_reconciliation` included, because a cancel
+this queue — lock, lease, settled states, `needs_reconciliation` included, because a cancel
 whose outcome is ambiguous is ambiguous regardless of who asked for it — and MUST appear in the
 tenant's operation list marked `requested_by: system` with a stated reason (`exhausted`,
 `late_attach_cleanup`, `account_lost`). Without this, `GET /v1/operations` is not the history of

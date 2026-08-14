@@ -229,9 +229,9 @@ exist. A deployment MUST define, and record:
   the window `DOM-19` was written to make visible;
 - **the treatment of a partial period**, rounded per `LDG-28`.
 
-**LDG-38** **AMENDED.** A `usage_debit` MUST be idempotent per `(machine, billing period, kind)`
-(`LDG-8`), and posting **any** machine-attributable debit MUST decrement that machine's commitment
-in the same transaction (`LDG-31`).
+**LDG-38** **AMENDED.** A `usage_debit` MUST be idempotent per **`(subject, billing period, kind,
+posting index)`** (`LDG-8`), and posting **any** machine-attributable debit MUST decrement that
+machine's commitment in the same transaction (`LDG-31`).
 
 **Rounding MUST be applied to the cumulative charge, never per tick.** `LDG-28` rounds debits up;
 applied to each posting, that makes a customer's price depend on how often the meter happens to
@@ -264,7 +264,7 @@ unstated:
 | Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
 | Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
 | Ambiguous — `needs_reconciliation` | **Recorded as a pending fee obligation on the operation**, not held in the commitment — `OPS-33` releases that in full at the negative window while the operation stays open, so there would be nothing left to hold it in |
-| Resolved *observed* (`OPS-27`) | **Debited from available balance** — the order landed and the customer owes the fee. Where available cannot cover it the shortfall is an operator deficiency (`LDG-66`), never silently dropped by `LDG-31`'s clamp |
+| Resolved *observed* (`OPS-27`) | **Debited from available balance** — the order landed and the customer owes the fee. This debit is **not** commitment-attributable, so `LDG-31`'s clamp does not apply to it: the clamp bounds debits against a commitment, and by this point `OPS-33` has closed that commitment. Where available cannot cover the fee the shortfall is an operator deficiency (`LDG-66`) |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider |
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
@@ -354,8 +354,9 @@ usage cannot be converted to satoshis. A deployment MUST:
 
 **LDG-66** **An operator deficiency is a durable record of its own, and it is NOT a ledger
 entry.** `LDG-7`'s entry kinds are closed and every one of them moves *tenant* satoshis, so the
-native-currency accruals this document now creates in four places — `LDG-31`'s clamp overflow,
-`LDG-63`'s exception branch, `LDG-64`'s rate outage, and `SEC-46`'s unconfirmed account loss —
+native-currency accruals this document now creates in four places — `LDG-31`'s clamp overflow, `LDG-63`'s
+exception branch, `LDG-64`'s rate outage, `SEC-46`'s unconfirmed account loss, `OPS-36`'s
+wind-down shortfall and `LDG-39`'s unrecoverable setup fee —
 have nowhere legal to live. A deployment MUST persist them in a separate record (`STO-37`)
 carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), the cause,
 and an idempotency key; they MUST feed provider payables in the solvency check (`LDG-17`) and MUST
@@ -511,6 +512,13 @@ way to return it is the one outcome this specification must not permit by accide
 **LDG-44** Activation MUST require a **minimum funding amount** sufficient to purchase something.
 `API-35` graduated a tenant on any credited payment, so a single satoshi produced a permanent
 row that `API-34`'s time-to-live could never reclaim.
+
+**LDG-67** **A pending fee obligation is a record, not an entry.** `LDG-39`'s ambiguous row parks
+the setup fee on the operation until resolution, and that needs a home: `operations` carries
+`pending_fee_sats` and `pending_fee_currency` (`STO`), cleared when the fee is debited
+(resolved-observed) or dropped (resolved-absent, deterministic rejection). It moves no satoshis
+while it sits there, so it is not a `LDG-7` entry kind — the same reason `LDG-66`'s deficiencies
+are not.
 
 ## Pricing
 

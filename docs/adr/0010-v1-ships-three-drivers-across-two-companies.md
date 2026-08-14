@@ -15,7 +15,7 @@ Two machine shapes exist and they are not variations on each other:
   effective date and the machine keeps running and keeps billing until it arrives (`DOM-19`).
 
 **Nearly every difficult requirement in this set exists because of the second shape.** The setup
-fee debited before the order (`LDG-39`), the reserve that must cover cost through a cancellation
+fee committed before the order and debited on acceptance (`LDG-39`), the reserve that must cover cost through a cancellation
 date (`PRV-13b`), `cancellation_scheduled`, `PRV-13c`'s exception branch, `ADR-0006`'s
 pass-through — a cloud-only launch runs none of it. It is also where the differentiator lives:
 booting a rescue system to install a caller's own image is a convenience on a cloud VPS whose

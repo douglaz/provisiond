@@ -706,7 +706,7 @@ takes the machines *and* the float" partly false.
 
 ## The rate
 
-Added 2026-08-12. Past the per-tick cap and the persistence rule, a wrong rate is the only
+Added 2026-08-12. Past the persistence rule (`LDG-16`), a wrong rate is the only
 external input in this specification that reaches a customer's disk (`LDG-41`, `LDG-14`).
 
 - [ ] **CNF-138** With every rate source unavailable, a create is refused, re-derivation halts
@@ -745,7 +745,7 @@ rather than acquiring a default.
       that acts only on what it reports never invokes an operation a provider does not have.
       (`OVR-16`, `OVR-2`)
 - [ ] **CNF-147** The dedicated path is exercised end to end against a real Hetzner Robot machine:
-      a setup fee debited before the order, a commitment sized to include cost through the
+      a setup fee committed before the order and debited on confirmed acceptance (`LDG-39`), a commitment sized to include cost through the
       earliest cancellation date, a cancellation that schedules rather than deletes, and billing
       that continues until the effective date. **The requirements this tests were all written
       before any of them had run.** (`LDG-39`, `PRV-13b`, `PRV-13c`, `DOM-19`)
@@ -822,9 +822,9 @@ rather than acquiring a default.
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
 - [ ] **CNF-204** A pending tenant cannot defer its own reaping: a deposit minted late in the
       signup window expires no later than the signup itself. (`API-34`)
-- [ ] **CNF-205** A meter cadence that subdivides a billing period posts every increment under the
-      widened key, and two billable attachments on one machine never collide. Directly tests that
-      `LDG-8` and `LDG-38` agree — they disagreed for a full pass. (`LDG-8`, `LDG-38`)
+- [ ] **CNF-205** **WITHDRAWN — duplicate of `CNF-198`**, which already tests the widened meter
+      key and the attachment collision. `CNF-198` absorbs the one thing this added: assert that
+      `LDG-8` and `LDG-38` state the *same* key, since they disagreed for a full pass.
 - [ ] **CNF-206** A disk identifier matching **two** devices aborts `integrity` with no write, and
       an offer whose devices expose no unique identifier is unsellable for rescue installs.
       (`RSC-26`)
@@ -838,6 +838,16 @@ rather than acquiring a default.
 - [ ] **CNF-210** An orphaned deposit is credited to a named tenant exactly once through the
       operator attribution endpoint; a second call naming a different tenant is `409`. (`WIR-42`,
       `API-34`)
+- [ ] **CNF-211** An ambiguous create that resolves *observed* debits the setup fee from
+      available balance after `OPS-33` has already closed the commitment, and records an operator
+      deficiency when available cannot cover it — the fee is neither dropped nor clamped away.
+      (`LDG-39`, `LDG-67`, `LDG-31`)
+- [ ] **CNF-212** Two consecutive exhaustion sweeps over the same machine enqueue **one**
+      cancellation: the second reuses the episode's trigger id and conflicts. Minting a fresh id
+      per sweep is the failure. (`OPS-39`)
+- [ ] **CNF-213** Attributing an orphaned deposit posts a `topup` ledger entry that moves the
+      balance, and `operator_ref` holds no name, address or contact string. (`WIR-42`, `LDG-7`,
+      `ADR-0005`)
 - [ ] **CNF-183** No customer-facing surface — terms, API documentation, error text, marketing —
       states or implies that satoshis are held, backed, reserved or segregated against a balance,
       **and** the terms do state that a balance is an unsecured claim. Both halves: silence about
@@ -903,7 +913,7 @@ Added 2026-08-12 with `API-49`–`API-54`.
 
 Added 2026-08-12 closing `F30`'s list of untested requirements from the commitment rewrite.
 
-- [ ] **CNF-160** Posting the same `(machine, billing period, kind)` usage debit twice moves the
+- [ ] **CNF-160** Posting the same `(subject, billing period, kind, posting index)` usage debit twice moves the
       balance once, and the debit and its commitment decrement land in one transaction — killing
       the process between them leaves neither. (`LDG-38`, `LDG-31`, `STO-28`)
 - [ ] **CNF-161** A machine powered off for a full billing period is billed for it, and a machine
@@ -1064,7 +1074,7 @@ explicitly and record:
 
 ### Assignments for `CNF-205`–`CNF-210` (multi-reviewer loop, pass 2)
 
-**BLOCKING** — `CNF-205` (deduplicated postings are unbilled machine time), `CNF-206` (destroyed
+**BLOCKING** — `CNF-206` (destroyed
 data on an ambiguous identifier), `CNF-207` (an invalid install body on the primary path),
 `CNF-209` (a locked-out owner cannot stop a thief).
 
@@ -1072,8 +1082,7 @@ data on an ambiguous identifier), `CNF-207` (an invalid install body on the prim
 
 ### Assignments for `CNF-195`–`CNF-204` (added 2026-08-13, from the multi-reviewer loop)
 
-**BLOCKING** — `CNF-195` (an amendment that silently failed to apply, releasing customer money
-while machines still bill); `CNF-196` (credential disclosure by guessing a low-entropy string);
+**BLOCKING** — `CNF-196` (credential disclosure by guessing a low-entropy string);
 `CNF-198` (deduplicated postings stop the commitment decaying — unbilled machine time);
 `CNF-199` (either a negative balance or an unfunded cancel, on the branch's own common input);
 `CNF-200` (destroyed data on the launch product's primary install path); `CNF-203` (a live bearer

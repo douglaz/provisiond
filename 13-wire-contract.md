@@ -175,7 +175,8 @@ object (`kind`/`message`/`retryable`/`details`), without the envelope. `result`,
 per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` → `{"machine_id": "<uuid>"}`;
 `install` and `preflight` → `{"preflight": {"devices": [{"identifier": "...", "path": "...",
 "size_bytes": 0, "model": "...", "type": "..."}], "uefi": true, "inventory_fingerprint": "..."}}`
-(`RSC-33`, `RSC-38`); `power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`. An ambiguous outcome additionally records provider identifiers in `result` per `OPS-13`.
+(`RSC-33`, `RSC-38`); `suspend_tenant` → `{"cancellations": ["<operation id>", ...]}` (`WIR-39`);
+`power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`. An ambiguous outcome additionally records provider identifiers in `result` per `OPS-13`.
 
 **WIR-11** The **machine view** (`CNF-176` counts this as a fixture, so a full example is given):
 
@@ -204,8 +205,10 @@ rescue address. `external_id` and raw provider metadata are **absent** on the cu
 Only bodies and endpoint-specific rules are given; authentication (`WIR-5`), CORS (`WIR-4a`),
 pacing, errors and idempotency are uniform per the sections above. Authenticated writes require
 `Idempotency-Key` (`API-8`) and return `202` with an operation view unless listed in `API-48`.
-**Enrolment is the exception**: it is unauthenticated and has no tenant to scope by, so its
-idempotency is keyed on the header alone and it MUST NOT *require* one (`API-40`). **Resource ids
+**Enrolment is the exception**: it is unauthenticated, and it carries **no idempotency replay at
+all** — an `Idempotency-Key` presented to it MUST be ignored (`API-40`, `WIR-12`). *The withdrawn
+"keyed on the header alone" is a global unauthenticated key space, and the enrolment response
+carries both credentials.* **Resource ids
 are principal-scoped** (`WIR-36`): a lookup naming a resource outside the authenticated tenant
 returns `404` and never reveals whether it exists.
 
@@ -265,11 +268,17 @@ no schema, no store and no read endpoint — the `commitments`-table gap for the
 parent operation already has all three.
 
 **WIR-42** `POST /v1/deposits/{id}/actions/attribute` — **operator-only** (`WIR-34`), body
-`{"tenant_id": "...", "evidence": "..."}`, synchronous `200`. Credits a deposit whose tenant was
-reaped (`API-34`) to a live tenant. `evidence` is the operator's own record of why it believed the
-claimant — the system cannot verify it (`ADR-0005`), and writing that down is what keeps the
-decision auditable rather than invisible. Attribution MUST be idempotent per deposit: a second
-call naming a different tenant is `409`, never a re-credit.
+`{"tenant_id": "...", "operator_ref": "..."}`, synchronous `200`. Credits a deposit whose tenant
+was reaped (`API-34`) to a live tenant **by posting a `topup` ledger entry** (`LDG-7`) keyed on the
+deposit's payment identity (`LDG-8`) — it is a ledger transfer, not a flag, or the money would be
+attributed everywhere except the balance.
+
+**`operator_ref` MUST be an opaque reference to a record kept outside this system** — a ticket id,
+not a name, an email, or a transcript. *An earlier draft called it `evidence` and described it as
+the operator's record of why it believed the claimant, which invites exactly the identifying and
+contact data `ADR-0005` and `STO-21` categorically prohibit — and this endpoint is synchronous, so
+no terminal-state purge would ever remove it.* Attribution MUST be idempotent per deposit: a
+second call naming a different tenant is `409`, never a re-credit.
 
 **WIR-41** `POST /v1/tenants/{tenant_id}/actions/resume` — **operator-only**, body `{}`,
 **synchronous** `200` with the tenant's status: it clears the suspension flag and touches no
@@ -407,6 +416,11 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 - `provider_native`: `source.type` ∈ {`catalog` (`image`), `ipxe` (`script`)}; no `layout`, no
   `trust` (no rescue is entered); `catalog` MAY carry `authorized_keys`.
 
+**Every `layout.drives[].identifier` is validated exactly as `raw_disk`'s `target.identifier`
+is** (`RSC-26`): resolved against a freshly re-read inventory, matched to exactly one device, and
+aborted `integrity` before any write on zero or multiple matches. A rootfs install partitions
+disks, so naming them by unstable path destroys the same data.
+
 `rootfs_tarball` and `raw_disk` `sha256` are required and exactly 64 hex (`DOM-14`); `ipxe` and
 `catalog` carry no digest — this system does not touch those bytes (`SEC-16`, `DOM-22`). A `url`
 subject to `OPS-40`'s two validity gates fails `invalid_request` with `details.url_expires_at`
@@ -454,9 +468,13 @@ requeueing a create is a purchase decision, not a retry.
 **WIR-35** `POST /v1/operations/{id}/actions/resolve` — **operator-only** (`API-19`, `WIR-34`),
 the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the operator half of
 `F19`). Body is a discriminated union: `{"resolution": "observed", "external_id": "...",
-"kept_duplicate": "...", "evidence": "..."}` attaches a discovered resource (`OPS-27`);
-`{"resolution": "absent", "evidence": "..."}` records that nothing was created and releases the
-commitment (`LDG-32`); `{"resolution": "abandoned", "evidence": "..."}` gives up. `external_id` is
+"kept_duplicate": "...", "operator_ref": "..."}` attaches a discovered resource (`OPS-27`);
+`{"resolution": "absent", "operator_ref": "..."}` records that nothing was created and releases
+the commitment (`LDG-32`); `{"resolution": "abandoned", "operator_ref": "..."}` gives up.
+**`operator_ref` carries the same constraint as `WIR-42`'s**: an opaque reference to a record kept
+outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`). *The
+reviewers flagged the field on `WIR-42`; it was here too, and an operation record is retained
+under `OPS-25` long enough for it to matter.* `external_id` is
 required for `observed`. It is distinct from requeue and is the only road out of the unresolved
 row (`OPS-33`). **Synchronous** — it records an operator decision against an existing operation
 and mints no provider mutation — returning `200` with the updated operation view, under
@@ -503,8 +521,8 @@ and MUST NOT disclose version, uptime, queue depth or anything else a caller can
 
 ## Listeners, limits and fixtures
 
-**WIR-34** **Operator-only routes** (`WIR-18`, `WIR-28`, `WIR-35`, and the operator forms of
-`WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+**WIR-34** **Operator-only routes** (`WIR-18` adopt, `WIR-28` requeue, `WIR-35` resolve, `WIR-39`
+suspend, `WIR-41` resume, `WIR-42` attribute, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
 

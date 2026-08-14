@@ -12,8 +12,13 @@ the row's prior state and the guard is checked by the engine, not by application
 **STO-2** The store MUST provide an atomic conditional upsert for the machine lock:
 insert-if-absent, or take-over-if-expired, or no-op-if-held-by-another (`OPS-9`).
 
-**STO-3** Every terminal-state write MUST be guarded on `(id, status = running, claimant
-= me)` and MUST report whether it affected a row (`OPS-22`).
+**STO-3** **AMENDED.** Every settled-state write **made by a worker** MUST be guarded on
+`(id, status = running, claimant = me)` and MUST report whether it affected a row (`OPS-22`).
+**Resolution transitions out of `needs_reconciliation` are not worker writes** (`OPS-3`): they are
+guarded instead on `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s
+write-once rule expressed as the same kind of conditional write. *Unscoped, this requirement
+forbade every transition `OPS-3` enumerates — the `status = running` guard can never hold for an
+operation sitting in `needs_reconciliation`.*
 
 **STO-4** The store MUST enforce uniqueness of `(tenant_id, idempotency_key)` (`API-10`).
 
@@ -131,6 +136,7 @@ deleted rows.
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
+| `pending_fee_sats`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee, held while the operation is unresolved and cleared on resolution |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`), `rate_outage_bound` (`LDG-64`) |
 | `system_trigger_id` | text | nullable; `OPS-39`'s durable episode identifier. Unique with `(machine_id, system_reason)` — the constraint that stops a per-minute sweep enqueueing a fresh cancel every minute |
@@ -146,7 +152,7 @@ desc)` for listing.
 
 **STO-9** `request` contains caller secrets — signed image URLs, SSH keys, and up to 1 MiB of
 post-install script. It MUST NOT be returned by the API (`API-21`), the volume MUST be encrypted
-at rest (`OVR-12`), and **it MUST be purged when the operation reaches any terminal state**,
+at rest (`OVR-12`), and **it MUST be purged when the operation reaches any settled state, and on entry to `needs_reconciliation` (`OPS-3`, which is resolution-pending rather than terminal but purges on entry)**,
 including `needs_reconciliation` (`ADR-0005`). Encryption is not the control here; not having the
 data is. `request_summary` is what an operator investigating a stuck record actually reads, and
 `OPS-13` is satisfied by identifiers rather than secrets.

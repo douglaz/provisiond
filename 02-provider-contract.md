@@ -167,8 +167,10 @@ acceptance (`LDG-39`)** — *this text previously said "debited... before the or
 which charged a customer for a fee the operator never incurred whenever the order was rejected or
 resolved absent*, because `ADR-0006`
 passes it through unmarked — the operator does not profit from a fee it did not earn, and it is
-also the one term that is entirely lost if the customer vanishes an hour later, so it MUST be
-fully collected before the order is placed.
+also the one term that is entirely lost once the order lands, so it MUST be **fully committed
+before the order is placed** and debited only on confirmed acceptance (`LDG-39`). *"Fully
+collected before the order" was the withdrawn reading: it charged the customer for a fee the
+operator never incurred whenever the provider rejected the order outright.*
 
 **`F18` fixed: there is one haircut and it belongs to the conversion, not to the sum.** The
 earlier text trailed `× fx_haircut` after the formula without saying whether it multiplied the
@@ -248,9 +250,9 @@ and an offer with **no declared bound MUST NOT be sold on prepaid terms.** This 
 circularity: `PRV-13c` learns the per-machine constraint *after* ordering, while `LDG-12` forbids
 the order before the commitment exists, so for an offer that hides its terms the commitment could
 only be sized after the purchase it authorizes. The declared bound sizes the commitment at
-create. **The machine's *actual* date, read after ordering, updates the protected wind-down
-component that `LDG-33` subtracts before deriving `runway_until` — it MUST NOT resize the
-commitment.** A shorter actual term therefore lengthens the customer's runway rather than
+create. **The machine's *actual* date, read after ordering, updates the
+`cost_through_effective_cancellation_date` term of `LDG-33`'s `protected_sats` — it MUST NOT
+resize the commitment.** A shorter actual term therefore lengthens the customer's runway rather than
 returning satoshis, which is the same money reaching the customer through the mechanism
 `ADR-0011` sanctions instead of through an automatic resize it forbids. In practice the bound is trivial for the launch set — current Robot
 dedicated servers have no minimum term and a new machine's date is normally today
