@@ -299,6 +299,11 @@ time, in a period where it absorbed nothing — and an outage long enough would 
 period's `billable_seconds` to zero for consumption nobody disputes, which is the operator paying
 twice for one interruption. Where an absorbed window straddles a period boundary each period
 subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
+**The window is read from the deficiency record's `absorbed_from` and `absorbed_until`**
+(`STO-37`), which every cause that absorbs time MUST carry. `outage_started_at` and
+`outage_deadline` are not that window: `LDG-64` ties them to the `rate_outage` cause alone, while a
+`clamp_overflow` deficiency absorbs billable time too, and a split no record can locate in time is
+not a split an implementation can perform.
 
 **What is subtracted is a magnitude, because `LDG-1` makes a debit negative.** The signed sum of
 the prior usage debits is a negative number — the worked table above posts `usage_debit` −100 for
@@ -635,6 +640,14 @@ its unattributed entry there is nothing linking the two and `WIR-42` finds it by
 The id is the operator's own binding (`LDG-49`, `STO-29`), not information about a counterparty,
 so recording it costs `LDG-21` nothing.
 
+**Where the deposit has already been attributed, a later payment is not unattributed at all.**
+`WIR-42` persists its target on the deposit row (`deposits.attributed_tenant_id`), so a payment
+settling after that call is credited to that tenant directly as an ordinary `topup` — no correction
+pair, because no wrong credit exists to reverse. This rule and the one above cover the two orders
+the same deposit can settle in: unattributed-then-attributed, where the deposit id is the route
+back, and attributed-then-settled, where the target is already recorded and nothing waits on a
+human.
+
 **LDG-44** Activation MUST require a **minimum funding amount** sufficient to purchase something.
 `API-35` graduated a tenant on any credited payment, so a single satoshi produced a permanent
 row that `API-34`'s time-to-live could never reclaim.
@@ -658,6 +671,16 @@ debited for it**: the requeue re-executes the order, and the fresh attempt commi
 own setup fee under `LDG-39`, so keeping the old obligation alive would bill one machine's setup
 twice. It moves no satoshis while it sits there, so it is not a `LDG-7` entry kind — the same
 reason `LDG-66`'s deficiencies are not.
+
+**AMENDED 2026-08-14 — the three columns are the *latest* attempt's fee, and resolution debits the
+*matched* attempt's.** A requeued create can have several attempts outstanding at once (`OPS-20`,
+`PRV-26`), and clearing the parked scalar on requeue leaves nothing behind for the superseded
+attempt — whose order may still be the one that landed. Each attempt's at-cost fee is therefore
+also kept in its own entry in `request_summary` (`OPS-13`, `05-persistence.md`), and when
+resolution matches an attempt's correlator the amount debited under `LDG-39` is **that entry's**
+fee, not the scalar's. Where the match is the latest attempt the two agree, which is the ordinary
+case; where it is an earlier one, the scalar would bill terms the provider never charged for that
+order.
 
 ## Pricing
 

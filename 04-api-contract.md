@@ -154,6 +154,12 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     suspended tenant through on purpose. It sits *after* 5a deliberately: a write replayed from
     before the suspension must return its stored result rather than a spurious rejection, and only
     the fingerprint check can tell a replay from a new write.
+    **Requeue is exempt here only where the operation it requeues reduces exposure** — a cancel or
+    a delete. That much is load-bearing: a suspended tenant's failed cancellation must stay
+    requeueable or its machine bills forever (`OPS-39`, `LDG-20`). A requeue of an **ordering**
+    kind — create or adopt — is rejected `suspended` like any other write, because `OPS-20` places
+    a *second physical order*, and buying a suspended tenant a machine after `API-58`'s fan-out has
+    settled is the same purchase 5b exists to refuse, merely reached through an operator verb.
 
 The tail then depends on what the endpoint does:
 
@@ -161,9 +167,10 @@ The tail then depends on what the endpoint does:
 |---|---|
 | **create, adopt** | spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
 | **power, install, reverse-DNS, refresh, preflight** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
-| **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates, then **reuses the original commitment where it is still open** and opens a new one only where it was closed (`OPS-20`, `LDG-30`) |
+| **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates, then **reuses the original commitment where it is still open** and opens a new one only where it was closed (`OPS-20`, `LDG-30`). It takes that class at **5b** as well: an ordering requeue for a suspended tenant is rejected `suspended`, an exposure-reducing one is not |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
-| **resume, resolve, revoke** | operator or recovery-credential principal; synchronous, `200`, no provider mutation (`API-48`) |
+| **revoke** | operator or recovery-credential principal (`API-56`, `WIR-38`); synchronous, `200`, no provider mutation (`API-48`) |
+| **resume, resolve** | **operator-only** (`WIR-41`, `WIR-35`, `WIR-34`); synchronous, `200`, no provider mutation (`API-48`). The recovery credential reaches **neither** — `API-55` confines it to `API-56`, and a recovered-after-theft credential that could resume its own tenant or resolve an uncertain provider mutation would undo the suspension that answered the theft |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
 | **deposit** | synchronous; allowed while pending; **refused `halted` while `LDG-20`'s solvency halt is in force** — that halt stops top-ups *first*, and minting a destination invites exactly the payment it forbids; otherwise **mints a destination and writes NO ledger entry** — a deposit is not money until it settles (`LDG-47`) — plus an idempotency record, in one transaction; `200` |
 | **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200` |
@@ -364,7 +371,8 @@ an agent enrolling at 3am has no human to wait for.
 **API-58** **A funded tenant MUST be suspended, never deleted.** Suspension is an operator action
 that (1) marks the tenant `suspended` atomically so no further **tenant-authorized** write succeeds —
 the maintenance actions of `API-7` step 2 remain reachable, because a suspended owner must still be
-able to revoke a stolen credential (`API-56`, `CNF-209`) — then (2)
+able to revoke a stolen credential (`API-56`, `CNF-209`), and an operator must still be able to
+requeue a failed cancellation, though not a create (`API-7` step 5b) — then (2)
 **fences work already in flight** — a create claimed before the suspension landed MUST be allowed
 to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
@@ -385,7 +393,10 @@ operation view no strict parser should accept.* The value stays legal on the ste
 cancellations, which the system really did request (`OPS-39`). This transition is also **not** a
 worker classification: nothing was claimed and no driver was called, so `OPS-11`'s install row —
 which sends `conflict` to `needs_reconciliation` — does not reach it, and the operation goes
-straight to `failed` as stated. The fan-out then lets anything
+straight to `failed` as stated. **Not being a classification does not exempt the database write**:
+it is `STO-3`'s fourth named case, guarded on `(id, status = queued, tenant suspended, this
+suspension's parent still unsettled)` and reporting whether it affected a row, so a child claimed
+by a real worker in the meantime loses this race and settles through that worker instead. The fan-out then lets anything
 already `running` settle, **then re-sweeps: a create that
 settled after the fan-out has produced a machine the first pass never saw, and it MUST be
 cancelled by a second pass rather than left running against a suspended tenant** — the fan-out
@@ -398,7 +409,11 @@ the parent's own outcome; it is `succeeded`, never `failed` and never `needs_rec
 unresolved children are their own records, resolved by their own evidence or their own operator
 verb (`OPS-27`, `OPS-31`), and read through `GET /v1/operations` like any other operation. Holding
 the parent open until they resolve would fence `WIR-41`'s resume off indefinitely and leave every
-suspended tenant with a record that never closes. **A process that dies mid-fan-out MUST NOT strand
+suspended tenant with a record that never closes.
+**A create that has produced no machine yet passes the re-sweep's test**, so settlement here is not
+the last guard: where such a create later attaches a machine to a still-suspended tenant, `OPS-27`'s
+one-transaction rule enqueues the cancellation in the attach transaction itself, under the same
+`OPS-39` trigger step (3) uses. **A process that dies mid-fan-out MUST NOT strand
 the suspension**: the parent's lease expires and it is re-claimed and resumed like any other
 queued work (`OPS-14`), because the sweep is idempotent by `OPS-39`'s trigger id and mutates no
 provider itself. It MUST NOT go to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger and machine list MUST continue
@@ -690,10 +705,15 @@ A single envelope for every failure:
     "kind": "invalid_request",
     "message": "human readable, safe to show an operator",
     "retryable": false,
-    "details": {}
+    "details": {},
+    "correlation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11"
   }
 }
 ```
+
+`correlation_id` is part of the envelope, not an optional extra: `WIR-4` requires it be readable
+from the **body**, because an intermediary can strip the header. `WIR-9` is the authoritative
+shape (`13-wire-contract.md`), and this example omitted the field.
 
 **API-24** `kind` MUST come from the closed set in `DOM-17`, and the HTTP status MUST be
 derived from it by the mapping in that table. Handlers MUST NOT choose statuses

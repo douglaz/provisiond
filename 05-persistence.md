@@ -24,6 +24,14 @@ guarded instead on `(id, status = needs_reconciliation, resolution IS NULL)`, wh
 write-once rule expressed as the same kind of conditional write. *Unscoped, this requirement
 forbade every transition `OPS-3` enumerates — the `status = running` guard can never hold for an
 operation sitting in `needs_reconciliation`.*
+**AMENDED 2026-08-14 — a fourth named case: the suspension fan-out's administrative transition.**
+`API-58` step (4) moves an operation that is still `queued` and was never claimed straight to
+`failed`, and that write matches none of the three guards above. It is guarded on
+`(id, status = queued, the operation's tenant is suspended, and that suspension's fan-out parent is
+still unsettled)`. The three guards above are **unchanged** — this is an addition, not a
+relaxation — and the fan-out worker MUST report whether the write affected a row, exactly as the
+others do, because a child claimed by a real worker between the pass and the write must lose this
+race and settle as its own worker's write instead.
 
 **STO-4** The store MUST enforce uniqueness of `(tenant_id, idempotency_key)` (`API-10`).
 
@@ -68,7 +76,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `name` | text | not null |
 | `kind` | enum | `virtual` \| `bare_metal` |
 | `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null for adopted machines, which came from no offer |
-| `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means the offer permitted no install; null means there was no offer — the adopted case, where `DOM-10`'s account capabilities gate alone |
+| `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means **no install is permitted on this machine** — the offer allowed none, or adoption could not establish a list. **Adoption writes its own list here** rather than leaving it null, empty where nothing better can be derived; a null value MUST be read as empty, never as a fall-back to `DOM-10`'s account capabilities |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
@@ -81,7 +89,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `reserve_rate_num`, `reserve_rate_den` | integer | the exact rational used (`LDG-4`) |
 | `reserve_computed_at` | timestamp | drives re-derivation (`PRV-13e`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`) |
-| `system_trigger_ids` | json | `OPS-39`'s open episode identifiers, keyed by `system_reason`, and the **enforcing** home of its uniqueness: at most one open entry per `(machine_id, system_reason)`, claimed atomically before a sweep enqueues anything. The same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
+| `system_trigger_ids` | json | `OPS-39`'s open episode identifiers and the **enforcing** home of its uniqueness: at most one open entry per key, claimed atomically before a sweep enqueues anything. The key is the **`action`** for an exposure-reducing cancellation and the `system_reason` for every other trigger (`OPS-39`), so two reasons to cancel one machine share a single entry rather than each enqueuing a delete. Each entry therefore carries `{trigger_id, action-or-reason key, reasons: [...]}` — `reasons` being the **set** of `system_reason` values that have contributed to this open episode, appended to by a later sweep that finds the entry already claimed. The `trigger_id` is the same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
 | `created_at`, `updated_at` | timestamp | |
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; index on
@@ -100,8 +108,14 @@ so resolving eligibility through `offer_id` then either fails for a machine that
 paid for, or silently answers from terms the customer never bought. Eligibility was decided when
 the machine was created; the copy is what makes that decision durable. `offer_id` is kept for
 provenance and MUST NOT be repurposed as the gate's input. An **adopted** machine came from no
-offer: its `offer_id` and its `install_strategies` are both null, and its permitted strategies fall
-back to the provider account's declared capabilities (`DOM-10`) alone.
+offer: its `offer_id` stays null, but **adoption MUST derive and persist a machine-specific
+`install_strategies` list all the same**, and where adoption cannot establish one from what it can
+see, that list is **empty** — every strategy refused — never the provider account's declared
+capabilities (`DOM-10`). Falling back to the account would re-admit the very case the machine-level
+copy exists to close: the products within one account differ, so an account that offers a
+rescue-based install on one product would authorize it on an adopted box that cannot take it, and a
+rescue install wipes the disk (`06-rescue-install.md`). An adopted machine whose empty list refuses
+an install the operator knows is safe is a recoverable inconvenience; the reverse is not.
 
 **STO-17** `(provider_account, external_id)` MUST additionally be unique **across all tenants**,
 not merely within one. `SEC-10` and `CNF-6` require that a provider machine belong to at most one
@@ -152,7 +166,7 @@ deleted rows.
 | `provider_account` | text | nullable |
 | `correlator_kind`, `correlator_value` | text, json | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). `correlator_value` is a **list, one entry per attempt in attempt order**, because an `OPS-20` requeue places a second order carrying its own per-order artifact; a requeue **appends**, and an entry is never removed or overwritten (`PRV-26`). Each entry is written **before** its own provider call, like `provider_account` (`OPS-35`), and the column is null for every operation kind other than create |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus a create's **offer snapshot** — `offer_id` and the offer's `install_strategies` as accepted, which is where a machine attached by resolution takes its copy from (`OPS-13`) |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus a create's **per-attempt record** — a list **aligned one-to-one with `correlator_value`, in the same attempt order**, each entry carrying that attempt's correlator, that attempt's **offer snapshot** (`offer_id` and the offer's `install_strategies` as accepted) and that attempt's **at-cost setup fee** (native minor units, currency, and the satoshi amount authorized at that attempt's create, `LDG-67`, `LDG-39`). A requeue **appends** an entry and overwrites none, exactly as `correlator_value` does. Resolution reads the entry of the attempt **whose correlator matched** (`OPS-27`): that entry's snapshot is the copy the attached machine takes (`OPS-13`) and that entry's fee is what is debited — terms can move between attempts (`OPS-20`), and the order that actually landed may be an earlier attempt's |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
@@ -161,10 +175,10 @@ deleted rows.
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
 | `pending_fee_native_minor`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee in the **provider's** currency (`LDG-2`) |
-| `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. All three are cleared on resolution, and on an operator requeue, whose fresh attempt carries its own fee (`LDG-67`) |
+| `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. All three are cleared on resolution, and on an operator requeue, whose fresh attempt carries its own fee (`LDG-67`). **These three are the scalar copy of the *latest* attempt's fee**, kept for reading the outstanding obligation; the amount actually debited on resolution is the matched attempt's entry in `request_summary`, which is the only place an earlier attempt's fee still exists |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`'s per-machine cancellations, never the caller's own queued work that the same fan-out fails: that keeps `requested_by = caller`, a null `system_reason`, and carries the reason in `error`), `rate_outage_bound` (`LDG-64`) |
-| `system_trigger_id` | text | nullable; a **convenience copy** of `OPS-39`'s durable episode identifier, carried for querying and for requeue under an existing id. A `(machine_id, system_reason, system_trigger_id)` constraint here is a redundant guard, never the enforcing one — `STO-14` deletes these rows and takes it with them. The enforcing uniqueness is on `machines.system_trigger_ids` |
+| `system_trigger_id` | text | nullable; a **convenience copy** of `OPS-39`'s durable episode identifier, carried for querying and for requeue under an existing id. A constraint here over the episode key and this copy is a redundant guard, never the enforcing one — `STO-14` deletes these rows and takes it with them. The enforcing uniqueness is on `machines.system_trigger_ids` |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `claimed_by` | text | nullable; worker identity |
@@ -229,7 +243,7 @@ an environment variable (`API-4` as amended).
 | `credential_digest` | text | not null; the **spending token** hash, never the credential itself (`API-3`). Replaced in place by `WIR-38` |
 | `recovery_digest` | text | not null; the **recovery credential** hash (`API-55`). Minted with the row and never replaced by a spending-token revocation |
 | `credential_generation` | integer | increments on every revocation (`API-56`); a token from an earlier generation never authenticates, so a replayed revocation cannot resurrect one |
-| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger and machine reads, and retains the maintenance actions of `API-7` step 2) |
+| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger and machine reads, and retains the maintenance actions of `API-7` step 2 as narrowed by step 5b, which still rejects a requeue of an ordering kind) |
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
 
@@ -313,6 +327,7 @@ makes attribution possible without recording a payer (`LDG-49`, `ADR-0008`).
 | `derivation_index` | integer | so the address is re-derivable from the operator's own key material rather than stored as the sole copy |
 | `idempotency_key` | text | not null; re-sending a funding request returns this row (`API-45`) |
 | `expires_at` | timestamp | not null. Enforced on Lightning, **disclosed** on-chain (`LDG-54`) |
+| `attributed_tenant_id` | text | nullable; the tenant an operator attributed this orphaned deposit to (`WIR-42`). Set once: it is what makes a second call naming a different tenant a `409`, and it is what a payment settling **after** the attribution is credited to — directly, as an ordinary `topup`, since that payment has no earlier credit to correct |
 | `created_at` | timestamp | |
 
 Constraints: unique on `payment_hash`; unique on `address`; unique on `(tenant_id,
@@ -386,7 +401,10 @@ returned an empty list to every customer forever.
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
 `currency`, `absorbed_seconds` (the elapsed billable time absorbed, which is what `LDG-38`
-subtracts — in seconds, never converted), `rate_num`, `rate_den` (**nullable**; the rate in force
+subtracts — in seconds, never converted), `absorbed_from`, `absorbed_until` (**the placement of
+that absorbed window in time**, required for every cause that absorbs time and read by `LDG-38` to
+apportion a window that straddles a period boundary; `outage_started_at` below cannot serve, since
+`LDG-64` ties it to the `rate_outage` cause alone), `rate_num`, `rate_den` (**nullable**; the rate in force
 when the record was opened, required only for a cause that had one and permanently null for a
 rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`),
 `outage_started_at`, `outage_deadline`

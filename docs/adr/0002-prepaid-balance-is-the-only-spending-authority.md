@@ -20,8 +20,9 @@ rule: the balance is the authority.
 - **Post-pay with a per-interval ceiling.** Rejected: extends credit to anonymous strangers,
   dragging in identity verification, collections and bad-debt reserve, with no chargeback
   recourse in either direction.
-- **Prepaid plus an operator approval threshold above some size.** Rejected: `OPS-3` declares the
-  terminal operation states closed, and this needs a new non-terminal *awaiting approval* state
+- **Prepaid plus an operator approval threshold above some size.** Rejected: the operation states
+  are a closed set (`03-operation-lifecycle.md`'s states table, `WIR-10a`'s enum), and this needs a
+  new non-terminal *awaiting approval* state
   plus an operator queue and timeout policy — and it breaks the core promise for exactly the
   machines that matter, since an agent cannot buy a dedicated box at 3am.
 

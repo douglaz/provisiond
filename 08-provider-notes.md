@@ -1,8 +1,11 @@
 # 08 — Provider adapter notes
 
 Facts about specific provider APIs that shaped the architecture and are worth carrying
-forward. **These were read out of a reference implementation's adapters, not verified
-against live provider APIs.** Each note carries a confidence marker:
+forward. **Provenance is per fact, not per document**: many notes were read out of a reference
+implementation's adapters and never checked, several have since been verified against current
+provider documentation and carry the date, and the DigitalOcean section below came from neither —
+the reference set had no such driver. Each note carries a confidence marker, and the marker on the
+individual note governs:
 
 - **[design]** — an architectural consequence, true regardless of API details.
 - **[observed]** — asserted by the reference implementation; plausible but unverified.

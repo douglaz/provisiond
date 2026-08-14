@@ -104,7 +104,7 @@ frozen balance and a released one); `CNF-83` (a linkable value written into a pr
 cannot be un-disclosed); `CNF-91`–`CNF-97` (ledger integrity, i.e. authorization integrity);
 `CNF-100` (destroyed data, and the documentation half is what makes it survivable); `CNF-101`
 (the insolvency gate, including that it must not block the operations that reduce exposure);
-`CNF-106` (under-holding every machine by exactly the margin); `CNF-107` (tenant→tenant
+`CNF-106` (under-committing every machine by exactly the margin); `CNF-107` (tenant→tenant
 destruction — this was `F15`); `CNF-108`, `CNF-109` (unbounded billing and duplicate purchase);
 `CNF-111`, `CNF-112` (an account termination cannot be undone with money or an apology, and
 `CNF-112` is what makes `CNF-111` real rather than believed); `CNF-77`, `CNF-99`, `CNF-113`,
@@ -563,8 +563,15 @@ Applies only to deployments using the admin-plus-override proxy pattern.
       and the not-yet response does not disclose the remaining time precisely. (`API-33`)
 - [ ] **CNF-77** An unfunded pending tenant is deleted at its TTL together with its credential.
       Verified by clock advance, not by reading the code. (`API-34`)
-- [ ] **CNF-78** A pending tenant can perform no authorized action of any kind until a payment
-      has been credited. (`API-35`)
+- [ ] **CNF-78** **REWRITTEN 2026-08-14** — the old item tested a rule two amendments had
+      replaced, and no implementation could satisfy it and `CNF-125` at once: it predates
+      `API-43`'s allowlist, and "until a payment has been credited" is the per-payment trigger
+      `API-35` withdrew on 2026-08-13. It now tests: a pending tenant performs **no action outside
+      `API-43`'s allowlist** — every other authenticated endpoint answers `not_activated` — and it
+      **remains pending until its cumulative credited balance reaches the configured minimum**,
+      so two credited payments that each fall short but together clear the minimum activate it.
+      *Withdrawn text:* A pending tenant can perform no authorized action of any kind until a
+      payment has been credited. (`API-35`, `API-43`, `DOM-20`)
 - [ ] **CNF-79** Enrolment rate-limiting state is never persisted — no caller address reaches
       the store or the logs. (`API-36`, `ADR-0005`)
 - [ ] **CNF-80** **REWRITTEN 2026-08-13** — testing "no column beyond those specified" now fails

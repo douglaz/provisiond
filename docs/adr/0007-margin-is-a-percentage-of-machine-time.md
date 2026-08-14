@@ -37,8 +37,11 @@ to try, which is how the differentiator gets discovered at all.
   away should be revisited against data rather than against memory of this conversation.
 - Margin is configuration, never a constant — `PRV-13c`'s rule applies to the operator's own
   commercial terms as much as to a provider's.
-- The reserve holds `customer_rate`, not provider cost, or every machine is under-held by exactly
-  the margin (`PRV-13b`).
+- The reserve is computed on `customer_rate`, not provider cost, or every machine is
+  under-committed by exactly the margin (`PRV-13b`). *"The reserve holds … under-held" was the old
+  vocabulary, renamed 2026-08-14 under `CONTEXT.md`'s ban on "hold" — which keeps "reserve" as the
+  calculation that sizes a commitment, so pairing the two words here was the confusable case the
+  ban exists for. The decision is unchanged.*
 - Your markup is derivable by any caller who reads the provider's public price list. That is a
   property of reselling a commodity, not a leak, and the specification should not pretend
   otherwise by hiding prices.

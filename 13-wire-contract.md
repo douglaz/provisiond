@@ -297,6 +297,17 @@ one when it settled, so re-crediting inflates the float and breaks `LDG-17` by e
 amount* — it is a ledger transfer, not a flag, or the money would be
 attributed everywhere except the balance.
 
+**The attribution MUST be persisted on the retained deposit** (`deposits.attributed_tenant_id`,
+`05-persistence.md`, `STO-29`), and it governs every payment that settles **after** the call.
+`LDG-55` keeps the other destination payable, so a deposit attributed today can settle again
+tomorrow, and that later payment has no wrong credit to correct and no live tenant of its own to
+find. It is credited to the attributed tenant **directly, as an ordinary `topup`** (`LDG-7`) — not
+as a `correction` pair, because there is nothing to reverse: the satoshis arrived once and are
+credited once, so `LDG-17` still balances. The correction pairs remain the treatment for payments
+that had **already settled** when the operator called, whose credits went to the reaped tenant and
+must be moved. Without the persisted target that later payment lands unattributed and needs a
+second operator call to find it, which is the human-noticing step attribution exists to remove.
+
 **`operator_ref` MUST be an opaque reference to a record kept outside this system** — a ticket id,
 not a name, an email, or a transcript. *An earlier draft called it `evidence` and described it as
 the operator's record of why it believed the claimant, which invites exactly the identifying and
@@ -580,8 +591,11 @@ install is available for that offer. **The gate reads the copy the machine took 
 because an offer is a live listing that can change or disappear between the two, and re-resolving
 it either fails an install on a machine that is running and paid for or answers from terms its
 owner never bought. `offer_id` remains the provenance record of which offer that copy came from.
-An **adopted** machine has no offer and therefore no copied list, and its permitted strategies are
-gated by the provider account's declared capabilities (`DOM-10`) alone.
+An **adopted** machine has no offer to copy from, so **adoption derives and persists a list of its
+own** — empty where it cannot establish one, refusing every strategy. It does **not** fall back to
+the provider account's declared capabilities (`DOM-10`): capabilities are per account and eligibility
+is per product, so the account of an operator who runs one rescue-capable box would authorize a
+disk-wiping install on an adopted machine that cannot take one (`05-persistence.md`).
 
 `max_rate_outage_seconds` is `LDG-64`'s bound, disclosed before purchase because past it a
 machine is cancelled regardless of its runway. Prices are integers of satoshis, already margined by

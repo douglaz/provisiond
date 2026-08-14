@@ -217,6 +217,16 @@ account and the target do — and it is retained as **evidence**, not as a compa
 snapshot adds no fifth test, because an auction offer that has since been withdrawn does not make
 the requeue wrong.
 
+**One snapshot per attempt, not one per operation.** `request_summary` holds a list aligned
+one-to-one with `correlator_value` (`05-persistence.md`, `PRV-26`); a requeue **appends** an entry
+and overwrites none; and each entry carries that attempt's correlator, its offer snapshot and its
+at-cost setup fee (`LDG-67`). Resolution uses the entry of the attempt **whose correlator matched**
+(`OPS-27`). A single snapshot for several attempts is not enough, because `OPS-20`'s requeue places
+a second order under whatever terms are live then, and the order that finally turns up may be the
+first attempt's: resolution would otherwise copy the wrong `install_strategies` onto the machine —
+a safety gate — or debit a setup fee that is not what the provider actually charged for that order
+(`LDG-39`).
+
 ## Interrupted workers
 
 A worker that crashes leaves an operation `running` with a lease that will expire.
@@ -310,7 +320,7 @@ spendable, not returned. Resolution latency is money the customer cannot use.
 **OPS-27** The system MUST attempt automatic resolution before asking a human. Resolution
 searches the provider for **every correlator the operation recorded** — one per attempt, and a
 requeue appends rather than replaces (`PRV-26`, `PRV-27`) — takes the union of what those
-searches return, and reaches one of three outcomes:
+searches return, and reaches one of the four outcomes below:
 
 | Finding | Resolution | Effect on the commitment |
 |---|---|---|
@@ -337,6 +347,19 @@ time when the obligation is next read, a debit without the machine row charges a
 machine no tenant owns, a machine row without its debit runs a create nobody paid for, and an
 attach whose cancellation never reached the queue is an unfunded machine billing with nothing
 scheduled to stop it.
+
+**Where the machine's tenant is suspended at the moment of the attach, that same transaction also
+enqueues a system cancellation** — `requested_by: system`, `system_reason: tenant_suspended`, under
+`OPS-39`'s trigger, the identical mechanism `API-58` step (3) uses on the fan-out and the identical
+attach-then-route shape as `OPS-36`. This applies at **all three** entry points. It is needed
+because `API-58`'s re-sweep stops once a pass finds no un-cancelled machine, and a create that has
+not yet produced a machine passes that test: the parent settles `succeeded` — counting a
+`needs_reconciliation` child as complete — and no later pass will ever look again. Without it, a
+create resolving *observed* after that settlement attaches a funded, billing machine to a suspended
+tenant and runs its whole runway, which is precisely the outcome `SEC-45`'s deadline must not
+depend on a human noticing. `OPS-36`'s attach-then-cancel does not cover it: that branch fires only
+where `OPS-33` had already released the commitment, and here the commitment is still open and
+becomes the machine's running commitment.
 
 **OPS-36** **A correlator match may arrive after `OPS-33` released the commitment and the tenant
 spent the balance.** The specification previously had no branch for this and the three available
@@ -416,10 +439,21 @@ episode MUST mint **one** durable `system_trigger_id` and
 **reuse it on every subsequent sweep until that episode is resolved** — the id identifies the
 *condition* (this machine's exhaustion, this account's loss), not the sweep that noticed it.
 **The uniqueness is over the machine's retained set, not over `operations`.** At most one **open**
-entry may exist per `(machine_id, system_reason)` in `machines.system_trigger_ids`
-(`05-persistence.md`), and a sweep MUST claim that entry — atomically, in the manner of `STO-2` —
-before it enqueues anything, so the second sweep finds the episode already open and enqueues no
-duplicate cancellation. `operations.system_trigger_id` is a **convenience copy** carried for
+entry may exist per key in `machines.system_trigger_ids` (`05-persistence.md`), and a sweep MUST
+claim that entry — atomically, in the manner of `STO-2` — before it enqueues anything, so the
+second sweep finds the episode already open and enqueues no duplicate cancellation.
+**AMENDED 2026-08-14 — for an exposure-reducing cancellation the key is `(machine_id, action)`,
+not `(machine_id, system_reason)`**, and the reasons that contributed are retained as a **set** on
+that one entry. Two reasons to cancel the same machine — exhaustion and its tenant's suspension,
+say — are one exposure, not two: keyed by reason, each sweep claimed its own entry and each
+enqueued its own delete, and `OPS-8`'s per-machine lock only serializes those two calls, it does
+not dedupe them. On a provider that accepts a *scheduled* cancellation (`STO-8a`, `DOM-19`) the
+second call can then alter or repeat the first's mutation. Every other kind of system trigger keeps
+`(machine_id, system_reason)`, because those really are distinct episodes with distinct remedies.
+The operation the first sweep enqueued carries the reason it was enqueued under; the added reasons
+live on the retained entry, so the episode still records why it stayed open.
+
+`operations.system_trigger_id` is a **convenience copy** carried for
 querying and for requeue under an existing id; a matching constraint over `operations` is a
 redundant guard and MUST NOT be the only one, because `STO-14` deletes the very rows it
 constrains and leaves it nothing to check. **The constraint bounds new
@@ -433,8 +467,9 @@ timer.
 **The id MUST outlive the operations that carry it.** `STO-14` deletes settled operations after a
 configured age, and an id stored only there vanishes with them — after which the next sweep of the
 same unresolved condition mints a new one and re-enqueues, reaching the identical defect through
-retention instead of through a timer. The id is therefore held on the **machine** row, keyed by
-`system_reason` (`machines.system_trigger_ids`, `05-persistence.md`), and is removed only
+retention instead of through a timer. The id is therefore held on the **machine** row, under the
+key stated above — the `action` for an exposure-reducing cancellation, the `system_reason` for
+everything else (`machines.system_trigger_ids`, `05-persistence.md`) — and is removed only
 when the episode resolves. A tombstoned machine keeps it (`STO-8`), because a machine whose
 cancellation was never established is exactly the row a later sweep reads.
 

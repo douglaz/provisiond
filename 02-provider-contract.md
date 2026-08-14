@@ -14,7 +14,9 @@ session* MUST have a
 default implementation that fails with an `unsupported` error naming the operation and
 the account. A driver opts in by overriding; it MUST NOT be possible to add an operation
 to the interface and silently get a wrong default behaviour in every existing driver.
-The first two are MUST-implement (`PRV-3`) rather than defaulted; the third is the one operation
+Of those three, *get machine* is MUST-implement (`PRV-3`); *describe capabilities* is not defaulted
+either, but it carries no separate mandate and needs none — `PRV-4` and `DOM-15` make an undeclared
+capability unusable, so a driver that declares nothing can do nothing. The third is the one operation
 with an explicit non-failing default — `PRV-19` returns the session unchanged, which is safe
 only because `PRV-20` forbids a refresh that downgrades one.
 
@@ -223,14 +225,18 @@ rather than an operator constant matters because the caller is software that kno
 intent: a two-hour scratch box and a machine meant to survive a month should not freeze the same
 amount of a customer's balance.
 
-**PRV-13e** **AMENDED twice, same day — the history is the lesson.** Re-derivation MUST run each
+**PRV-13e** **AMENDED twice the same day, and once again since — the history is the lesson.** Re-derivation MUST run each
 billing period at the current rate, and what it recomputes is **`runway_until`, not the
-commitment** (`LDG-33`, `ADR-0011`). The commitment is fixed at open and only a caller action
-(`LDG-62`) or the scheduled-cancellation exception (`LDG-63`) increases it. *Version one said a
+commitment** (`LDG-33`, `ADR-0011`). The commitment is fixed at open and exactly **three** paths
+increase it: a caller action (`LDG-62`), an operator requeue of a create, which reprices the
+commitment it reuses at the current rate (`OPS-20`), and the scheduled-cancellation exception
+(`LDG-63`) — the one automatic one. *Version one said a
 higher re-derivation places "an additional hold" — stacking a second reservation, the double-count
 `LDG-9` was amended to remove. Version two re-sized the single commitment upward automatically —
 solving the operator's anxiety with the customer's money, and creating a freeze surface where one
-bad rate reading grabs every tenant's available balance.* Where the recomputed runway has already
+bad rate reading grabs every tenant's available balance. Version three named only two growth paths
+after `OPS-20`'s requeue top-up was added, so a builder implementing this requirement literally
+would refuse the top-up `OPS-20` mandates.* Where the recomputed runway has already
 run out, the machine enters the same
 balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
 MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to

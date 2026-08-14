@@ -55,7 +55,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0008` | A deposit is one object — amount and expiry — payable over Lightning or on-chain; the payer chooses. Attribution is by destination, never by payer |
 | `0009` | The process is watch-only and cannot spend the float. Lightning is hot and therefore capped; that cap is the blast radius |
 | `0010` | v1 ships three drivers — Hetzner Cloud, Hetzner Robot, DigitalOcean — for both machine shapes across two companies. Settles the launch-set question |
-| `0011` | Commitments are fixed at open and never auto-widen; a price move shifts the runway date instead. Closes `F27`; amends `ADR-0003`'s matching claim |
+| `0011` | Commitments are fixed at open and never auto-widen — save for the scheduled-cancellation branch, the one automatic exception (`LDG-63`); a price move shifts the runway date instead. Closes `F27`; amends `ADR-0003`'s matching claim |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
@@ -83,10 +83,12 @@ happened to collide with the text — they are not evidence that errors get caug
 inference is the base rate:** three load-bearing reversals across roughly a dozen edits means
 the unmarked text plausibly carries similar error density, unmarked.
 
-**The least-reviewed documents are identifiable.** `03-operation-lifecycle.md`,
-`06-rescue-install.md` and `09-known-defects.md` were written before four separate changes to the
-product model and have not been re-read against the final one. `03` is also the document this
-README calls the heart of the design. Weight accordingly.
+**The least-reviewed document is identifiable.** `09-known-defects.md` was written before four
+separate changes to the product model and has not been re-read against the final one. Weight
+accordingly. `03-operation-lifecycle.md` and `06-rescue-install.md` were once in this sentence and
+are not any more: `03` has been rewritten repeatedly under review since, and `06` was rewritten on
+2026-08-13 (`RSC-26`, `RSC-38`). Both carry their amendment records inline, which is the evidence
+to read — not this paragraph.
 
 **A green conformance checklist certifies the requirements that are written down.** It says
 nothing about what is missing. The three inventions this paragraph used to list — a wire format,
@@ -131,7 +133,9 @@ must provide.
 ## Status
 
 These documents describe a target system. No part of them has been validated against
-a running implementation. Provider API details in `08-provider-notes.md` were read
-out of the reference adapters, not verified against live provider APIs, and each one
-carries an explicit confidence note. Verify against current provider documentation
-before implementing an adapter.
+a running implementation. Provider API details in `08-provider-notes.md` are marked
+**per item**, each with a dated confidence note: some were read out of the reference
+adapters and never checked, some have since been verified against current provider
+documentation, and the DigitalOcean section came from neither — the reference set had
+no such driver. Read the marker on the fact you are about to rely on, and verify
+against current provider documentation before implementing an adapter.

@@ -150,8 +150,10 @@ action, never by an automatic grab of its balance.
 _Avoid_: grace period, term, credit, trial, guarantee (the date moves)
 
 **Correlator**:
-The operation identifier written into a provider-side field at create, so that a machine created
-by a request whose reply was lost can announce which operation it belongs to.
+Whatever a create writes or leaves behind at the provider that later identifies which operation
+produced a resource — the operation identifier where a free field exists, a per-order artifact
+where none does (`PRV-32`). One is recorded per attempt (`PRV-26`), and what announces need not be
+the machine: on an order-shaped provider it is the order.
 _Avoid_: tag, label, marker, reference
 
 **Setup fee**:
