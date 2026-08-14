@@ -68,7 +68,7 @@ names the environment variable; the process reads the secret from the environmen
              |                    |                    |
              v                    v                    v
       Provider driver A    Provider driver B    Provider driver C
-       (cloud VPS)          (dedicated)          (dedicated)
+       (cloud VPS)          (dedicated)          (cloud VPS)
              |                    |                    |
              +--------------------+--------------------+
                                   |
@@ -148,8 +148,8 @@ against it rather than being absorbed.
 **OVR-16** The **capability matrix MUST be exercised, not asserted.** Three drivers with different
 capability sets is the first configuration in which `OVR-2`'s runtime discovery does real work, so
 a deployment MUST verify that a caller reading `GET /v1/providers` can distinguish what each
-provider can actually do — including the capabilities `F10` records as having no operation behind
-them.
+provider can actually do. *(`F10`'s capabilities-without-operations were withdrawn by `DOM-22`,
+not merely tested — there are none left to verify.)*
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive

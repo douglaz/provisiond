@@ -69,8 +69,9 @@ policy, and leaves the driver interface unproven against anything but one API di
   **Verify it before writing the Robot driver, not before shipping.**
 - **The capability matrix stops being hypothetical.** Three drivers with genuinely different
   capability sets is enough for `OVR-2`'s runtime discovery to be exercised rather than asserted,
-  and `F10`'s dead capability branches — `remote_console`, `attach_iso`, the missing list-offers
-  capability — become concrete rather than theoretical.
+  *(`F10`'s dead branches were closed outright by `DOM-22` rather than exercised: `remote_console`
+  and `attach_iso` are withdrawn and `list_offers` added, so no declared capability now lacks an
+  operation behind it.)*
 - **`PRV-13c`'s "do not encode commercial terms as constants" gets its first real test.** Three
   products with three different cancellation stories is where an implementation that hardcoded
   Hetzner's behaviour will fail visibly.

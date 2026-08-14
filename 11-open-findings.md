@@ -20,7 +20,9 @@ deserves to see where each landed.
 
 1. **Which deployment form and tenant model is authoritative?** → `ADR-0001` (single deployable)
    and `ADR-0002` (self-serve enrolment, registry required). Customer credentials are runtime-
-   issued (`API-32`–`API-37`, `STO`'s `tenants` table); there are no per-tenant ceilings because
+   issued (`API-32`–`API-37`, `STO`'s `tenants` table); per-tenant spending ceilings were replaced as the *authorization* mechanism (`SEC-39`'s
+   destruction and creation ceilings remain, as abuse bounds rather than spending authority)
+   because
    `ADR-0002` replaced the whole idea with a prepaid balance.
 2. **How is `needs_reconciliation` resolved without replaying the mutation?** → `OPS-27`–`OPS-33`.
    Resolution searches for a correlator the create wrote into the provider (`PRV-26`, `PRV-27`);
@@ -175,7 +177,8 @@ second to anything.*
 
 **F26. CLOSED 2026-08-12** by `PRV-31`: a driver declares a per-offer worst-case cancellation
 bound before any order, the commitment is sized to it at create, and the machine's actual date —
-read after ordering — re-sizes it downward at the first re-derivation. An offer with no declared
+read after ordering — lowers `protected_sats` at the first re-derivation, lengthening runway
+rather than resizing the commitment (`PRV-31`, `ADR-0011`). An offer with no declared
 bound is not sellable on prepaid terms. `CNF-166` tests it. *The narrowing that made this a
 bounded edit rather than a structural one came from a document already in this set:* `PRV-13c` says
 the per-machine constraint is learned after ordering; `LDG-12` forbids the provider call before
@@ -280,7 +283,10 @@ done. The rename reached `PRV-13b`'s formula (`commitment_sats = …`), `operati
 `SEC-46`, `00`'s withdrawn-non-goal note and the checklist's four remaining money uses. The one
 substantive defect is fixed in place: **`PRV-13e` is AMENDED** — a higher re-derivation re-sizes
 the machine's single commitment via `LDG-34`'s conditional write; the withdrawn "an additional
-hold is placed" would have reintroduced the double-count `LDG-9` was amended to remove. The
+hold is placed" would have reintroduced the double-count `LDG-9` was amended to remove.
+**`ADR-0011` later went further and withdrew the resize itself**, so `PRV-13e` now recomputes
+`runway_until` and nothing resizes a commitment automatically — this paragraph records the
+intermediate state, not the final one. The
 missing tests exist (`CNF-160`–`CNF-165`: the meter's idempotent debit-plus-decrement, billable
 `stopped` and `cancellation_scheduled`, the setup-fee debit, per-tenant serialization under load,
 `OPS-36`'s late arrival, `OPS-38`'s many-case), and the five mis-tiered items are promoted with
@@ -463,13 +469,13 @@ owner's history had nothing arguing for it. `CNF-159` is BLOCKING.
 
 ## The launch set — 2026-08-12
 
-**`ADR-0010` settles `D3`**, open since the first session and never asked: v1 ships **Hetzner
+**`ADR-0010` settles `D3`**, the launch-set question, open since the first session and never asked: v1 ships **Hetzner
 Cloud, Hetzner Robot and DigitalOcean** — both machine shapes across two unrelated companies
 (`OVR-14`–`OVR-16`).
 
 The reason this was worth deciding rather than deferring is that **almost every difficult
 requirement in this set exists for the dedicated shape**, and a cloud-only launch runs none of
-them. The setup fee debited before the order, the reserve covering a cancellation date,
+them. The setup fee committed before the order and debited on acceptance, the reserve covering a cancellation date,
 `cancellation_scheduled`, `PRV-13c`'s exception branch, `ADR-0006`'s pass-through — all written,
 all unexercised. Specifications turn out to be wrong precisely in the parts that never ran.
 

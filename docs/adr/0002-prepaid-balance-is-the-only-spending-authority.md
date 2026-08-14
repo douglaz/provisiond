@@ -38,4 +38,5 @@ rule: the balance is the authority.
   that reaches zero with no way to stop the meter converts a customer's exhausted credit into
   the operator's ongoing loss. This is why `PRV-13c`'s verified fact — Hetzner Robot has no
   minimum term and cancels immediately — is a requirement input and not trivia.
-- Authorizing a create and placing its hold MUST be one transaction. See `ADR-0001`.
+- Authorizing a create and opening its commitment MUST be one transaction (`LDG-11`). See
+  `ADR-0001`. *"Hold" is the withdrawn primitive; `CONTEXT.md` bans the word.*

@@ -154,7 +154,7 @@ This is `OVR-5` made concrete.
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
 
-**The table MUST be total, and four kinds added later were missing.** `insufficient_balance`,
+**The table MUST be total, and five kinds added later were missing.** `insufficient_balance`,
 `not_activated`, `halted`, `gone` and `suspended` (`DOM-20`, `DOM-21`) are **admission-only**: they are decided
 before any driver call, they MUST NOT be emitted by a worker or a driver, and any pre-provider
 occurrence classifies deterministically as `failed` for every operation kind. Nothing was
@@ -182,7 +182,8 @@ A failure is **ambiguous** when:
 **OPS-12** The system MUST NOT automatically retry an operation that ended
 `needs_reconciliation`, and MUST NOT automatically retry an ambiguous mutation under any
 other name (no backoff loop, no "safe" re-poll that re-issues the mutation). The
-`retryable` flag on an error is advisory to operators only.
+`retryable` flag on an error is **normative guidance to callers** (`API-51`); what stays
+prohibited is the *system* retrying on its own.
 
 **OPS-13** When a mutation's outcome is unknown, the surviving evidence MUST be preserved
 and pointed at: the error details MUST record what was attempted, any provider-side
@@ -253,7 +254,7 @@ outcomes:
 | Exactly one resource bears this operation's correlator | **Resolved-observed.** Attach it and complete the operation as though it had succeeded. | Becomes the machine's running commitment (`OPS-36` where it was already released) |
 | The provider's search is authoritative and returns nothing, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Closed and released in full (`LDG-32`) |
 | More than one resource bears the correlator | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
-| The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`API-18`). | Released per `OPS-33`, which applies here too |
+| The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
 **OPS-36** **A correlator match may arrive after `OPS-33` released the commitment and the tenant
 spent the balance.** The specification previously had no branch for this and the three available
@@ -467,5 +468,5 @@ operations older than a configured age are archived or deleted, except those in
 `needs_reconciliation`, which MUST be retained until an operator resolves them.
 
 **OPS-26** Operators MUST be able to enumerate operations by status through the API —
-specifically every operation in `needs_reconciliation` (`API-18`). A design that tells
+specifically every operation in `needs_reconciliation` (`API-23`). A design that tells
 operators to monitor a state and provides no way to list it is incomplete. See `DEF-8`.

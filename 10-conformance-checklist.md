@@ -55,7 +55,7 @@ item for `OVR-10a`, which had none — that is `CNF-71`–`CNF-75` below.
 
 ### Assignments
 
-**BLOCKING** (50 items) — `CNF-1`, `CNF-3` (the epistemic pair: every other checkmark is testimony from
+**BLOCKING** (count superseded — see **The blocking count**) — `CNF-1`, `CNF-3` (the epistemic pair: every other checkmark is testimony from
 this witness); `CNF-4`–`CNF-9` (tenancy — three internal tenants exist from day one, so
 cross-tenant control is takeover plus destruction before any external customer arrives);
 `CNF-10`–`CNF-13` (injection — path injection reaches the wrong machine in the operator's whole
@@ -274,12 +274,12 @@ as a starting sort, not a ruling.
 **Blocking as a whole area** — the safety spine, where a first pass is safe because almost
 everything in them is irreversible:
 
-- **`SEC-*` (42 items).** The entire namespace. Every one guards a family in the irreversible
+- **`SEC-*` (the entire namespace, now `SEC-1`–`SEC-53`).** All of it. Every one guards a family in the irreversible
   list. Exceptions that are genuinely PRE-SCALE: `SEC-30`/`SEC-31` (rate limiting and
   starvation — a queue with one tenant cannot starve anyone), `SEC-33` (separate audit sink),
   `SEC-38` (rotation procedures, needed before the first credential ages out rather than before
   the first customer).
-- **`RSC-*` (37 items).** Rescue writes to disks and holds root credentials. `RSC-31` (partition
+- **`RSC-*` (now `RSC-1`–`RSC-38`).** Rescue writes to disks and holds root credentials. `RSC-31` (partition
   growth), `RSC-33`/`RSC-34` (preflight capture) are the plausible PRE-SCALE exceptions.
 - **`PRV-6`, `PRV-9`–`PRV-13c`, `PRV-17`, `PRV-22`.** Injection, key-material timing, deletion
   semantics, rescue credential handling, ambiguity honesty.
@@ -302,7 +302,7 @@ person acts); `OVR-13`; `DOM-9`, `DOM-11`, `DOM-12`, `DOM-15`, `DOM-16`.
 
 **DEFERRED** — guards a shape that does not exist yet, or is recoverable: `PRV-24`, `PRV-25`
 (iPXE and reverse DNS, if those capabilities are not in v1); `RSC-30`'s two-pass *default* if
-`D5` chooses single-pass deliberately; `API-21`, `API-22` presentation details; anything
+`RSC-30` permits single-pass deliberately; `API-22` presentation details (`API-21` was corrected to PRE-SCALE above); anything
 governing providers not shipping in v1.
 
 **The honest caveat.** Blocking still dominates, and that is the shape of a
@@ -314,7 +314,7 @@ does not.
 
 ### The honest finding about this exercise
 
-Tiering buys less relief than expected: 50 of 75 land blocking. That is not tier
+Tiering buys less relief than expected: the blocking subset (see **The blocking count**) of land blocking. That is not tier
 inflation. This checklist was distilled from the defect list of a discarded implementation of a
 destructive-operations product, so it was already the sharp end. **The real relief lives in
 tiering the full requirement set**, where the deferrable long tail actually is — pagination,
@@ -655,7 +655,8 @@ to strand satoshis that do.
       settled leaves the payment credited exactly once after recovery — not twice, not zero times.
       Replaying the rail's settlement stream produces no second entry. (`STO-30`, `STO-31`)
 - [ ] **CNF-125** A pending tenant can reach exactly `POST /v1/deposits`, `GET /v1/deposits/{id}`
-      for its own deposit, and the unauthenticated enrolment handle — and **nothing else**; every
+      for its own deposit, the unauthenticated enrolment handle, and `POST /v1/recovery/revoke`
+      **at or after `issuable_at`** (`API-43`) — and **nothing else**; every
       other authenticated endpoint answers `not_activated`. The deposit-read half is what lets a
       tenant that paid below the activation minimum see what happened to unrefundable money.
       (`API-43`, `API-52`, `DOM-20`)
@@ -946,7 +947,8 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
 
 - [ ] **CNF-166** A create against an offer with no declared cancellation bound is refused
       before any provider call, and a create against one with a bound opens a commitment sized to
-      that bound — later reduced, never raised, by the machine's actual date. (`PRV-31`,
+      that bound, which the machine's actual date then **lowers `protected_sats` against rather
+      than resizing** (`PRV-31`, `LDG-33`). (`PRV-31`,
       `PRV-13c`, `LDG-12`)
 
 - [ ] **CNF-167** A rate halving increases **no** commitment anywhere in the fleet, except

@@ -116,8 +116,8 @@ the Robot cancellation guide, 2026-08-08]**
 
 Consequences for a reseller: the delete-stops-cost arrow that hourly metering depends on
 genuinely exists here, so no separate term SKU is needed. The **setup fee** is the real prepaid
-exposure — commonly charged on standard servers, undocumented as refundable, so treat it as
-non-refundable and collect it before ordering. Auction servers carry no setup fee.
+exposure — commonly charged on standard servers, undocumented as refundable, so treat it as non-refundable, **commit it before ordering and debit it only on confirmed
+acceptance** (`LDG-39`). Auction servers carry no setup fee.
 
 **The exception branch is real and adoption is its main road.** Hetzner states cancellation
 periods depend on the individual contract, so a machine you *adopted* carries whatever terms it

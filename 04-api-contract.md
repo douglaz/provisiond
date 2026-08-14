@@ -32,8 +32,9 @@
 | POST | `/v1/tenants/{tenant_id}/actions/resume` | ✓ | Operator: clear the suspension (`API-58`, `WIR-41`) |
 | POST | `/v1/machines/{id}/actions/extend-runway` | ✓ | Grow the machine's commitment from available (`LDG-62`, `WIR-24`) |
 
-**The last five rows were absent until 2026-08-12** — enrolment shipped on 2026-08-11 and funding
-earlier the same day as this note, each with requirements and no place on the surface. A table
+**The enrolment, funding and balance rows were absent until 2026-08-12** — enrolment shipped on
+2026-08-11 and funding earlier the same day as that note, and the recovery, resolve, suspend,
+resume, attribute and preflight rows were added later still, each with requirements and no place on the surface. A table
 that omits an endpoint the requirements mandate is `F19` in miniature, and it is the reason
 `API-48` now states the synchronous exemptions in one place instead of leaving each new endpoint
 to contradict `API-1` on its own.

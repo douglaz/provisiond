@@ -53,9 +53,10 @@ decision and was withdrawn within the hour. It had the deployment pick the rail 
 on-chain whenever the amount exceeded inbound capacity. That forces a liquidity guess which can be
 stale by the time the customer pays, and it makes the operator's guess load-bearing in exactly the
 case — the large first top-up — where being wrong costs the most. Offering both moves the choice
-to the party that knows its own constraints. **The word "fallback" is retained in this ADR's title
-and nowhere in the requirements**, because there is no fallback: there are two destinations for
-one deposit.
+to the party that knows its own constraints. **The word "fallback" appears nowhere in this ADR's title or in the
+requirements**, because there is no fallback: there are two destinations for one deposit. *An
+earlier draft of this paragraph claimed the title retained it; the title is "Two funding rails,
+one credit rule".*
 
 **Restricting addresses to already-funded tenants** was drafted as a way to bound the permanent
 monitoring obligation, and became unnecessary once the expiry applied to both rails. It is

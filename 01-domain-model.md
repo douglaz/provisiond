@@ -294,7 +294,9 @@ purchase.
 
 **DOM-17** Every error MUST carry a kind, a human-readable message, a boolean
 `retryable`, and a structured `details` object. `retryable` describes whether repeating
-the *same request* is safe and sensible — it is advisory to operators and MUST NOT be
+the *same request* is safe and sensible. **It is normative guidance to callers** (`API-51`) —
+never authorization for an automatic service retry, and no substitute for `API-19`'s operator-only
+requeue. It MUST NOT be
 used by the system to retry automatically (`OPS-12`).
 
 **DOM-18** `details` MUST be redacted with the same rules as `DOM-6` before it is stored
