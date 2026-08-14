@@ -15,6 +15,7 @@ requirement not to repeat it.
 
 | Document | Contents |
 |---|---|
+| `executive-summary.md` | **Start here if you are new.** One self-contained orientation to the whole set — what it is, the decisions everything follows from, why the money model is the security model, what is genuinely hard, and what has and has not been validated |
 | `00-overview.md` | Problem statement, design goals, system context, non-goals |
 | `01-domain-model.md` | Entities, machine states, the capability model |
 | `02-provider-contract.md` | The provider driver interface, operation by operation |
