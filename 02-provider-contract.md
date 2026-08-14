@@ -270,7 +270,9 @@ future** — defined (`F18`) as later than now plus one re-derivation period plu
 wind-down bound; anything nearer is indistinguishable from the ordinary exhaustion path and
 needs no exception —
 (`DOM-19`). A machine on the exception branch MUST either carry a machine-specific reserve of
-cost-through-that-date, or not be sold on prepaid terms at all.
+cost-through-that-date, or not be sold on prepaid terms at all. **That cost is part of
+`protected_sats` (`LDG-33`), not spendable runway** — the whole point of reading the date is that
+the satoshis covering it are never advertised as runtime.
 
 *This requirement exists because a specification, a reviewing model, and a researching model
 each asserted a different set of terms for the same provider, and two of the three were wrong.

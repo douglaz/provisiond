@@ -314,7 +314,8 @@ does not.
 
 ### The honest finding about this exercise
 
-Tiering buys less relief than expected: the blocking subset (see **The blocking count**) of land blocking. That is not tier
+Tiering buys less relief than expected: a large majority of items land BLOCKING (see **The
+blocking count**). That is not tier
 inflation. This checklist was distilled from the defect list of a discarded implementation of a
 destructive-operations product, so it was already the sharp end. **The real relief lives in
 tiering the full requirement set**, where the deferrable long tail actually is — pagination,

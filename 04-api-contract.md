@@ -226,8 +226,9 @@ flow can bind a retained deposit to a new tenant — a caller claiming a deposit
 guessed or observed would be claiming someone else's money. An attribution that brings the receiving tenant's cumulative balance to the activation minimum
 **activates it atomically**, exactly as an ordinary settlement would (`API-35`, `LDG-52`) —
 otherwise a customer who recovered enough credit would sit pending holding a sufficient balance.
-The customer presents its deposit identifier to the operator, who credits it to a *named* tenant
-through
+The customer presents its deposit identifier to the operator, who credits it to a *named* tenant — **which may be `pending`**, the ordinary case since a
+returning customer enrols afresh, and the credit counts toward `API-35`'s activation minimum like
+any other — through
 `POST /v1/deposits/{id}/actions/attribute` (operator-only, `WIR-42`) — a real endpoint, because
 "the operator surface" with no route is the gap this loop has now found four times.
 
@@ -296,8 +297,9 @@ sufficient and MUST NOT be offered**: a thief holding the token would rotate fir
 owner out permanently, converting credential theft into total loss of the tenant.
 
 Revocation MUST be **serialized per tenant** (`LDG-35`'s primitive), so two concurrent
-revocations under different keys cannot both mint a replacement and leave one silently dead. It
-MUST carry an idempotency key and MUST replace the token **at most once per key**
+revocations under different keys cannot both mint a replacement and leave one silently dead. Each replacement MUST carry a **generation number** so a token minted by an earlier revocation
+cannot be resurrected by a replay of that earlier call. It MUST carry an idempotency key and MUST
+replace the token **at most once per key**
 (`STO-35`) — a replay returns `409` with `details.reason: "credential_already_replaced"` rather
 than re-returning the new token, because storing a replayable body would mean persisting a live
 bearer secret. This is a deliberate narrowing of `API-8`'s replay contract, and it is safe
@@ -325,8 +327,10 @@ because abandoning an in-flight order is how a machine ends up bought, unrecorde
 then (3) enqueues a system cancellation per machine (`OPS-39`) — **the suspension flag and the
 full fan-out MUST commit together, or a crash mid-fan-out leaves a suspended tenant with machines
 nobody will ever cancel and no write path left to notice** — then (4) **transitions work already `queued` but never claimed straight to `failed` with
-`suspended`** — it has touched no provider, so cancelling it needs no operation — and lets
-anything already `running` settle before its machine is swept; then (5) aggregates the outcomes,
+`suspended`** — it has touched no provider, so cancelling it needs no operation — and lets anything already `running` settle, **then re-sweeps: a create that
+settled after the fan-out has produced a machine the first pass never saw, and it MUST be
+cancelled by a second pass rather than left running against a suspended tenant** — the fan-out
+repeats until a pass finds no un-cancelled machine; then (5) aggregates the outcomes,
 including any that end `needs_reconciliation`. Reads of the ledger and machine list MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
 it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to

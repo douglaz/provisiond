@@ -238,7 +238,9 @@ the token later and returned it **once** from `WIR-13`, which cannot survive a l
 server marks it delivered, keeps only a hash, and a funded customer is locked out of a tenant
 nobody can reach.* **Enrolment carries no idempotency replay at all** (`API-40`): the key space
 was global and unauthenticated, so two callers choosing the same low-entropy key received the same
-handle — and the handle yields the credentials. A duplicate signup is free and `API-34` reaps it;
+handle — and under the withdrawn model that handle was what returned the credentials.
+Both secrets now arrive in the enrolment response itself (`API-33`), so `WIR-13` returns status
+only; the replay rule is withdrawn regardless, because a shared handle is a shared identity. A duplicate signup is free and `API-34` reaps it;
 a leaked capability is not.
 
 **WIR-13** **AMENDED** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
@@ -259,7 +261,7 @@ balance and its commitments are untouched.
 **WIR-39** `POST /v1/tenants/{tenant_id}/actions/suspend` — **operator-only** (`WIR-34`),
 `{"acknowledge_destruction": true}`, since it cancels the tenant's fleet (`API-58`, `SEC-45`).
 Returns `202` with an ordinary **operation view** of kind `suspend_tenant` (`WIR-10a`), whose
-`result` is `{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` — one entry per machine — one child operation per machine
+`result` is `{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` — one entry per machine, each an ordinary child operation
 (`OPS-39`), so partial failure and `needs_reconciliation` stay visible per machine and are read
 through the existing `GET /v1/operations` surface.
 

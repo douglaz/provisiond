@@ -71,7 +71,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
 | `metadata` | json | redacted (`DOM-6`) |
-| `correlator` | UUID | the operation id written into the provider at create (`PRV-26`); nullable for adopted machines |
+| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). Nullable for adopted machines. *A single UUID column could not hold Robot's* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `reserve_sats` | integer | the currently held reserve |
@@ -141,7 +141,8 @@ deleted rows.
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
-| `pending_fee_native_minor`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee in the **provider's** currency (`LDG-2`), since it is not yet a satoshi obligation. Cleared on resolution |
+| `pending_fee_native_minor`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee in the **provider's** currency (`LDG-2`) |
+| `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. Both cleared on resolution |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`), `rate_outage_bound` (`LDG-64`) |
 | `system_trigger_id` | text | nullable; `OPS-39`'s durable episode identifier. Unique with `(machine_id, system_reason)` — the constraint that stops a per-minute sweep enqueueing a fresh cancel every minute |
@@ -208,6 +209,7 @@ an environment variable (`API-4` as amended).
 | `id` | text | primary key; opaque, no personal data (`ADR-0005`) |
 | `credential_digest` | text | not null; the **spending token** hash, never the credential itself (`API-3`). Replaced in place by `WIR-38` |
 | `recovery_digest` | text | not null; the **recovery credential** hash (`API-55`). Minted with the row and never replaced by a spending-token revocation |
+| `credential_generation` | integer | increments on every revocation (`API-56`); a token from an earlier generation never authenticates, so a replayed revocation cannot resurrect one |
 | `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger and machine reads, and retains the maintenance actions of `API-7` step 2) |
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
@@ -364,7 +366,10 @@ transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home
 returned an empty list to every customer forever.
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
-`currency`, `absorbed_seconds`, `rate_num`, `rate_den`, `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
+`currency`, `absorbed_seconds`, `rate_num`, `rate_den` (`LDG-66`: the rate in force when opened,
+so the meter can subtract it without mixing currencies), `outage_started_at`, `outage_deadline`
+(`LDG-64`, both persisted so a restart cannot re-apply the bound from a fresh start),
+`cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s wind-down shortfall) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.

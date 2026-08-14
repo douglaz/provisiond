@@ -247,7 +247,7 @@ identical consumption. The rule is therefore:
 
 ```
 posted_debit = ceil(cumulative_exact_charge)
-              − Σ(previous debits for this SUBJECT and period)
+              − Σ(previous **usage** debits for this SUBJECT and period)
               − Σ(deficiency-absorbed time for it, converted at the rate recorded
                   on each deficiency record, LDG-66)
 ```
@@ -353,7 +353,10 @@ usage cannot be converted to satoshis. A deployment MUST:
   consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
   against because the commitment was already open;
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
-  a restart would re-apply from a fresh start), so a restart mid-outage does not reset
+  a restart would re-apply from a fresh start). **The deficiency record carries no rate during an
+  outage** — there is none — so its `rate_num`/`rate_den` are null until a rate returns, at which
+  point the record is stamped with the first rate available and becomes subtractable by `LDG-38`;
+  an outage deficiency is never converted at a rate that did not exist while it accrued, so a restart mid-outage does not reset
   the clock and quietly extend the exposure past the bound — the deficiency record (`STO-37`) is
   where they live;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,

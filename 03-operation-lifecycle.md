@@ -155,7 +155,7 @@ This is `OVR-5` made concrete.
 | Operation | Classification rule |
 |---|---|
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
-| suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole: it is a parent whose per-machine children carry their own outcomes (`WIR-39`). It settles `succeeded` once every child has settled, **including children that settled `needs_reconciliation`** — an unresolved child is a child-level fact, and blocking the parent on it would leave a suspended tenant's record permanently open. |
+| suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. **A child that settles `needs_reconciliation` counts as complete for the parent** — it has reached a state only evidence or an operator moves, and holding the parent open on it would leave every suspended tenant's record permanently unfinished: it is a parent whose per-machine children carry their own outcomes (`WIR-39`). It settles `succeeded` once every child has settled, **including children that settled `needs_reconciliation`** — an unresolved child is a child-level fact, and blocking the parent on it would leave a suspended tenant's record permanently open. |
 | preflight | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
@@ -231,8 +231,10 @@ of the original request: `ADR-0005` purges that once the operation stops being l
 `API-19`, `OPS-31` and `DEF-17` all rested on it.*
 
 For an ordering operation a requeue means **placing a second order**, so it MUST pass the same
-spending gates and open the same commitment a fresh create would (`API-7`'s create class,
-`LDG-11`) — a requeued create that skips them buys a machine with no authorized funding, which is
+spending gates a fresh create would (`API-7`'s create class). **Where the original operation's
+commitment is still open it is reused, not duplicated** (`LDG-30`: one open commitment per
+machine); only where it was closed — by `OPS-33`'s window or a terminal outcome — does the requeue
+open a new one (`LDG-11`) — a requeued create that skips them buys a machine with no authorized funding, which is
 the money-out `ADR-0002` exists to prevent, reached through the operator surface. The API MUST make that
 explicit in its response or documentation, and MUST refuse to requeue a provider-non-idempotent
 kind unless the request carries a **second, distinct acknowledgement**
@@ -349,7 +351,7 @@ briefly; nothing may deny it.
 **System-initiated provider mutations MUST be operations, and the tenant MUST see them.** Exhaustion cancelling a machine (`LDG-14`), `OPS-36`'s attach-then-cancel, and any other
 mutation the deployment performs on a tenant's machine without a caller request MUST go through
 this queue — lock, lease, settled states, `needs_reconciliation` included, because a cancel
-whose outcome is ambiguous is ambiguous regardless of who asked for it — and MUST appear in the
+whose outcome cannot be established is ambiguous no matter who requested it — and MUST appear in the
 tenant's operation list marked `requested_by: system` with a stated reason (`exhausted`,
 `late_attach_cleanup`, `account_lost`, `tenant_suspended`, `rate_outage_bound`). Without this,
 `GET /v1/operations` is not the history of
