@@ -390,10 +390,12 @@ cancellation too, and priced the reserve accordingly.
 
 A create MUST carry the operation's identifier into the provider, using whatever
 caller-controlled field that provider offers, and the driver MUST be able to find resources
-bearing it afterwards. Every provider examined offers such a field (`08-provider-notes.md`), so
-a driver that cannot do this is asserting something unusual about its provider and MUST say so
-in its notes — because it thereby forfeits automated reconciliation (`OPS-27`) and hands every
-ambiguous create to a human.
+bearing it afterwards. Every provider examined offers **either a free caller-controlled field or
+a per-operation artifact that can serve as one** (`PRV-32`, `08-provider-notes.md`) — Hetzner
+Robot is the second case, because its only free field is disqualified by `PRV-30`. A driver that
+can find neither is asserting something unusual about its provider and MUST say so in its notes —
+because it thereby forfeits automated reconciliation (`OPS-27`) and hands every ambiguous create
+to a human.
 
 Three constraints on what is written:
 

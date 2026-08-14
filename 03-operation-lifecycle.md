@@ -58,9 +58,10 @@ account was only ever determined inside the call that vanished.
 ```
                     +----------+
    enqueue -------->|  queued  |<---------------------+
-                    +----+-----+                      |
-                         | claim (lease)              | defer (machine locked)
-                         v                            | operator requeue
+                    +----+-----+                      | defer (machine locked)
+                         |                            | operator requeue
+                         | claim (lease)              | suspend_tenant parent whose
+                         v                            |   lease expired (OPS-14)
                     +----------+---------------------+
                     | running  |
                     +----+-----+
@@ -78,6 +79,8 @@ account was only ever determined inside the call that vanished.
         +----------------+-------------------+ resolved absent/abandoned -> failed
                          |                   |
                          +--- operator requeue ---> queued
+
+   queued --- tenant suspended, never claimed (API-58) ---> failed, kind `suspended`
 ```
 
 `needs_reconciliation` is **resolution-pending, not terminal** (`OPS-3`): it settles by evidence
@@ -205,6 +208,17 @@ into `needs_reconciliation`, and MUST release machine locks whose lease has expi
 MUST NOT move them back to `queued`. A crashed worker is exactly the case where the
 provider may have acted and nobody recorded it.
 
+**`suspend_tenant` is the single exception, and it MUST NOT require an operator.** A
+`suspend_tenant` parent (`API-58`) whose lease expires MUST be returned to `queued` and re-claimed
+like any other queued work, resuming its fan-out from wherever it stopped. It mutates no provider
+itself — its per-machine children do, and each child is an ordinary operation the rules above
+already govern — so a crashed parent leaves nothing ambiguous to establish, and the re-sweep is
+idempotent by `OPS-39`'s `system_trigger_id`, which is minted per machine and per episode and
+makes a repeated pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead
+would contradict `OPS-11`'s `suspend_tenant` row and would leave a suspended tenant's fleet
+running, and billing, until a human noticed — which is exactly what `SEC-45`'s one-action
+termination MUST NOT depend on.
+
 **OPS-15** The sweeper MUST run at startup as well as periodically, and startup MUST log
 the count of operations it found interrupted.
 
@@ -263,6 +277,14 @@ outcomes:
 | The provider's search is authoritative and returns nothing, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Closed and released in full (`LDG-32`) |
 | More than one resource bears the correlator | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
 | The search cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
+
+**Resolved-observed MUST be one transaction**, in the manner of `LDG-11`. The resolution write on
+the operation (`STO-19`'s write-once columns), the machine attach, the setup-fee debit, the
+clearing of `LDG-67`'s pending-fee columns, and the commitment decrement where a commitment is
+still open (`LDG-31`) MUST commit together, under `LDG-35`'s per-tenant serialization because the
+debit reads the balance. A partial commit leaves a state nothing in the record can repair: an
+attach whose fee is still parked bills that setup a second time when the obligation is next read,
+and a debit without the attach charges a customer for a machine no tenant owns.
 
 **OPS-36** **A correlator match may arrive after `OPS-33` released the commitment and the tenant
 spent the balance.** The specification previously had no branch for this and the three available
@@ -341,6 +363,14 @@ remain retryable or the machine bills forever. **Minting a fresh id per sweep
 would make the constraint fire never**, which is the defect this rule exists to prevent — otherwise a sweep that runs every minute enqueues a fresh
 cancellation every minute for the same exhausted machine, which is repeated provider mutation by
 timer.
+
+**The id MUST outlive the operations that carry it.** `STO-14` deletes settled operations after a
+configured age, and an id stored only there vanishes with them — after which the next sweep of the
+same unresolved condition mints a new one and re-enqueues, reaching the identical defect through
+retention instead of through a timer. The id is therefore also recorded on the **machine** row,
+keyed by `system_reason` (`machines.system_trigger_ids`, `05-persistence.md`), and is removed only
+when the episode resolves. A tombstoned machine keeps it (`STO-8`), because a machine whose
+cancellation was never established is exactly the row a later sweep reads.
 
 **Exposure-reducing system cancellations MUST be exempt from `SEC-39`'s per-principal destruction
 ceiling.** That ceiling exists to bound what a runaway *caller* can destroy; applying it to the

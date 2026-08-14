@@ -172,10 +172,14 @@ commitment reserved, so a caller reads what it spent without diffing `GET /v1/ba
 
 **WIR-10b** **`result` and `error` shapes.** `error`, when non-null, is exactly `WIR-9`'s inner
 object (`kind`/`message`/`retryable`/`details`), without the envelope. `result`, when non-null, is
-per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` → `{"machine_id": "<uuid>"}`;
-`install` and `preflight` → `{"preflight": {"devices": [{"identifier": "...", "path": "...",
-"size_bytes": 0, "model": "...", "type": "..."}], "uefi": true, "inventory_fingerprint": "..."}}`
-(`RSC-33`, `RSC-38`); `suspend_tenant` → `{"cancellations": ["<operation id>", ...]}` (`WIR-39`);
+per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
+`{"machine_id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20"}`;
+`install` and `preflight` → `{"preflight": {"devices": [{"identifier": "S4EVNF0N123456",
+"path": "/dev/nvme0n1", "size_bytes": 1024209543168, "model": "SAMSUNG MZVL21T0HCLR",
+"type": "nvme"}], "uefi": true, "inventory_fingerprint":
+"b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}}`
+(`RSC-33`, `RSC-38`); `suspend_tenant` →
+`{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` (`WIR-39`), one entry per machine;
 `power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`. An ambiguous outcome additionally records provider identifiers in `result` per `OPS-13`.
 
 **WIR-11** The **machine view** (`CNF-176` counts this as a fixture, so a full example is given):
@@ -222,12 +226,13 @@ transmitted**:
   "tenant_id": "t-0198c1f0",
   "status": "not_yet",
   "issuable_at": "2026-08-13T14:30:00Z",
+  "expires_at": "2026-08-16T14:00:00Z",
   "spending_token": "pvd_s_7Qk2mXbW9tR4vL8nZaC3yH6eJ1gP5dF0sK7wN2xB4uT",
   "recovery_credential": "pvd_r_3mYq8LbN5tX2vK9pZfC6yH4eJ7gR1dW0sM3wQ5xA8uV",
   "disclosures": [
     {"code": "store_both_secrets", "text": "These are shown once. Store the recovery credential where your everyday agent cannot reach it; it is the only thing that can revoke a stolen token."},
     {"code": "no_identity_recovery", "text": "Losing both is a lost balance. There is no identity to recover against and no refund."},
-    {"code": "signup_expiry", "text": "An unfunded signup expires at the expires_at returned by the enrolment status endpoint. A credit below the activation minimum does not extend it; such a credit is retained and re-attributable, never refunded."}
+    {"code": "signup_expiry", "text": "An unfunded signup expires at the expires_at returned above. A credit below the activation minimum does not extend it; such a credit is retained and re-attributable, never refunded."}
   ]
 }
 ```
@@ -244,11 +249,14 @@ only; the replay rule is withdrawn regardless, because a shared handle is a shar
 a leaked capability is not.
 
 **WIR-13** **AMENDED** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
-ever**: `{"status": "not_yet" | "pending" | "active", "expires_at": "2026-08-16T14:00:00Z"}`.
-**`issuable_at` MUST NOT appear here**, which is why the example above omits it. It is returned
-once, in the enrolment response (`WIR-12`), to the caller that created the signup; echoing it on an unauthenticated
-handle-addressable endpoint hands an attacker the exact instant to start polling, which is the
-timing oracle `API-33` forbids.
+ever**: `{"status": "not_yet" | "pending" | "active"}`.
+**`issuable_at` and `expires_at` MUST NOT appear here.** Both are returned once, in the
+enrolment response (`WIR-12`), to the caller that created the signup; echoing `issuable_at` on an
+unauthenticated handle-addressable endpoint hands an attacker the exact instant to start polling,
+which is the timing oracle `API-33` forbids. **`expires_at` is that same oracle by another route**
+and is dropped here for that reason: both instants are the signup's creation time plus a stated
+constant — `API-33`'s delay and `API-34`'s time-to-live — so publishing either one yields the
+other by subtraction, and the redaction was defeating itself.
 No delay-derived `Retry-After` (`API-33`, `API-49`'s exception). This is how a pending tenant
 observes activation (`API-52`).
 
@@ -276,7 +284,7 @@ no schema, no store and no read endpoint — the `commitments`-table gap for the
 parent operation already has all three.
 
 **WIR-42** `POST /v1/deposits/{id}/actions/attribute` — **operator-only** (`WIR-34`), body
-`{"tenant_id": "...", "operator_ref": "..."}`, synchronous `200`. Credits a deposit whose tenant
+`{"tenant_id": "t-0198c1f0", "operator_ref": "opref-7d41c9"}`, synchronous `200`. Credits a deposit whose tenant
 was reaped (`API-34`) to a live tenant — **which MAY be `pending`**, the ordinary case since a
 returning customer enrols afresh, and the credit then counts toward `API-35`'s activation minimum
 like any other — **by posting one `correction` pair per settled payment** (`LDG-7`, `LDG-5`) — each a negative
@@ -328,7 +336,7 @@ invoice's own embedded expiry MUST equal `expires_at`. Both rails carry a `floor
 `disclosures` entry carries a machine-readable `code` and human `text` (`CNF-131`).
 
 **WIR-15** `GET /v1/deposits/{id}` — the same body plus
-`"credits": [{"rail": "lightning", "amount_sats": 250000, "credited_at": "..."}]` (one entry per
+`"credits": [{"rail": "lightning", "amount_sats": 250000, "credited_at": "2026-08-13T14:07:31Z"}]` (one entry per
 settled payment, `LDG-55` — plural on purpose), `"credited_sats"` (their sum), and
 `"expired": false`.
 
@@ -386,7 +394,8 @@ fails `invalid_request` (not `insufficient_balance`) **before** any commitment o
 can bound a purchase priced at an attacker-influenceable rate (`LDG-41`).
 
 **WIR-18** `POST /v1/machines/adopt` — **operator-only** (`API-18`, `WIR-34`): bearer auth, body
-`{"tenant_id": "...", "provider_account": "...", "external_id": "...", "runway_seconds": 2592000,
+`{"tenant_id": "t-0198c1f0", "provider_account": "hetzner-robot-1", "external_id": "2345678",
+"runway_seconds": 2592000,
 "acknowledge_purchase": true}`. A customer-authenticated request to this route returns `404`
 (`WIR-34`), not `authentication` — its existence is not customer-observable.
 
@@ -406,7 +415,7 @@ not two:
 | `trust` | Meaning |
 |---|---|
 | `{"use_provider_keys": true}` | Pin the host keys the driver publishes at rescue activation. **Abort `integrity` if none appear** before `RSC-9`'s deadline |
-| `{"expected_host_keys": [...]}` | Pin caller-supplied keys (`RSC-3`) |
+| `{"expected_host_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIhostkeyxxxxxxxxxxxxxxxxxxxxxxxx"]}` | Pin caller-supplied keys (`RSC-3`) |
 | `{"accept_unpinned": true}` | First-use trust, the explicit per-request opt-in `SEC-22` requires |
 
 **The provider-keys variant was missing and its absence was a silent security downgrade.** It is
@@ -427,8 +436,10 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 ```
 
 - `raw_disk`: `source.type` `raw_disk` (`url`, `sha256`, `compression` ∈ {`none`, `gzip`, `xz`,
-  `zstd`, `bzip2`}), a required **`target`** object — `{"identifier": "<serial or WWN>",
-  "inventory_fingerprint": "<from RSC-38 preflight>"}`, **not a device path** (`RSC-26`) —
+  `zstd`, `bzip2`}), a required **`target`** object — `{"identifier": "S4EVNF0N123456",
+  "inventory_fingerprint": "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}`,
+  where `identifier` is a drive serial or WWN and the fingerprint is the one `RSC-38`'s preflight
+  returned — **not a device path** (`RSC-26`) —
   optional `grow_partition` (boolean, default `false`, `RSC-31`), and no `authorized_keys`
   (`RSC-14` forbids injecting into an opaque image).
 - `provider_native`: `source.type` ∈ {`catalog` (`image`), `ipxe` (`script`)}; no `layout`, no
@@ -463,10 +474,12 @@ different fingerprint under that key is `409` (`API-11`, `STO-25`). `API-48`'s c
 AMENDED to include it — recorded there.
 
 **WIR-25** `GET /v1/machines`, `GET /v1/machines/{id}` — machine views; the list is
-cursor-paginated (`WIR-32`): `{"machines": [...], "next_cursor": null}`.
+cursor-paginated (`WIR-32`): `{"machines": [], "next_cursor": null}`. The example shows an empty
+page; each element is `WIR-11`'s machine view, elided here rather than placeheld (`WIR-37`).
 
-**WIR-26** `GET /v1/operations?terminal=false&status=...&limit=100&cursor=...` — the fleet poll
-(`API-49`): `{"operations": [...], "next_cursor": null, "poll_after_ms": 5000}`. `terminal=false`
+**WIR-26** `GET /v1/operations?terminal=false&status=queued,running&limit=100&cursor=b3AtY3Vyc29yLTAxOThjMWUw` — the fleet poll
+(`API-49`): `{"operations": [], "next_cursor": null, "poll_after_ms": 5000}`, each element
+`WIR-10`'s operation view and elided on the same terms. `terminal=false`
 MUST be supported; `status` accepts a comma-separated set; `terminal` and `status` combine as an
 intersection, and an empty intersection is an empty page, not an error. The list-level
 `poll_after_ms` governs the fleet poll; a single-operation poll obeys that operation's own value
@@ -476,19 +489,21 @@ intersection, and an empty intersection is an empty page, not an error. The list
 `gone`, `details.retained_until` (`DOM-21`).
 
 **WIR-28** **AMENDED** `POST /v1/operations/{id}/actions/requeue` — **operator-only** (`API-19`,
-`WIR-34`), body `{"reason": "...", "acknowledge_duplicate_purchase": true, "request": { ...a fresh
-payload in the original endpoint's shape... }}` (`OPS-34`). The system verifies the fresh payload
-against the stored summary and refuses on any mismatch. `acknowledge_duplicate_purchase` MUST be
+`WIR-34`), body `{"reason": "order confirmed lost at the provider", "acknowledge_duplicate_purchase": true, "request": {}}`
+(`OPS-34`), where `request` is elided in this example and carries a fresh payload in the original
+endpoint's shape — the create body of `WIR-17`, the install body of `WIR-20`, and so on. The system
+verifies the fresh payload against the stored summary and refuses on any mismatch. `acknowledge_duplicate_purchase` MUST be
 literal `true` when the operation's kind places an order — the fresh payload's own
 `acknowledge_purchase` does **not** satisfy `OPS-20`'s "second, distinct" acknowledgement, because
 requeueing a create is a purchase decision, not a retry.
 
 **WIR-35** `POST /v1/operations/{id}/actions/resolve` — **operator-only** (`API-19`, `WIR-34`),
 the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the operator half of
-`F19`). Body is a discriminated union: `{"resolution": "observed", "external_id": "...",
-"kept_duplicate": "...", "operator_ref": "..."}` attaches a discovered resource (`OPS-27`);
-`{"resolution": "absent", "operator_ref": "..."}` records that nothing was created and releases
-the commitment (`LDG-32`); `{"resolution": "abandoned", "operator_ref": "..."}` gives up.
+`F19`). Body is a discriminated union: `{"resolution": "observed", "external_id": "2345678",
+"kept_duplicate": "2345679", "operator_ref": "opref-7d41c9"}` attaches a discovered resource
+(`OPS-27`);
+`{"resolution": "absent", "operator_ref": "opref-7d41ca"}` records that nothing was created and releases
+the commitment (`LDG-32`); `{"resolution": "abandoned", "operator_ref": "opref-7d41cb"}` gives up.
 **`operator_ref` carries the same constraint as `WIR-42`'s**: an opaque reference to a record kept
 outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`). *The
 reviewers flagged the field on `WIR-42`; it was here too, and an operation record is retained
@@ -500,10 +515,15 @@ and mints no provider mutation — returning `200` with the updated operation vi
 is a recursion `API-1` never intended.
 
 **WIR-40** `POST /v1/machines/{id}/actions/preflight` — `RSC-38`'s read-only inventory pass. Body
-carries the same **`trust`** object as an install (`WIR-20`) and nothing else: preflight enters
-rescue over SSH, so it faces the identical host-key decision, and an empty body could express
-neither a pinned key nor the explicit unpinned opt-in `SEC-22` requires — making it unusable on a
-strict driver or a silent trust downgrade on a lax one.
+carries the same **`trust`** object as an install (`WIR-20`), plus the same `on_failure` ∈
+{`exit_rescue` (**default**), `leave_in_rescue`}, and nothing else. Preflight enters rescue over
+SSH, so it faces the identical host-key decision — an empty body could express neither a pinned
+key nor the explicit unpinned opt-in `SEC-22` requires, making it unusable on a strict driver or a
+silent trust downgrade on a lax one — and it faces the identical *exit* decision: a preflight that
+fails partway has left the machine in rescue, and without this field the machine's state after a
+failed preflight is unspecified. `PRV-22` makes the rescue exit itself always ambiguous, so
+`exit_rescue` is the default and `leave_in_rescue` is the caller keeping the session for
+investigation.
 
 It returns `202` and an operation whose result carries the device inventory with **stable
 identifiers** and the `inventory_fingerprint` an install must echo back (`WIR-20`, `RSC-26`). It
@@ -527,9 +547,18 @@ unassigned account `404`s (`WIR-36`):
   "setup_fee_sats": 0,
   "min_runway_seconds": 3600,
   "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
-  "max_rate_outage_seconds": 21600
+  "max_rate_outage_seconds": 21600,
+  "install_strategies": ["provider_native", "rootfs_via_rescue", "raw_disk"]
 }]}
 ```
+
+**`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them.** The
+account's `capabilities` (`WIR-29`) say what the driver can do at all; eligibility for a
+rescue-based install is a property of the **offer**, because an auction listing and a standard
+product at the same provider can differ on it. An install naming a strategy absent from its
+machine's offer MUST be rejected as `invalid_request` before the operation is enqueued, exactly
+as an invalid pairing is. The list MUST be present on every offer; an empty list means no install
+is available for that offer.
 
 `max_rate_outage_seconds` is `LDG-64`'s bound, disclosed before purchase because past it a
 machine is cancelled regardless of its runway. Prices are integers of satoshis, already margined by

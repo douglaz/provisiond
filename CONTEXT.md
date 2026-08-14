@@ -33,7 +33,9 @@ control when the caller is a program (`SEC-39`).
 _Avoid_: user, operator
 
 **Provider**:
-A company that sells machines to the operator — Hetzner, Cherry, DigitalOcean.
+A company that sells machines to the operator. The v1 launch set is Hetzner Cloud, Hetzner Robot
+and DigitalOcean (`ADR-0010`); Cherry Servers is not in v1 and survives only as a shape the
+provider contract must still abstract over.
 _Avoid_: vendor, upstream, backend
 
 **Provider account**:

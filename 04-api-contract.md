@@ -146,7 +146,7 @@ The tail then depends on what the endpoint does:
 |---|---|
 | **create, adopt** | spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
 | **power, install, reverse-DNS, refresh, preflight** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
-| **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates and opens a commitment (`OPS-20`) |
+| **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates, then **reuses the original commitment where it is still open** and opens a new one only where it was closed (`OPS-20`, `LDG-30`) |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
 | **resume, resolve, revoke** | operator or recovery-credential principal; synchronous, `200`, no provider mutation (`API-48`) |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
@@ -344,7 +344,10 @@ nobody will ever cancel and no write path left to notice** — then (4) **transi
 settled after the fan-out has produced a machine the first pass never saw, and it MUST be
 cancelled by a second pass rather than left running against a suspended tenant** — the fan-out
 repeats until a pass finds no un-cancelled machine; then (5) aggregates the outcomes,
-including any that end `needs_reconciliation`. Reads of the ledger and machine list MUST continue
+including any that end `needs_reconciliation`. **A process that dies mid-fan-out MUST NOT strand
+the suspension**: the parent's lease expires and it is re-claimed and resumed like any other
+queued work (`OPS-14`), because the sweep is idempotent by `OPS-39`'s trigger id and mutates no
+provider itself. It MUST NOT go to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger and machine list MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
 it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to
 **pending** tenants, which have no machines. They MAY hold a below-minimum credit, whose ledger
@@ -585,40 +588,19 @@ returns only with a bring-your-own-machine product, which would need its own ADR
 **API-19** Requeue MUST be restricted to operators. A tenant token MUST NOT be able to
 requeue an operation, because requeue can re-issue a purchase (`OPS-20`).
 
-**API-30** Where a front service proxies customer requests using one admin identity plus the
-tenant-override header (`API-5`), the override is the *entire* tenancy boundary for the
-product, and this system cannot check it. `API-6` validates the identifier's character set
-(`DOM-1`); whether it can validate that the tenant *exists* depends entirely on which branch of
-`DOM-1a` the deployment chose. **With no registry, it cannot** — a well-formed identifier is
-indistinguishable from a correct one, and this requirement applies in full. **With a registry,
-this objection largely dissolves**: the override becomes checkable, and the remaining risk is
-the ordinary one that the front service resolves the wrong tenant, which the registry cannot
-detect but which is no longer unbounded. Deployments choosing a registry MAY treat the options
-below as satisfied by the registry itself, and need not additionally implement one.
+**API-30** **WITHDRAWN — `ADR-0001` chose the single component, so there is no front service
+proxying customer requests under one admin identity plus a tenant override.** Was the rule that
+the override header carried the entire tenancy boundary on a string this system could not check,
+obliging a deployment to sign per tenant, keep a synced allowlist, or accept and document. Both
+premises are gone: the override is now checkable against `DOM-1a`'s registry (`ADR-0002`), and
+tenancy is enforced in this process by `API-5`, `API-17` and `SEC-8`–`SEC-10`. *`CNF-66`–`CNF-68`
+are left **N/A UNTIL SPLIT** rather than withdrawn, so they resurrect if the architecture ever
+splits.*
 
-**A registry is not a complete answer.** It proves an override names an *existing* tenant. It
-cannot detect the case that actually happens — a cached header, a reused connection, a wrong
-variable — where the front service confidently selects the *wrong existing* tenant. Only
-per-tenant proof carried from the client closes that, and `API-30`'s options below are about
-the first problem, not the second. Every request legitimately carries admin plus override, so there is no anomalous case to
-alarm on. A proxy bug — a cached header, a reused connection, a wrong variable — silently maps
-one customer's request onto another customer's machines, and nothing here notices.
-
-A deployment using this pattern MUST therefore do one of:
-
-- **Sign per tenant.** The front service signs each forwarded request with a per-tenant key
-  this system holds and verifies. Preferred: it makes the override falsifiable.
-- **Keep a synced allowlist.** This system maintains an out-of-band-synchronised set of valid
-  tenant identifiers and rejects overrides outside it. This is a tenant registry, so a
-  deployment choosing it MUST select `DOM-1a`'s registry branch explicitly.
-- **Accept and document.** Record explicitly that the front service's proxy is the single
-  point of tenancy enforcement, that this system's tenancy tests (`CNF-4`–`CNF-7`) prove
-  nothing about it, and that the front service needs its own equivalents.
-
-**API-31** Where the front service proxies with one admin identity, every audit record here
-reads "admin override" (`SEC-32`), which makes the trail useless for attributing an action to
-a customer. The front service MUST keep its own request→customer audit log, joinable to these
-records by correlation id (`API-28`).
+**API-31** **WITHDRAWN — same reason as `API-30` (`ADR-0001`).** Was the requirement that a
+proxying front service keep its own request→customer audit log, because every record here would
+read "admin override". With one deployable the audit record of `SEC-32` already names the
+authenticated identity and the tenant, so nothing is lost to attribute.
 
 ## Operation views
 
@@ -667,10 +649,8 @@ to a sane range, and SHOULD offer a cursor rather than an offset.
 
 ## Transport
 
-**API-27** Reachability follows the separation form chosen under `OVR-10`. In the
-separate-service form the lifecycle API MUST be reachable only over a private network. In the
-single-component form the public surface is reachable by customers by definition, and the
-deployment MUST instead:
+**API-27** **AMENDED — collapsed to the single-component form settled by `ADR-0001`.** The
+public surface is reachable by customers by definition, so the deployment MUST:
 
 - terminate TLS such that no credential traverses an untrusted hop in clear text;
 - expose *only* the customer-facing routes publicly, keeping operator and reconciliation routes
@@ -679,8 +659,9 @@ deployment MUST instead:
 - treat `OVR-10a`'s in-code credential boundary as the compensating control, since network
   isolation is no longer providing one.
 
-A deployment MUST record which form it chose. "Private network" is not a property this
-specification can assume once the customer is the caller.
+*The withdrawn branch said the lifecycle API MUST be reachable only over a private network in
+the separate-service form. "Private network" is not a property this specification can assume
+once the customer is the caller, and `ADR-0001` means it never can.*
 
 **API-28** Every request SHOULD carry a correlation identifier, generated if absent, and
 that identifier MUST appear in the operation record and in every log line emitted while

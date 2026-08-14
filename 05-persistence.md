@@ -79,6 +79,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `reserve_rate_num`, `reserve_rate_den` | integer | the exact rational used (`LDG-4`) |
 | `reserve_computed_at` | timestamp | drives re-derivation (`PRV-13e`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`) |
+| `system_trigger_ids` | json | `OPS-39`'s open episode identifiers, keyed by `system_reason`. The same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
 | `created_at`, `updated_at` | timestamp | |
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; index on
@@ -257,7 +258,7 @@ key to nothing, and
 | `id` | UUID | primary key |
 | `tenant_id` | text | not null |
 | `machine_id` | UUID | nullable until the machine record exists |
-| `operation_id` | UUID | the operation that opened it |
+| `operation_id` | UUID | **nullable**; the operation that opened it, where one did. `LDG-62`'s extend-runway opens a commitment synchronously and mints no operation (`API-7`), and `STO-14` retires an operation row long before the commitment it opened closes. `WIR-16` returns both a machine-only and an operation-only entry for exactly this reason |
 | `reserved_sats` | integer | **decreases** as consumption is debited (`LDG-31`) |
 | `state` | enum | `open` \| `closed` |
 | `version` | integer | for the conditional write in `LDG-34` |
@@ -374,7 +375,7 @@ rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`
 `outage_started_at`, `outage_deadline`
 (`LDG-64`, both persisted so a restart cannot re-apply the bound from a fresh start),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
-`late_attach_cleanup` (`OPS-36`'s wind-down shortfall) | `unrecoverable_setup_fee` (`LDG-39`)),
+`late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 
@@ -401,6 +402,12 @@ running instance of the previous version, or startup MUST take an exclusive lock
 
 **STO-14** A retention job MUST remove **settled** operations older than a configured age;
 `needs_reconciliation` is not settled (`OPS-3`) and is excluded (`OPS-25`).
+
+**Retention MUST NOT be the thing that resets `OPS-39`'s deduplication.** The `system_trigger_id`
+lives on the operation, which this job deletes; the durable copy is `machines.system_trigger_ids`,
+which retention does not reach and which a tombstoned machine keeps (`STO-8`). Without it a
+re-triggered sweep mints a fresh id past the retention horizon and enqueues the same cancellation
+again — repeated provider mutation by retention rather than by timer.
 
 **STO-24** Retention MUST NOT reach `ledger_entries` (`LDG-22`). A financial record outlives the
 request that caused it; it contains no caller secrets to purge only because `LDG-21` kept them

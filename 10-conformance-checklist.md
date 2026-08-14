@@ -288,8 +288,11 @@ everything in them is irreversible:
 - **`OVR-5`, `OVR-9`, `OVR-10`, `OVR-10a`, `OVR-10b`, `OVR-12`.**
 - **`DOM-6`, `DOM-10`, `DOM-13`, `DOM-14`, `DOM-17`–`DOM-19`.** Redaction, capability gating,
   strategy/image pairing, digest requirement, error taxonomy, cancellation honesty.
-- **`API-7`–`API-19`, `API-24`, `API-25`, `API-30`, `API-31`.** Auth ordering, idempotency,
-  validation, acknowledgements, authorization, error mapping, message hygiene.
+- **`API-7`–`API-19`, `API-22`, `API-24`, `API-25`.** Auth ordering, idempotency,
+  validation, acknowledgements, authorization, redaction before storage, error mapping, message
+  hygiene. *`API-30` and
+  `API-31` were listed here and are dropped from the sort: both are WITHDRAWN under `ADR-0001`,
+  which deleted the front service they governed.*
 - **`STO-1`–`STO-5`, `STO-8`, `STO-8a`, `STO-9`, `STO-15`.** The transactional primitives the
   queue depends on, plus tombstone honesty and credential-grade storage.
 - **Every `DEF-*`.** They are prohibitions derived from defects that actually shipped.
@@ -298,12 +301,16 @@ everything in them is irreversible:
 `API-28`, `API-29` (listing, pagination, correlation ids, unauthenticated rate limits);
 `OPS-24`–`OPS-26` (fairness, retention, operator listing); `STO-12`–`STO-14`, `STO-16`
 (migration tooling, retention, backup handling); `SEC-32` (audit records, once more than one
-person acts); `OVR-13`; `DOM-9`, `DOM-11`, `DOM-12`, `DOM-15`, `DOM-16`.
+person acts); `OVR-13`; `DOM-9`, `DOM-11`, `DOM-15`, `DOM-16`. *`DOM-12` was listed here and is
+dropped from the sort: it is WITHDRAWN, folded into `DOM-11`, which is tiered in its place.*
 
 **DEFERRED** — guards a shape that does not exist yet, or is recoverable: `PRV-24`, `PRV-25`
 (iPXE and reverse DNS, if those capabilities are not in v1); `RSC-30`'s two-pass *default* if
-`RSC-30` permits single-pass deliberately; `API-22` presentation details (`API-21` was corrected to PRE-SCALE above); anything
-governing providers not shipping in v1.
+`RSC-30` permits single-pass deliberately; anything
+governing providers not shipping in v1. *`API-22` was listed here as "presentation details" and is
+corrected to BLOCKING above: it restates `DOM-6` and `DOM-18`, both BLOCKING, and what it requires
+is redaction **before storage** — an unredacted credential written to the store is not a
+presentation choice and cannot be un-written. `API-21` was corrected to PRE-SCALE above.*
 
 **The honest caveat.** Blocking still dominates, and that is the shape of a
 destructive-operations product rather than a failure of the sort. If the blocking set is
@@ -324,9 +331,9 @@ blocking fraction to be far lower.
 
 ## Architecture boundary
 
-Applies to the single-component form of `OVR-10`. In that form these replace the network
-isolation the separate-service form provides, so they are not optional hardening — they are the
-only structural defence there is.
+`ADR-0001` chose the single-component form of `OVR-10`, so these always apply. They replace the
+network isolation the withdrawn separate-service form would have provided, which is why they are
+not optional hardening — they are the only structural defence there is.
 
 - [ ] **CNF-71** A provider credential cannot be read from the customer-facing layer, and the
       guarantee is enforced by the code rather than by convention. Prove it the way the
@@ -343,8 +350,10 @@ only structural defence there is.
       constructors accept, not on runtime values. (`OVR-10b`)
 - [ ] **CNF-74** Operator-only routes — requeue above all, since it can re-issue a purchase
       (`API-19`, `OPS-20`) — are not served on the customer-facing listener. (`API-27`)
-- [ ] **CNF-75** The deployment recorded which `OVR-10` form it chose. An unrecorded choice
-      means later reviewers cannot tell which requirements apply.
+- [ ] **CNF-75** **WITHDRAWN — `OVR-10` no longer offers a choice.** `ADR-0001` settled the
+      single-component form, so "recorded which form it chose" is satisfied by a constant and
+      tests nothing. `CNF-71`–`CNF-74` already test the boundary that form requires (`OVR-10a`),
+      which is the property this item was reaching for.
 
 ## Tenancy and authorization
 
@@ -519,8 +528,9 @@ only structural defence there is.
 - [ ] **CNF-69** A principal that sets every acknowledgement flag on every request still cannot
       exceed its destruction, creation, imaging or spend ceiling. Drive it with a loop that
       acknowledges everything and assert the ceiling stops it. (`SEC-39`)
-- [ ] **CNF-70** The deployment has recorded *where* ceilings are enforced, and if that is the
-      front service rather than the control plane, the record says so explicitly. (`SEC-40`)
+- [ ] **CNF-70** The deployment has recorded *where* ceilings are enforced and what each integer
+      is. Under `ADR-0001` that is this control plane — there is no front service to defer to,
+      which is why `SEC-40` is withdrawn. (`SEC-39`)
 
 ## Front-service tenancy boundary
 
@@ -812,8 +822,9 @@ rather than acquiring a default.
       posting is deduplicated away by the idempotency key, and two billable attachments on one
       machine do not collide. (`LDG-8`, `LDG-38`)
 - [ ] **CNF-199** A late-attach cleanup on a tenant whose balance is **below** the wind-down floor
-      still funds and executes the cancel, recording the shortfall as an operator deficiency, and
-      never drives available negative. (`OPS-36`, `LDG-10`, `LDG-66`)
+      opens **no commitment at all**, carries the **whole** wind-down as an operator deficiency
+      rather than a shortfall against a partial one, still executes the cancel, and never drives
+      available negative. (`OPS-36`, `LDG-10`, `LDG-66`)
 - [ ] **CNF-200** A rootfs install naming a drive by unstable device path is rejected; the layout
       carries stable identifiers checked against the inventory fingerprint, exactly as raw-disk
       does. (`RSC-26`, `RSC-22`, `WIR-20`)
@@ -837,8 +848,10 @@ rather than acquiring a default.
 - [ ] **CNF-207** A rootfs install body round-trips `partitions`, `raid.level` and per-drive
       identifiers through the parser. This fixture was silently broken by a fix in the previous
       pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
-- [ ] **CNF-208** The enrolment status poll never returns `issuable_at`; only the enrolment
-      response does. (`WIR-13`, `API-33`)
+- [ ] **CNF-208** The enrolment status poll never returns `issuable_at` **or `expires_at`**; only
+      the enrolment response does. Either instant yields the other by subtraction, so publishing
+      one on the unauthenticated handle defeats the redaction of the other. (`WIR-13`, `API-33`,
+      `API-34`)
 - [ ] **CNF-209** A suspended tenant can still revoke its spending token. Gating maintenance on an
       active tenant locks the owner out exactly when revocation matters. (`API-7`, `API-56`)
 - [ ] **CNF-210** An orphaned deposit is credited to a named tenant exactly once through the
@@ -1055,8 +1068,7 @@ See **The blocking count** at the end of this document; it is stated in one plac
       to meet the provider's abuse-notice deadline. (`SEC-45`)
 - [ ] **CNF-114** **Only confirmed termination** closes the affected commitments and returns
       their reserved satoshis to available; an unreachable account or rejected credentials leave
-      them open with the exposure recorded as an operator deficiency (`SEC-46`, `LDG-66`)
-      balance. (`SEC-46`)
+      them open, with the exposure recorded as an operator deficiency. (`SEC-46`, `LDG-66`)
 - [ ] **CNF-115** Balances and commitments are answerable with every provider unreachable.
       (`SEC-47`)
 

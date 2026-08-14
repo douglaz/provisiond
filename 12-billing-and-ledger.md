@@ -286,6 +286,8 @@ unstated:
 | Ambiguous — `needs_reconciliation` | **Remains reserved in the commitment**, and is *additionally* recorded as a pending fee obligation on the operation (`LDG-67`). The record exists because `OPS-33` releases the commitment in full at the negative window while the operation stays open — so the obligation must survive that release, not replace the reservation before it |
 | Resolved *observed* (`OPS-27`) | **Debited — and the source depends on whether the commitment is still open.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. Once the window has elapsed and `OPS-33` has closed it, the fee is debited from available balance **without a commitment decrement**, which is the one debit `LDG-31`'s pairing rule does not cover — there is no commitment left **for this create** to pair with. Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. Any shortfall is an operator deficiency (`LDG-66`). *Asserting one source was the defect: it double-counted the fee on early resolution, or invented a deficiency that did not exist* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider |
+| Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
+| Operator requeue out of `needs_reconciliation` (`OPS-3`, `OPS-4`) | **Never debited for the superseded attempt.** The parked obligation is cleared and the fresh attempt commits and settles its own setup fee through the rows above (`LDG-67`); keeping the old one alive would bill one machine's setup twice |
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
 a deterministic rejection or a resolved-absent create left the customer paying a non-refundable
@@ -387,7 +389,7 @@ usage cannot be converted to satoshis. A deployment MUST:
 entry.** `LDG-7`'s entry kinds are closed and every one of them moves *tenant* satoshis, so the
 native-currency accruals this specification now creates in **six** places — `LDG-31`'s clamp overflow, `LDG-63`'s
 exception branch, `LDG-64`'s rate outage, `SEC-46`'s unconfirmed account loss, `OPS-36`'s
-wind-down shortfall and `LDG-39`'s unrecoverable setup fee —
+unfunded wind-down and `LDG-39`'s unrecoverable setup fee —
 have nowhere legal to live — six sources, not the four an earlier draft counted. A deployment
 MUST persist them in a separate record (`STO-37`)
 carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), **the
@@ -397,8 +399,8 @@ feed provider payables in the solvency check (`LDG-17`) and MUST NOT alter any t
 **Nothing here is billable to a customer** — that is the whole point of calling it the operator's.
 
 **The rate is nullable and is required only for a cause that had one.** Where a rate existed when
-the deficiency was opened — the clamp overflow, the exception branch, an account loss, a wind-down
-shortfall, an unrecoverable setup fee — the record MUST carry it as `rate_num`/`rate_den` (`LDG-4`),
+the deficiency was opened — the clamp overflow, the exception branch, an account loss, an unfunded
+wind-down, an unrecoverable setup fee — the record MUST carry it as `rate_num`/`rate_den` (`LDG-4`),
 because that is what the operator's loss was worth at the moment it was taken. A rate-outage
 deficiency (`LDG-64`) opens precisely when there is no rate, so it carries none, ever, and nothing
 in this specification converts it: `absorbed_seconds` alone is what the meter needs.
@@ -563,7 +565,9 @@ the customer actually authorized rather than a re-conversion at whatever the rat
 become.
 
 All three columns are cleared when the fee is debited (resolved-observed) or dropped
-(resolved-absent, deterministic rejection). **On `abandoned` (`OPS-31`) the fee is an operator
+(resolved-absent, deterministic rejection), and on resolved-observed the clear MUST happen inside
+`OPS-27`'s single resolution transaction rather than as a follow-up write. **On `abandoned`
+(`OPS-31`) the fee is an operator
 deficiency** (`LDG-66`): the operator gave up establishing whether the order landed, and charging
 a customer for an outcome nobody established is not defensible. **On an operator requeue**
 (`OPS-3`'s `needs_reconciliation → queued`, `OPS-4`) **the parked fee is cleared and nothing is

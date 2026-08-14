@@ -15,12 +15,14 @@ self-serve enrolment requires a tenant writable at runtime. *The no-registry bra
 withdrawn; it described one reference implementation, and keeping it as a live option produced
 requirements written for a deployment shape this product does not have.*
 
-- **No registry.** Tenant identifiers are opaque; the set of tenants is whatever the
+- **No registry — WITHDRAWN by `ADR-0002`, kept here as the record of what was rejected.** Tenant
+  identifiers are opaque; the set of tenants is whatever the
   configured credentials say (`API-4`). Adequate when tenants are operator-configured and few.
   Consequence: nothing can verify that a tenant identifier arriving in a request names a real
   tenant — only that it is well-formed — so any front service passing tenants by header
-  carries the entire tenancy boundary on an unverifiable string (`API-30`).
-- **Registry.** The system owns tenant records and their lifecycle: create, suspend, resume,
+  carries the entire tenancy boundary on an unverifiable string (`API-30`, itself withdrawn with
+  the shape it described).
+- **Registry — the chosen branch.** The system owns tenant records and their lifecycle: create, suspend, resume,
   delete, credential rotation, and a defined answer for what happens to a suspended tenant's
   running machines. Required for self-serve enrolment, because a new tenant must be writable
   at runtime. Cost: account lifecycle is a real subsystem inside the process holding provider
@@ -181,6 +183,12 @@ invalid-request error before the operation is enqueued:
 | `raw_disk` | `raw_disk` |
 | `provider_native` | `catalog`, `ipxe` (~~`iso`~~ withdrawn, `DOM-22`) |
 
+A valid pairing is necessary and not sufficient. Capabilities are per **provider account**
+(`DOM-10`), but rescue-install eligibility is a property of the **offer** — an auction listing and
+a standard product at the same provider can differ — so the offer's `install_strategies`
+(`13-wire-contract.md`, `WIR-30`) gates this table as well, and a strategy absent from it MUST be
+rejected the same way.
+
 **DOM-14** A digest MUST be required for `rootfs_tarball` and `raw_disk`, and MUST be
 exactly 64 hexadecimal characters, compared case-insensitively.
 
@@ -284,8 +292,10 @@ suggests the write was lost and invites a re-send. `gone` says the opposite: it 
 reached a terminal state, and the record aged out; the safe reaction is to consult the machine
 list and balance, never to re-issue.
 
-**DOM-20** The rows above marked 2026-08-12 or later were added after the fact. `DOM-17`'s set is closed and `API-24`
-forbids a handler choosing a status independently, so before they existed **four BLOCKING
+**DOM-20** Five rows in the table above were added after the original taxonomy was written:
+`insufficient_balance`, `not_activated` and `halted` by this requirement, `gone` by `DOM-21`, and
+`suspended` by `API-58`. `DOM-17`'s set is closed and `API-24`
+forbids a handler choosing a status independently, so before the first three existed **four BLOCKING
 conformance items asserted a rejection this taxonomy could not express** — `CNF-95` (insufficient
 balance), `CNF-78` (tenant still pending), `CNF-69` (ceiling), `CNF-101` (solvency halt) — and
 every one of them would have arrived at the caller as `invalid_request` / 400.

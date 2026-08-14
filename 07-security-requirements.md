@@ -188,10 +188,11 @@ and an emptied account.
 The distinguishing property is simple: **a ceiling is something the caller cannot set for
 itself.** Any control the caller supplies in its own request is advisory.
 
-**SEC-40** Ceilings MUST be enforced where per-principal state exists. In a deployment where
-the deployment chose `DOM-1a`'s no-registry branch, that is not here — it is the front service
-(`API-30`), and the deployment MUST say so rather than assuming the control plane enforces
-something it cannot.
+**SEC-40** **WITHDRAWN — `ADR-0001` chose the single component and `ADR-0002` made the registry
+mandatory, so the per-principal state that ceilings need always lives here.** Was the rule that ceilings
+belong wherever per-principal state lives, which under `DOM-1a`'s withdrawn no-registry branch
+meant a front service (`API-30`) rather than the control plane. `SEC-39` now carries the whole
+obligation unconditionally.
 
 **SEC-29** Request bodies MUST be size-capped globally, and individual fields MUST be
 capped per `API-13`.
@@ -216,11 +217,13 @@ asked or under what authority.
 
 ## Deployment posture
 
-**SEC-35** In the separate-service form of `OVR-10`, the lifecycle service MUST run on a
-private management network. In the single-component form it cannot, and the deployment MUST
-compensate: the in-code credential boundary of `OVR-10a`, operator routes on a separate
-listener (`API-27`), and per-principal ceilings (`SEC-39`). A single-component deployment that
-implements none of these has traded its only structural defence for packaging convenience.
+**SEC-35** **AMENDED — collapsed to the single-component form settled by `ADR-0001`.** The
+lifecycle service cannot run on a private management network, because the customer is the
+caller, so the deployment MUST compensate: the in-code credential boundary of `OVR-10a`,
+operator routes on a separate listener (`API-27`), and per-principal ceilings (`SEC-39`). A
+deployment that implements none of these has traded its only structural defence for packaging
+convenience. *The withdrawn branch made the private management network the primary control in
+the separate-service form; there is no such form.*
 
 **SEC-36** The service SHOULD run as an unprivileged user, with a read-only root
 filesystem, no new privileges, and writable mounts only for the store and the recovery
