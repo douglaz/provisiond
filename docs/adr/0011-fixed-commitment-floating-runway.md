@@ -24,9 +24,10 @@ widening was solving the operator's anxiety with the customer's money.
 **A commitment is sized once, at open, and is never increased without a caller action** — with
 one exception the requirements name: the scheduled-cancellation branch, where billing runs to an
 effective date the operator cannot exit and `LDG-63` tops the commitment from available, or
-records the shortfall as the operator's. **It
-decays as usage is debited (`LDG-31`). Re-derivation does not resize it — re-derivation
-recomputes **`runway_until`** from the fixed remaining commitment at the current rate, in both
+records the shortfall as the operator's.
+
+It decays as usage is debited (`LDG-31`). Re-derivation does not resize it — re-derivation
+recomputes `runway_until` from the fixed remaining commitment at the current rate, in both
 directions. The customer's runway date floats with the price; the caller can read it at any time
 (`LDG-15`) and extend it with an explicit, separately-authorized action if it wants more.
 
