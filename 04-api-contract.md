@@ -124,7 +124,7 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 1. authenticate, resolve principal;
 2. reject unless the tenant is active — a pending tenant fails `not_activated` (`API-35`),
    **except** the `API-43` allowlist and the **maintenance actions**: revoke (`API-56`), resolve
-   and resume are authorized by principal rather than by tenant state, and gating them on an
+   resume and requeue are authorized by principal rather than by tenant state — and gating them on an
    active tenant would make a suspended or pending tenant unable to replace a stolen credential —
    locking the owner out at exactly the moment the mechanism exists for;
 3. validate the idempotency key;
@@ -140,6 +140,7 @@ The tail then depends on what the endpoint does:
 |---|---|
 | **create, adopt** | spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
 | **power, install, reverse-DNS, refresh, preflight** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
+| **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates and opens a commitment (`OPS-20`) |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
 | **resume, resolve, revoke** | operator or recovery-credential principal; synchronous, `200`, no provider mutation (`API-48`) |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
@@ -256,7 +257,8 @@ losing **both** is unrecoverable. *The withdrawn wording told a caller to abando
 let its machines self-cancel, which on a funded, recoverable tenant destroys running machines for
 no reason.* A lost token means a lost
 balance, and so does a compromised one — the remedy for either is to stop funding it and let its
-machines self-cancel at exhaustion (`LDG-14`), not to recover it. The caller is software and can
+machines self-cancel at exhaustion (`LDG-14`) — **but only when both secrets are gone**; while the
+recovery credential survives, the remedy is `API-56`, not abandonment. The caller is software and can
 store a secret reliably — but it MUST be told at issuance that it has to, and that there is no
 second chance.
 
@@ -448,7 +450,7 @@ incoming requests, not over raw request bytes, so that key ordering and whitespa
 produce spurious conflicts.
 
 **API-38** **Equivalence after the payload is purged.** `ADR-0005` purges the stored request at
-terminal state, so for a completed operation there is nothing left to compare against and
+live state, so for a completed operation there is nothing left to compare against and
 `API-11`/`API-12` become unexecutable — `CNF-21` is BLOCKING and tests a comparison that cannot
 be performed. The resolution is to persist, alongside the summary, a **canonical digest of the
 request** computed at submission time. It survives the purge, carries no caller secret, and makes

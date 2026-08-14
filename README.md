@@ -49,7 +49,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0002` | Self-serve enrolment, with a prepaid balance as the entire spending authority. Settles `DOM-1a` in favour of a registry |
 | `0003` | The customer float is denominated in satoshis, with a recorded dissent |
 | `0004` | The regulatory perimeter is held by product design — no withdrawal, no transfer, no fiat refund, B2B only |
-| `0005` | Collect nothing about customers; purge caller payload at terminal state |
+| `0005` | Collect nothing about customers; purge caller payload once an operation stops being live |
 | `0006` | v1 is pass-through: setup fees at cost, no machine reuse. Inventory and the VM line are deferred together |
 | `0007` | Margin is a percentage of machine time; installs and rescue are free but metered |
 | `0008` | A deposit is one object — amount and expiry — payable over Lightning or on-chain; the payer chooses. Attribution is by destination, never by payer |

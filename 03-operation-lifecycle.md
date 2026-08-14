@@ -10,16 +10,17 @@ already acted. A control plane that returns the provider's answer synchronously 
 way to tell "the order did not happen" from "the order happened and I lost the reply",
 and a control plane that retries on failure will eventually buy two servers.
 
-So every write becomes a durable record with an explicit terminal state, and one of
-those terminal states means *I do not know*.
+So every write becomes a durable record with an explicit settled state — plus a third state,
+*I do not know*, which is resolution-pending rather than terminal (`OPS-3`): nothing automatic
+leaves it.
 
 **OPS-1** Every mutating request MUST create or return a durable operation record before
 any provider call is made, and MUST respond `202 Accepted` with that record.
 
 **OPS-2** **AMENDED 2026-08-12.** An operation record MUST persist the full request payload
 **while the operation is live**, so a worker can execute it after a process restart without the
-original HTTP request. At any terminal state the payload is purged and replaced by a redacted
-summary (`ADR-0005`, `STO-9`).
+original HTTP request. On entry to any settled state — **and to `needs_reconciliation`**
+(`OPS-3`) — the payload is purged and replaced by a redacted summary (`ADR-0005`, `STO-9`).
 
 The original text said "MUST persist the full request payload" without qualification, and
 `ADR-0005` narrowed it in a different document without editing this sentence — leaving two
@@ -222,7 +223,10 @@ of the original request: `ADR-0005` purges that at terminal state, so the withdr
 ("re-executes the original request verbatim") described something that no longer exists while
 `API-19`, `OPS-31` and `DEF-17` all rested on it.*
 
-For an ordering operation a requeue means **placing a second order**. The API MUST make that
+For an ordering operation a requeue means **placing a second order**, so it MUST pass the same
+spending gates and open the same commitment a fresh create would (`API-7`'s create class,
+`LDG-11`) — a requeued create that skips them buys a machine with no authorized funding, which is
+the money-out `ADR-0002` exists to prevent, reached through the operator surface. The API MUST make that
 explicit in its response or documentation, and MUST refuse to requeue a provider-non-idempotent
 kind unless the request carries a **second, distinct acknowledgement**
 (`acknowledge_duplicate_purchase`, `WIR-28`) — the fresh payload's own `acknowledge_purchase` does
@@ -333,7 +337,8 @@ mutation the deployment performs on a tenant's machine without a caller request 
 this queue — lock, lease, settled states, `needs_reconciliation` included, because a cancel
 whose outcome is ambiguous is ambiguous regardless of who asked for it — and MUST appear in the
 tenant's operation list marked `requested_by: system` with a stated reason (`exhausted`,
-`late_attach_cleanup`, `account_lost`). Without this, `GET /v1/operations` is not the history of
+`late_attach_cleanup`, `account_lost`, `tenant_suspended`, `rate_outage_bound`). Without this,
+`GET /v1/operations` is not the history of
 a tenant's fleet, and the hole sits exactly where the most alarming event does: the machine that
 vanished overnight (`F31`). A pure balance event with no provider mutation — a commitment
 release, a re-derivation — mints **no** operation; the ledger is already that record.
@@ -442,8 +447,9 @@ loop:
 ambiguous outcome. A provider call abandoned mid-flight is exactly the uncertainty this
 design exists to represent.
 
-**OPS-22** Recording a terminal state MUST be conditional on still holding the lease
-(`OPS-3`). Where the conditional write affects no rows, the worker MUST log it loudly and
+**OPS-22** **AMENDED.** A **worker** recording a settled state MUST do so conditional on still
+holding the lease (`OPS-3`, `STO-3`); a resolution transition out of `needs_reconciliation` is
+made by no worker and is guarded by `STO-19`'s write-once columns instead. Where the conditional write affects no rows, the worker MUST log it loudly and
 leave the record alone; the sweeper will classify it.
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the

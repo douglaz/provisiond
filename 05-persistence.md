@@ -127,7 +127,7 @@ deleted rows.
 | `status` | enum | see `03-operation-lifecycle.md` |
 | `machine_id` | UUID | nullable; set on completion for create |
 | `provider_account` | text | nullable |
-| `request` | json | caller payload — **live operations only**, purged at terminal state (`ADR-0005`) |
+| `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
 | `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers (`OPS-13`) |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |

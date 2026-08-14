@@ -171,7 +171,9 @@ is the same coin-flip over which disk gets destroyed that naming `/dev/sda` was.
 prefer WWN where the provider exposes it and MUST declare an offer unsellable for `raw_disk` and
 `rootfs_via_rescue` where no per-device unique identifier is available at all.
 
-**This binds every strategy that names a disk, not only `raw_disk`.** `RSC-22`'s installer layout
+**This binds every strategy that names a disk, not only `raw_disk`, and the validation is
+identical** — resolve each `layout.drives[].identifier` against a freshly re-read inventory, match
+exactly one device, abort `integrity` before any write on zero or multiple matches (`WIR-20`).** `RSC-22`'s installer layout
 carries a `drives` list, and those are device names with exactly the same instability — a rootfs
 install that partitions `/dev/sda` after the ordering shifted destroys the same customer data, and
 scoping the rule to raw-disk would have left the launch product's primary install path on the

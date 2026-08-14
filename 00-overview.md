@@ -31,9 +31,13 @@ verifies the image, writes it, exits rescue, and cleans up credentials.
 reimaging take minutes and involve billable or destructive provider mutations; they
 MUST NOT be tied to the lifetime of an HTTP connection.
 
-**OVR-5** *Uncertainty is a first-class terminal state, not an error.* When the system
-cannot determine whether a provider mutation took effect, the operation MUST end in a
-distinct state that requires human inspection, and MUST NOT be retried automatically.
+**OVR-5** **AMENDED.** *Uncertainty is a first-class state, not an error.* When the system
+cannot determine whether a provider mutation took effect, the operation MUST enter a distinct
+**resolution-pending** state (`OPS-3`) that requires evidence or human inspection to leave, and
+MUST NOT be retried automatically. *"Terminal" was withdrawn 2026-08-13: the state settles to
+`succeeded` or `failed` on resolution, and calling it terminal forbade the very transitions
+`OPS-27` and `OPS-31` mandate. What was load-bearing about the word survives intact — nothing
+automatic and nothing caller-driven moves it.*
 This is the single most important requirement in this document. See `03-operation-lifecycle.md`.
 
 **OVR-6** Destructive and billable actions MUST require an explicit per-request

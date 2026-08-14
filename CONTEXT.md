@@ -60,7 +60,8 @@ _Avoid_: import, register, claim
 ### Work
 
 **Operation**:
-The durable record of one requested mutation, with an explicit terminal state. The central
+The durable record of one requested mutation, with an explicit settled state — or the
+resolution-pending `needs_reconciliation`. The central
 entity: every write creates one, and the API returns it rather than a result.
 _Avoid_: job, task, request, action
 

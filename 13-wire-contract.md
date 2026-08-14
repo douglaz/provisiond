@@ -227,7 +227,7 @@ transmitted**:
   "disclosures": [
     {"code": "store_both_secrets", "text": "These are shown once. Store the recovery credential where your everyday agent cannot reach it; it is the only thing that can revoke a stolen token."},
     {"code": "no_identity_recovery", "text": "Losing both is a lost balance. There is no identity to recover against and no refund."},
-    {"code": "signup_expiry", "text": "An unfunded signup expires at expires_at. A credit below the activation minimum does not extend it; such a credit is retained and re-attributable, never refunded."}
+    {"code": "signup_expiry", "text": "An unfunded signup expires at the expires_at returned by the enrolment status endpoint. A credit below the activation minimum does not extend it; such a credit is retained and re-attributable, never refunded."}
   ]
 }
 ```
@@ -269,8 +269,11 @@ parent operation already has all three.
 
 **WIR-42** `POST /v1/deposits/{id}/actions/attribute` — **operator-only** (`WIR-34`), body
 `{"tenant_id": "...", "operator_ref": "..."}`, synchronous `200`. Credits a deposit whose tenant
-was reaped (`API-34`) to a live tenant **by posting a `topup` ledger entry** (`LDG-7`) keyed on the
-deposit's payment identity (`LDG-8`) — it is a ledger transfer, not a flag, or the money would be
+was reaped (`API-34`) to a live tenant **by posting a `correction` pair** (`LDG-7`, `LDG-5`) — a negative entry against the reaped
+tenant's unattributed record and a positive one to the named tenant, keyed on the deposit's payment
+identity (`LDG-8`). *A second `topup` would mint satoshis: the original payment already credited
+one when it settled, so re-crediting inflates the float and breaks `LDG-17` by exactly the deposit
+amount* — it is a ledger transfer, not a flag, or the money would be
 attributed everywhere except the balance.
 
 **`operator_ref` MUST be an opaque reference to a record kept outside this system** — a ticket id,
@@ -299,7 +302,8 @@ Response `200`:
   "disclosures": [
     {"code": "onchain_expiry_unwatched", "text": "After expires_at the address stays payable but is no longer watched; funds sent after expiry may be lost."},
     {"code": "double_pay_no_refund", "text": "Paying both destinations credits both. Nothing is refundable, ever."},
-    {"code": "below_activation_minimum", "text": "A credited balance below activation_minimum_sats leaves the tenant pending and is not refundable."}
+    {"code": "below_activation_minimum", "text": "A credited balance below activation_minimum_sats leaves the tenant pending and is not refundable."},
+    {"code": "orphan_recovery_is_operator_only", "text": "If your signup expires before you fund it, a credit already received is retained but can only be re-attributed by contacting the operator with this deposit id. There is no self-serve recovery, because we store nothing that identifies you."}
   ]
 }
 ```
@@ -506,11 +510,14 @@ unassigned account `404`s (`WIR-36`):
   "recurring_price": {"amount_sats": 120, "period": "hour"},
   "setup_fee_sats": 0,
   "min_runway_seconds": 3600,
-  "quoted_at": "2026-08-13T14:00:00Z", "binding": false
+  "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
+  "max_rate_outage_seconds": 21600
 }]}
 ```
 
-Prices are integers of satoshis, already margined by the one pricing function (`LDG-23`, `LDG-24`)
+`max_rate_outage_seconds` is `LDG-64`'s bound, disclosed before purchase because past it a
+machine is cancelled regardless of its runway. Prices are integers of satoshis, already margined by
+the one pricing function (`LDG-23`, `LDG-24`)
 at the same rounding as commitment creation. **An offer price is an indicative quote converted at
 read time; `binding` is `false` and the commitment is priced at accept time (`LDG-27`) and MAY
 differ** — a caller bounding spend uses `WIR-17`'s `max_commitment_sats`, not the quote. The

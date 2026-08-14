@@ -5,7 +5,8 @@
 Privacy is treated as a design constraint of the same rank as correctness, not as a setting.
 `provisiond` collects no customer identity, keeps no caller IP addresses, no analytics and no
 request logs beyond what an operation needs while it is live, and **purges caller-supplied
-payload the moment an operation reaches a terminal state**, retaining a redacted summary and
+payload the moment an operation stops being live — any settled state, **and entry to
+`needs_reconciliation`** (`OPS-3`, which is resolution-pending rather than terminal)**, retaining a redacted summary and
 provider-side identifiers only.
 
 ## What this changes in the existing specification
@@ -42,6 +43,6 @@ stated as such: **the reseller layer learns nothing linkable about the customer.
 - **Holding no personal data is the cheapest GDPR posture available**: data minimisation is
   Art. 5(1)(c), and there is no breach-notification surface and nothing to disclose on request.
   This is a legal consequence of the principle, not merely an ethical one.
-- Purging on terminal state must be specified precisely enough to test — what a redacted summary
-  may contain, and that purge happens on *every* terminal state including
+- Purging must be specified precisely enough to test — what a redacted summary
+  may contain, and that purge happens on *every* non-live state including
   `needs_reconciliation`.

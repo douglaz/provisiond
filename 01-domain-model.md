@@ -271,6 +271,7 @@ One closed set of error kinds, used by drivers, the rescue engine, and the API a
 | `not_activated` | Tenant exists but is still pending funding (`API-35`) | 403 |
 | `halted` | Refused because a solvency or rate-availability gate is failing (`LDG-20`, `LDG-40`) | 503 |
 | `gone` | Resource existed and was removed by retention (`STO-14`, `STO-33`) | 410 |
+| `suspended` | Tenant is suspended; only the maintenance actions remain (`API-58`) | 403 |
 
 **DOM-21** The `gone` row was added 2026-08-12, by the append-only rule rather than by a handler
 inventing a status. A caller polling an operation id past the retention horizon would otherwise

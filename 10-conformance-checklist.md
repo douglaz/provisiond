@@ -1072,6 +1072,14 @@ explicitly and record:
 12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).
 
 
+### Assignments for `CNF-211`–`CNF-213` (multi-reviewer loop, pass 3)
+
+**BLOCKING** — `CNF-211` (a setup fee dropped or double-counted, depending on which branch the
+implementation guessed), `CNF-212` (duplicate provider cancellations by timer), `CNF-213` (a
+minted `topup` would inflate the float, and the personal-data half is `ADR-0005`).
+
+**PRE-SCALE** — none.
+
 ### Assignments for `CNF-205`–`CNF-210` (multi-reviewer loop, pass 2)
 
 **BLOCKING** — `CNF-206` (destroyed
