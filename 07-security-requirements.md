@@ -26,7 +26,8 @@ an adversary with filesystem access to the running service.
 **SEC-1** Provider credentials MUST NOT appear in configuration files, in any form.
 Configuration names an environment variable; the process reads the value (`OVR-7`).
 
-**SEC-2** API tokens MUST be stored only as digests as digests — the operator's in process memory (`API-4`), a customer's persisted in `tenants` (`API-3`, `STO-21`) and compared in
+**SEC-2** API tokens MUST be stored only as digests — the operator's in process memory
+(`API-4`), a customer's persisted in `tenants` (`API-3`, `STO-21`) — and compared in
 constant time (`API-3`).
 
 **SEC-3** No credential — provider token, rescue password, private key, signed URL — may

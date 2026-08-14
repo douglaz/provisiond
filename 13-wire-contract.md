@@ -243,8 +243,8 @@ a leaked capability is not.
 
 **WIR-13** **AMENDED** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
 ever**: `{"status": "not_yet" | "pending" | "active", "expires_at": "2026-08-16T14:00:00Z"}`.
-**`issuable_at` MUST NOT appear here.** It is returned once, in the enrolment response
-(`WIR-12`), to the caller that created the signup; echoing it on an unauthenticated
+**`issuable_at` MUST NOT appear here**, which is why the example above omits it. It is returned
+once, in the enrolment response (`WIR-12`), to the caller that created the signup; echoing it on an unauthenticated
 handle-addressable endpoint hands an attacker the exact instant to start polling, which is the
 timing oracle `API-33` forbids.
 No delay-derived `Retry-After` (`API-33`, `API-49`'s exception). This is how a pending tenant
@@ -269,7 +269,9 @@ parent operation already has all three.
 
 **WIR-42** `POST /v1/deposits/{id}/actions/attribute` — **operator-only** (`WIR-34`), body
 `{"tenant_id": "...", "operator_ref": "..."}`, synchronous `200`. Credits a deposit whose tenant
-was reaped (`API-34`) to a live tenant **by posting one `correction` pair per settled payment** (`LDG-7`, `LDG-5`) — each a negative
+was reaped (`API-34`) to a live tenant — **which MAY be `pending`**, the ordinary case since a
+returning customer enrols afresh, and the credit then counts toward `API-35`'s activation minimum
+like any other — **by posting one `correction` pair per settled payment** (`LDG-7`, `LDG-5`) — each a negative
 entry naming the original credit it corrects and a positive one to the named tenant, keyed on that
 payment's identity (`LDG-8`), all committed in one transaction under deposit-level idempotency.
 **One pair is not enough**: `LDG-55` lets both destinations of a single deposit settle, producing

@@ -72,10 +72,16 @@ account was only ever determined inside the call that vanished.
         v                v                v
   +-----------+    +----------+   +----------------------+
   | succeeded |    |  failed  |   | needs_reconciliation |
-  +-----------+    +----------+   +----------------------+
-                         |                |
+  +-----------+    +----------+   +----------+-----------+
+        ^                ^                   |
+        |                |                   | resolved observed -> succeeded
+        +----------------+-------------------+ resolved absent/abandoned -> failed
+                         |                   |
                          +--- operator requeue ---> queued
 ```
+
+`needs_reconciliation` is **resolution-pending, not terminal** (`OPS-3`): it settles by evidence
+(`OPS-27`) or by an operator verb (`OPS-31`), and nothing automatic or caller-driven moves it.
 
 **OPS-3** **AMENDED — `needs_reconciliation` is *resolution-pending*, not terminal.** `succeeded`
 and `failed` are the terminal states. **A transition made *by a worker* MUST be conditional on that
@@ -149,7 +155,7 @@ This is `OVR-5` made concrete.
 | Operation | Classification rule |
 |---|---|
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
-| suspend_tenant | Never fails as a whole: it is a parent whose per-machine children carry their own outcomes (`WIR-39`). It settles `succeeded` once every child has settled, **including children that settled `needs_reconciliation`** — an unresolved child is a child-level fact, and blocking the parent on it would leave a suspended tenant's record permanently open. |
+| suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole: it is a parent whose per-machine children carry their own outcomes (`WIR-39`). It settles `succeeded` once every child has settled, **including children that settled `needs_reconciliation`** — an unresolved child is a child-level fact, and blocking the parent on it would leave a suspended tenant's record permanently open. |
 | preflight | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
@@ -284,8 +290,10 @@ premise is that the tenant spent the balance, so on the common input available i
 floor and `LDG-10` forbids driving it negative. Naming only the commitment left a builder choosing
 between two MUSTs with no rule for the remainder. The machine is then routed into exhaustion
 immediately (`requested_by: system`,
-`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may `extend-runway` (`LDG-62`) against the attached machine — which has a commitment
-open at the wind-down floor, so there is one to extend — before the exhaustion sweep reaches it,
+`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may `extend-runway` (`LDG-62`) against the attached machine. **Where the branch opened
+no commitment**, `LDG-62` **creates** one at the extension's size rather than growing an absent
+record — otherwise the survival path this sentence promises is unreachable for exactly the broke
+tenant the branch is about. before the exhaustion sweep reaches it,
 which is an explicit, capped, idempotent authorization rather than an inference about what it
 would have wanted. **This is the branch that makes `OPS-33`'s early release safe**, and without it
 that release was a hole rather than a decision.
@@ -468,9 +476,9 @@ of the service, or edited in the store. Validation is cheap; a wrong install is 
 strategy SHOULD provide per-tenant fairness, and the API layer SHOULD rate-limit
 enqueues per tenant.
 
-**OPS-25** The operation log grows without bound. A retention policy MUST exist: settled
-operations older than a configured age are archived or deleted, and operations in
-`needs_reconciliation` (which is not settled, `OPS-3`), which MUST be retained until an operator resolves them.
+**OPS-25** The operation log grows without bound. A retention policy MUST exist: **settled** operations older than a configured age are archived or deleted, while operations in
+`needs_reconciliation` — which is not a settled state (`OPS-3`) — MUST be retained until they are
+resolved.
 
 **OPS-26** Operators MUST be able to enumerate operations by status through the API —
 specifically every operation in `needs_reconciliation` (`API-23`). A design that tells

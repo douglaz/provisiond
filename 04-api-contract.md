@@ -124,9 +124,10 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 
 1. authenticate, resolve principal;
 2. reject unless the tenant is active — a pending tenant fails `not_activated` (`API-35`),
-   **except** the `API-43` allowlist and the **maintenance actions**: revoke (`API-56`), resolve
-   resume and requeue are authorized by principal rather than by tenant state — and gating them on an
-   active tenant would make a suspended or pending tenant unable to replace a stolen credential —
+   **except** the `API-43` allowlist and the **maintenance actions**: revoke (`API-56`), resolve,
+   resume and requeue are authorized by principal rather than by tenant state, and gating them on
+   an active tenant would leave a suspended or pending tenant unable to replace a stolen
+   credential —
    locking the owner out at exactly the moment the mechanism exists for;
 3. validate the idempotency key;
 4. authorize the target resource against the tenant;
@@ -294,7 +295,9 @@ balance and its commitments untouched. **Rotation authorized by the token itself
 sufficient and MUST NOT be offered**: a thief holding the token would rotate first and lock the
 owner out permanently, converting credential theft into total loss of the tenant.
 
-Revocation MUST carry an idempotency key and MUST replace the token **at most once per key**
+Revocation MUST be **serialized per tenant** (`LDG-35`'s primitive), so two concurrent
+revocations under different keys cannot both mint a replacement and leave one silently dead. It
+MUST carry an idempotency key and MUST replace the token **at most once per key**
 (`STO-35`) — a replay returns `409` with `details.reason: "credential_already_replaced"` rather
 than re-returning the new token, because storing a replayable body would mean persisting a live
 bearer secret. This is a deliberate narrowing of `API-8`'s replay contract, and it is safe
@@ -321,7 +324,9 @@ to settle rather than abandoned mid-order, and its machine is then cancelled by 
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
 then (3) enqueues a system cancellation per machine (`OPS-39`) — **the suspension flag and the
 full fan-out MUST commit together, or a crash mid-fan-out leaves a suspended tenant with machines
-nobody will ever cancel and no write path left to notice** — then (4) aggregates their outcomes,
+nobody will ever cancel and no write path left to notice** — then (4) **transitions work already `queued` but never claimed straight to `failed` with
+`suspended`** — it has touched no provider, so cancelling it needs no operation — and lets
+anything already `running` settle before its machine is swept; then (5) aggregates the outcomes,
 including any that end `needs_reconciliation`. Reads of the ledger and machine list MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
 it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to

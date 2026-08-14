@@ -14,8 +14,11 @@ insert-if-absent, or take-over-if-expired, or no-op-if-held-by-another (`OPS-9`)
 
 **STO-3** **AMENDED.** Every settled-state write **made by a worker** MUST be guarded on
 `(id, status = running, claimant = me)` and MUST report whether it affected a row (`OPS-22`).
-**Entry *into* `needs_reconciliation` is a worker write** and carries `STO-3`'s ordinary
-`(id, status = running, claimant = me)` guard; only the transitions *out* of it are not.
+**A worker moving its own operation into `needs_reconciliation` carries `STO-3`'s ordinary
+`(id, status = running, claimant = me)` guard. The sweeper does not** — it moves operations whose
+lease has *expired* (`OPS-14`), so it is by definition not the claimant, and its write is guarded
+on `(id, status = running, lease_expires_at < now)` instead. Transitions *out* of the state are
+guarded by `STO-19`'s write-once columns.
 **Resolution transitions out of `needs_reconciliation` are not worker writes** (`OPS-3`): they are
 guarded instead on `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s
 write-once rule expressed as the same kind of conditional write. *Unscoped, this requirement
@@ -361,7 +364,7 @@ transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home
 returned an empty list to every customer forever.
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
-`currency`, `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
+`currency`, `absorbed_seconds`, `rate_num`, `rate_den`, `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s wind-down shortfall) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.

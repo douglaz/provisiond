@@ -113,7 +113,7 @@ The spending authority check is `available ≥ required_commitment`, and it is t
 authorization a create or an adopt receives (`ADR-0002`, `API-17b`).
 
 **LDG-31** **AMENDED — every debit against a machine, not only consumption.** Posting **any**
-debit attributable to a machine with an open commitment — `usage_debit`, `setup_fee_debit`,
+debit attributable to a machine **with an open commitment** — `usage_debit`, `setup_fee_debit`,
 `operation_fee_debit` — MUST decrement that commitment by the same amount, in one transaction.
 
 *The withdrawn text said "consumption", and `LDG-38` named only `usage_debit`. `PRV-13b` puts the
@@ -248,7 +248,8 @@ identical consumption. The rule is therefore:
 ```
 posted_debit = ceil(cumulative_exact_charge)
               − Σ(previous debits for this SUBJECT and period)
-              − Σ(amounts already carried as operator deficiencies for it, LDG-66)
+              − Σ(deficiency-absorbed time for it, converted at the rate recorded
+                  on each deficiency record, LDG-66)
 ```
 
 with the exact charge carried as a rational (`LDG-4`). **An increment whose end instant is at or before the subject's high-water mark MUST be
@@ -271,7 +272,7 @@ unstated:
 | Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
 | Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
 | Ambiguous — `needs_reconciliation` | **Remains reserved in the commitment**, and is *additionally* recorded as a pending fee obligation on the operation (`LDG-67`). The record exists because `OPS-33` releases the commitment in full at the negative window while the operation stays open — so the obligation must survive that release, not replace the reservation before it |
-| Resolved *observed* (`OPS-27`) | **Debited — and the source depends on whether the commitment is still open.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. Once the window has elapsed and `OPS-33` has closed it, debit from available balance, any shortfall being an operator deficiency (`LDG-66`). *Asserting one source was the defect: it double-counted the fee on early resolution, or invented a deficiency that did not exist* |
+| Resolved *observed* (`OPS-27`) | **Debited — and the source depends on whether the commitment is still open.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. Once the window has elapsed and `OPS-33` has closed it, the fee is debited from available balance **without a commitment decrement**, which is the one debit `LDG-31`'s pairing rule does not cover — there is no commitment left to pair with. Any shortfall is an operator deficiency (`LDG-66`). *Asserting one source was the defect: it double-counted the fee on early resolution, or invented a deficiency that did not exist* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider |
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
@@ -370,7 +371,9 @@ exception branch, `LDG-64`'s rate outage, `SEC-46`'s unconfirmed account loss, `
 wind-down shortfall and `LDG-39`'s unrecoverable setup fee —
 have nowhere legal to live — six sources, not the four an earlier draft counted. A deployment
 MUST persist them in a separate record (`STO-37`)
-carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), the cause,
+carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), **the
+elapsed billable time it absorbed and the rate in force when it was opened** (`LDG-4`) — without
+those two the meter cannot subtract it from a satoshi equation without mixing units — the cause,
 and an idempotency key; they MUST feed provider payables in the solvency check (`LDG-17`) and MUST
 NOT alter any tenant balance. **Nothing here is billable to a customer** — that is the whole point
 of calling it the operator's.
@@ -529,8 +532,10 @@ row that `API-34`'s time-to-live could never reclaim.
 **LDG-67** **A pending fee obligation is a record, not an entry.** `LDG-39`'s ambiguous row parks
 the setup fee on the operation until resolution, and that needs a home: `operations` carries
 `pending_fee_native_minor` and `pending_fee_currency` (`STO`), in the provider's currency because
-the fee is not yet a satoshi obligation, cleared when the fee is debited
-(resolved-observed) or dropped (resolved-absent, deterministic rejection). **On `abandoned`
+the fee is not yet a satoshi obligation, It records the **satoshi amount authorized at create** alongside the native figure, so a late
+resolution debits what the customer actually authorized rather than a re-conversion at whatever
+the rate has since become. Cleared when the fee is debited (resolved-observed) or dropped
+(resolved-absent, deterministic rejection). **On `abandoned`
 (`OPS-31`) the fee is an operator deficiency** (`LDG-66`): the operator gave up establishing
 whether the order landed, and charging a customer for an outcome nobody established is not
 defensible. It moves no satoshis
@@ -584,7 +589,8 @@ no email. **`runway_until` floats with the price** (`LDG-33`): the read is the c
 visibility into repricing, which is why it is a MUST and not a nicety.
 
 **LDG-62** **Extending runway is a caller write, authorized like a purchase.** It increases the
-machine's commitment from available balance at the **current** rate, under `LDG-35`'s per-tenant
+machine's commitment — **or opens one where the machine has none**, which is `OPS-36`'s
+deficiency-funded late-attach branch — from available balance at the **current** rate, under `LDG-35`'s per-tenant
 serialization and `LDG-10`'s no-negative rule, in one transaction. It is the only way a
 commitment grows outside `LDG-63`, and it MUST be idempotent per `API-8` — two concurrent
 extends must not reserve twice.
