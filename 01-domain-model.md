@@ -9,8 +9,11 @@ An isolation boundary. Every machine and every operation belongs to exactly one 
 **DOM-1** A tenant identifier MUST be 1–128 characters of ASCII letters, digits, `.`,
 `_`, `:`, or `-`.
 
-**DOM-1a** Whether the system maintains a **tenant registry** is a deployment decision, and it
-MUST be made explicitly rather than inherited.
+**DOM-1a** **SETTLED by `ADR-0002`: the system maintains a tenant registry.** It owns tenant
+records and their lifecycle — create, suspend, resume, delete, credential replacement — because
+self-serve enrolment requires a tenant writable at runtime. *The no-registry branch below is
+withdrawn; it described one reference implementation, and keeping it as a live option produced
+requirements written for a deployment shape this product does not have.*
 
 - **No registry.** Tenant identifiers are opaque; the set of tenants is whatever the
   configured credentials say (`API-4`). Adequate when tenants are operator-configured and few.
@@ -144,10 +147,9 @@ NOT be logged, and MUST NOT appear in an operation result or error. Its in-memor
 representation MUST redact the credential in any debug or display formatting, and
 SHOULD zero the credential when dropped.
 
-**DOM-12** A rescue session type that supports serialization MUST round-trip. A type
-that serializes a credential-bearing variant to a form it cannot deserialize is
-prohibited — it fails only later, in whatever code first tries to resume a session. See
-`DEF-9`.
+**DOM-12** **WITHDRAWN — folded into `DOM-11`**, which already prohibits persisting a rescue
+session at all. A round-trip rule for a type that must never be serialized was specifying the
+behaviour of a path the same document forbids. *`DEF-9`'s defect stands as a prohibition.*
 
 ## Image sources and installation strategies
 
@@ -198,7 +200,7 @@ documents.
 | `rescue_ssh` | Activating a rescue environment reachable over SSH |
 | `install_rootfs_via_rescue` | The provider's OS installer accepts a root filesystem archive |
 | `install_raw_disk_via_rescue` | A raw image can be streamed to a block device in rescue |
-| `custom_ipxe` | Booting a caller-supplied iPXE script |
+| ~~`custom_ipxe`~~ | **DEFERRED from v1** by the `DOM-22` precedent — no launch driver declares it |
 | `list_offers` | Enumerating purchasable offers (`DOM-22`) |
 | `reverse_dns` | Setting PTR records for assigned addresses |
 

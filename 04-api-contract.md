@@ -131,6 +131,9 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 3. validate the idempotency key;
 4. authorize the target resource against the tenant;
 5. deserialize and validate the body;
+2a. reject with `suspended` if the tenant is suspended and the endpoint is not a maintenance
+    action — checked **after** step 2's replay lookup would have matched, so a replayed write
+    from before the suspension returns its stored result rather than a spurious rejection;
 5a. **compute the request fingerprint and check it** (`WIR-3`): an equal fingerprint under the
     same `(tenant, key)` returns the stored result, a different one fails `conflict`. This step
     needs the parsed body, which is why it cannot live at step 3.

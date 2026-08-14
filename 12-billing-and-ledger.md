@@ -254,13 +254,7 @@ occur in one serialized transaction** (`LDG-35`): computing the sum outside it l
 runs both read the same prior total and both post. **Observation cadence is an operational
 choice; it MUST NOT be a pricing input.**
 
-**The idempotency key MUST therefore widen.** `LDG-8`'s `(machine, billing period, kind)` admits
-exactly one posting per period, which the cumulative rule above contradicts the moment cadence
-subdivides a period — later postings would be deduplicated away and the commitment would stop
-decaying. The key is **`(subject, billing period, kind, posting index)`**, where *subject* is the
-machine **or the individual billable attachment** (`LDG-32`) — attachments metered under the
-machine's identity collide on the same tuple for the same reason. A conformance test MUST prove that arbitrary
-subdivision of a period yields the same total.
+**`LDG-8` owns the key**; this requirement does not restate it. *A restatement here said `(subject, billing period, kind, posting index)` — the form `LDG-8` withdrew as unable to deduplicate — which is the duplication habit this set keeps paying for.*
 
 **LDG-39** **AMENDED — the setup fee has a lifecycle, not a single moment.** It is committed at
 create as part of `PRV-13b`'s sizing, and it becomes a debit **only when the order is known to
@@ -353,6 +347,9 @@ usage cannot be converted to satoshis. A deployment MUST:
   posted** — a customer would be billed for hours at a price that did not exist while it was
   consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
   against because the commitment was already open;
+- **persist the outage's start instant and its deadline**, so a restart mid-outage does not reset
+  the clock and quietly extend the exposure past the bound — the deficiency record (`STO-37`) is
+  where they live;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,
   and **cancel machines at that bound** if no rate has returned. **The bound MUST be disclosed
   before purchase (`WIR-30`'s offer) and the live deadline exposed on the machine view as

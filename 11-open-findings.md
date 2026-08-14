@@ -348,6 +348,42 @@ money by doing something that looks correct.
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
 
+## The skeptical audit — 2026-08-14
+
+Six review passes each *added* text. Nobody had asked what should come out, so a skeptical audit
+was run against the opposite question: what here is **not** required for correctness, security or
+data safety? It returned **25 candidates**, and its closing observation is the one worth keeping:
+
+> six review passes each added text to fix contradictions that earlier added text created — the
+> duplication classes are not just bloat, they are the mechanism generating the defects the
+> passes keep finding.
+
+That is correct, and it is visible in this file's own history: `SEC-46` restated `LDG-32`, drifted,
+and shipped an amendment claiming to have applied while the requirement said the opposite.
+
+**Accepted and applied.** `OVR-10`'s separate-service form (settled by `ADR-0001`, kept alive as a
+live option for weeks, and the reason `API-30`/`SEC-40`/`CNF-66`–`CNF-68` exist); `DOM-1a`'s
+no-registry branch (settled by `ADR-0002`); `DOM-12` (folded into `DOM-11`, which forbids the
+persistence its round-trip rule described); `custom_ipxe` (deferred by the `DOM-22` precedent — no
+launch driver declares it); `LDG-38`'s restatement of the meter key (which had drifted to the
+withdrawn form in the same document that withdrew it); and a scope note on `07-security-
+requirements.md` making it cite rather than restate rules owned elsewhere.
+
+**Rejected, with reasoning.** `API-53`'s operation `revision` — the audit called it cuttable for a
+pre-SDK product, but it is one integer that arbitrates genuinely out-of-order polls, and the
+caller is software polling concurrently by design (`API-49`). Removing it would trade a field for
+a stale-read class that no other requirement covers. This is the loop's first rejection, and it is
+recorded here rather than left as silence, because six passes with zero rejections was itself a
+signal worth answering.
+
+**Held for the operator, not applied.** Cutting `API-33`'s enrolment issuance delay. The audit is
+right that its original justification evaporated — it existed to protect the single moment a
+server-generated token crossed the wire, and `API-33` now mints both secrets in the enrolment
+response — so what remains is friction against a naive script that `API-36`'s rate limit,
+`API-41`'s global ceiling and `API-34`'s time-to-live already bound. But removing it deletes
+`issuable_at` and everything keyed to it, which changes the enrolment product rather than tidying
+it. **F33.**
+
 ## The fourth audit — 2026-08-13, and the verdict was NO again
 
 Two independent reviewers (Fable; Codex, running three parallel passes) read the full set after

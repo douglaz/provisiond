@@ -100,17 +100,15 @@ depend on an HTTP client, a database, or a web framework.
 
 ## Deployment assumptions
 
-**OVR-10** Customer-facing concerns — identity and enrolment, billing, quota, abuse — MUST be
-separated from the credential-holding lifecycle engine. The separation MAY be a network
-boundary (a distinct service in front) or a **module boundary inside one deployable**. That
-choice is a deployment decision with different costs, not a correctness one:
+**OVR-10** **SETTLED by `ADR-0001`: one deployable, with a module boundary inside it.**
+Customer-facing concerns — enrolment, billing, abuse — are separated from the credential-holding
+lifecycle engine by code structure, not by a network hop.
 
-| | Separate service | Single component, internal boundary |
-|---|---|---|
-| Blast radius | Public surface cannot reach provider credentials | Public surface shares an address space with them |
-| Tenancy | Boundary is a header the engine cannot verify (`API-30`) | Engine resolves tenants directly; `CNF-4`–`CNF-7` test the real surface |
-| Money + lifecycle consistency | Two stores, no shared transaction | One transaction |
-| Cost | Inter-service auth, duplicate audit, distributed reconciliation | Enforcing the boundary in code |
+*The separate-service alternative and its comparison table are withdrawn. `ADR-0001` chose against
+it and records why; keeping both forms live meant every later requirement had to be written twice
+and `API-30`, `SEC-40` and `CNF-66`–`CNF-68` accumulated around a deployment shape this product
+does not have.* **`OVR-10a` is therefore the only structural credential defence**, which is what
+makes it load-bearing rather than belt-and-braces.
 
 **OVR-10a** A deployment choosing the single-component form MUST NOT leave provider credentials
 ambient in the process. They MUST be reachable only through the internal layer's interface, so

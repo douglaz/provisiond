@@ -282,6 +282,13 @@ commitments and history are this system's own records; losing an account is an i
 not a financial one, and a design that reads provider state to answer "what do I owe this
 customer" loses the answer at the worst moment.
 
+*Note on this document's scope, added 2026-08-14 after a skeptical audit.* Where a security
+requirement here restates a rule owned by a numbered requirement elsewhere, **the other document
+is authoritative and this one cites rather than repeats it.** `SEC-46` is why: it restated
+`LDG-32`'s release rule, the two drifted apart, and an amendment to one shipped while the other
+still mandated the opposite — through a panel review that tested the amended behaviour. A second
+normative copy is not redundancy, it is a second thing to forget.
+
 ## Key custody
 
 `ADR-0009`. These requirements exist because `ADR-0008` made the deployment derive Bitcoin
