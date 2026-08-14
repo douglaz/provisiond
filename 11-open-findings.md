@@ -295,7 +295,9 @@ the reasoning recorded in the checklist's tier-corrections note (`CNF-99`, `CNF-
 
 ## The funding decision — 2026-08-12
 
-**`ADR-0008` chose two rails: Lightning primary, on-chain fallback.** `LDG-42` had required a
+**`ADR-0008` chose two rails, and a deposit is one object payable over either — the payer picks.**
+*(An earlier phrasing here, "Lightning primary, on-chain fallback", is the first draft that ADR
+withdrew within the hour.)* `LDG-42` had required a
 funding path and then named three candidate rails without picking one, so the endpoint, the
 finality rule, the fee-bearer and the tenant binding were all unwritten while `ADR-0002` made the
 money path v1-blocking.

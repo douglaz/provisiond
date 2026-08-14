@@ -33,8 +33,10 @@ MUST NOT be tied to the lifetime of an HTTP connection.
 
 **OVR-5** **AMENDED.** *Uncertainty is a first-class state, not an error.* When the system
 cannot determine whether a provider mutation took effect, the operation MUST enter a distinct
-**resolution-pending** state (`OPS-3`) that requires evidence or human inspection to leave, and
-MUST NOT be retried automatically. *"Terminal" was withdrawn 2026-08-13: the state settles to
+**resolution-pending** state (`OPS-3`) that requires evidence or human inspection to leave. **The
+mutation MUST NOT be retried automatically**; automatic *resolution* by correlator search
+(`OPS-27`) is not a retry and is expressly permitted — it establishes what happened rather than
+doing it again. *"Terminal" was withdrawn 2026-08-13: the state settles to
 `succeeded` or `failed` on resolution, and calling it terminal forbade the very transitions
 `OPS-27` and `OPS-31` mandate. What was load-bearing about the word survives intact — nothing
 automatic and nothing caller-driven moves it.*
@@ -133,7 +135,9 @@ mean "removed from a copy".
 
 **OVR-14** **v1 ships three drivers: Hetzner Cloud, Hetzner Robot and DigitalOcean** (`ADR-0010`)
 — both machine shapes across two unrelated companies. **This is a scope statement, not a licence
-to specialise.** Nothing in `01`–`07` may name a provider, and `PRV-13c` continues to forbid
+to specialise.** Nothing in `01`–`07` may make a provider's behaviour *normative* — a requirement
+MAY cite a verified provider fact as evidence for a general rule (`PRV-30`, `PRV-32`), which is
+what keeps a rule falsifiable rather than asserted — and `PRV-13c` continues to forbid
 encoding any provider's commercial terms as constants; the launch set exists so that the
 provider-neutral contract is *tested* against difference, not so that it can quietly acquire a
 default.

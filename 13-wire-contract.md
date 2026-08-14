@@ -109,7 +109,7 @@ credential authorizes `install` and `delete`, so theft costs data and machines, 
     "message": "available 41200 sats, required 72000 sats",
     "retryable": false,
     "details": {"available_sats": 41200, "required_sats": 72000},
-    "correlation_id": "0198c1c2-..."
+    "correlation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11"
   }
 }
 ```
@@ -252,7 +252,7 @@ observes activation (`API-52`).
 
 **WIR-38** `POST /v1/recovery/revoke` — authenticated by the **recovery credential**, never by the
 spending token (`API-56`). Body `{}`; response `200` with a fresh
-`{"spending_token": "...", "revoked_at": "..."}`. Synchronous — a pure credential action with no
+`{"spending_token": "pvd_s_9Rn4pYcX2vT7kM1qZbD5wH8eJ3gL6fA0sN2xB7uV", "revoked_at": "2026-08-14T09:12:00Z"}`. Synchronous — a pure credential action with no
 provider mutation — and added to `API-48`'s list on that basis. The tenant, its machines, its
 balance and its commitments are untouched.
 
@@ -300,7 +300,7 @@ Response `200`:
   "requested_sats": 250000,
   "activation_minimum_sats": 100000,
   "expires_at": "2026-08-13T14:00:00Z",
-  "lightning": {"invoice": "lnbc2500u1p...", "floor_sats": 1000, "enforced": true},
+  "lightning": {"invoice": "lnbc2500u1pnq7x8xpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5w3jhxapqd9h8vmmfvdjscqzzsxqyz5vq", "floor_sats": 1000, "enforced": true},
   "onchain":   {"address": "bc1qexampleaddressxxxxxxxxxxxxxxxxxxxxxxxxxx", "floor_sats": 20000, "enforced": false},
   "disclosures": [
     {"code": "onchain_expiry_unwatched", "text": "After expires_at the address stays payable but is no longer watched; funds sent after expiry may be lost."},
@@ -406,8 +406,8 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 
 ```json
 { "strategy": "rootfs_via_rescue",
-  "source": {"type": "rootfs_tarball", "url": "https://...", "sha256": "<64 hex>", "format": "zstd"},
-  "authorized_keys": ["ssh-ed25519 AAAA..."],
+  "source": {"type": "rootfs_tarball", "url": "https://images.example.net/debian-12-amd64.tar.zst", "sha256": "3b1f2c9a5d7e4082b6c1d3e5f7a90b2c4d6e8f0a1b3c5d7e9f0a2b4c6d8e0f13", "format": "zstd"},
+  "authorized_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexamplekeyxxxxxxxxxxxxxxxxxxxxxxxx"],
   "layout": { "drives": [{"identifier": "S4EVNF0N123456"}], "inventory_fingerprint": "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1", "raid": {"enabled": false, "level": null}, "partitions": [{"mount": "/boot", "size": "1G", "fs": "ext3"}, {"mount": "/", "size": "all", "fs": "ext4"}], "bootloader": "grub" },
   "post_install_script": null,
   "trust": {"use_provider_keys": true},

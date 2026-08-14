@@ -63,10 +63,10 @@ policy, and leaves the driver interface unproven against anything but one API di
 - **Three drivers before the first customer.** This is straightforwardly more work than any
   alternative considered, undertaken before anything has been validated against a real
   transaction. The trade accepted is breadth of proof over speed to a first sale.
-- **`F29` becomes blocking for the Robot driver specifically, not for the launch.** If Hetzner
-  Robot's `comment` field forces manual order processing, the correlator design and the measured
-  negative window are wrong for that provider — but Hetzner Cloud and DigitalOcean still ship.
-  **Verify it before writing the Robot driver, not before shipping.**
+- **`F29` was confirmed true on 2026-08-13**, so this consequence has already landed: Hetzner
+  routes commented orders to manual processing, the `comment` field is prohibited outright
+  (`PRV-30`), and Robot's correlator moved to a per-order SSH key (`PRV-32`). Hetzner Cloud and
+  DigitalOcean were unaffected, which is the payoff for a launch set spanning two companies.
 - **The capability matrix stops being hypothetical.** Three drivers with genuinely different
   capability sets is enough for `OVR-2`'s runtime discovery to be exercised rather than asserted,
   *(`F10`'s dead branches were closed outright by `DOM-22` rather than exercised: `remote_console`

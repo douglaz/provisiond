@@ -322,7 +322,10 @@ episode MUST mint **one** durable `system_trigger_id` (`operations.system_trigge
 **reuse it on every subsequent sweep until that episode is resolved** — the id identifies the
 *condition* (this machine's exhaustion, this account's loss), not the sweep that noticed it. With
 `(machine_id, system_reason, system_trigger_id)` unique at the storage layer, the second sweep's
-insert then conflicts and no duplicate cancellation is enqueued. **Minting a fresh id per sweep
+insert then conflicts and no duplicate cancellation is enqueued. **The constraint bounds new
+enqueues, not recovery**: an operation that failed deterministically may still be requeued under
+its existing trigger id (`API-19`, `OPS-20`), because a cancellation that did not happen must
+remain retryable or the machine bills forever. **Minting a fresh id per sweep
 would make the constraint fire never**, which is the defect this rule exists to prevent — otherwise a sweep that runs every minute enqueues a fresh
 cancellation every minute for the same exhausted machine, which is repeated provider mutation by
 timer.

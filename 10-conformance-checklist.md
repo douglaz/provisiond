@@ -787,7 +787,9 @@ rather than acquiring a default.
       or carrying a stale `inventory_fingerprint`, aborts `integrity` **with no bytes written**.
       Verified by mutating the inventory between preflight and install. (`RSC-26`, `RSC-38`)
 - [ ] **CNF-193** A pending tenant's signup time-to-live exceeds the deposit expiry plus the
-      finality window, and no tenant is deleted while a deposit of its own is inside that window.
+      finality window; a deposit minted at the last moment expires early enough that its own
+      finality window still closes before the signup is reaped; and no tenant is deleted while a
+      deposit of its own is inside that window.
       (`API-34`, `API-42`, `LDG-54`)
 - [ ] **CNF-194** Suspending a tenant blocks every **tenant-authorized** write while leaving the
       maintenance actions reachable (`CNF-209`), enqueues one deduplicated cancellation
@@ -847,9 +849,10 @@ rather than acquiring a default.
 - [ ] **CNF-212** Two consecutive exhaustion sweeps over the same machine enqueue **one**
       cancellation: the second reuses the episode's trigger id and conflicts. Minting a fresh id
       per sweep is the failure. (`OPS-39`)
-- [ ] **CNF-213** Attributing an orphaned deposit posts a `topup` ledger entry that moves the
-      balance, and `operator_ref` holds no name, address or contact string. (`WIR-42`, `LDG-7`,
-      `ADR-0005`)
+- [ ] **CNF-213** Attributing an orphaned deposit posts **one `correction` pair per settled
+      payment** — never a second `topup`, which would mint satoshis the original settlement already
+      credited — and `operator_ref` holds no name, address or contact string. A deposit paid on
+      both rails produces two pairs. (`WIR-42`, `LDG-5`, `LDG-55`, `ADR-0005`)
 - [ ] **CNF-183** No customer-facing surface — terms, API documentation, error text, marketing —
       states or implies that satoshis are held, backed, reserved or segregated against a balance,
       **and** the terms do state that a balance is an unsecured claim. Both halves: silence about
@@ -894,8 +897,9 @@ Added 2026-08-12 with `API-49`–`API-54`.
       and the client documentation states that re-issuing under a fresh idempotency key is a
       second purchase. The test is the field; the sentence is checked by reading. (`API-51`)
 - [ ] **CNF-155** A pending tenant that has paid can observe `active` on its enrolment handle
-      without attempting a create. A pending tenant that has not paid still cannot reach anything
-      but funding and that handle. (`API-52`, `API-43`)
+      without attempting a create. A pending tenant that has not paid can reach only `API-43`'s
+      allowlist — funding, its own deposit, that handle, and revocation at or after
+      `issuable_at`. (`API-52`, `API-43`)
 - [ ] **CNF-156** Two interleaved polls delivered out of order leave the caller holding the
       higher `revision`; the operation's revision strictly increases across every client-visible
       change, verified by killing and restarting the process mid-operation. (`API-53`)
@@ -915,7 +919,7 @@ Added 2026-08-12 with `API-49`–`API-54`.
 
 Added 2026-08-12 closing `F30`'s list of untested requirements from the commitment rewrite.
 
-- [ ] **CNF-160** Posting the same `(subject, billing period, kind, posting index)` usage debit twice moves the
+- [ ] **CNF-160** Posting the same `(subject, billing period, kind, increment end)` usage debit twice moves the
       balance once, and the debit and its commitment decrement land in one transaction — killing
       the process between them leaves neither. (`LDG-38`, `LDG-31`, `STO-28`)
 - [ ] **CNF-161** A machine powered off for a full billing period is billed for it, and a machine
@@ -1047,8 +1051,9 @@ See **The blocking count** at the end of this document; it is stated in one plac
       is, `CNF-111` proves nothing. (`SEC-44`)
 - [ ] **CNF-113** One operator action terminates a tenant and every machine it owns, fast enough
       to meet the provider's abuse-notice deadline. (`SEC-45`)
-- [ ] **CNF-114** Loss of a provider account closes the affected commitments, returning their
-      reserved satoshis to available
+- [ ] **CNF-114** **Only confirmed termination** closes the affected commitments and returns
+      their reserved satoshis to available; an unreachable account or rejected credentials leave
+      them open with the exposure recorded as an operator deficiency (`SEC-46`, `LDG-66`)
       balance. (`SEC-46`)
 - [ ] **CNF-115** Balances and commitments are answerable with every provider unreachable.
       (`SEC-47`)
