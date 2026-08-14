@@ -420,9 +420,12 @@ showed only `rootfs_via_rescue` and omitted the raw-disk target device (`RSC-26`
 trust decision (`RSC-3`/`RSC-4`), the layout (`RSC-22`) and the installed keys (`RSC-13`) — so
 three of four strategies were unsendable and the security-critical trust choice had no field.
 
-Common to every variant: `acknowledge_destruction: true` (`API-14`); `on_failure` ∈
-{`exit_rescue` (**default**), `leave_in_rescue`}; and a **`trust`** object — exactly one of three,
-not two:
+Common to every variant: `acknowledge_destruction: true` (`API-14`) and `on_failure` ∈
+{`exit_rescue` (**default**), `leave_in_rescue`}. **The two rescue-entering variants —
+`rootfs_via_rescue` and `raw_disk` — additionally carry a required `trust` object**, exactly one of
+three, not two. `provider_native` enters no rescue and has no host key to pin, so it carries none —
+and a `provider_native` body that supplies one is an unknown field for that variant, rejected
+`invalid_request` by `WIR-2` (its row below):
 
 | `trust` | Meaning |
 |---|---|

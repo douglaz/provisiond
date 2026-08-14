@@ -203,6 +203,20 @@ and pointed at: the error details MUST record what was attempted, any provider-s
 identifiers that were created (transaction ids, key fingerprints, action ids), and the
 location of any retained recovery credential (`RSC-19`).
 
+**For a create, what survives MUST include the offer snapshot** — the `offer_id` and the offer's
+`install_strategies` as they stood when the request was accepted — carried in `request_summary`
+(`05-persistence.md`), which outlives the purge. The machine's own copy of that list is what the
+install gate reads (`WIR-30`), and an ambiguous create has **no machine row yet** to hold it while
+`ADR-0005` deletes the payload on entry to `needs_reconciliation` (`OPS-2`). Without the snapshot a
+create later resolved-observed attaches a machine whose install eligibility can be reconstructed
+from nothing the system still holds: the offer is a live listing that may have been re-priced,
+changed or withdrawn in the meantime (`DOM-9`), which is the same reason the gate reads the copy
+rather than the offer. It is terms, not secrets, so it survives the purge exactly as the provider
+account and the target do — and it is retained as **evidence**, not as a comparison field:
+`OPS-34`'s requeue equivalence check is over kind, machine, provider account and target, and the
+snapshot adds no fifth test, because an auction offer that has since been withdrawn does not make
+the requeue wrong.
+
 ## Interrupted workers
 
 A worker that crashes leaves an operation `running` with a lease that will expire.
@@ -260,6 +274,28 @@ kind unless the request carries a **second, distinct acknowledgement**
 not satisfy it, because that one merely says "a purchase is intended", not "a *duplicate* purchase
 is intended". Requeueing a create is a purchase decision, not a retry.
 
+**A reused commitment MUST be re-priced before the second order is placed.** The requeue happens
+later — possibly much later — and the rate moves (`LDG-40`), so a commitment sized at the original
+rate under-reserves the order the requeue is about to place. The requeue's spending check MUST
+therefore re-derive the required amount at the **current** rate (`PRV-13b`'s formula) and top the
+reused commitment from available balance by `LDG-62`'s mechanism, in one transaction under
+`LDG-35`'s per-tenant serialization and subject to `LDG-10`. **Where available cannot fund the
+difference the requeue MUST be refused `insufficient_balance` and MUST place no order.** Proceeding
+on the stale size buys a machine at a price the customer's balance was never checked against, which
+is the same unauthorized money-out this paragraph refuses when the commitment was closed — reached
+through a stale number instead of through a missing record.
+
+**A requeued create MUST NOT settle `succeeded` on the strength of the attempt in hand.** A second
+order was placed and the earlier attempt's order may have landed too, so before the terminal write
+the system MUST reconcile **every** correlator the operation recorded — the union `OPS-27` searches,
+never the latest attempt's alone — and MUST settle `succeeded` only where that union yields exactly
+one resource. A create settles exactly one machine, so a union returning **more** resources than
+that is `OPS-38`'s many-case: it MUST NOT auto-attach either, and it goes to an
+operator (`OPS-31`), never to `succeeded`. Settling on the latest attempt alone leaves an operation
+that reads clean while a second billable server runs in the operator's account. An order that lands
+*after* the union was taken is beyond what any settle-time search can see, and `OPS-32`'s account
+sweep is the backstop for it.
+
 ## Resolving `needs_reconciliation`
 
 Requeue is not a resolution. It replays the mutation, which is the one thing an ambiguous
@@ -284,16 +320,23 @@ searches return, and reaches one of three outcomes:
 | Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
 **A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
-This is one rule with **two entry points** — the provider **accepting the order in its reply**, and
-`OPS-27` **resolving-observed** a create whose reply was lost — because both write the same set of
-effects and a partial commit of either is unrepairable. Those effects are: the terminal write on
+This is one rule with **three entry points** — the provider **accepting the order in its reply**,
+`OPS-27` **resolving-observed** a create whose reply was lost, and `OPS-36`'s **late attach** of a
+machine whose commitment `OPS-33` had already released — because each writes a set of effects a
+partial commit of which is unrepairable. Those effects are: the terminal write on
 the operation (`STO-19`'s write-once columns), the machine row, the setup-fee debit (`LDG-39`), the
 clearing of any parked `LDG-67` pending-fee record, and the commitment decrement where a commitment
 is still open (`LDG-31`). They MUST commit together, under `LDG-35`'s per-tenant serialization
-because the debit reads the balance. A partial commit leaves a state nothing in the record can
-repair: a machine whose fee is still parked bills that setup a second time when the obligation is
-next read, a debit without the machine row charges a customer for a machine no tenant owns, and a
-machine row without its debit runs a create nobody paid for.
+because the debit reads the balance. **The late-attach entry point carries three further effects,
+and they commit in that same transaction**: the attach itself; *either* the wind-down commitment
+*or* the `LDG-66` operator deficiency that stands in for it where available cannot cover the floor,
+never neither and never both; and the enqueue of the cleanup cancellation, which claims `OPS-39`'s
+`(machine_id, late_attach_cleanup)` trigger entry as it goes. A partial commit leaves a state
+nothing in the record can repair: a machine whose fee is still parked bills that setup a second
+time when the obligation is next read, a debit without the machine row charges a customer for a
+machine no tenant owns, a machine row without its debit runs a create nobody paid for, and an
+attach whose cancellation never reached the queue is an unfunded machine billing with nothing
+scheduled to stop it.
 
 **OPS-36** **A correlator match may arrive after `OPS-33` released the commitment and the tenant
 spent the balance.** The specification previously had no branch for this and the three available
@@ -323,7 +366,9 @@ premise is that the tenant spent the balance, so on the common input available i
 floor and `LDG-10` forbids driving it negative. Naming only the commitment left a builder choosing
 between two MUSTs with no rule for the remainder. The machine is then routed into exhaustion
 immediately (`requested_by: system`,
-`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may
+`system_reason: late_attach_cleanup`); the attach, the commitment-or-deficiency and that enqueue
+commit together, under the atomicity rule stated above. **Survival requires a caller action**: the
+tenant may
 `extend-runway` (`LDG-62`) against the attached machine **before the exhaustion sweep reaches
 it**, which is an explicit, capped, idempotent authorization rather than an inference about what
 it would have wanted. **Where the branch opened no commitment**, `LDG-62` **creates** one, sized as

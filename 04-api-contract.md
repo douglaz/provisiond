@@ -311,6 +311,15 @@ customer's data and running infrastructure, not a prepaid arcade card, and that 
 for a key or a token, so it does not disturb `API-39`'s choice — only the conclusion drawn from
 it, that revocation earned nothing.
 
+**"Used for nothing except `API-56`" is a restriction the server MUST enforce, not an expectation
+of the caller: the recovery credential authenticates the revocation route and nothing else.** A
+request presenting it anywhere else — a create, an install, a delete, a read — MUST be rejected as
+unauthenticated, exactly as an unknown secret would be, and it MUST NOT be accepted as a spending
+token by any path. `API-56` states the prohibition in one direction only, that the spending token
+cannot revoke; left unstated in the other, the stronger secret silently authorizes everything the
+weaker one does, and the separation this requirement exists to create is gone the first moment the
+everyday agent has a reason to hold it.
+
 **API-56** **The recovery credential MAY revoke the spending token and obtain a fresh one; the
 spending token MUST NOT be able to do either.** A revocation invalidates the current token
 immediately, issues a replacement in the same response, and leaves the tenant, its machines, its
@@ -381,7 +390,15 @@ already `running` settle, **then re-sweeps: a create that
 settled after the fan-out has produced a machine the first pass never saw, and it MUST be
 cancelled by a second pass rather than left running against a suspended tenant** — the fan-out
 repeats until a pass finds no un-cancelled machine; then (5) aggregates the outcomes,
-including any that end `needs_reconciliation`. **A process that dies mid-fan-out MUST NOT strand
+including any that end `needs_reconciliation`. **The parent then settles `succeeded`, with those
+children named in its result** (`WIR-39`'s `cancellations`) — its own job was to fan out and
+account for every machine, and it has done it. `OPS-11`'s `suspend_tenant` row already counts a
+`needs_reconciliation` child as complete for the parent, and step (5) did not say what that makes
+the parent's own outcome; it is `succeeded`, never `failed` and never `needs_reconciliation`. The
+unresolved children are their own records, resolved by their own evidence or their own operator
+verb (`OPS-27`, `OPS-31`), and read through `GET /v1/operations` like any other operation. Holding
+the parent open until they resolve would fence `WIR-41`'s resume off indefinitely and leave every
+suspended tenant with a record that never closes. **A process that dies mid-fan-out MUST NOT strand
 the suspension**: the parent's lease expires and it is re-claimed and resumed like any other
 queued work (`OPS-14`), because the sweep is idempotent by `OPS-39`'s trigger id and mutates no
 provider itself. It MUST NOT go to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger and machine list MUST continue

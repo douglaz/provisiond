@@ -68,7 +68,7 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `name` | text | not null |
 | `kind` | enum | `virtual` \| `bare_metal` |
 | `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null for adopted machines, which came from no offer |
-| `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) and never re-resolved afterwards. An empty list means the offer permitted no install; null means there was no offer — the adopted case, where `DOM-10`'s account capabilities gate alone |
+| `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means the offer permitted no install; null means there was no offer — the adopted case, where `DOM-10`'s account capabilities gate alone |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
@@ -90,7 +90,10 @@ index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
 
 **The install gate evaluates the machine's own copy, not the offer.** `DOM-13` and `WIR-30` gate
 an install strategy on the **offer's** `install_strategies`, and the machine records that list at
-create, in the same write that records `offer_id`. **The gate MUST read `machines.install_strategies`
+create, in the same write that records `offer_id`. **A machine attached by resolution rather than
+by the create's own reply takes the same copy from that operation's `request_summary`**, which
+retains the offer snapshot precisely because the payload is gone by then (`OPS-13`, `ADR-0005`).
+**The gate MUST read `machines.install_strategies`
 and MUST NOT re-resolve the offer at install time.** An offer is a live provider listing (`DOM-9`,
 `WIR-30`) — it can be re-priced, withdrawn, or have its terms changed between create and install —
 so resolving eligibility through `offer_id` then either fails for a machine that is running and
@@ -149,7 +152,7 @@ deleted rows.
 | `provider_account` | text | nullable |
 | `correlator_kind`, `correlator_value` | text, json | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). `correlator_value` is a **list, one entry per attempt in attempt order**, because an `OPS-20` requeue places a second order carrying its own per-order artifact; a requeue **appends**, and an entry is never removed or overwritten (`PRV-26`). Each entry is written **before** its own provider call, like `provider_account` (`OPS-35`), and the column is null for every operation kind other than create |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers (`OPS-13`) |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus a create's **offer snapshot** — `offer_id` and the offer's `install_strategies` as accepted, which is where a machine attached by resolution takes its copy from (`OPS-13`) |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |

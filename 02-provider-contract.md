@@ -167,14 +167,12 @@ commitment_sats = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 to spend, and since `customer_rate ≥ provider_rate` by construction, committing the customer
 price also covers the operator's exposure. Using provider cost here would under-commit every
 machine by exactly the margin. **The setup fee is committed at cost and debited only on confirmed
-acceptance (`LDG-39`)** — *this text previously said "debited... before the order is placed",
-which charged a customer for a fee the operator never incurred whenever the order was rejected or
-resolved absent*, because `ADR-0006`
-passes it through unmarked — the operator does not profit from a fee it did not earn, and it is
-also the one term that is entirely lost once the order lands, so it MUST be **fully committed
-before the order is placed** and debited only on confirmed acceptance (`LDG-39`). *"Fully
-collected before the order" was the withdrawn reading: it charged the customer for a fee the
-operator never incurred whenever the provider rejected the order outright.*
+acceptance (`LDG-39`)**, because `ADR-0006` passes it through unmarked — the operator does not
+profit from a fee it did not earn — and it is also the one term that is entirely lost once the
+order lands, so it MUST be **fully committed before the order is placed**. *Both withdrawn
+readings — "fully collected before the order" and "debited before the order is placed" — charged
+the customer for a fee the operator never incurred whenever the provider rejected the order
+outright or the create resolved absent.*
 
 **`F18` fixed: there is one haircut and it belongs to the conversion, not to the sum.** The
 earlier text trailed `× fx_haircut` after the formula without saying whether it multiplied the

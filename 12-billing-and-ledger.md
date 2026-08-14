@@ -100,8 +100,23 @@ debited against it**. The ledger records money that moved; a commitment records 
 promised and has not moved yet. Conflating the two is what made the first version of this
 document double-count every reservation.
 
-A commitment MUST carry: the tenant, the machine, the operation that opened it, the satoshi
-amount **still reserved**, its state (`open` or `closed`), and the timestamps of both.
+A commitment MUST carry: the tenant, the machine, **the operation that opened it where one did**,
+the satoshi amount **still reserved**, its state (`open` or `closed`), and the timestamps of both.
+
+**The operation is nullable, and `LDG-62` is what makes it so.** Extend-runway is a synchronous
+caller write that mints no operation — a pure balance event with no provider mutation is not one
+(`OPS-39`) — so where it *opens* a commitment rather than growing one, that commitment has no
+create behind it and its operation is null. The reachable case is `OPS-36`'s deficiency-funded
+late-attach branch, which deliberately opens **no** commitment at all, leaving `LDG-62` as the only
+thing that can open one on that machine. `05-persistence.md` marks the column nullable for exactly
+this. What a commitment is a reservation *against* is the machine, not the operation.
+
+**A machine MUST have at most one `open` commitment at a time.** This is the invariant `OPS-20`'s
+reuse rule and `LDG-31`'s "that machine's commitment" both rest on, and until now it was stated
+only as a storage constraint (`05-persistence.md`). It does not forbid a machine having two
+commitments over its life: a create's is opened before the machine row exists — identified by its
+operation until then — and `OPS-36`'s wind-down commitment is opened only after `OPS-33` closed
+that first one.
 
 **LDG-9** **AMENDED.** A tenant's **available** balance is:
 
@@ -190,8 +205,9 @@ implied — advertises the wind-down reserve as runnable time and guarantees the
 at the exact moment of cancellation, on every ordinary exhaustion rather than only on a crash.
 `LDG-16`'s invariant ("still covers wind-down at the current rate") is satisfiable only with
 `protected_sats` subtracted first. A commitment is sized once at open, decays as usage is debited
-(`LDG-31`), and **is never increased without a caller action** (`LDG-62`; the scheduled-
-cancellation branch is the one exception, `LDG-63`). *The withdrawn text resized the commitment
+(`LDG-31`), and **is never increased without an explicit authorizing action** (`LDG-62`'s caller
+extend-runway, or `OPS-20`'s operator requeue re-pricing the commitment it reuses; the scheduled-
+cancellation branch is the one automatic exception, `LDG-63`). *The withdrawn text resized the commitment
 to preserve the runway date, which spent three design rounds on widening speed before the
 interviewee's observation dissolved it: every authorization prices at the current rate, usage
 debits at spot, so a price move belongs to the runway date — the customer's purchasing power —
@@ -258,12 +274,14 @@ identical consumption. The rule is therefore:
 
 ```
 billable_seconds = elapsed billable time for this SUBJECT and period
-                 − Σ(absorbed_seconds on its deficiency records, LDG-66)
+                 − Σ(absorbed_seconds on its deficiency records, counted only for
+                     the part of each absorbed window lying inside this period,
+                     LDG-66)
 
 already_charged  = the MAGNITUDE already charged for this SUBJECT and period
                  = − Σ(signed amounts of the previous **usage** debits for this SUBJECT
-                       and period, plus every correction naming one of them,
-                       LDG-5, LDG-7)
+                       and period, plus every correction naming one of them —
+                       whenever that correction was posted, LDG-5, LDG-7)
 
 posted_debit     = ceil(cumulative_exact_charge over billable_seconds)
                  − already_charged
@@ -273,6 +291,14 @@ with the exact charge carried as a rational (`LDG-4`). **Deficiency-absorbed tim
 seconds, before conversion — never as a satoshi amount.** An outage deficiency accrues precisely
 while no rate exists (`LDG-64`), so there is no rate at which it could be converted; removing the
 time it absorbed needs none, and the units never mix.
+
+**And it is subtracted period by period, exactly as the elapsed time above it is.** A deficiency
+opened in an earlier period absorbed time that period already removed from its own charge;
+subtracting the whole `absorbed_seconds` again here would hand the customer that window a second
+time, in a period where it absorbed nothing — and an outage long enough would drive a later
+period's `billable_seconds` to zero for consumption nobody disputes, which is the operator paying
+twice for one interruption. Where an absorbed window straddles a period boundary each period
+subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
 
 **What is subtracted is a magnitude, because `LDG-1` makes a debit negative.** The signed sum of
 the prior usage debits is a negative number — the worked table above posts `usage_debit` −100 for
@@ -289,6 +315,17 @@ time whatever it refunded — the customer paying twice, or the operator, for a 
 precisely because the first figure was wrong. The subtraction is therefore over the **net**: the
 prior usage debits for that subject and period, plus every `correction` (`LDG-7`) naming one of
 them. A correction naming an entry of any other kind is not part of this sum.
+
+**A correction is attributed to the period of the entry it corrects, never to the period it was
+posted in.** Corrections arrive late by nature — a wrong figure is usually found after the period
+it fell in has closed — so the entry it names is the only thing that places it, and "naming one of
+them" is the whole test. A correction posted much later against a debit for this subject and period
+is inside this period's `already_charged`; a correction posted inside this period against an
+earlier period's debit is outside it, and belongs to that earlier period's arithmetic. Placing it
+by its posting instant instead would drop it from the period whose charge it actually alters and
+admit it to a period whose debits it does not name — and both errors reach the customer wherever
+that period still has a posting to make, which is an ordinary occurrence: a late increment after a
+restart, or any cadence that subdivides the period (`LDG-8`).
 
 **A correction carries its own sign, and the netting must respect it.** A correction that
 *reduces* a charge is a positive entry: it moves the negative net toward zero and therefore
@@ -589,6 +626,15 @@ entry against a deleted tenant can never be cleaned up — and `ADR-0004` forbid
 `ADR-0005` forbids retaining the means to find the payer. **Keeping a stranger's money with no
 way to return it is the one outcome this specification must not permit by accident.**
 
+**The unattributed record MUST carry the deposit id, or the money is unreachable.** `WIR-42`
+re-attributes an orphaned deposit by correcting the credits that deposit already produced, and it
+is reached *through the deposit id* — the only handle a returning customer still holds
+(`WIR-14`'s disclosure), since `ADR-0005` retains nothing about the payer. A payment that settles
+**after** the tenant row is gone has no attributed credit to correct, so without the deposit id on
+its unattributed entry there is nothing linking the two and `WIR-42` finds it by no route at all.
+The id is the operator's own binding (`LDG-49`, `STO-29`), not information about a counterparty,
+so recording it costs `LDG-21` nothing.
+
 **LDG-44** Activation MUST require a **minimum funding amount** sufficient to purchase something.
 `API-35` graduated a tenant on any credited payment, so a single satoshi produced a permanent
 row that `API-34`'s time-to-live could never reclaim.
@@ -668,9 +714,11 @@ serialization and `LDG-10`'s no-negative rule, in one transaction. **A commitmen
 extension MUST be sized `requested runway × current customer rate + protected_sats` (`LDG-33`)**,
 the same shape a create uses: sized at the requested runway alone it would advertise as runnable
 time the satoshis wind-down and any cancellation date already need, which is exactly the error
-`LDG-33` exists to prevent. It is the only way a
-commitment grows outside `LDG-63`, and it MUST be idempotent per `API-8` — two concurrent
-extends must not reserve twice.
+`LDG-33` exists to prevent. It is the only way a **caller** grows a commitment; the only other
+growth paths are `LDG-63`'s scheduled-cancellation top-up and `OPS-20`'s requeue, which re-prices
+the commitment it reuses at the current rate through this same mechanism and is an operator
+purchase decision passing a fresh create's spending gates. It MUST be idempotent per `API-8` — two
+concurrent extends must not reserve twice.
 
 **LDG-63** **The scheduled-cancellation branch is the exception, because the operator cannot
 exit.** For a machine whose billing runs to an effective date regardless (`DOM-19`, `PRV-13c`),

@@ -21,10 +21,16 @@ widening was solving the operator's anxiety with the customer's money.
 
 ## Decision
 
-**A commitment is sized once, at open, and is never increased without a caller action** — with
-one exception the requirements name: the scheduled-cancellation branch, where billing runs to an
-effective date the operator cannot exit and `LDG-63` tops the commitment from available, or
-records the shortfall as the operator's.
+**A commitment is sized once, at open, and is never increased *automatically*** — which is the
+decision. It grows only by a deliberate act, and the requirements name three: a caller's
+`extend-runway` (`LDG-62`); the scheduled-cancellation branch, where billing runs to an effective
+date the operator cannot exit and `LDG-63` tops it from available or records the shortfall as the
+operator's; and an operator requeue of a create, which reprices at the current rate rather than
+reusing a stale size (`OPS-20`).
+
+*The original said "without a caller action", which was true when written and became too narrow as
+the operator surface grew. The load-bearing word was always **automatically**: what this ADR
+forbids is a rate move reaching into a customer's balance with nobody deciding.*
 
 It decays as usage is debited (`LDG-31`). Re-derivation does not resize it — re-derivation
 recomputes `runway_until` from the fixed remaining commitment at the current rate, in both

@@ -187,7 +187,9 @@ A valid pairing is necessary and not sufficient. Capabilities are per **provider
 (`DOM-10`), but rescue-install eligibility is a property of the **offer** — an auction listing and
 a standard product at the same provider can differ — so the offer's `install_strategies`
 (`13-wire-contract.md`, `WIR-30`) gates this table as well, and a strategy absent from it MUST be
-rejected the same way.
+rejected the same way. **The gate reads the machine's own copy of that list** —
+`machines.install_strategies`, taken from the offer at create and never re-resolved
+(`05-persistence.md`, `WIR-30`) — **not the offer as it stands at install time.**
 
 **DOM-14** A digest MUST be required for `rootfs_tarball` and `raw_disk`, and MUST be
 exactly 64 hexadecimal characters, compared case-insensitively.

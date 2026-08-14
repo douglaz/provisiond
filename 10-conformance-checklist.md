@@ -840,9 +840,10 @@ rather than acquiring a default.
       (`WIR-39`, `WIR-41`, `API-58`)
 - [ ] **CNF-203** A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
-- [ ] **CNF-204** A pending tenant cannot defer its own reaping: a deposit minted late in the
-      signup window expires early enough that its **finality window** also closes before the
-      signup does (`API-34`), not merely by the signup instant. (`API-34`)
+- [ ] **CNF-204** **WITHDRAWN — duplicate of `CNF-193`'s middle clause**, which already tests that
+      a deposit minted at the last moment expires early enough for its own finality window to close
+      before the signup is reaped. `CNF-193` is the survivor and is assigned PRE-SCALE there.
+      (`API-34`)
 - [ ] **CNF-205** **WITHDRAWN — duplicate of `CNF-198`**, which already tests the widened meter
       key and the attachment collision. `CNF-198` absorbs the one thing this added: assert that
       `LDG-8` and `LDG-38` state the *same* key, since they disagreed for a full pass.
@@ -1126,8 +1127,9 @@ data on an ambiguous identifier), `CNF-207` (an invalid install body on the prim
 `CNF-200` (destroyed data on the launch product's primary install path); `CNF-203` (a live bearer
 token persisted in a replay table).
 
-**PRE-SCALE** — `CNF-197`, `CNF-201`, `CNF-202`, `CNF-204`. Each blocks a workflow or leaves a
-machine in rescue rather than losing money or data.
+**PRE-SCALE** — `CNF-197`, `CNF-201`, `CNF-202`. Each blocks a workflow or leaves a
+machine in rescue rather than losing money or data. `CNF-204` is withdrawn as a duplicate of
+`CNF-193`, which carries the same PRE-SCALE assignment.
 
 ## The blocking count
 
