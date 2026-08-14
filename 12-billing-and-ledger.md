@@ -357,7 +357,7 @@ usage cannot be converted to satoshis. A deployment MUST:
 
 **LDG-66** **An operator deficiency is a durable record of its own, and it is NOT a ledger
 entry.** `LDG-7`'s entry kinds are closed and every one of them moves *tenant* satoshis, so the
-native-currency accruals this document now creates in four places — `LDG-31`'s clamp overflow, `LDG-63`'s
+native-currency accruals this specification now creates in **six** places — `LDG-31`'s clamp overflow, `LDG-63`'s
 exception branch, `LDG-64`'s rate outage, `SEC-46`'s unconfirmed account loss, `OPS-36`'s
 wind-down shortfall and `LDG-39`'s unrecoverable setup fee —
 have nowhere legal to live — six sources, not the four an earlier draft counted. A deployment
@@ -520,7 +520,10 @@ row that `API-34`'s time-to-live could never reclaim.
 **LDG-67** **A pending fee obligation is a record, not an entry.** `LDG-39`'s ambiguous row parks
 the setup fee on the operation until resolution, and that needs a home: `operations` carries
 `pending_fee_sats` and `pending_fee_currency` (`STO`), cleared when the fee is debited
-(resolved-observed) or dropped (resolved-absent, deterministic rejection). It moves no satoshis
+(resolved-observed) or dropped (resolved-absent, deterministic rejection). **On `abandoned`
+(`OPS-31`) the fee is an operator deficiency** (`LDG-66`): the operator gave up establishing
+whether the order landed, and charging a customer for an outcome nobody established is not
+defensible. It moves no satoshis
 while it sits there, so it is not a `LDG-7` entry kind — the same reason `LDG-66`'s deficiencies
 are not.
 

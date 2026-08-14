@@ -788,7 +788,8 @@ rather than acquiring a default.
 - [ ] **CNF-193** A pending tenant's signup time-to-live exceeds the deposit expiry plus the
       finality window, and no tenant is deleted while a deposit of its own is inside that window.
       (`API-34`, `API-42`, `LDG-54`)
-- [ ] **CNF-194** Suspending a tenant blocks every write, enqueues one deduplicated cancellation
+- [ ] **CNF-194** Suspending a tenant blocks every **tenant-authorized** write while leaving the
+      maintenance actions reachable (`CNF-209`), enqueues one deduplicated cancellation
       per machine, leaves ledger and machine reads working, and reports per-machine outcomes
       including any `needs_reconciliation`. (`API-58`, `OPS-39`, `SEC-45`)
 - [ ] **CNF-195** **MERGED INTO `CNF-188`** — both tested `SEC-46`'s retained-commitments table

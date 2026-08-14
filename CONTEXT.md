@@ -68,8 +68,8 @@ _Avoid_: job, task, request, action
 **needs_reconciliation**:
 The operation state meaning *the outcome is unknown* — provisiond cannot tell whether the provider
 acted. A first-class answer, not an error. **Resolution-pending, not terminal** (`OPS-3`): it
-settles to `succeeded` or `failed` on evidence or an operator verb, and nothing else moves it —
-no automatic retry, no timer, no caller action.
+settles to `succeeded` or `failed` on evidence or an operator verb, or returns to `queued` by
+operator requeue — and nothing else moves it: no automatic retry, no timer, no caller action.
 _Avoid_: terminal (withdrawn 2026-08-13), stuck, errored, retryable
 
 **Rescue**:

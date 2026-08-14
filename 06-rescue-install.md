@@ -129,7 +129,9 @@ hostname, bootloader, image path, authorized-keys source, and an optional post-i
 script.
 
 **RSC-23** Layout validation MUST enforce: at least one drive; at least one partition;
-every drive a simple path under the device directory with a restricted character set; no
+every drive a **stable identifier** resolving to exactly one device (`RSC-26`) rather than a
+device path — *the withdrawn "simple path under the device directory" is the unstable naming
+`RSC-26` exists to eliminate, and this is the fifth document that stated it*; no
 whitespace, CR, LF, or NUL in any config field; a RAID level from the supported set when
 software RAID is enabled.
 

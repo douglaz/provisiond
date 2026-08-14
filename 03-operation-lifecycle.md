@@ -155,7 +155,7 @@ This is `OVR-5` made concrete.
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
 
 **The table MUST be total, and four kinds added later were missing.** `insufficient_balance`,
-`not_activated`, `halted` and `gone` (`DOM-20`, `DOM-21`) are **admission-only**: they are decided
+`not_activated`, `halted`, `gone` and `suspended` (`DOM-20`, `DOM-21`) are **admission-only**: they are decided
 before any driver call, they MUST NOT be emitted by a worker or a driver, and any pre-provider
 occurrence classifies deterministically as `failed` for every operation kind. Nothing was
 destroyed and nothing was ordered, so ambiguity cannot arise. Every kind in `DOM-17` MUST have a
@@ -219,7 +219,7 @@ and the requeue timestamp MUST survive on the record.
 
 **OPS-20** **AMENDED.** Requeue executes the **fresh operator-supplied payload** `OPS-34`
 requires, after verifying every comparison the retained summary supports. *It is not a byte replay
-of the original request: `ADR-0005` purges that at terminal state, so the withdrawn wording
+of the original request: `ADR-0005` purges that once the operation stops being live, so the withdrawn wording
 ("re-executes the original request verbatim") described something that no longer exists while
 `API-19`, `OPS-31` and `DEF-17` all rested on it.*
 
@@ -281,8 +281,8 @@ premise is that the tenant spent the balance, so on the common input available i
 floor and `LDG-10` forbids driving it negative. Naming only the commitment left a builder choosing
 between two MUSTs with no rule for the remainder. The machine is then routed into exhaustion
 immediately (`requested_by: system`,
-`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may
-`extend-runway` (`LDG-62`) against the attached machine before the exhaustion sweep reaches it,
+`system_reason: late_attach_cleanup`). **Survival requires a caller action**: the tenant may `extend-runway` (`LDG-62`) against the attached machine — which has a commitment
+open at the wind-down floor, so there is one to extend — before the exhaustion sweep reaches it,
 which is an explicit, capped, idempotent authorization rather than an inference about what it
 would have wanted. **This is the branch that makes `OPS-33`'s early release safe**, and without it
 that release was a hole rather than a decision.

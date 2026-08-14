@@ -269,9 +269,12 @@ parent operation already has all three.
 
 **WIR-42** `POST /v1/deposits/{id}/actions/attribute` — **operator-only** (`WIR-34`), body
 `{"tenant_id": "...", "operator_ref": "..."}`, synchronous `200`. Credits a deposit whose tenant
-was reaped (`API-34`) to a live tenant **by posting a `correction` pair** (`LDG-7`, `LDG-5`) — a negative entry against the reaped
-tenant's unattributed record and a positive one to the named tenant, keyed on the deposit's payment
-identity (`LDG-8`). *A second `topup` would mint satoshis: the original payment already credited
+was reaped (`API-34`) to a live tenant **by posting one `correction` pair per settled payment** (`LDG-7`, `LDG-5`) — each a negative
+entry naming the original credit it corrects and a positive one to the named tenant, keyed on that
+payment's identity (`LDG-8`), all committed in one transaction under deposit-level idempotency.
+**One pair is not enough**: `LDG-55` lets both destinations of a single deposit settle, producing
+two original credits, and `LDG-5` requires a correction to name the entry it corrects — so a
+single pair would strand one credit or lose its traceability. *A second `topup` would mint satoshis: the original payment already credited
 one when it settled, so re-crediting inflates the float and breaks `LDG-17` by exactly the deposit
 amount* — it is a ledger transfer, not a flag, or the money would be
 attributed everywhere except the balance.
@@ -489,7 +492,9 @@ is a recursion `API-1` never intended.
 carries the same **`trust`** object as an install (`WIR-20`) and nothing else: preflight enters
 rescue over SSH, so it faces the identical host-key decision, and an empty body could express
 neither a pinned key nor the explicit unpinned opt-in `SEC-22` requires — making it unusable on a
-strict driver or a silent trust downgrade on a lax one. returns `202` and an operation whose result carries the device inventory with **stable
+strict driver or a silent trust downgrade on a lax one.
+
+It returns `202` and an operation whose result carries the device inventory with **stable
 identifiers** and the `inventory_fingerprint` an install must echo back (`WIR-20`, `RSC-26`). It
 enters and exits rescue and writes nothing. This exists because a caller previously had no way to
 see the disk inventory *before* committing to a destructive write — the information arrived

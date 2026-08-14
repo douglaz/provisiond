@@ -136,7 +136,7 @@ deleted rows.
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
-| `pending_fee_sats`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee, held while the operation is unresolved and cleared on resolution |
+| `pending_fee_native_minor`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee in the **provider's** currency (`LDG-2`), since it is not yet a satoshi obligation. Cleared on resolution |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`), `rate_outage_bound` (`LDG-64`) |
 | `system_trigger_id` | text | nullable; `OPS-39`'s durable episode identifier. Unique with `(machine_id, system_reason)` — the constraint that stops a per-minute sweep enqueueing a fresh cancel every minute |

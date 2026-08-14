@@ -206,7 +206,9 @@ attributed. Exempting any credited tenant from the TTL would instead let a dust 
 permanent row, reopening the immortal-tenant attack `API-35`'s minimum closed. `WIR-14`'s
 disclosures MUST state this.
 
-**A pending tenant's deposit expiry MUST be capped at its remaining signup time-to-live.**
+**A pending tenant's deposit expiry MUST be capped at its remaining signup time-to-live *minus
+the finality window*.** Capping at the bare remainder still lets a deposit minted at the last
+moment settle after the signup is reaped, which is the stranding this rule exists to prevent.
 Otherwise a caller mints a fresh unpaid deposit just before each window closes and the
 "do not delete while a deposit is in flight" rule defers reaping forever — one free signup
 occupying a slot in `API-41`'s global ceiling indefinitely, at no cost. Capping it means an
@@ -215,8 +217,11 @@ unpaid deposit can never outlive the signup that created it, so the two rules st
 **Re-attribution of a retained credit is an operator action, and the honest reason is
 `ADR-0005`.** Collecting nothing means the system holds no proof of who paid, so no self-serve
 flow can bind a retained deposit to a new tenant — a caller claiming a deposit id it merely
-guessed or observed would be claiming someone else's money. The customer presents its deposit
-identifier to the operator, who credits it to a *named* tenant through
+guessed or observed would be claiming someone else's money. An attribution that brings the receiving tenant's cumulative balance to the activation minimum
+**activates it atomically**, exactly as an ordinary settlement would (`API-35`, `LDG-52`) —
+otherwise a customer who recovered enough credit would sit pending holding a sufficient balance.
+The customer presents its deposit identifier to the operator, who credits it to a *named* tenant
+through
 `POST /v1/deposits/{id}/actions/attribute` (operator-only, `WIR-42`) — a real endpoint, because
 "the operator surface" with no route is the gap this loop has now found four times.
 
@@ -305,11 +310,17 @@ an agent enrolling at 3am has no human to wait for.
 that (1) marks the tenant `suspended` atomically so no further **tenant-authorized** write succeeds —
 the maintenance actions of `API-7` step 2 remain reachable, because a suspended owner must still be
 able to revoke a stolen credential (`API-56`, `CNF-209`) — then (2)
-enqueues a system cancellation per machine (`OPS-39`), then (3) aggregates their outcomes,
+**fences work already in flight** — a create claimed before the suspension landed MUST be allowed
+to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
+because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
+then (3) enqueues a system cancellation per machine (`OPS-39`), then (4) aggregates their
+outcomes,
 including any that end `needs_reconciliation`. Reads of the ledger and machine list MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
 it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to
-**unfunded pending** tenants, which have no machines and no ledger.
+**pending** tenants, which have no machines. They MAY hold a below-minimum credit, whose ledger
+entries survive them (`STO-26`, `LDG-22`) and remain re-attributable through `WIR-42` — so
+"no ledger" was wrong, and it is the case `API-34` exists to handle.
 
 **API-40** Enrolment and every other write MUST be reachable under the general rules, and three
 of those rules do not fit an unauthenticated, pre-tenant request. They are resolved here rather
@@ -332,8 +343,7 @@ than left as exceptions a builder must invent:
 
 ## Funding
 
-**API-43** **AMENDED — the pending-tenant allowlist is exactly three things, named here so no
-endpoint has to guess.** `API-35` will not graduate a tenant until a payment is credited, so an
+**API-43** **AMENDED twice — the pending-tenant allowlist, named here so no endpoint has to guess.** `API-35` will not graduate a tenant until a payment is credited, so an
 enrolment that cannot pay is a dead end. A **pending** tenant MAY reach:
 
 1. **`POST /v1/deposits`** — mint a funding destination;
@@ -343,7 +353,11 @@ enrolment that cannot pay is a dead end. A **pending** tenant MAY reach:
    this endpoint it could not see what had been credited — only that it was still, unexplainedly,
    pending;
 3. **`GET /v1/enrol/{handle}`** — unauthenticated, so not strictly an exception, but listed
-   because it is how a pending tenant learns it has become active (`API-52`).
+   because it is how a pending tenant learns it has become active (`API-52`);
+4. **`POST /v1/recovery/revoke`** — but **only at or after `issuable_at`** (`API-56`). Before that
+   instant there is no usable credential to replace, so revocation is meaningless; after it, a
+   pending tenant's token is live and can be stolen exactly like an active one's, and refusing
+   revocation would leave the owner watching a thief spend a balance they funded.
 
 **Every other authenticated endpoint MUST reject a pending tenant with `not_activated`**
 (`DOM-20`).
@@ -449,8 +463,8 @@ MUST NOT create a second operation.
 incoming requests, not over raw request bytes, so that key ordering and whitespace do not
 produce spurious conflicts.
 
-**API-38** **Equivalence after the payload is purged.** `ADR-0005` purges the stored request at
-live state, so for a completed operation there is nothing left to compare against and
+**API-38** **Equivalence after the payload is purged.** `ADR-0005` purges the stored request once the
+operation stops being live, so for a completed operation there is nothing left to compare against and
 `API-11`/`API-12` become unexecutable — `CNF-21` is BLOCKING and tests a comparison that cannot
 be performed. The resolution is to persist, alongside the summary, a **canonical digest of the
 request** computed at submission time. It survives the purge, carries no caller secret, and makes
