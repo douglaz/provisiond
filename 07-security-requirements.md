@@ -164,7 +164,8 @@ customer-owned OS licences with provider-leased ones. *"Enforce what it can" is 
 enforceable means checkable at request time from data the system already holds (image source
 pairings, provider options, capability gates) — each such rule MUST be enforced and named;
 everything only observable on the running machine is explicitly a terms obligation backed by
-`SEC-45`'s termination, and MUST be listed as such rather than implied enforced.* The deployment
+`SEC-45`'s ability to stop serving a tenant, and MUST be listed as such rather than implied
+enforced.* The deployment
 MUST state which of these
 it can technically enforce, which it can only contractually require, and what it does on a
 provider abuse notice.
@@ -252,11 +253,53 @@ payment method, a contact address or a beneficial owner, and terminate them toge
 case the isolation is illusory and real separation requires distinct legal entities. **A control
 that has not been verified against the provider's actual practice is a belief, not a defence.**
 
-**SEC-45** A deployment MUST be able to terminate one tenant and every machine it owns in a
-single operator action, fast enough to meet the provider's abuse-notice deadline. Under
-`ADR-0005` there is no identity to appeal to and no relationship to repair; responsiveness is the
-entire remedy, and it MUST NOT depend on the operator enumerating machines by hand under time
-pressure.
+**SEC-45** **AMENDED 2026-08-15 — the premise was wrong, and it was propagating.** The withdrawn
+text said a deployment MUST terminate one tenant and every machine it owns in a single operator
+action *"fast enough to meet the provider's abuse-notice deadline"*, and called responsiveness
+*"the entire remedy"*. It described a stopwatch. **Abuse handling is correspondence, and the
+suspension is the provider's, not the operator's.**
+
+What a real notice does, from one read against the live process: it alleges an attack from a named
+server, sets a dated deadline days out, requires a **statement** in reply, and warns that the
+**server may be locked** — not terminated — if no effective solution is shown. Manual replies are
+not processed; a single-use link is the only channel, and submitting through it *concludes the
+deadline immediately*. `08-provider-notes.md` already recorded the shape — *"routine abuse
+handling targets the offending IP after notice, deadline and manual review"* — and this
+requirement was written as though it had not.
+
+What a deployment MUST actually be able to do:
+
+- **Resolve the notice to a tenant.** Given a provider resource, an address and an instant, the
+  system MUST identify the owning tenant, the machine, and the operations that touched it inside
+  that window. This is the fact every answer depends on, it is answerable from `machines`
+  (`public_ips`, `tenant_id`, `provider_account`, `external_id`) and `operations`, and **no
+  requirement previously said so** — the capability existed in the schema and nowhere in the
+  normative set.
+- **Relay the allegation to that tenant and take back a statement**, in provider-neutral terms.
+  The operator remains the provider's sole counterparty and fully liable (`08-provider-notes.md`),
+  so the statement that reaches the provider is the operator's, informed by the tenant's. **The
+  provider's own case reference and statement link MUST NOT be relayed to a tenant** — for the
+  same reason `WIR-30` and `LDG-26` strip provider price, currency and raw metadata from the
+  customer surface, and because that link is a one-shot bearer credential whose use ends a
+  deadline the tenant does not own. *The surface for this is specified separately and does not yet
+  exist; see `11-open-findings.md`. Under `ADR-0005` there is no email and no contact, so it can
+  only be a read the caller polls and a write it submits — the shape `LDG-15` already relies on.*
+- **Suspend a tenant and cancel its fleet in one operator action** (`API-58`). This capability
+  survives the amendment; only its justification changes. It is the operator's own decision to
+  stop serving a tenant — an unanswered notice, a repeat offender, a legal instruction — and not
+  a race against a provider deadline. It MUST NOT depend on the operator enumerating machines by
+  hand.
+
+**What this changes downstream:** nothing that depended on the *capability*, everything that
+depended on the *urgency*. `SEC-42`'s unenforceable AUP rules are backed by the operator's ability
+to stop serving a tenant, not by beating a deadline. `OPS-14` and `OPS-27` route around a human in
+the loop because a suspended tenant's fleet should not bill on indefinitely, which is a money
+argument and stands on its own.
+
+**A locked machine still bills.** The provider's remedy leaves the machine running, charging, and
+useless to its owner, so the customer's runway keeps draining (`LDG-13`, `LDG-33`) for compute it
+cannot reach. `DOM-7` has no state for this and the meter has no rule for it; it is recorded as an
+open finding rather than guessed at here.
 
 **SEC-46** **AMENDED twice — and "lost" turned out to mean three different things.** Only one of
 them establishes that billing has stopped, and releasing on the other two hands the customer their

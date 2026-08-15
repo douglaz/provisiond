@@ -356,8 +356,8 @@ because `API-58`'s re-sweep stops once a pass finds no un-cancelled machine, and
 not yet produced a machine passes that test: the parent settles `succeeded` — counting a
 `needs_reconciliation` child as complete — and no later pass will ever look again. Without it, a
 create resolving *observed* after that settlement attaches a funded, billing machine to a suspended
-tenant and runs its whole runway, which is precisely the outcome `SEC-45`'s deadline must not
-depend on a human noticing. `OPS-36`'s attach-then-cancel does not cover it: that branch fires only
+tenant and runs its whole runway, which is precisely the outcome `SEC-45`'s one-action suspension
+must not depend on a human noticing. `OPS-36`'s attach-then-cancel does not cover it: that branch fires only
 where `OPS-33` had already released the commitment, and here the commitment is still open and
 becomes the machine's running commitment.
 
@@ -392,9 +392,13 @@ immediately (`requested_by: system`,
 `system_reason: late_attach_cleanup`); the attach, the commitment-or-deficiency and that enqueue
 commit together, under the atomicity rule stated above. **Survival requires a caller action**: the
 tenant may
-`extend-runway` (`LDG-62`) against the attached machine **before the exhaustion sweep reaches
-it**, which is an explicit, capped, idempotent authorization rather than an inference about what
-it would have wanted. **Where the branch opened no commitment**, `LDG-62` **creates** one, sized as
+`extend-runway` (`LDG-62`) against the attached machine **before the cleanup cancellation this
+transaction enqueued has taken the machine lock** (`OPS-41`), which is an explicit, capped,
+idempotent authorization rather than an inference about what it would have wanted. *"Before the
+exhaustion sweep reaches it" was the withdrawn wording, and it described a race against something
+that had already happened: the delete is enqueued here, in this same transaction, so there is no
+later sweep to beat. `OPS-41`'s re-check under the lock is what makes the deadline real and what
+makes this survival path work at all.* **Where the branch opened no commitment**, `LDG-62` **creates** one, sized as
 `LDG-62` requires — the requested runway at the current rate **plus `protected_sats`** — rather
 than growing an absent record; otherwise the survival path is
 unreachable for exactly the broke tenant this branch is about. **This is the branch that makes
@@ -489,6 +493,40 @@ tenant's operation list marked `requested_by: system` with a stated reason (`exh
 a tenant's fleet, and the hole sits exactly where the most alarming event does: the machine that
 vanished overnight (`F31`). A pure balance event with no provider mutation — a commitment
 release, a re-derivation — mints **no** operation; the ledger is already that record.
+
+**OPS-41** **An exposure-reducing cancellation MUST re-check funding under the lock, and abort if
+the machine is funded.** A worker executing a system cancellation whose reason is exhaustion or a
+late-attach cleanup (`OPS-39`) MUST, **after acquiring the machine lock and before any provider
+mutation**, re-read that machine's commitment and its `runway_until`. Where the remaining
+commitment now covers the wind-down floor at the current rate — `LDG-16`'s invariant, the same
+test that routed it here — the worker MUST make no provider call, settle the operation
+`succeeded` with a result recording that no mutation was required, and resolve the episode's
+`system_trigger_id` entry (`machines.system_trigger_ids`) so a later lapse can open a fresh one.
+
+**Without this the survival path `OPS-36` offers does not work.** That branch attaches the machine
+and enqueues the cleanup cancellation *in the same transaction*, then tells the tenant it may
+`extend-runway` (`LDG-62`) "before the exhaustion sweep reaches it" — but there is no sweep left to
+beat: the delete is already queued, and nothing in `LDG-62`, `OPS-36` or `OPS-39` withdraws it,
+resolves its trigger, or re-examines the machine. The tenant pays, the payment is accepted and
+committed, and the disk is destroyed anyway. The satoshis come back when `LDG-32` closes the
+commitment; the data does not. `OPS-36` calls this branch "what makes `OPS-33`'s early release
+safe", so the release was resting on a path that could not deliver.
+
+**The check belongs under the lock, not in the extension.** Cancelling the queued operation from
+inside `LDG-62`'s transaction would have to win a race it holds no lock for — the worker may
+already have claimed the operation — and would still leave the case where the payment lands after
+the claim. Re-reading at the last moment before the mutation is correct under every interleaving,
+including a second extension and a concurrent requeue.
+
+**Where there is no rate, the cancellation proceeds.** `LDG-40` requires the exhaustion sweep to
+continue during a rate outage because it reduces exposure, and `LDG-65` keeps it running on the
+last derived `runway_until`. A funding re-check that cannot be computed MUST NOT be read as
+"funded": the worker cancels. Failing safe here costs a machine that may have been rescuable;
+failing the other way is an unfunded machine billing indefinitely, which is what `LDG-13` exists
+to prevent.
+
+This does not apply to a `tenant_suspended` cancellation (`API-58`, `OPS-27`). That one is not
+about funding, and a suspended tenant topping up its balance is not permission to keep the fleet.
 
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look

@@ -198,8 +198,9 @@ overcharge); `CNF-186` (a customer stranded pending while holding non-refundable
 the minimum); `CNF-187`, `CNF-188` (both are unstoppable provider billing against a closed
 commitment); `CNF-190` (without it a stolen credential is permanent, and it authorizes disk
 destruction); `CNF-191` (without it no tenant can buy anything, ever); `CNF-192` (destroyed data,
-and the only test that catches the device-identity binding); `CNF-194` (`SEC-45`'s abuse-deadline
-response is the operator's entire remedy under `ADR-0005`).
+and the only test that catches the device-identity binding); `CNF-194` (stopping service to a
+tenant is the operator's remedy under `ADR-0005`, and `SEC-45` as amended does not depend on a
+provider deadline to justify it).
 
 **PRE-SCALE** — `CNF-189`, `CNF-193`. Both bound storage and recoverability rather than money in
 flight; `CNF-193` graduates the moment on-chain funding is enabled in production, because that is
@@ -896,6 +897,42 @@ rather than acquiring a default.
       `needs_reconciliation` awaiting an operator, the recent-order listing is surfaced as
       evidence, and **no automatic attach occurs on any hostname or timing similarity**. The
       negative window still releases the commitment in full. (`PRV-33`, `OPS-29`, `OPS-33`)
+- [ ] **CNF-214** A machine and one of its billable attachments, both metered in the same period,
+      produce **separate** `already_charged` sums: charging the attachment does not reduce what
+      the machine is billed, and neither does the reverse. Asserted against the stored subject,
+      not against `machine_id`. (`STO-38`, `LDG-8`, `LDG-38`, `LDG-32`)
+- [ ] **CNF-215** Correction netting, three cases in one test. A `correction` that **reduces** a
+      charge makes the next tick post **more**; one that **increases** it makes the next tick post
+      **less**; and a correction posted in a later period nets against the period of the entry it
+      **names**, not the period it was posted in. A correction naming an entry of another kind is
+      excluded from the sum. (`LDG-38`, `LDG-5`, `LDG-7`, `STO-38`)
+- [ ] **CNF-216** The billing period boundary is `00:00:00Z` on the first of the month for every
+      tenant and every machine, and a metered increment straddling it is apportioned across the
+      two periods rather than falling wholly into either. The same test covers a deficiency's
+      `absorbed_from`/`absorbed_until` window straddling the boundary. (`LDG-68`, `LDG-38`,
+      `STO-37`)
+- [ ] **CNF-217** No transaction holding `LDG-35`'s serialization primitive acquires a
+      `machine_locks` row, waits on an operation lease, waits on a child operation, or makes a
+      provider call — asserted at the storage layer over the whole suite's traffic, in the manner
+      of `CNF-157`, not by code review. (`LDG-69`, `LDG-35`, `OPS-8`)
+- [ ] **CNF-218** A machine funded by `extend-runway` **after** its cleanup cancellation was
+      enqueued is **not** deleted: the worker re-reads funding under the machine lock, makes no
+      provider call, settles `succeeded`, and resolves the trigger episode. The same test with
+      **no rate available** cancels the machine, because a funding check that cannot be computed
+      is not a funded machine. (`OPS-41`, `OPS-36`, `LDG-62`, `LDG-40`)
+- [ ] **CNF-219** `GET /v1/balance` is answered from the latest entry's `balance_after` and takes
+      no write transaction; an audit recomputation of `Σ(ledger entries)` equals it; and a seeded
+      mismatch **fails closed** rather than answering from either number. (`LDG-70`, `LDG-9`,
+      `CNF-157`)
+- [ ] **CNF-220** The deployment states its worst-case machine-lock hold, and `wind_down_cost`
+      includes it. Asserted by enqueuing an exposure-reducing cancellation against a machine whose
+      lock is held by a long-running operation and confirming the reserve covered the full wait.
+      (`PRV-13b`, `OPS-9`, `LDG-42`)
+- [ ] **CNF-221** A requeue supplying a payload that differs from the retained `request_summary`
+      in kind, machine, provider account or target is **refused**; one that matches proceeds; and
+      one whose summary cannot establish equivalence is refused with `OPS-31`'s verbs named as the
+      alternative. `OPS-34` had no conformance item at all, on the requirement that made requeue
+      implementable after `ADR-0005`. (`OPS-34`, `OPS-20`, `API-19`)
 
 ## Surface completeness
 
@@ -1078,8 +1115,13 @@ See **The blocking count** at the end of this document; it is stated in one plac
       `API-17b`. (`SEC-43`)
 - [ ] **CNF-112** The provider's account-linkage practice has been verified in writing. Until it
       is, `CNF-111` proves nothing. (`SEC-44`)
-- [ ] **CNF-113** One operator action terminates a tenant and every machine it owns, fast enough
-      to meet the provider's abuse-notice deadline. (`SEC-45`)
+- [ ] **CNF-113** **REWRITTEN 2026-08-15** — it tested a deadline `SEC-45` no longer asserts.
+      Two halves, both required. (a) One operator action suspends a tenant and enqueues a
+      cancellation for every machine it owns, without the operator enumerating them by hand.
+      (b) Given a provider resource, an address and an instant, the system names the owning
+      tenant, the machine, and the operations that touched it in that window — the fact an abuse
+      answer depends on, previously supported by the schema and required by nothing.
+      (`SEC-45`, `API-58`)
 - [ ] **CNF-114** **Only confirmed termination** closes the affected commitments and returns
       their reserved satoshis to available; an unreachable account or rejected credentials leave
       them open, with the exposure recorded as an operator deficiency. (`SEC-46`, `LDG-66`)
@@ -1109,6 +1151,20 @@ explicitly and record:
     rule (`API-17b`) and the blast-radius control (`SEC-43`).
 12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).
 
+
+### Assignments for `CNF-214`–`CNF-221` (engineering review, 2026-08-15)
+
+**BLOCKING** — `CNF-214` (two metered subjects sharing one column under-bill silently and
+permanently); `CNF-215` (a correction either re-charges the customer or refunds them twice, on
+the next tick, in both directions); `CNF-218` (a paid-for machine destroyed anyway — accepted
+payment, lost disk, and the branch `OPS-33`'s early release depends on); `CNF-219` (the number
+that authorizes every purchase, read from an unstated source); `CNF-221` (a requeue that cannot
+establish equivalence is a second physical order under terms nobody checked).
+
+**PRE-SCALE** — `CNF-216`, `CNF-217`, `CNF-220`. Each bounds cost or contention rather than losing
+money or data on the first occurrence: a straddling increment mis-apportions a partial period, a
+nesting violation is unreachable while `LDG-25` prices privileged operations at zero, and an
+unpriced lock wait costs one machine's burn for one install.
 
 ### Assignments for `CNF-211`–`CNF-213` (multi-reviewer loop, pass 3)
 

@@ -348,6 +348,64 @@ money by doing something that looks correct.
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
 
+## The engineering review — 2026-08-15
+
+Read `03`, `05` and `12` as **build instructions** rather than for internal consistency, which is
+what sixteen prior passes had done. The distinction matters: none of what follows is a
+contradiction between two passages, which is why every one of those passes walked past it.
+
+**Seven items were closed in place** — `ledger_entries` had no column list at all (`STO-38`); the
+*billing period* was load-bearing in five requirements and defined in none (`LDG-68`); nothing
+bounded `LDG-35`'s serialization to its own transaction (`LDG-69`); `OPS-36`'s survival path was
+defeated by the cancellation its own transaction enqueues (`OPS-41`); `wind_down_cost` omitted the
+time a cancellation waits for the machine lock (`PRV-13b`); `SEC-45` rested on a false premise
+about abuse handling; and nothing said which of three stated forms of "the balance" authorizes a
+purchase (`LDG-70`). `CNF-214`–`CNF-221` test them, and `CNF-221` closes the gap that `OPS-34` —
+the requirement that made requeue implementable after `ADR-0005` — had no conformance item at all.
+
+**One finding was raised and refuted, and the refutation is worth more than the finding.** The
+review asserted a live lock-order inversion between the per-machine lock and the per-tenant money
+serialization. Two independent reviewers refuted it on the same reading: `OPS-8` binds the lock to
+an operation that *names* a machine, and a create's `machine_id` is set only on completion
+(`05-persistence.md`), so a create holds no machine lock and `OPS-27`'s money transaction never
+nests inside one. What survived was the *absence of a boundary rule*, now `LDG-69` — and the
+observation that today's safety is accidental, resting on `LDG-25` pricing privileged operations
+at zero so that `operation_fee_debit` is defined, paired, and posted by nothing.
+
+**F34 — there is no way to answer an abuse notice, and the design removed every channel. OPEN.**
+Correcting `SEC-45` established what the obligation actually is — relay an allegation to a tenant,
+take back a statement, and answer the provider as its counterparty — and the specification has no
+surface for either direction. `ADR-0005` collects nothing, so there is no email and no contact;
+`12-billing-and-ledger.md` states the consequence directly in another context: *"a caller that is
+software will act on a number long before it would act on an email, and there is no email."*
+
+The decided shape, not yet specified: a **provider-neutral** abuse case on the tenant's read
+surface (machine, allegation class, deadline, consequence), a tenant-submitted statement as an
+ordinary API write, and operator review before anything reaches the provider. **The provider's own
+case reference and statement link MUST NOT be relayed** — that link is a single-use bearer
+credential whose use *concludes the deadline*, confirmed against a real notice, and handing it to
+an autonomous caller lets a poll loop end the operator's window in the first second. This is
+`SEC-39`'s reasoning arriving somewhere new.
+
+Two obligations fall out that nothing currently carries: the tenant-facing cutoff must sit
+**earlier** than the provider's by however long operator analysis takes, so there are two
+deadlines and only one is real; and the statement is caller-supplied free text, which is where
+`13-wire-contract.md`'s existing rule applies — *"not a name, an email, or a transcript"* — or the
+abuse channel becomes the one door identity walks through.
+
+*Deferred deliberately.* It is a new product surface in a v1 that `ADR-0006` makes pass-through,
+with no external customer to validate it against, and its shape changed with every answer while it
+was being discussed. The first real notice handled end to end will say more than further editing.
+
+**F35 — a provider-locked machine keeps billing and has no state. OPEN.** The provider's routine
+remedy is to **lock** the offending server, not terminate it. A locked machine is still allocated,
+still charged for, and unreachable by its owner — so `LDG-33` keeps draining `runway_until` for
+compute the customer cannot use, and `LDG-13` eventually cancels it for exhaustion having billed
+the whole way. `DOM-7` has no state for it, `LDG-37` has no rule for whether it is billable, and
+the machine view gives its owner no way to tell this apart from a machine that is merely broken.
+Note the tension before deciding: the *provider* is still charging the operator, so making it
+non-billable moves a real cost onto the operator for a condition the customer caused.
+
 ## The skeptical audit — 2026-08-14
 
 Six review passes each *added* text. Nobody had asked what should come out, so a skeptical audit
@@ -481,7 +539,7 @@ panel unanimously called this the most expensive way for "finding out" to go wro
 **Rejected, with the reasons recorded:** SSE (browser `EventSource` could not carry the signed
 headers `API-39` then required — now moot since auth is a bearer token, but `EventSource` still
 cannot set `Authorization`; a held stream caches an authorization decision, so a suspended tenant keeps
-streaming past `SEC-45`'s deadline); long-poll (its naive implementation — parked handlers
+streaming after `SEC-45`'s suspension); long-poll (its naive implementation — parked handlers
 polling the store on a timer — rebuilds `DEF-11` with customers as the trigger); webhooks (the
 process holding every provider credential initiating outbound connections to caller-chosen hosts
 is an SSRF primitive and an egress path out of `OVR-10a`'s boundary — this holds even if

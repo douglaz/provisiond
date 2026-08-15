@@ -54,6 +54,31 @@ the balance of a ledger whose whole purpose is exact integer arithmetic.
 arithmetic with a stated rounding direction. A percentage stored as a decimal fraction
 reintroduces the float that `LDG-1` exists to exclude.
 
+**LDG-68** **The billing period is the calendar month in UTC, and it is one boundary for the whole
+deployment.** A period begins at `00:00:00Z` on the first day of a month and ends at the same
+instant of the next. Every tenant, every machine and every attachment share it; a machine created
+mid-month has a short first period, which is correct because the meter charges elapsed billable
+time (`LDG-38`) rather than periods.
+
+*Stated here because it was load-bearing and absent.* The phrase carried `LDG-8`'s deduplication
+key, three terms of `LDG-38`'s arithmetic — which apportions corrections **and**
+deficiency-absorbed windows across the boundary — `PRV-13e`'s re-derivation cadence, and two
+conformance items, and no document said what it was. A calendar month, a provider invoice month
+and a per-machine anniversary each satisfied every sentence in the set and produced different
+bills.
+
+**A period is a property of the deployment, not of a provider or a machine.** Deriving it from the
+provider's invoice month would make one machine's period depend on which account it landed in and
+would encode a commercial term as a constant (`PRV-13c`); deriving it from the machine's create
+instant gives an attached machine (`OPS-27`, `OPS-36`) two defensible start instants and no rule to
+choose between them. The single boundary also makes `LDG-38`'s netting a range scan on
+`(subject_kind, subject_id, billing_period, kind)` rather than a per-subject calculation
+(`05-persistence.md`).
+
+**This is a deployment parameter only in the sense that it MUST be stated** (`LDG-42`): it is fixed
+at deployment and MUST NOT vary per tenant, because a correction naming an entry in another
+tenant's period arithmetic is not a case any requirement here defines.
+
 ## Entries
 
 **LDG-5** The ledger MUST be append-only. No update, no delete. A correction is a new entry
@@ -126,6 +151,36 @@ available = Σ(ledger entries) − Σ(reserved amount of open commitments)
 
 The spending authority check is `available ≥ required_commitment`, and it is the only
 authorization a create or an adopt receives (`ADR-0002`, `API-17b`).
+
+**LDG-70** **`Σ(ledger entries)` is a definition, not a read strategy, and the read is
+`balance_after` on the tenant's latest entry.** `LDG-5` says balance is the sum of entries and
+nothing else; `LDG-6` puts a running balance on every entry; `STO-21` permits a cached balance.
+Three statements about one number, and none of them said which the authorization check reads —
+so the literal implementation scans a tenant's entire ledger on every create, every extend and
+every metered posting, over a table `LDG-22` exempts from purge and `STO-24` forbids retention
+from ever reaching. **The unbounded side of `LDG-9` is the ledger sum; the commitment side is
+already indexed** (`05-persistence.md`, "index on `(tenant_id, state)` for the availability
+computation"), which is what makes the asymmetry visible.
+
+The rule is:
+
+- **`balance_after` on the greatest `seq` for that tenant is the authoritative read**, and
+  `GET /v1/balance` (`API-47`) is answered from it. It is a single indexed row
+  (`(tenant_id, seq desc)`), so a polling agent cannot make the read cost grow with its own
+  history — and `CNF-157` forbids that `GET` from taking a write transaction, so a lazily
+  repaired cache was never available as a fix.
+- **`balance_after` MUST be computed and written inside the same serialized transaction that
+  appends the entry** (`LDG-35`, `LDG-69`), as `previous.balance_after + amount_sats` read under
+  that serialization. It is therefore not a cache that can drift: the serialization that already
+  exists to prevent write skew is what keeps it exact.
+- **A deployment MUST provide an audit path that recomputes the sum from the entries and compares
+  it to the latest `balance_after`**, and a mismatch MUST fail closed in the manner of `LDG-20`'s
+  solvency check. The denormalised column is authoritative for speed; the sum remains
+  authoritative for truth, and the two are reconciled rather than merely assumed equal.
+
+*A per-entry running balance whose relationship to the sum is never stated is exactly the shape of
+defect this document was rewritten to remove: two numbers for one quantity, with no rule saying
+which one authorizes a purchase.*
 
 **LDG-31** **AMENDED — every debit against a machine, not only consumption.** Posting **any**
 debit attributable to a machine **with an open commitment** — `usage_debit`, `setup_fee_debit`,
@@ -230,6 +285,34 @@ COMMITTED and SNAPSHOT isolation. A deployment MUST use a per-tenant lock, a ser
 transaction, or a conditional write against a versioned balance row, and MUST state which.
 `STO-1` and `STO-2` specify exactly this kind of primitive for the queue and the machine lock;
 money needs one too, and did not have one.
+
+**LDG-69** **The serialization is scoped to its transaction, and it never nests with the machine
+lock.** A deployment MUST hold `LDG-35`'s primitive for the duration of one database transaction
+and no longer. While it is held, an implementation MUST NOT wait on an operation lease, a machine
+lock (`OPS-8`, `machine_locks`), the completion of a child operation (`API-58`, `WIR-39`), or any
+provider call. A transaction under this serialization MUST NOT acquire the machine lock, and a
+worker holding the machine lock MUST NOT enter it.
+
+Where the two must both be true of one machine, the order is the one the worker algorithm already
+executes (`03-operation-lifecycle.md`): **operation lease → machine lease → a short
+tenant-serialized transaction**, each released before the next actor needs it. `OPS-9` makes the
+machine lock try-and-defer rather than wait, so nothing blocks on it and no wait cycle can form.
+
+**This states an invariant the set currently satisfies by accident, and the accident is
+`LDG-25`.** Every `LDG-35`-serialized path today is machine-lock-free — enqueue-time
+authorization (`LDG-11`), `OPS-27`'s resolution (made "by no worker and under no lease",
+`OPS-3`), `OPS-36`'s late attach, the meter (`LDG-38`), extend-runway (`LDG-62`) — and a create
+holds no machine lock at all, because `OPS-8` binds the lock to an operation that *names* a
+machine and a create's `machine_id` is set only on completion (`05-persistence.md`). The one
+entry kind that would put a debit inside a machine-locked worker is `operation_fee_debit`, and
+`LDG-25` prices privileged operations at zero in v1 — so it is defined, paired by `LDG-31`, and
+posted by nothing. **Price an install and the nesting becomes reachable in the same release**,
+which is why the rule is written now rather than when it first bites.
+
+*Recorded because it was checked: an earlier review asserted a live lock-order inversion between
+the machine lock and this primitive, and two independent reviewers refuted it on the reading above.
+What survived the refutation was the absence of any boundary rule at all — nothing said a money
+transaction may not outlive itself — and that is what this requirement supplies.*
 
 **LDG-11** Opening the commitment and enqueuing the operation MUST be one transaction. A
 commitment without an operation silently freezes a customer's money; an operation without a

@@ -266,7 +266,43 @@ working gets deleted by the first engineer who needs it, and then nothing is enf
 
 ### `ledger_entries`
 
-Contents are specified by `LDG-5`–`LDG-8`.
+**AMENDED 2026-08-15 — this section said only "Contents are specified by `LDG-5`–`LDG-8`", and
+those requirements name four fields no column list ever provided.** It is the `commitments` gap
+(below) and the `STO-34`–`STO-36` gap recurring a fourth time, on the one table `ADR-0002` makes
+the authorization system.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `tenant_id` | text | not null; **no foreign key** (`STO-26`) |
+| `seq` | integer | not null; the per-tenant monotonic sequence of `LDG-6` |
+| `kind` | enum | `topup` \| `usage_debit` \| `setup_fee_debit` \| `operation_fee_debit` \| `correction` — closed by `LDG-7` |
+| `amount_sats` | integer | **signed** (`LDG-1`); a debit is negative, which is what makes `LDG-38`'s netting come out right |
+| `balance_after` | integer | the running balance after this entry (`LDG-6`); authoritative for reads per `LDG-70` |
+| `subject_kind`, `subject_id` | enum, UUID | nullable; `machine` \| `attachment` — **`LDG-8`'s *subject*.** Required on every `usage_debit`, because a machine and each of its billable attachments (`PRV-13a`, `machine_attachments`) are separately metered subjects and `LDG-38` sums `already_charged` **per subject**. Carrying only `machine_id` merges them, and the merge under-bills by whichever subject is not the one being posted |
+| `billing_period` | text | nullable; the period this entry falls in (`LDG-68`), required on every `usage_debit`. Part of `LDG-8`'s key and the boundary `LDG-38` apportions corrections and absorbed windows across |
+| `corrects_entry_id` | UUID | nullable; the entry this one corrects (`LDG-5`). Set on `correction` and on nothing else. `LDG-38` nets over "every correction naming one of them" and `WIR-42`'s re-attribution is reached through it — without the column neither is implementable |
+| `idempotency_key` | text | not null; unique within the tenant (`LDG-8`). Derived from the thing being billed or from the payment (`STO-31`), never from a count of what has been posted |
+| `operation_id`, `machine_id`, `commitment_id` | UUID | nullable; `LDG-6`'s causation ids |
+| `settlement_ref` | text | nullable; the provider-side settlement reference once known (`LDG-6`) |
+| `native_minor`, `native_currency` | integer, text | nullable; `LDG-2`'s provider-denominated amount, required on every provider-denominated entry |
+| `rate_num`, `rate_den`, `rate_source`, `rate_observed_at`, `haircut_bps`, `rounding_rule_version` | integer, integer, text, timestamp, integer, text | nullable; `LDG-4`'s conversion evidence, **denormalised onto the entry** so it survives any pruning of a rate table |
+| `created_at` | timestamp | |
+
+Constraints: unique `(tenant_id, idempotency_key)`; unique `(tenant_id, seq)`; index on
+`(tenant_id, seq desc)` for the balance read (`LDG-70`); index on
+`(subject_kind, subject_id, billing_period, kind)` for `LDG-38`'s netting query; index on
+`(corrects_entry_id)`, which that same query traverses.
+
+**STO-38** **`subject_kind`/`subject_id` and `corrects_entry_id` are load-bearing, not
+bookkeeping.** A deployment MUST NOT substitute `machine_id` for the subject: `LDG-32` requires
+each billable attachment be metered "on its own identity", and two subjects sharing a column net
+against each other inside `LDG-38`'s `already_charged` — silently, and in the customer's favour on
+every posting after the first. A deployment MUST NOT record a correction by any means other than
+`corrects_entry_id`: `LDG-5` makes the corrected row survive unchanged, so a correction that names
+nothing is invisible to the netting, and the next tick either re-charges what a correction added or
+hands back a second time what it refunded. Both were requirements with no column, which is how
+`operations.commitment_id` was once "a foreign key to nothing".
 
 **STO-22** `ledger_entries` MUST be append-only at the storage layer, not merely by convention —
 no update or delete path may exist for it. Corrections are new rows (`LDG-5`).

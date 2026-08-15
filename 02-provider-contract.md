@@ -215,6 +215,24 @@ richly enough to separate *rejected*, *accepted-pending*, *scheduled with an eff
 cancellation, because all four states can look identical from outside. A driver that cannot make
 the distinction MUST declare so, and its machines MUST carry the unreduced `wind_down_cost`.
 
+**AMENDED 2026-08-15 — `wind_down_cost` MUST include the time the cancellation spends waiting for
+the machine lock.** Both sizings above measure from the moment the provider is *called*, and
+neither accounts for reaching that moment. An exposure-reducing cancellation is an ordinary
+operation: it takes the per-machine lock (`OPS-8`), and where a long-running operation already
+holds it — an install, whose lease the heartbeat keeps alive for the whole install (`OPS-7`,
+`OPS-10`) — the cancellation is returned to `queued` with a short delay and retried (`OPS-9`),
+not failed and not escalated. The wait is therefore bounded by the deployment's longest
+machine-holding operation, which on the dedicated product is a full rescue-and-install
+(`06-rescue-install.md`), and it falls on exactly the machine being reinstalled when its funding
+runs out.
+
+The term is **the deployment's stated worst-case machine-lock hold**, and it MUST be stated with
+the other deployment parameters (`LDG-42`). Naming it rather than pre-empting the lock is
+deliberate: the exposure is one machine's burn for one install's duration — bounded, priceable,
+and cheaper than a mechanism that destroys an in-flight install to save it. `OPS-39`'s
+"pacing MAY delay such a cancellation briefly" is what this term prices; *briefly* is the
+install's length, and the reserve must say so.
+
 **Where billing is capped per period, that cap is a catastrophe bound worth having.**
 
 **PRV-13d** A create MAY carry a caller-requested **runway** — how long the machine should be

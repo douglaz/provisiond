@@ -115,6 +115,13 @@ Which of the two a payment actually came in over. **Discovered, not assigned** �
 at payment time and the operator does not choose for them.
 _Avoid_: payment method, channel, network, fallback
 
+**Billing period**:
+The calendar month in UTC, one boundary for the whole deployment (`LDG-68`). The unit the meter
+nets within — corrections belong to the period of the entry they name, not the period they were
+posted in. **Not** the provider's invoice month and **not** a per-machine anniversary; both were
+readings the set admitted while the term was undefined, and each produced a different bill.
+_Avoid_: billing cycle, month, invoice period
+
 **Float**:
 The sum of all customer balances — what the operator owes at any instant. The operator's own
 margin is not part of it.
