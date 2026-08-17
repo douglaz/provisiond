@@ -547,6 +547,30 @@ The cost MUST be stated rather than hidden: for such a provider the `OPS-33` neg
 bounded by **operator response time**, not by an automatic lookup, and `OPS-26`'s rota is what
 determines how long a customer's balance stays committed behind a stuck order.
 
+**PRV-35** **A driver MUST report a machine's network restriction where the provider exposes one,
+and MUST declare that it cannot where the provider does not.** This is `DOM-27`'s status, refreshed
+on the same path and with the same cache semantics as every other machine field (`DOM-8`), and it
+is **not** part of `DOM-7`'s status mapping.
+
+**Where it comes from, per launch driver — each `[verify]` against the live API before it is
+relied on:**
+
+| Driver | Signal | Confidence |
+|---|---|---|
+| Hetzner Cloud | `public_net.ipv4.blocked` and `public_net.ipv6.blocked` on the server object, separate from lifecycle `status` | **[verify]** — documented in the official client schema; high |
+| Hetzner Robot | `locked` on each IP and subnet; server status stays `ready`/`in process` | **[verify]** — documented; high |
+| DigitalOcean | a Droplet `locked` boolean exists, but is documented only as preventing user actions | **[verify]** — **do not map it**. Nothing official connects it to abuse networking, and reading it as a restriction would report every in-flight resize as a block |
+
+**Where a driver has no signal the restriction is `unknown` until an operator records one**
+(`WIR-47`), and `unknown` MUST NOT be rendered as `none`. A field that is silently false when
+nobody looked is worse than no field: `none` is a claim, and only an observation can support it.
+Where a driver *does* report, the provider is authoritative and an operator entry is the fallback
+for a provider that cannot answer — not a competing current value.
+
+*Added 2026-08-16, after `LDG-71` asserted that "nothing knows it is blocked" and a cross-model
+check found that Hetzner Cloud and Robot both do. The `DOM-7` exclusion survived that discovery;
+the reason written for it did not.*
+
 ## Adding a driver
 
 A new driver is expected to:

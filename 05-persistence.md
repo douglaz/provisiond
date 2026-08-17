@@ -89,6 +89,9 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `reserve_rate_num`, `reserve_rate_den` | integer | the exact rational used (`LDG-4`) |
 | `reserve_computed_at` | timestamp | drives re-derivation (`PRV-13e`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`) |
+| `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
+| `network_restriction_source` | enum | `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`) |
+| `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
 | `system_trigger_ids` | json | `OPS-39`'s open episode identifiers and the **enforcing** home of its uniqueness: at most one open entry per key, claimed atomically before a sweep enqueues anything. The key is the **`action`** for an exposure-reducing cancellation and the `system_reason` for every other trigger (`OPS-39`), so two reasons to cancel one machine share a single entry rather than each enqueuing a delete. Each entry therefore carries `{trigger_id, action-or-reason key, reasons: [...]}` — `reasons` being the **set** of `system_reason` values that have contributed to this open episode, appended to by a later sweep that finds the entry already claimed. The `trigger_id` is the same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
 | `created_at`, `updated_at` | timestamp | |
 
@@ -243,7 +246,7 @@ an environment variable (`API-4` as amended).
 | `credential_digest` | text | not null; the **spending token** hash, never the credential itself (`API-3`). Replaced in place by `WIR-38` |
 | `recovery_digest` | text | not null; the **recovery credential** hash (`API-55`). Minted with the row and never replaced by a spending-token revocation |
 | `credential_generation` | integer | increments on every revocation (`API-56`); a token from an earlier generation never authenticates, so a replayed revocation cannot resurrect one |
-| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger and machine reads, and retains the maintenance actions of `API-7` step 2 as narrowed by step 5b, which still rejects a requeue of an ordering kind) |
+| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger, machine and abuse-case reads, and retains the maintenance actions of `API-7` step 2 as narrowed by step 5b — including the abuse-statement write — which still rejects a requeue of an ordering kind) |
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
 
@@ -458,6 +461,156 @@ ages out first, a caller polling its id gets what looks like "never existed" and
 softened to `gone` by `DOM-21`, but the horizon still matters); if the key ages out first,
 `STO-25`'s own named failure occurs. The `operations` row also carries `revision` (`API-53`),
 incremented in the same statement as any client-visible change.
+
+### `abuse_cases`, `abuse_statements`
+
+`DOM-23`'s entity and the tenant's replies to it. Two tables rather than one because the
+statements are append-only and are purged on a different clock from the case that owns them
+(`STO-42`).
+
+**STO-39** **`abuse_cases`** — `id` (UUID, primary key), `tenant_id`, `machine_id` (UUID, not null,
+foreign key to `machines`; a case always concerns one machine, resolved by `SEC-54` before the case
+is written), `allegation_summary` (text, **operator-written**, provider-neutral),
+`warned_consequence` (text, operator-written, **written once and never updated**), `respond_by`
+(timestamp — **the tenant-facing deadline, and the only deadline this table holds**),
+`respond_by_revisions` (json list of `{previous, current, revised_at}`, append-only),
+`state` (`open` | `closed`, `DOM-24`), `outcome` (text,
+nullable; operator-written, set at close), `sent_statement` (text, nullable; what the operator
+actually transmitted to the provider), `sent_verbatim` (boolean, nullable), `sent_statement_ids`
+(json, nullable; which tenant statements were transmitted, `WIR-44`), `sent_at`, `opened_at`,
+`closed_at`. Index on `(tenant_id, state)` for the collection read (`API-59`) and on `(machine_id,
+state)` for the machine view.
+
+**There is no `provider_account` column**, and its absence is deliberate. It is derivable by join
+from a not-null `machine_id`, no requirement reads it, and `WIR-45` forbids rendering it — so its
+only effect would be to place a copy of the provider's identity inside the one entity whose
+defining rule is that provider identity must not escape from it. *It was in the first draft; both
+reviewers of 2026-08-16 independently asked for it to come out.*
+
+**A machine MAY have more than one case open at once.** Two notices about one machine are two
+cases, not an amended one — nothing merges them, and `WIR-43` renders them as a list for exactly
+this reason. This is cardinality, not repeat-offence policy (which remains deliberately absent).
+It is also why `DOM-27`'s network restriction is **not** a column here: two cases would carry two
+answers to one physical question.
+
+**STO-44** **`warned_consequence` is immutable and `respond_by` moves only by appending.** The
+warning says what the notice threatened *at open* — a fact about the past, permanently true — and
+the machine's own `network_restriction_status` says what is true now, so the two describe different
+questions and cannot contradict each other. Nothing else legitimately changes: a provider that
+escalates its threat has sent a **new notice**, which is a new case (`DOM-23`), not an edit.
+
+A deadline extension MUST append `{previous, current, revised_at}` to `respond_by_revisions` in the
+same transaction that moves `respond_by` (`WIR-47`). Overwriting it silently is the failure this
+guards: a caller planned against the original date, and a record that shows only the extended one
+cannot answer whether the tenant was ever given the time it was told it had. *The cost accepted
+here: an operator's typo in `warned_consequence` is permanent. Correcting prose the tenant may
+already have acted on is the larger hazard, and the case-per-notice rule leaves nothing else that
+needs to move.*
+
+**The provider's deadline is deliberately absent.** `respond_by` is set earlier than it by however
+long the operator needs to analyse and compose, and a second date that a tenant must never see is
+a leak waiting for the first serializer that forgets. The provider's date lives where the notice
+does — in the operator's inbox. F34's *"two deadlines and only one is real"* is then true by
+construction rather than by rule.
+
+**STO-40** **`abuse_statements`** — `id` (UUID, primary key), `case_id` (UUID, not null, foreign
+key to `abuse_cases`), `body` (text, **nullable**, capped per `WIR-43`), `seq` (integer, monotonic
+per case), `submitted_at`. Unique `(case_id, seq)`.
+
+**Append-only, with exactly one exception: `STO-42`'s redaction sets `body` to null at close.** No
+endpoint updates or deletes a statement, no row is ever removed, `seq` is never reused, and the
+order is never rewritten — a statement is evidence in a matter the operator is liable for. The
+redaction is the single write that touches an existing row, it is performed by the close
+transaction and by no caller, and it is why `body` is nullable rather than `NOT NULL`. *The first
+draft said "no update, no delete" flatly and then required the purge four requirements later, which
+no implementation could satisfy.*
+
+A tenant MUST NOT be limited to one statement — the single most valuable sentence an operator can
+receive is the one that arrives late, after the tenant has found the actual cause, and the
+provider's one-shot semantics are not ours to inherit (`ADR-0012`).
+
+**Statement content MUST NOT be used to identify, contact or authenticate a tenant, and MUST NOT
+be copied into any other record except `abuse_cases.sent_statement`** (`WIR-44`). This is the rule
+that keeps the abuse channel from quietly becoming the identity channel `ADR-0004` is built to
+avoid — a customer who volunteers a company name in an explanation has not enrolled, has not been
+verified, and must not become verified by having done so. *`ADR-0012` cited this control as
+load-bearing while no requirement carried it; an ADR is not a requirement, and the developer builds
+from these.*
+
+**Submission MUST be one transaction**: check the case is not `closed`, allocate the next `seq`,
+insert the row, and record the idempotency result together (`WIR-43`). Allocating `seq` outside it
+lets two concurrent submissions collide on the unique constraint, and an autonomous caller retries
+what looks like a failure.
+
+### `machine_addresses`
+
+**STO-41** Every address provisiond has **observed** on a machine MUST be recorded with the window
+it was observed in: `machine_id`, `address` (canonical form), `first_seen`, `last_seen`. Index on
+`(address, first_seen)`.
+
+**The write belongs to every transaction that writes `machines.public_ips`, not to the refresh
+alone** — create, adopt, the resolution attach (`OPS-13`), an opportunistic post-action update
+(`DOM-8`) and an explicit refresh operation all record what they saw, and tombstoning closes every
+open window on that machine. *The first draft bound it to "the refresh that already maintains
+`public_ips`", which is the one path a customer need never invoke: nothing in this set refreshes a
+machine on a schedule — `OPS-14`'s sweeper moves expired **operation** leases — so a machine
+created and left alone would have had no history at all, and the resolution would have returned an
+empty set that `SEC-54` calls correct.* **It never belongs to a read**: `API-54` forbids a `GET`
+bumping a `last_seen`, and this is the column it names.
+
+**`address` MUST be stored and compared in a canonical form**, with a deployment-stated
+normalisation for IPv6 (zero-compression and case) and for IPv4-mapped addresses. Two spellings of
+one address that compare unequal produce an empty candidate set, which `SEC-54` reports as "not
+ours" — the same wrong answer this table exists to prevent, arriving through string equality.
+
+**Without this table `SEC-45`'s resolution rule is unsatisfiable and dangerous.**
+`machines.public_ips` is current state — `DOM-8` makes machine state a cache "refreshed by explicit
+refresh operations", so the list is overwritten and never versioned, and there is no
+`tombstoned_at` to bound it with. An abuse notice names an address and an *instant*, providers
+reissue addresses to other customers within days, and the common sequence is that the customer
+deletes the machine before the notice arrives. Resolving against current state therefore names the
+**wrong tenant** — an innocent one — and the operator then opens a case against them and may
+forward their statement about a machine that was never theirs. A wrong accusation and a
+cross-tenant disclosure, produced by following the rule.
+
+**This records observation, not possession**, and the distinction MUST survive into what the
+resolution returns (`SEC-54`): provisiond polls a provider, it does not watch one, so an address
+may have been held and released entirely between two refreshes. The honest answer is a candidate
+set that may be empty or hold several machines; a confident single answer would be the defect this
+table exists to remove.
+
+**STO-42** **A tenant statement's `body` MUST be purged when its case closes, or at a configured
+age from `opened_at`, whichever comes first.** This is `request` → `request_summary` (`ADR-0005`)
+applied to a new object rather than a new rule invented for one: the caller's own text lives
+exactly as long as the decision it informs, and what the operator *sent* — composed or, where the
+operator chose it, forwarded verbatim — is the operator's own outbound record and is retained. The
+statement rows themselves remain, so the count and timing of replies stay auditable after their
+contents are gone (`STO-40`).
+
+**On the verbatim path the purge reduces exposure by nothing, and that is the accepted price of
+keeping what was disclosed.** Where the operator forwarded a statement unchanged (`WIR-44`),
+`sent_statement` holds a byte-for-byte copy, so purging the original moves the text rather than
+removing it. The copy stays: it is the record of what the operator told a third party about its
+customer, and an operator that cannot say what it sent is worse off than one holding a paragraph it
+already sent. **The claim this requirement must not make is that the caller's text lives only as
+long as the decision it informs — on that path it does not.**
+
+**The second clock is not belt-and-braces, it is the only one that fires by itself.** `ADR-0005`
+purges an operation's payload the moment the operation stops being live, a state the system reaches
+on its own; a case reaches `closed` only because an operator chose to (`DOM-24`), and `DOM-25`
+forbids anything forcing that choice. An operator who opens a case and walks away would otherwise
+hold raw caller text — which `ADR-0012` concedes may name a person — for as long as the deployment
+runs.
+
+**STO-43** **`abuse_cases`, `abuse_statements` and `machine_addresses` each need a stated retention
+age, and `STO-14` does not supply one.** `STO-14` reaches **settled operations** and nothing else —
+`STO-24` had to say separately that retention must not reach `ledger_entries` — so a citation to it
+is not a clock. A deployment MUST state: an age for a closed case, measured from `closed_at`, after
+which the case and its statement rows are removed together; and an age for `machine_addresses`,
+measured from `last_seen`, **stated as the lookback horizon `SEC-54` can answer over**, since
+purging that history silently shortens how far back an abuse notice can be resolved. *An earlier
+draft said these survived "on `STO-14`'s clock", which was a citation to a requirement that does
+not mention them — the failure class this document's own scope note exists to catch.*
 
 ## Migrations
 

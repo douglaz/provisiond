@@ -127,7 +127,7 @@ agent to parse English. Minimum keys:
 | `rate_limited` | `retry_after_ms` |
 | `halted` | `retry_after_ms`, `gate` (`"solvency"` \| `"rate_unavailable"`) |
 | `gone` | `retained_until` — and the safe reaction is to read machines and balance, never re-issue (`DOM-21`) |
-| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`)) |
+| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`) \| `"case_closed"` (`WIR-43`)) |
 | `unsupported` | `provider_account`, `capability` (`DOM-10`) |
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
@@ -193,6 +193,7 @@ per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
   "provider_account": "hetzner-cloud-1",
   "committed_sats": 71900,
   "runway_until": "2026-09-11T14:00:00Z",
+  "network_restriction": {"status": "none", "source": "provider_api", "observed_at": "2026-08-12T15:03:00Z"},
   "rate_outage_deadline": null,
   "effective_cancellation_date": null,
   "earliest_cancellation_date": null,
@@ -202,7 +203,9 @@ per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
 
 `runway_until` floats with the rate (`LDG-15`, `LDG-33`); the first `public_ips` entry is the
 rescue address. `external_id` and raw provider metadata are **absent** on the customer surface
-(`DOM-5`, `LDG-26`).
+(`DOM-5`, `LDG-26`). `network_restriction` is `WIR-47`'s, and it sits **here**, beside
+`runway_until`, on `LDG-15`'s reasoning: the drain and the reason for it should arrive in one
+response. `abuse_cases` (`WIR-43`) is absent when the machine has none.
 
 ## Endpoints
 
@@ -608,12 +611,168 @@ provider's currency, price string and raw metadata MUST NOT appear.
 **WIR-31** `GET /healthz` — `200 {"status": "ok"}`, unauthenticated but rate-limited (`API-29`),
 and MUST NOT disclose version, uptime, queue depth or anything else a caller can fingerprint.
 
+**WIR-43** `GET /v1/abuse-cases`, `GET /v1/abuse-cases/{id}` and
+`POST /v1/abuse-cases/{id}/statements` (`API-59`, `DOM-23`) — customer-facing, **synchronous**,
+minting no operation (`API-48`). `GET /v1/abuse-cases` is cursor-paginated like every other
+collection (`WIR-32`) and defaults to cases that are not `closed`.
+
+**One projection, rendered in three places, and statements are not part of it.** The case summary —
+every field below except `statements` — is what the collection returns, what the machine view
+embeds, and what the detail read carries; the detail read alone adds `statements`. The machine view
+embeds `abuse_cases` as an **array** of summaries, not a single object: two notices about one
+machine are two cases (`STO-39`), and a singular field would have to pick one. Keeping the
+statement history out of the machine and collection reads also stops an unbounded append-only list
+being materialised by every poll of an unrelated machine. **The key is omitted entirely when the
+machine has no case**, which is why `WIR-11`'s machine fixture does not carry it — stated here
+because `WIR-37` requires an elision to be described in prose rather than left to inference. A case
+detail read:
+
+```json
+{
+  "id": "0198c1d0-7a2b-7c3d-8e4f-5a6b7c8d9e01",
+  "machine_id": "0198c1d0-1234-7abc-8def-0123456789ab",
+  "state": "open",
+  "allegation": "A third party reports SSH brute-force attempts originating from this machine's public address on 2026-08-12 at about 21:40 UTC.",
+  "warned_consequence": "If this is not resolved, the provider may block this machine's network access.",
+  "respond_by": "2026-08-13T12:00:00Z",
+  "opened_at": "2026-08-12T23:10:00Z",
+  "statements": [
+    {"id": "0198c1d0-9f8e-7d6c-8b5a-4938271605f4", "seq": 1, "submitted_at": "2026-08-13T02:15:00Z", "body": "A container image we deployed was compromised. We stopped it at 02:05 UTC and rotated the host keys."}
+  ],
+  "outcome": null
+}
+```
+
+A submission is `{"body": "..."}` and nothing else, and returns **`201`** with the created statement
+(`id`, `seq`, `submitted_at`) so the caller can tell a retry from a second reply. **The body MUST be
+capped at a stated size** (4096 bytes is the deployment default) and is stored verbatim,
+uninspected: pattern-scrubbing free text is unreliable, untestable, and mangles legitimate replies.
+`ADR-0005`'s exposure is bounded instead by `STO-42`'s purge and by `WIR-44`'s rule on what may
+leave. Submitting is refused with `409` `conflict`, `details.reason: "case_closed"`, once the case
+is `closed`. After the purge, a redacted statement renders with `"body": null` and its timing
+intact.
+
+**Like every other write, a submission carries `Idempotency-Key` (`API-8`), and because the
+response is not an operation its durable idempotency is explicit**: the statement row and an
+idempotency record (fingerprint, status, the exact response body) MUST commit in one transaction —
+`WIR-24`'s rule, adopted by reference rather than restated, and required here for a sharper reason
+than usual. A retried submission that is not deduplicated appends a **second permanent statement**
+to a list `STO-40` forbids anyone to delete, and the caller is an autonomous agent with a retry
+loop.
+
+**The provider's case reference, statement link, wording, and the parties it named do not appear
+here** (`WIR-45`). `allegation`, `consequence` and `outcome` are the operator's own prose
+(`DOM-23`). *This does not conceal which provider hosts the machine: `provider_account` is already
+in the machine view (`WIR-11`) and `WIR-29` returns the account kind. An earlier draft said
+"nothing in this view names the provider — not the company", which contradicted both and tested as
+`CNF-224`.*
+
+**WIR-44** `POST /v1/abuse-cases`, `.../actions/close` and `.../actions/record-transmission` —
+**operator-only** (`WIR-34`), **synchronous**, each carrying `Idempotency-Key` under `WIR-24`'s
+one-transaction rule. Open takes a `machine_id` — resolved first through `WIR-46` where the notice
+gives an address rather than a machine — together with the operator's `allegation`, `consequence`
+and `respond_by`, and returns `201` with the case. Close takes an `outcome`, returns `200` with the
+closed case, and **purges the statement bodies in the same transaction** that sets `state`,
+`outcome` and `closed_at` (`STO-42`); a close that commits before the purge leaves raw text behind
+a case that reports itself closed.
+
+**The operator reads cases through `WIR-33`'s tenant override** on the customer routes, which is
+how every other operator read of tenant-scoped data works. No separate operator collection is
+specified, and the cost is real: there is no cross-tenant "which cases are awaiting me" list, so an
+operator tracks outstanding notices the way it learned about them — in its inbox.
+
+**Transmission MUST be recorded as an explicit act**, because forwarding a tenant's words verbatim
+is the operator's per-case decision (`ADR-0012`) and a decision that leaves no trace is one the
+conformance checklist cannot test:
+
+```json
+{"sent_verbatim": false, "statement_ids": ["0198c1d0-9f8e-7d6c-8b5a-4938271605f4"], "sent_statement": "A container image the customer deployed was compromised. It was stopped at 02:05 UTC and host keys were rotated."}
+```
+
+Recording transmission returns `200` with the updated case, as close does. **`sent_verbatim: true`
+means `sent_statement` is byte-for-byte one of the named statements.** The
+fixture above is the composed case, and it is composed precisely because the tenant's own text says
+*"we deployed"* and *"we stopped it"* — first person, about a customer the operator must not
+name to a third party. *An earlier version of this fixture carried the same rewritten prose under
+`sent_verbatim: true`, which is the flag asserting the opposite of what the example showed.*
+
+**Composing is the default and `sent_verbatim: true` is the exception**, never the absence of a
+field. The record is visible to the tenant in its own case: they are the tenant's words, and a
+customer is entitled to know which of them were repeated to a third party.
+
+**WIR-45** **The provider's case reference, statement link, own wording, and any third party it
+named MUST NOT appear on the customer surface** — not in a field, not in prose, not in an error
+`details`, not in a log line a customer can read. This is `WIR-30` and `LDG-26`'s rule (provider
+price, currency and raw metadata never reach a customer) applied to the one remaining inbound
+channel, and it is stricter than either, because the statement link is a **single-use bearer
+credential whose use concludes the operator's deadline**: handed to an autonomous caller, a poll
+loop ends the operator's window in the first second, with no human ever deciding to answer.
+`SEC-39`'s reasoning — a control that assumes a human reading it is not a control — arriving at a
+new surface.
+
+**This bans the notice, not the provider.** Which provider account hosts a machine is already
+customer-visible (`WIR-11`'s `provider_account`, `WIR-29`'s `kind`), and a rule that tried to
+conceal it would contradict two shipped fixtures while protecting nothing — the hazard is the
+bearer link and the third parties, not the company's existence.
+
+**WIR-46** `GET /v1/address-resolution?address={address}&observed_at={timestamp}` — **operator-only**
+(`WIR-34`), synchronous, `SEC-54`'s answer on the wire. `address` is normalised to `STO-41`'s
+canonical form before matching and an unparseable one is `invalid_request`; `observed_at` is an
+`WIR-1a` timestamp.
+
+```json
+{
+  "address": "203.0.113.7",
+  "observed_at": "2026-08-12T21:40:00Z",
+  "candidates": [
+    {"machine_id": "0198c1d0-1234-7abc-8def-0123456789ab", "tenant_id": "t-0198c1f0", "first_seen": "2026-08-04T09:12:00Z", "last_seen": "2026-08-12T22:00:00Z", "machine_state": "deleted"}
+  ],
+  "horizon_start": "2026-05-16T00:00:00Z"
+}
+```
+
+**`candidates` is ordered by `first_seen` ascending and MAY be empty or hold several** — that is
+the point of `SEC-54`, and a client MUST NOT treat a single-element array as certainty. Each entry
+carries the observation window it matched on, so the operator can see how tightly the instant is
+bracketed. `horizon_start` is the oldest instant this deployment can answer for (`STO-43`); an
+`observed_at` before it returns an empty `candidates` **and** an explicit
+`"out_of_horizon": true`, because "we have no record" and "it was nobody's" are different answers
+and only one of them means the machine was not ours.
+
+**WIR-47** `POST /v1/machines/{id}/actions/record-network-restriction` and
+`POST /v1/abuse-cases/{id}/actions/revise-deadline` — **operator-only** (`WIR-34`), **synchronous**,
+minting no operation (`API-61`), each carrying `Idempotency-Key` under `WIR-24`'s
+one-transaction rule.
+
+Recording a restriction takes `{"status": "disabled", "observed_at": "2026-08-13T02:40:00Z"}` and
+returns `200` with the machine view. It sets `source` to `operator_notice` and **MUST be refused
+with `409` `conflict`, `details.reason: "state"`, where the driver reports this provider**
+(`PRV-35`) — the provider is authoritative there, and an operator value that shadows a readable
+fact is the two-homes drift this design was reorganised to avoid.
+
+Revising a deadline takes `{"respond_by": "2026-08-20T12:00:00Z"}` and returns `200` with the case,
+appending the previous value (`STO-44`). It is refused with `409` `conflict`,
+`details.reason: "case_closed"`, on a closed case. **There is no verb that rewrites
+`warned_consequence`**, and its absence is the design (`STO-44`).
+
+The machine view's `network_restriction` object is `{"status", "source", "observed_at"}`
+(`DOM-27`), and it renders `"status": "unknown"` with a null `observed_at` where nobody has looked.
+**A client MUST NOT read `unknown` as `none`.** The same object is joined into the case projection
+at render time from the machine — never copied into `abuse_cases`, which is what keeps two open
+cases from carrying two answers.
+
 ## Listeners, limits and fixtures
 
 **WIR-34** **Operator-only routes** (`WIR-18` adopt, `WIR-28` requeue, `WIR-35` resolve, `WIR-39`
-suspend, `WIR-41` resume, `WIR-42` attribute, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+suspend, `WIR-41` resume, `WIR-42` attribute, `WIR-44`'s three abuse-case verbs, `WIR-46`
+address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
+
+**The `404` is method-scoped where a path is split across listeners.** `/v1/abuse-cases` is the
+first such path — customer `GET`, operator `POST` — so a customer `POST` there is `404`, not `405`,
+and the customer `GET` is unaffected. *Enumerated rather than left to inference: this list is read
+as closed, which is why the abuse routes are named in it rather than assumed to inherit.*
 
 **WIR-33** **The tenant-override header is `X-Provisiond-Tenant`** (a `DOM-1` tenant id). It is
 honoured only with an operator bearer token holding the admin flag (`API-5`); presented by a

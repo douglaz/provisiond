@@ -1,7 +1,9 @@
 # provisiond — Executive Summary
 
 *A single-file orientation to the specification set, for a reader who has never seen it.
-Written 2026-08-14 against 660 requirements across 14 numbered documents, 11 ADRs and a glossary.*
+Written 2026-08-14 against 660 requirements across 14 numbered documents, 11 ADRs and a glossary;
+refreshed 2026-08-16 against 700+ requirements and 12 ADRs. Re-derive the count before quoting it —
+`10-conformance-checklist.md` records why numbers in this set go stale.*
 
 ---
 
@@ -108,8 +110,12 @@ is now forbidden, because "we hold satoshis equal to customer balances" *is* the
 description. What that costs is recorded — the mechanism that would have made a later breach
 actionable misrepresentation is gone, and customers are unsecured creditors.
 
-**Collect nothing** (`ADR-0005`). No identity, no IP history, no analytics; caller payload is purged
-the moment an operation stops being live. This buys the cheapest GDPR posture, but it also selects
+**Collect nothing** (`ADR-0005`). No identity, no analytics, and nothing derived from the caller's
+network path; caller payload is purged the moment an operation stops being live. *The deployment
+does keep a history of the addresses **its own machines** were observed holding (`STO-41`) — added
+2026-08-16, because answering a provider's abuse notice means knowing who held an address at an
+instant, and resolving that against current state accuses whichever customer holds it today. That
+is machine state, not caller identity, and it ages out on a stated horizon (`STO-43`).* This buys the cheapest GDPR posture, but it also selects
 the *sanctions* posture — there is no name to screen — which is recorded as an accepted,
 operator-borne risk. It also means there is no account recovery by identity, only a second secret
 issued at enrolment. Note the scope honestly: this is privacy from the reseller layer, not from the

@@ -346,6 +346,29 @@ exist. A deployment MUST define, and record:
   the window `DOM-19` was written to make visible;
 - **the treatment of a partial period**, rounded per `LDG-28`.
 
+**LDG-71** **A machine whose network a provider has blocked over abuse MUST be told to its owner as
+still consuming runway.** The abuse case is where that is said (`DOM-23`), because a customer who
+cannot reach a machine and is not told why will read the drain as theft, and under `ADR-0005` there
+is no email in which to explain it afterwards.
+
+**The telling is `DOM-27`'s structured `network_restriction` on the machine view, beside
+`runway_until`** — not a sentence in the case. A restricted machine stays `running`, which
+`LDG-37` already makes billable, so nothing here changes the meter; what changes is that a caller
+can now tell a blocked machine from a broken one before it reaches for a destructive remedy.
+
+*Rationale, not requirement.* Continued billing is also the right answer: the provider goes on
+charging the operator, so making it free would move a real, uncapped cost onto the operator for a
+condition the customer's machine caused, and would pay customers to be blocked. Delete remains
+available as the customer's one-call remedy (`DOM-26`), and `LDG-13`'s exhaustion cancellation
+still applies, as it does to every machine. **This closes F35.**
+
+*Twice corrected on 2026-08-16. The first draft made four statements MUSTs, two of which restated
+`DOM-26` and `LDG-13`. The trim that followed asserted the machine "keeps billing because nothing
+knows it is blocked" — **and that was false.** Hetzner Cloud exposes `blocked` per address family
+on the server object and Robot exposes `locked` per IP (`PRV-35`), so a driver can read this today.
+The conclusion that it is not a `DOM-7` state survived the discovery; the reason written for it did
+not, and it had been copied into three documents by the time a cross-model check caught it.*
+
 **LDG-38** **AMENDED.** A `usage_debit` MUST be idempotent per **`(subject, billing period, kind,
 increment end)`** (`LDG-8`), and posting **any** machine-attributable debit MUST decrement that
 machine's commitment in the same transaction (`LDG-31`).

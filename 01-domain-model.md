@@ -155,6 +155,87 @@ SHOULD zero the credential when dropped.
 session at all. A round-trip rule for a type that must never be serialized was specifying the
 behaviour of a path the same document forbids. *`DEF-9`'s defect stands as a prohibition.*
 
+### Abuse case
+
+The operator's provider-neutral record of one **abuse notice**, and the only channel through
+which a tenant learns that one of its machines has been complained about. See `CONTEXT.md` for
+the notice/case distinction, `ADR-0012` for why nothing is relayed in either direction, and
+`SEC-45` for the obligation it discharges.
+
+**DOM-23** An abuse case MUST carry: the machine it concerns, an **operator-written**
+provider-neutral summary of the allegation, an operator-written `warned_consequence` stating what
+the notice threatened **at open** — never what is true now, which is `DOM-27`'s field on the
+machine — a
+single tenant-facing deadline, a state, and an append-only list of tenant statements. What must
+never reach the customer surface is `WIR-45`'s, cited here rather than restated — a draft of this
+requirement carried its own copy, and the two were already stricter than each other in different
+directions.
+
+**A case is created by an operator, never by a driver and never by a caller.** Hetzner exposes no
+abuse-case API — `08-provider-notes.md` describes the process as "notice, deadline and manual
+review" and names no endpoint — and **[verify]** the same is assumed of DigitalOcean, whose section
+in that document is flagged as neither official nor dated. Either way an automated source would be
+an email parser feeding untrusted input into an entity whose consequences reach a customer's
+machines. *The `[verify]` matters only if it turns out false, and then it widens an option rather
+than breaking a rule.* The operator reads the notice and transcribes it, which is also where the translation to
+provider-neutral terms happens: **neutrality is produced by the act of rewriting, not by a mapping
+table.** There is deliberately no allegation taxonomy; a closed class set invented before real
+notices have been handled would put its own traffic in `other`.
+
+**DOM-24** The states are `open` and `closed`, and nothing else. **Only an operator closes a case**, and
+closing MUST record a provider-neutral outcome the tenant can read — an autonomous caller has no
+other way to learn it can stop polling, and the provider gives the system no signal, no callback
+and no API from which the end of a case could be inferred. **A closed case remains readable**, and
+the collection returns closed cases on request — an outcome nobody can fetch is not an outcome.
+
+*An `answered` state was specified and deleted on 2026-08-16. Nothing branched on it — `DOM-25`
+bans timers, `DOM-26` bans restrictions, no requirement read it — and "the tenant has replied" is
+derivable from the statements. What it did do was silently outlaw the second statement: every rule
+governing submission and visibility said "while the case is **open**", and a case stopped being
+open the instant the tenant answered, so the late correction `STO-40` exists to capture was the one
+an implementer would reject. A state that no rule consumes can still be consumed by the word it
+occupies.*
+
+**DOM-25** **The deadline has no hands.** Its passing with no statement MUST NOT suspend the
+tenant, cancel the machine, seal the case, or alter a balance; it makes the case *unanswered*,
+which is a fact for the operator to act on. *This is a rule about **consequences**, not about
+clocks: `STO-42`'s retention timer is required, and an earlier phrasing — "nothing about an abuse
+case fires on a timer" — forbade it while `ADR-0005` demanded it.* The asymmetry is the reason: a
+timer-fired suspension destroys a paying customer's whole fleet because a program stopped polling,
+while the cost of doing nothing is the provider blocking one machine — its own routine remedy,
+which `LDG-71` already accounts for. `API-58`'s suspension remains available and remains the
+operator's own decision (`SEC-45`).
+
+**DOM-27** **Whether a provider has restricted a machine's network is a fact about the machine, not
+about a case, and it MUST NOT be a `DOM-7` state.** It has one home — the machine — carrying a
+status (`none` | `restricted` | `disabled` | `unknown`), the **source** that established it
+(`provider_api` | `operator_notice`) and when it was observed (`STO-44`, `WIR-47`).
+
+**It is not a lifecycle state**, and that is the durable reason rather than a contingent one: a
+restricted machine is still `running` or `off`, `DOM-7` is single-valued, and collapsing the two
+destroys the state `LDG-37` reads to decide what is billable. Providers also restrict per address
+family — Hetzner Cloud exposes `blocked` separately for IPv4 and IPv6 **[verify]** — so even a
+boolean would lose information a single enum value cannot carry.
+
+**It is not a field on the abuse case**, for a reason the schema makes concrete: a machine may have
+more than one case open at once (`STO-39`), and two cases carrying two answers to one physical
+question leave a caller no rule to resolve them. It also has to exist where no case does — an
+account-level action (`SEC-41`) darkens every machine in the account and opens no case at all.
+
+**Why a caller needs it stated rather than inferred.** An agent observing `state: "running"`, a
+draining `runway_until` and its own connections timing out will conclude the machine is *sick* —
+and the remedies for a sick machine are reset, rescue and **install**, which `CONTEXT.md` defines
+as destructive by definition. The signal's job is to **stop** a remediation loop that would wipe a
+customer's disk trying to fix a network block no reinstall can lift, while runway drains through
+every attempt. `DOM-26` already names delete as the tenant's remedy and, without this, gives the
+agent nothing to trigger it.
+
+**DOM-26** An open case MUST NOT restrict what the tenant may do. It does not block creates,
+installs, extensions or deletes — **least of all deletes on the accused machine**, which are the
+tenant's own remedy for both the allegation and the bill (`LDG-71`). *Stated because the intuition
+runs the other way, and a freeze written in later would remove the one action that stops the
+offending traffic.*
+
 ## Image sources and installation strategies
 
 The two are separate axes. An *image source* says what to install; a *strategy* says

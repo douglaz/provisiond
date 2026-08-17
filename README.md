@@ -27,7 +27,7 @@ requirement not to repeat it.
 | `08-provider-notes.md` | Per-provider API facts worth preserving, and their caveats |
 | `09-known-defects.md` | Defects found in the reference implementation, as prohibitions |
 | `10-conformance-checklist.md` | What a reimplementation must demonstrate before it serves traffic |
-| `11-open-findings.md` | **Read this before building.** Findings `F1`–`F33` accumulated over several successive audits, which are fixed and which are open, and the three questions a builder must ask first — all three now answered |
+| `11-open-findings.md` | **Read this before building.** Findings `F1`–`F35` accumulated over several successive audits, which are fixed and which are open, and the three questions a builder must ask first — all three now answered |
 | `12-billing-and-ledger.md` | The ledger, commitments, the meter, funding, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
 | `CONTEXT.md` | Glossary. Which word means what, and which words are banned |
 | `13-wire-contract.md` | Bodies, headers, bearer auth, the error envelope. Closes `F19`, panel-reviewed |
@@ -57,6 +57,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0009` | The process is watch-only and cannot spend the float. Lightning is hot and therefore capped; that cap is the blast radius |
 | `0010` | v1 ships three drivers — Hetzner Cloud, Hetzner Robot, DigitalOcean — for both machine shapes across two companies. Settles the launch-set question |
 | `0011` | Commitments are fixed at open and never auto-widen — save for the scheduled-cancellation branch, the one automatic exception (`LDG-63`); a price move shifts the runway date instead. Closes `F27`; amends `ADR-0003`'s matching claim |
+| `0012` | Abuse handling is the operator's in both directions: the provider's notice, case reference and one-shot statement link never reach a tenant, and a tenant's statement reaches the provider only through the operator. Closes `F34` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:

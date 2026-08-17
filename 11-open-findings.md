@@ -348,6 +348,141 @@ money by doing something that looks correct.
 `ADR-0005` still forbids retaining it, and that discipline is harder here than on Lightning
 because the information arrives unbidden rather than being asked for.
 
+## The abuse-surface grill — 2026-08-16
+
+**F34 is CLOSED**, and `F35` with it. The surface deferred on 2026-08-15 was designed by
+interview and is now specified: `DOM-23`–`DOM-26`, `STO-39`–`STO-42`, `API-59`–`API-60`,
+`WIR-43`–`WIR-45`, `SEC-54`, `LDG-71`, `CNF-222`–`CNF-230`, and `ADR-0012` for the decision the
+rest hangs from — **the operator is the only party that speaks to either side, and nothing is
+relayed in either direction.**
+
+**Three of the seven answers dissolved machinery rather than sizing it**, which is the pattern this
+project keeps producing:
+
+- **No allegation taxonomy.** The case carries the operator's own prose. Once ingestion is a person
+  transcribing a notice, provider-neutrality is produced by the rewrite, and a class set invented
+  before three real notices would put its own traffic in `other`. The rule that survived is
+  narrower and more useful: *structured what the agent must compute, prose what it must
+  understand* — the deadline and the machine id are fields, the allegation is text.
+- **No second deadline.** F34 had called for two, the tenant's earlier than the provider's. Only
+  the tenant's is stored (`STO-39`); the provider's stays in the operator's inbox. "Two deadlines
+  and only one is real" is then true by construction, and a date the tenant must never see cannot
+  leak from a field that does not exist.
+- **No `DOM-7` state for a blocked machine** — the conclusion held, though the reason first given
+  for it was wrong twice over. `DOM-27` owns it now: a restricted machine is still `running` or
+  `off`, `DOM-7` is single-valued, and collapsing them destroys the state `LDG-37` reads to decide
+  billability. See below for what the original reason claimed.
+
+**One new defect was found while checking whether `SEC-45` was satisfiable, and it was the most
+serious thing in the session.** `SEC-45` claimed resolution was *"answerable from `machines`
+(`public_ips`, …)"*. It was not: `public_ips` is current state overwritten by every refresh
+(`DOM-8`), so an address plus an **instant** had nothing to bind to. Providers reissue addresses
+within days and the ordinary sequence is that the customer deletes the machine *before* the notice
+arrives — so resolving against current state names whichever tenant holds the address today, opens
+a case against an innocent customer, and invites them to explain a machine that was never theirs.
+**A wrong accusation and a cross-tenant disclosure, performed by the operator, by following the
+rule.** `STO-41` adds the observation history and `SEC-54` requires the answer be a candidate set;
+`CNF-222`/`CNF-223` test both directions. *Note that every design which relays the provider's
+notice hides this defect, because the provider's own records do the resolving — owning the channel
+is what exposed it.*
+
+**Two decisions went against the recommendation and both are the record's, not the reviewer's.**
+The tenant's statement is **free text**, not a structured cause-and-remediation pair: closed sets
+guessed in advance fit nothing, and the operator reads every reply at v1 volume anyway. And
+forwarding a statement verbatim is the **operator's per-case call** rather than categorically
+forbidden — sometimes the customer's own account is the most credible thing to send. The
+half-measure objection was answered by making the decision an artifact: composing is the default,
+`sent_verbatim: true` is an explicit recorded act naming the statements it covered, and the tenant
+can see that it happened (`WIR-44`).
+
+**Still deliberately absent.** Nothing here handles an account-level notice (one that names no
+single machine), repeat-offence policy across cases, or any provider signal that a case has ended —
+there is none, so `DOM-24` makes closing an operator act. The first notice handled end to end will
+say more about all three than further editing would.
+
+### The two-reviewer pass on the same day
+
+Codex (`gpt-5.6-sol`, xhigh) and Opus reviewed the change against the full set. **Both returned
+"not buildable as written"** — 28 findings and 14 — and converged, independently, on the same
+defects. Neither disputed any of the seven decisions; every finding was about their specification.
+
+**The worst one was the same defect this change was written to fix, one layer down.** `SEC-45` had
+named a capability the schema did not have; `STO-41` replaced it with a capability *the runtime
+does not exercise* — the history was bound to "the refresh that already maintains `public_ips`",
+and **nothing in this set refreshes a machine on a schedule** (`OPS-14`'s sweeper moves expired
+operation leases; refresh is a caller-initiated write). For the ordinary machine — created, then
+left alone — the table would hold one row or none, the notice's instant would fall in no window,
+and `SEC-54` would return the empty set that `CNF-223` calls correct. Every conformance item in
+this change passed, on a fixture that happened to call refresh. `STO-41` now binds the write to
+every path that writes `public_ips`, and `CNF-222` runs on a machine that was never refreshed.
+
+Applied from that pass: the append-only rule and the purge were a literal contradiction (`STO-40`);
+the retention clock was a citation to `STO-14`, which reaches settled operations and nothing else
+(`STO-43` now states it, and `DOM-25`'s headline was narrowed from "nothing fires on a timer",
+which forbade the retention timer `ADR-0005` requires); `/v1/address-resolution` was in the surface
+table with no wire contract (`WIR-46`); `WIR-34`'s operator-route list was not amended, which is
+the closed-list drift the change had carefully avoided in `API-48`; the new writes had no
+idempotency rule, so an agent's retry would append a second permanent statement to a list nothing
+may delete; `WIR-9a`'s conflict-reason union was closed and lacked `case_closed`; a machine can
+have two open cases and the machine view embedded one; `STO-39` carried a `provider_account` both
+reviewers asked to delete; `CONTEXT.md` still described an allegation *class* the design had
+abolished; the `sent_verbatim: true` fixture was not verbatim; and `ADR-0012`'s own summary —
+*"nothing is relayed in either direction"* — was false in one direction by its own decision.
+
+**`CNF-224` was impossible and would have failed every conforming implementation.** It asserted the
+provider's *name* was absent from the customer surface, while `WIR-11`'s machine fixture carries
+`provider_account: "hetzner-cloud-1"` and `WIR-29` returns the account kind. The ban is on the
+notice — reference, link, wording, third parties — never on the fact that Hetzner hosts the
+machine. Overreach in a rule of this kind is not harmless: it is the half that gets discovered by
+being unbuildable, after the half that matters has already been weakened to make it pass.
+
+**Cleared on inspection:** the `API-48` amendment is correct, `API-54` is not violated (the
+`last_seen` write belongs to a refresh operation, not a `GET`), and `LDG-71` does not conflict with
+`LDG-13`, `LDG-33`, `LDG-37` or `DOM-19`.
+
+### The adjudication that followed, and the claim it destroyed
+
+One defect from that pass needed a decision rather than a fix: `consequence` was written once at
+open, and the provider's block lands *after* the deadline — so at the moment the machine goes dark,
+the frozen text still read "the provider **may** block". Three options went to both models: an
+amend verb alone, an amend verb plus a `machine_blocked` boolean on the case, or plus a
+`billing_continues` boolean.
+
+**Both rejected all three and returned the same fourth answer independently: the structured fact
+belongs on the machine, not on the case.** Their reasons differ and both are kept. A machine may
+have two cases open at once (`STO-39`), so a case-level flag lets two rows answer one physical
+question. An account-level action (`SEC-41`) darkens every machine and opens *no* case, leaving the
+disclosure structurally unmeetable. And the signal's real job is not to prompt an agent but to
+**stop** one: an agent seeing `running` plus a draining runway plus timeouts concludes the machine
+is sick, and reaches for reset, rescue and install — which `CONTEXT.md` defines as destructive by
+definition. Without this field the design invites a customer's disk to be wiped in an attempt to
+fix a network block no reinstall can lift.
+
+**The claim that did not survive:** `LDG-71` had just been trimmed to say the machine keeps billing
+"because nothing knows it is blocked", and the `DOM-7` exclusion rested on the block being an
+operator's email rather than provider truth. A web-searching reviewer checked. **Hetzner Cloud
+exposes `blocked` per address family on the server object and Robot exposes `locked` per IP**, both
+separate from lifecycle status (`PRV-35`, `[verify]`). A driver can read this today. The other
+reviewer, without web access, had predicted exactly this — that the rationale was "contingent on a
+provider fact and evaporates the day someone reads the hcloud docs" — and it had already been
+copied into three documents. **The conclusion survived on a durable argument (orthogonality: a
+restricted machine is still `running`, and `DOM-7` is single-valued); the reason was replaced and
+the copies collapsed to one.**
+
+Also settled: `warned_consequence` is written once and never edited — it states what the notice
+threatened, the machine's field states what is true, and two fields answering different questions
+cannot contradict each other. Only `respond_by` moves, appending its prior value (`STO-44`),
+because a caller planned against the original date and a record showing only the extension cannot
+say whether the tenant got the time it was told it had. A provider that escalates has sent a new
+notice, which is a new case — so nothing else needs to move. **Accepted cost:** an operator typo in
+`warned_consequence` is permanent.
+
+**Deleted in the same pass**, all three named by both reviewers: the constant sentence "the machine
+stays allocated and keeps consuming runway while blocked" from the `warned_consequence` fixture —
+true of every case that will ever exist, which is the exact argument that killed
+`billing_continues`; `CNF-228`'s "the case's `consequence` states the drain", a conformance item
+that tested whether English said a thing; and two of the three copies of the `DOM-7` rationale.
+
 ## The engineering review — 2026-08-15
 
 Read `03`, `05` and `12` as **build instructions** rather than for internal consistency, which is
@@ -372,7 +507,8 @@ nests inside one. What survived was the *absence of a boundary rule*, now `LDG-6
 observation that today's safety is accidental, resting on `LDG-25` pricing privileged operations
 at zero so that `operation_fee_debit` is defined, paired, and posted by nothing.
 
-**F34 — there is no way to answer an abuse notice, and the design removed every channel. OPEN.**
+**F34 — there is no way to answer an abuse notice, and the design removed every channel. CLOSED
+2026-08-16** — see the grill session above; `ADR-0012` and `DOM-23`.
 Correcting `SEC-45` established what the obligation actually is — relay an allegation to a tenant,
 take back a statement, and answer the provider as its counterparty — and the specification has no
 surface for either direction. `ADR-0005` collects nothing, so there is no email and no contact;
@@ -393,11 +529,13 @@ deadlines and only one is real; and the statement is caller-supplied free text, 
 `13-wire-contract.md`'s existing rule applies — *"not a name, an email, or a transcript"* — or the
 abuse channel becomes the one door identity walks through.
 
-*Deferred deliberately.* It is a new product surface in a v1 that `ADR-0006` makes pass-through,
-with no external customer to validate it against, and its shape changed with every answer while it
-was being discussed. The first real notice handled end to end will say more than further editing.
+*Deferred deliberately, then taken up the next day.* The reasoning for deferring — a new product
+surface in a v1 that `ADR-0006` makes pass-through, no external customer to validate against, and a
+shape that changed with every answer — held right up until the design was walked branch by branch,
+at which point three of its parts turned out not to need building at all.
 
-**F35 — a provider-locked machine keeps billing and has no state. OPEN.** The provider's routine
+**F35 — a provider-locked machine keeps billing and has no state. CLOSED 2026-08-16 by `LDG-71`:
+it keeps billing, the case must say so, and delete stays available.** The provider's routine
 remedy is to **lock** the offending server, not terminate it. A locked machine is still allocated,
 still charged for, and unreachable by its owner — so `LDG-33` keeps draining `runway_until` for
 compute the customer cannot use, and `LDG-13` eventually cancels it for exhaustion having billed

@@ -579,7 +579,15 @@ Applies only to deployments using the admin-plus-override proxy pattern.
       every *conforming* implementation, since `STO-34`'s handle, issuance and assignment state
       must exist. It tests the prohibition instead: **no column in any table holds anything that
       could identify, locate or contact a person, or that derives from the caller's network path**
-      (`ADR-0005`). *Withdrawn text:* The `tenants` table holds no column beyond those specified. Asserted by a schema
+      (`ADR-0005`). **AMENDED 2026-08-16 — one carve-out, with its bounds named:**
+      `abuse_statements.body` and the `abuse_cases.sent_statement` derived from it are
+      caller-supplied free text the deployment MUST NOT inspect (`WIR-43`), and may therefore
+      contain what a tenant volunteered. They are bounded by `WIR-43`'s size cap, `STO-42`'s purge,
+      `STO-43`'s age, and `STO-40`'s rule that the content MUST NOT be used to identify, contact or
+      authenticate anyone or copied anywhere else. *Named rather than left implicit: this item
+      already had to be rewritten once for being unsatisfiable against the rest of the set, and a
+      conformance test every correct build fails is one that gets ignored entirely rather than
+      argued with.* *Withdrawn text:* The `tenants` table holds no column beyond those specified. Asserted by a schema
       test that **fails when a column is added**, because the way a privacy policy dies is one
       harmless-looking column. (`STO-21`)
 - [ ] **CNF-81** Operator credentials still come only from the environment, and no runtime-issued
@@ -934,6 +942,80 @@ rather than acquiring a default.
       alternative. `OPS-34` had no conformance item at all, on the requirement that made requeue
       implementable after `ADR-0005`. (`OPS-34`, `OPS-20`, `API-19`)
 
+### The abuse surface (grill session, 2026-08-16)
+
+- [ ] **CNF-222** **Address resolution answers from history, not from current state.** Machine A
+      holds `203.0.113.7` and is deleted; the address is later observed on machine B, owned by a
+      different tenant. Resolving `203.0.113.7` at an instant inside A's window returns **A**, and
+      at an instant inside B's returns **B**. Asserting only the live case passes against the
+      defect. **Run it on a machine created and never refreshed** — that is the ordinary machine,
+      and binding the history write to the refresh alone leaves it with none. The operations that
+      touched the machine in that window are recoverable alongside it (`SEC-45`), which
+      `GET /v1/operations` under `WIR-33`'s override already answers. (`SEC-54`, `STO-41`, `DOM-8`)
+- [ ] **CNF-223** Resolution returns a **candidate set**, and an address never observed at that
+      instant returns an empty one rather than a nearest match. An operator acting on a confident
+      wrong answer opens a case against an innocent tenant. (`SEC-54`)
+- [ ] **CNF-224** **No part of the notice reaches the customer surface.** With a case open, neither
+      the machine view, nor the case collection, nor the case detail, nor any error `details` on
+      those paths contains the provider's case reference, its statement link, its own wording, or a
+      third party the notice named. Run against **all three** read paths — one projection, three
+      renderers, and a rule enforced on some of them is the failure mode. **It does not assert the
+      absence of the provider's name**: `provider_account` is already in the machine view
+      (`WIR-11`) and `WIR-29` returns the account kind, so a test written that way fails every
+      conforming implementation. (`WIR-45`, `API-59`)
+- [ ] **CNF-225** **The deadline has no hands.** A case whose `respond_by` has passed with no
+      statement leaves the tenant unsuspended, the machine uncancelled, the balance untouched, and
+      the case still accepting statements. (`DOM-25`, `DOM-24`)
+- [ ] **CNF-226** Statements are append-only and unbounded in count while the case is `open`: a
+      second and third submission both succeed and both appear in order; submission after `closed`
+      is `409` `case_closed`; no endpoint edits or deletes one. (`STO-40`, `WIR-43`)
+- [ ] **CNF-227** **Closing purges raw statement bodies and keeps what was sent.** After close, the
+      statement rows survive with their timing, their `body` renders as `null`, and
+      `sent_statement` — plus `sent_verbatim` and the statement ids it covered — is still readable
+      by the operator. The purge commits in the close transaction, not after it. **And a case left
+      open past the configured age purges anyway**, which is the only clock that fires without an
+      operator. (`STO-42`, `STO-43`, `WIR-44`)
+- [ ] **CNF-231** A retried statement submission carrying the same `Idempotency-Key` appends **one**
+      statement, not two, and returns the same body. Under `STO-40` a duplicate can never be
+      deleted, and the caller is an agent with a retry loop. (`WIR-43`, `WIR-24`, `API-8`)
+- [ ] **CNF-232** `GET /v1/address-resolution` returns candidates ordered by `first_seen` with the
+      matched window on each, an empty array where nothing matches, and `out_of_horizon: true` for
+      an instant older than the deployment can answer for — distinguishable from "it was nobody's".
+      (`WIR-46`, `STO-43`)
+- [ ] **CNF-228** **REWRITTEN 2026-08-16 — it tested English.** A restricted machine keeps billing
+      and says so *structurally*: `network_restriction.status` reads `disabled` on the machine view
+      and in every case rendering, `usage_debit` postings continue, the commitment decays,
+      `runway_until` keeps moving, and `delete` on that machine is accepted. **No assertion about
+      prose.** *Withdrawn clause:* "the case's `consequence` states the drain" — no conformance run
+      can execute a judgement about whether a sentence says a thing. (`LDG-71`, `DOM-27`, `DOM-26`)
+- [ ] **CNF-233** `unknown` is never rendered as `none`. A machine whose driver reports no
+      restriction signal reads `"status": "unknown"` with a null `observed_at`, and an operator
+      recording is refused where the driver *does* report (`409` `state`). A field that is silently
+      `none` when nobody looked is worse than no field. (`PRV-35`, `WIR-47`)
+- [ ] **CNF-234** `warned_consequence` has no write path after open, and a deadline revision
+      appends: after two extensions the case carries both prior dates with their revision times,
+      and `respond_by` reads the latest. (`STO-44`, `WIR-47`)
+- [ ] **CNF-229** An open case blocks nothing else — create, install, extend-runway and delete all
+      behave exactly as they do with no case open. (`DOM-26`)
+- [ ] **CNF-230** A case is creatable **only** by an operator, and the statement write mints no
+      operation: it returns `200` synchronously and `GET /v1/operations` gains no row. (`API-60`,
+      `API-48`, `DOM-23`)
+
+### Assignments for `CNF-222`–`CNF-232` (grill session, 2026-08-16)
+
+**BLOCKING** — `CNF-222` and `CNF-223` (the wrong tenant is accused, and then invited to explain a
+machine that was never theirs — a cross-tenant disclosure the operator performs itself);
+`CNF-224` (a bearer credential whose use ends the operator's deadline, handed to a poll loop);
+`CNF-225` (a paying customer's whole fleet cancelled by a timer because a program stopped polling).
+
+**PRE-SCALE** — `CNF-226`, `CNF-227`, `CNF-228`, `CNF-229`, `CNF-230`, `CNF-231`, `CNF-232`. Each
+degrades the channel or retains text too long rather than destroying money, data or a tenancy
+boundary. `CNF-228` is the closest call: it is a customer paying for compute it cannot reach, which
+is a disclosure problem before it is a money one, and `LDG-71` makes the disclosure the requirement.
+
+*These four BLOCKING items are not yet folded into the count below; do that in the mechanical
+recount that section requires rather than by adding four to a number nobody re-derived.*
+
 ## Surface completeness
 
 - [ ] **CNF-149** Every endpoint the requirements mandate appears in the surface table, and every
@@ -1121,7 +1203,10 @@ See **The blocking count** at the end of this document; it is stated in one plac
       (b) Given a provider resource, an address and an instant, the system names the owning
       tenant, the machine, and the operations that touched it in that window — the fact an abuse
       answer depends on, previously supported by the schema and required by nothing.
-      (`SEC-45`, `API-58`)
+      **Half (b) was untestable as written and is superseded by `CNF-222`/`CNF-223`**: it said
+      "an instant" while the only data was current state, so any implementation passed it by
+      ignoring the instant — which is precisely the defect. Assert it against `STO-41`'s history
+      with a reissued address, or not at all. (`SEC-45`, `SEC-54`, `API-58`)
 - [ ] **CNF-114** **Only confirmed termination** closes the affected commitments and returns
       their reserved satoshis to available; an unreachable account or rejected credentials leave
       them open, with the exposure recorded as an operator deficiency. (`SEC-46`, `LDG-66`)

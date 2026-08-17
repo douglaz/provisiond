@@ -84,6 +84,32 @@ _Avoid_: recovery mode, live CD, netboot
 Putting a caller-chosen OS image onto a machine's disk. Destructive by definition.
 _Avoid_: deploy, provision, image (verb), reimage, rebuild
 
+### Abuse
+
+**Abuse notice**:
+What a provider sends the **operator** alleging that a machine did something its terms forbid.
+Addressed to the operator because the operator is the provider's sole counterparty
+(`08-provider-notes.md`). Carries the provider's own case reference, a dated deadline and a
+single-use statement link — none of which a tenant ever sees (`SEC-45`).
+_Avoid_: complaint, report, ticket, abuse case (that is the thing derived from it)
+
+**Abuse case**:
+provisiond's provider-neutral record of one notice: a machine, the operator's own summary of the
+allegation, a deadline and a consequence. The thing a tenant can read and answer. It is a
+*translation* of a notice, not a copy of one — which is what keeps the provider's wording, case
+reference and bearer link out of the customer surface, exactly as `WIR-30` and `LDG-26` keep
+provider price and raw metadata out. There is deliberately **no allegation class** (`DOM-23`).
+_Avoid_: notice (that is the provider's artifact), ticket, incident, violation
+
+**Statement**:
+A reply to an allegation, and the word does double duty: the **tenant's** statement is free text
+submitted to the operator, and the **operator's** statement is what actually reaches the provider.
+`SEC-45` makes the second the operator's own, informed by the first. They are separate records and
+neither becomes the other by default — but they are not sealed off from each other, because
+`ADR-0012` leaves forwarding a tenant's statement verbatim available as a **recorded per-case
+operator decision**. Qualify the word whenever both are in play.
+_Avoid_: response, appeal, explanation, defence
+
 ### Money
 
 **Balance**:

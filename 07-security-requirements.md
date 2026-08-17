@@ -271,19 +271,26 @@ What a deployment MUST actually be able to do:
 
 - **Resolve the notice to a tenant.** Given a provider resource, an address and an instant, the
   system MUST identify the owning tenant, the machine, and the operations that touched it inside
-  that window. This is the fact every answer depends on, it is answerable from `machines`
-  (`public_ips`, `tenant_id`, `provider_account`, `external_id`) and `operations`, and **no
-  requirement previously said so** — the capability existed in the schema and nowhere in the
-  normative set.
+  that window. This is the fact every answer depends on, and **no requirement previously said
+  so** — the capability was assumed to exist in the schema and appeared nowhere in the normative
+  set. **AMENDED 2026-08-16: it did not exist in the schema either.** This text claimed the
+  question was "answerable from `machines` (`public_ips`, …)"; `public_ips` is current state
+  overwritten by every refresh (`DOM-8`), so an address plus an *instant* had nothing to bind to,
+  and resolving against it names whichever tenant holds the address **now** — routinely a
+  different, innocent customer, since providers reissue addresses and the usual sequence is that
+  the machine was deleted before the notice arrived. `SEC-54` and `STO-41` supply the missing
+  history; the mechanism is `05-persistence.md`'s, and this bullet cites it rather than restating
+  it (see this document's scope note).
 - **Relay the allegation to that tenant and take back a statement**, in provider-neutral terms.
   The operator remains the provider's sole counterparty and fully liable (`08-provider-notes.md`),
   so the statement that reaches the provider is the operator's, informed by the tenant's. **The
   provider's own case reference and statement link MUST NOT be relayed to a tenant** — for the
   same reason `WIR-30` and `LDG-26` strip provider price, currency and raw metadata from the
   customer surface, and because that link is a one-shot bearer credential whose use ends a
-  deadline the tenant does not own. *The surface for this is specified separately and does not yet
-  exist; see `11-open-findings.md`. Under `ADR-0005` there is no email and no contact, so it can
-  only be a read the caller polls and a write it submits — the shape `LDG-15` already relies on.*
+  deadline the tenant does not own. *The surface now exists: `DOM-23`'s abuse case, `API-59`'s two
+  reads and `WIR-43`'s statement write, with `ADR-0012` recording why nothing is relayed in either
+  direction. Under `ADR-0005` there is no email and no contact, so it could only ever be a read the
+  caller polls and a write it submits — the shape `LDG-15` already relies on.*
 - **Suspend a tenant and cancel its fleet in one operator action** (`API-58`). This capability
   survives the amendment; only its justification changes. It is the operator's own decision to
   stop serving a tenant — an unanswered notice, a repeat offender, a legal instruction — and not
@@ -298,8 +305,23 @@ argument and stands on its own.
 
 **A locked machine still bills.** The provider's remedy leaves the machine running, charging, and
 useless to its owner, so the customer's runway keeps draining (`LDG-13`, `LDG-33`) for compute it
-cannot reach. `DOM-7` has no state for this and the meter has no rule for it; it is recorded as an
-open finding rather than guessed at here.
+cannot reach. *Settled 2026-08-16 by `LDG-71` and `DOM-27`: it keeps billing, the machine view carries the
+restriction as a structured fact beside `runway_until`, and delete stays available as the
+customer's own remedy. `DOM-27` owns the reasoning; this note cites it rather than repeating it,
+because the first version of that argument was copied into three documents and was wrong in all
+three.*
+
+**SEC-54** **The deployment MUST be able to answer which machines held a given address at a given
+instant, and MUST answer it as a candidate set rather than a single machine.** This is the first
+step of every abuse notice and the one with the worst failure mode: a confident wrong answer
+accuses an innocent tenant and then invites that tenant to explain a machine it never owned, which
+is a cross-tenant disclosure performed by the operator. The record it reads is `STO-41`, which
+stores **observation** windows — provisiond polls a provider rather than watching one — so the
+honest result is every machine observed holding the address in a window containing the instant,
+which MAY be empty and MAY hold several. **Operator-only** (`WIR-46`, `WIR-34`): it maps an
+address to a customer, which is the single most identifying join the system can perform. *It cited
+`API-60` until 2026-08-16, which covers creating, closing and recording transmission — none of them
+this, and none of them a `GET`.*
 
 **SEC-46** **AMENDED twice — and "lost" turned out to mean three different things.** Only one of
 them establishes that billing has stopped, and releasing on the other two hands the customer their

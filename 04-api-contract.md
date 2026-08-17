@@ -31,6 +31,15 @@
 | POST | `/v1/tenants/{tenant_id}/actions/suspend` | | Operator: suspend and cancel the fleet (`API-58`, `WIR-39`) |
 | POST | `/v1/tenants/{tenant_id}/actions/resume` | ✓ | Operator: clear the suspension (`API-58`, `WIR-41`) |
 | POST | `/v1/machines/{id}/actions/extend-runway` | ✓ | Grow the machine's commitment from available (`LDG-62`, `WIR-24`) |
+| GET | `/v1/abuse-cases` | ✓ | List the caller's abuse cases (`API-59`, `WIR-43`) |
+| GET | `/v1/abuse-cases/{id}` | ✓ | Read one abuse case, with its statements (`WIR-43`) |
+| POST | `/v1/abuse-cases/{id}/statements` | ✓ | Submit a statement; append-only (`WIR-43`) |
+| POST | `/v1/abuse-cases` | ✓ | Operator: open a case from a notice (`API-60`, `WIR-44`) |
+| POST | `/v1/abuse-cases/{id}/actions/close` | ✓ | Operator: close with an outcome (`DOM-24`, `WIR-44`) |
+| POST | `/v1/abuse-cases/{id}/actions/record-transmission` | ✓ | Operator: record what was sent to the provider (`WIR-44`) |
+| GET | `/v1/address-resolution` | ✓ | Operator: which machines held an address at an instant (`SEC-54`, `WIR-46`) |
+| POST | `/v1/machines/{id}/actions/record-network-restriction` | ✓ | Operator: record a restriction no driver can read (`DOM-27`, `WIR-47`) |
+| POST | `/v1/abuse-cases/{id}/actions/revise-deadline` | ✓ | Operator: extend `respond_by`, keeping the old value (`STO-44`, `WIR-47`) |
 
 **The enrolment, funding and balance rows were absent until 2026-08-12** — enrolment shipped on
 2026-08-11 and funding earlier the same day as that note, and the recovery, resolve, suspend,
@@ -154,6 +163,12 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     suspended tenant through on purpose. It sits *after* 5a deliberately: a write replayed from
     before the suspension must return its stored result rather than a spurious rejection, and only
     the fingerprint check can tell a replay from a new write.
+    **The abuse-statement write (`WIR-43`) is a maintenance action and MUST remain reachable while
+    suspended**, and `API-58`'s retained reads extend to the case reads. Added 2026-08-16: `SEC-45`
+    names an unanswered notice as a reason to suspend, so without this the operator's escalation for
+    silence is what guarantees the silence — and the sentence `STO-40` exists to capture, the late
+    one naming the actual cause, is refused at the moment it is most wanted. The write touches no
+    provider and moves no money, which is the same ground `WIR-41`'s resume stands on.
     **Requeue is exempt here only where the operation it requeues reduces exposure** — a cancel or
     a delete. That much is load-bearing: a suspended tenant's failed cancellation must stay
     requeueable or its machine bills forever (`OPS-39`, `LDG-20`). A requeue of an **ordering**
@@ -416,9 +431,12 @@ one-transaction rule enqueues the cancellation in the attach transaction itself,
 `OPS-39` trigger step (3) uses. **A process that dies mid-fan-out MUST NOT strand
 the suspension**: the parent's lease expires and it is re-claimed and resumed like any other
 queued work (`OPS-14`), because the sweep is idempotent by `OPS-39`'s trigger id and mutates no
-provider itself. It MUST NOT go to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger and machine list MUST continue
+provider itself. It MUST NOT go to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger, the machine list **and the tenant's abuse
+cases** (`API-59`) MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
-it anyway. `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to
+it anyway. *The case reads joined this list on 2026-08-16 for the same reason and one more: the
+collection exists because a notice commonly arrives after the machine is gone, and a suspended
+tenant is the likeliest holder of exactly that case.* `SEC-45`'s one-action termination is this verb; `API-34`'s deletion applies only to
 **pending** tenants, which have no machines. They MAY hold a below-minimum credit, whose ledger
 entries survive them (`STO-26`, `LDG-22`) and remain re-attributable through `WIR-42` — so
 "no ledger" was wrong, and it is the case `API-34` exists to handle.
@@ -515,6 +533,13 @@ closed, not a pattern.
 
 **AMENDED (2026-08-14): `POST /v1/deposits/{id}/actions/attribute` also joins** (`WIR-42`) — it
 posts a ledger entry and touches no provider.
+
+**AMENDED (2026-08-16): `POST /v1/abuse-cases/{id}/statements` also joins**
+(`WIR-43`) — the tenant's reply is read by the operator and transmitted, if at all, by hand
+(`ADR-0012`), so it touches no provider and mints no operation. The operator's own case verbs
+(`API-60`) join on the same ground, as do **`API-61`'s two**: recording a network restriction
+writes an observation the operator already made, and revising a deadline moves a date. *Written here, again, because the list is closed and an
+endpoint that exempts itself is how the first two exemptions went unrecorded.*
 
 **AMENDED (2026-08-13, second time): `POST /v1/tenants/{tenant_id}/actions/resume` also joins**
 (`WIR-41`) — it clears a flag and touches no provider. Suspension does **not**: it cancels a
@@ -816,3 +841,31 @@ provider state, bump a `last_seen`, or otherwise write — `DEF-11` records this
 starved by one internal periodic writer, and a read path that writes hands that trigger to every
 polling customer. Rate-limiter state stays in memory (`API-36` already requires this for
 enrolment; it is general).
+
+## Abuse cases
+
+`DOM-23`'s entity on the wire. `ADR-0012` is why every field here is the operator's own writing
+rather than the provider's.
+
+**API-59** **A tenant's abuse cases MUST be readable from both the machine view and a tenant-wide
+collection**, and every path MUST render one case projection defined once. `LDG-15`'s reasoning
+applies unchanged — *"a caller that is software will act on a number long before it would act on an
+email, and there is no email"* — and the collection exists because the common case is a notice
+arriving after the machine was deleted, where a tenant that no longer polls that machine would
+never find it. Three renderings and one projection: a wire rule enforced on one path and forgotten
+on another is how `WIR-45`'s ban would fail in practice, and the detail read — the one that adds
+statements — is the path most likely to be forgotten.
+
+**API-60** **Creating, closing, and recording transmission of a case are operator-only writes**,
+and none of them mints an operation (`API-48`). A case is not created from a caller request and
+not from a driver (`DOM-23`); the operator supplies the machine — or an address and an instant for
+`SEC-54` to resolve — the summary, the `warned_consequence` and the tenant-facing deadline.
+
+**API-61** **Recording a network restriction and revising a deadline are operator-only writes**
+(`WIR-47`), synchronous, minting no operation (`API-48`). Neither is a caller action: a customer
+cannot tell the system its machine was blocked, and cannot grant itself more time.
+
+*A case id is a resource id and is principal-scoped like any other: another tenant's case is `404`,
+identical to one that does not exist. That is `WIR-36`, cited rather than restated — a draft of
+this section carried its own copy of the rule, which is the second-normative-copy failure
+`SEC-46` is the standing example of.*
