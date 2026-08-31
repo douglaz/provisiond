@@ -207,13 +207,38 @@ recoverable **if and only if** the driver can read enough provider state to dist
 exactly where it cannot, because a scheduled cancellation's cost runs to its effective date
 regardless.
 
-**PRV-29** For any ambiguous mutation **other than create**, resolution MUST proceed by reading
-provider state for the machine's known `external_id` (`PRV-12`) — the identifier is known,
-which is precisely what a lost create reply lacks. The driver MUST expose cancellation state
-richly enough to separate *rejected*, *accepted-pending*, *scheduled with an effective date*, and
-*complete*; a driver that can only answer "the machine still exists" cannot resolve a
-cancellation, because all four states can look identical from outside. A driver that cannot make
-the distinction MUST declare so, and its machines MUST carry the unreduced `wind_down_cost`.
+**PRV-29** **AMENDED 2026-08-31 — the test is bounded freshness of evidence, not richness of
+state.** For any ambiguous mutation **other than create**, resolution MUST proceed by reading
+authoritative, non-mutating provider evidence anchored to the machine's known `external_id` and,
+where available, to the mutation attempt itself — the identifier is known, which is precisely what a
+lost create reply lacks. `PRV-36` ranks the sources and bounds their freshness.
+
+**A driver can resolve a non-create mutation if and only if it can bound the time after which its
+evidence is truthful** — by a source that is truthful immediately (the write path's own report, the
+provider's mutation history) or by `PRV-36`'s measured visibility window on a resource read. A
+driver that can do neither MUST declare so, and its machines MUST carry the unreduced
+`wind_down_cost`.
+
+Where a provider genuinely has long-lived *scheduled* and *accepted-pending* states — the
+robot-style cancellation with an effective date (`PRV-13c`, `DOM-19`) — the driver MUST additionally
+separate *rejected*, *accepted-pending*, *scheduled with an effective date* and *complete*, because
+there all four persist and look identical from outside.
+
+*The withdrawn text demanded that richness from every driver and said a driver that can only answer
+"the machine still exists" cannot resolve a cancellation. That was wrong in two directions at once.
+**Too narrow on evidence:** it mandated a `PRV-12` machine read and thereby excluded the stronger
+action-log and write-path sources `PRV-36` now ranks above it. **Too weak on freshness:** a naive
+driver satisfies its letter — it reads state for a known id — and still concludes "the delete
+failed" eight seconds after a successful delete, which is a confident wrong answer that an operator
+verb can act on, and worse than "I do not know". And it was perverse in the reserve: on a cloud
+provider that deletes immediately, the four states collapse to applied/not-applied plus an interval
+the window bounds, so the old wording put the provider with the **fastest** deletes into the
+**worst** `wind_down_cost` bucket — inflating, through `PRV-13b`, the commitment every customer must
+post before buying anything.*
+
+**Mutation complete, resource absent, and billing stopped are three different facts** and MUST be
+evidenced separately. An action reporting `completed` does not establish that billing stopped, which
+is `LDG-32`'s test and `PRV-13a`'s attachments' as well.
 
 **AMENDED 2026-08-15 — `wind_down_cost` MUST include the time the cancellation spends waiting for
 the machine lock.** Both sizings above measure from the moment the provider is *called*, and
@@ -570,6 +595,59 @@ for a provider that cannot answer — not a competing current value.
 *Added 2026-08-16, after `LDG-71` asserted that "nothing knows it is blocked" and a cross-model
 check found that Hetzner Cloud and Robot both do. The `DOM-7` exclusion survived that discovery;
 the reason written for it did not.*
+
+**PRV-36** **Read-after-write. A read of provider state is not authoritative about a mutation the
+driver issued until that provider's declared visibility window has elapsed.**
+
+`OPS-33` already states half of this and states it for creates: absence within the negative window
+is **not evidence** that nothing was created. This is the mirror, and it is the half that was
+missing — presence within the visibility window is **not evidence** that a mutation did not happen.
+One principle, two directions.
+
+**It was measured, not theorised.** Against the live DigitalOcean API on 2026-08-31,
+`DELETE /v2/droplets/{id}` returned `204`; a `GET` on the same id eight seconds later returned `200`
+with `"status":"active"` and a live public address; it returned `404` only on the next poll. A
+driver that reads "the machine still exists" as "the delete failed" therefore reports a successful
+deletion as a failure, and the remedy for a failed delete is to perform it again.
+
+**Per mutation kind it can be asked to resolve, a driver MUST declare its evidence sources in
+descending strength:**
+
+1. **The mutation endpoint's own report that the goal state already holds.** Truthful immediately;
+   it comes from the write path. *(The same measurement found `DELETE /v2/images/{id}` answers `422`
+   `"Can not delete an already deleted image."` on a second call, while `GET` answers `404` at the
+   same instant — the write path and the read path disagreeing about one resource.)*
+2. **The provider's mutation history for the known `external_id`** — an action or transaction
+   object. This is not a correlator and MUST NOT be described as one: `PRV-26` scopes correlators to
+   create, where the identifier is *unknown*. Here it is known, and what is needed is a stronger
+   place to read it from.
+3. **A read of the resource**, interpreted only through the declared window below.
+
+A stronger source, when consulted, overrides a weaker one. A weaker source never overrides a
+stronger one.
+
+**For the resource read the driver MUST declare a measured visibility window** in seconds, with
+sample size and date, under `PRV-13b`'s procedure — the worst observed request-to-observation
+latency over at least twenty real mutations — carrying a declared conservative bound marked
+**unmeasured** until twenty samples exist. Every ordinary mutation is a free sample. The window MUST
+be widened by any observed sample that exceeds it, and MUST NOT be narrowed except by
+re-measurement.
+
+**Within the window, a read showing the pre-mutation state is no evidence and resolution stays
+pending.** `OPS-27`'s resolution MUST NOT take its first read before the window has elapsed. **A
+read showing the post-mutation state is evidence at any time, and MUST NOT be reverted by a later
+contrary read** — reads flap in both directions, and a resolution already reached on absence is not
+undone by a stale replica. Beyond the window, a read still showing the pre-mutation state resolves
+the mutation as *not applied*.
+
+**Exceeding a declared window is a breach of the declaration, not a resolution.** It MUST be
+surfaced, MUST widen future sizing, and MUST NOT authorize a replay — `OPS-12` is untouched by this
+requirement.
+
+**Visibility and billing-stop are separate measurements and MUST NOT be conflated.** `PRV-13b`'s
+delete-to-billing-stop latency asks a different question, overlaps this one in time, and is still
+owed for every launch driver. *The 2026-08-31 DigitalOcean sample is a visibility sample, n=1,
+recorded as such in `08-provider-notes.md`; it is not a billing-stop sample.*
 
 ## Adding a driver
 

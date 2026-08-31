@@ -189,8 +189,22 @@ A failure is **ambiguous** when:
 - the error kind is `conflict` *and* it arose from lease or lock loss rather than from a
   provider-reported state conflict — the worker was cut off mid-flight; or
 - the error kind is `provider` *and* the upstream status was 5xx, or no upstream status
-  was recorded at all. A 4xx means the provider rejected the request and did not act; a
+  was recorded at all. A 4xx generally means the provider rejected the request and did not act; a
   5xx means it may have acted and then failed to say so.
+
+**AMENDED 2026-08-31 — "a 4xx means the provider did not act" is false, and believing it strands a
+customer's money.** For a **goal-state mutation** — delete, power on, power off, end rescue — a
+provider may reject the request precisely *because the goal state already holds*, and that rejection
+means the opposite of failure. Measured: `DELETE /v2/images/{id}` against a resource already deleted
+returns `422 "Can not delete an already deleted image."` Classified `failed` under the sentence
+above, a delete that succeeded is recorded as a failure, and `LDG-32` then never closes the
+commitment — the customer's satoshis stay reserved against a resource that is gone.
+
+**A provider rejection whose meaning is "already in the target state" MUST classify `succeeded`.**
+Which specific codes carry that meaning is a provider fact, so the mapping belongs in the driver
+(`PRV-5` already owns translating provider responses) and MUST be recorded in
+`08-provider-notes.md`, pinned to codes rather than to message text, and re-verified when the
+provider's API changes. This table states the rule; it does not enumerate anyone's error codes.
 
 **OPS-12** The system MUST NOT automatically retry an operation that ended
 `needs_reconciliation`, and MUST NOT automatically retry an ambiguous mutation under any
@@ -527,6 +541,43 @@ to prevent.
 
 This does not apply to a `tenant_suspended` cancellation (`API-58`, `OPS-27`). That one is not
 about funding, and a suspended tenant topping up its balance is not permission to keep the fleet.
+
+**OPS-42** **`OPS-41`'s re-check is not sufficient on its own, and a fence is what makes it work.**
+The window that decides whether a paying customer keeps its machine is **between the worker's read
+and its provider call**, not inside the read's transaction. `LDG-69` forbids a provider call under
+the money serialization, so the worker must release it before mutating — and `LDG-62`'s
+extend-runway can commit in that gap. Entering the serialization changes nothing; the worker still
+reads *unfunded*, still lets go, and still destroys a machine the customer has just paid for.
+Nothing in `LDG-62`, `OPS-36`, `OPS-39` or `OPS-41` closed it.
+
+**The cancellation and the extension MUST contend for one row, so that one of them provably loses:**
+
+- Before any provider mutation, an exposure-reducing cancellation MUST record its decision on the
+  machine row — `machines.destroy_committed` set to its own operation id — as a conditional write
+  guarded on that column being null, in the manner of `STO-3`. Where the write affects no row,
+  another actor won the race and the worker MUST abort the cancellation and settle as `OPS-41`
+  requires.
+- `LDG-62` MUST, in its own `LDG-35` transaction, conditional-write that same machine row guarded on
+  `destroy_committed IS NULL`, and MUST fail `conflict` where it affects no row. **No commitment is
+  opened or grown and no balance moves**; the tenant is told plainly that the machine is already
+  being cancelled.
+- Because both write the same row, the store totally orders them. Fence first: the extension is
+  refused, and the customer keeps its satoshis. Extension first: the worker's guarded write fails,
+  it re-reads under `OPS-41`, sees the new commitment, and makes no provider call.
+
+**This needs no lock at all, which is why it is the fence rather than the ordering.** `LDG-62` takes
+no machine lock — a synchronous caller write cannot wait behind an install holding that lock for up
+to `RSC-35`'s ninety minutes, and refusing to extend runway for the duration of an install is
+precisely the wrong failure. The worker takes the machine lock and never the tenant primitive. No
+cycle exists.
+
+**The residual is stated rather than solved:** a payment landing after the fence is refused rather
+than silently ignored, so the customer learns the machine is going and keeps its money. That is the
+honest outcome, and it is the one `OPS-36` promised when it called `OPS-41` "what makes `OPS-33`'s
+early release safe" — a promise that requirement could not keep alone.
+
+*Both reviewers of 2026-08-31 rejected the ordering-only fix independently and converged on a fence;
+the shape here is the one that does not make extend-runway wait on a machine lock.*
 
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look

@@ -224,13 +224,67 @@ prefix. The permitted character set is **[verify]** before a separator is chosen
 are separately billable resources on this provider, so `PRV-13a`'s attachment model is likely to
 matter *more* here than on Hetzner Cloud, not less.
 
-**Rescue** — **[verify], and this is the one that could invalidate `ADR-0010`'s framing.** It is
-not established that DigitalOcean offers an SSH-reachable rescue environment of the kind `RSC`
-assumes; its recovery story is built around a recovery ISO and a browser console. If there is no
-SSH-reachable rescue, the driver cannot declare `rescue_ssh`, `install_rootfs_via_rescue` or
-`install_raw_disk_via_rescue` — it would ship as a create/delete/power driver only, and
-`ADR-0010`'s claim that the launch set covers "both machine shapes across two companies" needs a
-caveat, because the *differentiator* would then exist on Hetzner alone.
+**Rescue** — **SETTLED 2026-08-31: there is no API to enter it. The driver MUST NOT declare
+`rescue_ssh`, `install_rootfs_via_rescue` or `install_raw_disk_via_rescue`.** **[observed —
+live API probe and two independent documentation passes, 2026-08-31]**
+
+The recovery environment exists and is SSH-reachable once running: DigitalOcean documents that
+network and SSH are enabled automatically, that keys present on the droplet **at creation** are
+imported, and that the rescue system presents different host keys. **SSH reachability was never the
+blocker. Automated activation is** — booting from the recovery ISO is a control-panel action only.
+
+The evidence, because `PRV-30`'s lesson is that absence of a documented side effect is not evidence
+of absence, and this is the inverse claim:
+
+- The documented droplet action types are `enable_backups`, `disable_backups`,
+  `change_backup_policy`, `reboot`, `power_cycle`, `shutdown`, `power_off`, `power_on`, `restore`,
+  `password_reset`, `resize`, `rebuild`, `rename`, `change_kernel`, `enable_ipv6`, `snapshot`. No
+  recovery action appears. A grep of the published OpenAPI specification finds no occurrence of
+  `recovery`, `rescue` or `iso` in any droplet context, and `godo`'s `DropletActionsService` exposes
+  no such method.
+- **Probed live:** `{"type":"enable_recovery"}` and `{"type":"recovery"}` both return
+  `404 {"id":"not_found","message":"The specified action type is not available."}` against an
+  unlocked, `active` droplet. Genuine unknown-action rejections rather than lock contention.
+- No substitute exists: `rebuild` overwrites the disk rather than booting beside it, root disks are
+  not detachable volumes, and `user_data` runs inside the normal OS on first boot.
+
+`ADR-0013` records what follows — the differentiator survives here by the custom-image route
+instead, so `ADR-0010`'s framing takes a caveat rather than a correction. **This closes `F32`.**
+
+**Custom images — the differentiator's route on this provider.** **[observed — live end-to-end test,
+2026-08-31]** `POST /v2/images` takes `{name, url, region}` and DigitalOcean **fetches** the URL;
+there is no upload path in the public API. Formats raw/qcow2/VHDX/VDI/VMDK, gzip or bzip2, no ISO,
+≤100 GB. `tags` is accepted on create and returned on the image object, which is what makes it
+usable as `OPS-32`'s correlator. The image polls `NEW → pending → available`, and is then usable by
+`POST /v2/droplets` or by a `rebuild` action.
+
+- **The documented "same OS family" restriction on rebuild is not enforced by the API.** One droplet
+  went `ubuntu-24-04-x64` → `fedora-43-x64` → a custom Alpine image registered as
+  `distribution: "Unknown OS"`; both rebuilds returned `201`, both actions reached `completed` (28s
+  and 16s), and the droplet's reported image changed each time. **Do not design around the API
+  enforcing it** (`PRV-13c`).
+- **A URL carrying a query string imported without difficulty** — 175 MiB reached `available` in
+  ≤22 s. DigitalOcean's `?dl=0` warning is about hosts that need the parameter to serve the file,
+  not about the importer parsing the URL. *`ADR-0013` re-hosts anyway, for integrity and to keep a
+  signed URL away from a third party — not because of this.*
+- **Guest requirements are strict:** BIOS only, ext3/ext4, cloud-init ≥0.7.7 with `ConfigDrive`
+  ahead of `NoCloud`, `sshd` enabled. Without a supported init system the droplet gets no key and no
+  network configuration and is unreachable, with no rescue path to fix it.
+- **Storage bills at $0.06/GB/month** and images are account-wide — not a Projects resource, so
+  there is no scoping below the team.
+
+**Delete visibility — read-after-write is eventually consistent.** **[observed — n=1, 2026-08-31]**
+`DELETE /v2/droplets/{id}` returned `204`; a `GET` 8 s later returned `200 "active"` with a live
+address; `404` by the next poll, so the window was under ~25 s. **`PRV-36` governs**, and this is a
+**visibility** sample only — `PRV-13b`'s delete-to-billing-stop figure for this provider is still
+unmeasured and still owed. One sample is not a bound; the declared window must be conservative and
+marked unmeasured until twenty exist.
+
+**Image delete is not idempotent, and disagrees with the read path.** **[observed, 2026-08-31]**
+First `DELETE /v2/images/{id}` → `204`. Second, immediately and again 2.5 minutes later → `422
+{"id":"unprocessable_entity","message":"Can not delete an already deleted image."}`, never decaying
+to `404`. `GET` on the same id at the same instant → `404`. Under `OPS-11`'s goal-state rule that
+`422` is a **success**, and the driver MUST map it so.
 
 **Key handling** — **[verify]** whether SSH keys are copied at droplet creation or read later
 (`PRV-9`, `DEF-6` — the defect that produced a machine nobody could log into).

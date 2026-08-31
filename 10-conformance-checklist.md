@@ -926,6 +926,29 @@ rather than acquiring a default.
       layer over the suite's traffic in the manner of `CNF-157`, not by reading the code. The
       running total and the entry commit together: kill the process between them and neither
       survives. (`LDG-72`, `STO-45`, `LDG-35`)
+- [ ] **CNF-237** **A delete is not resolved as failed while the provider is still catching up.**
+      With a provider whose resource read lags its write, an ambiguous delete resolves correctly:
+      resolution takes no read before the declared visibility window elapses, a pre-mutation reading
+      inside the window leaves the operation pending rather than concluding, a post-mutation reading
+      is never reverted by a later contrary read, and a pre-mutation reading beyond the window
+      resolves *not applied*. Assert with an injected read lag; a sample exceeding the declared
+      window widens it and does **not** authorize a replay. (`PRV-36`, `OPS-33`, `OPS-12`)
+- [ ] **CNF-238** **A goal-state rejection is a success.** A delete against an already-deleted
+      resource, where the provider answers 4xx meaning "already in the target state", classifies
+      `succeeded` and its commitment closes (`LDG-32`). Asserted against the driver's recorded code
+      mapping, not its message text. The failure this catches is a customer's satoshis reserved
+      forever against a resource that is gone. (`OPS-11`, `PRV-5`, `LDG-32`)
+- [ ] **CNF-239** **A machine funded a moment before its cancellation is not destroyed, and a
+      machine already fenced cannot be funded.** Drive both orderings against one machine: an
+      `extend-runway` committing before the worker's fence write leaves the machine alive with the
+      worker making no provider call; a fence written first refuses the extension with `conflict`
+      and **moves no satoshis**. Neither ordering may both take the payment and destroy the disk.
+      (`OPS-42`, `OPS-41`, `LDG-62`)
+- [ ] **CNF-240** **Attribution across two tenants deadlocks under no interleaving.** Two concurrent
+      `WIR-42` attributions naming each other's tenants both complete, in one transaction each, with
+      the primitives acquired in ascending tenant order; and an attribution whose source tenant row
+      was already reaped by `API-34` succeeds, proving the primitive does not require a live tenant
+      row. (`LDG-35`, `WIR-42`, `STO-26`, `API-34`)
 - [ ] **CNF-236** The running total is provably derived. An audit recomputation of
       `charged_magnitude` and `high_water_increment_end` from `ledger_entries` equals the stored
       row; a seeded mismatch **fails closed** rather than answering from either figure. This is
@@ -1277,6 +1300,20 @@ question (1) is answered no.
 **PRE-SCALE** — `CNF-235`. A quadratic meter degrades the store rather than mis-charging anyone —
 `DEF-11` is the precedent and it was a starvation, not a loss. It graduates the moment metering
 cadence is set finer than hourly, because that is when the arithmetic stops being survivable.
+
+### Assignments for `CNF-237`–`CNF-240` (locks, fences and freshness, 2026-08-31)
+
+**BLOCKING** — all four, and each lands in a named irreversible family.
+
+- `CNF-237` — a delete resolved as failed is a delete an operator requeues, which is a **repeated
+  destructive provider mutation**; question (3) of the tiering rule answered yes.
+- `CNF-238` — **money out**: the commitment never closes, so a customer's satoshis stay reserved
+  against a resource that no longer exists, and nothing raises an error.
+- `CNF-239` — **destroyed data**, and the one where the customer has already paid to prevent it.
+  `OPS-36` calls `OPS-41` "what makes `OPS-33`'s early release safe", so this is the test that makes
+  that release honest rather than believed.
+- `CNF-240` — a hung operator endpoint on the money path, and a primitive that cannot be acquired at
+  all on this endpoint's ordinary input.
 
 ### Assignments for `CNF-211`–`CNF-213` (multi-reviewer loop, pass 3)
 

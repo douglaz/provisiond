@@ -286,17 +286,46 @@ transaction, or a conditional write against a versioned balance row, and MUST st
 `STO-1` and `STO-2` specify exactly this kind of primitive for the queue and the machine lock;
 money needs one too, and did not have one.
 
-**LDG-69** **The serialization is scoped to its transaction, and it never nests with the machine
-lock.** A deployment MUST hold `LDG-35`'s primitive for the duration of one database transaction
-and no longer. While it is held, an implementation MUST NOT wait on an operation lease, a machine
-lock (`OPS-8`, `machine_locks`), the completion of a child operation (`API-58`, `WIR-39`), or any
-provider call. A transaction under this serialization MUST NOT acquire the machine lock, and a
-worker holding the machine lock MUST NOT enter it.
+**AMENDED 2026-08-31 — two tenants, one transaction, and the primitive cannot depend on a tenant
+row.** `WIR-42`'s attribution appends a correction pair spanning **two** tenants' ledgers and
+`LDG-70` requires every append to happen inside this serialization, so one transaction must hold two
+primitives — which this requirement never contemplated and never ordered. Therefore:
 
-Where the two must both be true of one machine, the order is the one the worker algorithm already
-executes (`03-operation-lifecycle.md`): **operation lease → machine lease → a short
-tenant-serialized transaction**, each released before the next actor needs it. `OPS-9` makes the
-machine lock try-and-defer rather than wait, so nothing blocks on it and no wait cycle can form.
+- **A transaction MAY hold the primitive for more than one tenant, and MUST acquire them in
+  ascending tenant-identifier order.** Two concurrent attributions in opposite directions would
+  otherwise deadlock, on the operator surface, on the money path.
+- **The primitive MUST NOT require a live `tenants` row.** The ordinary input to `WIR-42` is a
+  deposit whose tenant `API-34` already reaped, and `STO-26` deliberately removes the foreign key so
+  its entries survive. A primitive implemented as a per-tenant lock row — which the paragraph above
+  explicitly permits — would have nothing to lock for exactly the tenant being corrected.
+
+*Found by a cross-model review of the abuse and attribution surfaces. The deadlock is the visible
+half; the missing lock row is the one that fires on the common case.*
+
+**LDG-69** **AMENDED 2026-08-31 — stated as a lock order, because the absolute form forbade what
+`OPS-41` requires.** A deployment MUST hold `LDG-35`'s primitive for the duration of one database
+transaction and no longer. While it is held, an implementation MUST NOT wait on an operation lease,
+a machine lock (`OPS-8`, `machine_locks`), the completion of a child operation (`API-58`,
+`WIR-39`), or any provider call.
+
+**The permitted order is one-way: operation lease → machine lock → a short tenant-serialized
+transaction.** A worker holding the machine lock MAY enter the serialization for a bounded read or
+write; **a transaction under the serialization MUST NOT acquire or wait on the machine lock.** One
+direction cannot form a cycle, and `OPS-9` makes the machine lock try-and-defer rather than wait, so
+nothing blocks on it either.
+
+*The withdrawn clause was "a worker holding the machine lock MUST NOT enter it", stated absolutely
+and then followed by an ordering for the case it had just forbidden. Two independent reviewers
+found the contradiction. It was written when nothing needed the nesting; `OPS-41` was added a week
+later and is exactly a machine-lock-holding worker that must read commitment state another
+transaction writes under this primitive.*
+
+**And the order alone does not make `OPS-41` correct** — which is the sharper half, and both
+reviewers reached it independently. The window that matters is **between the read and the provider
+call**, not inside the transaction: this requirement rightly forbids a provider call under the
+serialization, so the worker must release it before mutating, and `LDG-62` can commit in the gap.
+Entering the serialization changes nothing about that. `OPS-41`'s correctness rests on the fence
+`OPS-42` specifies, not on this ordering.
 
 **This states an invariant the set currently satisfies by accident, and the accident is
 `LDG-25`.** Every `LDG-35`-serialized path today is machine-lock-free — enqueue-time
