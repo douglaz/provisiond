@@ -10,7 +10,10 @@ made on 2026-08-31 for a concrete reason: the gates had always lived in a scratc
 that directory was cleaned by age, and they ceased to exist without anyone noticing. A check
 that guards this set has to outlive the machine that last ran it.* The specs were extracted
 from a Rust reference implementation that was reviewed and found to be unbuilt, untested,
-and holed in two of its load-bearing safety claims.
+and holed in two of its load-bearing safety claims. The *architecture* of that implementation is
+worth keeping; the *code* is not. Everything the code got right is written down here as a
+requirement, and everything it got wrong is written down in `09-known-defects.md` as a requirement
+not to repeat it.
 
 ## Gates
 
@@ -24,10 +27,7 @@ and holed in two of its load-bearing safety claims.
 
 The workflow also breaks a document deliberately on every run and asserts the identifier
 gate rejects it. `DEF-16` is why: the discarded implementation shipped CI that ran a suite
-containing zero tests, and a green check beside it. The *architecture* of that implementation is worth
-keeping; the *code* is not. Everything the code got right is written down here as a
-requirement, and everything it got wrong is written down in `09-known-defects.md` as a
-requirement not to repeat it.
+containing zero tests, and a green check beside it.
 
 ## How to read this
 
