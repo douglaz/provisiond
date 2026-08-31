@@ -186,6 +186,7 @@ per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
   "committed_sats": 71900,
   "runway_until": "2026-09-11T14:00:00Z",
   "network_restriction": {"status": "none", "source": "provider_api", "observed_at": "2026-08-12T15:03:00Z"},
+  "last_install": {"strategy": "raw_disk", "bytes_verified_by_provisiond": true, "at": "2026-08-12T14:40:00Z"},
   "rate_outage_deadline": null,
   "effective_cancellation_date": null,
   "earliest_cancellation_date": null,
@@ -197,7 +198,9 @@ per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
 rescue address. `external_id` and raw provider metadata are **absent** on the customer surface
 (`DOM-5`, `LDG-26`). `network_restriction` is `WIR-47`'s, and it sits **here**, beside
 `runway_until`, on `LDG-15`'s reasoning: the drain and the reason for it should arrive in one
-response. `abuse_cases` (`WIR-43`) is absent when the machine has none.
+response. `last_install` is `DOM-29`'s, and is `null` on a machine nothing has installed; a client
+reading `bytes_verified_by_provisiond: false` is being told this system never saw what reached the
+disk, not that anything is wrong. `abuse_cases` (`WIR-43`) is absent when the machine has none.
 
 ## Endpoints
 
@@ -579,7 +582,9 @@ unassigned account `404`s (`WIR-36`):
   "min_runway_seconds": 3600,
   "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
   "max_rate_outage_seconds": 21600,
-  "install_strategies": ["provider_native", "raw_disk"]
+  "install_strategies": ["provider_native", "raw_disk"],
+  "max_image_bytes": 107374182400,
+  "guest_requirements": null
 }]}
 ```
 
@@ -601,6 +606,16 @@ own** — empty where it cannot establish one, refusing every strategy. It does 
 the provider account's declared capabilities (`DOM-10`): capabilities are per account and eligibility
 is per product, so the account of an operator who runs one rescue-capable box would authorize a
 disk-wiping install on an adopted machine that cannot take one (`05-persistence.md`).
+
+`max_image_bytes` is `RSC-40`'s enforced ceiling on a caller-supplied image, checked against the
+stream and aborting the transfer when exceeded; it is the only thing about the image provisiond
+checks, because interpreting the content would put a parser for hostile binary inside the
+credential-holding process. `guest_requirements` is **prose** the caller relays to whoever built
+the image — null where the strategy imposes none, and non-null for `provider_catalogue`, where the
+provider converts and boots the image and its own rules decide whether the machine comes up at all
+(`RSC-43`). Prose deliberately: an agent can compute against a byte count and cannot compute
+against "cloud-init configured with the correct datasource order", which only the image's author
+can guarantee. *Structured what the agent must compute, prose what it must understand.*
 
 `max_rate_outage_seconds` is `LDG-64`'s bound, disclosed before purchase because past it a
 machine is cancelled regardless of its runway. Prices are integers of satoshis, already margined by

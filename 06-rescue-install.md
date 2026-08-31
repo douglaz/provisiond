@@ -19,8 +19,11 @@ provider through the rescue lifecycle, and installs an image over SSH.
 9. Ask the driver to exit rescue and reset into the installed system (`PRV-21`).
 10. Remove any temporary provider-side credential.
 
-**RSC-1** The image MUST be downloaded by the rescue host, never by the control plane.
-The control plane never holds image bytes.
+**RSC-1** **AMENDED 2026-08-31 — scoped to the rescue strategies.** For `rootfs_via_rescue` and
+`raw_disk`, the image MUST be downloaded by the rescue host, never by the control plane, and the
+control plane never holds image bytes. *The rule was written for a path where the target machine has
+its own bandwidth and the control plane has no business in the data path. Catalogue install
+(`DOM-28`) has no rescue host to do the fetching, and `RSC-39` states what happens there instead.*
 
 **RSC-2** The engine MUST NOT contain provider conditionals. Everything provider-specific
 lives behind the driver interface.
@@ -249,3 +252,85 @@ network. It is normal for it to be an order of magnitude larger than the boot ti
 
 **RSC-37** The operation lease (`OPS-7`) is unrelated to these and MUST be renewed by
 heartbeat throughout, so a 90-minute install does not lose its lease at minute three.
+
+
+## Catalogue installation
+
+`DOM-28`'s second install feature. No rescue system is entered and the rescue engine above is not
+involved: the caller's image is imported into the operator's private catalogue at the provider, and
+the provider builds the machine from its own converted copy. `ADR-0013` records the decision and
+what was rejected.
+
+**RSC-39** **The operator re-hosts the image and verifies it in transit.** The provider fetches from
+a URL rather than accepting an upload, so something must serve the bytes. provisiond MUST fetch the
+caller's image, verify its `sha256` **as it streams**, store it in operator-controlled immutable
+storage (`RSC-30`), and give the provider a URL to that copy. The caller's own URL MUST NOT be
+passed to the provider.
+
+Two reasons, and only one of them is about the provider. A caller's signed URL is a credential
+(`SEC-21`), and handing it to a third party with no documented retention behaviour discloses it.
+And **without the re-host this path verifies nothing at all** — the provider fetches and converts
+the bytes and exposes no checksum field, so "integrity" would mean only that the provider fetched
+something.
+
+*The cost is real and is accepted: the control plane is in the data path for the size of the image,
+which `RSC-1` was written to prevent. That prohibition is narrowed rather than broken.*
+
+**RSC-40** **provisiond measures a caller's image and MUST NOT interpret it.** It counts the bytes
+and hashes them. It MUST NOT parse the content — not the partition table, not the image format, not
+the filesystem — and the caller's declared `format` and `compression` are taken on trust exactly as
+`WIR-20` already takes them on every other path.
+
+**A maximum image size MUST be declared per offer and enforced against the stream**, aborting the
+transfer when exceeded. That is the one check available without interpretation, and it doubles as a
+bound: without it an unauthenticated-adjacent caller can make the operator stream arbitrary bytes.
+
+**The prohibition is the load-bearing half, so the reason is recorded.** A parser for
+caller-supplied binary is a parser for hostile input from an anonymous stranger, and it would run
+inside the process that holds every provider credential and root on every customer machine —
+`OVR-10a` calls that process's boundary the only structural defence left. Image-format parsers have
+a long history of exactly this class of vulnerability. *Written down because the next reviewer will
+propose a cheap magic-byte check, and this is why it was refused.*
+
+**RSC-41** **The import happens outside the machine lock, and is bounded.** The import touches no
+machine; only the switch-over does. So the operation MUST import and poll the provider to a usable
+state while holding **no** machine lock, and acquire it only for the rebuild and the cleanup — a
+narrowing of `OPS-8`'s "for its duration" named explicitly here.
+
+**A maximum import wait MUST be stated**, past which the operation aborts and the imported image is
+deleted.
+
+Three things go wrong without this, and the third is the expensive one. The caller's existing
+machine is locked and idle while still billing. An exposure-reducing cancellation queues behind it
+(`OPS-9` defers rather than waits, so it simply does not run). And `PRV-13b` puts the deployment's
+worst-case machine-lock hold inside `wind_down_cost`, which sizes the reserve on **every machine in
+the fleet** — so an unbounded provider queue on one driver would raise the commitment every customer
+must post before buying anything.
+
+**RSC-42** **Both copies of the image are purged when the operation stops being live** — the
+operator's re-hosted copy and the provider's imported one — on entry to any settled state **and on
+entry to `needs_reconciliation`**, exactly as `OPS-2` purges the request payload. This is
+`ADR-0005` applied to a new object rather than a new rule invented for one, which is the move
+`STO-42` made for abuse statements.
+
+A requeue carries a fresh payload (`OPS-34`) and re-uploads. **The provider-side copy is deleted by
+a call that may fail or be lost**, so the import MUST carry the operation's correlator as a
+provider-side tag and `OPS-32`'s account sweep MUST delete any image whose operation has settled or
+vanished. An orphan is not merely a storage charge: it is a copy of a customer's operating system
+left in the operator's account after the deployment undertook to destroy it.
+
+**RSC-43** **A catalogue install settles on the provider's report, and provisiond makes no claim
+about the machine.** `succeeded` means the provider completed the build. It does **not** mean the
+machine booted, is reachable, or works.
+
+**provisiond MUST NOT probe the machine to decide.** A caller's image may legitimately ship no SSH
+daemon at all — a database appliance, a game server, a mesh node — so requiring one in order to call
+an install successful would be the lowest-common-denominator reduction `OVR-1` forbids. Verifying
+the machine is the customer's check.
+
+**What the deployment owes instead is disclosure.** The offer MUST carry the provider's guest-image
+requirements as prose the caller can relay to whoever built the image (`WIR-30`), and the machine
+MUST record that provisiond did not verify these bytes (`DOM-29`). An image that fails those
+requirements produces a machine that is running, billing, draining runway and unreachable, with no
+rescue path on this provider to fix it — and the customer's only remedy is delete. *That is a
+residual disclosed rather than solved, in the manner of `RSC-29`.*

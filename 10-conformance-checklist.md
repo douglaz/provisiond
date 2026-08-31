@@ -895,6 +895,76 @@ rather than acquiring a default.
       layer over the suite's traffic in the manner of `CNF-157`, not by reading the code. The
       running total and the entry commit together: kill the process between them and neither
       survives. (`LDG-72`, `STO-45`, `LDG-35`)
+- [ ] **CNF-257** **The install gate reads the matched attempt's copy, and nothing tests it today.**
+      Resolve an ambiguous create whose *earlier* attempt landed, and assert the attached machine's
+      `install_strategies` is the snapshot from that attempt's `request_summary` entry — not the
+      latest attempt's, and not the offer as it stands now. Then assert an install naming a strategy
+      absent from that copy is refused before enqueue. **No conformance item anywhere mentioned
+      `install_strategies` before this one**, and `05-persistence.md` calls it a safety gate: get it
+      wrong and a disk-wiping install is authorized on a machine that cannot take one. (`OPS-13`,
+      `WIR-30`, `DOM-13`)
+- [ ] **CNF-258** **Adopt places a commitment and gets a runway.** An adopt with insufficient
+      available balance is refused with no provider call; a successful one opens a commitment, sets
+      `runway_until`, and the machine enters the exhaustion sweep. Without it an adopted machine
+      consumes unstoppable billable compute against a balance nobody checked, and `PRV-13c` names
+      adoption as the main road onto the branch where cost cannot be stopped quickly. (`LDG-36`,
+      `LDG-12`, `PRV-13c`)
+- [ ] **CNF-259** **Idempotency still works after the payload is purged.** Re-send a key whose
+      operation has settled and whose `request` is gone: a byte-equivalent body returns the stored
+      result, a different one is `409`. Asserted against the canonical digest, since the payload it
+      would otherwise compare against no longer exists — which is the case `API-38` was written for
+      and `CNF-21` cannot reach. Both failures end in a duplicate purchase. (`API-38`, `API-11`,
+      `ADR-0005`)
+- [ ] **CNF-260** **A machine never has two open commitments.** Attempt every path that opens one
+      against a machine that already has one — create, requeue reuse, `LDG-62`'s extend on a machine
+      with none, `OPS-36`'s wind-down — and assert the store refuses. `OPS-20`'s reuse rule and
+      `LDG-31`'s "that machine's commitment" both rest on this and it was stated only as a storage
+      constraint. (`LDG-30`, `STO-23`)
+- [ ] **CNF-261** **Two workers race the machine lock and one loses.** Concurrent claims against one
+      machine: exactly one holds it, the other defers to `queued`; a lock whose lease expired is
+      taken over; a lock held live is not. Asserted under load against the storage primitive, not
+      the API. `CNF-26` races the operation claim; nothing raced this. (`STO-2`, `OPS-9`,
+      `machine_locks`)
+- [ ] **CNF-262** **Two re-derivations of one machine do not both apply.** Concurrent commitment
+      adjustments against the same row: one succeeds, the other's conditional write on `version`
+      affects no row and is retried or refused. This is the primitive `LDG-34` exists for and it had
+      no test. (`LDG-34`, `STO-28`)
+- [ ] **CNF-263** **The write target is verified to be a block device at run time.** A resolved
+      identifier pointing at a regular file, a partition, or anything that is not a whole block
+      device aborts before any write. `CNF-192` covers identity; this covers what the identity
+      resolves to. (`RSC-27`, `RSC-26`)
+- [ ] **CNF-264** **A PTR may only be set on an address the machine actually holds.** A
+      reverse-DNS request naming an address absent from the machine's recorded list is refused
+      before the driver is called, including an address belonging to another machine in the same
+      provider account. (`API-16`, `PRV-25`)
+- [ ] **CNF-265** **Catalogue install verifies in transit and never interprets.** The caller's image
+      is fetched by provisiond, its digest verified as it streams, and a mismatch aborts before
+      anything reaches the provider; the caller's own URL is never sent to the provider; an image
+      exceeding the offer's `max_image_bytes` aborts the transfer rather than completing it; and the
+      declared `format` and `compression` are taken on trust — asserted by supplying a
+      deliberately mislabelled image and confirming provisiond does not inspect it. (`RSC-39`,
+      `RSC-40`, `SEC-21`)
+- [ ] **CNF-266** **The import runs outside the machine lock and is bounded.** During the import the
+      machine's lock is free — a concurrent exposure-reducing cancellation acquires it and runs —
+      and the lock is taken only for the switch-over. An import exceeding the stated maximum wait
+      aborts the operation and deletes the imported image. (`RSC-41`, `OPS-8`, `PRV-13b`)
+- [ ] **CNF-267** **Both image copies are purged, and an orphan is swept.** On settle and on entry
+      to `needs_reconciliation`, the operator's re-hosted copy and the provider's imported one are
+      both gone. Then the case that matters: lose the provider-side delete's reply and assert the
+      account sweep deletes the image on its next pass, treating an "already deleted" rejection as
+      success. A copy of a customer's operating system left in the operator's account is the
+      failure, not the storage charge. (`RSC-42`, `OPS-32`, `OPS-11`, `ADR-0005`)
+- [ ] **CNF-268** **A catalogue install settles on the provider's word and says so.** With an image
+      that boots unreachable, the operation still settles `succeeded`, provisiond makes no
+      reachability probe, the machine's `last_install` reports
+      `bytes_verified_by_provisiond: false`, and the offer carried non-null `guest_requirements`.
+      **The absence of the probe is the assertion** — a caller's image may legitimately ship no SSH
+      daemon. (`RSC-43`, `DOM-29`, `WIR-30`, `OVR-1`)
+- [ ] **CNF-269** **`last_install` outlives the operation that wrote it.** Install a machine, let
+      retention delete the settled operation (`STO-14`), and assert the machine still reports the
+      strategy, the verification flag and the instant. A machine that outlives the record of how it
+      came to be is the defect `OPS-39`'s trigger id and `STO-43`'s ages were both moved onto this
+      row to avoid. (`DOM-29`, `STO-14`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. `CNF-71`'s compile-fail test asserts
@@ -1352,6 +1422,23 @@ question (1) is answered no.
 **PRE-SCALE** — `CNF-235`. A quadratic meter degrades the store rather than mis-charging anyone —
 `DEF-11` is the precedent and it was a starvation, not a loss. It graduates the moment metering
 cadence is set finer than hourly, because that is when the arithmetic stops being survivable.
+
+### Assignments for `CNF-257`–`CNF-269` (coverage gaps and catalogue install, 2026-08-31)
+
+**BLOCKING** — `CNF-257` (the install safety gate, which had no conformance item naming it at all —
+destroyed data); `CNF-258` (money out: an adopted machine billing against a balance nobody checked);
+`CNF-259` (both failure modes end in a duplicate purchase, which is what `API-38` was written to
+stop); `CNF-260` (two open commitments double-reserve a balance and break `OPS-20`'s reuse rule
+silently); `CNF-263` (destroyed data — writing a raw image to the wrong kind of device);
+`CNF-264` (a PTR set on an address the tenant does not hold crosses a boundary in the operator's own
+account); `CNF-265` (the only integrity check catalogue install has, plus the credential disclosure
+`SEC-21` forbids); `CNF-267` (a customer's operating system left in the operator's account after the
+deployment undertook to destroy it).
+
+**PRE-SCALE** — `CNF-261`, `CNF-262`, `CNF-266`, `CNF-268`, `CNF-269`. Concurrency primitives whose
+failures are contention rather than loss at concierge scale, a lock-hold bound that costs one
+machine's burn, and two disclosure items. **`CNF-261` and `CNF-262` graduate the day concurrent
+installs become routine**, which the tiering rule already names as a PRE-SCALE trigger.
 
 ### Assignments for `CNF-251`–`CNF-256` (structure, ceilings and custody, 2026-08-31)
 

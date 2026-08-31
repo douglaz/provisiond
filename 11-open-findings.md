@@ -627,12 +627,38 @@ suspension; `needs_reconciliation` being simultaneously terminal and expected to
 ceilings; `WIR-20`'s missing provider-published host-key variant, which was silently downgrading
 every Robot install to first-use trust.
 
-**Still open from this audit**, and recorded rather than quietly dropped: the DigitalOcean section
-now exists but is almost entirely `[verify]`, and **it is not established that DigitalOcean offers
-an SSH-reachable rescue at all** — if it does not, that driver ships without the differentiator and
-`ADR-0010`'s "both shapes across two companies" framing needs a caveat. This is `F29`'s pattern
-with the ink still wet: a launch decision resting on provider facts nobody had written down.
-**F32.**
+**F32. CLOSED 2026-08-31 — answered by measurement, and the answer was half of each.** The question
+was whether DigitalOcean offers an SSH-reachable rescue. **The reachability was never the blocker;
+automated activation is.** The recovery environment exists, runs `sshd` and imports the droplet's
+creation-time keys — but booting into it is a control-panel action. Two independent documentation
+passes agreed, one grepping the published OpenAPI specification and finding no occurrence of
+`recovery`, `rescue` or `iso` in any droplet context, and a live probe returned
+`404 "The specified action type is not available."` for both `enable_recovery` and `recovery`
+against an unlocked, active droplet. That is positive evidence of absence, which is what `PRV-30`'s
+lesson demands of a claim in this direction.
+
+So the driver declares no rescue capability. **But the differentiator survives there by another
+route**, established by walking the whole custom-image path against the live API: import from a URL,
+poll to available, build or rebuild, delete. `ADR-0013` makes that a second install feature —
+`DOM-28`, `RSC-39`–`RSC-43` — because the promises differ: the provider converts the bytes, exposes
+no checksum field, imposes its own guest requirements, and offers no way back into a machine that
+comes up wrong.
+
+**What was learned on the way is worth more than the finding.** The same test destroyed a documented
+constraint the design would otherwise have inherited: DigitalOcean's product pages say a rebuild
+must stay within one operating-system family, and **the API does not enforce it** — one droplet went
+Ubuntu → Fedora → a custom Alpine image in under two minutes, every action reporting `completed`.
+`PRV-13c` forbids encoding a provider's commercial terms as constants, and its first real test
+arrived early: the term was not encodable because it was not true.
+
+Two further facts came out of the same run and are recorded in `08-provider-notes.md` as measured:
+droplet deletion is **eventually consistent** on the read path (`204`, then `200 "active"` eight
+seconds later), which produced `PRV-36`; and image deletion is **not idempotent** and disagrees with
+the read path (`422` from `DELETE`, `404` from `GET`, same id, same instant), which corrected
+`OPS-11`'s claim that a 4xx means the provider did not act.
+
+*`F29`'s methodological lesson now has a fourth instance, and this time the shortcut was not taken:
+the provider fact was checked before the driver was written rather than after three audits.*
 
 ## Two holes found while checking the surface — 2026-08-12
 

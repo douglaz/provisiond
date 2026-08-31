@@ -75,3 +75,21 @@ policy, and leaves the driver interface unproven against anything but one API di
 - **`PRV-13c`'s "do not encode commercial terms as constants" gets its first real test.** Three
   products with three different cancellation stories is where an implementation that hardcoded
   Hetzner's behaviour will fail visibly.
+- **AMENDED 2026-08-31 — the caveat this decision anticipated has landed, and it is narrower than
+  feared.** `F32` asked whether DigitalOcean could run the differentiator. It cannot run it *by
+  rescue*: there is no public API to boot a droplet into recovery, confirmed by two documentation
+  passes and by a live probe returning `404 "The specified action type is not available."` So that
+  driver declares no rescue capability, and **rescue-based installation is exercised on Hetzner
+  alone in v1**.
+
+  But bring-your-own-OS survives there by another route: DigitalOcean imports a caller's image into
+  the operator's catalogue and builds from it, walked end to end against the live API. `ADR-0013`
+  makes that a second install feature with its own promises, so the launch set still covers the
+  differentiator across two companies — by two mechanisms rather than one. **What is Hetzner-only is
+  *arbitrary* images**: UEFI, non-ext filesystems, no cloud-init, byte-level control, chosen disk
+  layout, and a digest this system verified onto the disk.
+
+  The same test also destroyed a documented constraint this decision might otherwise have inherited:
+  DigitalOcean's product pages say a rebuild must stay within one OS family, and the API does not
+  enforce it. `PRV-13c`'s first real test therefore arrived early, and the rule held — the term was
+  not encodable as a constant, because it was not true.

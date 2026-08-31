@@ -260,7 +260,8 @@ how to get it onto the disk.
 |---|---|
 | `rootfs_via_rescue` | Boot rescue, fetch a root filesystem archive, run the provider's OS installer with a generated layout config |
 | `raw_disk` | Boot rescue, stream a raw image to a named block device |
-| `provider_native` | Use the provider's own rebuild or boot API |
+| `provider_native` | Use the provider's own rebuild or boot API against an image already in its catalogue |
+| `provider_catalogue` | Import the caller's image into the operator's private catalogue at the provider, then have the provider build the machine from its own converted copy (`DOM-28`) |
 
 **DOM-13** Only these pairings are valid; everything else MUST be rejected with an
 invalid-request error before the operation is enqueued:
@@ -270,6 +271,7 @@ invalid-request error before the operation is enqueued:
 | `rootfs_via_rescue` | `rootfs_tarball` |
 | `raw_disk` | `raw_disk` |
 | `provider_native` | `catalog` (~~`ipxe`~~ and ~~`iso`~~ withdrawn, `DOM-22`) |
+| `provider_catalogue` | `raw_disk` — the same caller input as a rescue raw-disk install, delivered by a different mechanism and with a different promise (`DOM-28`) |
 
 A valid pairing is necessary and not sufficient. Capabilities are per **provider account**
 (`DOM-10`), but rescue-install eligibility is a property of the **offer** — an auction listing and
@@ -278,6 +280,38 @@ a standard product at the same provider can differ — so the offer's `install_s
 rejected the same way. **The gate reads the machine's own copy of that list** —
 `machines.install_strategies`, taken from the offer at create and never re-resolved
 (`05-persistence.md`, `WIR-30`) — **not the offer as it stands at install time.**
+
+**DOM-28** **Catalogue install is a separate capability from rescue install, and the promises
+differ.** Both put a caller-chosen image on a machine, and that is all they share. `ADR-0013` holds
+the decision; this is what a reader of the domain needs.
+
+| | Rescue install | Catalogue install |
+|---|---|---|
+| Whose bytes reach the disk | the caller's, verbatim | the provider's conversion of them |
+| Digest verified by provisiond | yes, before writing (`RSC-25`) | **the caller's copy is verified in transit** (`RSC-39`); what the provider writes is not |
+| Guest requirements | none — any bootloader, any filesystem | whatever the provider imposes, disclosed per offer (`WIR-30`) |
+| Disk layout | caller-controlled (`RSC-22`) | whatever was baked into the image |
+| If the machine comes up wrong | boot rescue and fix it | there is no way back in |
+
+**They MUST NOT be collapsed into one strategy.** A single name would let a caller believe its bytes
+were checked onto the disk when nothing checked them, and let it send an image valid on one provider
+to another that cannot boot it. `WIR-30`'s per-offer `install_strategies` is what tells a caller
+which it is getting, and `DOM-10`'s capability is what stops a driver offering one it cannot do.
+
+**DOM-29** **A machine MUST record how it was last installed**, as `last_install`: the strategy
+used, whether provisiond verified the bytes, and when. It is a fact about the machine, not about the
+operation, and it lives on the machine row (`05-persistence.md`).
+
+**It has to live there because the operation that knows will be deleted.** `STO-14` removes settled
+operations on a configured age while the machine keeps running, so a long-lived machine would
+outlive the only record of how it came to be. This is the third fact that had to move onto the
+machine row for that reason — `OPS-39`'s trigger id and `STO-43`'s retention ages were the first
+two — and the pattern is recorded rather than rediscovered.
+
+**What it is for:** an agent facing a machine it cannot reach needs to know whether anyone verified
+these bytes and whether there is a rescue path back into this provider at all. Without it the only
+remedy it can reason its way to is install, which on a catalogue-install provider is both the sole
+remedy and the likely cause. That is `DOM-27`'s argument arriving at a second surface.
 
 **DOM-14** A digest MUST be required for `rootfs_tarball` and `raw_disk`, and MUST be
 exactly 64 hexadecimal characters, compared case-insensitively.
@@ -300,6 +334,7 @@ documents.
 | `rescue_ssh` | Activating a rescue environment reachable over SSH |
 | `install_rootfs_via_rescue` | The provider's OS installer accepts a root filesystem archive |
 | `install_raw_disk_via_rescue` | A raw image can be streamed to a block device in rescue |
+| `install_via_provider_catalogue` | A caller-supplied image can be imported into the provider's own catalogue and built from (`DOM-28`) |
 | ~~`custom_ipxe`~~ | **Withdrawn from v1 with its whole surface** (`DOM-22`) — no launch driver declares it |
 | `list_offers` | Enumerating purchasable offers (`DOM-22`) |
 | `reverse_dns` | Setting PTR records for assigned addresses |
@@ -324,6 +359,7 @@ Mapping from operation to required capability:
 | rescue inventory | `rescue_ssh` (`RSC-38` boots rescue to read the inventory) |
 | install, `rootfs_via_rescue` | `install_rootfs_via_rescue` |
 | install, `raw_disk` | `install_raw_disk_via_rescue` |
+| install, `provider_catalogue` | `install_via_provider_catalogue` |
 | reverse DNS | `reverse_dns` |
 | delete | `delete_machine` |
 
