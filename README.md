@@ -164,6 +164,21 @@ reads that index — an id may be absent from the documents only if it is listed
 carried a marker, about 2% of the set. Retention was never what made this large; 719 requirements
 did. But its value is wildly uneven, and the test above is what separates the halves.*
 
+### A decision gets its identifier when it is accepted, not when it is written
+
+**Added 2026-08-31, from a defect this convention would have caught.** A review session accepted
+forty-seven changes. Forty-six were phrased against an identifier — "amend `LDG-38`", "add
+`OPS-42`" — and one was phrased as "record this in `07-security-requirements.md`". That one was
+never written, and it was the only one that could not be. Checking the other forty-six was a `grep`;
+checking the last one required remembering it existed.
+
+So: **when a decision is accepted, name the identifier that will carry it** — the requirement it
+amends, or the next free number in the right namespace if it needs a new one. Mint the number at
+acceptance. An accepted decision with no identifier has nothing to search for, and the gates cannot
+help: nothing dangles, because nothing points at it.
+
+This costs one line at decision time and turns "did we apply everything?" into a command.
+
 ### Withdrawn identifiers
 
 Deleted from the documents. Never reused. Listed so an older citation still resolves.
