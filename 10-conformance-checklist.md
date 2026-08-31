@@ -965,6 +965,12 @@ rather than acquiring a default.
       strategy, the verification flag and the instant. A machine that outlives the record of how it
       came to be is the defect `OPS-39`'s trigger id and `STO-43`'s ages were both moved onto this
       row to avoid. (`DOM-29`, `STO-14`)
+- [ ] **CNF-270** **An imported image is not reachable by another tenant, and does not outlive its
+      install.** No caller-supplied input reaches the provider's image identifier — a caller can
+      name a URL and nothing else — so no tenant can build from another's image through this system.
+      The image is gone once the operation settles, and the deployment has stated how many tenants
+      share one provider account (`SEC-43`). Assert the first clause against the request surface,
+      not by reading the driver. (`SEC-55`, `RSC-42`, `API-17`, `SEC-43`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. `CNF-71`'s compile-fail test asserts
@@ -1443,6 +1449,10 @@ deployment undertook to destroy it).
 failures are contention rather than loss at concierge scale, a lock-hold bound that costs one
 machine's burn, and two disclosure items. **`CNF-261` and `CNF-262` graduate the day concurrent
 installs become routine**, which the tiering rule already names as a PRE-SCALE trigger.
+
+**`CNF-270`** (added 2026-08-31 with `SEC-55`) is **PRE-SCALE**: the exposure is operator-side and
+bounded by `RSC-42`'s purge to the length of one install, and no caller can reach it. It graduates
+if a deployment ever retains imported images past their operation.
 
 ### Assignments for `CNF-251`–`CNF-256` (structure, ceilings and custody, 2026-08-31)
 

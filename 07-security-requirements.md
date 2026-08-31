@@ -281,6 +281,36 @@ payment method, a contact address or a beneficial owner, and terminate them toge
 case the isolation is illusory and real separation requires distinct legal entities. **A control
 that has not been verified against the provider's actual practice is a belief, not a defence.**
 
+**SEC-55** **A catalogue install puts a customer's operating system in a catalogue shared with every
+other customer of that provider account, and the exposure is accepted and bounded rather than
+solved.** `ADR-0013`'s import route (`RSC-39`) writes the image into the operator's own account at
+the provider, and at least one launch provider offers **no scoping below the account** — custom
+images are not a per-project resource there, so any credential with image-read permission on that
+account can list one image and build a machine from it.
+
+**No caller can reach another tenant's image.** Callers supply URLs and never image identifiers, the
+identifier is minted internally per install, and `API-17`'s tenant scoping applies as everywhere
+else. **This is not a tenant-to-tenant hole**; it is operator-side concentration, of the same kind
+`SEC-41` records for abuse consequences and `SEC-44` records for account linkage.
+
+Two things bound it, and the deployment MUST rely on both rather than on either alone:
+
+- **Time.** `RSC-42` deletes both copies when the operation stops being live, so the window is one
+  install rather than the machine's lifetime, and `OPS-32`'s sweep deletes an orphan whose delete
+  was lost.
+- **Blast radius.** `SEC-43` already distributes tenants across multiple provider accounts, which
+  reduces how many customers share any one catalogue — a control that was written for account
+  termination and turns out to bound this too.
+
+**A provider account per tenant is not the remedy**, and the reason is `ADR-0002`: account or team
+creation is not a self-serve API act, and enrolment has no operator step by design. A separate
+account per anonymous stranger is not operable.
+
+*Recorded rather than mitigated further, and named so a deployment states it rather than discovers
+it. The alternative considered was making the delete part of the settling transaction; a provider
+call cannot be inside a database transaction, and phrasing it as ordering-plus-retry is how `STO-40`
+became self-contradictory.*
+
 **SEC-45** **AMENDED 2026-08-15 — the premise was wrong, and it was propagating.** The withdrawn
 text said a deployment MUST terminate one tenant and every machine it owns in a single operator
 action *"fast enough to meet the provider's abuse-notice deadline"*, and called responsiveness
