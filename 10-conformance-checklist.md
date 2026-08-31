@@ -278,7 +278,7 @@ everything in them is irreversible:
   `SEC-38` (rotation procedures, needed before the first credential ages out rather than before
   the first customer).
 - **`RSC-*` (now `RSC-1`–`RSC-38`).** Rescue writes to disks and holds root credentials. `RSC-31` (partition
-  growth), `RSC-33`/`RSC-34` (preflight capture) are the plausible PRE-SCALE exceptions.
+  growth), `RSC-33`/`RSC-34` (inventory capture) are the plausible PRE-SCALE exceptions.
 - **`PRV-6`, `PRV-9`–`PRV-13c`, `PRV-17`, `PRV-22`.** Injection, key-material timing, deletion
   semantics, rescue credential handling, ambiguity honesty.
 - **`OPS-1`–`OPS-23`.** The uncertainty model is the product's most valuable property and it
@@ -471,7 +471,7 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-45** On uncertain rescue exit, the recovery key is persisted and its path,
       with the rescue address and port, appears in the operation error. (`RSC-19`)
 - [ ] **CNF-46** The recovery directory is created owner-only. (`RSC-20`)
-- [ ] **CNF-47** The preflight report is attached to the operation result, and an
+- [ ] **CNF-47** The inventory report is attached to the operation result, and an
       unparseable report is captured raw rather than dropped. (`RSC-33`, `RSC-34`)
 - [ ] **CNF-48** A 90-minute install does not lose its lease. Simulated with compressed
       timers. (`RSC-37`)
@@ -791,7 +791,8 @@ rather than acquiring a default.
       (`API-57`, `STO-36`, `SEC-43`)
 - [ ] **CNF-192** An install naming a device identifier absent from a freshly re-read inventory,
       or carrying a stale `inventory_fingerprint`, aborts `integrity` **with no bytes written**.
-      Verified by mutating the inventory between preflight and install. (`RSC-26`, `RSC-38`)
+      Verified by mutating the inventory between the rescue-inventory pass and the install.
+      (`RSC-26`, `RSC-38`)
 - [ ] **CNF-193** A pending tenant's signup time-to-live exceeds the deposit expiry plus the
       finality window; a deposit minted at the last moment expires early enough that its own
       finality window still closes before the signup is reaped; and no tenant is deleted while a
@@ -823,8 +824,8 @@ rather than acquiring a default.
 - [ ] **CNF-200** A rootfs install naming a drive by unstable device path is rejected; the layout
       carries stable identifiers checked against the inventory fingerprint, exactly as raw-disk
       does. (`RSC-26`, `RSC-22`, `WIR-20`)
-- [ ] **CNF-201** A preflight carries a trust policy and is capability-gated on `rescue_ssh`; an
-      ambiguous preflight failure classifies like an install, not like a refresh — the machine can
+- [ ] **CNF-201** A rescue-inventory run carries a trust policy and is capability-gated on
+      `rescue_ssh`; an ambiguous failure classifies like an install, not like a refresh — the machine can
       be left in rescue. (`WIR-40`, `DOM-10`, `OPS-11`)
 - [ ] **CNF-202** Suspending a tenant returns a `suspend_tenant` operation whose children are
       readable through `GET /v1/operations`; resume is synchronous and restores no machines.

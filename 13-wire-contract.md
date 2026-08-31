@@ -151,7 +151,7 @@ commitment reserved, so a caller reads what it spent without diffing `GET /v1/ba
 `system_reason` non-null only when `requested_by` is `system` (`OPS-39`).
 
 **WIR-10a** **The closed enums**, so two strict parsers agree: `kind` ∈ {`create_machine`,
-`adopt_machine`, `refresh`, `preflight`, `power`, `install`, `reverse_dns`, `delete_machine`,
+`adopt_machine`, `refresh`, `rescue_inventory`, `power`, `install`, `reverse_dns`, `delete_machine`,
 `suspend_tenant`}; `status` ∈ {`queued`,
 `running`, `succeeded`, `failed`, `needs_reconciliation`} (`OPS-3`); `requested_by` ∈ {`caller`,
 `system`, `operator`} (`OPS-39`).
@@ -160,7 +160,7 @@ commitment reserved, so a caller reads what it spent without diffing `GET /v1/ba
 object (`kind`/`message`/`retryable`/`details`), without the envelope. `result`, when non-null, is
 per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
 `{"machine_id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20"}`;
-`install` and `preflight` → `{"preflight": {"devices": [{"identifier": "S4EVNF0N123456",
+`install` and `rescue_inventory` → `{"inventory": {"devices": [{"identifier": "S4EVNF0N123456",
 "path": "/dev/nvme0n1", "size_bytes": 1024209543168, "model": "SAMSUNG MZVL21T0HCLR",
 "type": "nvme"}], "uefi": true, "inventory_fingerprint":
 "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}}`
@@ -453,8 +453,8 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 - `raw_disk`: `source.type` `raw_disk` (`url`, `sha256`, `compression` ∈ {`none`, `gzip`, `xz`,
   `zstd`, `bzip2`}), a required **`target`** object — `{"identifier": "S4EVNF0N123456",
   "inventory_fingerprint": "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}`,
-  where `identifier` is a drive serial or WWN and the fingerprint is the one `RSC-38`'s preflight
-  returned — **not a device path** (`RSC-26`) —
+  where `identifier` is a drive serial or WWN and the fingerprint is the one `RSC-38`'s rescue
+  inventory returned — **not a device path** (`RSC-26`) —
   optional `grow_partition` (boolean, default `false`, `RSC-31`), and no `authorized_keys`
   (`RSC-14` forbids injecting into an opaque image).
 - `provider_native`: `source.type` is `catalog` (`image`); no `layout`, no `trust` (no rescue is
@@ -529,14 +529,15 @@ and mints no provider mutation — returning `200` with the updated operation vi
 `API-48`'s exemption and `STO-35`'s idempotency record. Minting an operation *about* an operation
 is a recursion `API-1` never intended.
 
-**WIR-40** `POST /v1/machines/{id}/actions/preflight` — `RSC-38`'s read-only inventory pass. Body
+**WIR-40** **RENAMED 2026-08-31** `POST /v1/machines/{id}/actions/rescue-inventory` — `RSC-38`'s
+inventory pass. Body
 carries the same **`trust`** object as an install (`WIR-20`), plus the same `on_failure` ∈
-{`exit_rescue` (**default**), `leave_in_rescue`}, and nothing else. Preflight enters rescue over
+{`exit_rescue` (**default**), `leave_in_rescue`}, and nothing else. It enters rescue over
 SSH, so it faces the identical host-key decision — an empty body could express neither a pinned
 key nor the explicit unpinned opt-in `SEC-22` requires, making it unusable on a strict driver or a
-silent trust downgrade on a lax one — and it faces the identical *exit* decision: a preflight that
+silent trust downgrade on a lax one — and it faces the identical *exit* decision: a run that
 fails partway has left the machine in rescue, and without this field the machine's state after a
-failed preflight is unspecified. `PRV-22` makes the rescue exit itself always ambiguous, so
+failed run is unspecified. `PRV-22` makes the rescue exit itself always ambiguous, so
 `exit_rescue` is the default and `leave_in_rescue` is the caller keeping the session for
 investigation.
 

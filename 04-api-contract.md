@@ -13,7 +13,7 @@
 | GET | `/v1/machines/{id}` | ✓ | Read one machine |
 | POST | `/v1/machines/{id}/actions/refresh` | | Re-read from the provider |
 | POST | `/v1/machines/{id}/actions/power` | | Power on/off, reboot, hard reset |
-| POST | `/v1/machines/{id}/actions/preflight` | | Read-only disk inventory before an install (`RSC-38`, `WIR-40`) |
+| POST | `/v1/machines/{id}/actions/rescue-inventory` | | Boot rescue and report the disks, before a destructive write (`RSC-38`, `WIR-40`) |
 | POST | `/v1/machines/{id}/actions/install` | | Install an image |
 | POST | `/v1/machines/{id}/actions/reverse-dns` | | Set a PTR record |
 | POST | `/v1/machines/{id}/actions/delete` | | Delete the machine |
@@ -43,7 +43,7 @@
 
 **The enrolment, funding and balance rows were absent until 2026-08-12** — enrolment shipped on
 2026-08-11 and funding earlier the same day as that note, and the recovery, resolve, suspend,
-resume, attribute and preflight rows were added later still, each with requirements and no place on the surface. A table
+resume, attribute and rescue-inventory rows were added later still, each with requirements and no place on the surface. A table
 that omits an endpoint the requirements mandate is `F19` in miniature, and it is the reason
 `API-48` now states the synchronous exemptions in one place instead of leaving each new endpoint
 to contradict `API-1` on its own.
@@ -181,7 +181,7 @@ The tail then depends on what the endpoint does:
 | Class | Tail |
 |---|---|
 | **create, adopt** | spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
-| **power, install, reverse-DNS, refresh, preflight** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
+| **power, install, reverse-DNS, refresh, rescue inventory** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
 | **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates, then **reuses the original commitment where it is still open** and opens a new one only where it was closed (`OPS-20`, `LDG-30`). It takes that class at **5b** as well: an ordering requeue for a suspended tenant is rejected `suspended`, an exposure-reducing one is not |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
 | **revoke** | operator or recovery-credential principal (`API-56`, `WIR-38`); synchronous, `200`, no provider mutation (`API-48`) |

@@ -309,7 +309,7 @@ Mapping from operation to required capability:
 | hard reset | `hard_reset` |
 | install, `provider_native` + `catalog` | `native_rebuild` |
 | list offers | `list_offers` |
-| preflight | `rescue_ssh` (`RSC-38` boots rescue to read the inventory) |
+| rescue inventory | `rescue_ssh` (`RSC-38` boots rescue to read the inventory) |
 | install, `rootfs_via_rescue` | `install_rootfs_via_rescue` |
 | install, `raw_disk` | `install_raw_disk_via_rescue` |
 | reverse DNS | `reverse_dns` |

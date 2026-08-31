@@ -10,7 +10,7 @@ provider through the rescue lifecycle, and installs an image over SSH.
 3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or
    the caller's policy resolves the question.
 4. Establish the host-key trust decision, and refuse to connect if it cannot be made.
-5. Wait for rescue SSH to answer, then collect a preflight report (block devices, UEFI
+5. Wait for rescue SSH to answer, then collect an inventory report (block devices, UEFI
    presence).
 6. Download the image *inside the rescue environment*.
 7. Verify the caller-supplied digest.
@@ -154,7 +154,7 @@ document satisfied.
 
 **The target MUST therefore be bound to identity, not to a name:**
 
-- **`RSC-38` makes preflight its own non-destructive operation** returning the block-device
+- **`RSC-38` makes rescue inventory its own operation** returning the block-device
   inventory with **stable identifiers** — serial and WWN — plus an opaque `inventory_fingerprint`
   over the whole device set.
 - **An install request MUST carry both** the chosen device's stable identifier and the
@@ -183,12 +183,21 @@ scoping the rule to raw-disk would have left the launch product's primary instal
 unstable identifier. Every caller-supplied disk reference MUST be a stable identifier checked
 against the same `inventory_fingerprint`.
 
-**RSC-38** **Preflight is a first-class read-only operation.** It boots rescue, collects the
+**RSC-38** **AMENDED 2026-08-31 — renamed from *preflight*. Rescue inventory is a first-class
+operation, read-only about the disk and about nothing else.** It boots rescue, collects the
 `RSC-33` report, and returns it without writing anything. It exists because the previous design
 gave a caller no way to see the inventory *before* committing to a destructive write — the
 information arrived attached to the result of the operation that had already destroyed the disk.
-Preflight MUST be free of side effects beyond entering and exiting rescue, and its report MUST
-carry the same `inventory_fingerprint` an install will be checked against.
+It MUST be free of side effects beyond entering and exiting rescue, and its report MUST carry the
+same `inventory_fingerprint` an install will be checked against.
+
+**The old name was the defect.** "Preflight" reads as harmless, and it is read-only about the
+*disk* only: entering rescue means rebooting the machine into another operating system (`PRV-15`),
+and `PRV-22` makes the exit *always* ambiguous, so a failure can strand a customer's machine there
+with nothing serving. `OPS-11` already has to classify it with `install` rather than `refresh` and
+say why, four documents away from the name that caused the confusion. `CONTEXT.md` bans the word.
+*The same word also means the CORS `OPTIONS` request in `WIR-4a` — it was ambiguous inside a single
+document before it was ambiguous about danger.*
 
 **RSC-27** The target MUST be validated as a simple path under the device directory, and
 the remote script MUST additionally verify at runtime that it is a block device.
@@ -219,14 +228,14 @@ It MUST be best-effort and MUST NOT fail the operation if the growth tool is abs
 **RSC-32** After writing, buffers MUST be flushed and the partition table re-read before
 any post-install step runs.
 
-## Preflight
+## The inventory report
 
-**RSC-33** Before writing anything, the engine MUST collect a machine-readable preflight
+**RSC-33** Before writing anything, the engine MUST collect a machine-readable inventory
 report — at minimum the block-device inventory (name, path, size, type, model, serial)
 and whether the firmware is UEFI — and MUST attach it to the operation result. This is
 the record that tells an operator afterwards which disk was actually overwritten.
 
-**RSC-34** A preflight report that fails to parse MUST be captured raw rather than
+**RSC-34** An inventory report that fails to parse MUST be captured raw rather than
 discarded.
 
 ## Timeouts
