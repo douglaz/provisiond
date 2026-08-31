@@ -383,11 +383,14 @@ billable_seconds = elapsed billable time for this SUBJECT and period
                  − Σ(absorbed_seconds on its deficiency records, counted only for
                      the part of each absorbed window lying inside this period,
                      LDG-66)
+                 − Σ(corrected_seconds on every correction naming one of this
+                     SUBJECT and period's usage debits, LDG-73)
 
 already_charged  = the MAGNITUDE already charged for this SUBJECT and period
                  = − Σ(signed amounts of the previous **usage** debits for this SUBJECT
                        and period, plus every correction naming one of them —
                        whenever that correction was posted, LDG-5, LDG-7)
+                 [read from LDG-72's running total, not recomputed per tick]
 
 posted_debit     = ceil(cumulative_exact_charge over billable_seconds)
                  − already_charged
@@ -446,17 +449,72 @@ as the formula does, is what makes both directions come out right; taking the ab
 each entry before summing would make a refund add to the amount already charged and re-charge the
 customer for money handed back.
 
-**The subject's high-water mark is the greatest `increment end` already posted for it** — derived
-by reading its own `usage_debit` rows, whose idempotency key carries that instant (`LDG-8`). It is
-a query over the ledger, not a stored column, and this requirement adds no schema. **An increment
-whose end instant is at or before that mark MUST be discarded, not posted** — a re-meter after
-restart re-observes elapsed time it has already charged, and without the mark the deduplication key
-protects only exact replays, not overlapping ones. **The mark, the cumulative sum and the insert
-MUST occur in one serialized transaction** (`LDG-35`): computing them outside it lets two
-concurrent runs both read the same prior total and both post. **Observation cadence is an
+**The subject's high-water mark is the greatest `increment end` already posted for it**, and
+**an increment whose end instant is at or before that mark MUST be discarded, not posted** — a
+re-meter after restart re-observes elapsed time it has already charged, and without the mark the
+deduplication key protects only exact replays, not overlapping ones. **The mark, the cumulative sum
+and the insert MUST occur in one serialized transaction** (`LDG-35`): computing them outside it lets
+two concurrent runs both read the same prior total and both post. **Observation cadence is an
 operational choice; it MUST NOT be a pricing input.**
 
+**AMENDED — the mark and the running sum are read from `LDG-72`'s record, not derived by query.**
+*The withdrawn wording said they were "a query over the ledger, not a stored column, and this
+requirement adds no schema", which was deliberate and was wrong: it makes tick `k` read `k−1` rows,
+so a period's metering cost is quadratic in its own tick count.* `LDG-72` states the replacement and
+the arithmetic that forced it.
+
 **`LDG-8` owns the key**; this requirement does not restate it. *A restatement here said `(subject, billing period, kind, posting index)` — the form `LDG-8` withdrew as unable to deduplicate — which is the duplication habit this set keeps paying for.*
+
+**LDG-72** **The meter keeps a running total per `(subject, billing period)`, written in the same
+transaction as the debit.** `LDG-38` defined `already_charged` as a sum over every prior usage debit
+for that subject and period, and its high-water mark as a query over the same rows — explicitly
+adding no schema. **That is withdrawn, and the reason is arithmetic:** tick *k* reads *k−1* rows, so
+the cost of metering a period is quadratic in the number of ticks in it. At hourly cadence that is
+roughly 267,000 row reads per subject per month; at the one-minute cadence `LDG-38`'s own rounding
+rule is written to accommodate, roughly 933 million — all of it inside `LDG-35`'s per-tenant
+serialization, on the single-writer store `STO-6` describes, whose one recorded starvation
+(`DEF-11`) was caused by two write transactions per second.
+
+**`LDG-70` diagnosed this exact shape for the balance read and fixed it. The meter had the same
+defect and the fix was not carried across.** It is carried across now, on the same terms:
+
+- The record MUST carry the **magnitude charged to date** and the **greatest `increment end`
+  posted** for that `(subject, billing period)`, and both MUST be written inside the same serialized
+  transaction that appends the debit (`LDG-35`, `STO-45`). It is therefore not a cache that can
+  drift — the serialization that already exists to prevent write skew is what keeps it exact.
+- `LDG-38` reads both from this record, which makes a tick a single indexed row read regardless of
+  cadence or of how far into the period it falls.
+- A `correction` naming one of that subject and period's usage debits MUST update the record in the
+  same transaction that appends it (`LDG-73`), so the satoshi and second channels never diverge from
+  the entries they summarise.
+- A deployment MUST provide an audit path that recomputes both figures from `ledger_entries` and
+  compares them, and a mismatch MUST **fail closed** in the manner of `LDG-20`'s solvency check. The
+  record is authoritative for speed; the entries remain authoritative for truth, and the two are
+  reconciled rather than assumed equal.
+
+**LDG-73** **A `correction` naming a `usage_debit` MUST carry the billable seconds it corrects, and
+`LDG-38` subtracts them.** Without this a correction is undone by the next tick, and the
+specification mandates it.
+
+`LDG-38` computes what to post as *the period's correct total minus what has already been charged*.
+A correction changes the second term and not the first, so the next tick observes that the period is
+short by exactly the corrected amount and charges it again. The customer sees a credit appear and
+vanish inside one metering interval, on the ledger `ADR-0002` makes the authorization system.
+
+**The two channels must move together.** `LDG-66` already established the mechanism: deficiency
+time is subtracted in **seconds**, before any conversion, because an outage accrues while no rate
+exists. This opens that same channel to the only other thing that adjusts a charge. A correction
+that returns *n* satoshis' worth of consumption carries the seconds that consumption represented,
+`LDG-38` removes them from `billable_seconds`, and the period's correct total falls to match — so
+the next tick posts nothing to claw back.
+
+**A correction naming an entry of any other kind carries no seconds** and is outside `LDG-38`'s
+arithmetic entirely; `WIR-42`'s re-attribution pairs name `topup` entries and are unaffected.
+
+*The cost accepted: a purely discretionary credit unrelated to elapsed time must still be expressed
+in seconds, which is an odd unit for it. The alternative considered and rejected was a new entry
+kind excluded from the netting, which opens `LDG-7`'s closed set and creates a second way to move a
+balance that the meter cannot see.*
 
 **LDG-39** **AMENDED — the setup fee has a lifecycle, not a single moment.** It is committed at
 create as part of `PRV-13b`'s sizing, and it becomes a debit **only when the order is known to

@@ -285,6 +285,7 @@ the authorization system.
 | `subject_kind`, `subject_id` | enum, UUID | nullable; `machine` \| `attachment` — **`LDG-8`'s *subject*.** Required on every `usage_debit`, because a machine and each of its billable attachments (`PRV-13a`, `machine_attachments`) are separately metered subjects and `LDG-38` sums `already_charged` **per subject**. Carrying only `machine_id` merges them, and the merge under-bills by whichever subject is not the one being posted |
 | `billing_period` | text | nullable; the period this entry falls in (`LDG-68`), required on every `usage_debit`. Part of `LDG-8`'s key and the boundary `LDG-38` apportions corrections and absorbed windows across |
 | `corrects_entry_id` | UUID | nullable; the entry this one corrects (`LDG-5`). Set on `correction` and on nothing else. `LDG-38` nets over "every correction naming one of them" and `WIR-42`'s re-attribution is reached through it — without the column neither is implementable |
+| `corrected_seconds` | integer | nullable; **required on a `correction` whose `corrects_entry_id` names a `usage_debit`, and null on every other correction** (`LDG-73`). The billable seconds the correction returns or adds, which `LDG-38` subtracts from `billable_seconds`. Without it a correction changes what has been charged but not what the period should total, and the next tick charges it straight back |
 | `idempotency_key` | text | not null; unique within the tenant (`LDG-8`). Derived from the thing being billed or from the payment (`STO-31`), never from a count of what has been posted |
 | `operation_id`, `machine_id`, `commitment_id` | UUID | nullable; `LDG-6`'s causation ids |
 | `settlement_ref` | text | nullable; the provider-side settlement reference once known (`LDG-6`) |
@@ -309,6 +310,35 @@ hands back a second time what it refunded. Both were requirements with no column
 
 **STO-22** `ledger_entries` MUST be append-only at the storage layer, not merely by convention —
 no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
+
+### `meter_totals`
+
+`LDG-72`'s running total. One row per `(subject_kind, subject_id, billing_period)`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `subject_kind`, `subject_id` | enum, UUID | `machine` \| `attachment` — `LDG-8`'s subject, the same one `ledger_entries` carries. A machine and each of its billable attachments are separately metered (`STO-38`) and so are separately totalled |
+| `billing_period` | text | `LDG-68`'s calendar month in UTC |
+| `charged_magnitude` | integer | the magnitude charged to date for this subject and period — `LDG-38`'s `already_charged`, maintained rather than recomputed |
+| `high_water_increment_end` | timestamp | the greatest `increment end` posted for this subject and period. An increment ending at or before it is discarded, not posted (`LDG-38`) |
+| `version` | integer | for the conditional write, in the manner of `LDG-34` |
+| `updated_at` | timestamp | |
+
+Primary key `(subject_kind, subject_id, billing_period)`.
+
+**STO-45** **The row MUST be written in the same transaction as the entry it summarises, and by no
+other path.** Every `usage_debit` and every `correction` carrying `corrected_seconds` updates it in
+the transaction that appends the entry, under `LDG-35`'s per-tenant serialization. There is no
+lazy-repair path and no background reconciler: `API-54` forbids a `GET` taking a write transaction,
+so a total repaired on read was never available, and `LDG-70` reached the same conclusion for
+`balance_after` by the same route.
+
+**It is a derived figure and MUST be provably derived.** `LDG-72` requires an audit path that
+recomputes both columns from `ledger_entries` and fails closed on a mismatch. The entries are the
+truth; this table is the speed. *This is the third denormalised money figure in the set —
+`balance_after`, the commitment's `reserved_sats`, and now this — and each one exists because the
+literal reading of its defining requirement was a scan. Stated here so the pattern is visible
+rather than rediscovered a fourth time.*
 
 **STO-26** `ledger_entries` MUST NOT carry a foreign key to `tenants`. The ledger is append-only
 and exempt from retention (`LDG-22`), while a pending tenant is deleted at its time-to-live

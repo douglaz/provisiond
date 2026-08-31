@@ -909,11 +909,27 @@ rather than acquiring a default.
       produce **separate** `already_charged` sums: charging the attachment does not reduce what
       the machine is billed, and neither does the reverse. Asserted against the stored subject,
       not against `machine_id`. (`STO-38`, `LDG-8`, `LDG-38`, `LDG-32`)
-- [ ] **CNF-215** Correction netting, three cases in one test. A `correction` that **reduces** a
-      charge makes the next tick post **more**; one that **increases** it makes the next tick post
-      **less**; and a correction posted in a later period nets against the period of the entry it
-      **names**, not the period it was posted in. A correction naming an entry of another kind is
-      excluded from the sum. (`LDG-38`, `LDG-5`, `LDG-7`, `STO-38`)
+- [ ] **CNF-215** **REWRITTEN 2026-08-31 — it tested the claw-back as correct behaviour.** A
+      `correction` naming a `usage_debit` carries `corrected_seconds` (`LDG-73`), and after it the
+      period's total is **stable**: the next tick posts neither the corrected amount back nor a
+      compensating credit, because both `already_charged` and `billable_seconds` moved. Assert
+      across a full metering interval, not just the posting. A correction posted in a later period
+      still nets against the period of the entry it **names**, not the period it was posted in; and
+      a correction naming an entry of another kind is excluded from the sum and carries no seconds.
+      *Withdrawn clauses:* "A `correction` that **reduces** a charge makes the next tick post
+      **more**; one that **increases** it makes the next tick post **less**" — true of the
+      arithmetic as it stood, and it described a credit being reclaimed within one tick.
+      (`LDG-73`, `LDG-38`, `LDG-5`, `LDG-7`, `STO-38`)
+- [ ] **CNF-235** The meter's cost per tick does not grow within a period. Meter one subject for a
+      full period at a cadence that subdivides it, and assert the storage reads per posting are
+      constant rather than proportional to the number of prior postings — asserted at the storage
+      layer over the suite's traffic in the manner of `CNF-157`, not by reading the code. The
+      running total and the entry commit together: kill the process between them and neither
+      survives. (`LDG-72`, `STO-45`, `LDG-35`)
+- [ ] **CNF-236** The running total is provably derived. An audit recomputation of
+      `charged_magnitude` and `high_water_increment_end` from `ledger_entries` equals the stored
+      row; a seeded mismatch **fails closed** rather than answering from either figure. This is
+      `CNF-219` applied to the second denormalised money number. (`LDG-72`, `STO-45`)
 - [ ] **CNF-216** The billing period boundary is `00:00:00Z` on the first of the month for every
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either. The same test covers a deficiency's
@@ -1250,6 +1266,17 @@ establish equivalence is a second physical order under terms nobody checked).
 money or data on the first occurrence: a straddling increment mis-apportions a partial period, a
 nesting violation is unreachable while `LDG-25` prices privileged operations at zero, and an
 unpriced lock wait costs one machine's burn for one install.
+
+### Assignments for `CNF-235`–`CNF-236` (the meter, 2026-08-31)
+
+**BLOCKING** — `CNF-236`. It is `CNF-219`'s argument applied to a second denormalised money figure:
+a running total that has silently drifted from the entries is a wrong charge on every subsequent
+tick, the operator would not learn it from anything but a customer complaint, and the tiering rule's
+question (1) is answered no.
+
+**PRE-SCALE** — `CNF-235`. A quadratic meter degrades the store rather than mis-charging anyone —
+`DEF-11` is the precedent and it was a starvation, not a loss. It graduates the moment metering
+cadence is set finer than hourly, because that is when the arithmetic stops being survivable.
 
 ### Assignments for `CNF-211`–`CNF-213` (multi-reviewer loop, pass 3)
 
