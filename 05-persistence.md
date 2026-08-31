@@ -84,10 +84,6 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**, which on a requeued create is the attempt that produced it. Nullable for adopted machines. *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
-| `reserve_sats` | integer | the currently held reserve |
-| `reserve_native_minor`, `reserve_currency` | integer, text | the same reserve in the provider's billing currency (`LDG-2`) |
-| `reserve_rate_num`, `reserve_rate_den` | integer | the exact rational used (`LDG-4`) |
-| `reserve_computed_at` | timestamp | drives re-derivation (`PRV-13e`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`) |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
 | `network_restriction_source` | enum | `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`) |

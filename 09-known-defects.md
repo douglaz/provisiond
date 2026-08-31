@@ -130,7 +130,7 @@ session resume across worker restarts, and it would fail at exactly the moment a
 needed recovering.
 
 **Prohibition** — a serializable credential-bearing type MUST round-trip, or MUST NOT
-derive deserialization at all (`DOM-11` (which now owns this, `DOM-12` having been folded into it)).
+derive deserialization at all (`DOM-11`, which owns this rule).
 
 *Reference: `crates/core/src/model.rs:116-124`.*
 

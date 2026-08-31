@@ -72,8 +72,10 @@ the server hashes it and compares in constant time against the stored hash — t
 from the environment (`API-4`), a customer token's from the `tenants` table (`STO-21`). The token
 maps to exactly one principal and an admin flag (`API-5`); nothing in the request body or path
 selects the principal. *The withdrawn version specified an Ed25519 signed-request scheme for
-customers (`WIR-6`–`WIR-8`); `API-39`'s reversal deleted it, and with it ~30 interoperability
-hazards the review had found in the signing string.*
+customers; `API-39`'s reversal deleted it, and with it ~30 interoperability hazards the review had
+found in the signing string. Those three requirements were swept on 2026-08-31 — the trap they
+record is that an elaborate authentication scheme was guarding a non-extractable asset, and
+`API-39` carries that argument in full.*
 
 **WIR-5a** **The request target**, referenced by `WIR-3`'s fingerprint, is the origin-form path
 with its query when one is present (`/v1/operations?terminal=false&limit=100`), the path alone
@@ -81,22 +83,6 @@ when none is (`/v1/machines`, never a trailing `?`). Because it now feeds only t
 fingerprint and not a signature, a proxy that normalizes it is harmless as long as the server
 fingerprints what it actually received; there is no cross-implementation byte-equality
 requirement on it beyond that.
-
-**WIR-6** **WITHDRAWN 2026-08-13.** Was the Ed25519 signed byte string. Customer auth is a bearer
-token (`API-39`); there is no signed request, no timestamp header, no canonical signing target.
-The panel's findings against this requirement — deployment binding, path canonicalization, body
-malleability, Ed25519 strictness — are moot because the construct is gone.
-
-**WIR-7** **WITHDRAWN 2026-08-13.** Was clock-skew tolerance for the signature timestamp. No
-timestamp is signed. **TLS remains the confidentiality layer** (`API-27`); a bearer token is a
-secret in transit and MUST NOT appear in a URL, a log line, or an operation record (`SEC-3`,
-`API-25`).
-
-**WIR-8** **WITHDRAWN 2026-08-13 — superseded, not deleted.** Was Ed25519 key rotation. There are
-no customer keys; **credential replacement is `WIR-38`**, authorized by the recovery credential
-(`API-55`, `API-56`). *An intermediate version of this requirement said rotation was out of v1
-scope because a stolen credential "cannot extract value" — that reasoning was wrong. A customer
-credential authorizes `install` and `delete`, so theft costs data and machines, not just balance.*
 
 ## The error envelope
 
@@ -471,16 +457,16 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
   returned — **not a device path** (`RSC-26`) —
   optional `grow_partition` (boolean, default `false`, `RSC-31`), and no `authorized_keys`
   (`RSC-14` forbids injecting into an opaque image).
-- `provider_native`: `source.type` ∈ {`catalog` (`image`), `ipxe` (`script`)}; no `layout`, no
-  `trust` (no rescue is entered); `catalog` MAY carry `authorized_keys`.
+- `provider_native`: `source.type` is `catalog` (`image`); no `layout`, no `trust` (no rescue is
+  entered); it MAY carry `authorized_keys`.
 
 **Every `layout.drives[].identifier` is validated exactly as `raw_disk`'s `target.identifier`
 is** (`RSC-26`): resolved against a freshly re-read inventory, matched to exactly one device, and
 aborted `integrity` before any write on zero or multiple matches. A rootfs install partitions
 disks, so naming them by unstable path destroys the same data.
 
-`rootfs_tarball` and `raw_disk` `sha256` are required and exactly 64 hex (`DOM-14`); `ipxe` and
-`catalog` carry no digest — this system does not touch those bytes (`SEC-16`, `DOM-22`). A `url`
+`rootfs_tarball` and `raw_disk` `sha256` are required and exactly 64 hex (`DOM-14`); `catalog`
+carries no digest — this system does not touch those bytes (`SEC-16`). A `url`
 subject to `OPS-40`'s two validity gates fails `invalid_request` with `details.url_expires_at`
 when it cannot outlive the install.
 

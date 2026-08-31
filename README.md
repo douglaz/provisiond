@@ -139,8 +139,55 @@ tests, and issue trackers:
 | `WIR-n` | Wire contract |
 | `CNF-n` | Conformance checklist items |
 
-Identifiers are append-only. If a requirement is withdrawn, mark it `WITHDRAWN` in
-place rather than renumbering the ones after it.
+### Identifiers are append-only. Text is not.
+
+**AMENDED 2026-08-31.** The rule was doing two jobs and only one was paying for itself.
+
+**Identifiers, absolutely.** An identifier is never reused and never renumbered. This costs nothing
+— zero bytes — and it is what makes a citation durable across seventeen documents, commit messages
+and future tests. `SEC-46` is cited from six places and `LDG-33` from eight; renumbering silently
+repoints every one of them, and a wrong citation in this set is how `SEC-46` shipped an amendment
+claiming to have applied while the requirement said the opposite.
+
+**Text, only where a trap sits behind it.** Withdrawn wording is retained when deleting it would let
+someone re-lay a trap — something that looked correct, was nearly built, and broke. `PRV-30`'s
+`comment` field, `LDG-8`'s posting index, `OPS-36`'s automatic seizure and `PRV-13e`'s three failed
+versions are all of that kind, and they stay. Withdrawn wording that merely records a fact that
+changed is **deleted outright** — no marker, no tombstone paragraph. Nobody re-adds five reserve
+columns by accident.
+
+**Deleting the text is not reusing the number.** The gap in the sequence *is* the tombstone. A
+deleted identifier goes in the index below so an old citation still resolves, and `tools/check_ids.py`
+reads that index — an id may be absent from the documents only if it is listed here.
+
+*The measurement behind the change: 61 of 719 requirements carried an amendment record and 199 lines
+carried a marker, about 2% of the set. Retention was never what made this large; 719 requirements
+did. But its value is wildly uneven, and the test above is what separates the halves.*
+
+### Withdrawn identifiers
+
+Deleted from the documents. Never reused. Listed so an older citation still resolves.
+
+| Identifier | Was | Why it went |
+|---|---|---|
+| `DOM-12` | A round-trip rule for the rescue-session type | Folded into `DOM-11`, which forbids persisting one at all. `DEF-9` keeps the defect it came from |
+| `API-30` | The front service's tenant-override rule | `ADR-0001` chose one deployable; the header it governed does not exist |
+| `API-31` | The front service's own audit log | Same shape, same reason. `SEC-32` already names the identity and tenant |
+| `PRV-24` | The driver's iPXE shebang check | Swept with the rest of the iPXE surface — `DOM-22` deferred the capability from v1 and no launch driver declares it |
+| `SEC-40` | Where per-principal ceilings live | `SEC-39` carries the whole obligation unconditionally |
+| `CNF-66` | The front service's chosen tenancy option, recorded | Conditional on a deployment shape `ADR-0001` deleted |
+| `CNF-67` | The front service's per-tenant signing or allowlist test | Same |
+| `CNF-68` | The front service's own audit log, joined by correlation id | Same |
+| `CNF-75` | "Recorded which separation form it chose" | The form is a constant, so the item tested nothing |
+| `CNF-204` | A duplicate of `CNF-193`'s middle clause | Duplicate |
+| `CNF-205` | A duplicate of `CNF-198` | Duplicate; its one distinct assertion moved into `CNF-198` |
+| `WIR-6` | The Ed25519 signed byte string | Reversed by `API-39`, which carries the argument in full — elaborate authentication guarding a non-extractable asset, at the cost of the most interop-fragile construct in the set |
+| `WIR-7` | Clock-skew tolerance for the signature timestamp | Nothing is signed |
+| `WIR-8` | Ed25519 key rotation | Superseded by `WIR-38`, authorized by the recovery credential |
+
+*Swept 2026-08-31. The `machines` table also lost five `reserve_*` columns in the same pass —
+written by nothing, read by nothing, and left over from the `holds` model `LDG-30` replaced on
+2026-08-12. Columns carry no identifier, so they are recorded here rather than listed above.*
 
 ## Language and runtime
 

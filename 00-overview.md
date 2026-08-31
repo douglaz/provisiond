@@ -106,8 +106,8 @@ lifecycle engine by code structure, not by a network hop.
 
 *The separate-service alternative and its comparison table are withdrawn. `ADR-0001` chose against
 it and records why; keeping both forms live meant every later requirement had to be written twice
-and `API-30`, `SEC-40` and `CNF-66`–`CNF-68` accumulated around a deployment shape this product
-does not have.* **`OVR-10a` is therefore the only structural credential defence**, which is what
+and a family of requirements accumulated around a deployment shape this product does not have
+(swept 2026-08-31; see the README's withdrawn-identifier index).* **`OVR-10a` is therefore the only structural credential defence**, which is what
 makes it load-bearing rather than belt-and-braces.
 
 **OVR-10a** A deployment choosing the single-component form MUST NOT leave provider credentials

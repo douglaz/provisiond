@@ -51,7 +51,7 @@ or the operator no longer reading every operation and every invoice line.
 exist.
 
 The rule *generates* items as well as sorting them. Applied honestly it demanded a conformance
-item for `OVR-10a`, which had none — that is `CNF-71`–`CNF-75` below.
+item for `OVR-10a`, which had none — that is `CNF-71`–`CNF-74` below.
 
 ### Assignments
 
@@ -68,7 +68,7 @@ self-declared most important property); `CNF-36`–`CNF-38`, `CNF-40`, `CNF-41`,
 `CNF-44`, `CNF-46` (rescue safety); `CNF-49`–`CNF-51`, `CNF-53` (image supply chain — each ends
 in an attacker-supplied image written to a customer's disk); `CNF-54`, `CNF-55`, `CNF-63`,
 `CNF-64`, `CNF-69` (money-out gates, including the term-billing honesty pair — "deleted but
-still billing" is unbounded operator money-out); `CNF-71`–`CNF-75` (the `OVR-10a` boundary,
+still billing" is unbounded operator money-out); `CNF-71`–`CNF-74` (the `OVR-10a` boundary,
 which in the single-component form is the only structural defence there is).
 
 **PRE-SCALE** — `CNF-2` (lint: hygiene, not harm — free, so do it early, but it gates nothing),
@@ -86,10 +86,6 @@ unstoppable billing — the money-out family, and `LDG-32` now depends on it).
 while the area sort below calls its parent `SEC-33` PRE-SCALE; the area sort is right, so
 `CNF-62` is **PRE-SCALE**. Likewise `CNF-60` is PRE-SCALE while `API-21`, which it tests, was
 sorted DEFERRED — `API-21` is corrected to PRE-SCALE.
-
-**N/A UNTIL SPLIT** — `CNF-66`–`CNF-68`. These are conditional on the admin-plus-override front
-service, which `ADR-0001` deletes by choosing the single component. Marked this way rather than
-deferred so they resurrect automatically if the architecture ever splits.
 
 ### Assignments for `CNF-76`–`CNF-115` (added 2026-08-11)
 
@@ -292,9 +288,7 @@ everything in them is irreversible:
   strategy/image pairing, digest requirement, error taxonomy, cancellation honesty.
 - **`API-7`–`API-19`, `API-22`, `API-24`, `API-25`.** Auth ordering, idempotency,
   validation, acknowledgements, authorization, redaction before storage, error mapping, message
-  hygiene. *`API-30` and
-  `API-31` were listed here and are dropped from the sort: both are WITHDRAWN under `ADR-0001`,
-  which deleted the front service they governed.*
+  hygiene.
 - **`STO-1`–`STO-5`, `STO-8`, `STO-8a`, `STO-9`, `STO-15`.** The transactional primitives the
   queue depends on, plus tombstone honesty and credential-grade storage.
 - **Every `DEF-*`.** They are prohibitions derived from defects that actually shipped.
@@ -303,11 +297,10 @@ everything in them is irreversible:
 `API-28`, `API-29` (listing, pagination, correlation ids, unauthenticated rate limits);
 `OPS-24`–`OPS-26` (fairness, retention, operator listing); `STO-12`–`STO-14`, `STO-16`
 (migration tooling, retention, backup handling); `SEC-32` (audit records, once more than one
-person acts); `OVR-13`; `DOM-9`, `DOM-11`, `DOM-15`, `DOM-16`. *`DOM-12` was listed here and is
-dropped from the sort: it is WITHDRAWN, folded into `DOM-11`, which is tiered in its place.*
+person acts); `OVR-13`; `DOM-9`, `DOM-11`, `DOM-15`, `DOM-16`.
 
-**DEFERRED** — guards a shape that does not exist yet, or is recoverable: `PRV-24`, `PRV-25`
-(iPXE and reverse DNS, if those capabilities are not in v1); `RSC-30`'s two-pass *default* if
+**DEFERRED** — guards a shape that does not exist yet, or is recoverable: `PRV-25`
+(reverse DNS, if that capability is not in v1); `RSC-30`'s two-pass *default* if
 `RSC-30` permits single-pass deliberately; anything
 governing providers not shipping in v1. *`API-22` was listed here as "presentation details" and is
 corrected to BLOCKING above: it restates `DOM-6` and `DOM-18`, both BLOCKING, and what it requires
@@ -352,11 +345,6 @@ not optional hardening — they are the only structural defence there is.
       constructors accept, not on runtime values. (`OVR-10b`)
 - [ ] **CNF-74** Operator-only routes — requeue above all, since it can re-issue a purchase
       (`API-19`, `OPS-20`) — are not served on the customer-facing listener. (`API-27`)
-- [ ] **CNF-75** **WITHDRAWN — `OVR-10` no longer offers a choice.** `ADR-0001` settled the
-      single-component form, so "recorded which form it chose" is satisfied by a constant and
-      tests nothing. `CNF-71`–`CNF-74` already test the boundary that form requires (`OVR-10a`),
-      which is the property this item was reaching for.
-
 ## Tenancy and authorization
 
 - [ ] **CNF-4** Tenant A cannot read, refresh, power, install on, or delete tenant B's
@@ -535,20 +523,7 @@ not optional hardening — they are the only structural defence there is.
       acknowledges everything and assert the ceiling stops it. (`SEC-39`)
 - [ ] **CNF-70** The deployment has recorded *where* ceilings are enforced and what each integer
       is. Under `ADR-0001` that is this control plane — there is no front service to defer to,
-      which is why `SEC-40` is withdrawn. (`SEC-39`)
-
-## Front-service tenancy boundary
-
-Applies only to deployments using the admin-plus-override proxy pattern.
-
-- [ ] **CNF-66** The deployment has chosen one of `API-30`'s three options and recorded which.
-      If "accept and document," the record explicitly states that `CNF-4`–`CNF-7` prove nothing
-      about the front service.
-- [ ] **CNF-67** If per-tenant signing was chosen: a forwarded request whose override does not
-      match its signature is rejected. If an allowlist was chosen: an override outside the
-      allowlist is rejected, and `DOM-1a`'s registry branch was selected. (`API-30`)
-- [ ] **CNF-68** The front service's own audit log attributes each action to a customer and
-      joins to the control plane's records by correlation id. (`API-31`, `API-28`)
+      which is why the front-service variant of this rule was swept. (`SEC-39`)
 
 ## Audit
 
@@ -856,13 +831,6 @@ rather than acquiring a default.
       (`WIR-39`, `WIR-41`, `API-58`)
 - [ ] **CNF-203** A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
-- [ ] **CNF-204** **WITHDRAWN — duplicate of `CNF-193`'s middle clause**, which already tests that
-      a deposit minted at the last moment expires early enough for its own finality window to close
-      before the signup is reaped. `CNF-193` is the survivor and is assigned PRE-SCALE there.
-      (`API-34`)
-- [ ] **CNF-205** **WITHDRAWN — duplicate of `CNF-198`**, which already tests the widened meter
-      key and the attachment collision. `CNF-198` absorbs the one thing this added: assert that
-      `LDG-8` and `LDG-38` state the *same* key, since they disagreed for a full pass.
 - [ ] **CNF-206** A disk identifier matching **two** devices aborts `integrity` with no write, and
       an offer whose devices expose no unique identifier is unsellable for rescue installs.
       (`RSC-26`)
@@ -1166,8 +1134,7 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       to a stored **hash** in constant time; the raw token appears in no log line, URL, or
       operation record; and an unknown or malformed token fails `authentication` before any body
       parsing (`API-7`). *Withdrawn signing-vector test: the Ed25519 scheme this checked
-      (`WIR-6`) was withdrawn 2026-08-13; a bearer token has no signing string to interoperate
-      on.* (`WIR-5`, `API-39`, `API-3`)
+      was withdrawn 2026-08-13; a bearer token has no signing string to interoperate on.* (`WIR-5`, `API-39`, `API-3`)
 - [ ] **CNF-175** A request with an unknown body field is rejected naming the field, and a
       response with an extra field is accepted by the reference client. Both directions of
       `WIR-2`, tested separately. (`WIR-2`)
@@ -1323,7 +1290,7 @@ minted `topup` would inflate the float, and the personal-data half is `ADR-0005`
 
 **PRE-SCALE** — none.
 
-### Assignments for `CNF-205`–`CNF-210` (multi-reviewer loop, pass 2)
+### Assignments for `CNF-206`–`CNF-210` (multi-reviewer loop, pass 2)
 
 **BLOCKING** — `CNF-206` (destroyed
 data on an ambiguous identifier), `CNF-207` (an invalid install body on the primary path),
@@ -1331,7 +1298,7 @@ data on an ambiguous identifier), `CNF-207` (an invalid install body on the prim
 
 **PRE-SCALE** — `CNF-208`, `CNF-210`.
 
-### Assignments for `CNF-195`–`CNF-204` (added 2026-08-13, from the multi-reviewer loop)
+### Assignments for `CNF-195`–`CNF-203` (added 2026-08-13, from the multi-reviewer loop)
 
 **BLOCKING** — `CNF-196` (credential disclosure by guessing a low-entropy string);
 `CNF-198` (deduplicated postings stop the commitment decaying — unbilled machine time);
@@ -1340,8 +1307,7 @@ data on an ambiguous identifier), `CNF-207` (an invalid install body on the prim
 token persisted in a replay table).
 
 **PRE-SCALE** — `CNF-197`, `CNF-201`, `CNF-202`. Each blocks a workflow or leaves a
-machine in rescue rather than losing money or data. `CNF-204` is withdrawn as a duplicate of
-`CNF-193`, which carries the same PRE-SCALE assignment.
+machine in rescue rather than losing money or data.
 
 ## The blocking count
 

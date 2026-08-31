@@ -408,16 +408,6 @@ notes, because it silently depends on the target image running a first-boot agen
 conflicts with a caller-supplied first-boot payload. The driver MUST NOT quietly discard
 either the keys or the caller's payload.
 
-### Boot iPXE
-
-**Input** — `external_id`, an iPXE script.
-**Output** — an action result.
-**Capability** — `custom_ipxe`.
-
-**PRV-24** The driver MUST reject a script that does not begin with the iPXE shebang.
-This is validated in the API layer too (`API-13`); the driver check is the backstop for
-direct driver use.
-
 ### Set reverse DNS
 
 **Input** — an IP address, a hostname.

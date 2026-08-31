@@ -91,10 +91,13 @@ including create (`DOM-10`). A driver-internal check is defense in depth, not th
 system writes** — `rootfs_tarball` and `raw_disk`, exactly `DOM-14`'s scope, verified on the
 rescue host (`RSC-25`). The original said "every custom image", which `F12` flagged as
 conflicting with `DOM-14` — and the conflict resolves on a capability fact, not a preference:
-for an iPXE script the booting machine fetches whatever the script names at boot time, so there
-are no bytes here to verify and a digest would attest nothing. Where this system does not touch
-the bytes, integrity is out of its reach and MUST NOT be implied; `SEC-17`'s provenance note
-applies with double force.
+where this system does not touch the bytes there is nothing here to verify and a digest would
+attest nothing. **The live case is catalogue install** (`ADR-0013`): the provider fetches the
+image, converts it and boots its own copy, and DigitalOcean's import API has no checksum field, so
+nothing on that path can attest what reaches the disk. *The example that carried this argument
+was the iPXE script, whose surface was withdrawn on 2026-08-31; the argument outlived it and now
+describes a path that ships.* Where integrity is out of this system's reach it MUST NOT be
+implied; `SEC-17`'s provenance note applies with double force.
 
 **SEC-17** Digest verification is *not* signature verification. It proves the bytes match
 what the caller asked for; it proves nothing about who authored them. Deployments that
@@ -188,12 +191,6 @@ and an emptied account.
 
 The distinguishing property is simple: **a ceiling is something the caller cannot set for
 itself.** Any control the caller supplies in its own request is advisory.
-
-**SEC-40** **WITHDRAWN — `ADR-0001` chose the single component and `ADR-0002` made the registry
-mandatory, so the per-principal state that ceilings need always lives here.** Was the rule that ceilings
-belong wherever per-principal state lives, which under `DOM-1a`'s withdrawn no-registry branch
-meant a front service (`API-30`) rather than the control plane. `SEC-39` now carries the whole
-obligation unconditionally.
 
 **SEC-29** Request bodies MUST be size-capped globally, and individual fields MUST be
 capped per `API-13`.

@@ -20,8 +20,8 @@ requirements written for a deployment shape this product does not have.*
   configured credentials say (`API-4`). Adequate when tenants are operator-configured and few.
   Consequence: nothing can verify that a tenant identifier arriving in a request names a real
   tenant — only that it is well-formed — so any front service passing tenants by header
-  carries the entire tenancy boundary on an unverifiable string (`API-30`, itself withdrawn with
-  the shape it described).
+  carries the entire tenancy boundary on an unverifiable string — a rule since swept with the
+  shape it described.
 - **Registry — the chosen branch.** The system owns tenant records and their lifecycle: create, suspend, resume,
   delete, credential rotation, and a defined answer for what happens to a suspended tenant's
   running machines. Required for self-serve enrolment, because a new tenant must be writable
@@ -151,10 +151,6 @@ NOT be logged, and MUST NOT appear in an operation result or error. Its in-memor
 representation MUST redact the credential in any debug or display formatting, and
 SHOULD zero the credential when dropped.
 
-**DOM-12** **WITHDRAWN — folded into `DOM-11`**, which already prohibits persisting a rescue
-session at all. A round-trip rule for a type that must never be serialized was specifying the
-behaviour of a path the same document forbids. *`DEF-9`'s defect stands as a prohibition.*
-
 ### Abuse case
 
 The operator's provider-neutral record of one **abuse notice**, and the only channel through
@@ -246,8 +242,7 @@ how to get it onto the disk.
 | `catalog` | `image` — a provider catalog identifier |
 | `rootfs_tarball` | `url`, `sha256`, `format` (`tar`, `gzip`, `bzip2`, `xz`, `zstd`) |
 | `raw_disk` | `url`, `sha256`, `compression` (`none`, `gzip`, `xz`, `zstd`, `bzip2`) |
-| `ipxe` | `script` |
-| ~~`iso`~~ | **WITHDRAWN 2026-08-12** — see `DOM-22` |
+| ~~`ipxe`~~, ~~`iso`~~ | **Both withdrawn from v1** — see `DOM-22` |
 
 | Strategy | Meaning |
 |---|---|
@@ -262,7 +257,7 @@ invalid-request error before the operation is enqueued:
 |---|---|
 | `rootfs_via_rescue` | `rootfs_tarball` |
 | `raw_disk` | `raw_disk` |
-| `provider_native` | `catalog`, `ipxe` (~~`iso`~~ withdrawn, `DOM-22`) |
+| `provider_native` | `catalog` (~~`ipxe`~~ and ~~`iso`~~ withdrawn, `DOM-22`) |
 
 A valid pairing is necessary and not sufficient. Capabilities are per **provider account**
 (`DOM-10`), but rescue-install eligibility is a property of the **offer** — an auction listing and
@@ -293,7 +288,7 @@ documents.
 | `rescue_ssh` | Activating a rescue environment reachable over SSH |
 | `install_rootfs_via_rescue` | The provider's OS installer accepts a root filesystem archive |
 | `install_raw_disk_via_rescue` | A raw image can be streamed to a block device in rescue |
-| ~~`custom_ipxe`~~ | **DEFERRED from v1** by the `DOM-22` precedent — no launch driver declares it |
+| ~~`custom_ipxe`~~ | **Withdrawn from v1 with its whole surface** (`DOM-22`) — no launch driver declares it |
 | `list_offers` | Enumerating purchasable offers (`DOM-22`) |
 | `reverse_dns` | Setting PTR records for assigned addresses |
 
@@ -313,7 +308,6 @@ Mapping from operation to required capability:
 | power on/off/reboot | `power_control` |
 | hard reset | `hard_reset` |
 | install, `provider_native` + `catalog` | `native_rebuild` |
-| install, `provider_native` + `ipxe` | `custom_ipxe` |
 | list offers | `list_offers` |
 | preflight | `rescue_ssh` (`RSC-38` boots rescue to read the inventory) |
 | install, `rootfs_via_rescue` | `install_rootfs_via_rescue` |
@@ -330,6 +324,14 @@ Mapping from operation to required capability:
   attaching boot media was ever specified, and no launch-set provider (`ADR-0010`) exposes
   arbitrary caller-supplied ISO attachment. The pairing returns only with a specified driver
   operation behind it.
+
+**AMENDED 2026-08-31 — `custom_ipxe`'s surface is swept, not merely deferred.** Striking the
+capability row on 2026-08-12 left everything downstream of it in place: an image source, a pairing,
+a capability mapping, a whole *Boot iPXE* driver operation with `PRV-24` behind it, an `API-13`
+validation row, a `WIR-20` body variant and a tier assignment — six documents describing a path no
+launch driver can declare, which a builder would implement before discovering nothing can reach it.
+All of it is deleted. `PRV-24` is in the README's withdrawn-identifier index. **iPXE returns with a
+driver that declares the capability, and it returns as one edit rather than six.**
 - **`list_offers` is added.** The offers endpoint previously documented itself as having no
   capability, which contradicted `OVR-2`'s rule that capability is discoverable rather than
   inferred — a caller had no way to know whether an empty offer list meant "nothing for sale"

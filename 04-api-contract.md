@@ -620,7 +620,6 @@ Validation happens at the boundary *and* again in the worker (`OPS-23`).
 | `external_id` (adopt) | 1–256 characters, and a provider-appropriate character set (`PRV-6`) |
 | SSH public keys | at most 64, each ≤16 KiB, each recognizably an OpenSSH public key |
 | expected rescue host keys | at most 16, each a complete OpenSSH public host key |
-| iPXE script | ≤128 KiB, begins with the iPXE shebang |
 | catalog image | 1–256 characters |
 | user data / post-install script | ≤1 MiB |
 | provider options | MUST be a JSON object |
@@ -686,21 +685,6 @@ returns only with a bring-your-own-machine product, which would need its own ADR
 
 **API-19** Requeue MUST be restricted to operators. A tenant token MUST NOT be able to
 requeue an operation, because requeue can re-issue a purchase (`OPS-20`).
-
-**API-30** **WITHDRAWN — `ADR-0001` chose the single component, so there is no front service
-proxying customer requests under one admin identity plus a tenant override.** Was the rule that
-the override header carried the entire tenancy boundary on a string this system could not check,
-obliging a deployment to sign per tenant, keep a synced allowlist, or accept and document. Both
-premises are gone: the override is now checkable against `DOM-1a`'s registry (`ADR-0002`), and
-tenancy is enforced in this process by `API-5`, `API-17` and `SEC-8`–`SEC-10`. *For what becomes
-of `CNF-66`–`CNF-68`, the checklist governs: it marks them **N/A UNTIL SPLIT** rather than
-deferred, so they resurrect automatically if the architecture ever splits
-(`10-conformance-checklist.md`).*
-
-**API-31** **WITHDRAWN — same reason as `API-30` (`ADR-0001`).** Was the requirement that a
-proxying front service keep its own request→customer audit log, because every record here would
-read "admin override". With one deployable the audit record of `SEC-32` already names the
-authenticated identity and the tenant, so nothing is lost to attribute.
 
 ## Operation views
 
