@@ -9,6 +9,18 @@ An isolation boundary. Every machine and every operation belongs to exactly one 
 **DOM-1** A tenant identifier MUST be 1–128 characters of ASCII letters, digits, `.`,
 `_`, `:`, or `-`.
 
+**AMENDED 2026-08-31 — a grammar is not an identity rule.** A tenant identifier MUST be
+**server-minted, globally unique, and never reused**, with enough entropy that it cannot be guessed
+or collided with. The original stated only the character set, which says nothing about where an
+identifier comes from or whether one can come round again.
+
+That matters because of two deliberate decisions elsewhere. `STO-26` and `STO-29` remove the foreign
+keys from `ledger_entries` and `deposits` to `tenants`, so a customer's money and payment
+destinations survive the tenant row `API-34` reaps — and attribution is by **identifier**. So a
+reused identifier does not merely collide: it hands a new caller a stranger's balance, their
+retained deposits and their idempotency namespace. *Found by a cross-model review; the invariant was
+assumed by three requirements and stated by none.*
+
 **DOM-1a** **SETTLED by `ADR-0002`: the system maintains a tenant registry.** It owns tenant
 records and their lifecycle — create, suspend, resume, delete, credential replacement — because
 self-serve enrolment requires a tenant writable at runtime. *The no-registry branch below is

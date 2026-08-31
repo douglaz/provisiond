@@ -721,12 +721,17 @@ to the party who knows their own constraints.*
 mechanism.** A Lightning invoice enforces its own expiry: after it, the payment cannot be made. An
 address does not and cannot — it stays payable forever, and nothing the operator does changes
 that. So on the on-chain rail the expiry means only that **the operator stops watching**, and that
-distinction MUST be disclosed to the caller at mint, in those terms. **An address that still looks
+distinction MUST be disclosed to the caller at mint, in those terms. **The disclosure MUST also say
+that during a solvency halt (`LDG-20`) the address remains payable and anything arriving is credited
+as an unsecured claim** — the one rail the halt cannot close, disclosed rather than discovered. **An address that still looks
 payable but is no longer watched is the trap this requirement exists to prevent**, and it is the
 one place in the funding design where a customer can lose money by doing something that looks
 correct.
 
-**LDG-55** **Settlement on one rail MUST NOT stop watching the other before expiry.** Both
+**LDG-55** **Settlement on one rail MUST NOT stop watching the other before expiry.** *One
+exception, added 2026-08-31: `LDG-20`'s solvency halt cancels unsettled Lightning invoices. That is
+the one rail whose life can be ended early, and ending it is what stops the operator taking money
+for a claim it has just computed it cannot honour.* Both
 destinations are live for the deposit's whole life, so a customer may pay both — most plausibly by
 paying on-chain, waiting, losing patience, and paying over Lightning. Each payment MUST be
 credited on its own terms (`LDG-47`); the deposit is not a receivable that closes on first
@@ -1004,7 +1009,28 @@ consumed with maximum provider cost through cancellation. An asset counts only i
 the provider's account before the liability falls due.
 
 **On failure the system MUST halt top-ups first**, then refuse every bill-increasing operation,
-while continuing to permit cancellation and deletion. The previous version halted sales and left
+while continuing to permit cancellation and deletion.
+
+**AMENDED 2026-08-31 — "halt top-ups" halts minting, and only minting.** Every destination already
+handed out stays payable: a Lightning invoice until its own expiry, an on-chain address forever
+(`LDG-54`), and `LDG-47`/`LDG-51` require crediting whatever arrives. So the float keeps growing
+during a declared insolvency, from destinations issued before it, and the requirement claimed a
+protection it could not deliver. What the deployment MUST actually do:
+
+- **Cancel unsettled Lightning invoices on unexpired deposits.** This is closeable and closing it is
+  safe: the rail is atomic, so an HTLC against a cancelled invoice fails back and the payer never
+  parted with funds — `LDG-48` already says an accepted-but-unsettled HTLC is not a payment. An HTLC
+  that settles concurrently with the cancel **was** received and MUST be credited. This is an
+  explicit exception to `LDG-55`, which otherwise forbids ending a destination's life early.
+- **Keep crediting everything that still arrives, on both rails.** Refusing or holding an arrived
+  payment is `LDG-43`'s forbidden outcome — a stranger's money with no way to return it, and
+  `ADR-0004` bars the refund that would resolve it.
+- **State that the on-chain rail cannot be halted** and that the float can still grow during a halt.
+  It is an accepted residual, not a gap.
+- **Surface it where a program will see it before paying.** The deposit read (`WIR-15`) MUST report
+  the halt and any cancelled invoice, with `gate: "solvency"`. The caller is an agent that polls;
+  a disclosure it can read beats one in the terms, which is `LDG-19a`'s standard applied to the one
+  moment it matters. The previous version halted sales and left
 funding open — so a customer could pay for a claim the operator had just computed it could not
 honour, which is precisely the misrepresentation `LDG-19` warns of. The operations that *reduce*
 exposure MUST never be gated by the check that fires because exposure is too high.

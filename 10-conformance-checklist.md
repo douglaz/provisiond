@@ -895,6 +895,58 @@ rather than acquiring a default.
       layer over the suite's traffic in the manner of `CNF-157`, not by reading the code. The
       running total and the entry commit together: kill the process between them and neither
       survives. (`LDG-72`, `STO-45`, `LDG-35`)
+- [ ] **CNF-241** **A create is refused rather than bought at a price nobody authorized.** With the
+      offer's provider price raised between accept and claim so the open commitment no longer covers
+      `PRV-13b`'s reserve, the worker fails the operation deterministically **with no provider call
+      and no ordering request**, and the error names the shortfall. With the price unchanged or
+      lower, it proceeds. No commitment grows in either case. (`OPS-43`, `PRV-13b`, `ADR-0011`)
+- [ ] **CNF-242** **A solvency halt stops what it can and says so about what it cannot.** Under a
+      failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
+      are cancelled and a payment attempted against one fails back with the payer's funds intact; an
+      on-chain payment arriving at an already-issued address is still **credited**, not held; and the
+      deposit read reports the halt with `gate: "solvency"` before a caller pays. (`LDG-20`,
+      `LDG-55`, `LDG-47`, `LDG-51`, `WIR-15`)
+- [ ] **CNF-243** **A tenant is not stranded on a dead provider account.** After `SEC-46` records a
+      confirmed termination, the affected tenants are surfaced to the operator, the re-assignment
+      verb gives one of them a live account, `GET /v1/providers` then returns it, and a create
+      against it succeeds. Every use of the verb emits a monitorable event naming principal, tenant,
+      before and after, and reason. A customer token calling the route gets `404`. (`API-62`,
+      `WIR-48`, `SEC-46`, `STO-36`)
+- [ ] **CNF-244** **Suspension is effective when the call returns.** A write issued by the tenant
+      immediately after `POST .../suspend` returns `202` — and before any worker has claimed the
+      parent — is rejected `suspended`. Asserted with the worker pool stopped, which is the state the
+      withdrawn wording left permissive. (`API-58`, `API-7`, `WIR-39`)
+- [ ] **CNF-245** **The account sweep has a budget.** It paginates the provider listing rather than
+      assuming one response, yields on `rate_limited` instead of retrying into it, does not delay
+      caller-initiated work, and reads by `(provider_account, external_id)` against the index
+      `STO-17`'s constraint supplies. An imported image whose operation has settled is **deleted** by
+      the same sweep, while an unclaimed machine is only reported. (`OPS-32`, `STO-17`, `ADR-0013`)
+- [ ] **CNF-246** **The balance poll does not grow with the fleet.** `GET /v1/balance` returns the
+      totals and `earliest_runway_until` with no per-commitment array; `?commitments=true` returns it
+      cursor-paginated, and on the full listing `committed_sats` equals the sum of `reserved_sats`.
+      Asserted against a tenant with more machines than one page holds. (`WIR-16`, `WIR-32`,
+      `API-49`, `LDG-9`)
+- [ ] **CNF-247** **A tenant identifier is minted, unique, and never reused.** Identifiers are
+      server-generated with stated entropy; a caller cannot supply or influence one; and no
+      identifier is ever issued twice, including after `API-34` reaps the tenant that held it.
+      Asserted against the generator, not by sampling. The failure it prevents is a new caller
+      inheriting a reaped tenant's balance and deposits, which survive by identifier alone.
+      (`DOM-1`, `STO-26`, `STO-29`, `API-34`)
+- [ ] **CNF-248** **Every mandated `409` carries a defined reason.** Drive each member of
+      `WIR-9a`'s `conflict` union — including `signup_window_closed`, `deposit_already_attributed`
+      and `cancellation_committed` — and assert the reason string is present and from the closed set.
+      A `409` with no reason, or one outside the union, fails. (`WIR-9a`, `API-34`, `WIR-42`,
+      `OPS-42`)
+- [ ] **CNF-249** **`?state=` on the case collection is honoured, and a bad value is refused.**
+      `open`, `closed` and `all` each return the right set; the default is `open`; and an
+      unrecognised value is `invalid_request` rather than ignored. The last clause is the one that
+      matters: `WIR-2` ignores unknown query parameters, so a silently-ignored `state` answers the
+      wrong question with a `200`. (`WIR-43`, `DOM-24`, `WIR-2`)
+- [ ] **CNF-250** **`network_restriction.source` is null exactly when nobody has looked**, and
+      `system_reason` parses against a closed enum. A freshly created machine renders
+      `{"status": "unknown", "source": null, "observed_at": null}`; a strict client parsing
+      `system_reason` against `WIR-10a`'s set accepts every value the system emits. (`PRV-35`,
+      `WIR-10a`, `WIR-47`)
 - [ ] **CNF-237** **A delete is not resolved as failed while the provider is still catching up.**
       With a provider whose resource read lags its write, an ambiguous delete resolves correctly:
       resolution takes no read before the declared visibility window elapses, a pre-mutation reading
@@ -1268,6 +1320,23 @@ question (1) is answered no.
 **PRE-SCALE** — `CNF-235`. A quadratic meter degrades the store rather than mis-charging anyone —
 `DEF-11` is the precedent and it was a starvation, not a loss. It graduates the moment metering
 cadence is set finer than hourly, because that is when the arithmetic stops being survivable.
+
+### Assignments for `CNF-241`–`CNF-250` (the review's mechanical and money set, 2026-08-31)
+
+**BLOCKING** — `CNF-241` (buying at a price the customer's balance was never checked against is
+unauthorized spending of the operator's money, silent until an invoice); `CNF-242` (taking money for
+a claim you have computed you cannot honour is the misrepresentation `LDG-19` names, and the
+crediting half prevents `LDG-43`'s forbidden stranding); `CNF-243` (a non-refundable balance that
+can buy nothing is a lost balance, and it is the only modelled catastrophe with no route back);
+`CNF-244` (a safety control whose latency is the queue's latency is one the operator cannot reason
+about); `CNF-247` (a reused identifier hands a stranger someone else's money, and nothing else in
+the set prevents it).
+
+**PRE-SCALE** — `CNF-245`, `CNF-246`, `CNF-248`, `CNF-249`, `CNF-250`. Each degrades service,
+throughput or interoperability rather than losing money or data on the first occurrence. `CNF-245`
+graduates when a second provider account exists, because that is when the sweep's cost becomes real;
+`CNF-248` and `CNF-250` graduate the day a second independent client implementation exists, on
+`CNF-152`'s reasoning — at that point the closed enums are the only shared contract.
 
 ### Assignments for `CNF-237`–`CNF-240` (locks, fences and freshness, 2026-08-31)
 

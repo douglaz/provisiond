@@ -40,6 +40,7 @@
 | GET | `/v1/address-resolution` | ✓ | Operator: which machines held an address at an instant (`SEC-54`, `WIR-46`) |
 | POST | `/v1/machines/{id}/actions/record-network-restriction` | ✓ | Operator: record a restriction no driver can read (`DOM-27`, `WIR-47`) |
 | POST | `/v1/abuse-cases/{id}/actions/revise-deadline` | ✓ | Operator: extend `respond_by`, keeping the old value (`STO-44`, `WIR-47`) |
+| POST | `/v1/tenants/{tenant_id}/actions/assign-provider-account` | ✓ | Operator: add or replace a tenant's provider-account assignment (`API-62`, `WIR-48`) |
 
 **The enrolment, funding and balance rows were absent until 2026-08-12** — enrolment shipped on
 2026-08-11 and funding earlier the same day as that note, and the recovery, resolve, suspend,
@@ -188,11 +189,18 @@ The tail then depends on what the endpoint does:
 | **resume, resolve** | **operator-only** (`WIR-41`, `WIR-35`, `WIR-34`); synchronous, `200`, no provider mutation (`API-48`). The recovery credential reaches **neither** — `API-55` confines it to `API-56`, and a recovered-after-theft credential that could resume its own tenant or resolve an uncertain provider mutation would undo the suspension that answered the theft |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
 | **deposit** | synchronous; allowed while pending; **refused `halted` while `LDG-20`'s solvency halt is in force** — that halt stops top-ups *first*, and minting a destination invites exactly the payment it forbids; otherwise **mints a destination and writes NO ledger entry** — a deposit is not money until it settles (`LDG-47`) — plus an idempotency record, in one transaction; `200` |
-| **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200` |
+| **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200`. **Fenced by `OPS-42`**: a conditional write on `machines.destroy_committed`, failing `conflict` where a cancellation already committed |
+| **abuse-case writes** | the tenant's statement (`WIR-43`) and the operator's five verbs (`API-60`, `API-61`) — synchronous, **no commitment, no spending gate, no provider mutation**; `201` on create and on a statement, `200` on the rest; each carries `Idempotency-Key` under `WIR-24`'s one-transaction rule. The statement write is a maintenance action and stays reachable while suspended (step 5b) |
+| **attribute** | operator-only (`WIR-42`); synchronous, `200`; posts ledger entries, so it **takes `LDG-35`'s serialization for both tenants, in ascending tenant-identifier order**, and the primitive must not require a live `tenants` row — the source tenant is normally already reaped |
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a
 machine during a rate outage — the one action that would have stopped the bleeding.*
+
+**The last three rows were added 2026-08-31.** Seven write endpoints — `attribute` and the six
+abuse-case verbs — had joined `API-48`'s closed list and `WIR-34`'s operator-route list and been
+missed here, so a builder reached step 5b and the instructions stopped. `attribute` is the one that
+mattered: it appends ledger entries to two tenants and nothing said it serialized.
 
 The activation check, the spending-authority check and the commit-and-enqueue transaction were
 all absent until 2026-08-12. The list was described as normative "for every
@@ -384,16 +392,15 @@ durably (`STO-34`). **It cannot be an operator step**: `ADR-0002` chose self-ser
 an agent enrolling at 3am has no human to wait for.
 
 **API-58** **A funded tenant MUST be suspended, never deleted.** Suspension is an operator action
-that (1) marks the tenant `suspended` atomically so no further **tenant-authorized** write succeeds —
+that (1) marks the tenant `suspended` **in the admission transaction, before the `202` is returned**,
+so no further **tenant-authorized** write succeeds —
 the maintenance actions of `API-7` step 2 remain reachable, because a suspended owner must still be
 able to revoke a stolen credential (`API-56`, `CNF-209`), and an operator must still be able to
 requeue a failed cancellation, though not a create (`API-7` step 5b) — then (2)
 **fences work already in flight** — a create claimed before the suspension landed MUST be allowed
 to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
-then (3) enqueues a system cancellation per machine (`OPS-39`) — **the suspension flag and the
-full fan-out MUST commit together, or a crash mid-fan-out leaves a suspended tenant with machines
-nobody will ever cancel and no write path left to notice** — then (4) **transitions work already
+then (3) enqueues a system cancellation per machine (`OPS-39`) — then (4) **transitions work already
 `queued` but never claimed straight to `failed`, carrying the reason in the operation's `error`:
 `conflict`, with `details.reason: "tenant_suspended"`** (`WIR-9a`, `WIR-10b`) — it
 has touched no provider, so cancelling it needs no operation, and it does **not** carry the error
@@ -440,6 +447,20 @@ tenant is the likeliest holder of exactly that case.* `SEC-45`'s one-action term
 **pending** tenants, which have no machines. They MAY hold a below-minimum credit, whose ledger
 entries survive them (`STO-26`, `LDG-22`) and remain re-attributable through `WIR-42` — so
 "no ledger" was wrong, and it is the case `API-34` exists to handle.
+
+**AMENDED 2026-08-31 — the flag lands at admission, not in the worker.** The withdrawn wording
+said "the suspension flag and the full fan-out MUST commit together", which on a `202`-returning
+endpoint (`WIR-39`) puts the flag in a *worker's* transaction. `API-7` step 5b reads
+`tenants.status`, so until a worker claimed the parent the tenant was not suspended and its writes
+were admitted — and `OPS-6` claims oldest-first, so its own queued work runs ahead of the suspension
+that was meant to stop it. `SEC-45` calls this "one operator action" and sells it as immediate; on a
+busy queue it was not effective on return.
+
+The crash-safety the withdrawn clause was protecting is supplied elsewhere and better: `OPS-14`
+returns a `suspend_tenant` parent whose lease expired to `queued` rather than to
+`needs_reconciliation`, and `OPS-39`'s trigger id makes the re-sweep idempotent, so a crash
+mid-fan-out strands nothing. **The flag and the enqueue of the parent commit together at admission;
+the fan-out is the worker's.**
 
 **Because the fan-out re-sweeps, resume MUST NOT be accepted while this parent is unsettled**
 (`WIR-41`): a machine created after an early resume is exactly what the re-sweep is built to find,
@@ -540,6 +561,9 @@ posts a ledger entry and touches no provider.
 (`API-60`) join on the same ground, as do **`API-61`'s two**: recording a network restriction
 writes an observation the operator already made, and revising a deadline moves a date. *Written here, again, because the list is closed and an
 endpoint that exempts itself is how the first two exemptions went unrecorded.*
+
+**AMENDED (2026-08-31): `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` also joins**
+(`API-62`, `WIR-48`) — it writes an assignment row and touches no provider.
 
 **AMENDED (2026-08-13, second time): `POST /v1/tenants/{tenant_id}/actions/resume` also joins**
 (`WIR-41`) — it clears a flag and touches no provider. Suspension does **not**: it cancels a
@@ -848,6 +872,30 @@ not from a driver (`DOM-23`); the operator supplies the machine — or an addres
 **API-61** **Recording a network restriction and revising a deadline are operator-only writes**
 (`WIR-47`), synchronous, minting no operation (`API-48`). Neither is a caller action: a customer
 cannot tell the system its machine was blocked, and cannot grant itself more time.
+
+**API-62** **A tenant's provider-account assignment MUST be changeable by an operator.** `API-57`
+writes it once, automatically, in the activation transaction, and nothing could change it
+afterwards — while `SEC-46` models the provider confirming an account is terminated and closes the
+tenant's commitments. The tenant is then assigned to a dead account, `WIR-29` returns it nothing it
+can buy from, and it holds a balance `ADR-0004` forbids refunding. **On a non-refundable product,
+"cannot buy anything" and "lost their money" are the same outcome**, and account termination is the
+one modelled catastrophe with no route back.
+
+The verb is **operator-only** and synchronous, mints no operation (`API-48`), writes
+`tenant_provider_accounts` and bumps its `policy_version` (`STO-36`). It MUST NOT be a customer
+action: a tenant choosing its own account would contradict `DOM-3`, and the assignment is
+simultaneously `SEC-43`'s blast-radius control, so it stays where that control does.
+
+**`SEC-46`'s confirmed-termination path MUST surface the affected tenants** rather than leaving the
+operator to find them, and **every use of this verb MUST emit a monitorable event** naming the
+principal, the tenant, the accounts before and after, and the reason — because this surface is
+expected to be driven semi-automatically by an internal agent (`SEC-39` as amended for operator
+principals), and an automated re-assignment nobody can observe is one nobody can stop.
+
+*Automatic re-assignment on account loss was rejected: it moves every affected tenant at once,
+precisely when the surviving accounts are least able to absorb them, and `SEC-43` exists to prevent
+concentration. It also removes the operator's ability to hold back the tenant that caused the
+termination.*
 
 *A case id is a resource id and is principal-scoped like any other: another tenant's case is `404`,
 identical to one that does not exist. That is `WIR-36`, cited rather than restated — a draft of

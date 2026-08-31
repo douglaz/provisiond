@@ -86,15 +86,17 @@ Described as a specification, not as DDL to copy. Types are logical.
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`) |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
-| `network_restriction_source` | enum | `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`) |
+| `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
 | `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
 | `destroy_committed` | UUID | nullable; `OPS-42`'s fence. Set by an exposure-reducing cancellation, to its own operation id, by a conditional write guarded on this column being null, **before any provider mutation**. `LDG-62`'s extend-runway conditional-writes the same row guarded on it being null and fails `conflict` where it affects no row. Both sides contending for one row is what totally orders them; without it the worker reads *unfunded*, releases the money serialization to make its provider call, and destroys a machine the customer paid for in the gap. Cleared when the episode resolves without a mutation (`OPS-41`) |
 | `system_trigger_ids` | json | `OPS-39`'s open episode identifiers and the **enforcing** home of its uniqueness: at most one open entry per key, claimed atomically before a sweep enqueues anything. The key is the **`action`** for an exposure-reducing cancellation and the `system_reason` for every other trigger (`OPS-39`), so two reasons to cancel one machine share a single entry rather than each enqueuing a delete. Each entry therefore carries `{trigger_id, action-or-reason key, reasons: [...]}` — `reasons` being the **set** of `system_reason` values that have contributed to this open episode, appended to by a later sweep that finds the entry already claimed. The `trigger_id` is the same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
 | `created_at`, `updated_at` | timestamp | |
 
-Constraints: unique `(tenant_id, provider_account, external_id)`; index on
-`(tenant_id, updated_at desc)`; index on `(correlator_value)` for reconciliation lookup (`OPS-27`);
-index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
+Constraints: unique `(tenant_id, provider_account, external_id)`; **unique `(provider_account,
+external_id)` across all tenants (`STO-17`), which is also the index `OPS-32`'s account sweep reads
+by** — that sweep has no `tenant_id`, so the first constraint's leading column is useless to it;
+index on `(tenant_id, updated_at desc)`; index on `(correlator_value)` for reconciliation lookup
+(`OPS-27`); index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
 
 **The install gate evaluates the machine's own copy, not the offer.** `DOM-13` and `WIR-30` gate
 an install strategy on the **offer's** `install_strategies`, and the machine records that list at

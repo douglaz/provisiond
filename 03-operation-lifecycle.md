@@ -448,6 +448,29 @@ under `OPS-11`'s classification. **The gate exists because the alternative is en
 beginning a destructive write fed by a URL that is already doomed.** Operator requeue already
 carries a fresh payload (`OPS-34`), so no refresh mechanism inside the record is needed.
 
+**OPS-43** **The provider's price MUST be re-checked at claim, and the order refused where the
+commitment no longer covers it.** A create is priced and its commitment sized when the API accepts
+it; the purchase happens later, in a worker. `WIR-30` says an offer price is "an indicative quote
+… `binding` is `false`", and the auction channel is a live market with other bidders in it, so the
+provider's own price can move in that window — which on the dedicated product can be long, since
+`OPS-33` records that robot-style orders poll through an `in process` state with no documented
+bound.
+
+Before any ordering call the worker MUST re-read the offer's current price, recompute `PRV-13b`'s
+reserve at the current rate, and **fail the operation deterministically — before any provider
+mutation — where the open commitment no longer covers it**, with an error naming the shortfall and
+telling the caller to re-submit. Same shape and same point in the lifecycle as `OPS-40`'s
+signed-URL gate: it fails before anything is bought, so nothing ambiguous is created and no
+reconciliation is needed.
+
+**Nothing is grown.** This is a refusal, not a top-up, so `ADR-0011` is untouched — a commitment
+still increases only by `LDG-62`, `OPS-20`'s requeue and `LDG-63`'s scheduled-cancellation branch.
+
+*The asymmetry that exposed it: `OPS-20` already mandates exactly this re-pricing for a requeue,
+"because the requeue happens later — possibly much later". An original create has the same latency
+and had no such rule, so the operator absorbed the difference silently and learned about it from an
+invoice.*
+
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
 new purchase.
@@ -611,6 +634,22 @@ It was raised from SHOULD because `OPS-33` releases a customer's commitment on t
 late-appearing machine will be *detected as the operator's own problem*. A MUST that gives money
 away, compensated by a SHOULD that recovers it, is not a bounded loss — it is an unbounded one
 with an optional remedy.
+
+**AMENDED 2026-08-31 — a MUST that money depends on may not have an unstated cost.** The deployment
+MUST state the sweep interval; the sweep MUST paginate the provider listing rather than assuming one
+response; it MUST yield to `rate_limited` rather than retrying into it (`DOM-17` carries that kind
+because providers throttle, and a sweep that trips the limit degrades every tenant's operations in
+that account); and it MUST NOT delay caller-initiated work. **Its lookup is by
+`(provider_account, external_id)`**, which `STO-17`'s cross-tenant constraint supplies as an index —
+stated there as a constraint and now listed as an index, because the `machines` index list leads
+with `tenant_id` and the sweep does not have one.
+
+**The sweep also covers imported images** (`ADR-0013`): an image tagged with an operation's
+correlator whose operation has settled or vanished is caller data the deployment promised to purge,
+so it is **deleted** rather than reported. That is the opposite remedy from an unclaimed machine, and
+the asymmetry is the point — one is a customer's running server, the other is a copy of a customer's
+operating system sitting in the operator's account. *A delete may answer that it already happened;
+`OPS-11`'s goal-state rule makes that a success.*
 
 **OPS-33** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
 negative window has elapsed, the commitment MUST be closed and released in full even though the

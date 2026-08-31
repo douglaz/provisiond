@@ -113,7 +113,7 @@ agent to parse English. Minimum keys:
 | `rate_limited` | `retry_after_ms` |
 | `halted` | `retry_after_ms`, `gate` (`"solvency"` \| `"rate_unavailable"`) |
 | `gone` | `retained_until` — and the safe reaction is to read machines and balance, never re-issue (`DOM-21`) |
-| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`) \| `"case_closed"` (`WIR-43`)) |
+| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`) \| `"case_closed"` (`WIR-43`) \| `"signup_window_closed"` (`API-34`) \| `"deposit_already_attributed"` (`WIR-42`) \| `"cancellation_committed"` (`OPS-42`)) |
 | `unsupported` | `provider_account`, `capability` (`DOM-10`) |
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
@@ -154,7 +154,13 @@ commitment reserved, so a caller reads what it spent without diffing `GET /v1/ba
 `adopt_machine`, `refresh`, `rescue_inventory`, `power`, `install`, `reverse_dns`, `delete_machine`,
 `suspend_tenant`}; `status` ∈ {`queued`,
 `running`, `succeeded`, `failed`, `needs_reconciliation`} (`OPS-3`); `requested_by` ∈ {`caller`,
-`system`, `operator`} (`OPS-39`).
+`system`, `operator`} (`OPS-39`); and **`system_reason` ∈ {`exhausted`, `late_attach_cleanup`,
+`account_lost`, `tenant_suspended`, `rate_outage_bound`}, null unless `requested_by` is `system`**
+(`OPS-39`, `05-persistence.md`).
+
+*`system_reason` was added to this list on 2026-08-31. It reaches the caller in every operation
+view and its value set was stated in two other documents, but this document wins over prose
+elsewhere — so a strict parser had no enum for a field it receives.*
 
 **WIR-10b** **`result` and `error` shapes.** `error`, when non-null, is exactly `WIR-9`'s inner
 object (`kind`/`message`/`retryable`/`details`), without the envelope. `result`, when non-null, is
@@ -366,6 +372,15 @@ settled payment, `LDG-55` — plural on purpose), `"credited_sats"` (their sum),
   "earliest_runway_until": "2026-09-11T14:00:00Z"
 }
 ```
+
+**AMENDED 2026-08-31 — the `commitments` array is opt-in.** `GET /v1/balance` returns the three
+totals and `earliest_runway_until` by default; the per-commitment array appears only with
+`?commitments=true` and is then cursor-paginated like every other collection (`WIR-32`). Every other
+list in this contract is clamped to 200 and this one was unbounded, on the endpoint `API-49`
+deliberately steers agents to poll at the finest advertised cadence — so a five-hundred-machine
+tenant shipped five hundred entries on every poll, forever. The invariant below is checkable on the
+full opt-in listing, where it means something, rather than on a truncated page, where it never
+holds.
 
 A commitment entry carries **both** `machine_id` and `operation_id`, either of which may be null:
 an in-flight create opens its commitment (`LDG-11`) before any machine exists, so it is named by
@@ -601,7 +616,14 @@ and MUST NOT disclose version, uptime, queue depth or anything else a caller can
 **WIR-43** `GET /v1/abuse-cases`, `GET /v1/abuse-cases/{id}` and
 `POST /v1/abuse-cases/{id}/statements` (`API-59`, `DOM-23`) — customer-facing, **synchronous**,
 minting no operation (`API-48`). `GET /v1/abuse-cases` is cursor-paginated like every other
-collection (`WIR-32`) and defaults to cases that are not `closed`.
+collection (`WIR-32`) and takes **`?state=open|closed|all`, defaulting to `open`**.
+
+**An unrecognised `state` value is `invalid_request`, not ignored.** This is the one documented
+exception to `WIR-2`'s rule that unknown query parameters are ignored, and it is narrow on purpose:
+`DOM-24` requires the collection to return closed cases on request, because closing is the only
+signal an autonomous caller gets that it may stop polling. Silently returning the open set to a
+caller that asked for the closed one answers the wrong question with a `200`, which is the failure
+mode `WIR-2`'s leniency cannot distinguish from success.
 
 **One projection, rendered in three places, and statements are not part of it.** The case summary —
 every field below except `statements` — is what the collection returns, what the machine view
@@ -748,11 +770,27 @@ The machine view's `network_restriction` object is `{"status", "source", "observ
 at render time from the machine — never copied into `abuse_cases`, which is what keeps two open
 cases from carrying two answers.
 
+**WIR-48** `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` — **operator-only**
+(`WIR-34`), **synchronous** `200`, minting no operation (`API-62`), carrying `Idempotency-Key` under
+`WIR-24`'s one-transaction rule. Body
+`{"provider_account": "hetzner-cloud-2", "mode": "add", "operator_ref": "opref-7d41d0"}`, where
+`mode` ∈ {`add`, `replace`} and `replace` removes every current assignment. Returns the tenant's
+assignment list as `WIR-29` would render it.
+
+`operator_ref` carries the same constraint as `WIR-42`'s and `WIR-35`'s: an opaque reference to a
+record kept outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`).
+
+**Naming an account the deployment does not have configured is `invalid_request`**; naming one not
+flagged assignable is `conflict` with `details.reason: "state"`. Assigning a tenant to an account
+that `SEC-46` has recorded as confirmed-terminated is also `conflict` — the failure this verb exists
+to repair should not be reachable by using it.
+
 ## Listeners, limits and fixtures
 
 **WIR-34** **Operator-only routes** (`WIR-18` adopt, `WIR-28` requeue, `WIR-35` resolve, `WIR-39`
 suspend, `WIR-41` resume, `WIR-42` attribute, `WIR-44`'s three abuse-case verbs, `WIR-46`
-address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, `WIR-48`
+assign-provider-account, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
 
