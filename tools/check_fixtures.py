@@ -15,6 +15,11 @@ WIR-1a fixes the JSON profile as I-JSON with bounded numbers:
      MUST be valid UTF-8, and every JSON number MUST be an integer within
      +/-(2^53-1) with no exponent or fraction."
 
+It also structurally checks every ```mermaid block: a declared diagram type,
+balanced brackets, balanced quotes. Mermaid renders on GitHub but there is no
+offline parser here, so a broken diagram would look fine in source and fail in
+the browser.
+
 So this gate checks, for every fenced ```json block in the set:
 
   * it parses
@@ -74,8 +79,54 @@ def walk(node, path, problems):
             problems.append(f"{path}: sha256 must be exactly 64 hex chars (DOM-14)")
 
 
+MERMAID_RE = re.compile(r"^```mermaid\s*\n(.*?)^```", re.M | re.S)
+MERMAID_KINDS = (
+    "flowchart", "graph", "sequenceDiagram", "stateDiagram-v2", "stateDiagram",
+    "erDiagram", "classDiagram", "journey", "gantt", "pie", "mindmap", "timeline",
+)
+
+
+def check_mermaid():
+    """A structural sanity check, not a parser.
+
+    Mermaid renders on GitHub but there is no offline parser here, so a broken
+    diagram would ship looking fine in source and fail in the browser. This
+    catches the two errors that actually happen: a block that declares no
+    diagram type, and unbalanced brackets or quotes in a label.
+    """
+    problems = 0
+    count = 0
+    for f in sorted(glob.glob("*.md")) + sorted(glob.glob("docs/adr/*.md")):
+        text = open(f).read()
+        for m in MERMAID_RE.finditer(text):
+            count += 1
+            line = text[: m.start()].count("\n") + 1
+            body = m.group(1)
+            first = next((l.strip() for l in body.splitlines() if l.strip()), "")
+            if not first.startswith(MERMAID_KINDS):
+                print(f"FAIL {f}:{line}: mermaid block declares no known diagram "
+                      f"type (starts {first[:40]!r})")
+                problems += 1
+            # erDiagram's crow's-foot notation (||--o{, }o--o|) uses braces as
+            # syntax rather than as pairs, so brace balance is meaningless there.
+            pairs = [("[", "]"), ("(", ")")]
+            if not first.startswith("erDiagram"):
+                pairs.append(("{", "}"))
+            for open_c, close_c in pairs:
+                if body.count(open_c) != body.count(close_c):
+                    print(f"FAIL {f}:{line}: unbalanced {open_c}{close_c} "
+                          f"({body.count(open_c)} vs {body.count(close_c)})")
+                    problems += 1
+            if body.count('"') % 2:
+                print(f"FAIL {f}:{line}: odd number of double quotes")
+                problems += 1
+    print(f"mermaid diagrams checked: {count} | failures: {problems}")
+    return problems
+
+
 def main():
     os.chdir(ROOT)
+    mermaid_failures = check_mermaid()
     failures = 0
     blocks = 0
 
@@ -106,7 +157,7 @@ def main():
             failures += len(problems)
 
     print(f"json fixtures checked: {blocks} | failures: {failures}")
-    return 1 if failures else 0
+    return 1 if (failures or mermaid_failures) else 0
 
 
 if __name__ == "__main__":

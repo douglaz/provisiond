@@ -65,6 +65,49 @@ whether the system behaves correctly then depends on the driver's defaults. See 
 
 Described as a specification, not as DDL to copy. Types are logical.
 
+```mermaid
+erDiagram
+    TENANTS ||--o{ MACHINES : owns
+    TENANTS ||--o{ OPERATIONS : owns
+    TENANTS ||--o{ COMMITMENTS : holds
+    TENANTS ||--o{ TENANT_PROVIDER_ACCOUNTS : "assigned to"
+    TENANTS ||--o| ENROLMENTS : "created by"
+
+    TENANTS |o..o{ LEDGER_ENTRIES : "by identifier only, NO FK"
+    TENANTS |o..o{ DEPOSITS : "by identifier only, NO FK"
+
+    MACHINES ||--o{ MACHINE_ATTACHMENTS : "leaves billing"
+    MACHINES ||--o{ MACHINE_ADDRESSES : "observed holding"
+    MACHINES ||--o{ ABUSE_CASES : "complained about"
+    MACHINES ||--o| MACHINE_LOCKS : "locked by one op"
+    MACHINES ||--o| COMMITMENTS : "at most one OPEN"
+
+    OPERATIONS ||--o{ OPERATION_REQUEUES : "audit trail"
+    OPERATIONS ||--o| COMMITMENTS : "opened, nullable"
+
+    ABUSE_CASES ||--o{ ABUSE_STATEMENTS : "append-only replies"
+
+    LEDGER_ENTRIES ||--o{ LEDGER_ENTRIES : "correction names"
+    LEDGER_ENTRIES ||--o{ METER_TOTALS : "summarised by"
+
+    OPERATOR_DEFICIENCIES }o--o| MACHINES : "cost the operator absorbs"
+    IDEMPOTENCY_RECORDS }o--|| TENANTS : "scoped to"
+```
+
+**The dotted edges are the load-bearing part, and they are deliberate.** `ledger_entries` and
+`deposits` carry a tenant identifier and **no foreign key** to `tenants` (`STO-26`, `STO-29`),
+because `API-34` reaps an unfunded pending tenant while the ledger is append-only and exempt from
+retention (`LDG-22`) and an on-chain address stays payable forever. A constraint between them would
+make one of those two rules unenforceable. **That is also why `DOM-1` had to be amended to say
+identifiers are never reused** — attribution survives by identifier alone, so a reused one inherits
+a stranger's money.
+
+Three other things the diagram makes visible that prose spreads across four documents: a machine has
+**at most one open** commitment but many over its life (`LDG-30`); a commitment's `operation_id` is
+**nullable**, because `LDG-62` can open one with no operation behind it; and `abuse_cases` hangs off
+the **machine**, not the tenant, which is why `DOM-27`'s network restriction lives on the machine —
+two cases about one machine would otherwise carry two answers to one physical question.
+
 ### `machines`
 
 | Column | Type | Notes |

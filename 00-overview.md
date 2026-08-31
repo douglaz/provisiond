@@ -82,7 +82,47 @@ names the environment variable; the process reads the secret from the environmen
                     +---------------------------+
 ```
 
-The four layers map to four modules with strictly one-way dependencies:
+### What happens when an agent buys a machine
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Caller (an agent)
+    participant A as api
+    participant DB as Store
+    participant E as engine
+    participant P as Provider
+
+    C->>A: POST /v1/machines
+    A->>A: authenticate, then validate<br/>API-7 — in that order, DEF-4
+    A->>A: reject a pending tenant, API-35<br/>reject a suspended one at 5b
+    A->>DB: fingerprint + idempotency, WIR-3
+    Note over A,DB: Same key, same body -> the stored result.<br/>Same key, different body -> 409.
+    A->>DB: available >= required_commitment?<br/>LDG-9, the ONLY authorization a create gets
+    Note over A,DB: Serialized per tenant, LDG-35.<br/>Without it two creates spend one balance<br/>and neither errors.
+    A->>DB: open the commitment AND enqueue<br/>in ONE transaction, LDG-11
+    A-->>C: 202 + operation view + poll_after_ms
+    Note over C: Every write is 202. The record IS the<br/>completion guarantee, so no webhook<br/>and nothing to miss.
+
+    E->>DB: claim atomically under a lease, OPS-5
+    E->>E: re-validate, OPS-23
+    E->>DB: write provider_account and the<br/>correlator BEFORE the call, OPS-35, PRV-26
+    E->>DB: re-check the provider's price, OPS-43
+    E->>P: create
+    alt reply arrives
+        P-->>E: machine
+        E->>DB: machine row + setup-fee debit +<br/>terminal write, one transaction, OPS-27
+    else reply is lost
+        Note over E,P: This is the case the whole design exists for.
+        E->>DB: needs_reconciliation.<br/>No retry, no timer, no caller action.
+    end
+```
+
+**Step 9 is the one that decides the architecture.** Authorizing the purchase and opening the
+commitment must be a single transaction, and `ADR-0001` chose one deployable because two stores
+cannot give you one.
+
+The four layers map to five modules with strictly one-way dependencies:
 
 | Module | Responsibility | Depends on |
 |---|---|---|

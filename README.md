@@ -19,7 +19,7 @@ and holed in two of its load-bearing safety claims.
 | Gate | What it refuses |
 |---|---|
 | `tools/check_ids.py` | A duplicate identifier, a citation to an id nothing defines, a gap in a namespace's sequence, an id far above its neighbours, a reference to an ADR that does not exist |
-| `tools/check_fixtures.py` | A JSON example that does not parse, carries a `...` placeholder, repeats an object member, exceeds `WIR-1a`'s integer bound, spells a timestamp `+00:00`, or carries a malformed digest |
+| `tools/check_fixtures.py` | A JSON example that does not parse, carries a `...` placeholder, repeats an object member, exceeds `WIR-1a`'s integer bound, spells a timestamp `+00:00`, or carries a malformed digest. Also structurally checks every Mermaid diagram, since one that is broken looks fine in source and fails in the browser |
 | `tools/check_coverage.py` | A fall in the number of requirements exercised by at least one conformance item, against a recorded baseline |
 
 The workflow also breaks a document deliberately on every run and asserts the identifier

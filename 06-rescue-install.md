@@ -19,6 +19,42 @@ provider through the rescue lifecycle, and installs an image over SSH.
 9. Ask the driver to exit rescue and reset into the installed system (`PRV-21`).
 10. Remove any temporary provider-side credential.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant W as Worker
+    participant D as Driver
+    participant P as Provider
+    participant R as Rescue host
+    participant I as Image host
+
+    W->>W: Generate a single-use keypair<br/>scoped to this one operation
+    W->>D: begin rescue
+    D->>P: activate rescue AND reset
+    Note over D,P: PRV-15 — activation includes the reboot.<br/>The machine is now down.
+    loop until host keys appear or RSC-9's deadline
+        W->>D: refresh session
+        D-->>W: host keys, if the provider publishes them
+    end
+    W->>W: Host-key trust decision, RSC-3
+    Note over W: No pinned key and no explicit opt-in?<br/>ABORT with integrity, before connecting.
+    W->>R: connect, strict host-key checking
+    R-->>W: inventory with stable identifiers<br/>+ inventory_fingerprint
+    W->>W: Re-read inventory, RSC-26.<br/>Zero or MORE THAN ONE match?<br/>ABORT integrity, no bytes written.
+    R->>I: fetch the image
+    Note over R,I: RSC-1 — the rescue host fetches it.<br/>The control plane never holds these bytes.
+    R->>R: verify digest, then write
+    Note over R: rootfs: verified BEFORE the installer runs, RSC-25.<br/>raw_disk: verification completes AFTER<br/>the overwrite has begun, RSC-29.
+    W->>D: end rescue
+    D->>P: deactivate and reset into the installed system
+    Note over W,P: PRV-22 — failure here is ALWAYS ambiguous.<br/>The recovery key is persisted, RSC-19.
+```
+
+**Two things in that sequence are where the audits found defects.** The abort before connecting is
+`RSC-3`'s, and it is the security-critical decision in the whole workflow. The abort before writing
+is `RSC-26`'s, added after the fourth audit found a path to destroying the wrong disk that satisfied
+every requirement then in force — and *more than one match* is the dangerous case, not zero.
+
 **RSC-1** **AMENDED 2026-08-31 — scoped to the rescue strategies.** For `rootfs_via_rescue` and
 `raw_disk`, the image MUST be downloaded by the rescue host, never by the control plane, and the
 control plane never holds image bytes. *The rule was written for a path where the target machine has

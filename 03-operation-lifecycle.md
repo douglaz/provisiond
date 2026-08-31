@@ -331,6 +331,56 @@ The cost of leaving one unresolved is no longer merely operational. A create pla
 the customer's balance; while the operation sits unresolved, **those satoshis are frozen** — not
 spendable, not returned. Resolution latency is money the customer cannot use.
 
+### Resolving an ambiguous outcome
+
+```mermaid
+flowchart TD
+    A["Operation reached<br/>needs_reconciliation"] --> B{"Is it a create?"}
+
+    B -- "no" --> C["external_id is known.<br/>Read provider evidence, PRV-29"]
+    C --> C1{"Strongest source available?"}
+    C1 -- "write path says<br/>goal state holds" --> DONE1["succeeded<br/>OPS-11 goal-state row"]
+    C1 -- "mutation history<br/>for this id" --> DONE2["settle on the action record"]
+    C1 -- "resource read only" --> C2{"Has PRV-36's visibility<br/>window elapsed?"}
+    C2 -- "no" --> WAIT["Not evidence.<br/>Stay pending, do not read again yet"]
+    C2 -- "yes, still present" --> NOTAPPLIED["not applied"]
+    C2 -- "post-mutation state seen" --> DONE3["applied.<br/>Never reverted by a later read"]
+
+    B -- "yes" --> D["Search EVERY correlator<br/>the operation recorded.<br/>Union, never the latest attempt"]
+    D --> E{"How many resources?"}
+
+    E -- "exactly one" --> F["Resolved-observed"]
+    F --> F1{"Was the commitment<br/>already released by OPS-33?"}
+    F1 -- "no" --> G["Attach. It becomes the<br/>machine's running commitment"]
+    F1 -- "yes" --> H["OPS-36: attach, then route<br/>straight to exhaustion"]
+    H --> H1{"Does available cover<br/>the wind-down floor?"}
+    H1 -- "yes" --> H2["Open a wind-down commitment"]
+    H1 -- "no" --> H3["No commitment at all.<br/>LDG-66 operator deficiency"]
+    H2 --> I["Enqueue the cleanup cancellation<br/>in the SAME transaction"]
+    H3 --> I
+    I --> J["Tenant may still extend-runway<br/>LDG-62, until OPS-42's fence"]
+
+    E -- "zero, authoritative,<br/>past the negative window" --> K["Resolved-absent.<br/>Close and release in full"]
+    E -- "zero, window not elapsed" --> WAIT
+    E -- "more than one" --> L["Duplicate. MUST NOT auto-attach either.<br/>OPS-38, operator remediates"]
+    E -- "cannot be made<br/>authoritative" --> M["Unresolved. OPS-31's verbs<br/>are the only road"]
+
+    L --> N["Commitment released per OPS-33"]
+    M --> N
+
+    G --> DONE4["succeeded"]
+
+    style WAIT fill:#fff3cd,stroke:#856404
+    style L fill:#f8d7da,stroke:#721c24
+    style M fill:#f8d7da,stroke:#721c24
+    style H3 fill:#f8d7da,stroke:#721c24
+```
+
+**The red boxes are where a human is required or the operator absorbs a loss; the amber one is the
+answer that is easiest to get wrong.** `OPS-29` forbids closing any of them by guessing: two of a
+tenant's own concurrent creates can look identical, and attaching the wrong machine hands one
+customer another's physical server.
+
 **OPS-27** The system MUST attempt automatic resolution before asking a human. Resolution
 searches the provider for **every correlator the operation recorded** — one per attempt, and a
 requeue appends rather than replaces (`PRV-26`, `PRV-27`) — takes the union of what those

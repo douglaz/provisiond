@@ -143,6 +143,53 @@ commitments over its life: a create's is opened before the machine row exists �
 operation until then — and `OPS-36`'s wind-down commitment is opened only after `OPS-33` closed
 that first one.
 
+### The life of a commitment
+
+A commitment is the reservation `ADR-0002` makes the entire spending authority. It is sized once,
+decays as the machine is consumed, and closes exactly once — and the branches below are where every
+defect in this document has lived.
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    [*] --> Open : create or adopt authorized<br/>LDG-11 opens it in the same<br/>transaction as the enqueue
+
+    Open --> Open : usage_debit posted<br/>LDG-31 decrements by the same<br/>amount, same transaction
+    Open --> Open : extend-runway<br/>LDG-62, caller action, fenced by OPS-42
+    Open --> Open : operator requeue re-prices<br/>OPS-20, at the current rate
+    Open --> Open : scheduled-cancellation top-up<br/>LDG-63, the one automatic growth
+
+    Open --> Closed : machine and every billable<br/>attachment stopped billing<br/>LDG-32, STO-18
+    Open --> Closed : create failed deterministically
+    Open --> Closed : resolved absent<br/>OPS-27
+    Open --> Closed : abandoned by an operator<br/>OPS-31
+    Open --> ReleasedEarly : negative window elapsed<br/>OPS-33 releases in full while<br/>the operation stays open
+
+    ReleasedEarly --> LateAttach : correlator matches later<br/>OPS-36
+    LateAttach --> WindDown : available covers the floor
+    LateAttach --> Deficiency : available does not<br/>LDG-66, no commitment opened
+    WindDown --> Closed : cleanup cancellation completes
+    Deficiency --> Closed : cleanup cancellation completes
+
+    Closed --> [*]
+
+    note right of Open
+        Never re-sized by a rate move.
+        ADR-0011: the price moves the
+        runway date, not the reservation.
+    end note
+
+    note right of ReleasedEarly
+        The customer has its satoshis back
+        and the operator carries the risk.
+        OPS-32's sweep is what bounds it.
+    end note
+```
+
+**Read the two notes together.** The early release is what stops a stuck order freezing a
+customer's money indefinitely, and it is only safe because something later finds the machine if it
+does turn up. `OPS-36` is that branch and `OPS-41`/`OPS-42` are what make it work.
+
 **LDG-9** **AMENDED.** A tenant's **available** balance is:
 
 ```
