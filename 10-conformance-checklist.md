@@ -163,7 +163,7 @@ same pass.
 
 ### Assignments for `CNF-132`–`CNF-137` (added 2026-08-12)
 
-**BLOCKING** — all six. Applying the three questions to key custody gives the same answer every
+**BLOCKING** — `CNF-132`, `CNF-133`, `CNF-134`, `CNF-135`, `CNF-136`, `CNF-137`. Applying the three questions to key custody gives the same answer every
 time, and it is worth saying why rather than asserting it. The operator cannot undo a drained
 float: there is no chargeback, no insurance and no counterparty. They would not know until the
 solvency check fails, by which point the money is gone. And `CNF-136` is here for the opposite
@@ -1175,8 +1175,12 @@ degrades the channel or retains text too long rather than destroying money, data
 boundary. `CNF-228` is the closest call: it is a customer paying for compute it cannot reach, which
 is a disclosure problem before it is a money one, and `LDG-71` makes the disclosure the requirement.
 
-*These four BLOCKING items are not yet folded into the count below; do that in the mechanical
-recount that section requires rather than by adding four to a number nobody re-derived.*
+**Assignments for `CNF-233`–`CNF-234`**, which were defined without one until 2026-08-31:
+**PRE-SCALE** — both. `CNF-233` catches a field silently reading `none` when nobody looked, and
+`CNF-234` catches a warning being edited after a tenant may have acted on it; each is a disclosure
+or record-integrity failure rather than money, data or a tenancy boundary. *An untiered item is an
+unbounded commitment, by this document's own opening rule, and these two sat that way because the
+assignment block was headed `CNF-222`–`CNF-232` and stopped there.*
 
 ## Surface completeness
 
@@ -1518,8 +1522,30 @@ machine in rescue rather than losing money or data.
 three separate running totals disagreed by one). Every other passage that used to carry a number
 now points here.
 
-**Recount from the enumerated assignments above, not from memory.** As of 2026-08-13 the blocking
-set is **approximately 135 items**, and the approximation is deliberate: an exact figure that
-nobody re-derives is how the last three wrong numbers happened. **Before launch, count the
-BLOCKING labels mechanically and record the result with its date.** A checklist whose own
-arithmetic is folklore is the failure `CNF-1`/`CNF-3` exist to prevent, applied to itself.
+**Counted mechanically 2026-08-31: 265 conformance items, of which approximately 175 are
+BLOCKING.** The previous figure was "approximately 135" as of 2026-08-13, and the growth is real —
+this review added twenty-nine items, most of them in the destroyed-data and money-out families.
+
+**Three things the count itself established, which are worth more than the number.**
+
+*The tiers are consistent.* `F16`'s defect — one item in two tiers — has not recurred. Seven items
+appeared to be double-assigned and every one was a parser artifact: they are *mentioned* in
+explanatory prose inside a tier block rather than assigned there. `CNF-99` is discussed in a
+PRE-SCALE paragraph about re-tiering; it is BLOCKING and has been since `F30`.
+
+*Two items had no tier at all.* `CNF-233` and `CNF-234` were defined on 2026-08-16 under an
+assignment block headed `CNF-222`–`CNF-232`, and fell off the end of it. Now assigned. `CNF-31` and
+`CNF-195` are correctly absent — they are split and merge markers, not items.
+
+*The number is approximate because the assignments are prose, and that is the durable problem.*
+Tiers live in paragraphs scattered across the document, in item order nowhere: `CNF-183`, `CNF-182`
+and `CNF-181` sit after `CNF-213`, `CNF-173` after `CNF-179`. One block read "BLOCKING — all six"
+with no identifiers, which no count can resolve; it has been expanded. **Finding an item's tier
+means scanning thirteen hundred lines, and counting them means writing a parser for English.** The
+durable fix is to carry the tier on the item — `- [ ] **CNF-1** [BLOCKING] …` — after which the
+count is a `grep` and `tools/check_ids.py` could refuse an untiered item outright. That is a
+mechanical edit across 265 items and is recorded as the next obvious one rather than done here.
+
+A checklist whose own arithmetic is folklore is the failure `CNF-1`/`CNF-3` exist to prevent,
+applied to itself. It is now arithmetic with a stated method and a date, and a stated reason why it
+is still approximate.
