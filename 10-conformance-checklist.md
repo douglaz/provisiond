@@ -895,6 +895,38 @@ rather than acquiring a default.
       layer over the suite's traffic in the manner of `CNF-157`, not by reading the code. The
       running total and the entry commit together: kill the process between them and neither
       survives. (`LDG-72`, `STO-45`, `LDG-35`)
+- [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
+      on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
+      no credential type, and `engine` does not depend on `api`. `CNF-71`'s compile-fail test asserts
+      across that edge and `CNF-72`'s tripwire watches it. A build where the credential-owning type
+      becomes reachable from `api` fails to compile. (`OVR-9`, `OVR-10a`, `ADR-0001`)
+- [ ] **CNF-252** **Rescue entries and power cycles are capped.** A principal that sets every
+      acknowledgement flag on every request still cannot exceed its rescue-entry or power-cycle
+      ceiling; the rescue-entry ceiling counts the inventory pass and rescue-entering installs
+      together. Drive it with a loop that acknowledges everything. (`SEC-39`, `RSC-38`)
+- [ ] **CNF-253** **The operator principal is capped and observed.** An operator principal exceeding
+      its stated requeue, resolution, suspension or re-assignment ceiling is refused; the override
+      path works and is itself recorded; and every operator verb emits a monitorable event naming
+      principal, target and reason. The failure this catches is a looping operator agent buying
+      duplicate servers or attaching a machine to the wrong tenant — strictly more power than any
+      customer holds, previously uncapped. (`SEC-39`, `SEC-32`, `API-62`)
+- [ ] **CNF-254** **The credential-holding process cannot move the float.** Its Lightning credential
+      permits creating and observing invoices and nothing else: attempting a payment, a channel
+      close or an on-chain send with it fails. Asserted by attempting them, not by reading the
+      credential's configuration — `CNF-132`'s rule that reachability is the test, not visibility.
+      (`SEC-48`, `ADR-0001`)
+- [ ] **CNF-255** **The stated ceiling covers both pots and the sweep destination is pinned.**
+      Channel balance plus the node's on-chain wallet is what the ceiling measures; a sweep whose
+      outputs are not the pinned cold destination is rejected by the signer; and the destination
+      cannot be changed by any runtime input. `CNF-135` tests the last clause for the sweep
+      destination — this adds the wallet to the arithmetic `ADR-0009` is sold on. (`SEC-49`,
+      `SEC-50`, `ADR-0009`)
+- [ ] **CNF-256** **A signup slot costs a held connection.** `POST /v1/enrol` without a valid,
+      unexpired, unused token is refused; a token is obtained only from a request that answers after
+      the stated delay; a token is single-use; and issuing one writes nothing to the store. Then the
+      test that matters: a caller cannot hold more concurrent token requests than the proxy's stated
+      per-source limit, and no caller address is persisted anywhere while enforcing it. (`API-33`,
+      `API-36`, `API-41`, `ADR-0005`)
 - [ ] **CNF-241** **A create is refused rather than bought at a price nobody authorized.** With the
       offer's provider price raised between accept and claim so the open commitment no longer covers
       `PRV-13b`'s reserve, the worker fails the operation deterministically **with no provider call
@@ -1320,6 +1352,20 @@ question (1) is answered no.
 **PRE-SCALE** — `CNF-235`. A quadratic meter degrades the store rather than mis-charging anyone —
 `DEF-11` is the precedent and it was a starvation, not a loss. It graduates the moment metering
 cadence is set finer than hourly, because that is when the arithmetic stops being survivable.
+
+### Assignments for `CNF-251`–`CNF-256` (structure, ceilings and custody, 2026-08-31)
+
+**BLOCKING** — `CNF-251` (the escaped-secret family: `ADR-0001` calls this the only structural
+defence and it had no module edge to enforce); `CNF-253` (an uncapped operator principal that is a
+program can buy duplicate servers and attach a machine to the wrong tenant, and `OPS-29` says a wrong
+attach hands one customer another's physical server); `CNF-254` (money out, and it is the one
+boundary in the key-custody design that is actually achievable — untested it is a belief);
+`CNF-255` (the blast-radius number `ADR-0009` is sold on, wrong until this passes).
+
+**PRE-SCALE** — `CNF-252`, `CNF-256`. A looping agent rebooting its own machine is a customer
+harming itself, recoverable and visible; and the enrolment ceiling is a denial of service rather
+than a loss. **`CNF-256` graduates the day enrolment is publicly reachable**, which is also the day
+the attack costs nothing to mount.
 
 ### Assignments for `CNF-241`–`CNF-250` (the review's mechanical and money set, 2026-08-31)
 

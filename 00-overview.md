@@ -89,7 +89,15 @@ The four layers map to four modules with strictly one-way dependencies:
 | `core` | Domain model, capability declarations, error taxonomy, provider interface | nothing |
 | `providers` | Per-provider HTTP adapters implementing the provider interface | `core` |
 | `rescue` | SSH orchestration and image installers, generic across providers | `core` |
-| `server` | HTTP API, durable queue, auth, tenancy, workers | all of the above |
+| `engine` | **The credential-holding lifecycle side**: workers, driver invocation, the durable queue's execution, and the only code that may reach a provider credential | `core`, `providers`, `rescue` |
+| `api` | **The customer-facing side**: HTTP surface, authentication, tenancy, enrolment, billing, abuse | `core`, `engine` — and `engine` **only through a narrow trait that does not expose a credential** |
+
+**AMENDED 2026-08-31 — `server` is split, because the boundary that matters had no home.**
+`ADR-0001` accepted one deployable on the promise that code structure keeps the public surface away
+from provider credentials, and calls `OVR-10a` "the only structural defence left". `CNF-71`–`CNF-73`
+then test a "customer-facing layer" and a "lifecycle layer" — **neither of which was a module.** Both
+lived inside `server`, so `CNF-71`'s compile-fail test had no edge to fail across and `CNF-72`'s
+tripwire had no visibility change to watch. A boundary absent from the dependency graph is a comment.
 
 **OVR-8** The rescue engine MUST be generic. It receives a provider driver through the
 provider interface and MUST NOT contain provider-specific branches. Provider-specific
@@ -97,6 +105,11 @@ rescue activation belongs in the driver (`PRV-8`).
 
 **OVR-9** The dependency direction above MUST hold. In particular `core` MUST NOT
 depend on an HTTP client, a database, or a web framework.
+
+**`api` MUST NOT depend on `providers` or `rescue` at all, and MUST reach `engine` only through a
+trait whose signatures mention no credential type.** `engine` MUST NOT depend on `api`. That single
+edge, and its narrowness, is what `OVR-10a` requires and what `CNF-71`–`CNF-74` prove; the
+credential-owning type is private to `engine` and reachable through nothing else.
 
 ## Deployment assumptions
 

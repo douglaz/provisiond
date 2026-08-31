@@ -27,8 +27,24 @@ lives outside the deployment and is used by a human.
 deployment states a ceiling on satoshis held in channels and sweeps the excess to a cold
 destination that is compiled in, not configured at runtime.
 
-A remote compromise therefore costs the machines and whatever is under the channel ceiling. That
-is a bad day with a stated size, rather than every satoshi any customer ever deposited.
+A remote compromise therefore costs the machines and whatever is under the ceiling. That is a bad
+day with a stated size, rather than every satoshi any customer ever deposited.
+
+**AMENDED 2026-08-31 — the number was understated, and "watch-only" was doing work it cannot do.**
+Two corrections, both from research against current tooling:
+
+- **The ceiling covers the channel balance *plus* the node's own on-chain wallet** (`SEC-49`).
+  Opening and closing channels are on-chain spends, so the node holds a spending key for a wallet of
+  its own and a closed channel's balance lands there. Counting only the channels understated the
+  radius this decision is sold on.
+- **A node's watch-only-plus-remote-signer mode does not make the receiving host unable to spend.**
+  The signer signs what the watch-only node asks it to, so the key material is off the box and the
+  spend authority is not. What is achievable, and what `SEC-48` now requires, is the boundary that
+  actually matters here: the process holding provider credentials reaches Lightning only through a
+  credential scoped to creating and observing invoices, on a separate host. Receiving Lightning is
+  inseparable from being able to spend it — there is no Lightning analogue of an extended public
+  key — so the Lightning host's exposure is bounded rather than removed, and the sweep that bounds
+  it is a manual operator action.
 
 ## Considered options
 

@@ -184,8 +184,39 @@ A deployment whose callers are autonomous MUST therefore enforce **server-side c
 principal** — the interval is a stated deployment parameter, **default one hour**, and each
 ceiling is a stated integer (`F18`) — at minimum machines destroyed per interval, machines
 created per interval,
-and images written per interval, plus a spend ceiling where the deployment prices its own
-resources. The acknowledgement field is retained as a statement of intent and as a defence
+images written per interval, **rescue entries per interval** and **power cycles per interval**,
+plus a spend ceiling where the deployment prices its own resources.
+
+**AMENDED 2026-08-31 — rescue entries and power cycles were uncapped, and one of them reboots a
+running machine.** `RSC-38`'s rescue inventory boots a machine into the provider's rescue system to
+read its disks, and `PRV-22` makes the exit always ambiguous, so a failure can strand a customer's
+machine there with nothing serving. It carries no destructive acknowledgement and, until now, no
+ceiling — while an agent's natural loop is read-inventory, install, fail, read-inventory again. Each
+iteration took the machine down and nothing counted them. Power and hard-reset were in the same
+position. The ceiling is on *rescue entries* rather than on the operation, so it covers the
+inventory pass and every rescue-entering install together — the two ways a machine gets rebooted
+into another operating system.
+
+**AMENDED 2026-08-31 — ceilings apply to operator principals too, and this is the larger change.**
+Every dangerous shortcut in this set is justified by "an operator decides": `OPS-27` attempts
+automatic resolution "before asking a human", `PRV-33` resolves to an operator "never to a guess",
+`DOM-23` has an operator read a notice and transcribe it, and `API-19` makes requeue operator-only
+*because* it can re-issue a purchase. **Those all assume the operator is a person who does not
+loop.** Where an operator principal is a program — and this deployment's is — the paragraph above
+applies to it unchanged, and it has strictly more power than any customer: requeue places physical
+orders, resolve-observed attaches a machine to a tenant on the operator's say-so, suspend cancels a
+fleet. A deployment MUST therefore state ceilings for operator principals — at minimum requeues,
+resolutions, suspensions and provider-account re-assignments per interval — with a stated override
+path for a genuine incident, and MUST record that the override is the uncapped thing.
+
+**Every operator verb MUST emit a monitorable event** naming the principal, the target, and the
+reason. `SEC-32`'s audit record already covers mutating *requests*; this is the operator surface
+specifically, where the actor may be automated and the harm is authorised by construction rather
+than by a bug.
+
+*The asymmetry was the finding: the customer side was hardened against a looping program and the
+operator side, which can do strictly more, was not — because the word "operator" was carrying an
+assumption nobody had written down.* The acknowledgement field is retained as a statement of intent and as a defence
 against the accidental call; it MUST NOT be the only thing standing between a looping agent
 and an emptied account.
 
@@ -361,16 +392,52 @@ normative copy is not redundancy, it is a second thing to forget.
 addresses, which turned `F13` — one compromise takes the machines *and* the float — from a worry
 into a key on a disk.
 
-**SEC-48** **The process MUST hold watch-only key material for the on-chain float and MUST NOT
-hold anything that can construct a spend.** An extended public key or output descriptor is
-sufficient to derive every deposit address (`LDG-50`) and to observe every payment (`LDG-57`);
-nothing in the specified behaviour requires more. **The key that can move on-chain funds MUST live
-outside the deployment**, and no code path in the deployment may reach it.
+**SEC-48** **AMENDED 2026-08-31 — the original stated something no Lightning deployment can
+satisfy, and it conflated two boundaries.**
 
-**SEC-49** **Lightning is necessarily hot, so it MUST be bounded.** A deployment MUST state a
-**channel ceiling** in satoshis and sweep the excess to cold. That ceiling is the blast radius of
-a full compromise expressed as a number, and it MUST be chosen against the size of the float
-rather than against the convenience of not sweeping.
+**The on-chain float MUST be watch-only.** An extended public key or output descriptor is sufficient
+to derive every deposit address (`LDG-50`) and to observe every payment (`LDG-57`); nothing in the
+specified behaviour requires more. **The key that can move those funds MUST live outside the
+deployment**, and no code path in the deployment may reach it. This part stands unchanged.
+
+**The credential-holding process MUST reach Lightning only through a credential scoped to invoice
+creation and observation** — create, look up, list and subscribe — **on a separate host.** This is
+the boundary that matters for `ADR-0001`: the process holding provider credentials and root on
+every customer machine cannot move the float, and that is achievable today with per-RPC credential
+scoping.
+
+*The withdrawn clause was "MUST NOT hold anything that can construct a spend", stated of the whole
+deployment. Two independent research passes established that it is unsatisfiable: **receiving
+Lightning is inseparable from spending it.** Settling an inbound HTLC means signing a new commitment
+transaction, and the key that signs it can sign the balance away — there is no Lightning analogue of
+an extended public key. And a node's "watch-only" mode does not deliver it either: the signer signs
+whatever the watch-only node hands it, so key material is off the box while spend authority is not.
+A requirement that cannot be met is not a control; it is a belief, which is what `SEC-44` says about
+unverified controls generally.*
+
+**SEC-49** **Lightning is necessarily hot, so it MUST be bounded. AMENDED 2026-08-31 — the bound
+covers two pots, and the sweep is a manual operator action.**
+
+A deployment MUST state a ceiling in satoshis covering **the channel balance *plus* the Lightning
+node's own on-chain wallet**, and sweep the excess to the cold destination `SEC-50` fixes. That
+figure is the blast radius of a full compromise of the Lightning host, and it MUST be chosen against
+the size of the float rather than against the convenience of not sweeping.
+
+**The node's on-chain wallet is the second pot and was never counted.** Opening and closing channels
+are on-chain spends, so a Lightning node necessarily holds a spending key for a wallet of its own,
+and a closed channel's balance lands there. `ADR-0009` sells the ceiling as "the blast radius
+expressed as a number"; counting only the channels understated it by whatever sits in that wallet.
+
+**The sweep is a manual operator action, like `SEC-51`'s refill**, and the deployment MUST state its
+mechanism — a cooperative close, or a swap — because Lightning balance cannot be sent directly to an
+on-chain address and the choice has real consequences: closing channels destroys the inbound
+capacity `CNF-136` depends on, and a swap introduces a counterparty `ADR-0009` rejected a custodian
+to avoid. **Where the sweep is signed on the Lightning host, the signer MUST reject any transaction
+whose outputs are not the pinned cold destination**, which is what makes the ceiling a mechanism
+rather than a habit.
+
+*A stated bound the operator enforces by acting is weaker than one the code enforces. It is recorded
+as such rather than described as automatic.*
 
 **SEC-50** **The sweep destination MUST be fixed at deployment and MUST NOT be settable at
 runtime.** A process that can be told where to sweep can be told to sweep to an attacker, which

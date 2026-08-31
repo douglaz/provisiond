@@ -232,9 +232,35 @@ passes, which is what defeats a naive script — while removing the single-deliv
 The status poll MUST NOT reveal the remaining time to the nearest instant (it is a free oracle for
 tuning an attack).
 
-**A delay is a real control against a naive script and a weak one against a parallel attacker**,
-because concurrency makes wall-clock free. It is specified here as the operator's chosen friction,
-not as the storage bound. `API-34` is the storage bound.
+**AMENDED 2026-08-31 — the delay moves in front of the slot, and becomes the admission gate.**
+The withdrawn arrangement minted the token at enrolment and made it unusable until `issuable_at`,
+so the delay ran *after* the caller had already consumed a pending-tenant slot. It defended nothing:
+`API-41` requires a global ceiling on pending tenants, `API-34` holds each for days, and this
+document already concedes the limiter is "trivially defeated by distributed sources" — so an
+attacker fills every slot, refills as they expire, and closes the only path from stranger to
+customer, for free, for as long as it likes. **`API-41`'s ceiling was itself the denial of service.**
+
+Enrolment therefore requires a **token** the caller obtains from an unauthenticated request that
+answers only after a stated delay (30 seconds is a reasonable default). `POST /v1/enrol` without a
+valid, unexpired, unused token is refused. The token MUST be a keyed authenticator over its issue
+instant and a server-chosen nonce, so **issuing one requires no stored state**; single use is
+enforced by an in-memory nonce set bounded by the validity window, which keeps `API-36`'s rule that
+rate-limiting state is never persisted.
+
+**What this buys is a change of resource, not a proof.** It converts the attack from requests per
+second — unbounded and free — into *concurrently held connections*, which is bounded, visible, and
+the thing a proxy can limit per source address. Those per-source limits are in-memory and
+unpersisted like every other limiter here (`API-36`), so defending the door does not cost
+`ADR-0005`. A sufficiently distributed attacker still gets tokens; it now pays for each one in held
+connections rather than in nothing at all.
+
+*This also closes `F33`, which the 2026-08-14 audit held open because `API-33`'s delay had lost its
+original justification — it existed to protect the single moment a token crossed the wire, and
+`API-33` now returns both secrets in the enrolment response. The delay is not deleted; it is moved
+to the one place it does work.*
+
+The status poll MUST still not reveal remaining time to the nearest instant, for the reason below.
+`API-34` remains the storage bound.
 
 **API-34** **AMENDED — the time-to-live has a floor, and it is not free to choose.** A pending
 tenant that has not been funded within a configured time-to-live MUST be deleted along with its
