@@ -81,8 +81,30 @@ installs custom images. Provider-specific and the reason this is not a thin API 
 _Avoid_: recovery mode, live CD, netboot
 
 **Install**:
-Putting a caller-chosen OS image onto a machine's disk. Destructive by definition.
+Putting a caller-chosen OS image onto a machine's disk. Destructive by definition. **Names two
+different promises** — see **Rescue install**, **Catalogue install**, and the flagged ambiguity
+below.
 _Avoid_: deploy, provision, image (verb), reimage, rebuild
+
+**Rescue install**:
+An **install** performed by booting the provider's rescue system and writing the caller's bytes to
+the disk from there. provisiond holds the bytes only in flight, verifies the digest before writing,
+and controls the disk layout. The differentiator, and the reason this is not a thin API proxy.
+_Avoid_: install (bare — say which), native install
+
+**Catalogue install**:
+An **install** performed by importing the caller's image into the operator's private catalogue at
+the provider, and having the provider build the machine from its own converted copy. provisiond
+never verifies what reaches the disk, controls no layout, and the image must satisfy the provider's
+own guest requirements. **A different promise from rescue install, not a lesser configuration of
+it** — the two are separate capabilities.
+_Avoid_: install (bare), rebuild, provider install
+
+**Rescue inventory**:
+A read-only pass that boots a machine into rescue and reports its disks with stable identifiers, so
+a caller can choose a target before a destructive write. Read-only about the **disk** and nothing
+else: it reboots the machine, and an ambiguous exit can leave it in rescue.
+_Avoid_: preflight (banned — see flagged ambiguities)
 
 ### Abuse
 
@@ -253,3 +275,17 @@ address stopped working (`LDG-54`).
 
 **"Provision"** is banned as a verb for installing an OS. It means acquiring a machine from a
 provider. Use **create** for acquisition and **install** for putting an image on a disk.
+
+**"Install" names two promises and the difference is the whole product.** Both put a caller-chosen
+image on a machine, and that is all they share. **Rescue install** writes bytes provisiond has
+verified onto a disk provisiond controls. **Catalogue install** hands the image to the provider,
+which converts it and boots its own copy — so nothing verifies what reaches the disk, the layout is
+whatever was baked in, and the image must satisfy the provider's guest requirements or the machine
+comes up unreachable with no rescue path to fix it. Never write "install" unqualified where a reader
+could infer the bytes were checked.
+
+**"Preflight" is banned**, and it is banned for causing the misreading it names. It was the word for
+what is now **rescue inventory**, and it reads as harmless: it is read-only about the *disk* and not
+about the *machine*, which it reboots into another operating system and can strand there.
+`OPS-11` already has to classify it with `install` rather than `refresh` for exactly that reason —
+a name that needs a correction four documents away is the wrong name.

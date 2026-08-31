@@ -3,10 +3,28 @@
 A language-neutral specification for a multi-provider control plane that provisions,
 adopts, rebuilds, reimages, powers, and deletes VPS and dedicated (bare-metal) machines.
 
-This directory contains **specifications only**. There is deliberately no source code
-here, and none should be added. The specs were extracted from a Rust reference
-implementation that was reviewed and found to be unbuilt, untested, and holed in two
-of its load-bearing safety claims. The *architecture* of that implementation is worth
+This directory contains **specifications only**, with one carve-out: `tools/` holds the
+gates that check the specifications, and `.github/workflows/` runs them. Nothing that
+implements the specified system belongs here, and none should be added. *The carve-out was
+made on 2026-08-31 for a concrete reason: the gates had always lived in a scratch directory,
+that directory was cleaned by age, and they ceased to exist without anyone noticing. A check
+that guards this set has to outlive the machine that last ran it.* The specs were extracted
+from a Rust reference implementation that was reviewed and found to be unbuilt, untested,
+and holed in two of its load-bearing safety claims.
+
+## Gates
+
+`bash tools/check-all.sh` runs all three, and CI runs the same script on every push:
+
+| Gate | What it refuses |
+|---|---|
+| `tools/check_ids.py` | A duplicate identifier, a citation to an id nothing defines, a gap in a namespace's sequence, an id far above its neighbours, a reference to an ADR that does not exist |
+| `tools/check_fixtures.py` | A JSON example that does not parse, carries a `...` placeholder, repeats an object member, exceeds `WIR-1a`'s integer bound, spells a timestamp `+00:00`, or carries a malformed digest |
+| `tools/check_coverage.py` | A fall in the number of requirements exercised by at least one conformance item, against a recorded baseline |
+
+The workflow also breaks a document deliberately on every run and asserts the identifier
+gate rejects it. `DEF-16` is why: the discarded implementation shipped CI that ran a suite
+containing zero tests, and a green check beside it. The *architecture* of that implementation is worth
 keeping; the *code* is not. Everything the code got right is written down here as a
 requirement, and everything it got wrong is written down in `09-known-defects.md` as a
 requirement not to repeat it.
@@ -58,6 +76,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0010` | v1 ships three drivers — Hetzner Cloud, Hetzner Robot, DigitalOcean — for both machine shapes across two companies. Settles the launch-set question |
 | `0011` | Commitments are fixed at open and never auto-widen — save for the scheduled-cancellation branch, the one automatic exception (`LDG-63`); a price move shifts the runway date instead. Closes `F27`; amends `ADR-0003`'s matching claim |
 | `0012` | Abuse handling is the operator's in both directions: the provider's notice, case reference and one-shot statement link never reach a tenant, and a tenant's statement reaches the provider only through the operator. Closes `F34` |
+| `0013` | Catalogue install is a second feature, not a second strategy: DigitalOcean has no rescue API, but imports custom images, so bring-your-own-OS exists on both companies by different means and with different promises. Closes `F32` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:

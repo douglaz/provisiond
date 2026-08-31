@@ -1,0 +1,44 @@
+name: gates
+
+# The reference implementation this set was extracted from shipped with a CI job
+# that ran a test suite containing zero tests, and a green check next to it
+# (DEF-16). A green check that asserts nothing is worse than no check, so this
+# workflow runs gates that can actually fail, and 10-conformance-checklist.md
+# opens by saying to treat any unchecked box as that same green check.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gates:
+    name: specification gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run all gates
+        run: bash tools/check-all.sh
+
+      # Proving the gates can fail is the point of CNF-3 ("The test suite fails
+      # when a test is deliberately broken -- verified once, by hand, so that
+      # 'tests passed' means something"). This does it on every run, against a
+      # scratch copy, so the green check above is evidence rather than decoration.
+      - name: Prove the identifier gate can fail
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n**API-9999** A citation to `DOM-9999`, which does not exist.\n' >> 00-overview.md
+          if python3 tools/check_ids.py; then
+            echo "::error::identifier gate passed a document with a dangling citation"
+            exit 1
+          fi
+          echo "identifier gate correctly rejected a dangling citation"
