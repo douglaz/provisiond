@@ -65,8 +65,19 @@ def measure():
 
     # Attribute every line of the checklist to the CNF item it belongs to, then
     # collect what that item cites.
+    #
+    # `current` MUST be cleared at every heading. Without that reset it stays
+    # set after the final item in a section, so every subsequent line — the tier
+    # assignments, "Before production", the blocking-count discussion — is
+    # credited to whichever item happened to precede it, and a requirement named
+    # only in prose counts as demonstrated. That bug shipped on 2026-08-31 and
+    # inflated the reported figure by eight points; found by a cross-model review
+    # the same day. A gate that overstates coverage is worse than no gate,
+    # because the ratchet then guards a number nobody earned.
     covered, current = set(), None
     for line in open("10-conformance-checklist.md"):
+        if line.startswith("#"):
+            current = None
         m = CNF_ITEM_RE.search(line)
         if m and (line.lstrip().startswith(("- [ ]", "- [x]", "- **"))):
             current = m.group(1)
