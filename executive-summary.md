@@ -54,7 +54,8 @@ interval — because a ceiling is the one kind of limit the caller cannot set fo
 **Error taxonomy becomes a safety mechanism.** An agent that cannot distinguish "you are out of
 money" from "your request is malformed" recovers the only way it can: mutate the request and retry.
 In this system that is how a retry loop becomes a *second physical server*. Hence distinct kinds —
-`insufficient_balance`, `not_activated`, `halted`, `gone`, `suspended` — `retryable` as normative
+`insufficient_balance`, `not_activated`, `halted`, `gone`, `suspended`, `ceiling_exceeded` —
+`retryable` as normative
 caller guidance, and a contract that says in words that re-issuing under a fresh idempotency key
 "is a second purchase, not a retry."
 

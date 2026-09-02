@@ -53,8 +53,12 @@ to contradict `API-1` on its own.
 
 **API-1** Every non-`GET` endpoint that *accepts* a valid, authorized request MUST return
 `202 Accepted` with an operation view; none returns the completed result inline. Requests
-rejected before enqueue return their mapped error status (`API-24`) — `400`, `401`, `404`,
-`409` and `501` are all reachable on write endpoints.
+rejected before enqueue return their mapped error status (`API-24`) — `400`, `401`, `402`, `403`,
+`404`, `409`, `410`, `429`, `501` and `503` are all reachable on write endpoints, which is
+`DOM-17`'s mapping and not a shorter list. *The five that were missing here arrived with the kinds
+that produce them — `insufficient_balance`, `not_activated`, `suspended`, `gone`, `halted` and
+`ceiling_exceeded` — and an enumeration that lags the taxonomy teaches a client to treat a
+conforming status as a protocol error.*
 
 **API-2** **AMENDED.** `{id}` in a machine, operation or deposit path is always an internal UUID; a
 `{tenant_id}` component follows `DOM-1`'s grammar instead, which is wider than a UUID (`agent-7`
@@ -201,9 +205,15 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     it already spent, and a suspended tenant is refused before its budget is consulted. It sits
     **before** the tail, so a ceiling refusal happens before any commitment opens and before
     anything is enqueued.
-    **The exemptions are exactly two, and both are named elsewhere.** `OPS-39` exempts
-    exposure-reducing **system** cancellations, because a tenant that hit its destruction limit
-    would otherwise keep machines it cannot pay for at the operator's expense. And `SEC-39`'s stated
+    **The exemptions are exactly three.** `OPS-39` exempts exposure-reducing **system**
+    cancellations, because a tenant that hit its destruction limit would otherwise keep machines it
+    cannot pay for at the operator's expense — though that sweep enqueues directly and never
+    traverses this pipeline, so the exemption bites here only on the second one. **A requeue of an
+    exposure-reducing operation is exempt** (added 2026-09-02): step 5b already admits it for a
+    suspended tenant "or its machine bills forever" (`OPS-39`, `LDG-20`), and `OPS-44` names that
+    requeue as the *only* recovery for a cancellation that failed deterministically — so capping it
+    at 5c would refuse, one step later, the exact action 5b exists to let through, and against an
+    **operator** principal whose requeue ceiling `SEC-39` now sets. And `SEC-39`'s stated
     override path for a genuine incident is the operator's, recorded as the uncapped thing.
 
 The tail then depends on what the endpoint does:
@@ -995,9 +1005,26 @@ those the pacing hint is the timing oracle `API-33` forbids. Absent, or a consta
 remaining delay. This covers the handle poll, whose remaining time is `API-34`'s time-to-live, and
 `POST /v1/enrol/token`, which answers *after* its delay rather than advertising it.
 
-**API-50** **A caller that obeys every `Retry-After` it receives MUST never receive `429`.** This
+**API-50** **A caller that obeys every `Retry-After` it receives MUST never receive `429` for
+*throughput*.** This
 is the rate-limit contract stated as a relationship rather than a number, because any number is
-wrong after the fleet grows. Read limits MUST be budgeted separately from write limits and MUST
+wrong after the fleet grows.
+
+**AMENDED 2026-09-02 — the promise is about pacing, and two `429`s are not about pacing at all.**
+Read unconditionally it is now false three ways, and each of the three is a control the set
+deliberately added: `ceiling_exceeded` (`SEC-39`, `DOM-17`) refuses a principal that has spent its
+allowance for the interval, and no amount of obedient pacing earns it back; `API-41` sheds enrolment
+at the global pending-tenant ceiling; and `WIR-49`'s per-source concurrency limit refuses a caller
+holding too many token requests open. **The last two arrive on a caller's very first request, where
+no `Retry-After` has ever been issued and the promise cannot even be evaluated.**
+
+The contract therefore splits, and both halves are testable. **A caller obeying every `Retry-After`
+MUST never be throttled for rate** — that is `CNF-152`, unchanged. **A `429` that is not about rate
+MUST say so in its `kind`**: `ceiling_exceeded` for an exhausted allowance, `rate_limited` for
+everything else, and the agent's recovery differs (`DOM-20`'s argument). *An unconditional promise
+that three shipped controls break is worse than a narrower one that holds: a caller written against
+it treats any `429` as a bug in the server, and the natural response to a bug in the server is to
+retry harder.* Read limits MUST be budgeted separately from write limits and MUST
 admit, at minimum, one non-terminal list poll plus one balance poll plus one machines poll at the
 finest advertised cadence. Every `429` anywhere MUST itself carry `Retry-After`, and a `429` on a
 read carries **no information about any operation's outcome** — an autonomous caller MUST NOT

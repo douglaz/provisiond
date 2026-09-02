@@ -321,8 +321,18 @@ conformance item in the set — was satisfiable by moving the column to another 
 The rule that carries the intent is a **prohibition on categories, not on columns**: no
 information that could identify, locate or contact a natural or legal person, and no information
 derived from the network path a request arrived on. Operational state a tenant needs in order to
-function — account assignment, counters, meters, cached balance — is permitted and MUST live in
+function — account assignment, meters, cached balance — is permitted and MUST live in
 named tables. `CNF-80` tests the prohibition, not the column count.
+
+**`SEC-39`'s ceiling counters are the one exception, and they are in memory** (amended 2026-09-02).
+This paragraph listed "counters" among the state that must live in named tables, and no `STO-*`
+table ever defined one — while `API-36` requires limiter state to be held in memory and never
+persisted, and `API-54` forbids a `GET` taking a write transaction on the store that also runs the
+money. `ADR-0001`'s single process makes in-memory counters sufficient, and the cost of losing them
+on restart is bounded and stated: **a restart resets every principal's allowance for the current
+interval**, which a deployment MUST accept as the price of not writing a row per destructive request
+to `STO-6`'s single-writer store. *An attacker who can restart the process has already won something
+larger than a destruction ceiling.*
 
 `ADR-0005` remains a schema constraint. The place a privacy policy actually fails is still a
 column somebody added because it seemed harmless — but a rule that forbids the whole system from

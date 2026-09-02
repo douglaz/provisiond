@@ -219,8 +219,16 @@ loop.** Where an operator principal is a program — and this deployment's is �
 applies to it unchanged, and it has strictly more power than any customer: requeue places physical
 orders, resolve-observed attaches a machine to a tenant on the operator's say-so, suspend cancels a
 fleet. A deployment MUST therefore state ceilings for operator principals — at minimum requeues,
-resolutions, suspensions and provider-account re-assignments per interval — with a stated override
+resolutions, suspensions, provider-account re-assignments **and provider-account status recordings**
+(`API-63`, added 2026-09-02: confirming a termination releases every affected tenant's commitments,
+which is the largest single money movement any operator verb performs) — per interval, with a stated
+override
 path for a genuine incident, and MUST record that the override is the uncapped thing.
+
+**One requeue is exempt, and `API-7` step 5c states it**: a requeue of an *exposure-reducing*
+operation, which `OPS-44` names as the only recovery for a cancellation that failed deterministically
+and which step 5b already admits for a suspended tenant "or its machine bills forever". A ceiling
+that refuses it converts a capped operator into a machine that bills forever.
 
 **Every operator verb MUST emit a monitorable event** naming the principal, the target, and the
 reason. `SEC-32`'s audit record already covers mutating *requests*; this is the operator surface

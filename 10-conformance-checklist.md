@@ -569,9 +569,12 @@ not optional hardening — they are the only structural defence there is.
       `details.interval_seconds` and `details.retry_after_ms` (`WIR-9a`). It happens at `API-7`
       step 5c: **after** the idempotency fingerprint, so a replay returns its stored result rather
       than spending a slot twice, and **before** any commitment opens or anything is enqueued.
-      Assert `OPS-39`'s exemption too — an exposure-reducing system cancellation is not refused by a
-      principal's destruction ceiling, or a tenant that hit its limit keeps machines the operator
-      pays for. *Until today this item was BLOCKING against a taxonomy that could not express its
+      Assert both exemptions. An exposure-reducing system cancellation is not refused by a
+      principal's destruction ceiling (`OPS-39`), or a tenant that hit its limit keeps machines the
+      operator pays for. **And a requeue of an exposure-reducing operation is admitted at 5c even
+      when the operator principal's requeue ceiling is exhausted** — it is the only recovery
+      `OPS-44` leaves for a cancellation that failed deterministically, and refusing it one step
+      after 5b admitted it is a machine that bills forever, produced by a safety control. *Until today this item was BLOCKING against a taxonomy that could not express its
       rejection and a pipeline that never performed its check.* (`SEC-39`, `DOM-17`, `API-7`,
       `WIR-9a`, `OPS-39`)
 - [ ] **CNF-70** The deployment has recorded *where* ceilings are enforced and what each integer
@@ -1475,9 +1478,11 @@ assignment block was headed `CNF-222`–`CNF-232` and stopped there.*
       enrolment and funding were each mandated and unlisted for a day, and `API-33`'s admission
       token was mandated and unlisted for two reviews, which made **every enrolment**
       unsatisfiable. **AMENDED 2026-09-02 — run the same diff over the closed sets, not only over
-      the routes**: `DOM-13`'s strategy/source pairings against `WIR-20`'s union, `DOM-17`'s error
-      kinds against `WIR-9a`'s `details` table, and `WIR-10a`'s enums against the values the
-      requirements emit. The catalogue-install variant was missing from `WIR-20` while `DOM-13`
+      the routes**: `DOM-13`'s strategy/source pairings against `WIR-20`'s union, `WIR-10a`'s enums
+      against the values the requirements emit, and `WIR-35`'s two resolution sets against the
+      operation kinds that can reach `needs_reconciliation`. **Not `DOM-17` against `WIR-9a`**,
+      which is a *minimum*-keys table by its own words — a kind whose `details` are genuinely empty
+      conforms, so that diff fails by construction and would be deleted by whoever ran it first. The catalogue-install variant was missing from `WIR-20` while `DOM-13`
       carried the pairing, and three BLOCKING items tested a path no caller could request — the same
       failure as the missing route, one document over. (`API-48`, `DOM-13`, `WIR-20`, `F19`)
 - [ ] **CNF-150** A caller can read its balance, its available figure and its committed satoshis
