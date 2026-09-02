@@ -561,9 +561,18 @@ force when it closes, and its contribution to `exact_total` never changes afterw
 applies to the cumulative total rather than to each posting**, which is what keeps cadence out of
 the price (`CNF-185`) — the rounding argument survives intact; only the pricing point moves.
 
-**`posted_debit` MUST NOT be negative.** By construction it cannot be — `already_charged` is the sum
-of prior postings, each of which was `ceil(exact_total) − already_charged` at its own time, so it
-never exceeds `ceil(exact_total)`, and a correction moves both sides by the same magnitude. A
+**`net_seconds_i` clamps at zero**, so `exact_total` never decreases through metering. An absorbed
+window can exceed the *billable* seconds inside an increment — a machine that was `deleted` for part
+of it is not billable while the outage that absorbed the window ran regardless — and a negative
+increment would then hand back time from an increment priced at a different rate, which is the
+re-pricing this amendment removes arriving by subtraction. The excess is simply not owed; there is
+nothing to carry forward.
+
+**`posted_debit` MUST NOT be negative.** By construction it cannot be: `exact_total` is
+non-decreasing, `ceil` is monotonic, and `already_charged` is the sum of prior postings, each of
+which was `ceil(exact_total) − already_charged` at its own time — so `already_charged` equals
+`ceil(exact_total)` as of the last posting and cannot exceed the current one. A correction moves
+both sides by the same **integer** magnitude, which preserves the identity in either direction. A
 computed negative therefore means the running total has drifted from the entries, and the meter MUST
 **fail closed** in the manner of `LDG-20`'s solvency check rather than post anything. It MUST NOT
 post a positive `usage_debit` under any circumstance: the entry kind means money leaving a balance
