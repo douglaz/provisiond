@@ -163,6 +163,28 @@ NOT be logged, and MUST NOT appear in an operation result or error. Its in-memor
 representation MUST redact the credential in any debug or display formatting, and
 SHOULD zero the credential when dropped.
 
+**AMENDED 2026-09-02 — there is exactly one exception, it is `RSC-19`'s recovery key, and this
+requirement owns it.** `RSC-19` requires the generated private key to be **persisted** whenever
+rescue exit is uncertain, so that a machine stranded in rescue is still reachable; read against the
+sentence above that is a straight contradiction between two MUSTs, and a builder resolves it by
+picking one — either losing every stranded customer machine, or writing root credentials to disk
+with no stated bounds. The exception is therefore stated here, with its bounds, so that the
+prohibition remains readable as a prohibition:
+
+- **Only the engine-generated single-use private key** (`RSC-10`), never a provider-supplied rescue
+  password (`PRV-17`) and never any other field of the session. A password is the provider's to
+  reset and ours to forget; the keypair is ours and is the only thing that can get back in.
+- **Only when rescue exit is uncertain** — an ambiguous activation, a failed cleanup, or a caller
+  that asked to be left in rescue (`RSC-18`).
+- **Only under `RSC-20`'s recovery directory**: absolute, owner-only, on encrypted storage
+  (`STO-15`, `OVR-12`), inventoried and removable by a documented procedure (`RSC-21`).
+- **The operation record gets the *path*, not the key** (`RSC-19`, `OPS-13`). That is what keeps the
+  rest of this requirement true: nothing reaches a log line, an operation result or an error.
+
+*This is the shape `ADR-0005` uses everywhere else — the sensitive thing lives exactly as long as
+the decision that needs it, and what survives is a reference. What was wrong was not the persistence;
+it was that two documents each stated an absolute and neither named the other.*
+
 ### Abuse case
 
 The operator's provider-neutral record of one **abuse notice**, and the only channel through

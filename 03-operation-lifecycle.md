@@ -144,6 +144,29 @@ immediately and MUST NOT record a result.
 for its duration. Concurrent install, power, delete, and refresh operations on one
 machine are not merely wasteful, they are dangerous.
 
+**AMENDED 2026-09-02 — "for its duration" admits a named, bounded exception, and the exception
+already shipped.** `RSC-41` requires a catalogue install's import phase to run holding **no** machine
+lock, and called itself "a narrowing of `OPS-8`'s *for its duration* named explicitly here" — but a
+requirement cannot narrow another by describing itself as a narrowing. Two MUSTs, one of them
+unsatisfiable, and the one that loses is whichever a builder reads second. The rule is therefore:
+
+- **An operation MUST hold the lock for every phase that touches the machine or its provider-side
+  resource**, which is what makes concurrent installs, powers, deletes and refreshes impossible.
+- **It MAY run a phase that touches neither outside the lock, and only where a requirement names
+  that phase explicitly.** Today the list has exactly one member: `RSC-41`'s import-and-poll, which
+  works on an image in the operator's catalogue and never on the machine.
+- **Any such phase MUST be bounded by a stated maximum** (`RSC-41` states one) and the operation
+  MUST **re-acquire the lock and re-validate** before the phase that does touch the machine
+  (`OPS-9`, `OPS-23`) — the machine may have been installed, powered or cancelled in the gap, and
+  an exposure-reducing cancellation acquiring the lock during an import is the *intended* behaviour
+  (`CNF-266`), not an accident to be tolerated.
+
+*Why not simply hold it throughout: `PRV-13b` puts the deployment's worst-case machine-lock hold
+inside `wind_down_cost`, which sizes the reserve on **every machine in the fleet**, so an unbounded
+provider import queue on one driver would raise the commitment every customer must post before
+buying anything. The narrowing is real and it is paid for; what was missing was this requirement
+admitting it.*
+
 **OPS-9** Lock acquisition MUST be atomic and MUST succeed only when the lock is free,
 its lease has expired, or it is already held by the same operation. An operation that
 cannot take the lock MUST be returned to `queued` with a short delay rather than failed —

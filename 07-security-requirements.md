@@ -430,11 +430,37 @@ to derive every deposit address (`LDG-50`) and to observe every payment (`LDG-57
 specified behaviour requires more. **The key that can move those funds MUST live outside the
 deployment**, and no code path in the deployment may reach it. This part stands unchanged.
 
-**The credential-holding process MUST reach Lightning only through a credential scoped to invoice
-creation and observation** — create, look up, list and subscribe — **on a separate host.** This is
-the boundary that matters for `ADR-0001`: the process holding provider credentials and root on
-every customer machine cannot move the float, and that is achievable today with per-RPC credential
-scoping.
+**The credential-holding process MUST reach Lightning only through a narrowly scoped credential, on
+a separate host.** This is the boundary that matters for `ADR-0001`: the process holding provider
+credentials and root on every customer machine cannot move the float, and that is achievable today
+with per-RPC credential scoping.
+
+**AMENDED 2026-09-02 — the scope was stated as four verbs and three shipped requirements need
+more.** The withdrawn enumeration was "create, look up, list and subscribe", which forbids
+`LDG-20`'s halt (it MUST **cancel** unsettled invoices on unexpired deposits), `LDG-53`'s solvency
+input (it counts **channel balances**) and `SEC-49`'s ceiling (it counts the node's **on-chain
+wallet balance**). Three MUSTs elsewhere required capabilities this one refused, so the halt was
+unimplementable and the solvency check was uncomputable. The scope is therefore:
+
+| Permitted | Why it is needed |
+|---|---|
+| Create an invoice | `LDG-46`'s deposit destination |
+| Look up and list invoices | `LDG-49`'s attribution by destination |
+| Subscribe to settlement | `STO-31`'s replay-tolerant watch |
+| **Cancel an unsettled invoice** | `LDG-20`'s halt, which is the one rail whose life can be ended early |
+| **Read the channel balance and the node's on-chain wallet balance** | `LDG-53`'s solvency input and `SEC-49`'s two-pot ceiling |
+
+**And the prohibition is what carries the requirement, so it is stated as an enumeration too.** The
+credential MUST NOT be able to: pay an invoice or send a keysend; send on-chain; open, close or
+force-close a channel; sign an arbitrary message or PSBT; add a peer, or alter the node's
+configuration, macaroon set or backup. **A deployment MUST test the prohibitions by attempting
+them** (`CNF-254`), not by reading the credential's configuration.
+
+*The two additions are safe for different reasons and both are worth stating.* Cancelling an
+unsettled invoice moves nothing: the rail is atomic, an HTLC against a cancelled invoice fails back,
+and `LDG-48` already says an accepted-but-unsettled HTLC is not a payment — the payer never parts
+with funds. Reading a balance is a read. **Neither is a spend, and the boundary `ADR-0001` needs is
+unchanged**; what changed is that it is now stated in a form the rest of the set can satisfy.
 
 *The withdrawn clause was "MUST NOT hold anything that can construct a spend", stated of the whole
 deployment. Two independent research passes established that it is unsatisfiable: **receiving

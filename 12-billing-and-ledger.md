@@ -864,10 +864,19 @@ deployment MUST state whether the solvency check counts a channel balance at fac
 it does, that a fully-drained inbound position can be solvent on paper while unable to fund a
 withdrawal it is in any case forbidden from making (`ADR-0004`).
 
-**The check MUST be computable watch-only** (`SEC-48`). Counting what is held is a read, so the
+**The check MUST be computable without any ability to spend** (`SEC-48`). Counting what is held is a
+read, so the
 invariant this whole design rests on needs no key that can spend — which is the property that
 made `ADR-0009` affordable. An implementation that reaches for a spending key to answer "am I
 solvent" has either misunderstood the question or acquired a capability `SEC-48` forbids.
+
+*Two reads, not one, and the second one had no permission until 2026-09-02.* The on-chain side is
+answered from watch-only material (`SEC-48`, `LDG-50`). The Lightning side is a **balance read on
+the node**, which the process's scoped credential now explicitly permits and previously did not —
+`SEC-48`'s withdrawn scope was "create, look up, list and subscribe", under which this requirement
+was uncomputable. "Watch-only" was the right idea and the wrong word for the Lightning leg, where no
+extended-public-key analogue exists; what is true, and what is now required, is that the credential
+can **read** those balances and cannot move them.
 
 **LDG-43** A payment that cannot be attributed to a live tenant MUST be recorded as unattributed
 and MUST NOT be silently dropped, and a tenant MUST NOT be deleted while a payment attributable

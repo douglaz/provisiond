@@ -30,6 +30,22 @@ destination that is compiled in, not configured at runtime.
 A remote compromise therefore costs the machines and whatever is under the ceiling. That is a bad
 day with a stated size, rather than every satoshi any customer ever deposited.
 
+**AMENDED 2026-09-02 — three phrases in this ADR describe behaviour the requirements no longer
+have, and one of them is in the title.**
+
+- **"Sweeps the excess" is not automatic.** `SEC-49` makes the sweep a **manual operator action**,
+  because Lightning balance cannot be sent to an on-chain address directly: the mechanism is a
+  cooperative close or a swap, and the deployment must state which. A stated bound the operator
+  enforces by acting is weaker than one the code enforces, and this decision is sold on the bound.
+- **"Compiled in" is `SEC-50`'s "fixed at deployment and not settable at runtime".** The property
+  that matters is that no API path, tenant input or database write can move the destination; whether
+  it arrives as a constant or as start-up configuration is an implementation choice, and demanding a
+  recompile to change a cold address is a rule an operator will break under pressure.
+- **The title's "cannot spend the float" is true of the on-chain float and false of Lightning**, as
+  the 2026-08-31 amendment below already concedes. The file name is kept because identifiers and
+  citations are append-only; read it as *the process cannot spend the on-chain float, and its
+  Lightning exposure is bounded by a stated ceiling.*
+
 **AMENDED 2026-08-31 — the number was understated, and "watch-only" was doing work it cannot do.**
 Two corrections, both from research against current tooling:
 
@@ -72,7 +88,13 @@ the operator now on the wrong side of it.
   paid over Lightning simply pays the address. What would otherwise be "funding is down until the
   operator wakes up" degrades to "funding is slower."
 - **Solvency verification needs no spending key** (`LDG-53`). Checking that satoshis held cover
-  the float is a read, so the invariant that matters most is fully computable watch-only.
+  the float is a read, so the invariant that matters most is computable without any ability to
+  move funds. *Amended 2026-09-02: "fully computable watch-only" was true of the on-chain leg and
+  wrong about Lightning, where there is no watch-only analogue and the figure comes from a balance
+  **read on the node**. `SEC-48`'s scoped credential now permits that read explicitly — and permits
+  cancelling an unsettled invoice, which `LDG-20`'s halt requires. Neither is a spend; both were
+  outside the scope this ADR was written against, so the halt was unimplementable and the solvency
+  check uncomputable while three requirements asserted otherwise.*
 - **The watch-only key is not a secret but leaking it is still a breach** (`SEC-52`). An extended
   public key reveals every address ever derived from it, so it exposes the operator's entire
   deposit history with every customer's payments linked — which is the outcome `ADR-0005` exists

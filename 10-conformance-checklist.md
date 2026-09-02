@@ -708,11 +708,19 @@ to strand satoshis that do.
 Added 2026-08-12 with `ADR-0009`. These are the first items that make `F13`'s "one compromise
 takes the machines *and* the float" partly false.
 
-- [ ] **CNF-132** No spending key or seed is reachable from the process — not in its environment,
-      its configuration, its filesystem or any service it can call. Asserted by attempting to
-      construct a spend from inside it and failing. **Type-level absence is not the test**;
+- [ ] **CNF-132** **AMENDED 2026-09-02 — it asserted the clause `SEC-48` withdrew.** No spending key
+      or seed is reachable from the process — not in its environment, its configuration or its
+      filesystem — and **no service it can call will construct a spend for it**: with the Lightning
+      credential in hand, paying an invoice, sending keysend, sending on-chain, opening or closing a
+      channel and signing an arbitrary message or PSBT each fail. Asserted by attempting them and
+      failing. **Type-level absence is not the test**;
       `CNF-71`'s weakness was proving visibility rather than reachability, and repeating it here
-      would prove nothing about the money. (`SEC-48`, `F13`)
+      would prove nothing about the money. *Withdrawn clause:* "**nor any service it can call**"
+      taken absolutely — `SEC-48` concedes that receiving Lightning is inseparable from spending it,
+      so the node it calls *can* spend and the testable property is what the process's credential is
+      permitted to make it do. Cancelling an unsettled invoice and reading the two balances are
+      permitted and MUST succeed; a build where they fail cannot run `LDG-20`'s halt or
+      `LDG-53`'s solvency check. (`SEC-48`, `LDG-20`, `LDG-53`, `F13`)
 - [ ] **CNF-133** Address derivation and payment observation both work with watch-only material
       only. Removing everything but the extended public key breaks nothing in the funding path.
       (`SEC-48`, `LDG-50`, `LDG-57`)
@@ -1037,10 +1045,15 @@ rather than acquiring a default.
       duplicate servers or attaching a machine to the wrong tenant — strictly more power than any
       customer holds, previously uncapped. (`SEC-39`, `SEC-32`, `API-62`)
 - [ ] **CNF-254** **The credential-holding process cannot move the float.** Its Lightning credential
-      permits creating and observing invoices and nothing else: attempting a payment, a channel
-      close or an on-chain send with it fails. Asserted by attempting them, not by reading the
+      permits exactly `SEC-48`'s six operations — create, look up, list, subscribe, **cancel an
+      unsettled invoice**, and **read the channel and on-chain wallet balances** — and nothing else:
+      attempting a payment, a keysend, an on-chain send, a channel open or close, an arbitrary
+      message or PSBT signature, a peer addition or a configuration change each fail. Both halves
+      are required: **a build where the cancel or the balance reads fail cannot execute `LDG-20`'s
+      halt or `LDG-53`'s solvency check**, which is the failure the withdrawn four-verb scope
+      guaranteed. Asserted by attempting them, not by reading the
       credential's configuration — `CNF-132`'s rule that reachability is the test, not visibility.
-      (`SEC-48`, `ADR-0001`)
+      (`SEC-48`, `LDG-20`, `LDG-53`, `ADR-0001`)
 - [ ] **CNF-255** **The stated ceiling covers both pots and the sweep destination is pinned.**
       Channel balance plus the node's on-chain wallet is what the ceiling measures; a sweep whose
       outputs are not the pinned cold destination is rejected by the signer; and the destination

@@ -147,7 +147,12 @@ left in rescue for debugging. The default MUST be to exit.
 **RSC-19** Whenever rescue exit is uncertain — activation failed ambiguously, cleanup
 failed, or the caller asked to be left in rescue — the private key MUST be persisted
 under a configured recovery directory, and its path MUST be reported in the operation's
-error details along with the rescue address and port.
+error details along with the rescue address and port. **The key is the only part of the session
+that may be written**, and the exception is owned by `DOM-11` (amended 2026-09-02) rather than
+claimed here: that requirement forbids persisting a rescue session at all, so until it named this
+case the two were a contradiction a builder had to resolve by guessing. A provider-supplied rescue
+password is **never** persisted — it is the provider's to reset — and the record carries the path,
+never the key.
 
 **RSC-20** The recovery directory MUST be absolute, MUST be created with owner-only
 permissions, and MUST live on encrypted storage (`STO-15`). Its contents are root
@@ -336,8 +341,14 @@ propose a cheap magic-byte check, and this is why it was refused.*
 
 **RSC-41** **The import happens outside the machine lock, and is bounded.** The import touches no
 machine; only the switch-over does. So the operation MUST import and poll the provider to a usable
-state while holding **no** machine lock, and acquire it only for the rebuild and the cleanup — a
-narrowing of `OPS-8`'s "for its duration" named explicitly here.
+state while holding **no** machine lock, and acquire it only for the rebuild and the cleanup — the
+one exception `OPS-8` admits, and it is admitted *there* (amended 2026-09-02) rather than asserted
+here. *Naming itself a narrowing did not make it one: `OPS-8` said "for its duration" without
+qualification, so the two requirements were a straight contradiction and the winner was whichever a
+builder read second.* On re-acquiring the lock the operation MUST re-validate before the rebuild
+(`OPS-9`, `OPS-23`): an exposure-reducing cancellation taking the lock during the import is the
+behaviour this narrowing exists to permit, so the machine may be gone by the time the import
+finishes.
 
 **A maximum import wait MUST be stated**, past which the operation aborts and the imported image is
 deleted.
