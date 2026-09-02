@@ -90,6 +90,10 @@ erDiagram
     LEDGER_ENTRIES ||--o{ LEDGER_ENTRIES : "correction names"
     LEDGER_ENTRIES ||--o{ METER_TOTALS : "summarised by"
 
+    DEPOSITS ||--o{ PAYMENTS : "settled by, one per rail"
+    PAYMENTS ||--|| LEDGER_ENTRIES : "credits, exactly one"
+    DEPOSITS |o..o{ LEDGER_ENTRIES : "by deposit_id, NO FK"
+
     OPERATOR_DEFICIENCIES }o--o| MACHINES : "cost the operator absorbs"
     IDEMPOTENCY_RECORDS }o--|| TENANTS : "scoped to"
 ```
@@ -333,6 +337,7 @@ the authorization system.
 | `corrected_seconds` | integer | nullable; **required on a `correction` whose `corrects_entry_id` names a `usage_debit`, and null on every other correction** (`LDG-73`). The billable seconds the correction returns or adds, which `LDG-38` subtracts from `billable_seconds`. Without it a correction changes what has been charged but not what the period should total, and the next tick charges it straight back |
 | `idempotency_key` | text | not null; unique within the tenant (`LDG-8`). Derived from the thing being billed or from the payment (`STO-31`), never from a count of what has been posted |
 | `operation_id`, `machine_id`, `commitment_id` | UUID | nullable; `LDG-6`'s causation ids |
+| `deposit_id` | UUID | nullable; **required on every `topup`** and on the `correction` pair `WIR-42` posts. `LDG-43` requires an unattributed credit to carry the deposit it arrived at, because the deposit id is the only handle a returning customer still holds (`WIR-14`'s disclosure) and `ADR-0005` retains nothing about the payer — so without this column `WIR-42` can find the credits it must move by no route at all. It is the operator's own binding (`LDG-49`, `STO-29`), not information about a counterparty, so it costs `LDG-21` nothing. *Added 2026-09-02; it was a MUST in `12-billing-and-ledger.md` with no column anywhere, which is `STO-38`'s failure class for the fourth time* |
 | `settlement_ref` | text | nullable; the provider-side settlement reference once known (`LDG-6`) |
 | `native_minor`, `native_currency` | integer, text | nullable; `LDG-2`'s provider-denominated amount, required on every provider-denominated entry |
 | `rate_num`, `rate_den`, `rate_source`, `rate_observed_at`, `haircut_bps`, `rounding_rule_version` | integer, integer, text, timestamp, integer, text | nullable; `LDG-4`'s conversion evidence, **denormalised onto the entry** so it survives any pruning of a rate table |
@@ -341,7 +346,8 @@ the authorization system.
 Constraints: unique `(tenant_id, idempotency_key)`; unique `(tenant_id, seq)`; index on
 `(tenant_id, seq desc)` for the balance read (`LDG-70`); index on
 `(subject_kind, subject_id, billing_period, kind)` for `LDG-38`'s netting query; index on
-`(corrects_entry_id)`, which that same query traverses.
+`(corrects_entry_id)`, which that same query traverses; index on `(deposit_id)`, which is how
+`WIR-42` reaches the credits a deposit produced.
 
 **STO-38** **`subject_kind`/`subject_id` and `corrects_entry_id` are load-bearing, not
 bookkeeping.** A deployment MUST NOT substitute `machine_id` for the subject: `LDG-32` requires
@@ -462,10 +468,41 @@ through `LDG-43` rather than through a lookup that no longer works.
 that is the bound that matters. Retention here is storage, and storage is not what an attacker
 minting free funding requests was ever able to threaten.
 
+### `payments`
+
+**STO-46** **`STO-30` required a payment record and no document defined one.** It said the credit
+and "the payment" MUST be written in one transaction, and the only tables that existed were
+`deposits` — which deliberately carries no settled flag, because `LDG-55` lets both rails pay one
+deposit — and `ledger_entries`. So the record `STO-30`'s atomicity rule is about had no schema, and
+`STO-31`'s replay tolerance had nothing to be idempotent against. This is the `commitments` gap for
+the fifth time, on the money-in path where a bug **mints** satoshis rather than moving them.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `deposit_id` | UUID | not null; which deposit's destination this arrived at (`LDG-49`). **No foreign key to `tenants`** and none needed — the deposit carries the tenant identifier and `STO-29` keeps the row forever |
+| `rail` | enum | `lightning` \| `onchain` — **discovered, not assigned** (`LDG-46`): the payer chose it |
+| `payment_ref` | text | not null, **unique**; the payment's own identity at the rail — the payment hash, or the outpoint. This is what `LDG-8` derives the ledger entry's idempotency key from and what makes a replayed settlement a no-op (`STO-31`) |
+| `amount_sats` | integer | the **settled** value, never the requested one (`LDG-47`) |
+| `ledger_entry_id` | UUID | not null; the `topup` this payment produced. Not null is the whole point of `STO-30`: a payment row without its entry is a payment the recovery path will credit again |
+| `credited_tenant_id` | text | not null; the identifier the credit was posted to — the deposit's `attributed_tenant_id` where one is set (`WIR-42`), otherwise the deposit's own tenant. Denormalised deliberately: it records who was credited *at the time*, which a later attribution MUST NOT rewrite |
+| `observed_at`, `settled_at` | timestamp | when the watcher saw it, and the rail's own settlement instant. Both, because they differ across a restart and only the first is ours |
+| `created_at` | timestamp | |
+
+Constraints: unique on `payment_ref`; unique on `ledger_entry_id`; index on `(deposit_id)` for
+`WIR-42`, which enumerates a deposit's settled payments to post one `correction` pair per payment.
+
+**A payment is *unattributed* exactly when no live `tenants` row bears its `credited_tenant_id`**
+(`LDG-43`). There is no flag for it, and adding one would be a second copy of a fact the join
+already answers — the failure `SEC-46` is this set's standing example of. `DOM-1`'s never-reused
+identifier is what makes the join safe.
+
 **STO-30** A settled payment MUST credit its ledger entry and record the payment in **one**
 transaction. Two transactions permit a crash between them, and the recovery reads identically to
 an uncredited payment — so the retry credits it twice, which is minting rather than double-billing
-and is not caught by the solvency check (`LDG-17`) until the operator is already short.
+and is not caught by the solvency check (`LDG-17`) until the operator is already short. **The
+record is `STO-46`'s `payments` row**, cited rather than left to inference: this requirement stood
+for three weeks naming a table nothing defined.
 
 **STO-31** Watching for settlement MUST be idempotent and MUST tolerate replay from the rail. Both
 rails re-announce: a node replays invoice settlements on reconnect, and a chain re-scan re-reports

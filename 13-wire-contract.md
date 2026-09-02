@@ -322,6 +322,12 @@ returning customer enrols afresh, and the credit then counts toward `API-35`'s a
 like any other — **by posting one `correction` pair per settled payment** (`LDG-7`, `LDG-5`) — each a negative
 entry naming the original credit it corrects and a positive one to the named tenant, keyed on that
 payment's identity (`LDG-8`), all committed in one transaction under deposit-level idempotency.
+**The settled payments are enumerated from `payments` by `deposit_id`** (`STO-46`), and each pair's
+negative entry names that payment's own `ledger_entry_id`; both entries carry the `deposit_id`
+(`05-persistence.md`). *Added 2026-09-02: this endpoint's central verb was "correct the credits this
+deposit produced" and nothing in the schema could enumerate them — no payment record existed and no
+entry carried a deposit binding, so the operator's only recovery route for an orphaned balance was
+unimplementable.*
 **One pair is not enough**: `LDG-55` lets both destinations of a single deposit settle, producing
 two original credits, and `LDG-5` requires a correction to name the entry it corrects — so a
 single pair would strand one credit or lose its traceability. *A second `topup` would mint satoshis: the original payment already credited

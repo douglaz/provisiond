@@ -1023,6 +1023,19 @@ rather than acquiring a default.
       reaches it unaided. Both wrong answers fail this item: a fan-out that never settles, and one
       that settles while nothing at all accounts for the machine. (`API-58`, `OPS-44`, `OPS-39`,
       `API-7`, `LDG-13`)
+- [ ] **CNF-273** **A settled payment is findable afterwards, by the only handle anyone kept.**
+      Settle a deposit on both rails, reap its tenant at `API-34`'s time-to-live, and then attribute
+      the deposit to a fresh tenant: the two payments are enumerated from `payments` by
+      `deposit_id`, each `correction` pair names that payment's own credit entry, and every entry
+      carries the `deposit_id`. Assert the storage shape too, because it is what makes the rest
+      possible: a payment row and its `topup` commit in one transaction (kill the process between
+      them and neither survives), `payment_ref` is unique so a replayed settlement credits once, and
+      a credit whose tenant identifier matches no live row is reported unattributed **by the join**
+      rather than by a stored flag. **The failure this catches is a stranger's money the operator
+      has made itself unable to return** — `LDG-43` calls it the one outcome the specification must
+      not permit by accident, and until today the deposit binding, the payment record and the
+      enumeration it needs were three MUSTs pointing at each other with no column underneath.
+      (`STO-46`, `STO-30`, `STO-31`, `LDG-43`, `WIR-42`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
@@ -1606,7 +1619,9 @@ machine in rescue rather than losing money or data.
 **BLOCKING** — `CNF-271` (unstoppable billing: a cancellation that can never run again while the
 record claims it succeeded, which the operator would not learn from anything but an invoice);
 `CNF-272` (a suspension that either never completes or completes with a billing machine on a
-suspended tenant — `SEC-45`'s one action is the operator's whole remedy and it must land).
+suspended tenant — `SEC-45`'s one action is the operator's whole remedy and it must land);
+`CNF-273` (money-in, the family this checklist already calls the only one where a bug **mints**
+satoshis: a payment credited twice, or a real customer's balance made unreachable forever).
 
 **PRE-SCALE** — none yet in this block.
 

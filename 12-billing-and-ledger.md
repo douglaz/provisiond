@@ -894,6 +894,15 @@ its unattributed entry there is nothing linking the two and `WIR-42` finds it by
 The id is the operator's own binding (`LDG-49`, `STO-29`), not information about a counterparty,
 so recording it costs `LDG-21` nothing.
 
+**AMENDED 2026-09-02 — it now has somewhere to be carried, and "unattributed" now has a definition.**
+`ledger_entries.deposit_id` is the column, indexed, required on every `topup` (`05-persistence.md`);
+`STO-46`'s `payments` table is the payment record `STO-30` demanded and no document supplied. **A
+payment is unattributed exactly when no live `tenants` row bears the identifier it was credited
+to** — a join, not a flag, so there is no second copy of the fact to drift. *For three weeks this
+requirement, `STO-30` and `WIR-42` each named a structure that did not exist: the deposit binding on
+the entry, the payment record, and the "credits this deposit produced" that attribution enumerates.
+Three MUSTs pointing at one another with nothing underneath.*
+
 **Where the deposit has already been attributed, a later payment is not unattributed at all.**
 `WIR-42` persists its target on the deposit row (`deposits.attributed_tenant_id`), so a payment
 settling after that call is credited to that tenant directly as an ordinary `topup` — no correction
