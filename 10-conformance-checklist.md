@@ -127,7 +127,8 @@ Applying the three questions again, honestly:
   provider has vanished.
 
 **PRE-SCALE** — `CNF-76`, `CNF-79`, `CNF-80`, `CNF-88`, `CNF-89`, `CNF-90`, `CNF-98`,
-`CNF-102`–`CNF-105`, `CNF-110`, `CNF-114`.
+`CNF-102`–`CNF-105`, `CNF-110`. *`CNF-114` was listed here and was merged into `CNF-188`, which is
+BLOCKING, on 2026-09-02 — the duplicate had also been sitting a tier below its survivor.*
 
 **DEFERRED** — none.
 
@@ -358,11 +359,23 @@ not optional hardening — they are the only structural defence there is.
 
 - [ ] **CNF-4** Tenant A cannot read, refresh, power, install on, or delete tenant B's
       machine; every attempt returns `404`, never `403`. (`API-17`, `SEC-8`)
-- [ ] **CNF-5** Adoption without entitlement proof is rejected. Specifically: a tenant
-      naming a valid provider account and a valid external identifier it is not entitled
-      to gets an error, not a machine. (`API-18`, `SEC-7`, `DEF-1`)
-- [ ] **CNF-6** Two tenants cannot both hold a record for the same external machine.
-      (`SEC-10`)
+- [ ] **CNF-5** **REWRITTEN 2026-09-02 — it tested a tenant-facing adopt that `API-18` abolished.**
+      Adoption is operator-only, so the entitlement question is no longer "may this tenant claim
+      this machine" but "does the operator's own assignment name it": (a) a **customer**-authenticated
+      request to `POST /v1/machines/adopt` returns `404`, never `authentication` — the route's
+      existence is not customer-observable (`WIR-34`); and (b) an **operator** adopt naming an
+      external identifier absent from the operator-maintained assignment of external machine
+      identifiers to tenants is refused, and that assignment is unique per external machine
+      (`SEC-10`, `STO-17`). *Withdrawn text:* a tenant naming a valid provider account and a valid
+      external identifier it is not entitled to gets an error, not a machine — which no conforming
+      build can reach, since the tenant gets `404` at the door. (`API-18`, `SEC-7`, `WIR-34`,
+      `DEF-1`)
+- **CNF-6** — **MERGED INTO `CNF-107` 2026-09-02.** It read "two tenants cannot both hold a record
+      for the same external machine"; `CNF-107` reads "two tenants cannot both hold the same
+      `(provider_account, external_id)`, enforced by the store, not by application code" — the same
+      control, tested twice and counted twice in the BLOCKING total. `CNF-107` is the survivor
+      because it names the constraint that enforces it. Identifier retained rather than reused, and
+      not a checkbox: like `CNF-31`, it is a marker rather than an item.
 - [ ] **CNF-7** A non-admin token's tenant-override header is ignored, not honoured.
       (`API-5`, `SEC-9`)
 - [ ] **CNF-8** An unauthenticated request to every write endpoint is rejected before any
@@ -431,7 +444,13 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-28** A worker whose lease is stolen mid-flight abandons its work and does not
       write a terminal state. (`OPS-3`, `OPS-7`)
 - [ ] **CNF-29** A `running` operation whose lease expires is swept to
-      `needs_reconciliation` — never back to `queued`. (`OPS-14`)
+      `needs_reconciliation` — never back to `queued`. **AMENDED 2026-09-02 — with `OPS-14`'s one
+      exception, which this item contradicted.** A `suspend_tenant` **parent** whose lease expires
+      goes back to `queued` and resumes its fan-out; both halves must hold, and an implementation
+      that passes the first clause universally fails `OPS-14` and strands every suspension whose
+      worker crashed. The parent mutates no provider itself and `OPS-39`'s trigger ids make the
+      re-sweep enqueue nothing twice, which is why it is the exception. (`OPS-14`, `API-58`,
+      `OPS-39`)
 - [ ] **CNF-30** The sweeper does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
       different stakes: rows where a misclassification causes a repeated provider mutation, and
@@ -735,9 +754,17 @@ takes the machines *and* the float" partly false.
       only. Removing everything but the extended public key breaks nothing in the funding path.
       (`SEC-48`, `LDG-50`, `LDG-57`)
 - [ ] **CNF-134** The solvency check completes with no spending key present. (`LDG-53`, `LDG-17`)
-- [ ] **CNF-135** Channel balance above the stated ceiling is swept to cold, and the sweep
-      destination cannot be changed by any runtime input — configuration, API, environment or
-      database write. Attempting to change it fails. (`SEC-49`, `SEC-50`)
+- [ ] **CNF-135** **AMENDED 2026-09-02 — it tested an automatic, channel-only sweep, and `SEC-49`
+      requires neither.** The stated ceiling covers **both pots** — the channel balance *plus* the
+      Lightning node's own on-chain wallet — and the sweep is a **manual operator action** whose
+      mechanism (a cooperative close, or a swap) the deployment has stated. What is asserted
+      mechanically is the part that is mechanical: the sweep destination cannot be changed by any
+      runtime input — configuration, API, environment or database write — and where the sweep is
+      signed on the Lightning host, **the signer rejects any transaction whose outputs are not the
+      pinned cold destination**. That refusal is what makes the ceiling a mechanism rather than a
+      habit; an item asserting an automatic sweep asserts a control this design does not have.
+      *Withdrawn clause:* "Channel balance above the stated ceiling is swept to cold". (`SEC-49`,
+      `SEC-50`, `ADR-0009`)
 - [ ] **CNF-136** With inbound capacity fully exhausted, a funding request still succeeds and the
       resulting deposit is payable on-chain. **This is the test that makes `SEC-51`'s manual
       refill survivable** — without it, an operator asleep is an operator not selling. (`SEC-51`,
@@ -786,11 +813,24 @@ rather than acquiring a default.
 - [ ] **CNF-146** `GET /v1/providers` reports three distinguishable capability sets, and a caller
       that acts only on what it reports never invokes an operation a provider does not have.
       (`OVR-16`, `OVR-2`)
-- [ ] **CNF-147** The dedicated path is exercised end to end against a real Hetzner Robot machine:
-      a setup fee committed before the order and debited on confirmed acceptance (`LDG-39`), a commitment sized to include cost through the
-      earliest cancellation date, a cancellation that schedules rather than deletes, and billing
-      that continues until the effective date. **The requirements this tests were all written
-      before any of them had run.** (`LDG-39`, `PRV-13b`, `PRV-13c`, `DOM-19`)
+- [ ] **CNF-147** **AMENDED 2026-09-02 — it required a scheduled cancellation on a product that
+      cancels immediately.** The dedicated path is exercised end to end against a real Hetzner Robot
+      machine: a setup fee committed before the order and debited on confirmed acceptance
+      (`LDG-39`), and a commitment sized to include cost through the machine's **read**
+      `earliest_cancellation_date`. The cancellation is then asserted **against what the machine
+      actually says**, which is `PRV-13c`'s read-and-branch: where that date is today — the normal
+      case for a newly ordered current-generation server, per `08-provider-notes.md` — cancellation
+      is immediate and billing stops; where it is materially in the future, the machine goes to
+      `cancellation_scheduled` with its effective date and billing continues until it arrives
+      (`DOM-19`, `STO-8a`). **Both branches must be covered, and adoption is the road to the second
+      one** — an adopted machine carries whatever contract it came with, which is why `PRV-13c`
+      calls it the main road onto the exception branch. *Withdrawn clause:* "a cancellation that
+      schedules rather than deletes, and billing that continues until the effective date", asserted
+      unconditionally — which `08-provider-notes.md` records as not existing on current Robot
+      servers, so the item was unpassable on the product it was written for and would have been
+      "fixed" by encoding a commercial term `PRV-13c` forbids as a constant. **The requirements this
+      tests were all written before any of them had run.** (`LDG-39`, `PRV-13b`, `PRV-13c`,
+      `DOM-19`, `PRV-31`)
 - [ ] **CNF-148** **The Robot order `comment` field is never populated, by any code path** —
       Hetzner routes commented orders to manual processing (`PRV-30`, confirmed). Asserted against
       the outbound request, not by reading the driver.
@@ -821,7 +861,11 @@ rather than acquiring a default.
       open and keeps metering that attachment; the commitment closes only when the last billable
       resource stops. (`LDG-32`, `PRV-13a`, `STO-18`)
 - [ ] **CNF-188** An unreachable provider account or rejected credentials leave commitments
-      **open**; only confirmed termination releases them. (`SEC-46`)
+      **open**, with the carried exposure recorded as an **operator deficiency** (`LDG-66`); only
+      confirmed termination closes them and returns their reserved satoshis to available. Run it
+      against `07-security-requirements.md` itself, because that amendment was written on
+      2026-08-13, failed to apply, and shipped as prose claiming it had. *Absorbed `CNF-114` and
+      `CNF-195`, which each tested the same table.* (`SEC-46`, `LDG-66`, `LDG-32`)
 - [ ] **CNF-189** The enrolment response carries both secrets **once**, they are stored hashed
       only, both work from that moment, and neither is ever returned by the handle poll. Losing the
       response loses the credentials — and the tenant is unfunded, so nothing of value is stranded.
@@ -846,12 +890,14 @@ rather than acquiring a default.
       maintenance actions reachable (`CNF-209`), enqueues one deduplicated cancellation
       per machine, leaves ledger and machine reads working, and reports per-machine outcomes
       including any `needs_reconciliation`. (`API-58`, `OPS-39`, `SEC-45`)
-- [ ] **CNF-195** **MERGED INTO `CNF-188`** — both tested `SEC-46`'s retained-commitments table
+- **CNF-195** — **MERGED INTO `CNF-188`.** Both tested `SEC-46`'s retained-commitments table
       and both were counted BLOCKING, double-counting one control. `CNF-188` is the survivor and
       gains this item's second half: the carried exposure MUST appear as an operator deficiency
       (`LDG-66`), and the test MUST be run against `07-security-requirements.md` itself, because
       that amendment was written on 2026-08-13, failed to apply, and shipped as prose claiming it
-      had.
+      had. *The checkbox was removed 2026-09-02: the blocking count already described this item as
+      "correctly absent — a split and merge marker, not an item", while it was still a live
+      checkbox anyone could tick.*
 - [ ] **CNF-196** Enrolment ignores an `Idempotency-Key`: two signups presenting the same key
       receive **different** handles and different credentials. The withdrawn rule returned the
       same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
@@ -1558,9 +1604,11 @@ See **The blocking count** at the end of this document; it is stated in one plac
       "an instant" while the only data was current state, so any implementation passed it by
       ignoring the instant — which is precisely the defect. Assert it against `STO-41`'s history
       with a reissued address, or not at all. (`SEC-45`, `SEC-54`, `API-58`)
-- [ ] **CNF-114** **Only confirmed termination** closes the affected commitments and returns
-      their reserved satoshis to available; an unreachable account or rejected credentials leave
-      them open, with the exposure recorded as an operator deficiency. (`SEC-46`, `LDG-66`)
+- **CNF-114** — **MERGED INTO `CNF-188` 2026-09-02.** Both tested `SEC-46`'s three-state table and
+      both were counted BLOCKING, double-counting one control — the same defect `CNF-195` was
+      already the marker for, on the same requirement, which is a hint about where this document's
+      duplicates come from. `CNF-188` is the survivor and carries this item's operator-deficiency
+      clause. Identifier retained rather than reused, and not a checkbox.
 - [ ] **CNF-115** Balances and commitments are answerable with every provider unreachable.
       (`SEC-47`)
 
@@ -1753,8 +1801,17 @@ explanatory prose inside a tier block rather than assigned there. `CNF-99` is di
 PRE-SCALE paragraph about re-tiering; it is BLOCKING and has been since `F30`.
 
 *Two items had no tier at all.* `CNF-233` and `CNF-234` were defined on 2026-08-16 under an
-assignment block headed `CNF-222`–`CNF-232`, and fell off the end of it. Now assigned. `CNF-31` and
-`CNF-195` are correctly absent — they are split and merge markers, not items.
+assignment block headed `CNF-222`–`CNF-232`, and fell off the end of it. Now assigned. `CNF-31`,
+`CNF-6`, `CNF-114` and `CNF-195` are correctly absent — they are split and merge markers, not items.
+
+**Re-counted 2026-09-02: 271 conformance items — 275 identifiers less the four markers — of which
+approximately 182 are BLOCKING.** The
+two-reviewer pass of that date added nine items, `CNF-271`–`CNF-279`, eight of them BLOCKING and
+every one in the destroyed-data, money-out or boundary-crossed families. It removed two by merging
+duplicate pairs that had each been counted twice: `CNF-6` into `CNF-107` (one of them BLOCKING) and
+`CNF-114` into `CNF-188`. `CNF-195`'s checkbox went at the same time; this passage had called it
+"correctly absent" while it was still tickable, which is exactly the folklore this section exists to
+stop, appearing inside the section itself.
 
 *The number is approximate because the assignments are prose, and that is the durable problem.*
 Tiers live in paragraphs scattered across the document, in item order nowhere: `CNF-183`, `CNF-182`

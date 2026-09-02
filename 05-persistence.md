@@ -170,7 +170,7 @@ rescue install wipes the disk (`06-rescue-install.md`). An adopted machine whose
 an install the operator knows is safe is a recoverable inconvenience; the reverse is not.
 
 **STO-17** `(provider_account, external_id)` MUST additionally be unique **across all tenants**,
-not merely within one. `SEC-10` and `CNF-6` require that a provider machine belong to at most one
+not merely within one. `SEC-10` and `CNF-107` require that a provider machine belong to at most one
 tenant, and the constraint written above — which includes `tenant_id` — permits exactly the
 duplicate it was meant to prevent. Two tenants adopting the same machine would each be authorized
 to destroy the other's server. This was `F15`.
@@ -586,8 +586,9 @@ opaque-reference constraint as `WIR-42`'s, never a name or contact string), `upd
 **`SEC-46` models three ways to lose an account and closes a tenant's commitments on one of them,
 and until 2026-09-02 there was no verb, no column and no way to be in any of the states.** It is a
 table because a provider account is otherwise pure configuration (`DOM-2`) with nowhere to hang an
-observation, and `CNF-114`, `CNF-188` and `CNF-243` each fault-inject a transition that nothing
-could perform. It is keyed on the account rather than on the tenant because the fact is about the
+observation, and `CNF-188` and `CNF-243` each fault-inject a transition that nothing
+could perform (`CNF-114` did too, and has since been merged into `CNF-188` as the duplicate it
+was). It is keyed on the account rather than on the tenant because the fact is about the
 account: `SEC-43` deliberately spreads tenants across accounts, so one row answers for all of them
 and a per-tenant copy would be the two-homes drift `DOM-27` was reorganised to avoid.
 
