@@ -1110,8 +1110,9 @@ reason `LDG-66`'s deficiencies are not.
 `PRV-26`), and clearing the parked scalar on requeue leaves nothing behind for the superseded
 attempt — whose order may still be the one that landed. Each attempt's at-cost fee is therefore
 also kept in its own entry in `request_summary` (`OPS-13`, `05-persistence.md`), and when
-resolution matches an attempt's correlator the amount debited under `LDG-39` is **that entry's**
-fee, not the scalar's. Where the match is the latest attempt the two agree, which is the ordinary
+resolution matches an attempt's correlator the amount `LDG-39` settles is **that entry's**
+fee, not the scalar's — debited against a still-open commitment, or carried as an operator
+deficiency where `OPS-33` released it (amended 2026-09-02 with `LDG-39`'s late-fee row). Where the match is the latest attempt the two agree, which is the ordinary
 case; where it is an earlier one, the scalar would bill terms the provider never charged for that
 order.
 
