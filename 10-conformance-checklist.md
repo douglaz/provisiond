@@ -56,8 +56,10 @@ item for `OVR-10a`, which had none — that is `CNF-71`–`CNF-74` below.
 ### Assignments
 
 **BLOCKING** (count superseded — see **The blocking count**) — `CNF-1`, `CNF-3` (the epistemic pair: every other checkmark is testimony from
-this witness); `CNF-4`–`CNF-9` (tenancy — three internal tenants exist from day one, so
-cross-tenant control is takeover plus destruction before any external customer arrives);
+this witness); `CNF-4`, `CNF-5`, `CNF-7`–`CNF-9` (tenancy — three internal tenants exist from day
+one, so cross-tenant control is takeover plus destruction before any external customer arrives;
+*written out rather than as `CNF-4`–`CNF-9`, because that range swallowed `CNF-6` and kept assigning
+a tier to a merge marker after it stopped being an item*);
 `CNF-10`–`CNF-13` (injection — path injection reaches the wrong machine in the operator's whole
 account, shell metacharacters reach root on the rescue system); `CNF-14`–`CNF-17` (redaction —
 create responses carry machine root passwords, rescue passwords are root on customer machines);
@@ -1219,8 +1221,9 @@ rather than acquiring a default.
       `driver_observation` is reserved (`STO-47`), and the test MUST say which it used — moving
       an account **out of** `terminated` is `409` `state`, and a customer-authenticated request is
       `404`. Assert the event is emitted with principal, account, before, after and reason. **Until
-      today `SEC-46`'s three states had no verb and no column at all**, so `CNF-114`, `CNF-188` and
-      `CNF-243` each fault-injected a transition nothing could perform. (`API-63`, `WIR-50`,
+      today `SEC-46`'s three states had no verb and no column at all**, so `CNF-188` and
+      `CNF-243` each fault-injected a transition nothing could perform — as did `CNF-114`, before it
+      was merged into `CNF-188` as the duplicate it was. (`API-63`, `WIR-50`,
       `STO-47`, `SEC-46`, `LDG-32`, `API-62`)
 - [ ] **CNF-279** **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
@@ -1665,8 +1668,11 @@ See **The blocking count** at the end of this document; it is stated in one plac
 
 ## Ownership, deletion and duplication
 
-- [ ] **CNF-107** Two tenants cannot both hold the same `(provider_account, external_id)`. The
-      constraint is enforced by the store, not by application code. (`STO-17`)
+- [ ] **CNF-107** Two tenants cannot both hold the same `(provider_account, external_id)`, and
+      neither can two records for one external machine exist by any other route. The
+      constraint is enforced by the store, not by application code. *Absorbed `CNF-6` on 2026-09-02,
+      which tested the same control in the words `SEC-10` uses; this item survives because it names
+      the constraint that enforces it, and it takes that citation with it.* (`STO-17`, `SEC-10`)
 - [ ] **CNF-108** A machine with an unreleased billable attachment cannot be tombstoned.
       (`STO-18`)
 - [ ] **CNF-109** An idempotency key reused after its operation was retained-out either returns
@@ -1859,8 +1865,7 @@ suspended tenant — `SEC-45`'s one action is the operator's whole remedy and it
 satoshis: a payment credited twice, or a real customer's balance made unreachable forever);
 `CNF-274` (retroactive re-pricing of hours the customer already paid for, or a positive
 `usage_debit` growing a commitment nobody authorized — the operator would learn of either from a
-customer, if at all).
-
+customer, if at all);
 `CNF-276` (the boundary-crossed family, and the escaped-secret one behind it: an anonymous stranger
 aiming the credential-holding process at the operator's own metadata service or management network);
 `CNF-277` (unstoppable billing for a machine that does not exist, which the customer discovers and
@@ -1900,10 +1905,18 @@ assignment block headed `CNF-222`–`CNF-232`, and fell off the end of it. Now a
 approximately 182 are BLOCKING.** The
 two-reviewer pass of that date added nine items, `CNF-271`–`CNF-279`, eight of them BLOCKING and
 every one in the destroyed-data, money-out or boundary-crossed families. It removed two by merging
-duplicate pairs that had each been counted twice: `CNF-6` into `CNF-107` (one of them BLOCKING) and
-`CNF-114` into `CNF-188`. `CNF-195`'s checkbox went at the same time; this passage had called it
+duplicate pairs that had each been counted twice: `CNF-6` into `CNF-107` — **both BLOCKING**, so the
+BLOCKING total falls by one there — and `CNF-114`, which was PRE-SCALE, into `CNF-188`, which is
+BLOCKING. `CNF-195`'s checkbox went at the same time; this passage had called it
 "correctly absent" while it was still tickable, which is exactly the folklore this section exists to
 stop, appearing inside the section itself.
+
+**The durable fix is still the durable fix, and this pass is more evidence for it.** Carrying the
+tier on the item would have caught three of the bookkeeping errors above mechanically: a range
+`CNF-4`–`CNF-9` silently re-tiering a merge marker, a survivor and its duplicate sitting in
+different tiers, and a block of new items whose tier paragraph closed before the last of them. **A
+mechanical edit across 271 items** — the figure this section re-counts, not the 265 the paragraph
+below was written against.
 
 *The number is approximate because the assignments are prose, and that is the durable problem.*
 Tiers live in paragraphs scattered across the document, in item order nowhere: `CNF-183`, `CNF-182`
@@ -1912,7 +1925,9 @@ with no identifiers, which no count can resolve; it has been expanded. **Finding
 means scanning thirteen hundred lines, and counting them means writing a parser for English.** The
 durable fix is to carry the tier on the item — `- [ ] **CNF-1** [BLOCKING] …` — after which the
 count is a `grep` and `tools/check_ids.py` could refuse an untiered item outright. That is a
-mechanical edit across 265 items and is recorded as the next obvious one rather than done here.
+mechanical edit across 271 items and is recorded as the next obvious one rather than done here.
+*The figure was 265 until 2026-09-02, which is itself the point: a count written into prose in two
+places disagrees with itself the first time either moves.*
 
 A checklist whose own arithmetic is folklore is the failure `CNF-1`/`CNF-3` exist to prevent,
 applied to itself. It is now arithmetic with a stated method and a date, and a stated reason why it
