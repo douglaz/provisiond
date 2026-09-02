@@ -238,8 +238,24 @@ author would read.
 Self-serve enrolment (`ADR-0002`) with no identity collected (`ADR-0005`) means the only thing
 standing between a script and an unbounded table of tenant rows is this section.
 
-**API-32** An unauthenticated enrolment endpoint MUST exist. It creates a tenant in a **pending**
-state and returns an enrolment handle. It MUST NOT return a usable credential immediately.
+**API-32** **AMENDED 2026-09-02.** An enrolment endpoint MUST exist that requires **no principal**.
+It creates a tenant in a **pending** state and returns an enrolment handle together with both
+secrets (`API-33`, `WIR-12`), and the tenant can do nothing but fund itself until `API-35` activates
+it (`API-43`).
+
+*"Unauthenticated" is retained as the description of the principal, not of the door.* The request
+carries an admission token (`API-33`, `WIR-49`) — which authenticates nothing and identifies nobody;
+it proves only that the caller held a connection open for the stated delay, which is the whole
+economic point of it.
+
+*The withdrawn sentence was "It MUST NOT return a usable credential immediately", and `API-33` made
+it false on the same day it withdrew `issuable_at`.* That clause was the pre-2026-08-31 model, where
+the token was minted at enrolment and unusable until an instant — an arrangement `API-33` withdrew
+because the delay ran *after* the caller had consumed a pending-tenant slot and therefore defended
+nothing. What replaced it is a delay paid **before** the signup exists. Keeping the clause would
+mean re-introducing the unusable window under a different name, and a reader reconciling it with
+`WIR-12`'s fixture would have found a response carrying a working token beside a requirement
+forbidding one.
 
 **API-33** **AMENDED — the token is minted and returned at enrolment.** The enrolment response
 carries the spending token and the recovery credential (`API-55`); the server stores only their
