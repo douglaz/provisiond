@@ -112,6 +112,7 @@ sequenceDiagram
     alt reply arrives
         P-->>E: machine
         E->>DB: machine row + setup-fee debit +<br/>terminal write, one transaction, OPS-27
+        Note over E,DB: The debit is engine's write through ledger.<br/>Both api and engine depend on that module;<br/>neither depends on the other for money, OVR-9.
     else reply is lost
         Note over E,P: This is the case the whole design exists for.
         E->>DB: needs_reconciliation.<br/>No retry, no timer, no caller action.
@@ -122,15 +123,16 @@ sequenceDiagram
 commitment must be a single transaction, and `ADR-0001` chose one deployable because two stores
 cannot give you one.
 
-The four layers map to five modules with strictly one-way dependencies:
+The four layers map to six modules with strictly one-way dependencies:
 
 | Module | Responsibility | Depends on |
 |---|---|---|
 | `core` | Domain model, capability declarations, error taxonomy, provider interface | nothing |
 | `providers` | Per-provider HTTP adapters implementing the provider interface | `core` |
 | `rescue` | SSH orchestration and image installers, generic across providers | `core` |
-| `engine` | **The credential-holding lifecycle side**: workers, driver invocation, the durable queue's execution, and the only code that may reach a provider credential | `core`, `providers`, `rescue` |
-| `api` | **The customer-facing side**: HTTP surface, authentication, tenancy, enrolment, billing, abuse | `core`, `engine` — and `engine` **only through a narrow trait that does not expose a credential** |
+| `ledger` | **The money**: ledger entries, commitments, the meter, rate derivation, solvency, and `LDG-35`'s per-tenant serialization primitive. Holds no provider credential and no payment-rail credential | `core` |
+| `engine` | **The credential-holding lifecycle side**: workers, driver invocation, the durable queue's execution, the exhaustion and account sweeps, and the only code that may reach a provider credential | `core`, `providers`, `rescue`, `ledger` |
+| `api` | **The customer-facing side**: HTTP surface, authentication, tenancy, enrolment, the funding rails and their settlement watcher, abuse | `core`, `ledger`, `engine` — and `engine` **only through a narrow trait that does not expose a credential** |
 
 **AMENDED 2026-08-31 — `server` is split, because the boundary that matters had no home.**
 `ADR-0001` accepted one deployable on the promise that code structure keeps the public surface away
@@ -138,6 +140,23 @@ from provider credentials, and calls `OVR-10a` "the only structural defence left
 then test a "customer-facing layer" and a "lifecycle layer" — **neither of which was a module.** Both
 lived inside `server`, so `CNF-71`'s compile-fail test had no edge to fail across and `CNF-72`'s
 tripwire had no visibility change to watch. A boundary absent from the dependency graph is a comment.
+
+**AMENDED 2026-09-02 — `ledger` is separated out, because that split left the money with no legal
+home.** Putting billing in `api` while `OVR-9` forbids `engine → api` made `OPS-27`'s terminal
+transaction unbuildable: it requires a **worker** — which lives in `engine` — to commit the machine
+row, the setup-fee debit and the commitment decrement together, and no edge existed for it. The
+diagram above draws exactly that write, eighteen lines before a table that forbade it. Three readings
+were available and all three were wrong: give `engine` an edge to `api` (forbidden, and it inverts
+the credential boundary), split the transaction (forbidden by `OPS-27`, and a partial commit is
+unrepairable), or move the workers into `api` (which deletes the boundary `ADR-0001` was decided on).
+
+**The fix is a module both sides may depend on.** The money is not the customer-facing *surface* and
+it is not the credential-holding *lifecycle*; it is the thing they share, and `ADR-0001` chose one
+deployable precisely so that one transaction could span them. `engine → ledger` and `api → ledger`
+are both legal, `engine → api` stays forbidden, and `ledger` depends on `core` alone — so the money
+code cannot reach a provider credential, a driver, or an HTTP handler. *The credential boundary is
+unchanged: it was never between the surface and the ledger, it was between everything and
+`providers`/`rescue`.*
 
 **OVR-8** The rescue engine MUST be generic. It receives a provider driver through the
 provider interface and MUST NOT contain provider-specific branches. Provider-specific
@@ -150,6 +169,15 @@ depend on an HTTP client, a database, or a web framework.
 trait whose signatures mention no credential type.** `engine` MUST NOT depend on `api`. That single
 edge, and its narrowness, is what `OVR-10a` requires and what `CNF-71`–`CNF-74` prove; the
 credential-owning type is private to `engine` and reachable through nothing else.
+
+**`ledger` MUST NOT depend on `providers`, `rescue`, `engine` or `api`** (2026-09-02). Both `api`
+and `engine` depend on it, which is what gives `OPS-27`'s money-bearing terminal transaction a legal
+home and `LDG-11`'s commit-and-enqueue another. The direction is what keeps it safe: a module that
+cannot name a driver cannot make a provider call inside `LDG-35`'s serialization, which is `LDG-69`'s
+prohibition enforced by the dependency graph rather than by discipline. **`ledger` MUST NOT enqueue
+an operation** — the queue's record and its enqueue primitive belong to `engine` and are reached
+through the same narrow trait `api` uses — so a component that must both read a balance and enqueue
+work belongs in `engine` and reads the balance through `ledger`'s interface (`OVR-17`).
 
 ## Deployment assumptions
 
@@ -170,9 +198,19 @@ the code's structure — module privacy, a narrow trait, a dedicated type owning
 not merely documented. This is the compensating control for the blast radius named above;
 without it the single-component form has no defence at all.
 
-**OVR-10b** In either form, the customer-facing side MUST NOT see a provider credential and the
-lifecycle side MUST NOT see a customer credential or a payment. Shared storage is permitted;
-shared secrets are not.
+**OVR-10b** **AMENDED 2026-09-02 — "a payment" meant two things and one of them is the ledger.**
+The customer-facing side MUST NOT see a provider credential, and the lifecycle side MUST NOT see a
+customer credential or **payment-rail material**: the Lightning and on-chain credentials, the
+destinations derived from them, and the settlement stream they produce (`STO-30`–`STO-32`,
+`SEC-48`). Shared storage is permitted; shared secrets are not.
+
+*The withdrawn word was "a payment", unqualified, and read literally it forbade `OPS-27` — which
+requires a **worker** to commit a setup-fee debit and a commitment decrement in the transaction that
+records the machine. A ledger entry is not payment material: it identifies no counterparty
+(`LDG-21`), carries no bearer secret, and is the authorization record `ADR-0002` makes the whole
+system out of. What must stay away from the credential-holding side is the material that can
+**receive or move money** — which is precisely `SEC-48`'s boundary, stated here in dependency terms:
+`engine` reaches the money through `ledger`, and `ledger` holds no rail credential either.*
 
 **OVR-10c** **Provider credentials MUST be read from the environment exactly once, at startup, by
 the credential-owning module — and then removed from the process environment.** `OVR-7` puts
@@ -205,6 +243,30 @@ capability sets is the first configuration in which `OVR-2`'s runtime discovery 
 a deployment MUST verify that a caller reading `GET /v1/providers` can distinguish what each
 provider can actually do. *(`F10`'s capabilities-without-operations were withdrawn by `DOM-22`,
 not merely tested — there are none left to verify.)*
+
+**OVR-17** **Every component that runs without a caller MUST be assigned to a module, and here is
+the assignment.** The table above allocates the request path; the periodic and background work was
+allocated nowhere, and five components — each of them writing money or touching a provider — had no
+stated home at all. A component with no module has no dependency rule, which means it has no
+credential boundary either.
+
+| Component | Module | Why there |
+|---|---|---|
+| The meter (`LDG-37`, `LDG-38`, `LDG-72`) | `ledger` | Posts debits and decrements commitments; enqueues nothing and calls no provider |
+| Rate derivation and re-derivation (`LDG-58`–`LDG-61`, `PRV-13e`, `LDG-33`) | `ledger` | A pure balance event mints no operation (`OPS-39`), and the source set is fixed at deployment (`LDG-61`) |
+| The solvency check (`LDG-17`, `LDG-20`) | `ledger` | Reads balances and held satoshis; the rail balance it needs arrives through `api`'s funding interface, never through a rail credential of its own (`SEC-48`) |
+| The exhaustion sweep (`LDG-13`, `LDG-14`) | `engine` | It reads `runway_until` through `ledger` and then **enqueues** a cancellation, which is `engine`'s primitive (`OVR-9`) |
+| `OPS-32`'s account sweep | `engine` | Lists resources at a provider, so it needs a provider credential |
+| `OPS-14`'s lease sweeper and the worker pool | `engine` | Already implied by the table; stated so the list is complete |
+| The settlement watcher (`STO-30`–`STO-32`, `LDG-47`, `LDG-57`) | `api` | It holds the payment-rail material `OVR-10b` keeps away from the lifecycle side, and posts its credits through `ledger` |
+| `API-34`'s time-to-live sweep and `STO-14`'s retention job | `api` | Tenancy and request records, no provider and no rail |
+
+**Two of these placements are the ones a builder gets wrong**, so the reasoning is recorded rather
+than left to be re-derived. The exhaustion sweep looks like money and is not: it is a machine
+mutation triggered by a balance, and `LDG-13` calls cancellation "the only effective remedy", so it
+belongs where mutations are enqueued and executed. The settlement watcher looks like the ledger and
+is not: it terminates a Lightning subscription and a chain scan, which is rail material, and putting
+it in `ledger` would drag a spending-adjacent credential into the module `engine` depends on.
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive

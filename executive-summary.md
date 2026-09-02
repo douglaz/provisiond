@@ -146,10 +146,16 @@ counted (`ADR-0007`); and v1 is pass-through resale, with inventory and VM-slici
 
 ## 4. How the system is shaped
 
-Four modules with one-way dependencies: `core` (domain, capabilities, error taxonomy, the driver
+Six modules with one-way dependencies: `core` (domain, capabilities, error taxonomy, the driver
 interface — forbidden from depending on an HTTP client, a database or a web framework), `providers`
-(adapters), `rescue` (generic SSH and installer orchestration, no provider branches), and `server`
-(API, durable queue, workers, money).
+(adapters), `rescue` (generic SSH and installer orchestration, no provider branches), `ledger` (the
+money: entries, commitments, the meter, rate derivation, solvency), `engine` (the credential-holding
+lifecycle side: workers, driver invocation, the queue's execution and its sweeps) and `api` (the
+customer-facing surface, enrolment, funding rails, abuse). `engine` may not depend on `api`; both
+depend on `ledger`, which is what gives the worker's money-bearing terminal write a legal home.
+*This paragraph said "four modules" and named `server` until 2026-09-02, two revisions after that
+module was split — a reminder that an orientation document drifts silently, because nothing cites
+it.*
 
 **The provider abstraction** is capability declaration plus a driver contract stated in prose rather
 than language signatures. Every operation defaults to `unsupported`, so adding a method to the

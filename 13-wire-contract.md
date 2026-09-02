@@ -166,11 +166,18 @@ elsewhere — so a strict parser had no enum for a field it receives.*
 object (`kind`/`message`/`retryable`/`details`), without the envelope. `result`, when non-null, is
 per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
 `{"machine_id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20"}`;
-`install` and `rescue_inventory` → `{"inventory": {"devices": [{"identifier": "S4EVNF0N123456",
+`rescue_inventory` and the two **rescue-entering** install strategies →
+`{"inventory": {"devices": [{"identifier": "S4EVNF0N123456",
 "path": "/dev/nvme0n1", "size_bytes": 1024209543168, "model": "SAMSUNG MZVL21T0HCLR",
 "type": "nvme"}], "uefi": true, "inventory_fingerprint":
 "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}}`
-(`RSC-33`, `RSC-38`); `suspend_tenant` →
+(`RSC-33`, `RSC-38`); **an `install` whose strategy enters no rescue — `provider_native` and
+`provider_catalogue` — returns `{}`** (**AMENDED 2026-09-02**: the withdrawn text made *every*
+`install` result carry an `inventory`, which neither of those two can ever produce — nothing boots
+rescue, so nothing reads a disk — and a client written against it would treat two shipping
+strategies as permanently malformed. `RSC-33` requires the report "before writing anything", which
+is a rescue-engine obligation and does not reach a path where the provider does the writing);
+`suspend_tenant` →
 `{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` (`WIR-39`), one entry per machine;
 `power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`. An ambiguous outcome additionally records provider identifiers in `result` per `OPS-13`.
 
@@ -214,16 +221,41 @@ carries both credentials.* **Resource ids
 are principal-scoped** (`WIR-36`): a lookup naming a resource outside the authenticated tenant
 returns `404` and never reveals whether it exists.
 
-**WIR-12** **AMENDED twice** `POST /v1/enrol` — unauthenticated (`API-32`), **no
-`Idempotency-Key`**. Body `{}`. Response `200`, and **this is the only time either secret is ever
-transmitted**:
+**WIR-49** **ADDED 2026-09-02** `POST /v1/enrol/token` — unauthenticated, **no `Idempotency-Key`**,
+body `{}`. `API-33`'s admission gate, which had a requirement and no route until today. The server
+holds the connection for the deployment's stated delay (30 seconds is a reasonable default) and then
+answers `200`:
+
+```json
+{
+  "admission_token": "pvd_a_2Kd8vQmR6tY1nX4pZbL9cH3eJ7gS5fW0aM2xB6uT",
+  "expires_at": "2026-08-13T14:05:00Z"
+}
+```
+
+The token is a keyed authenticator over its issue instant and a server-chosen nonce, so **issuing
+one writes nothing** (`API-33`, `API-36`); it is single-use, and single use is enforced by an
+in-memory nonce set bounded by the validity window. The response carries **no** `Retry-After` and no
+`poll_after_ms` (`API-49`'s exception): the delay is spent, not advertised. `expires_at` is the
+token's own expiry and is deliberately short — it bounds the nonce set, and a caller that cannot
+enrol within it asks for another.
+
+**A request that is abandoned before the delay elapses MUST leave nothing behind**, which is the
+whole economic argument (`API-33`): the cost of a slot is a *held* connection, and a token that
+could be collected later would convert it back into a free request. The endpoint MUST NOT be
+`202`-shaped, MUST NOT return a handle to poll, and MUST NOT be rate-limited into uselessness —
+per-source concurrency is the control, and it is in memory (`API-36`, `ADR-0005`).
+
+**WIR-12** **AMENDED three times** `POST /v1/enrol` — unauthenticated (`API-32`), **no
+`Idempotency-Key`**. Body `{"admission_token": "pvd_a_2Kd8vQmR6tY1nX4pZbL9cH3eJ7gS5fW0aM2xB6uT"}`
+(`WIR-49`; absent, expired, unknown or already spent is `invalid_request`, and the message MUST NOT
+say which). Response `200`, and **this is the only time either secret is ever transmitted**:
 
 ```json
 {
   "handle": "0198c1f0-4b3c-7d5e-9a0b-2c4e6a8c0e30",
   "tenant_id": "t-0198c1f0",
-  "status": "not_yet",
-  "issuable_at": "2026-08-13T14:30:00Z",
+  "status": "pending",
   "expires_at": "2026-08-16T14:00:00Z",
   "spending_token": "pvd_s_7Qk2mXbW9tR4vL8nZaC3yH6eJ1gP5dF0sK7wN2xB4uT",
   "recovery_credential": "pvd_r_3mYq8LbN5tX2vK9pZfC6yH4eJ7gR1dW0sM3wQ5xA8uV",
@@ -235,8 +267,11 @@ transmitted**:
 }
 ```
 
-Both secrets are stored **hashed only** (`STO-34`) and the token does nothing until `issuable_at`
-(`API-33`). *Two withdrawn versions: the first registered a caller public key; the second minted
+Both secrets are stored **hashed only** (`STO-34`) and both are live from this response
+(`API-33`). *An `issuable_at` field stood here until 2026-09-02, before which the spending token did
+nothing; `API-33` withdrew the instant with its reasoning, and `status` loses the `not_yet` value
+that existed only to name that window.* *Two earlier withdrawn versions: the first registered a
+caller public key; the second minted
 the token later and returned it **once** from `WIR-13`, which cannot survive a lost response — the
 server marks it delivered, keeps only a hash, and a funded customer is locked out of a tenant
 nobody can reach.* **Enrolment carries no idempotency replay at all** (`API-40`): the key space
@@ -246,15 +281,14 @@ Both secrets now arrive in the enrolment response itself (`API-33`), so `WIR-13`
 only; the replay rule is withdrawn regardless, because a shared handle is a shared identity. A duplicate signup is free and `API-34` reaps it;
 a leaked capability is not.
 
-**WIR-13** **AMENDED** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
-ever**: `{"status": "not_yet" | "pending" | "active"}`.
-**`issuable_at` and `expires_at` MUST NOT appear here.** Both are returned once, in the
-enrolment response (`WIR-12`), to the caller that created the signup; echoing `issuable_at` on an
-unauthenticated handle-addressable endpoint hands an attacker the exact instant to start polling,
-which is the timing oracle `API-33` forbids. **`expires_at` is that same oracle by another route**
-and is dropped here for that reason: both instants are the signup's creation time plus a stated
-constant — `API-33`'s delay and `API-34`'s time-to-live — so publishing either one yields the
-other by subtraction, and the redaction was defeating itself.
+**WIR-13** **AMENDED twice** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
+ever**: `{"status": "pending" | "active"}`.
+**`expires_at` MUST NOT appear here.** It is returned once, in the enrolment response (`WIR-12`), to
+the caller that created the signup; echoing the signup's own deadline on an unauthenticated,
+handle-addressable endpoint publishes the signup's creation instant by subtraction from a stated
+constant (`API-34`'s time-to-live), which is the timing oracle `API-33` forbids. *`not_yet` and
+`issuable_at` stood here too and went with `issuable_at` itself on 2026-09-02 (`API-33`); the
+subtraction argument that killed them applies unchanged to what is left.*
 No delay-derived `Retry-After` (`API-33`, `API-49`'s exception). This is how a pending tenant
 observes activation (`API-52`).
 
@@ -477,6 +511,41 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
   (`RSC-14` forbids injecting into an opaque image).
 - `provider_native`: `source.type` is `catalog` (`image`); no `layout`, no `trust` (no rescue is
   entered); it MAY carry `authorized_keys`.
+- `provider_catalogue` (**ADDED 2026-09-02**): `source.type` is `raw_disk` — the same `url`,
+  `sha256` and `compression` a rescue raw-disk install sends, because it is the same caller input
+  delivered by a different mechanism (`DOM-13`, `DOM-28`). No `layout` and no `target`: the provider
+  converts the image and decides the disk (`RSC-43`). No `trust`: no rescue is entered, so there is
+  no host key to pin, and a body supplying one is an unknown field for this variant and is rejected
+  `invalid_request` by `WIR-2`. No `authorized_keys`, on `RSC-14`'s reasoning applied one step
+  further out — this system never sees the image's filesystem at all, so it cannot inject into it
+  and MUST NOT silently ignore keys that were sent. The `sha256` is required and is what `RSC-39`
+  verifies **in transit**; it attests nothing about what the provider writes (`DOM-28`, `SEC-16`),
+  and `machines.last_install` records that distinction on the machine (`DOM-29`).
+
+```json
+{ "strategy": "provider_catalogue",
+  "source": {"type": "raw_disk", "url": "https://images.example.net/alpine-3.20-amd64.img.zst", "sha256": "9c4d2e1f3a5b708294c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4e6f809", "compression": "zstd"},
+  "on_failure": "exit_rescue",
+  "acknowledge_destruction": true }
+```
+
+**`on_failure` is accepted and inert on the two variants that enter no rescue** — `provider_native`
+and `provider_catalogue` — because it is declared common to every variant and `WIR-2` would
+otherwise reject a caller that sets it uniformly. A server MUST NOT infer anything from its value on
+those two. *Stated rather than left to inference: a field that is meaningful on half a union and
+silently ignored on the other half is exactly what `WIR-2` exists to stop, and the honest fix is to
+say so in the contract rather than to let two implementations disagree about whether it is an
+error.*
+
+**The fourth variant was missing and its absence made a shipped feature unrequestable.** `WIR-20`
+promised "one variant per `DOM-13` pairing" and defined three while `DOM-13` had four — so under
+`WIR-2` a `strategy` of `provider_catalogue` was `invalid_request`, and `ADR-0013`, `RSC-39`–`RSC-43`,
+`SEC-55`, the `install_via_provider_catalogue` capability and three BLOCKING conformance items
+(`CNF-265`, `CNF-267`, `CNF-268`) all described a path no caller could ask for. *The union and the
+pairing table are two statements of one closed set, and this is the second time in this set that a
+list has been extended in one document and not the other; the rule that prevents the third is
+`DOM-13`'s table being the source and this union being checked against it, which `CNF-149`'s
+both-directions diff now covers for strategies as well as for endpoints.*
 
 **Every `layout.drives[].identifier` is validated exactly as `raw_disk`'s `target.identifier`
 is** (`RSC-26`): resolved against a freshly re-read inventory, matched to exactly one device, and

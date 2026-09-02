@@ -572,13 +572,24 @@ a stale-read class that no other requirement covers. This is the loop's first re
 recorded here rather than left as silence, because six passes with zero rejections was itself a
 signal worth answering.
 
-**Held for the operator, not applied.** Cutting `API-33`'s enrolment issuance delay. The audit is
+**Held for the operator, not applied — CLOSED 2026-09-02.** Cutting `API-33`'s enrolment issuance
+delay. The audit is
 right that its original justification evaporated — it existed to protect the single moment a
 server-generated token crossed the wire, and `API-33` now mints both secrets in the enrolment
 response — so what remains is friction against a naive script that `API-36`'s rate limit,
 `API-41`'s global ceiling and `API-34`'s time-to-live already bound. But removing it deletes
 `issuable_at` and everything keyed to it, which changes the enrolment product rather than tidying
 it. **F33.**
+
+*Closed by the 2026-09-02 review, which found the two halves had been half-applied and were
+contradicting each other: `API-33`'s 2026-08-31 amendment moved the delay in front of the
+pending-tenant slot and said so, but the admission token it introduced had no route, no field and no
+place on the surface table — so `WIR-12`'s `{}` body and `WIR-2`'s rejection of unknown fields made
+**every enrolment unsatisfiable** — while `issuable_at` survived as a column, a response field and
+two gates, leaving two delays in a set that described one. Both halves are now applied: the token
+has `POST /v1/enrol/token` (`WIR-49`) and an `admission_token` field, and `issuable_at` is withdrawn
+with everything keyed to it. The operator's hesitation was right about the cost and the finding
+should not have been left open across two reviews while the requirement asserted it was closed.*
 
 ## The fourth audit — 2026-08-13, and the verdict was NO again
 

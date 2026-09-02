@@ -612,8 +612,23 @@ last derived `runway_until`. A funding re-check that cannot be computed MUST NOT
 failing the other way is an unfunded machine billing indefinitely, which is what `LDG-13` exists
 to prevent.
 
-This does not apply to a `tenant_suspended` cancellation (`API-58`, `OPS-27`). That one is not
-about funding, and a suspended tenant topping up its balance is not permission to keep the fleet.
+**The funding re-check does not apply to a `tenant_suspended` cancellation** (`API-58`, `OPS-27`).
+That one is not about funding, and a suspended tenant topping up its balance is not permission to
+keep the fleet.
+
+**AMENDED 2026-09-02 — the exemption is scoped to the re-check, not to the abort.** `OPS-42` keys
+its fence on the **action**, so a `tenant_suspended` delete is an exposure-reducing cancellation and
+takes the fence like any other — and `OPS-42` then tells a worker whose guarded write affects no row
+to "settle as `OPS-41` requires", pointing at a requirement that, read whole, disclaimed the case
+entirely. **The abort-and-settle shape below applies to every exposure-reducing cancellation,
+whatever its reason**: make no provider call, settle `succeeded` with a result recording that no
+mutation was required, and resolve the episode per `OPS-44`. What the reason changes is only whether
+the *funding* test can send a worker down that path — for exhaustion and late-attach cleanup it can,
+for a suspension it cannot. *In practice a suspension cancel loses that race only to another
+cancellation of the same machine, which `OPS-39`'s per-action episode key already prevents, and
+never to `LDG-62`, which `API-7` step 5b refuses for a suspended tenant. The path is therefore
+expected to be unreachable — and it is specified anyway, because "unreachable" is a claim about
+today's rules and the abort instruction is written unconditionally.*
 
 **OPS-42** **`OPS-41`'s re-check is not sufficient on its own, and a fence is what makes it work.**
 The window that decides whether a paying customer keeps its machine is **between the worker's read
@@ -627,9 +642,26 @@ Nothing in `LDG-62`, `OPS-36`, `OPS-39` or `OPS-41` closed it.
 
 - Before any provider mutation, an exposure-reducing cancellation MUST record its decision on the
   machine row — `machines.destroy_committed` set to its own operation id — as a conditional write
-  guarded on that column being null, in the manner of `STO-3`. Where the write affects no row,
-  another actor won the race and the worker MUST abort the cancellation and settle as `OPS-41`
-  requires.
+  guarded on **`destroy_committed IS NULL` *or* `destroy_committed` already holding this
+  operation's own id**, in the manner of `STO-3`. Where the write affects no row, another actor won
+  the race and the worker MUST abort the cancellation and settle as `OPS-41` requires.
+
+  **AMENDED 2026-09-02 — the guard was `IS NULL` alone, and that made `OPS-39`'s required retry
+  impossible.** `OPS-39` says in terms that a cancellation which did not happen "must remain
+  retryable or the machine bills forever", and `API-7` step 5b keeps an exposure-reducing requeue
+  reachable even for a suspended tenant. But a first attempt that set the fence, called the provider
+  and failed left its **own** id in that column, so the requeued attempt's `IS NULL` write affected
+  no row, it read that as "another actor won", aborted, and settled `succeeded` recording that no
+  mutation was required — **resolving the episode on a machine that is still running and still
+  billing.** The next sweep then minted a fresh episode and reached the identical false success,
+  forever, while `LDG-62` was refused `conflict` with "the machine is already being cancelled",
+  which was permanently false. Accepting the operation's own id is what makes the recovery path
+  `OPS-39` mandates actually execute. *One id suffices where the finding suggested an episode:
+  `OPS-39` admits at most one **open** entry per key and a sweep MUST claim it before enqueuing, so
+  an open episode has exactly one operation, and a requeue re-queues that same record rather than
+  minting another.* **A worker MUST NOT treat its own id in that column as evidence that its
+  previous attempt succeeded** — the whole reason the attempt is being requeued is that nobody
+  established what happened.
 - `LDG-62` MUST, in its own `LDG-35` transaction, conditional-write that same machine row guarded on
   `destroy_committed IS NULL`, and MUST fail `conflict` where it affects no row. **No commitment is
   opened or grown and no balance moves**; the tenant is told plainly that the machine is already
@@ -651,6 +683,42 @@ early release safe" — a promise that requirement could not keep alone.
 
 *Both reviewers of 2026-08-31 rejected the ordering-only fix independently and converged on a fence;
 the shape here is the one that does not make extend-runway wait on a machine lock.*
+
+**OPS-44** **An exposure-reducing cancellation episode has a stated end, and every delete outcome
+reaches one.** `OPS-39` mints the episode and says it is "removed only when the episode resolves";
+`OPS-41` resolves it on the one path where no mutation was required; and **nothing anywhere said
+what resolves it when the delete actually ran.** That gap is what let `API-58`'s fan-out and
+`OPS-42`'s fence each reason about "cancelled" with no shared definition. The rules are:
+
+| The cancellation settled | The episode entry (`machines.system_trigger_ids`) | `machines.destroy_committed` |
+|---|---|---|
+| `succeeded` — including `OPS-11`'s goal-state row and `OPS-41`'s no-mutation abort | **Removed**, in the same transaction as the terminal write | **Cleared**, same transaction |
+| `failed` — deterministic, the provider rejected the request and did not act | **Stays open** | **Stays set** |
+| `needs_reconciliation` | **Stays open** | **Stays set** |
+| Resolved `absent` or `abandoned` by an operator (`OPS-31`) | **Removed**, in the resolution transaction | **Cleared**, same transaction |
+
+**The two "stays" rows are the point.** A cancellation that did not happen leaves a machine that is
+still running, still billing and still unfunded, so the exposure is unchanged and the episode is not
+over: the entry is what keeps a later sweep from enqueuing a **second** delete against the same
+machine (`OPS-39`), and the fence is what keeps `LDG-62` from selling runway on a machine the
+operator has already decided to destroy. Recovery is `API-19`'s requeue of that same operation under
+its existing trigger id, which `OPS-42`'s amended guard now permits. **A `failed` exposure-reducing
+cancellation MUST therefore be surfaced to the operator** in the same listing `OPS-26` requires for
+`needs_reconciliation`: it is the one settled state in this set that nothing automatic will look at
+again, and the cost of not looking is unbounded provider billing.
+
+**Operator resolution clears the fence, and that is deliberate.** `abandoned` is the operator saying
+"stop trying under this episode", not "this machine is safe" — so a later exhaustion sweep MUST be
+able to open a fresh episode and fence again. Leaving the fence set would make every subsequent
+sweep abort on a stranger's id and settle `succeeded` without acting, which is the defect
+`OPS-42`'s amendment removed by another route.
+
+**Nothing else clears `destroy_committed`.** `05-persistence.md` described it as "cleared when the
+episode resolves without a mutation (`OPS-41`)", which is one row of the table above; the column's
+life is now stated for all five outcomes in one place, and the deliberate answer for an attempt that
+*did* reach the provider is that the fence **persists** — the customer keeps its satoshis and is
+told plainly that the machine is being cancelled, which is `OPS-42`'s stated residual rather than an
+oversight.
 
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look

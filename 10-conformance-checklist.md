@@ -330,19 +330,28 @@ blocking fraction to be far lower.
 network isolation the withdrawn separate-service form would have provided, which is why they are
 not optional hardening — they are the only structural defence there is.
 
-- [ ] **CNF-71** A provider credential cannot be read from the customer-facing layer, and the
+- [ ] **CNF-71** A provider credential cannot be read from `api` or from `ledger`, and the
       guarantee is enforced by the code rather than by convention. Prove it the way the
-      language allows: in Rust, the credential-owning type is private to the internal module and
+      language allows: in Rust, the credential-owning type is private to `engine` and
       reachable only through a trait that does not expose it, demonstrated by a **compile-fail
-      test** asserting that external-layer code referencing it does not build. A comment saying
-      "do not use this here" is not a proof. (`OVR-10a`)
+      test** asserting that code in either other module referencing it does not build. A comment
+      saying "do not use this here" is not a proof. *`ledger` joined this item on 2026-09-02: it is
+      a module `engine` depends on, so a credential reachable from it is a credential reachable from
+      the money code.* (`OVR-10a`, `OVR-9`)
 - [ ] **CNF-72** A static tripwire fails CI when a new import, re-export, or `pub` visibility
-      change makes the credential type reachable from the customer-facing layer. The boundary
+      change makes the credential type reachable from `api` or `ledger`. The boundary
       must fail closed as the code grows; the compile-fail test of `CNF-71` proves today's
       state, this proves tomorrow's. (`OVR-10a`)
-- [ ] **CNF-73** The customer-facing layer holds no provider credential and the lifecycle layer
-      holds no customer credential or payment material. Assert on the types each layer's
-      constructors accept, not on runtime values. (`OVR-10b`)
+- [ ] **CNF-73** **REWRITTEN 2026-09-02 — it asserted the thing `OPS-27` requires.** `api` holds no
+      provider credential, and `engine` holds no customer credential and no **payment-rail**
+      material — no Lightning or on-chain credential, no destination derivation, no settlement
+      subscription (`STO-30`–`STO-32`, `SEC-48`). It **does** write ledger entries and commitments,
+      through `ledger`, because `OPS-27` requires a worker to commit the setup-fee debit and the
+      commitment decrement in the same transaction as the machine row. Assert on the types each
+      module's constructors accept, and on the dependency edges (`CNF-251`), not on runtime values.
+      *Withdrawn text:* the lifecycle layer holds no customer credential **or payment material** —
+      which, read against the module table, made the product's terminal money write illegal in every
+      module that could perform it. (`OVR-10b`, `OVR-9`, `OPS-27`)
 - [ ] **CNF-74** Operator-only routes — requeue above all, since it can re-issue a purchase
       (`API-19`, `OPS-20`) — are not served on the customer-facing listener. (`API-27`)
 ## Tenancy and authorization
@@ -535,8 +544,15 @@ not optional hardening — they are the only structural defence there is.
 
 ## Enrolment and credentials
 
-- [ ] **CNF-76** Enrolment returns no usable credential before the configured delay elapses,
-      and the not-yet response does not disclose the remaining time precisely. (`API-33`)
+- [ ] **CNF-76** **REWRITTEN 2026-09-02** — it tested `issuable_at`, which `API-33` withdrew: the
+      delay no longer sits after issuance, so "no usable credential before the delay elapses" is
+      false of a conforming build. It now tests the gate that replaced it: `POST /v1/enrol` is
+      refused `invalid_request` with no admission token, with an expired one, with an unknown one,
+      and with one already spent — and the four refusals are **indistinguishable** to the caller, so
+      the endpoint is not a free oracle for tuning the attack it exists to slow. The credential
+      returned by a successful enrolment works immediately. *Withdrawn text:* Enrolment returns no
+      usable credential before the configured delay elapses, and the not-yet response does not
+      disclose the remaining time precisely. (`API-33`, `WIR-49`, `WIR-12`)
 - [ ] **CNF-77** An unfunded pending tenant is deleted at its TTL together with its credential.
       Verified by clock advance, not by reading the code. (`API-34`)
 - [ ] **CNF-78** **REWRITTEN 2026-08-14** — the old item tested a rule two amendments had
@@ -662,7 +678,8 @@ to strand satoshis that do.
       Replaying the rail's settlement stream produces no second entry. (`STO-30`, `STO-31`)
 - [ ] **CNF-125** A pending tenant can reach exactly `POST /v1/deposits`, `GET /v1/deposits/{id}`
       for its own deposit, the unauthenticated enrolment handle, and `POST /v1/recovery/revoke`
-      **at or after `issuable_at`** (`API-43`) — and **nothing else**; every
+      — **unconditionally**, since `API-33` withdrew `issuable_at` and the token is live from the
+      enrolment response (`API-43`) — and **nothing else**; every
       other authenticated endpoint answers `not_activated`. The deposit-read half is what lets a
       tenant that paid below the activation minimum see what happened to unrefundable money.
       (`API-43`, `API-52`, `DOM-20`)
@@ -780,9 +797,10 @@ rather than acquiring a default.
 - [ ] **CNF-188** An unreachable provider account or rejected credentials leave commitments
       **open**; only confirmed termination releases them. (`SEC-46`)
 - [ ] **CNF-189** The enrolment response carries both secrets **once**, they are stored hashed
-      only, and neither is ever returned by the handle poll. Losing the response loses the
-      credentials — and the tenant is unfunded, so nothing of value is stranded. (`API-33`,
-      `API-55`, `STO-34`, `WIR-12`)
+      only, both work from that moment, and neither is ever returned by the handle poll. Losing the
+      response loses the credentials — and the tenant is unfunded, so nothing of value is stranded.
+      *"Both work from that moment" replaced an `issuable_at` window on 2026-09-02 (`API-33`).*
+      (`API-33`, `API-55`, `STO-34`, `WIR-12`)
 - [ ] **CNF-190** The recovery credential revokes the spending token and issues a fresh one; the
       **spending token cannot revoke or rotate itself**. Both halves — the second is what stops a
       thief locking the owner out. (`API-56`, `WIR-38`)
@@ -838,10 +856,12 @@ rather than acquiring a default.
 - [ ] **CNF-207** A rootfs install body round-trips `partitions`, `raid.level` and per-drive
       identifiers through the parser. This fixture was silently broken by a fix in the previous
       pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
-- [ ] **CNF-208** The enrolment status poll never returns `issuable_at` **or `expires_at`**; only
-      the enrolment response does. Either instant yields the other by subtraction, so publishing
-      one on the unauthenticated handle defeats the redaction of the other. (`WIR-13`, `API-33`,
-      `API-34`)
+- [ ] **CNF-208** **AMENDED 2026-09-02 — one instant, because the other no longer exists.** The
+      enrolment status poll never returns `expires_at`; only the enrolment response does, and the
+      poll's status enum is exactly `pending` | `active`. Publishing the signup's deadline on an
+      unauthenticated, handle-addressable endpoint yields its creation instant by subtraction from
+      `API-34`'s stated time-to-live. *`issuable_at` was the other half of this item and was
+      withdrawn with the field (`API-33`).* (`WIR-13`, `API-33`, `API-34`)
 - [ ] **CNF-209** A suspended tenant can still revoke its spending token. Gating maintenance on an
       active tenant locks the owner out exactly when revocation matters. (`API-7`, `API-56`)
 - [ ] **CNF-210** An orphaned deposit is credited to a named tenant exactly once through the
@@ -971,11 +991,41 @@ rather than acquiring a default.
       The image is gone once the operation settles, and the deployment has stated how many tenants
       share one provider account (`SEC-43`). Assert the first clause against the request surface,
       not by reading the driver. (`SEC-55`, `RSC-42`, `API-17`, `SEC-43`)
+
+### Added 2026-09-02 (the two-reviewer pass that returned NOT BUILDABLE)
+
+- [ ] **CNF-271** **A failed cancellation is retryable, and the fence does not eat its own retry.**
+      Drive an exposure-reducing cancellation whose provider call fails after the fence is written —
+      once with a 5xx (`needs_reconciliation`) and once with a deterministic `authentication`
+      (`failed`) — and assert for each: the episode entry stays open, `destroy_committed` stays set,
+      `LDG-62` is still refused `conflict`, and an operator requeue of that same operation **runs
+      the provider call again** rather than aborting into a false `succeeded`. Then the other half
+      of `OPS-44`'s table: a `succeeded` cancellation removes the entry and clears the fence in the
+      terminal transaction, an operator `abandoned` clears it so a later sweep can fence afresh, and
+      a `failed` one appears in the operator listing `OPS-26` requires. **The failure this catches
+      is a sweep loop that settles `succeeded` forever while the machine bills forever.**
+      (`OPS-44`, `OPS-42`, `OPS-39`, `OPS-41`, `LDG-62`)
+- [ ] **CNF-272** **A suspension terminates even when a child cannot delete.** Suspend a tenant one
+      of whose machines sits on a provider account that declares no `delete_machine`, so its child
+      fails deterministically. Assert the fan-out **terminates** — a later pass enqueues nothing for
+      that machine, because an episode entry exists for it — the parent settles `succeeded` with
+      that child named in `WIR-39`'s `cancellations`, `WIR-41`'s resume becomes available, the
+      failed child is listed for the operator, an operator requeue of it is admitted although the
+      tenant is suspended (`API-7` step 5b), and the machine keeps draining runway so `LDG-13`
+      reaches it unaided. Both wrong answers fail this item: a fan-out that never settles, and one
+      that settles while nothing at all accounts for the machine. (`API-58`, `OPS-44`, `OPS-39`,
+      `API-7`, `LDG-13`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
-      no credential type, and `engine` does not depend on `api`. `CNF-71`'s compile-fail test asserts
-      across that edge and `CNF-72`'s tripwire watches it. A build where the credential-owning type
-      becomes reachable from `api` fails to compile. (`OVR-9`, `OVR-10a`, `ADR-0001`)
+      no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
+      edge is asserted too**: `ledger` depends on `core` and nothing else, both `api` and `engine`
+      depend on it, and `OPS-27`'s terminal write executes **in a worker** — one transaction
+      carrying the machine row, the setup-fee debit and the commitment decrement, proved by killing
+      the process between them and finding neither. A build where `ledger` can name a driver, or
+      where the credential-owning type becomes reachable from `api` or `ledger`, fails to compile.
+      **And every component in `OVR-17`'s table lives in the module named there** — asserted against
+      the dependency graph, since a sweep in the wrong module is a credential or a rail secret in
+      the wrong module. (`OVR-9`, `OVR-10a`, `OVR-17`, `OPS-27`, `ADR-0001`)
 - [ ] **CNF-252** **Rescue entries and power cycles are capped.** A principal that sets every
       acknowledgement flag on every request still cannot exceed its rescue-entry or power-cycle
       ceiling; the rescue-entry ceiling counts the inventory pass and rescue-entering installs
@@ -998,10 +1048,14 @@ rather than acquiring a default.
       destination — this adds the wallet to the arithmetic `ADR-0009` is sold on. (`SEC-49`,
       `SEC-50`, `ADR-0009`)
 - [ ] **CNF-256** **A signup slot costs a held connection.** `POST /v1/enrol` without a valid,
-      unexpired, unused token is refused; a token is obtained only from a request that answers after
-      the stated delay; a token is single-use; and issuing one writes nothing to the store. Then the
-      test that matters: a caller cannot hold more concurrent token requests than the proxy's stated
-      per-source limit, and no caller address is persisted anywhere while enforcing it. (`API-33`,
+      unexpired, unused token is refused; a token is obtained only from `POST /v1/enrol/token`,
+      which answers after the stated delay; a token is single-use; and issuing one writes nothing to
+      the store. **A token request abandoned before the delay elapses leaves nothing collectable
+      afterwards** — that is what keeps the cost a held connection rather than a free request. Then
+      the test that matters: a caller cannot hold more concurrent token requests than the proxy's
+      stated per-source limit, and no caller address is persisted anywhere while enforcing it. **At
+      the global ceiling, enrolment sheds with `rate_limited` and a `retry_after_ms` rather than
+      failing bare** (`API-41`). (`API-33`, `WIR-49`, `WIR-12`,
       `API-36`, `API-41`, `ADR-0005`)
 - [ ] **CNF-241** **A create is refused rather than bought at a price nobody authorized.** With the
       offer's provider price raised between accept and claim so the open commitment no longer covers
@@ -1192,7 +1246,14 @@ assignment block was headed `CNF-222`–`CNF-232` and stopped there.*
 
 - [ ] **CNF-149** Every endpoint the requirements mandate appears in the surface table, and every
       row in the surface table has a requirement behind it. Run as a diff, both directions —
-      enrolment and funding were each mandated and unlisted for a day. (`API-48`, `F19`)
+      enrolment and funding were each mandated and unlisted for a day, and `API-33`'s admission
+      token was mandated and unlisted for two reviews, which made **every enrolment**
+      unsatisfiable. **AMENDED 2026-09-02 — run the same diff over the closed sets, not only over
+      the routes**: `DOM-13`'s strategy/source pairings against `WIR-20`'s union, `DOM-17`'s error
+      kinds against `WIR-9a`'s `details` table, and `WIR-10a`'s enums against the values the
+      requirements emit. The catalogue-install variant was missing from `WIR-20` while `DOM-13`
+      carried the pairing, and three BLOCKING items tested a path no caller could request — the same
+      failure as the missing route, one document over. (`API-48`, `DOM-13`, `WIR-20`, `F19`)
 - [ ] **CNF-150** A caller can read its balance, its available figure and its committed satoshis
       without attempting a purchase. **A create rejected with `insufficient_balance` is not an
       acceptable way to answer "can I afford this"**, because an autonomous caller responds to it
@@ -1218,8 +1279,9 @@ Added 2026-08-12 with `API-49`–`API-54`.
       second purchase. The test is the field; the sentence is checked by reading. (`API-51`)
 - [ ] **CNF-155** A pending tenant that has paid can observe `active` on its enrolment handle
       without attempting a create. A pending tenant that has not paid can reach only `API-43`'s
-      allowlist — funding, its own deposit, that handle, and revocation at or after
-      `issuable_at`. (`API-52`, `API-43`)
+      allowlist — funding, its own deposit, that handle, and revocation. *The "at or after
+      `issuable_at`" qualifier went with `issuable_at` on 2026-09-02 (`API-33`).*
+      (`API-52`, `API-43`)
 - [ ] **CNF-156** Two interleaved polls delivered out of order leave the caller holding the
       higher `revision`; the operation's revision strictly increases across every client-visible
       change, verified by killing and restarting the process mid-operation. (`API-53`)
@@ -1525,6 +1587,15 @@ token persisted in a replay table).
 
 **PRE-SCALE** — `CNF-197`, `CNF-201`, `CNF-202`. Each blocks a workflow or leaves a
 machine in rescue rather than losing money or data.
+
+### Assignments for the 2026-09-02 two-reviewer pass
+
+**BLOCKING** — `CNF-271` (unstoppable billing: a cancellation that can never run again while the
+record claims it succeeded, which the operator would not learn from anything but an invoice);
+`CNF-272` (a suspension that either never completes or completes with a billing machine on a
+suspended tenant — `SEC-45`'s one action is the operator's whole remedy and it must land).
+
+**PRE-SCALE** — none yet in this block.
 
 ## The blocking count
 

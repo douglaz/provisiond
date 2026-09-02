@@ -20,7 +20,8 @@
 | GET | `/v1/operations` | ✓ | List operations, filterable by status |
 | GET | `/v1/operations/{id}` | ✓ | Poll one operation |
 | POST | `/v1/operations/{id}/actions/requeue` | | Operator requeue |
-| POST | `/v1/enrol` | ✓ | Create a pending tenant, return a handle (`API-32`) |
+| POST | `/v1/enrol/token` | ✓ | Unauthenticated: obtain the enrolment admission token, answering only after a stated delay (`API-33`, `WIR-49`) |
+| POST | `/v1/enrol` | ✓ | Create a pending tenant, return a handle; requires an admission token (`API-32`, `API-33`) |
 | GET | `/v1/enrol/{handle}` | ✓ | Enrolment **status only**; never returns a credential (`API-33`, `WIR-13`) |
 | POST | `/v1/deposits` | ✓ | Mint a deposit: amount, expiry, both destinations (`API-43`) |
 | GET | `/v1/deposits/{id}` | ✓ | Read one deposit |
@@ -216,18 +217,18 @@ standing between a script and an unbounded table of tenant rows is this section.
 **API-32** An unauthenticated enrolment endpoint MUST exist. It creates a tenant in a **pending**
 state and returns an enrolment handle. It MUST NOT return a usable credential immediately.
 
-**API-33** **AMENDED — the token is minted and returned at enrolment, and is simply not usable
-until the delay elapses.** The enrolment response carries the spending token, the recovery
-credential (`API-55`) and an `issuable_at` instant; the server stores only their hashes; and every
-authenticated request before `issuable_at` fails `not_activated`. The caller polls its handle for
-**status only** — never for the credential.
+**API-33** **AMENDED — the token is minted and returned at enrolment.** The enrolment response
+carries the spending token and the recovery credential (`API-55`); the server stores only their
+hashes. The caller polls its handle for **status only** — never for the credential. *An
+`issuable_at` instant before which the token did nothing was part of this amendment and is
+withdrawn below.*
 
 *The withdrawn model delivered the token once, later, from `GET /v1/enrol/{handle}`, and that
 cannot survive a lost HTTP response: the server has marked it delivered and kept only a hash, so
 it can neither re-send nor re-derive it, and a customer who has already funded is permanently
 locked out of a tenant nobody else can reach either.* Concurrent polls had the same race. Minting
-at enrolment keeps `API-33`'s throttle — the credential still does nothing until the delay
-passes, which is what defeats a naive script — while removing the single-delivery trap entirely.
+at enrolment removes the single-delivery trap entirely, and the throttle that defeats a naive
+script is the admission delay below, paid *before* the signup exists.
 
 The status poll MUST NOT reveal the remaining time to the nearest instant (it is a free oracle for
 tuning an attack).
@@ -261,6 +262,40 @@ to the one place it does work.*
 
 The status poll MUST still not reveal remaining time to the nearest instant, for the reason below.
 `API-34` remains the storage bound.
+
+**AMENDED 2026-09-02 — the token now has a route, a field, and one delay instead of two.** The
+amendment above mandated a token that nothing issued and nothing accepted: no endpoint minted one,
+the surface table had no row for one, and `WIR-12`'s enrolment body was `{}` under a `WIR-2` that
+rejects unknown fields — so `13-wire-contract.md` won and **a conforming server refused every
+enrolment**, which is the whole product. Three edits close it.
+
+- **The route is `POST /v1/enrol/token`** (`WIR-49`): unauthenticated, synchronous, on the surface
+  table and in `API-48`'s closed list. It holds the connection for the stated delay, answers with
+  the token and its expiry, and writes nothing — which is what keeps `API-36`'s no-persisted-limiter
+  rule true of the door as well as of the room.
+- **`POST /v1/enrol` carries the token as a body field**, `admission_token` (`WIR-12`). A field
+  rather than a header, because `WIR-2` validates bodies against a closed schema and would otherwise
+  reject it, while an unauthenticated route has no header allow-list of its own to extend. Absent,
+  expired, unknown or already spent is `invalid_request`, and the message MUST NOT say which — the
+  distinction is a free oracle for exactly the script this gate exists to slow.
+- **`issuable_at` is withdrawn entirely**, along with the `enrolments` column (`STO-34`), the
+  response field and the `not_yet` status (`WIR-12`, `WIR-13`), and the two gates that read it
+  (`API-43` item 4, `API-56`'s pending-window refusal).
+
+*The withdrawal follows this requirement's own argument to its end.* The delay was moved in front of
+the slot because, run afterwards, "it defended nothing". Leaving the instant behind left **two**
+delays in a set whose every sentence described one — and the surviving one defends nothing under
+either model: both secrets are already in the caller's hands when it starts, so an attacker who has
+enrolled simply waits thirty seconds. What survives is the delay that is paid *before* a
+pending-tenant slot is consumed, which is the only one that was ever doing work. A consequence worth
+stating rather than discovering: the spending token is live from the moment enrolment returns it, so
+`API-56`'s revocation is reachable from that moment too — which is the right answer to a credential
+stolen in transit, and the withdrawn gate refused it for the first thirty seconds of every tenant's
+life.
+
+**This is a judgement call, and it is cheap to reverse:** restoring a post-issuance usability delay
+is one column and one field. It is recorded here rather than in a commit message so that a reader
+who wants the old behaviour can see exactly what went and why.
 
 **API-34** **AMENDED — the time-to-live has a floor, and it is not free to choose.** A pending
 tenant that has not been funded within a configured time-to-live MUST be deleted along with its
@@ -402,9 +437,11 @@ Revocation MUST carry an idempotency key and MUST replace the token **at most on
 (`STO-35`) — a replay returns `409` with `details.reason: "credential_already_replaced"` rather
 than re-returning the new token, because storing a replayable body would mean persisting a live
 bearer secret. This is a deliberate narrowing of `API-8`'s replay contract, and it is safe
-precisely because the recovery credential can always mint another replacement. **Revocation MUST
-NOT be reachable while a tenant is `pending`** before `issuable_at` — that window has no
-credential worth replacing.
+precisely because the recovery credential can always mint another replacement. **AMENDED
+2026-09-02: revocation is reachable while a tenant is `pending`, without qualification.** *The
+withdrawn sentence made it unreachable "before `issuable_at` — that window has no credential worth
+replacing", and `API-33` has since withdrawn `issuable_at`: there is no such window, and the token
+is worth replacing from the instant it is transmitted.*
 
 **API-57** **A tenant MUST be assigned at least one provider account, automatically, in the same
 transaction that activates it.** `API-17b` requires an explicit assignment and the provider views
@@ -474,6 +511,34 @@ tenant is the likeliest holder of exactly that case.* `SEC-45`'s one-action term
 entries survive them (`STO-26`, `LDG-22`) and remain re-attributable through `WIR-42` — so
 "no ledger" was wrong, and it is the case `API-34` exists to handle.
 
+**AMENDED 2026-09-02 — "un-cancelled" is defined, and a deterministically-failed child no longer
+hangs the fan-out.** The re-sweep's terminating condition was never defined, and the two readings a
+builder could reach were both wrong. **A machine is *cancelled* for the purpose of step (4) when an
+exposure-reducing cancellation episode for it exists** — `machines.system_trigger_ids` carries an
+entry under the `delete` action key (`OPS-39`), open or already resolved — **and *un-cancelled*
+otherwise.** The pass enqueues for every non-tombstoned machine of the tenant that has no such
+entry, and terminates when a pass finds none.
+
+*Why the entry and not the outcome.* Keyed on the outcome, a child that fails deterministically —
+`authentication` after a credential rotation, `unsupported` on an account that never declared
+`delete_machine` — leaves its machine un-cancelled forever, while `OPS-39` forbids the next pass
+enqueuing a second delete under the same open episode. The fan-out then cannot terminate and cannot
+progress: the parent never settles, `WIR-41`'s resume is fenced indefinitely, and a worker slot is
+pinned. Keyed on the entry, the pass terminates because the machine has been **accounted for**,
+which is what the parent's job actually is.
+
+**What that costs, stated rather than hidden: the parent settles `succeeded` while a machine of a
+suspended tenant may still be running.** Three things bound it and all three are required. The
+child's failure is a record of its own, named in the parent's result (`WIR-39`'s `cancellations`)
+and readable through `GET /v1/operations`. `OPS-44` requires a `failed` exposure-reducing
+cancellation to be **surfaced to the operator** in the same listing as `needs_reconciliation`, and
+keeps it requeueable under its existing trigger id — which `API-7` step 5b already exempts from the
+suspension refusal for exactly this reason. And the machine keeps consuming its commitment, so
+`LDG-13`'s exhaustion path reaches it on the ordinary schedule whether or not anyone looks. **A
+suspension is not a promise that the fleet is gone; it is a promise that every machine has been
+accounted for and that nothing further can be bought.** The terms and the operator documentation
+MUST say so in those words, because "suspended" reads as "stopped" and on this one branch it is not.
+
 **AMENDED 2026-08-31 — the flag lands at admission, not in the worker.** The withdrawn wording
 said "the suspension flag and the full fan-out MUST commit together", which on a `202`-returning
 endpoint (`WIR-39`) puts the flag in a *worker's* transaction. `API-7` step 5b reads
@@ -499,8 +564,10 @@ than left as exceptions a builder must invent:
 
 - **`API-7` (authenticate before validating)** — enrolment is unauthenticated by definition
   (`API-32`); there is no tenant yet. `API-7`'s ordering applies to authenticated endpoints, and
-  enrolment's own defences are `API-33`'s issuance delay, `API-36`'s rate limit and `API-41`'s
-  global ceiling.
+  enrolment's own defences are `API-33`'s admission token, `API-36`'s rate limit and `API-41`'s
+  global ceiling. **The admission token MUST be checked before the rest of the body is validated**,
+  which is `API-7`'s ordering argument reaching the one route that has no principal to authenticate:
+  an unadmitted caller MUST NOT be able to make the server do parsing or policy work either.
 - **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
   returns its handle directly. It creates no provider mutation, so it needs no durable operation,
   and `operations.tenant_id` could not name a tenant that does not exist yet.
@@ -525,10 +592,12 @@ enrolment that cannot pay is a dead end. A **pending** tenant MAY reach:
    pending;
 3. **`GET /v1/enrol/{handle}`** — unauthenticated, so not strictly an exception, but listed
    because it is how a pending tenant learns it has become active (`API-52`);
-4. **`POST /v1/recovery/revoke`** — but **only at or after `issuable_at`** (`API-56`). Before that
-   instant there is no usable credential to replace, so revocation is meaningless; after it, a
-   pending tenant's token is live and can be stolen exactly like an active one's, and refusing
-   revocation would leave the owner watching a thief spend a balance they funded.
+4. **`POST /v1/recovery/revoke`** (`API-56`). **AMENDED 2026-09-02 — unconditionally, with the
+   `issuable_at` qualifier withdrawn.** The withdrawn wording allowed it "only at or after
+   `issuable_at`", on the reasoning that before that instant there was no usable credential to
+   replace; `API-33` has since withdrawn the instant itself, and the token is live from the moment
+   enrolment returns it. A pending tenant's token can be stolen exactly like an active one's, and
+   refusing revocation would leave the owner watching a thief spend a balance they funded.
 
 **Every other authenticated endpoint MUST reject a pending tenant with `not_activated`**
 (`DOM-20`).
@@ -588,6 +657,10 @@ posts a ledger entry and touches no provider.
 writes an observation the operator already made, and revising a deadline moves a date. *Written here, again, because the list is closed and an
 endpoint that exempts itself is how the first two exemptions went unrecorded.*
 
+**AMENDED (2026-09-02): `POST /v1/enrol/token` also joins** (`API-33`, `WIR-49`) — it mints no
+tenant, writes nothing at all, and answers the caller directly after its stated delay. It is the
+only member of this list that is deliberately *slow*, and that is the point of it.
+
 **AMENDED (2026-08-31): `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` also joins**
 (`API-62`, `WIR-48`) — it writes an assignment row and touches no provider.
 
@@ -624,6 +697,21 @@ time-to-live sweep of `API-34` is a large periodic delete against the same singl
 that serves the operation queue's atomic claim (`STO-1`, `STO-6`), and `DEF-11` records that this
 store has already been starved once by a needless periodic write loop. **Enrolment at line rate
 becomes a write-lock generator that stalls machine creation and commitment re-derivation.**
+
+**AMENDED 2026-09-02 — the ceiling stands, and it stands only because `API-33`'s admission gate now
+stands in front of it.** `API-33` calls this ceiling "itself the denial of service", and against a
+free `POST /v1/enrol` it was: an attacker filled every slot, refilled as they expired, and shut the
+only door from stranger to customer at no cost. That reading is now historical rather than current.
+A slot costs a held connection (`API-33`, `WIR-49`), which is bounded and per-source limitable, so
+the ceiling bounds the store's write amplification without handing anyone a free lockout.
+
+Two things follow, and both are requirements rather than commentary. **The ceiling MUST be a
+shedding threshold, not a permanent refusal**: at the ceiling, `POST /v1/enrol` is refused
+`rate_limited` with a `retry_after_ms` (`WIR-9a`) — never a bare failure — so a legitimate caller is
+told to come back rather than told, indistinguishably, that the product is closed. And **the
+deployment MUST choose the ceiling against `API-34`'s time-to-live**, since the pair is what caps
+the table at *enrolment rate × TTL*; a ceiling below the number of signups a normal day produces
+inside one TTL is a self-inflicted outage, and that arithmetic MUST be stated with the figure.
 
 ## Idempotency
 
@@ -831,9 +919,10 @@ request per interval regardless of fleet size (`API-23`'s filtering plus `API-26
 and the documentation MUST steer fleet-scale callers to it. The status filter MUST accept a
 `terminal=false` predicate.
 
-**Exception (`API-33`):** the enrolment poll MUST NOT carry a delay-derived `Retry-After` — on
-that one endpoint the pacing hint is the timing oracle `API-33` forbids. Absent, or a constant
-unrelated to the remaining delay.
+**Exception (`API-33`):** neither enrolment route may carry a delay-derived `Retry-After` — on
+those the pacing hint is the timing oracle `API-33` forbids. Absent, or a constant unrelated to any
+remaining delay. This covers the handle poll, whose remaining time is `API-34`'s time-to-live, and
+`POST /v1/enrol/token`, which answers *after* its delay rather than advertising it.
 
 **API-50** **A caller that obeys every `Retry-After` it receives MUST never receive `429`.** This
 is the rate-limit contract stated as a relationship rather than a number, because any number is

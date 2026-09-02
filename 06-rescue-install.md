@@ -274,6 +274,12 @@ report — at minimum the block-device inventory (name, path, size, type, model,
 and whether the firmware is UEFI — and MUST attach it to the operation result. This is
 the record that tells an operator afterwards which disk was actually overwritten.
 
+**This is an obligation of the rescue engine and reaches only the strategies that enter rescue**
+(`rootfs_via_rescue`, `raw_disk`, and `RSC-38`'s inventory pass). `provider_native` and
+`provider_catalogue` boot nothing and read no disk, so they produce no report and their operation
+result is empty (`WIR-10b`). *Scoped explicitly 2026-09-02: read unscoped it made a result field
+mandatory on two strategies that cannot produce one, which `WIR-10b` had duly copied.*
+
 **RSC-34** An inventory report that fails to parse MUST be captured raw rather than
 discarded.
 

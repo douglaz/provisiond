@@ -134,7 +134,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `last_install_strategy` | enum | nullable; `DOM-29`. Which strategy last installed this machine — not what is *permitted*, which is `install_strategies` |
 | `last_install_verified` | boolean | nullable; whether provisiond verified the bytes that reached the disk. False on a catalogue install (`DOM-28`), where the provider converts them and exposes no checksum |
 | `last_install_at` | timestamp | nullable; when. **All three survive `STO-14`'s deletion of the operation that knows** — a long-lived machine otherwise outlives the record of how it came to be |
-| `destroy_committed` | UUID | nullable; `OPS-42`'s fence. Set by an exposure-reducing cancellation, to its own operation id, by a conditional write guarded on this column being null, **before any provider mutation**. `LDG-62`'s extend-runway conditional-writes the same row guarded on it being null and fails `conflict` where it affects no row. Both sides contending for one row is what totally orders them; without it the worker reads *unfunded*, releases the money serialization to make its provider call, and destroys a machine the customer paid for in the gap. Cleared when the episode resolves without a mutation (`OPS-41`) |
+| `destroy_committed` | UUID | nullable; `OPS-42`'s fence. Set by an exposure-reducing cancellation, to its own operation id, by a conditional write guarded on this column being **null or already equal to that same operation id**, **before any provider mutation**. `LDG-62`'s extend-runway conditional-writes the same row guarded on it being null and fails `conflict` where it affects no row. Both sides contending for one row is what totally orders them; without it the worker reads *unfunded*, releases the money serialization to make its provider call, and destroys a machine the customer paid for in the gap. **Cleared exactly when the episode resolves, per `OPS-44`'s table, and by no other path** — on a `succeeded` cancellation (including `OPS-41`'s no-mutation abort) and on an operator `absent`/`abandoned`, in the same transaction; **never** after an attempt that reached the provider and did not succeed, where the exposure decision still stands. *The own-id clause and the fuller clearing rule are 2026-09-02: guarded on null alone, a requeued cancellation mistook its own fence for a stranger's, aborted, and falsely settled `succeeded` — the retry `OPS-39` requires could never run* |
 | `system_trigger_ids` | json | `OPS-39`'s open episode identifiers and the **enforcing** home of its uniqueness: at most one open entry per key, claimed atomically before a sweep enqueues anything. The key is the **`action`** for an exposure-reducing cancellation and the `system_reason` for every other trigger (`OPS-39`), so two reasons to cancel one machine share a single entry rather than each enqueuing a delete. Each entry therefore carries `{trigger_id, action-or-reason key, reasons: [...]}` — `reasons` being the **set** of `system_reason` values that have contributed to this open episode, appended to by a later sweep that finds the entry already claimed. The `trigger_id` is the same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves |
 | `created_at`, `updated_at` | timestamp | |
 
@@ -483,15 +483,21 @@ never arrive, and no error is raised by anything.
 Three tables that requirements mandated and no schema defined — the `commitments` gap recurring
 three times over. Both 2026-08-13 reviewers found all three.
 
-**STO-34** **`enrolments`** — `handle` (unique), `tenant_id`, `issuable_at`, `created_at`,
-`expires_at`. **The credential hashes live in `tenants` and nowhere else**: `API-3` and `WIR-5`
+**STO-34** **`enrolments`** — `handle` (unique), `tenant_id`, `created_at`, `expires_at`. **The
+credential hashes live in `tenants` and nowhere else**: `API-3` and `WIR-5`
 both say the customer token hash is read from the tenant row, and a second home would leave
 `WIR-38`'s replacement rewriting an unstated one. `tenants.credential_digest` therefore stays
-`NOT NULL` and is populated **at enrolment**, in the same transaction that mints the row — the
-delay in `API-33` gates *usability* (`issuable_at`), not existence, so no null window is needed
-and none is permitted. Both secrets are minted at enrolment and stored **hashed only**
+`NOT NULL` and is populated **at enrolment**, in the same transaction that mints the row. Both
+secrets are minted at enrolment and stored **hashed only**
 (`API-33`, `API-55`); nothing recoverable is retained, which is why `API-56`'s revocation replaces
 a token rather than recovering it.
+
+**AMENDED 2026-09-02 — the `issuable_at` column is withdrawn** with the instant itself (`API-33`).
+It gated *usability* of a credential the caller already held, which defended nothing once both
+secrets arrived in the enrolment response; the delay that does work is now paid at
+`POST /v1/enrol/token` (`WIR-49`), before this row exists. **Nothing replaces it here**: the
+admission token is a keyed authenticator with no stored state, so the one enrolment defence that
+touches this store is `expires_at` and the time-to-live sweep behind it (`API-34`).
 
 **STO-35** **`idempotency_records`** — `scope_kind`, `scope_id`, `key`, `fingerprint`,
 `resource_kind`, `resource_id`, `status`, `response_body`, `created_at`, `expires_at`, unique on
