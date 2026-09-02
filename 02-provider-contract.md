@@ -445,6 +445,39 @@ notes, because it silently depends on the target image running a first-boot agen
 conflicts with a caller-supplied first-boot payload. The driver MUST NOT quietly discard
 either the keys or the caller's payload.
 
+### Import a catalogue image, and build from it
+
+**Input** — a URL provisiond serves (`RSC-39`), a `sha256`, a compression, a size bound, a
+provider-side tag carrying the operation's correlator (`RSC-42`), and — for the build — an
+`external_id` plus optional hostname, SSH keys, user data and provider options.
+**Output** — an opaque provider-side image identifier, then an action result for the build, then an
+acknowledgement of the delete.
+**Capability** — `install_via_provider_catalogue`.
+
+**PRV-37** **ADDED 2026-09-02 — the capability had no driver operation, which `DOM-15` calls a
+defect.** `DOM-10` maps `install, provider_catalogue` to `install_via_provider_catalogue`, `ADR-0013`
+and `RSC-39`–`RSC-43` specify the feature in full, and the only install-shaped operation in this
+document was *Rebuild*, whose capability is `native_rebuild` — so a driver declaring the catalogue
+capability had nothing to implement and `DOM-15`'s "declaration and implementation MUST agree" was
+unsatisfiable in one direction. **The operation is three provider calls and MUST be exposed as
+three**, because each fails independently and two of them cost money:
+
+- **import** — submit the URL, then poll to a usable state, both **outside the machine lock**
+  (`RSC-41`) and inside that requirement's stated maximum wait;
+- **build** — the switch-over, under the machine lock, re-validated first (`OPS-23`); this is where
+  the driver may reuse whatever it uses for *Rebuild*, but the capability gate is the catalogue one
+  (`DOM-10`), because the caller's promise is `DOM-28`'s and not `native_rebuild`'s;
+- **delete the imported image** — called on settle and on entry to `needs_reconciliation`
+  (`RSC-42`), and **it MUST be safe to call twice**: `OPS-32`'s sweep deletes orphans, and a
+  provider that answers "already deleted" is reporting the goal state, which `OPS-11` classifies as
+  success.
+
+**The driver MUST declare the offer-level bound `RSC-40` enforces** (`max_image_bytes`, `WIR-30`)
+and **MUST NOT declare this capability where it cannot delete an imported image through the API** —
+an import it cannot remove is a copy of a customer's operating system left in the operator's account
+after the deployment undertook to destroy it (`SEC-55`, `RSC-42`), which is the same shape `PRV-13`
+refuses for a machine whose cost cannot be stopped.
+
 ### Set reverse DNS
 
 **Input** — an IP address, a hostname.

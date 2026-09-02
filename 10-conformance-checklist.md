@@ -1067,13 +1067,21 @@ rather than acquiring a default.
       is fetched by provisiond, its digest verified as it streams, and a mismatch aborts before
       anything reaches the provider; the caller's own URL is never sent to the provider; an image
       exceeding the offer's `max_image_bytes` aborts the transfer rather than completing it; and the
-      declared `format` and `compression` are taken on trust — asserted by supplying a
-      deliberately mislabelled image and confirming provisiond does not inspect it. (`RSC-39`,
-      `RSC-40`, `SEC-21`)
+      declared `compression` is taken on trust — asserted by supplying a
+      deliberately mislabelled image and confirming provisiond does not inspect it. *`format` was
+      named here until 2026-09-02 and this path's body cannot carry one: its source is `raw_disk`,
+      which has `url`, `sha256` and `compression` (`WIR-20`).* (`RSC-39`,
+      `RSC-40`, `SEC-21`, `WIR-20`)
 - [ ] **CNF-266** **The import runs outside the machine lock and is bounded.** During the import the
       machine's lock is free — a concurrent exposure-reducing cancellation acquires it and runs —
-      and the lock is taken only for the switch-over. An import exceeding the stated maximum wait
-      aborts the operation and deletes the imported image. (`RSC-41`, `OPS-8`, `PRV-13b`)
+      and the lock is taken only for the switch-over, which re-validates first (`OPS-23`, `OPS-8`).
+      An import exceeding the stated maximum wait
+      aborts the operation and deletes the imported image. **And the driver exposes `PRV-37`'s three
+      calls separately** — import, build, delete — with the delete safe to call twice and an
+      "already deleted" rejection read as success (`OPS-11`); a driver that cannot delete an
+      imported image MUST NOT declare the capability, which is `DOM-15` applied to the one
+      capability that had no driver operation at all until 2026-09-02. (`PRV-37`, `RSC-41`, `OPS-8`,
+      `DOM-15`, `PRV-13b`)
 - [ ] **CNF-267** **Both image copies are purged, and an orphan is swept.** On settle and on entry
       to `needs_reconciliation`, the operator's re-hosted copy and the provider's imported one are
       both gone. Then the case that matters: lose the provider-side delete's reply and assert the

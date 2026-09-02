@@ -180,7 +180,23 @@ strategies as permanently malformed. `RSC-33` requires the report "before writin
 is a rescue-engine obligation and does not reach a path where the provider does the writing);
 `suspend_tenant` →
 `{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` (`WIR-39`), one entry per machine;
-`power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`. An ambiguous outcome additionally records provider identifiers in `result` per `OPS-13`.
+`power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`.
+
+**`install` is the one kind whose result shape depends on something other than the kind, and a
+client MUST NOT have to guess which.** The operation view carries `kind` and not `strategy`, and the
+request is purged on settle (`OPS-2`), so a caller polling `kind: "install"` cannot tell an
+`inventory` shape from an empty one — which under `WIR-2`'s strict-response discipline is a client
+that either breaks on a valid body or accepts anything. **A machine's `last_install.strategy`
+(`DOM-29`, `WIR-11`) is the field that answers it**, it survives the purge and outlives the
+operation, and the operation view already carries `machine_id`. *Named 2026-09-02: `result` is
+documented "per kind" and this one is per strategy, which is a discriminator a client cannot see
+from the object it is holding.*
+
+**An ambiguous outcome records provider identifiers in the operation's `error` details, not in
+`result`** (`OPS-13`, `DOM-17`). *Amended 2026-09-02: this sentence said `result`, and `OPS-13` puts
+the surviving evidence — provider-side identifiers, the location of any retained recovery credential
+— in the error details, which is also where `CNF-45` looks for it. A `needs_reconciliation`
+operation has an `error`; whether it has a `result` at all is exactly what nobody knows.*
 
 **WIR-11** The **machine view** (`CNF-176` counts this as a fixture, so a full example is given):
 
@@ -535,9 +551,13 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
   delivered by a different mechanism (`DOM-13`, `DOM-28`). No `layout` and no `target`: the provider
   converts the image and decides the disk (`RSC-43`). No `trust`: no rescue is entered, so there is
   no host key to pin, and a body supplying one is an unknown field for this variant and is rejected
-  `invalid_request` by `WIR-2`. No `authorized_keys`, on `RSC-14`'s reasoning applied one step
-  further out — this system never sees the image's filesystem at all, so it cannot inject into it
-  and MUST NOT silently ignore keys that were sent. The `sha256` is required and is what `RSC-39`
+  `invalid_request` by `WIR-2`. No `authorized_keys`, on `RSC-14`'s reasoning: the filesystem inside
+  a caller-supplied image is unknown, so keys cannot be injected generically and silently ignoring
+  them would be worse. *`provider_native` MAY carry them and the difference is the image, not the
+  mechanism — it names an image from the **provider's own catalogue**, which the provider supports
+  and provisions keys into as a documented feature of the same rebuild call. A caller's imported
+  image has no such guarantee, and the provider's key injection may or may not find anything to
+  write to.* The `sha256` is required and is what `RSC-39`
   verifies **in transit**; it attests nothing about what the provider writes (`DOM-28`, `SEC-16`),
   and `machines.last_install` records that distinction on the machine (`DOM-29`).
 

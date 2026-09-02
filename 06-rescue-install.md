@@ -387,8 +387,11 @@ really doing the work.*
 
 **RSC-40** **provisiond measures a caller's image and MUST NOT interpret it.** It counts the bytes
 and hashes them. It MUST NOT parse the content — not the partition table, not the image format, not
-the filesystem — and the caller's declared `format` and `compression` are taken on trust exactly as
-`WIR-20` already takes them on every other path.
+the filesystem — and whatever the caller declares about the bytes is taken on trust exactly as
+`WIR-20` already takes it on every other path. *On the catalogue variant that is `compression`
+alone: `format` belongs to the `rootfs_tarball` source, and this path's source is `raw_disk`
+(`DOM-13`, `WIR-20`). Naming a field the body cannot carry is how a conformance item ends up
+testing a value no request can supply.*
 
 **A maximum image size MUST be declared per offer and enforced against the stream**, aborting the
 transfer when exceeded. That is the one check available without interpretation, and it doubles as a
