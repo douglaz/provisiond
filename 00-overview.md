@@ -51,20 +51,22 @@ names the environment variable; the process reads the secret from the environmen
 ## System context
 
 ```
-                    +---------------------------+
-   API client ----->|  HTTP API                 |
-                    |  authn / tenancy /        |
-                    |  idempotency / validation |
-                    +-------------+-------------+
-                                  |
-                                  v
-                    +---------------------------+
-                    |  Durable operation log    |
-                    |  queue + leases +         |
-                    |  per-machine locks        |
-                    +-------------+-------------+
-                                  |
-                        restart-safe workers
+                    +---------------------------+       +--------------------+
+   API client ----->|  HTTP API                 |------>|  Ledger            |
+                    |  authn / tenancy /        |       |  entries +         |
+                    |  idempotency / validation |       |  commitments +     |
+                    +-------------+-------------+       |  the meter + rate  |
+                                  |                     +----------+---------+
+                                  v                                ^
+                    +---------------------------+                  |
+                    |  Durable operation log    |                  |
+                    |  queue + leases +         |                  |
+                    |  per-machine locks        |                  |
+                    +-------------+-------------+                  |
+                                  |                                |
+                        restart-safe workers ---------------------->
+                                  |     OPS-27's terminal write
+                                  |     goes through the ledger
                                   |
              +--------------------+--------------------+
              |                    |                    |
@@ -172,12 +174,20 @@ credential-owning type is private to `engine` and reachable through nothing else
 
 **`ledger` MUST NOT depend on `providers`, `rescue`, `engine` or `api`** (2026-09-02). Both `api`
 and `engine` depend on it, which is what gives `OPS-27`'s money-bearing terminal transaction a legal
-home and `LDG-11`'s commit-and-enqueue another. The direction is what keeps it safe: a module that
-cannot name a driver cannot make a provider call inside `LDG-35`'s serialization, which is `LDG-69`'s
-prohibition enforced by the dependency graph rather than by discipline. **`ledger` MUST NOT enqueue
+home and `LDG-11`'s commit-and-enqueue another. The direction buys one real property: **a module
+that cannot name a driver cannot make a provider call from inside `LDG-35`'s serialization** — which
+is one clause of `LDG-69` obtained structurally rather than by discipline. *The rest of `LDG-69` is
+not obtained this way and MUST NOT be claimed to be: it binds a **worker**, which lives in `engine`,
+and `OPS-41`'s funding re-check now genuinely nests the primitive inside a machine lock from there.
+`CNF-217` asserts the whole boundary at runtime because only part of it is a compile-time fact.*
+
+**`ledger` MUST NOT enqueue
 an operation** — the queue's record and its enqueue primitive belong to `engine` and are reached
 through the same narrow trait `api` uses — so a component that must both read a balance and enqueue
-work belongs in `engine` and reads the balance through `ledger`'s interface (`OVR-17`).
+work belongs in **`api` or `engine`**, both of which can do each, and `OVR-17` says which for each
+component. *`api` doing exactly that is the ordinary create path: `LDG-11` opens the commitment and
+enqueues the operation in one transaction, which is step 9 of the diagram above and the reason
+`ADR-0001` chose one deployable.*
 
 ## Deployment assumptions
 
@@ -192,7 +202,7 @@ and a family of requirements accumulated around a deployment shape this product 
 makes it load-bearing rather than belt-and-braces.
 
 **OVR-10a** A deployment choosing the single-component form MUST NOT leave provider credentials
-ambient in the process. They MUST be reachable only through the internal layer's interface, so
+ambient in the process. They MUST be reachable only through `engine`'s narrow trait (`OVR-9`), so
 a defect in the public surface cannot read them by accident. The boundary MUST be enforced by
 the code's structure — module privacy, a narrow trait, a dedicated type owning the secret — and
 not merely documented. This is the compensating control for the blast radius named above;
@@ -246,27 +256,36 @@ not merely tested — there are none left to verify.)*
 
 **OVR-17** **Every component that runs without a caller MUST be assigned to a module, and here is
 the assignment.** The table above allocates the request path; the periodic and background work was
-allocated nowhere, and five components — each of them writing money or touching a provider — had no
-stated home at all. A component with no module has no dependency rule, which means it has no
+allocated nowhere — every one of the components below writes money, touches a provider, or both, and
+none had a stated home. A component with no module has no dependency rule, which means it has no
 credential boundary either.
 
 | Component | Module | Why there |
 |---|---|---|
-| The meter (`LDG-37`, `LDG-38`, `LDG-72`) | `ledger` | Posts debits and decrements commitments; enqueues nothing and calls no provider |
+| The meter (`LDG-37`, `LDG-38`, `LDG-72`) | `ledger` | Posts debits and decrements commitments, and enqueues nothing. **Where `LDG-37`'s stated source of truth is a provider usage API rather than the machine record, the driver call belongs to `engine`** and hands the meter the figures — the same shape as the sweep below |
 | Rate derivation and re-derivation (`LDG-58`–`LDG-61`, `PRV-13e`, `LDG-33`) | `ledger` | A pure balance event mints no operation (`OPS-39`), and the source set is fixed at deployment (`LDG-61`) |
-| The solvency check (`LDG-17`, `LDG-20`) | `ledger` | Reads balances and held satoshis; the rail balance it needs arrives through `api`'s funding interface, never through a rail credential of its own (`SEC-48`) |
-| The exhaustion sweep (`LDG-13`, `LDG-14`) | `engine` | It reads `runway_until` through `ledger` and then **enqueues** a cancellation, which is `engine`'s primitive (`OVR-9`) |
+| The solvency check (`LDG-17`, `LDG-20`) | `ledger` | Reads balances and held satoshis. **The two rail balances it needs are pushed in by `api`'s funding side** (`SEC-48`'s scoped read); `ledger` MUST NOT call `api` to fetch them, which `OVR-9` forbids and which would make the money module depend on the surface |
+| The exhaustion sweep (`LDG-13`, `LDG-14`) | `engine` | It reads the machine's `runway_until` (`05-persistence.md`) and its commitment through `ledger`, then **enqueues** a cancellation, which is `engine`'s primitive (`OVR-9`) |
+| `LDG-64`'s outage-bound canceller | `engine` | Same shape: a balance-adjacent condition whose effect is an enqueued provider mutation with `system_reason: rate_outage_bound` (`OPS-39`) |
+| `OPS-27`'s resolution sweep | `engine` | It searches providers by correlator, so it needs a provider credential, and its terminal transaction writes money through `ledger` (`OPS-27`) |
 | `OPS-32`'s account sweep | `engine` | Lists resources at a provider, so it needs a provider credential |
 | `OPS-14`'s lease sweeper and the worker pool | `engine` | Already implied by the table; stated so the list is complete |
 | The settlement watcher (`STO-30`–`STO-32`, `LDG-47`, `LDG-57`) | `api` | It holds the payment-rail material `OVR-10b` keeps away from the lifecycle side, and posts its credits through `ledger` |
-| `API-34`'s time-to-live sweep and `STO-14`'s retention job | `api` | Tenancy and request records, no provider and no rail |
+| `API-34`'s time-to-live sweep | `api` | Tenancy records, no provider and no rail |
+| `STO-14`'s retention job | `api` | It deletes settled operations, which is a **request** record; it MUST NOT touch `machines.system_trigger_ids`, which `STO-14` states in terms — retention resetting `OPS-39`'s deduplication is the defect that requirement exists to forbid |
 
-**Two of these placements are the ones a builder gets wrong**, so the reasoning is recorded rather
+**Three of these placements are the ones a builder gets wrong**, so the reasoning is recorded rather
 than left to be re-derived. The exhaustion sweep looks like money and is not: it is a machine
 mutation triggered by a balance, and `LDG-13` calls cancellation "the only effective remedy", so it
 belongs where mutations are enqueued and executed. The settlement watcher looks like the ledger and
 is not: it terminates a Lightning subscription and a chain scan, which is rail material, and putting
-it in `ledger` would drag a spending-adjacent credential into the module `engine` depends on.
+it in `ledger` would drag a spending-adjacent credential into the module `engine` depends on. And
+the retention job looks like a store-maintenance chore that could live anywhere: it deletes rows the
+queue depends on, and the one table it must **not** reach is on the machine.
+
+*The list is closed as of 2026-09-02 and MUST be extended when a component is added, which is the
+obligation this requirement really carries — an unassigned background job is an unassigned
+credential boundary.*
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive

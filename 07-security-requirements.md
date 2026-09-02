@@ -287,10 +287,15 @@ asked or under what authority.
 
 ## Deployment posture
 
-**SEC-35** **AMENDED — collapsed to the single-component form settled by `ADR-0001`.** The
-lifecycle service cannot run on a private management network, because the customer is the
-caller, so the deployment MUST compensate: the in-code credential boundary of `OVR-10a`,
-operator routes on a separate listener (`API-27`), and per-principal ceilings (`SEC-39`). A
+**SEC-35** **AMENDED — collapsed to the single-component form settled by `ADR-0001`.** There is one
+process, so the credential-holding code runs wherever the customer-facing listener runs and no
+management network separates them, so the deployment MUST compensate: the in-code credential
+boundary of `OVR-10a`,
+operator routes on a separate listener (`API-27`), and per-principal ceilings (`SEC-39`).
+*The withdrawn phrasing — "the lifecycle service cannot run on a private management network, because
+the customer is the caller" — reads backwards after `OVR-9`'s split: the customer is not the caller
+of `engine` at all, `api` is, through a trait mentioning no credential type. What is true and what
+this requirement means is that the two share a process and therefore a network position.* A
 deployment that implements none of these has traded its only structural defence for packaging
 convenience. *The withdrawn branch made the private management network the primary control in
 the separate-service form; there is no such form.*
@@ -485,10 +490,16 @@ to derive every deposit address (`LDG-50`) and to observe every payment (`LDG-57
 specified behaviour requires more. **The key that can move those funds MUST live outside the
 deployment**, and no code path in the deployment may reach it. This part stands unchanged.
 
-**The credential-holding process MUST reach Lightning only through a narrowly scoped credential, on
-a separate host.** This is the boundary that matters for `ADR-0001`: the process holding provider
-credentials and root on every customer machine cannot move the float, and that is achievable today
-with per-RPC credential scoping.
+**The process MUST reach Lightning only through a narrowly scoped credential, on
+a separate host.** This is the boundary that matters for `ADR-0001`: there is one process, it holds
+provider credentials and root on every customer machine, and it cannot move the float — which is
+achievable today with per-RPC credential scoping.
+
+**Inside that process the credential belongs to `api`'s funding side, and `engine` MUST NOT be able
+to reach it** (`OVR-9`, `OVR-10b`, `CNF-73`). *Written 2026-09-02, because the phrase "the
+credential-holding process" is now also the label for a **module** — `engine` — which `OVR-10b`
+forbids any rail material at all. Both statements are true and they are about different boundaries:
+the process may reach Lightning, the lifecycle module may not.*
 
 **AMENDED 2026-09-02 — the scope was stated as four verbs and three shipped requirements need
 more.** The withdrawn enumeration was "create, look up, list and subscribe", which forbids
