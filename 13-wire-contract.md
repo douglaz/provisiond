@@ -624,8 +624,17 @@ the commitment (`LDG-32`); `{"resolution": "abandoned", "operator_ref": "opref-7
 install, power, reverse DNS and delete** (`OPS-31`, `OPS-45`):
 `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` and
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
-`external_id` — the machine is already known, which is the whole difference from a create. **They
-are refused on a create** (`invalid_request`), and **`not_applied` is refused where `OPS-45`'s
+`external_id` — the machine is already known, which is the whole difference from a create.
+
+**The union is closed *per operation kind*, and a form outside its kind's set is
+`invalid_request`.** For `create_machine` and `adopt_machine`: `observed`, `absent`, `abandoned`.
+For `install`, `rescue_inventory`, `power`, `reverse_dns` and `delete_machine`: `applied`,
+`not_applied`, `abandoned`. `suspend_tenant` never reaches `needs_reconciliation` (`OPS-11`) and
+accepts none of them. `abandoned` is the one member common to both sets — it says nobody
+established what happened, which is a sentence about any kind. *Stated as two sets rather than as
+"refused on a create": that phrasing left `adopt_machine` taking the non-create verbs and
+`rescue_inventory` taking the create ones, and `WIR-1`'s rule that this document wins means a strict
+server would have admitted both.* **`not_applied` is additionally refused where `OPS-45`'s
 write-started marker is set** — `409` `conflict`, `details.reason: "state"` — because a partly
 written disk is not "nothing happened". *Without these an install, a power action or a reverse-DNS
 change reaching `needs_reconciliation` had exactly one reachable verb, `abandoned`, so the

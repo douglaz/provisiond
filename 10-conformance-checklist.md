@@ -460,8 +460,14 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-31a** The rows of `OPS-11` where a misclassification causes a repeated provider
       mutation. A create failing with a provider 4xx is `failed`; a create failing with a
       provider 5xx, a network error, or a timeout is `needs_reconciliation`; every install
-      failure that is not a deterministic caller error is `needs_reconciliation`. Getting these
-      wrong invites the caller to retry a mutation that already happened.
+      failure that is not a deterministic caller error **and that `OPS-45`'s markers do not clear**
+      is `needs_reconciliation`. Getting these
+      wrong invites the caller to retry a mutation that already happened. **AMENDED 2026-09-02 —
+      the install clause was unconditional and `OPS-45` narrowed it**: a failure with the disk
+      untouched and the rescue session closed cleanly is deterministic, and classifying it ambiguous
+      is the defect that made `RSC-3`'s host-key abort an operator-resolved loss. The clause matters
+      in both directions, so assert both: an install past the write marker is never `failed`, and
+      one short of it with a clean exit is never `needs_reconciliation`.
 - [ ] **CNF-31b** The remaining rows of `OPS-11`, for exhaustiveness — including that the table
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
       kind, with no implicit default.
@@ -495,7 +501,13 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-43** A digest mismatch on the rootfs path aborts before the installer runs.
       (`RSC-25`)
 - [ ] **CNF-44** A digest mismatch on the raw-disk path produces an `integrity` error and
-      routes to `needs_reconciliation`. (`RSC-29`, `OPS-11`)
+      routes to `needs_reconciliation` **in single-pass mode, where verification completes only
+      after the overwrite has begun** (`RSC-29`) — which is what sets `OPS-45`'s write marker. **In
+      `RSC-30`'s two-pass mode the same mismatch is caught in scratch with nothing written, so the
+      marker is unset and the operation settles `failed`.** Both, and the difference is the point:
+      the two modes make different claims about the disk and must not report the same outcome.
+      *Amended 2026-09-02; stated unconditionally it failed the mode `RSC-30` says SHOULD be the
+      default.* (`RSC-29`, `RSC-30`, `OPS-11`, `OPS-45`)
 - [ ] **CNF-45** On uncertain rescue exit, the recovery key is persisted and its path,
       with the rescue address and port, appears in the operation error. (`RSC-19`)
 - [ ] **CNF-46** The recovery directory is created owner-only. (`RSC-20`)
@@ -1575,8 +1587,10 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       integer above 2^53, is rejected. (`WIR-3`, `WIR-1a`)
 - [ ] **CNF-179** An operator resolves a `needs_reconciliation` operation through
       `POST /.../actions/resolve` in each of its **five** forms — `observed`, `absent` and
-      `abandoned` on a create, `applied` and `not_applied` on a kind that acts on a machine that
-      already exists (`OPS-31`, added 2026-09-02) — with each form refused on the wrong kind; the
+      `abandoned` on a create or adopt, `applied`, `not_applied` and `abandoned` on a kind that acts
+      on a machine that already exists (`OPS-31`, `WIR-35`, added 2026-09-02) — with each form
+      refused **on a kind whose set does not admit it**, and `abandoned` accepted on both, since it
+      is the member common to the two sets; the
       `absent` form releases the
       commitment, and a customer-authenticated request to that route — and to adopt and requeue —
       returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`, `OPS-45`)

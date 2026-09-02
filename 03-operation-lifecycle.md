@@ -75,8 +75,9 @@ account was only ever determined inside the call that vanished.
   | succeeded |    |  failed  |   | needs_reconciliation |
   +-----------+    +----------+   +----------+-----------+
         ^                ^                   |
-        |                |                   | resolved observed -> succeeded
-        +----------------+-------------------+ resolved absent/abandoned -> failed
+        |                |                   | resolved observed/applied -> succeeded
+        +----------------+-------------------+ resolved absent/not_applied/
+                         |                   |   abandoned -> failed
                          |                   |
                          +--- operator requeue ---> queued
 
@@ -105,10 +106,17 @@ forbade both by forbidding transitions out of terminal states. The permitted tra
 exactly:
 
 ```
-needs_reconciliation --resolved observed--> succeeded
-needs_reconciliation --resolved absent|abandoned--> failed
+needs_reconciliation --resolved observed (create)--> succeeded
+needs_reconciliation --resolved applied (non-create)--> succeeded
+needs_reconciliation --resolved absent (create)--> failed
+needs_reconciliation --resolved not_applied (non-create)--> failed
+needs_reconciliation --resolved abandoned (any kind)--> failed
 needs_reconciliation --operator requeue--> queued
 ```
+
+*The two non-create rows were added 2026-09-02 with `OPS-45`. They are not new transitions — the
+states either side are unchanged — but the list says "exactly", so a verb missing from it is a verb
+`OPS-4` forbids.*
 
 **What was actually load-bearing about "terminal" survives unchanged**, and it is `OVR-5`: the
 system MUST NOT retry the mutation automatically, MUST NOT clear the state on its own timer, and
@@ -796,7 +804,13 @@ MUST NOT claim a resource whose operation is still `running` and holding its lea
 **OPS-31** Operator verbs MUST exist for the unresolved case and MUST be distinct from requeue:
 record an observed resource by its external identifier, record that nothing was created, or
 abandon the operation and accept the loss. Each MUST record who resolved it and on what
-evidence, and abandonment MUST close the commitment and release it in full (`LDG-32`).
+evidence, and abandonment MUST close the commitment and release it in full (`LDG-32`) **where the
+operation opened one** — a create or an adopt (`LDG-11`, `LDG-36`). An install, a power action, a
+reverse-DNS change and a delete open none, and the only commitment within reach of one is the
+machine's **running** commitment, which abandonment MUST NOT touch: the machine is still there and
+still consuming it. *Scoped 2026-09-02; unscoped, abandoning a failed install released the funding
+of a machine that is still running, which is `LDG-13`'s unfunded machine created by an operator
+verb.*
 
 **AMENDED 2026-09-02 — those three verbs are create-shaped, and three operation kinds cannot use
 them.** `observed` names an `external_id` that a create produced; `absent` says nothing was created.
@@ -825,6 +839,16 @@ connection is made**, with nothing written and the machine's disk untouched — 
 could only ever call that outcome "abandoned". So the differentiator's most security-critical
 success case (a pinned key that did not match, aborting exactly as designed) ended as an
 operator-resolved loss.
+
+**This requirement governs the kinds that act on a machine that already exists — install, rescue
+inventory, power, reverse DNS and delete — and nothing else.** It does **not** reach `create` or
+`adopt`: there is no machine yet, the question is whether a *resource was produced*, and the answer
+comes from `OPS-27`'s correlator search rather than from anything the engine can record about
+itself. Nor does it reach `suspend_tenant`, which mutates no provider (`OPS-11`). **Scoping this is
+not a formality**: read unscoped, "the marker is unset, so settle `failed`" would settle every
+ambiguous create as a deterministic failure, which deletes `OPS-27`'s resolution, `OPS-33`'s
+negative window, `OPS-36`'s late attach and `LDG-39`'s whole fee table in one sentence — the
+correlator exists precisely because a create's own execution *cannot* tell you what happened.
 
 **The engine MUST persist a write-started marker on the operation**, at the moment a phase begins
 that could have altered the machine, and before that phase runs:
@@ -862,9 +886,24 @@ failed rescue exit it stays ambiguous**, because the machine may be sitting in r
 temporary credential registered — which is `PRV-22`'s point and is a fact about the *machine*, not
 about the disk.
 
-**Both markers MUST survive the payload purge** (`ADR-0005`, `OPS-2`) in `request_summary`: they are
-facts about what was attempted, not caller secrets, and they are read precisely when the record is
-being resolved long afterwards.
+**Both markers MUST survive the payload purge** (`ADR-0005`, `OPS-2`). They live in named columns on
+the operation (`05-persistence.md`), which is what `OPS-11` and `OPS-31` read; the copy in
+`request_summary` is a **convenience copy for an operator reading a resolved record**, in the manner
+of `operations.system_trigger_id`, and the columns are authoritative. *Stated because one fact with
+two homes and no authority rule is how `SEC-46`'s amendment came to ship claiming it had applied.*
+
+**The two markers behave differently across attempts, and the difference is not stylistic.**
+`write_started_at` is **write-once and is never cleared, including by a requeue** (`OPS-20`): once
+any attempt has begun altering the disk, the disk may have been altered, and that stays true however
+many later attempts stop short. `rescue_exited_cleanly` is the opposite — it describes **the machine
+right now**, so each attempt overwrites it, and a requeue that exits rescue cleanly genuinely repairs
+what a previous one left open. *A single rule for both would be wrong in one direction or the other:
+sticky, and a repaired machine reads as stranded forever; per-attempt, and a written disk reads as
+untouched on the next attempt that fails early.*
+
+A worker's write of either is guarded like any other worker write, on
+`(id, status = running, claimant = me)` (`STO-3`), and MUST report whether it affected a row — a
+worker that has lost its lease MUST NOT record that it began writing, because it may not have.
 
 **OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
 Periodic reconciliation MUST run across each provider account independently of any stuck
