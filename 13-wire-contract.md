@@ -653,8 +653,17 @@ attached to the result of the operation that had already destroyed the disk.
 **WIR-29** `GET /v1/providers` — customer auth returns only the accounts assigned to the tenant
 (`DOM-3`, `API-17b`); operator auth returns all configured accounts.
 `{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
-"capabilities": ["provision_bare_metal", "rescue_ssh", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
+"capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
 `DOM-22`).
+
+**AMENDED 2026-09-02 — the fixture declared `allow_orders: true` on an account that could not
+delete.** `WIR-37` makes every example here a test input, and this one described an account
+`PRV-13b` forbids selling from on prepaid terms: bounding exposure before taking money "requires,
+per product: an API path to stop the cost", and an account with no `delete_machine` has none, so
+`LDG-14`'s exhaustion cancellation is unexecutable and every machine bought from it bills until the
+operator intervenes by hand. `power_control` joins for the same reason it is in `DOM-10`'s table —
+an account that can order bare metal and not reboot it is not a shape any launch driver has. *A
+fixture is a claim about a legal configuration, and this one asserted the illegal one.*
 
 **WIR-30** **AMENDED** `GET /v1/providers/{account}/offers` — customer prices only (`LDG-26`), an
 unassigned account `404`s (`WIR-36`):

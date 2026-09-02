@@ -1081,10 +1081,11 @@ rather than acquiring a default.
       a `failed` one appears in the operator listing `OPS-26` requires. **The failure this catches
       is a sweep loop that settles `succeeded` forever while the machine bills forever.**
       (`OPS-44`, `OPS-42`, `OPS-39`, `OPS-41`, `LDG-62`)
-- [ ] **CNF-272** **A suspension terminates even when a child cannot delete.** Suspend a tenant one
-      of whose machines sits on a provider account that declares no `delete_machine`, so its child
-      fails deterministically. Assert the fan-out **terminates** — a later pass enqueues nothing for
-      that machine, because an episode entry exists for it — the parent settles `succeeded` with
+- [ ] **CNF-272** **A suspension terminates even when a child cannot delete.** Suspend a tenant
+      while the provider account's credential is rejected, so every child cancellation fails
+      `authentication` — deterministic, and `OPS-11` sends it to `failed` rather than to
+      `needs_reconciliation`. Assert the fan-out **terminates** — a later pass enqueues nothing for
+      those machines, because an episode entry exists for each — the parent settles `succeeded` with
       that child named in `WIR-39`'s `cancellations`, `WIR-41`'s resume becomes available, the
       failed child is listed for the operator, an operator requeue of it is admitted although the
       tenant is suspended (`API-7` step 5b), and the machine keeps draining runway so `LDG-13`
