@@ -526,8 +526,9 @@ identical consumption. The rule is therefore:
 ```
 For each metered increment i of this SUBJECT, closing at increment_end_i:
 
-  net_seconds_i  = elapsed billable seconds inside i
-                 − the part of any deficiency-absorbed window (LDG-66) lying inside i
+  net_seconds_i  = max(0,
+                       elapsed billable seconds inside i
+                     − the part of any deficiency-absorbed window (LDG-66) lying inside i)
 
   exact_total   += net_seconds_i × customer_rate_i     # the rate in force at i's close,
                                                        # carried as a rational (LDG-4)
