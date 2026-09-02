@@ -456,31 +456,32 @@ conformance items asserted a rejection this taxonomy could not express** — `CN
 balance), `CNF-78` (tenant still pending), `CNF-69` (ceiling), `CNF-101` (solvency halt) — and
 every one of them would have arrived at the caller as `invalid_request` / 400.
 
-**AMENDED 2026-09-02 — a sixth row, `ceiling_exceeded`, and it is the same defect a seventh time.**
-`SEC-39` requires server-side ceilings per principal — machines destroyed, machines created, images
-written, rescue entries, power cycles, spend, and for an operator principal requeues, resolutions,
-suspensions and re-assignments — and **this taxonomy had nothing that could express refusing one**,
-while `API-24` forbids a handler choosing a status independently. `CNF-69` is named above as one of
-the four items that "asserted a rejection this taxonomy could not express", and the taxonomy was
-then extended for the other three and not for this one.
-
-**It is not `rate_limited`, and the difference is the caller's recovery.** Both say "not now", and
-an agent's response to each is genuinely different: a rate limit is about *load* and clears in
-milliseconds under the deployment's own control, so backing off is the whole answer; a ceiling is
-about *authority* over a stated interval — an hour by default — and clears only when the interval
-rolls, no matter how gently the caller asks. Collapsing them means an agent that has hit its
-destruction ceiling retries a delete every few seconds for an hour, and an operator reading `429`
-cannot tell a busy server from a principal that has spent its budget. That is `DOM-20`'s own
-argument — "top up" and "fix your request" are different actions — applied to "wait a moment" and
-"you are out of allowance". The HTTP status is shared with `rate_limited` because 429 is what both
-mean to an intermediary; the **kind** is what the agent branches on, which is the whole point of
-`DOM-17` carrying one.
-
 That distinction matters more here than in an ordinary API. The caller is an autonomous agent,
 and **"top up" and "fix your request" are different actions.** Collapsing them means a correctly
 formed create that merely needs money is indistinguishable from a malformed one, so the agent's
 only recovery is to mutate its request and retry — which is how a retry loop becomes a duplicate
 purchase.
+
+**AMENDED 2026-09-02 — a sixth row, `ceiling_exceeded`, because the taxonomy was extended for three
+of those four items and not for the fourth.** `SEC-39` requires server-side ceilings per principal —
+machines destroyed, machines created, images
+written, rescue entries, power cycles, spend, and for an operator principal requeues, resolutions,
+suspensions and re-assignments — and **this taxonomy had nothing that could express refusing one**,
+while `API-24` forbids a handler choosing a status independently. `CNF-69` is the ceiling item named
+in the list above; it has been BLOCKING throughout, against a set of kinds that could not carry its
+rejection.
+
+**It is not `rate_limited`, and the difference is exactly the argument this requirement already
+makes.** Both say "not now", and an agent's response to each is genuinely different: a rate limit is
+about *load* and clears in milliseconds under the deployment's own control, so backing off is the
+whole answer; a ceiling is about *authority* over a stated interval — an hour by default — and
+clears only when the interval rolls, however gently the caller asks. Collapsing them means an agent
+that has hit its destruction ceiling retries a delete every few seconds for an hour, and an operator
+reading `429` cannot tell a busy server from a principal that has spent its budget. "Wait a moment"
+and "you are out of allowance" are different actions in the same way "top up" and "fix your request"
+are. The HTTP status is shared with `rate_limited` because 429 is what both mean to an
+intermediary; the **kind** is what the agent branches on, which is the whole point of `DOM-17`
+carrying one.
 
 **DOM-17** Every error MUST carry a kind, a human-readable message, a boolean
 `retryable`, and a structured `details` object. `retryable` describes whether repeating
