@@ -744,7 +744,7 @@ what resolves it when the delete actually ran.** That gap is what let `API-58`'s
 | `succeeded` — including `OPS-11`'s goal-state row and `OPS-41`'s no-mutation abort | **Removed**, in the same transaction as the terminal write | **Cleared**, same transaction |
 | `failed` — deterministic, the provider rejected the request and did not act | **Stays open** | **Stays set** |
 | `needs_reconciliation` | **Stays open** | **Stays set** |
-| Resolved `absent` or `abandoned` by an operator (`OPS-31`) | **Removed**, in the resolution transaction | **Cleared**, same transaction |
+| Resolved by an operator (`OPS-31`) — for a cancellation the verbs are `applied`, `not_applied` and `abandoned` (`OPS-45`) | **Removed**, in the resolution transaction | **Cleared**, same transaction |
 
 **The two "stays" rows are the point.** A cancellation that did not happen leaves a machine that is
 still running, still billing and still unfunded, so the exposure is unchanged and the episode is not
@@ -756,11 +756,15 @@ cancellation MUST therefore be surfaced to the operator** in the same listing `O
 `needs_reconciliation`: it is the one settled state in this set that nothing automatic will look at
 again, and the cost of not looking is unbounded provider billing.
 
-**Operator resolution clears the fence, and that is deliberate.** `abandoned` is the operator saying
-"stop trying under this episode", not "this machine is safe" — so a later exhaustion sweep MUST be
-able to open a fresh episode and fence again. Leaving the fence set would make every subsequent
+**Operator resolution clears the fence, and that is deliberate — for every one of the three verbs.**
+`not_applied` says the machine is still there, `abandoned` says nobody established what happened,
+and even `applied` may leave a `cancellation_scheduled` machine billing to its effective date
+(`DOM-19`) — so in all three a later exhaustion sweep MUST be able to open a fresh episode and fence
+again. Leaving the fence set would make every subsequent
 sweep abort on a stranger's id and settle `succeeded` without acting, which is the defect
-`OPS-42`'s amendment removed by another route.
+`OPS-42`'s amendment removed by another route. *A cancellation resolves through `OPS-45`'s verbs,
+not through `observed`/`absent`: those name a resource a create may have produced, and a cancellation
+names a machine that already exists.*
 
 **Nothing else clears `destroy_committed`.** `05-persistence.md` described it as "cleared when the
 episode resolves without a mutation (`OPS-41`)", which is one row of the table above; the column's
