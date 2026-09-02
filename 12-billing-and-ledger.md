@@ -461,19 +461,29 @@ Hetzner's own abuse remedies — went on draining its tenant's commitment until 
 to refresh or an operator intervened. The customer pays for a machine that does not exist, and
 nothing in the system raises anything.
 
-- **Any authoritative observation that the resource is gone stops the meter**: a refresh (`DOM-8`),
-  a driver read during any operation, or `OPS-32`'s sweep finding the machine absent from the
-  provider's listing. The states are `DOM-7`'s `deleted` and `failed`, plus absence itself.
+- **The trigger is that the resource is *gone*, not that it is broken.** An authoritative
+  observation that the machine no longer exists at the provider — a refresh (`DOM-8`), a driver read
+  during any operation, or a **complete** pass of `OPS-32`'s sweep not finding it — stops the meter
+  for that machine. **`DOM-7`'s `failed` does NOT stop it**: that state means "provider reports a
+  terminal failure", and a failed dedicated machine is still allocated, still in the operator's
+  account and still on the invoice. `LDG-37` continues to own which states are billable; this rule
+  is about the resource ceasing to exist, which is not a state so much as the absence of one.
 - **`OPS-32` MUST record what it saw on the machine row, not merely report it** — the state and the
-  observation instant — so the meter stops without a caller. That is the one change that makes this
+  observation instant, in `machines.state` and `machines.state_observed_at` (`STO-48`) — so the
+  meter stops without a caller. That is the one change that makes this
   rule self-executing rather than another thing waiting on a human.
 - **Billing stops at the observation instant, not at the unknown instant the provider acted.**
   provisiond polls rather than watches, so the earlier instant is not knowable; `STO-41` already
   draws that distinction for addresses and it is the same one. Guessing backwards would credit time
   nobody can evidence, on a ledger whose entries are the authorization system.
-- **The commitment closes by `LDG-32`**, once every billable attachment (`PRV-13a`, `STO-18`) has
-  also stopped — a terminated machine can leave volumes behind, and those are still costing the
-  operator.
+- **Stopping the machine's meter is not tombstoning it, and the two MUST NOT be collapsed.**
+  `STO-18` forbids tombstoning while a billable attachment has a null `released_at`, and those
+  attachments are separately metered subjects (`STO-38`, `LDG-32`) that keep running after the
+  machine is gone. So the machine subject stops, each unreleased billable attachment keeps being
+  metered on its own identity, and the row is tombstoned when `STO-18` allows and the commitment
+  closes per `LDG-32`. *Written out because the obvious implementation — set `deleted` and
+  tombstone — is the one `STO-18` refuses, and a terminated machine leaving volumes behind is the
+  ordinary case rather than the exotic one.*
 
 **The residual is the sweep interval, and it is therefore a money parameter.** `OPS-32` already
 requires the interval to be stated; it is **this rule's error bound**, the maximum time a customer
@@ -915,10 +925,23 @@ turns a stranger into a customer was missing entirely.
 **AMENDED — this requirement previously listed what a deployment must decide; `ADR-0008` decided
 it.** `LDG-46`–`LDG-57` are the decisions. What survives as a deployment obligation is narrower:
 the confirmation depth of `LDG-48`, the per-rail floors of `LDG-52`, the **deposit expiry** of
-`LDG-54`, the channel-balance treatment of `LDG-53`, and — added 2026-09-02 — **`PRV-13e`'s
-re-derivation interval**, which is a separate parameter from `LDG-68`'s billing period and was
-previously stated nowhere at all, are all deployment parameters, and each
-MUST be stated rather than left to an implementer's judgement. The expiry is the load-bearing one:
+`LDG-54`, and the channel-balance treatment of `LDG-53` are all deployment parameters, and each
+MUST be stated rather than left to an implementer's judgement.
+
+**AMENDED 2026-09-02 — four more parameters were mandated by requirements that sent a reader here,
+and this list did not have them.** Each is money, not operations:
+
+- **`PRV-13e`'s re-derivation interval**, separate from `LDG-68`'s billing period, and the bound on
+  how stale `runway_until` may be;
+- **`OPS-32`'s account-sweep interval**, which `LDG-74` makes the maximum time a customer can be
+  billed for a machine the provider has destroyed;
+- **`PRV-13b`'s worst-case machine-lock hold**, which sits inside `wind_down_cost` and therefore
+  inside the commitment every customer posts before buying anything;
+- **`LDG-64`'s maximum tolerated rate outage**, which is a second trigger that destroys a machine
+  and which `WIR-30` must disclose before purchase.
+
+*A requirement that says "MUST be stated with the other deployment parameters" and points at a list
+it is not on has stated nothing. Four did.* The expiry is the load-bearing one:
 it is simultaneously the customer's deadline, the operator's disclosure (`LDG-54`) and the bound
 on the watch set (`LDG-57`), so choosing it short to save work shortens the customer's window and
 choosing it long to be generous grows an obligation the operator cannot shed.

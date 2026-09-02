@@ -1169,13 +1169,18 @@ rather than acquiring a default.
       sweep — no refresh, no caller request, no operator action. Assert the sweep **writes** the
       observation to the machine row, the meter posts nothing for time after that instant, and the
       commitment closes once the last billable attachment has stopped (`LDG-32`, `STO-18`). Then the
-      halves that are easy to get wrong: nothing is credited for the window **before** the
+      halves that are easy to get wrong. Nothing is credited for the window **before** the
       observation, since provisiond polls rather than watches and the earlier instant is not
-      knowable; and under `SEC-46`'s `account_unreachable` or `credentials_rejected` the meter
-      **keeps running**, because the machines are still there and still billing the operator. Run
-      the first half on a machine created and never refreshed — that is the ordinary machine, and
-      binding the stop to a caller's refresh leaves it draining forever. (`LDG-74`, `OPS-32`,
-      `LDG-37`, `DOM-8`, `SEC-46`)
+      knowable. Under `SEC-46`'s `account_unreachable` or `credentials_rejected` the meter
+      **keeps running**, because the machines are still there and still billing the operator. A
+      machine in `DOM-7`'s **`failed`** keeps being metered — it is broken, not gone, and a failed
+      dedicated machine is still allocated and still invoiced. A machine with an unreleased billable
+      attachment stops its **own** meter and is **not** tombstoned (`STO-18`), while the attachment
+      keeps being metered on its own subject. And a sweep pass that **yields to `rate_limited` part
+      way records no absence at all** — the half-listing must not close a whole account's
+      commitments. Run the first half on a machine created and never refreshed — that is the
+      ordinary machine, and binding the stop to a caller's refresh leaves it draining forever.
+      (`LDG-74`, `OPS-32`, `STO-48`, `LDG-37`, `DOM-7`, `DOM-8`, `STO-18`, `SEC-46`)
 - [ ] **CNF-278** **An account can actually be recorded lost, and the right thing happens.** Drive
       `POST /v1/provider-accounts/{account}/actions/record-status` through all four statuses:
       `account_unreachable` and `credentials_rejected` **retain** every commitment on that account's

@@ -126,6 +126,15 @@ operations and opportunistically after actions. The system MUST NOT treat it as
 authoritative when deciding whether a destructive action is safe; that decision belongs
 to the caller, expressed through the destructive acknowledgement (`API-14`).
 
+**AMENDED 2026-09-02 — one thing does refresh without a caller, and the cache now carries its own
+age.** `OPS-32`'s account sweep reads each provider account independently of any caller and MUST
+write what it saw (state, and `machines.state_observed_at`, `STO-48`). That is not a contradiction of
+the sentence above — the state is still a cache and still not authorization for a destructive action
+— but "refreshed by explicit refresh operations" was quoted by `LDG-74` and by `OPS-32` as the
+*defect*: a machine created and never refreshed had no route by which the system could learn the
+provider had destroyed it, and its owner's commitment drained regardless. **A reader MUST take the
+staleness bound from `state_observed_at` rather than from the fact of a caller having asked.**
+
 ### Offer
 
 A purchasable configuration: a cloud server type, a standard dedicated product, or an

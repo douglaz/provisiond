@@ -913,7 +913,12 @@ the system's back, and orphans from an operation whose correlator search was giv
 
 **AMENDED 2026-09-02 — the sweep records what it saw, it does not only report it.** Where the sweep
 finds a machine this system believes exists and the provider does not, it MUST write that
-observation to the machine row — the state and the instant — in the same pass. `LDG-74` is why: the
+observation to the machine row — the state and `machines.state_observed_at` (`STO-48`) — in the same
+pass. **Only a pass that enumerated the account completely may record an absence.** A sweep that
+paginated part way and then yielded to `rate_limited` has seen a subset, and treating that subset as
+the account would record every unlisted machine as gone — stopping their meters and closing their
+commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
+absence; what it observed *present* it may still record. `LDG-74` is why the write exists at all: the
 meter reads the machine record, `DOM-8` refreshes that record only on an explicit caller operation,
 and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
 draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not
