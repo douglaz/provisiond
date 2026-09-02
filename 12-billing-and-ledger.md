@@ -390,12 +390,25 @@ serialization, so the worker must release it before mutating, and `LDG-62` can c
 Entering the serialization changes nothing about that. `OPS-41`'s correctness rests on the fence
 `OPS-42` specifies, not on this ordering.
 
-**This states an invariant the set currently satisfies by accident, and the accident is
-`LDG-25`.** Every `LDG-35`-serialized path today is machine-lock-free — enqueue-time
+**AMENDED 2026-09-02 — but the fence needs the nesting this requirement permits, so the permission
+is now load-bearing rather than theoretical.** `OPS-42` requires `OPS-41`'s funding read and the
+fence write to be **one** transaction under this primitive, taken by a worker that already holds the
+machine lock: without that, the extension commits between the read and the write, the fence column is
+still null when the worker writes it, and the machine is destroyed anyway. So the permitted direction
+above — machine lock, then a short tenant-serialized transaction — is exactly what the fence is built
+on, and the prohibition that matters is the other clause: **the provider call happens after that
+transaction commits**, never inside it.
+
+**This stated an invariant the set satisfied by accident, and as of 2026-09-02 it no longer does.**
+Every `LDG-35`-serialized path *used to be* machine-lock-free — enqueue-time
 authorization (`LDG-11`), `OPS-27`'s resolution (made "by no worker and under no lease",
 `OPS-3`), `OPS-36`'s late attach, the meter (`LDG-38`), extend-runway (`LDG-62`) — and a create
 holds no machine lock at all, because `OPS-8` binds the lock to an operation that *names* a
-machine and a create's `machine_id` is set only on completion (`05-persistence.md`). The one
+machine and a create's `machine_id` is set only on completion (`05-persistence.md`). **`OPS-41`'s
+re-check is now the first path that genuinely nests**, which is why this requirement was written as
+a lock *order* rather than a prohibition, and why `CNF-217` asserts the boundary — no lease, no
+machine-lock acquisition, no child wait and no provider call from *inside* the primitive — rather
+than asserting that nothing outside it holds a lock. The one
 entry kind that would put a debit inside a machine-locked worker is `operation_fee_debit`, and
 `LDG-25` prices privileged operations at zero in v1 — so it is defined, paired by `LDG-31`, and
 posted by nothing. **Price an install and the nesting becomes reachable in the same release**,

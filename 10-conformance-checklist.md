@@ -1322,7 +1322,12 @@ rather than acquiring a default.
 - [ ] **CNF-217** No transaction holding `LDG-35`'s serialization primitive acquires a
       `machine_locks` row, waits on an operation lease, waits on a child operation, or makes a
       provider call — asserted at the storage layer over the whole suite's traffic, in the manner
-      of `CNF-157`, not by code review. (`LDG-69`, `LDG-35`, `OPS-8`)
+      of `CNF-157`, not by code review. **The converse is NOT asserted, and asserting it would fail
+      a conforming build**: `OPS-41`'s funding re-check is a worker that already holds the machine
+      lock entering the primitive for a bounded read and the fence write, which is the one direction
+      `LDG-69` permits and the thing `OPS-42`'s fence is built on. *Noted 2026-09-02, when that path
+      became the first genuine nesting in the set; `LDG-69` had described the lock-free property as
+      an accident the set happened to satisfy.* (`LDG-69`, `LDG-35`, `OPS-8`, `OPS-41`, `OPS-42`)
 - [ ] **CNF-218** A machine funded by `extend-runway` **after** its cleanup cancellation was
       enqueued is **not** deleted: the worker re-reads funding under the machine lock, makes no
       provider call, settles `succeeded`, and resolves the trigger episode. The same test with
