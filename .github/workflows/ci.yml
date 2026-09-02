@@ -42,3 +42,22 @@ jobs:
             exit 1
           fi
           echo "identifier gate correctly rejected a dangling citation"
+
+      # The obligation gate has a real historical positive -- the 2026-09-02 fence
+      # bug, where OPS-42 stated LDG-62's half of a contention that LDG-62 never
+      # mentioned -- but `--selftest` reads that commit from history, and a shallow
+      # CI checkout does not have it. So prove it synthetically here, and keep
+      # `--selftest` for local runs in a full clone.
+      - name: Prove the obligation gate can fail
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n**OVR-9998** The store `DOM-1` MUST record `a_column_dom1_never_mentions`.\n' \
+            >> 00-overview.md
+          if python3 tools/check_obligations.py; then
+            echo "::error::obligation gate passed a duty its target never mentions"
+            exit 1
+          fi
+          echo "obligation gate correctly rejected an orphaned obligation"

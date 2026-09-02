@@ -36,6 +36,7 @@ run() {
 
 run "identifiers  (append-only, dangling, gaps, ADR refs)" python3 tools/check_ids.py
 run "fixtures     (WIR-37 JSON, WIR-1a, mermaid structure)" python3 tools/check_fixtures.py
+run "obligations  (a duty assigned to another requirement)" python3 tools/check_obligations.py
 run "coverage     (requirements exercised by CNF items)"   python3 tools/check_coverage.py
 
 echo
