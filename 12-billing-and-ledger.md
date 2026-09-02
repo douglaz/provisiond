@@ -611,8 +611,21 @@ its own and the meter runs on its own cadence, so a re-derivation can land *insi
 increment. Pricing that whole increment at the rate in force when it closes re-prices every second
 before the change — the identical defect this amendment removes, at a smaller scale. The meter MUST
 therefore close an increment at each rate-change instant inside its elapsed window and open the next
-one there, so that **every increment is priced at a rate that held for the whole of it**. The
-boundary is the rate's own effective instant, which `LDG-4` already records; no new clock is needed.
+one there, so that **every increment is priced at a rate that held for the whole of it**.
+
+**The boundary is the rate's `rate_observed_at` (`LDG-4`, denormalised onto the entry), not the
+instant the market moved.** `LDG-4` records a rate's *observation* time and nothing records an effective time, because
+provisiond **polls a rate source rather than watching one** — the identical distinction `STO-48`
+draws for machine state, where `LDG-74` stops the meter at `state_observed_at` and never "at the
+unknown instant the provider acted". Splitting at an instant nobody recorded is not implementable;
+splitting at the instant the deployment learned the rate is, and it is the same honesty the rest of
+the set already applies to every other polled fact. A deployment that polls more often therefore
+tracks the market more closely — which is a real property, not an accounting artefact, and it does
+not reopen the re-pricing defect: every increment is still priced at a rate that held for the whole
+of it, as the deployment knew it. *An earlier form of this paragraph said the boundary was "the
+rate's own effective instant, which `LDG-4` already records". `LDG-4` records no such thing, and a
+builder would have gone looking for a column that does not exist. Written and corrected the same
+day, 2026-09-02.*
 
 *This is not a rounding refinement — it is what makes the sentence above true.* At 7 sats/hour
 doubling to 14 exactly at the half hour, one hourly increment charges **14** for the hour while a
