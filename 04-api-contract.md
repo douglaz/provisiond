@@ -725,9 +725,15 @@ only member of this list that is deliberately *slow*, and that is the point of i
 
 **AMENDED (2026-09-02): `POST /v1/provider-accounts/{account}/actions/record-status` also joins**
 (`API-63`, `WIR-50`) — it records an observation about a provider account and touches no provider.
-It moves customer money (`SEC-46` closes commitments on a confirmed termination) and still mints no
-operation, because `OPS-39` reserves those for provider mutations and says in terms that a pure
-balance event is the ledger's to record.
+It moves customer money — `SEC-46` closes every affected commitment on a confirmed termination — and
+still mints no operation, because `OPS-39` reserves operations for **provider mutations** and this
+touches none: the machines are already gone, which is what "confirmed termination" means. *`OPS-39`'s
+own words are that a pure balance event "mints no operation; the ledger is already that record",
+which is not quite the justification here, since closing a commitment writes no ledger entry either
+(`LDG-30`). What makes this safe is narrower and worth stating: the commitments table is itself a
+durable, queryable record, `WIR-50` returns the count and the affected tenants in the response, and
+`SEC-39` requires a monitorable event — so the release is not invisible merely because it is not an
+operation.*
 
 **AMENDED (2026-08-31): `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` also joins**
 (`API-62`, `WIR-48`) — it writes an assignment row and touches no provider.
@@ -1115,6 +1121,11 @@ precisely when the surviving accounts are least able to absorb them, and `SEC-43
 concentration. It also removes the operator's ability to hold back the tenant that caused the
 termination.*
 
+*A case id is a resource id and is principal-scoped like any other: another tenant's case is `404`,
+identical to one that does not exist. That is `WIR-36`, cited rather than restated — a draft of
+this section carried its own copy of the rule, which is the second-normative-copy failure
+`SEC-46` is the standing example of.*
+
 **API-63** **A provider account's status MUST be recordable, and recording `terminated` MUST do
 what `SEC-46` says it does.** `POST /v1/provider-accounts/{account}/actions/record-status` is
 **operator-only** (`WIR-34`, `WIR-50`), synchronous, mints no operation (`API-48`), and writes
@@ -1141,7 +1152,3 @@ account and `API-62`, which is a decision with a record.
 after, and the reason (`SEC-39`, `SEC-32`) — this is an operator verb that moves customer money, and
 `SEC-39` as amended assumes the operator principal is a program.
 
-*A case id is a resource id and is principal-scoped like any other: another tenant's case is `404`,
-identical to one that does not exist. That is `WIR-36`, cited rather than restated — a draft of
-this section carried its own copy of the rule, which is the second-normative-copy failure
-`SEC-46` is the standing example of.*

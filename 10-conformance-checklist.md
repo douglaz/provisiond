@@ -1201,7 +1201,9 @@ rather than acquiring a default.
       `account_unreachable` and `credentials_rejected` **retain** every commitment on that account's
       machines, `terminated` closes and releases them all in **one** transaction and returns the
       assigned tenants in `affected_tenants`, and `healthy` restores nothing that was released.
-      Then the three refusals: recording a status the driver itself reports is `409` `state`, moving
+      Then the three refusals: recording a status the driver itself reports is `409` `state` —
+      asserted against a **stubbed** driver observation, since no launch driver reports one and
+      `driver_observation` is reserved (`STO-47`), and the test MUST say which it used — moving
       an account **out of** `terminated` is `409` `state`, and a customer-authenticated request is
       `404`. Assert the event is emitted with principal, account, before, after and reason. **Until
       today `SEC-46`'s three states had no verb and no column at all**, so `CNF-114`, `CNF-188` and

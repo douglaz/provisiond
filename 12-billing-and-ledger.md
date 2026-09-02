@@ -176,7 +176,8 @@ stateDiagram-v2
     Open --> Closed : machine and every billable<br/>attachment stopped billing<br/>LDG-32, STO-18
     Open --> Closed : create failed deterministically
     Open --> Closed : resolved absent<br/>OPS-27
-    Open --> Closed : abandoned by an operator<br/>OPS-31
+    Open --> Closed : abandoned by an operator<br/>OPS-31, create or adopt only
+    Open --> Closed : provider account recorded<br/>terminated, SEC-46, API-63
     Open --> ReleasedEarly : negative window elapsed<br/>OPS-33 releases in full while<br/>the operation stays open
 
     ReleasedEarly --> LateAttach : correlator matches later<br/>OPS-36
@@ -280,7 +281,15 @@ because spending what you already committed neither frees nor freezes anything:
 **LDG-32** **AMENDED.** A commitment MUST be closed, and its remaining amount released in full,
 on **every** terminal outcome: the machine stops billing **and every billable attachment it left
 behind has stopped billing** (`PRV-13a`, `STO-18`); the create fails deterministically; the create
-is resolved absent (`OPS-27`); or the operation is abandoned (`OPS-31`).
+is resolved absent (`OPS-27`); the create or adopt is abandoned (`OPS-31`); **or the machine's
+provider account is recorded `terminated`** (`SEC-46`, `API-63`), which closes every open commitment
+on that account's machines in the transaction that records it.
+
+*The account-termination row was missing until 2026-09-02 while `SEC-46` and `API-63` both cited
+this requirement as the closing rule and the commitment state machine above drew the edge — the
+"every terminal outcome" list named four and the set had five.* And the abandonment row is scoped to
+the kinds that opened a commitment: an install or a delete opens none, and the only one within reach
+is the machine's **running** commitment, which abandonment MUST NOT release (`OPS-31`).
 
 **Attachments keep the commitment open, and metering follows them.** `PRV-13a` models volumes,
 snapshots and reserved addresses that survive machine deletion and keep costing money; `PRV-13b`

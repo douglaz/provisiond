@@ -623,6 +623,17 @@ record, and an operator MUST NOT be able to shadow a fact the driver can read. *
 write-once**: it is the state that releases customer commitments (`SEC-46`, `LDG-32`), and a state
 that can be entered and left silently re-opens or re-releases every affected tenant's money.
 
+**`driver_observation` is reserved and today unreachable, and saying so is the point.** No
+requirement in `02-provider-contract.md` obliges a driver to report account-level status, and no
+launch driver does — unlike `PRV-35`, where the providers demonstrably expose a per-machine
+restriction signal and the precedence rule therefore bites. So on a launch deployment every row
+carries `operator_record`, and `API-63`'s refusal of an operator value that would shadow a driver
+value is a rule with nothing to fire on. **It is written now rather than later** because the
+alternative — adding it when a driver first reports one — is the amendment that gets forgotten while
+an operator value silently overrides a readable fact, which is exactly the drift `PRV-35` was
+reorganised to prevent. `CNF-278` MUST assert that refusal against a **stubbed** driver observation,
+not against a live one, and MUST say which it used.
+
 **STO-33** **A terminal operation MUST remain readable at least as long as its idempotency record
 can refuse a reused key, and the two horizons MUST be stated to callers as one number.** `STO-14`
 deletes terminal operations; `STO-25` makes idempotency records outlive them. Misalign the two in

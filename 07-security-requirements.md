@@ -417,11 +417,17 @@ this, and none of them a `GET`.*
 them establishes that billing has stopped, and releasing on the other two hands the customer their
 satoshis back while the operator keeps paying for machines that are still running:
 
-| State | Meaning | Commitments |
+| State (`STO-47`) | Meaning | Commitments |
 |---|---|---|
+| `healthy` | Nothing observed wrong; the default | Untouched |
 | `account_unreachable` | API down, network partition | **Retained** — the machines are almost certainly still running and still billing |
 | `credentials_rejected` | Auth failing; the account may be intact | **Retained** — losing the key is not losing the servers |
-| Confirmed termination | The provider states the resources are gone | **Closed, released in full** (`LDG-32`) |
+| `terminated` | The provider states the resources are gone | **Closed, released in full** (`LDG-32`), in the transaction that records it |
+
+*The state names are `STO-47`'s, and `healthy` joined this table on 2026-09-02.* It said "Confirmed
+termination" in prose and had no row for the ordinary case, so the requirement modelled three
+conditions while the column that now holds them admits four — and an implementer reconciling them
+had to guess whether "not one of these three" was a state or the absence of one.
 
 **AMENDED 2026-09-02 — these are states a deployment can now be *in*.** The table above modelled
 three conditions, released a tenant's money on one of them, and named no verb, no column and no
