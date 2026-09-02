@@ -469,6 +469,16 @@ re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring th
 `max_commitment_sats` cap the original create may have set. That is precisely the surface
 `ADR-0011` abolished, reappearing through reconciliation.
 
+**The wind-down floor is tested against available balance with the setup fee taken out of the
+question** (amended 2026-09-02). `LDG-39` used to debit the late fee from available on this same
+branch, which left "does available cover the floor" with two defensible answers and no rule: with
+100 sats available, a 70-sat fee and a 70-sat floor, fee-first charges 70 and makes the whole
+wind-down an operator loss, while reserve-first ultimately charges the customer 100 — both preserve
+`LDG-10` and the set chose neither. The fee is now never debited to the customer once `OPS-33` has
+released the commitment; it is an operator deficiency (`LDG-39`, `LDG-66`). **So there is one
+number to test and one order to test it in**, and the ordering question dissolves rather than being
+answered.
+
 The machine is attached. Where available balance covers the wind-down floor, a commitment of that
 size is opened; **where it does not, no commitment is opened at all** and the wind-down is carried
 as an operator deficiency (`LDG-66`) — a commitment the balance cannot fund is not a commitment,
