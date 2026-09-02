@@ -499,8 +499,11 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-45** On uncertain rescue exit, the recovery key is persisted and its path,
       with the rescue address and port, appears in the operation error. (`RSC-19`)
 - [ ] **CNF-46** The recovery directory is created owner-only. (`RSC-20`)
-- [ ] **CNF-47** The inventory report is attached to the operation result, and an
-      unparseable report is captured raw rather than dropped. (`RSC-33`, `RSC-34`)
+- [ ] **CNF-47** The inventory report is attached to the operation result **for every operation that
+      enters rescue, and only for those** — the two rescue-entering install strategies and
+      `RSC-38`'s inventory pass; a `provider_native` or `provider_catalogue` install returns `{}`,
+      since neither boots anything and neither can read a disk (`RSC-33`, `WIR-10b`). An
+      unparseable report is captured raw rather than dropped. (`RSC-33`, `RSC-34`, `WIR-10b`)
 - [ ] **CNF-48** A 90-minute install does not lose its lease. Simulated with compressed
       timers. (`RSC-37`)
 
@@ -1552,9 +1555,12 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       `409`, not a replay of the first result; and a body with a duplicate JSON member, or an
       integer above 2^53, is rejected. (`WIR-3`, `WIR-1a`)
 - [ ] **CNF-179** An operator resolves a `needs_reconciliation` operation through
-      `POST /.../actions/resolve` in each of its three forms, the `absent` form releases the
+      `POST /.../actions/resolve` in each of its **five** forms — `observed`, `absent` and
+      `abandoned` on a create, `applied` and `not_applied` on a kind that acts on a machine that
+      already exists (`OPS-31`, added 2026-09-02) — with each form refused on the wrong kind; the
+      `absent` form releases the
       commitment, and a customer-authenticated request to that route — and to adopt and requeue —
-      returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`)
+      returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`, `OPS-45`)
 - [ ] **CNF-173** After startup, enumerating the process environment from inside the
       customer-facing module yields no provider credential — asserted by actually reading the
       environment at runtime, not by reviewing the scrub call, because a runtime that caches the
