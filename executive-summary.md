@@ -128,10 +128,13 @@ correct crediting with a single mechanism. Lightning-only was rejected because i
 would cap large top-ups; an operator-chosen rail was rejected because it lets a stale liquidity
 estimate decide someone's payment path.
 
-**The process cannot spend the float** (`ADR-0009`). On-chain key material is watch-only: the
-process derives addresses and observes payments but cannot construct a spend. Lightning cannot go
-cold, so it is capped — and that channel ceiling *is* the blast radius of a full compromise,
-expressed as a number.
+**The process cannot spend the on-chain float** (`ADR-0009`). On-chain key material is watch-only:
+the process derives addresses and observes payments but cannot construct a spend. **Lightning cannot
+go cold** — receiving is inseparable from spending, and there is no analogue of an extended public
+key — so it is bounded instead, by a ceiling covering the channel balance *and* the node's own
+on-chain wallet, swept by hand. That ceiling *is* the blast radius of a full compromise, expressed
+as a number. The credential the credential-holding process actually holds is narrower still: it
+creates and observes invoices, cancels unsettled ones, and reads two balances (`SEC-48`).
 
 **Fixed commitment, floating runway** (`ADR-0011`). Three design rounds went into how fast
 reservations should widen after a price crash, until one observation dissolved the problem
@@ -315,16 +318,25 @@ generates the defects each pass keeps finding.
 Known open items, in the set's own terms:
 
 - The negative-resolution window "is still a guess" that only a real transaction calibrates.
-- The DigitalOcean section is almost entirely `[verify]`, and **it is not established that
-  DigitalOcean offers an SSH-reachable rescue environment at all** — if it does not, that driver
-  ships without the differentiator and `ADR-0010`'s framing needs a caveat.
+- The DigitalOcean section is almost entirely `[verify]`, **except the rescue question, which was
+  settled and settled negatively**: `ADR-0013` records two research passes and a live probe finding
+  no way to boot a droplet into a recovery environment through the public API. The differentiator
+  survives there by a different mechanism — catalogue install, with different promises — which is
+  what that ADR exists to keep separate from rescue install rather than blended with it. *This
+  bullet said the question was open until 2026-09-02, three revisions after it closed.*
 - A live correlator round-trip against Hetzner Robot is still required before that driver ships,
   which is cheap: Robot orders have a `test` mode that simulates a purchase without buying anything.
 - Deployment parameters are required to be stated and are not: confirmation depth, rail floors,
-  deposit expiry, rate staleness/quorum/outlier bands, maximum outage bound, channel ceiling,
-  margins, runway floor, autonomous-caller ceilings, provider negative windows.
-- The launch-gating conformance set stands at approximately 135 items, the approximation deliberate
-  because the count was wrong more than once. None has been executed.
+  deposit expiry, rate staleness/quorum/outlier bands, maximum outage bound, the ceiling covering
+  the channel balance **and** the Lightning node's own on-chain wallet, margins, runway floor,
+  autonomous-caller and operator-principal ceilings, provider negative windows, the re-derivation
+  interval, and the account-sweep interval — which is now a money parameter, because it bounds how
+  long a customer can be billed for a machine the provider has destroyed (`LDG-74`).
+- The launch-gating conformance set stands at approximately 182 BLOCKING items of 271, the
+  approximation deliberate because the count was wrong more than once and the tiers still live in
+  prose. None has been executed. *This bullet said 135 until 2026-09-02, two reviews after the
+  figure moved; the checklist's own blocking-count section is the only place the number is
+  maintained.*
 - Two questions are explicitly for a lawyer, not an engineer: the satoshi-custody characterisation
   that `ADR-0003`'s dissent raises, and the no-refund posture the whole perimeter rests on.
 
