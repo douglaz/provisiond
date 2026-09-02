@@ -553,17 +553,29 @@ For each metered increment i of this SUBJECT, closing at increment_end_i:
                                                        # carried as a rational (LDG-4)
                                                        # and NEVER rounded
 
-already_charged  = the MAGNITUDE already charged for this SUBJECT and period
-                 = − Σ(signed amounts of the previous **usage** debits for this SUBJECT
-                       and period, plus every correction naming one of them —
-                       whenever that correction was posted, LDG-5, LDG-7)
+already_charged  = meter_totals.charged_magnitude for this (SUBJECT, period)  (LDG-72)
+                 = Σ(every posted_debit already COMPUTED for this SUBJECT and period,
+                       each in FULL — never the amount the tenant was debited, which
+                       LDG-31's clamp may have reduced; see the clamp paragraph below)
+                   adjusted by every correction naming one of those debits, by the same
+                   integer magnitude it moves exact_total (LDG-5, LDG-7, LDG-73)
 
 posted_debit     = ceil(exact_total) − already_charged
 ```
 
 `exact_total`, `already_charged`, the elapsed-seconds figures and the high-water mark are all read
 from and written to `LDG-72`'s running total for this `(subject, billing period)`, never recomputed
-by query. **Deficiency-absorbed time is subtracted in seconds, before conversion — never as a
+by query.
+
+*The `already_charged` line read "− Σ(signed amounts of the previous usage debits … plus every
+correction naming one of them)" until 2026-09-02 — a definition from the ledger **entries** — while
+the clamp paragraph below defined the same term as what the meter **computed** and `CNF-274` tested
+that second reading. The trap is that the entries definition is the one a builder copies, it is
+correct in every period where nothing clamps, and where something does clamp it re-posts the
+written-off remainder on every subsequent tick, forever: `posted_debit` is measured against a
+smaller `already_charged` each time. The drift is **positive**, so the fail-closed guard below —
+which fires only on a negative `posted_debit` — never sees it. Found by both reviewers of
+2026-09-02, independently.* **Deficiency-absorbed time is subtracted in seconds, before conversion — never as a
 satoshi amount.** An outage deficiency accrues precisely
 while no rate exists (`LDG-64`), so there is no rate at which it could be converted; removing the
 time it absorbed needs none, and the units never mix.

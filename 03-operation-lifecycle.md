@@ -740,8 +740,17 @@ Nothing in `LDG-62`, `OPS-36`, `OPS-39` or `OPS-41` closed it.
 **This needs no lock at all, which is why it is the fence rather than the ordering.** `LDG-62` takes
 no machine lock — a synchronous caller write cannot wait behind an install holding that lock for up
 to `RSC-35`'s ninety minutes, and refusing to extend runway for the duration of an install is
-precisely the wrong failure. The worker takes the machine lock and never the tenant primitive. No
-cycle exists.
+precisely the wrong failure. **The worker takes the machine lock and then the tenant primitive**,
+in that order and only for the bounded read-and-write above; `LDG-62` takes the tenant primitive
+and never a machine lock. A cycle needs two acquirers in opposite orders, and there is no second
+order here.
+
+*This paragraph said "the worker takes the machine lock and never the tenant primitive" until
+2026-09-02, and it is retained because the trap is live: that sentence was true of the withdrawn
+ordering-only design, it survived the amendment four bullets above that made the worker enter
+`LDG-35`'s serialization, and it is the sentence a builder implementing the lock discipline would
+have read. Implementing it reopens the paid-machine deletion race this whole requirement exists to
+close. Found by both reviewers of 2026-09-02, independently.*
 
 **The residual is stated rather than solved:** a payment landing after the fence is refused rather
 than silently ignored, so the customer learns the machine is going and keeps its money. That is the
