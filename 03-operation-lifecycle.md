@@ -605,8 +605,13 @@ same unresolved condition mints a new one and re-enqueues, reaching the identica
 retention instead of through a timer. The id is therefore held on the **machine** row, under the
 key stated above — the `action` for an exposure-reducing cancellation, the `system_reason` for
 everything else (`machines.system_trigger_ids`, `05-persistence.md`) — and is removed only
-when the episode resolves. A tombstoned machine keeps it (`STO-8`), because a machine whose
-cancellation was never established is exactly the row a later sweep reads.
+when the episode resolves, which `OPS-44` defines outcome by outcome. **A tombstoned machine keeps
+any entry that is still open** (`STO-8`), because a machine whose
+cancellation was never established is exactly the row a later sweep reads. *That is not in tension
+with `OPS-44` removing the entry on a cancellation that succeeded with the resource gone: there the
+episode has ended, and the row is kept for the operation records that reference it rather than for
+the dedup. The case this sentence is about is the machine tombstoned by some **other** path while a
+cancellation episode is still unresolved.*
 
 **Exposure-reducing system cancellations MUST be exempt from `SEC-39`'s per-principal destruction
 ceiling.** That ceiling exists to bound what a runaway *caller* can destroy; applying it to the
@@ -633,8 +638,13 @@ transaction that writes `OPS-42`'s fence**, without which the extension it is ra
 between the read and the write. Where the remaining
 commitment now covers the wind-down floor at the current rate — `LDG-16`'s invariant, the same
 test that routed it here — the worker MUST make no provider call, settle the operation
-`succeeded` with a result recording that no mutation was required, and resolve the episode's
+`succeeded` with a result recording that no mutation was required, **clear
+`machines.destroy_committed`**, and resolve the episode's
 `system_trigger_id` entry (`machines.system_trigger_ids`) so a later lapse can open a fresh one.
+**Those last two happen in the terminal transaction** (`OPS-44`'s first row): the fence exists to
+order this worker against `LDG-62`, and leaving it set on a machine the worker has just decided not
+to cancel would refuse every future extension on a funded, running machine — permanently, since
+nothing else would clear it.
 
 **Without this the survival path `OPS-36` offers does not work.** That branch attaches the machine
 and enqueues the cleanup cancellation *in the same transaction*, then tells the tenant it may
@@ -1048,3 +1058,14 @@ resolved.
 **OPS-26** Operators MUST be able to enumerate operations by status through the API —
 specifically every operation in `needs_reconciliation` (`API-23`). A design that tells
 operators to monitor a state and provides no way to list it is incomplete. See `DEF-8`.
+
+**AMENDED 2026-09-02 — a second thing must be listable, and `status` cannot express it.** `OPS-44`
+and `API-58` both require a **`failed` exposure-reducing cancellation** to reach an operator: it is
+the one settled outcome in this set that nothing automatic will look at again, its machine is still
+running and still billing, and its only recovery is `API-19`'s requeue. Filtering by
+`status=failed` does not find it — it returns every failed operation the deployment has ever
+produced, most of them a caller's typo. **`GET /v1/operations` MUST therefore also filter on
+`requested_by` and on `system_reason`** (`WIR-10a`'s enums, `API-23`), so
+`requested_by=system&system_reason=exhausted,tenant_suspended,late_attach_cleanup&status=failed` is
+one query. *A design that tells operators to monitor a **condition** and provides only a filter for
+a state it shares with everything else is `DEF-8` again, one predicate down.*

@@ -1215,6 +1215,22 @@ the commitment it reuses at the current rate through this same mechanism and is 
 purchase decision passing a fresh create's spending gates. It MUST be idempotent per `API-8` — two
 concurrent extends must not reserve twice.
 
+**It is fenced, and this requirement carries the obligation rather than merely being cited for it**
+(added 2026-09-02). In the same `LDG-35` transaction, an extension MUST **conditional-write the
+machine row guarded on `machines.destroy_committed IS NULL`**, and where that write affects no row
+it MUST fail `conflict` with `details.reason: "cancellation_committed"` (`WIR-9a`) — **opening or
+growing no commitment and moving no balance** — telling the tenant plainly that the machine is
+already being cancelled. `OPS-42` holds the argument: the extension and an exposure-reducing
+cancellation contend for one row so that one of them provably loses, and a customer whose payment
+lands after the fence keeps its satoshis rather than paying for a machine that is going.
+
+*Stated here because it was stated everywhere else.* `OPS-42` and `05-persistence.md` both say
+`LDG-62` MUST perform this write, and the string `destroy_committed` did not occur in this document
+at all — so a builder implementing extend-runway from the two requirements that define it, this one
+and `WIR-24`, would have shipped an unfenced extension and destroyed a machine the customer had just
+paid for. That is the second-normative-copy failure inverted: not two copies drifting, but zero
+copies where the work is done.
+
 **LDG-63** **The scheduled-cancellation branch is the exception, because the operator cannot
 exit.** For a machine whose billing runs to an effective date regardless (`DOM-19`, `PRV-13c`),
 re-derivation MUST top the commitment from available so it covers cost through that date at the

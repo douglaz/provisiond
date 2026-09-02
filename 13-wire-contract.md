@@ -589,6 +589,13 @@ the same `(tenant, Idempotency-Key)` returns the stored body and reserves nothin
 different fingerprint under that key is `409` (`API-11`, `STO-25`). `API-48`'s closed list is
 AMENDED to include it — recorded there.
 
+**The same transaction conditional-writes `machines.destroy_committed`, guarded on it being null,
+and returns `409` `conflict` with `details.reason: "cancellation_committed"` where that affects no
+row** (`LDG-62`, `OPS-42`) — reserving nothing and moving no balance. *Added 2026-09-02: this
+endpoint's own definition never mentioned the fence, so a builder reading only the wire contract and
+`LDG-62` shipped an extension that could take a customer's money for a machine already committed to
+destruction.*
+
 **WIR-25** `GET /v1/machines`, `GET /v1/machines/{id}` — machine views; the list is
 cursor-paginated (`WIR-32`): `{"machines": [], "next_cursor": null}`. The example shows an empty
 page; each element is `WIR-11`'s machine view, elided here rather than placeheld (`WIR-37`).
@@ -596,8 +603,12 @@ page; each element is `WIR-11`'s machine view, elided here rather than placeheld
 **WIR-26** `GET /v1/operations?terminal=false&status=queued,running&limit=100&cursor=b3AtY3Vyc29yLTAxOThjMWUw` — the fleet poll
 (`API-49`): `{"operations": [], "next_cursor": null, "poll_after_ms": 5000}`, each element
 `WIR-10`'s operation view and elided on the same terms. `terminal=false`
-MUST be supported; `status` accepts a comma-separated set; `terminal` and `status` combine as an
-intersection, and an empty intersection is an empty page, not an error. The list-level
+MUST be supported; `status` accepts a comma-separated set; **`requested_by` and `system_reason`
+are supported on the same terms**, each accepting a comma-separated set from `WIR-10a`'s enums
+(`API-23`, `OPS-26`); every predicate supplied combines as an
+intersection, and an empty intersection is an empty page, not an error. *Added 2026-09-02: the
+operator query `OPS-26` requires — a failed exposure-reducing cancellation, which is a machine still
+running and still billing with nothing automatic left to try — is not expressible in `status` alone.* The list-level
 `poll_after_ms` governs the fleet poll; a single-operation poll obeys that operation's own value
 (`WIR-10`).
 

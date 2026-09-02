@@ -557,11 +557,19 @@ entries survive them (`STO-26`, `LDG-22`) and remain re-attributable through `WI
 
 **AMENDED 2026-09-02 — "un-cancelled" is defined, and a deterministically-failed child no longer
 hangs the fan-out.** The re-sweep's terminating condition was never defined, and the two readings a
-builder could reach were both wrong. **A machine is *cancelled* for the purpose of step (4) when an
-exposure-reducing cancellation episode for it exists** — `machines.system_trigger_ids` carries an
-entry under the `delete` action key (`OPS-39`), open or already resolved — **and *un-cancelled*
-otherwise.** The pass enqueues for every non-tombstoned machine of the tenant that has no such
-entry, and terminates when a pass finds none.
+builder could reach were both wrong. **A machine is *cancelled* for the purpose of step (4) when this suspension has already accounted
+for it** — the fan-out enqueued a cancellation for it, whatever that cancellation then did —
+**and *un-cancelled* otherwise.** The parent records the machines it has enqueued for, in
+`WIR-39`'s `cancellations` result; the pass enqueues for every non-tombstoned machine of the tenant
+that is not already named there, and terminates when a pass finds none.
+
+*The test is the parent's own record, not `machines.system_trigger_ids`.* An earlier draft of this
+amendment keyed it on that entry existing "open or already resolved", which fails in both
+directions: `OPS-44` **removes** the entry on resolution, so an operator's `abandoned` made a
+machine read un-cancelled again and the fan-out re-enqueued against it; and an entry opened by an
+*exhaustion* sweep before the suspension would have made a machine read cancelled that this
+suspension never touched. The parent's list is the thing that actually answers "has this fan-out
+dealt with that machine", and it is already returned to the operator.
 
 *Why the entry and not the outcome.* Keyed on the outcome, a child that fails deterministically —
 `authentication` after a credential rotation, `unsupported` on an account that never declared
@@ -900,7 +908,10 @@ stored, not merely before they are rendered.
 
 **API-23** `GET /v1/operations` MUST support filtering by status and MUST support
 pagination. Listing everything in `needs_reconciliation` is an operational necessity
-(`OPS-26`).
+(`OPS-26`). **AMENDED 2026-09-02: it MUST also filter on `requested_by` and `system_reason`**
+(`WIR-10a`, `WIR-26`), because `OPS-26`'s second listable condition — a *failed exposure-reducing
+cancellation*, the machine still running and still billing with nothing automatic left to try — is
+invisible under a status filter that returns every caller typo alongside it.
 
 ## Errors
 
