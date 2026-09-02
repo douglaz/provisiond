@@ -62,10 +62,24 @@ time (`LDG-38`) rather than periods.
 
 *Stated here because it was load-bearing and absent.* The phrase carried `LDG-8`'s deduplication
 key, three terms of `LDG-38`'s arithmetic — which apportions corrections **and**
-deficiency-absorbed windows across the boundary — `PRV-13e`'s re-derivation cadence, and two
+deficiency-absorbed windows across the boundary — and two
 conformance items, and no document said what it was. A calendar month, a provider invoice month
 and a per-machine anniversary each satisfied every sentence in the set and produced different
 bills.
+
+**AMENDED 2026-09-02 — it does not carry `PRV-13e`'s re-derivation cadence, and claiming it did was
+a defect in this requirement.** The sentence above used to include that cadence in the list of
+things the undefined phrase was carrying, and defining the phrase as a calendar month therefore set
+re-derivation to **monthly** — under which `runway_until` is up to a month stale, `LDG-16`'s
+"persist across more than one derivation" becomes two months, and `PRV-13c`'s "materially in the
+future" swallows every cancellation date under about thirty days. `PRV-13e` now states its own
+interval, defaulting to hourly, and `LDG-42` carries it as a separate deployment parameter.
+
+**Two quantities, and the distinction is worth holding on to:** a billing period is a **netting
+boundary** — where `LDG-38`'s arithmetic starts over and which entries a correction may name — while
+a re-derivation interval is a **staleness bound** on a price-derived date. They answer different
+questions, they have no reason to be equal, and fusing them made one requirement's silence set
+another requirement's clock.
 
 **A period is a property of the deployment, not of a provider or a machine.** Deriving it from the
 provider's invoice month would make one machine's period depend on which account it landed in and
@@ -232,9 +246,11 @@ which one authorizes a purchase.*
 **LDG-31** **AMENDED — every debit against a machine, not only consumption.** Posting **any**
 debit attributable to a machine **with an open commitment** — `usage_debit`, `setup_fee_debit`,
 `operation_fee_debit` — MUST decrement that commitment by the same amount, in one transaction.
-**The one exception is `LDG-39`'s late setup fee**: where the create's own commitment was already
-released by `OPS-33`, the fee is debited without a decrement, and a wind-down commitment `OPS-36`
-opened afterwards is a different operation's authority and is not what it pairs with.
+**AMENDED 2026-09-02 — the pairing rule has no exception.** *The withdrawn one was `LDG-39`'s late
+setup fee, debited from available with no decrement where `OPS-33` had already released the
+commitment. That is the seizure the paragraph below forbids, and `LDG-39` now makes the late fee an
+operator deficiency instead — so there is no debit left that pairs with nothing, and a rule with one
+exception is a rule two readers will apply differently.*
 
 *The withdrawn text said "consumption", and `LDG-38` named only `usage_debit`. `PRV-13b` puts the
 setup fee **inside** the commitment while `LDG-39` debits it, so on the ordinary funded dedicated
@@ -455,29 +471,78 @@ run — a deployment that meters every minute charges more than one that meters 
 identical consumption. The rule is therefore:
 
 ```
-billable_seconds = elapsed billable time for this SUBJECT and period
-                 − Σ(absorbed_seconds on its deficiency records, counted only for
-                     the part of each absorbed window lying inside this period,
-                     LDG-66)
-                 − Σ(corrected_seconds on every correction naming one of this
-                     SUBJECT and period's usage debits, LDG-73)
+For each metered increment i of this SUBJECT, closing at increment_end_i:
+
+  net_seconds_i  = elapsed billable seconds inside i
+                 − the part of any deficiency-absorbed window (LDG-66) lying inside i
+
+  exact_total   += net_seconds_i × customer_rate_i     # the rate in force at i's close,
+                                                       # carried as a rational (LDG-4)
+                                                       # and NEVER rounded
 
 already_charged  = the MAGNITUDE already charged for this SUBJECT and period
                  = − Σ(signed amounts of the previous **usage** debits for this SUBJECT
                        and period, plus every correction naming one of them —
                        whenever that correction was posted, LDG-5, LDG-7)
-                 [read from LDG-72's running total, not recomputed per tick]
 
-posted_debit     = ceil(cumulative_exact_charge over billable_seconds)
-                 − already_charged
+posted_debit     = ceil(exact_total) − already_charged
 ```
 
-with the exact charge carried as a rational (`LDG-4`). **Deficiency-absorbed time is subtracted in
-seconds, before conversion — never as a satoshi amount.** An outage deficiency accrues precisely
+`exact_total`, `already_charged`, the elapsed-seconds figures and the high-water mark are all read
+from and written to `LDG-72`'s running total for this `(subject, billing period)`, never recomputed
+by query. **Deficiency-absorbed time is subtracted in seconds, before conversion — never as a
+satoshi amount.** An outage deficiency accrues precisely
 while no rate exists (`LDG-64`), so there is no rate at which it could be converted; removing the
 time it absorbed needs none, and the units never mix.
 
-**And it is subtracted period by period, exactly as the elapsed time above it is.** A deficiency
+**AMENDED 2026-09-02 — the charge is a sum over increments, each priced at its own rate. The
+withdrawn form re-priced the entire month on every tick.** It read `ceil(cumulative_exact_charge
+over billable_seconds)`, with **one** `billable_seconds` scalar for the whole period and `LDG-27`
+putting the conversion at posting time — so tick *k* priced every elapsed second of the period at
+tick *k*'s rate. Three things follow from that and all three are wrong:
+
+- **A rate that doubles retroactively re-bills the hours already paid for.** Hour one posts 100;
+  the satoshi price of the hour halves; hour two posts `400 − 100 = 300` for one hour of identical
+  consumption. Nothing in the set warns a customer of this and `WIR-17`'s `max_commitment_sats`
+  cannot bound it, because the commitment was already open — the same objection `LDG-64` raises
+  against deferred debits at a later rate, arriving through the ordinary path instead of through an
+  outage.
+- **A rate that falls makes `posted_debit` negative**, which is a *positive* `usage_debit`. `LDG-7`
+  does not define one, and `LDG-31` would take it as a debit to pair with and **increment** the
+  commitment — a fourth automatic growth path, which is exactly what `ADR-0011` abolished and what
+  `PRV-13e` enumerates three named exceptions to.
+- **It contradicted the argument the money model is built on.** `LDG-33` explains the fixed
+  commitment by saying "usage debits at spot", and `ADR-0011`'s dissolving observation is that
+  "every authorization is priced at the current rate, so nothing can be overcommitted at stale
+  prices". Neither is true of a formula that reprices elapsed time.
+
+**Under the amended form nothing is re-priced.** An increment is converted once, at the rate in
+force when it closes, and its contribution to `exact_total` never changes afterwards. **`ceil` still
+applies to the cumulative total rather than to each posting**, which is what keeps cadence out of
+the price (`CNF-185`) — the rounding argument survives intact; only the pricing point moves.
+
+**`posted_debit` MUST NOT be negative.** By construction it cannot be — `already_charged` is the sum
+of prior postings, each of which was `ceil(exact_total) − already_charged` at its own time, so it
+never exceeds `ceil(exact_total)`, and a correction moves both sides by the same magnitude. A
+computed negative therefore means the running total has drifted from the entries, and the meter MUST
+**fail closed** in the manner of `LDG-20`'s solvency check rather than post anything. It MUST NOT
+post a positive `usage_debit` under any circumstance: the entry kind means money leaving a balance
+(`CONTEXT.md`), and a positive one is a growth path nothing authorized.
+
+**A `correction` naming one of this subject and period's usage debits moves `exact_total` by its own
+magnitude, in the same transaction that appends it** (`LDG-72`, `LDG-73`) — `exact_total := exact_total
+− amount_sats`, so a credit of +50 lowers both sides by 50 and the next tick posts neither more nor
+less. That is what makes `LDG-73`'s guarantee hold under per-increment pricing: seconds removed from
+an increment that closed at a rate no longer in force cannot be re-priced, and the correction's own
+satoshi figure is the only correct adjustment. **`corrected_seconds` remains required** and remains
+`LDG-73`'s: it keeps the elapsed-seconds channel truthful for deficiency apportionment and for
+`LDG-72`'s audit, which is the channel that has no rate in it at all.
+
+**And it is subtracted increment by increment, which subsumes period by period.** Since 2026-09-02
+each increment removes only the part of an absorbed window lying inside *it*, so a window straddling
+either an increment boundary or a period boundary is split at both and every part is counted exactly
+once — the finer rule was already required by pricing each increment at its own rate, and it happens
+to make the period rule automatic rather than a second calculation. A deficiency
 opened in an earlier period absorbed time that period already removed from its own charge;
 subtracting the whole `absorbed_seconds` again here would hand the customer that window a second
 time, in a period where it absorbed nothing — and an outage long enough would drive a later
@@ -554,15 +619,27 @@ serialization, on the single-writer store `STO-6` describes, whose one recorded 
 **`LDG-70` diagnosed this exact shape for the balance read and fixed it. The meter had the same
 defect and the fix was not carried across.** It is carried across now, on the same terms:
 
-- The record MUST carry the **magnitude charged to date** and the **greatest `increment end`
-  posted** for that `(subject, billing period)`, and both MUST be written inside the same serialized
+- The record MUST carry the **magnitude charged to date**, the **cumulative exact charge as a
+  rational**, the **elapsed billable seconds**, the **absorbed** and **corrected** seconds, and the
+  **greatest `increment end` posted** for that `(subject, billing period)`; every one of them MUST be
+  written inside the same serialized
   transaction that appends the debit (`LDG-35`, `STO-45`). It is therefore not a cache that can
   drift — the serialization that already exists to prevent write skew is what keeps it exact.
-- `LDG-38` reads both from this record, which makes a tick a single indexed row read regardless of
-  cadence or of how far into the period it falls.
+- `LDG-38` reads all of them from this record, which makes a tick a single indexed row read
+  regardless of cadence or of how far into the period it falls.
 - A `correction` naming one of that subject and period's usage debits MUST update the record in the
   same transaction that appends it (`LDG-73`), so the satoshi and second channels never diverge from
   the entries they summarise.
+
+**AMENDED 2026-09-02 — the seconds were still a scan, and the exact charge had nowhere to live.**
+The original carried two figures and left `LDG-38`'s `Σ corrected_seconds` and `Σ absorbed_seconds`
+as per-tick queries over `ledger_entries` and `operator_deficiencies` — the same quadratic shape this
+requirement exists to remove, surviving in the channel nobody counted. And once each increment is
+priced at its own rate (`LDG-38`), the **unrounded** cumulative charge has to persist between ticks:
+recomputing it would mean re-pricing every earlier increment, which is the defect that amendment
+removed. So the record carries `exact_charge_num`/`exact_charge_den` as an exact rational (`LDG-4`,
+`LDG-1`'s no-floating-point rule reaches it), never a rounded satoshi figure — rounding the running
+total is rounding per tick with extra steps, and `CNF-185` is the test that catches it.
 - A deployment MUST provide an audit path that recomputes both figures from `ledger_entries` and
   compares them, and a mismatch MUST **fail closed** in the manner of `LDG-20`'s solvency check. The
   record is authoritative for speed; the entries remain authoritative for truth, and the two are
@@ -603,7 +680,7 @@ unstated:
 | Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
 | Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
 | Ambiguous — `needs_reconciliation` | **Remains reserved in the commitment**, and is *additionally* recorded as a pending fee obligation on the operation (`LDG-67`). The record exists because `OPS-33` releases the commitment in full at the negative window while the operation stays open — so the obligation must survive that release, not replace the reservation before it |
-| Resolved *observed* (`OPS-27`) | **Debited — and the source depends on whether the commitment is still open.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. Once the window has elapsed and `OPS-33` has closed it, the fee is debited from available balance **without a commitment decrement**, which is the one debit `LDG-31`'s pairing rule does not cover — there is no commitment left **for this create** to pair with. Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. Any shortfall is an operator deficiency (`LDG-66`). *Asserting one source was the defect: it double-counted the fee on early resolution, or invented a deficiency that did not exist* |
+| Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider |
 | Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
 | Operator requeue out of `needs_reconciliation` (`OPS-3`, `OPS-4`) | **Never debited for the superseded attempt.** The parked obligation is cleared and the fresh attempt commits and settles its own setup fee through the rows above (`LDG-67`); keeping the old one alive would bill one machine's setup twice |
@@ -618,6 +695,34 @@ debiting without decrementing is `LDG-31`'s double-count.
 reservation on the accepted path, or a create-then-delete cycle costs the tenant nothing and the
 operator the whole fee. Acceptance is the trigger; reversal happens only where the provider never
 charged.
+
+**AMENDED 2026-09-02 — the late fee is the operator's, and the set said so in two places out of
+three.** The withdrawn row debited it **from available balance** once `OPS-33` had released the
+commitment. Three requirements disagreed with that and each other:
+
+- `LDG-31` says a debit exceeding the commitment "MUST NOT be taken from available balance: that
+  would be the automatic seizure `ADR-0011` exists to forbid";
+- `OPS-33` says an early release moves the residual risk from the customer to the operator, and a
+  late-appearing machine's cost "is a cost the operator can see, price and absorb";
+- `OPS-36` refuses, on the same branch and in the same breath, to seize a balance "the customer may
+  have already re-planned".
+
+**Two of the three say operator, so operator it is**, and the ordinary input makes that the only
+coherent answer: the branch's own premise is that the window elapsed and the tenant spent its
+balance on something else, so the debit either drives `available` negative — which `LDG-10` refuses,
+failing the post and leaving the obligation stranded — or seizes a commitment the customer opened
+for a different machine. It also produced a perverse price: the customer paid **more** when the
+operator released the commitment early than when it merely sized it short.
+
+**`LDG-31`'s pairing rule therefore has no exception any more**, and that clause is withdrawn there
+too. `LDG-67`'s parked obligation is cleared into the deficiency in `OPS-27`'s single resolution
+transaction, exactly as the `abandoned` row already does.
+
+*What this costs, plainly: the operator absorbs a real provider charge on a create it did place. That
+is the price of `OPS-33`'s early release, which exists so that a customer's satoshis are not frozen
+against a search nobody can finish — and `OPS-32`'s sweep is what bounds the rest of that exposure.
+This is a judgement call between two defensible answers and it is recorded here so it can be
+reversed in one edit if the operator would rather carry frozen balances than absorbed fees.*
 
 ## The rate
 
@@ -747,7 +852,9 @@ turns a stranger into a customer was missing entirely.
 **AMENDED — this requirement previously listed what a deployment must decide; `ADR-0008` decided
 it.** `LDG-46`–`LDG-57` are the decisions. What survives as a deployment obligation is narrower:
 the confirmation depth of `LDG-48`, the per-rail floors of `LDG-52`, the **deposit expiry** of
-`LDG-54`, and the channel-balance treatment of `LDG-53` are all deployment parameters, and each
+`LDG-54`, the channel-balance treatment of `LDG-53`, and — added 2026-09-02 — **`PRV-13e`'s
+re-derivation interval**, which is a separate parameter from `LDG-68`'s billing period and was
+previously stated nowhere at all, are all deployment parameters, and each
 MUST be stated rather than left to an implementer's judgement. The expiry is the load-bearing one:
 it is simultaneously the customer's deadline, the operator's disclosure (`LDG-54`) and the bound
 on the watch set (`LDG-57`), so choosing it short to save work shortens the customer's window and

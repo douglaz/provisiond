@@ -268,9 +268,40 @@ rather than an operator constant matters because the caller is software that kno
 intent: a two-hour scratch box and a machine meant to survive a month should not freeze the same
 amount of a customer's balance.
 
-**PRV-13e** **AMENDED twice the same day, and once again since — the history is the lesson.** Re-derivation MUST run each
-billing period at the current rate, and what it recomputes is **`runway_until`, not the
-commitment** (`LDG-33`, `ADR-0011`). The commitment is fixed at open and exactly **three** paths
+**PRV-13e** **AMENDED twice the same day, and twice again since — the history is the lesson.**
+Re-derivation MUST run at the deployment's stated **re-derivation interval** at the current rate,
+and what it recomputes is **`runway_until`, not the
+commitment** (`LDG-33`, `ADR-0011`).
+
+**AMENDED 2026-09-02 — the interval is this requirement's own parameter, and it is not the billing
+period.** The withdrawn wording was "each billing period", and `LDG-68` later defined that as the
+**UTC calendar month** while explicitly claiming it had carried this cadence. **Nothing in the set
+works monthly**, and four things break outright:
+
+- `runway_until` is "the customer's whole visibility into repricing" (`LDG-15`) and would be up to a
+  month stale, on a date the exhaustion sweep reads to decide whether to destroy a disk (`LDG-13`,
+  `05-persistence.md`'s `runway_until` index);
+- `LDG-16`'s "a deficiency MUST persist across more than one derivation" — the control that stands
+  between a glitching price feed and a destroyed disk — would mean **two months**, during which an
+  unfunded machine bills;
+- `PRV-13c`'s "materially in the future", defined as *now + one re-derivation period + wind-down*,
+  would swallow every cancellation date inside about thirty days into the ordinary path, deleting
+  the `DOM-19`/`LDG-63` exception branch for exactly the products it was written for;
+- `ADR-0003`'s footnote prices the persistence window at "a few extra hours" and `ADR-0011` speaks
+  of "two derivation periods" inside one night. Both are describing hours; the requirement said a
+  month.
+
+**A deployment MUST state the interval with the other deployment parameters (`LDG-42`), and it MUST
+be short enough that all four of those hold.** *Hourly is the sensible default*, which makes
+`LDG-16`'s persistence window a couple of hours, `PRV-13c`'s "materially in the future" a few hours
+plus wind-down, and `runway_until` never more than an hour stale. The floor is the cost of the pass
+itself; the ceiling is `LDG-16`'s window, which MUST stay small against a machine's runway, since a
+machine can drain its whole commitment inside one interval and nothing would notice.
+
+**The billing period and the re-derivation interval are different quantities and MUST NOT be
+derived from each other.** The period is a **netting boundary** for the meter's arithmetic
+(`LDG-68`); this is a **staleness bound** on a price-derived date. `LDG-68` fused them in a sentence
+about what a phrase had carried, and the fusion is withdrawn there as well. The commitment is fixed at open and exactly **three** paths
 increase it: a caller action (`LDG-62`), an operator requeue of a create, which reprices the
 commitment it reuses at the current rate (`OPS-20`), and the scheduled-cancellation exception
 (`LDG-63`) — the one automatic one. *Version one said a

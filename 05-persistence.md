@@ -371,6 +371,8 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 | `subject_kind`, `subject_id` | enum, UUID | `machine` \| `attachment` — `LDG-8`'s subject, the same one `ledger_entries` carries. A machine and each of its billable attachments are separately metered (`STO-38`) and so are separately totalled |
 | `billing_period` | text | `LDG-68`'s calendar month in UTC |
 | `charged_magnitude` | integer | the magnitude charged to date for this subject and period — `LDG-38`'s `already_charged`, maintained rather than recomputed |
+| `exact_charge_num`, `exact_charge_den` | integer, integer | `LDG-38`'s `exact_total`: the cumulative **unrounded** charge as an exact rational (`LDG-4`, `LDG-1`). Each increment adds its own seconds at **its own** rate and the sum is never rounded here — `ceil` is applied once, at posting, which is what keeps metering cadence out of the price (`CNF-185`). Rounding this column would be per-tick rounding wearing a different name |
+| `billable_seconds`, `absorbed_seconds`, `corrected_seconds` | integer | the elapsed billable seconds counted for this subject and period, the part of every deficiency-absorbed window (`LDG-66`, `STO-37`) that fell inside it, and the seconds returned by corrections naming its usage debits (`LDG-73`). **Maintained, not summed per tick** — `LDG-38` read the last two as queries over `ledger_entries` and `operator_deficiencies`, which is exactly the quadratic shape `LDG-72` was written to remove, surviving in the channel nobody counted. They are also what the audit path recomputes |
 | `high_water_increment_end` | timestamp | the greatest `increment end` posted for this subject and period. An increment ending at or before it is discarded, not posted (`LDG-38`) |
 | `version` | integer | for the conditional write, in the manner of `LDG-34` |
 | `updated_at` | timestamp | |
@@ -385,8 +387,12 @@ so a total repaired on read was never available, and `LDG-70` reached the same c
 `balance_after` by the same route.
 
 **It is a derived figure and MUST be provably derived.** `LDG-72` requires an audit path that
-recomputes both columns from `ledger_entries` and fails closed on a mismatch. The entries are the
-truth; this table is the speed. *This is the third denormalised money figure in the set —
+recomputes **every** column from `ledger_entries` and `operator_deficiencies` and fails closed on a
+mismatch. The entries are the
+truth; this table is the speed. *The exact rational is derivable too, and it is the one that would
+otherwise be believed rather than checked: recomputing it means replaying each increment at the rate
+denormalised onto its own entry (`LDG-4`), which is why that evidence is required to survive the
+pruning of any rate table.* *This is the third denormalised money figure in the set —
 `balance_after`, the commitment's `reserved_sats`, and now this — and each one exists because the
 literal reading of its defining requirement was a scan. Stated here so the pattern is visible
 rather than rediscovered a fourth time.*

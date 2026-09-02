@@ -794,9 +794,17 @@ rather than acquiring a default.
       satoshi debit is posted when the rate returns, the native accrual appears as an operator
       deficiency, and machines are cancelled at the stated maximum outage if no rate comes back.
       (`LDG-64`, `LDG-65`)
-- [ ] **CNF-185** Metering the same period at one-minute and one-hour cadence produces the
-      **identical** total charge. Rounding is cumulative, not per tick — a property test over
-      arbitrary subdivision. (`LDG-38`, `LDG-28`)
+- [ ] **CNF-185** **AMENDED 2026-09-02 — the invariant needs a fixed rate to be stated against, and
+      the withdrawn wording was satisfiable only by the defect.** **At a constant rate**, metering
+      the same period at one-minute and one-hour cadence produces the **identical** total charge:
+      rounding is cumulative, not per tick — a property test over arbitrary subdivision. **Under a
+      moving rate the totals may differ, and the item asserts the bound rather than equality**: each
+      cadence prices each increment at the rate in force when that increment closed (`LDG-38`), so
+      the two totals differ by at most the rate movement across one increment of the coarser
+      cadence, and **neither cadence ever re-prices an increment already posted**. *Withdrawn
+      wording:* an unconditional "identical total charge", which under a moving rate is satisfiable
+      **only** by re-pricing the whole period at the latest rate — the defect this item sat next to
+      and appeared to endorse. (`LDG-38`, `LDG-28`, `LDG-4`)
 - [ ] **CNF-186** Two credited payments each below the activation minimum, summing above it,
       activate the tenant atomically. (`LDG-52`, `API-35`)
 - [ ] **CNF-187** A machine deleted while a billable attachment survives keeps its commitment
@@ -875,10 +883,14 @@ rather than acquiring a default.
 - [ ] **CNF-210** An orphaned deposit is credited to a named tenant exactly once through the
       operator attribution endpoint; a second call naming a different tenant is `409`. (`WIR-42`,
       `API-34`)
-- [ ] **CNF-211** An ambiguous create that resolves *observed* debits the setup fee from
-      available balance after `OPS-33` has already closed the commitment, and records an operator
-      deficiency when available cannot cover it — the fee is neither dropped nor clamped away.
-      (`LDG-39`, `LDG-67`, `LDG-31`)
+- [ ] **CNF-211** **REWRITTEN 2026-09-02 — it tested the seizure `LDG-31` forbids.** An ambiguous
+      create that resolves *observed* **while its commitment is still open** debits the setup fee
+      against that commitment and decrements it in the same transaction. Resolving *after* `OPS-33`
+      released it debits the customer **nothing**: the fee becomes an operator deficiency
+      (`LDG-66`, cause `unrecoverable_setup_fee`), `LDG-67`'s parked obligation is cleared in the
+      same resolution transaction, available balance does not move, and a wind-down commitment
+      `OPS-36` opened on the same machine is **not** decremented. Both halves, and the second is the
+      one three requirements disagreed about. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-66`, `OPS-33`)
 - [ ] **CNF-212** Two consecutive exhaustion sweeps over the same machine enqueue **one**
       cancellation: the second reuses the episode's trigger id and conflicts. Minting a fresh id
       per sweep is the failure. Run the second sweep again **after retention has deleted the first
@@ -1036,6 +1048,28 @@ rather than acquiring a default.
       not permit by accident, and until today the deposit binding, the payment record and the
       enumeration it needs were three MUSTs pointing at each other with no column underneath.
       (`STO-46`, `STO-30`, `STO-31`, `LDG-43`, `WIR-42`)
+- [ ] **CNF-274** **A rate move never re-prices an hour already billed.** Meter one subject across a
+      period, move the rate **up** between two increments, and assert the second posting charges
+      only the second increment's seconds at the new rate — not the whole elapsed period. Then move
+      it **down** and assert the posting is a smaller positive figure and **never negative**: a
+      positive `usage_debit` is undefined (`LDG-7`) and `LDG-31` would take it as a debit to pair
+      with and **grow** the commitment, which is the automatic widening `ADR-0011` abolished. Assert
+      the storage shape that makes it possible: the running total carries the cumulative charge as
+      an **unrounded rational**, the elapsed, absorbed and corrected seconds are maintained rather
+      than summed per tick, and a seeded mismatch against a recomputation from `ledger_entries` and
+      `operator_deficiencies` **fails closed** rather than posting from either figure. **The failure
+      this catches is a customer billed twice for hour one because the price moved in hour two** —
+      silent, systematic, and invisible until someone reconciles a month by hand. (`LDG-38`,
+      `LDG-72`, `STO-45`, `LDG-31`, `ADR-0011`)
+- [ ] **CNF-275** **Re-derivation runs on its own clock, not the billing period's.** The deployment
+      states a re-derivation interval separately from `LDG-68`'s period; `runway_until` on a live
+      machine is never staler than that interval; `LDG-16`'s "more than one derivation" is measured
+      in intervals and a machine at the edge is routed into exhaustion within two of them, not two
+      months; and `PRV-13c`'s "materially in the future" test — *now + one interval + wind-down* —
+      still puts a cancellation date a week out on the **exception** branch. Assert the last one
+      against a machine whose `earliest_cancellation_date` is days away, since a monthly interval
+      swallows it into the ordinary path and silently deletes the `DOM-19`/`LDG-63` branch.
+      (`PRV-13e`, `LDG-68`, `LDG-16`, `PRV-13c`, `LDG-42`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
@@ -1494,6 +1528,9 @@ explicitly and record:
 11. The tenant-to-provider-account assignment policy, which is simultaneously the authorization
     rule (`API-17b`) and the blast-radius control (`SEC-43`).
 12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).
+13. **The re-derivation interval** — separate from `LDG-68`'s billing period, and the bound on how
+    stale `runway_until` may be (`PRV-13e`, `LDG-42`). Added 2026-09-02; it had been read off the
+    billing period, which made it a month.
 
 
 ### Assignments for `CNF-214`–`CNF-221` (engineering review, 2026-08-15)
@@ -1621,9 +1658,15 @@ record claims it succeeded, which the operator would not learn from anything but
 `CNF-272` (a suspension that either never completes or completes with a billing machine on a
 suspended tenant — `SEC-45`'s one action is the operator's whole remedy and it must land);
 `CNF-273` (money-in, the family this checklist already calls the only one where a bug **mints**
-satoshis: a payment credited twice, or a real customer's balance made unreachable forever).
+satoshis: a payment credited twice, or a real customer's balance made unreachable forever);
+`CNF-274` (retroactive re-pricing of hours the customer already paid for, or a positive
+`usage_debit` growing a commitment nobody authorized — the operator would learn of either from a
+customer, if at all).
 
-**PRE-SCALE** — none yet in this block.
+**PRE-SCALE** — `CNF-275`. A stale `runway_until` and an over-long persistence window degrade a
+disclosure and delay an exhaustion rather than losing money on the first occurrence — but it
+**graduates the day a machine's runway can drain inside one interval**, because past that point
+`LDG-16`'s control stops standing between a bad rate read and a destroyed disk.
 
 ## The blocking count
 
