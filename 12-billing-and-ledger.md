@@ -592,13 +592,30 @@ increment would then hand back time from an increment priced at a different rate
 re-pricing this amendment removes arriving by subtraction. The excess is simply not owed; there is
 nothing to carry forward.
 
-**`posted_debit` MUST NOT be negative.** By construction it cannot be: `exact_total` is
-non-decreasing, `ceil` is monotonic, and `already_charged` is the sum of prior postings, each of
-which was `ceil(exact_total) − already_charged` at its own time — so `already_charged` equals
-`ceil(exact_total)` as of the last posting and cannot exceed the current one. A correction moves
-both sides by the same **integer** magnitude, which preserves the identity in either direction. A
-computed negative therefore means the running total has drifted from the entries, and the meter MUST
-**fail closed** in the manner of `LDG-20`'s solvency check rather than post anything. It MUST NOT
+**`posted_debit` MUST NOT be negative**, and a computed negative means the running total has drifted
+from the entries: the meter MUST **fail closed** in the manner of `LDG-20`'s solvency check rather
+than post anything. `exact_total` is
+non-decreasing, `ceil` is monotonic, and a correction moves `exact_total` and `already_charged` by
+the same **integer** magnitude, so nothing in the ordinary path can drive it below zero.
+
+**`already_charged` is what the meter *computed*, not what the tenant was *debited*, and `LDG-31`'s
+clamp is why the two differ.** Where a debit exceeds the commitment's remaining amount the
+commitment decrements to zero, **the tenant is debited only up to the authority it granted**, and
+the remainder becomes an operator deficiency. So the ledger entry is smaller than `posted_debit`
+was. `already_charged` MUST nonetheless advance by the **full** `posted_debit`, and
+`meter_totals.charged_magnitude` MUST record it, because the question that term answers is *what has
+this period already accounted for* — not *what did the tenant pay*.
+
+*Getting that wrong re-charges written-off money, silently and forever.* With `exact_total` at 100
+and 30 of commitment left, a clamped posting debits 30 and books 70 as the operator's. If
+`already_charged` advances by 30, the next increment of 50 posts `ceil(150) − 30 = 120` — the
+customer billed for 70 the operator has already absorbed, on top of its own 50. And the error is
+**positive**, so the fail-closed guard above never fires: it is not a drift the meter can detect, it
+is the meter computing the wrong number correctly. The clamped remainder is reachable through the
+wind-down window and `LDG-16`'s persistence delay (`LDG-31`), so this is an ordinary path rather
+than an exotic one. **The deficiency record carries the difference** (`LDG-66`, `STO-37`), which is
+also what makes `LDG-72`'s audit recomputation reconcile: entries plus deficiencies, never entries
+alone. It MUST NOT
 post a positive `usage_debit` under any circumstance: the entry kind means money leaving a balance
 (`CONTEXT.md`), and a positive one is a growth path nothing authorized.
 
@@ -624,9 +641,24 @@ twice for one interruption. Where an absorbed window straddles a period boundary
 subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
 **The window is read from the deficiency record's `absorbed_from` and `absorbed_until`**
 (`STO-37`), which every cause that absorbs time MUST carry. `outage_started_at` and
-`outage_deadline` are not that window: `LDG-64` ties them to the `rate_outage` cause alone, while a
-`clamp_overflow` deficiency absorbs billable time too, and a split no record can locate in time is
+`outage_deadline` are not that window: `LDG-64` ties the first to the `rate_outage` cause and the
+second is a *computed deadline* rather than an end, so an outage that clears early absorbed less
+time than the pair implies, and a split no record can locate in time is
 not a split an implementation can perform.
+
+**AMENDED 2026-09-02 — exactly one cause absorbs time, and it is `rate_outage`.** *The withdrawn
+clause said "a `clamp_overflow` deficiency absorbs billable time too", and that double-relieves the
+customer.* A clamp overflow is the operator absorbing **satoshis**: the consumption happened, the
+tenant was debited up to the authority it granted (`LDG-31`), and the excess became the operator's.
+Subtracting the seconds as well would make the period's `exact_total` fall, so every later posting
+would be smaller too — the customer relieved once in money and again in time, for one event.
+`LDG-66`'s other causes are one-off amounts and meter no elapsed time at all. **A rate outage is
+different in kind**: no rate existed, so the window was never priceable and there is nothing for the
+customer to have been charged. Only that cause carries a non-zero `absorbed_seconds`, and only that
+one appears in the subtraction above. *This also removes the case nothing had a rule for: a
+`clamp_overflow` opens **during the posting of the increment it would have covered**, so a window
+recorded after that increment was priced could never be applied to it — which is unanswerable if the
+cause absorbs time and moot now that it does not.*
 
 **What is subtracted is a magnitude, because `LDG-1` makes a debit negative.** The signed sum of
 the prior usage debits is a negative number — the worked table above posts `usage_debit` −100 for
@@ -657,11 +689,20 @@ restart, or any cadence that subdivides the period (`LDG-8`).
 
 **A correction carries its own sign, and the netting must respect it.** A correction that
 *reduces* a charge is a positive entry: it moves the negative net toward zero and therefore
-**lowers** `already_charged`, so the next tick posts more, not less. A correction that *increases*
+**lowers** `already_charged`. A correction that *increases*
 a charge is negative and raises `already_charged`. Netting the signed amounts and negating once,
 as the formula does, is what makes both directions come out right; taking the absolute value of
 each entry before summing would make a refund add to the amount already charged and re-charge the
 customer for money handed back.
+
+**AMENDED 2026-09-02 — and it does NOT follow that the next tick posts more.** This paragraph used
+to end "so the next tick posts more, not less", which is the claw-back `CNF-215` was rewritten on
+2026-08-31 to forbid and `LDG-73` exists to prevent — the customer watching a credit appear and
+vanish inside one metering interval. It was true of an arithmetic where only `already_charged`
+moved. It is not true now: a correction moves `already_charged` **and** `exact_total` by the same
+integer magnitude, so `ceil(exact_total) − already_charged` is unchanged and **the next tick posts
+neither more nor less**. The sign rule above is still exactly right and still load-bearing; only the
+conclusion drawn from it was wrong, and it survived one amendment of its own conformance item.
 
 **The subject's high-water mark is the greatest `increment end` already posted for it**, and
 **an increment whose end instant is at or before that mark MUST be discarded, not posted** — a
@@ -713,10 +754,16 @@ recomputing it would mean re-pricing every earlier increment, which is the defec
 removed. So the record carries `exact_charge_num`/`exact_charge_den` as an exact rational (`LDG-4`,
 `LDG-1`'s no-floating-point rule reaches it), never a rounded satoshi figure — rounding the running
 total is rounding per tick with extra steps, and `CNF-185` is the test that catches it.
-- A deployment MUST provide an audit path that recomputes both figures from `ledger_entries` and
-  compares them, and a mismatch MUST **fail closed** in the manner of `LDG-20`'s solvency check. The
-  record is authoritative for speed; the entries remain authoritative for truth, and the two are
-  reconciled rather than assumed equal.
+The bullets resume, and the last one is amended by the paragraph above rather than orphaned by it:
+
+- A deployment MUST provide an audit path that recomputes **every** column of the record — not the
+  two the original carried — from `ledger_entries` **and `operator_deficiencies`**, and a mismatch
+  MUST **fail closed** in the manner of `LDG-20`'s solvency check. The
+  record is authoritative for speed; those two tables remain authoritative for truth, and they are
+  reconciled rather than assumed equal. **Both sources are required, and `LDG-31`'s clamp is why**:
+  where a debit exceeded the commitment the entry is smaller than what the meter charged, the
+  difference is a deficiency, and a recomputation from entries alone would report a discrepancy on
+  every clamped posting and fail closed against nothing.
 
 **LDG-73** **A `correction` naming a `usage_debit` MUST carry the billable seconds it corrects, and
 `LDG-38` subtracts them.** Without this a correction is undone by the next tick, and the
@@ -730,9 +777,21 @@ vanish inside one metering interval, on the ledger `ADR-0002` makes the authoriz
 **The two channels must move together.** `LDG-66` already established the mechanism: deficiency
 time is subtracted in **seconds**, before any conversion, because an outage accrues while no rate
 exists. This opens that same channel to the only other thing that adjusts a charge. A correction
-that returns *n* satoshis' worth of consumption carries the seconds that consumption represented,
-`LDG-38` removes them from `billable_seconds`, and the period's correct total falls to match — so
-the next tick posts nothing to claw back.
+that returns *n* satoshis' worth of consumption carries the seconds that consumption represented.
+
+**AMENDED 2026-09-02 — which channel carries the money changed, and this requirement survives with
+a different job.** *The withdrawn sentence was "`LDG-38` removes them from `billable_seconds`, and
+the period's correct total falls to match".* Under the whole-period formula that was how the total
+fell; under per-increment pricing there is no `billable_seconds` term in the charge at all, and
+seconds removed from an increment that closed at a rate no longer in force **cannot be re-priced**.
+So `LDG-38` adjusts `exact_total` by the correction's own **satoshi magnitude**, which is the only
+figure that is still true, and the guarantee is unchanged: the next tick posts nothing to claw back.
+
+**`corrected_seconds` is still required and is still this requirement's.** It keeps the
+elapsed-seconds channel honest — the channel that has no rate in it, which `LDG-66`'s deficiency
+apportionment reads and `LDG-72`'s audit recomputes. A correction that returns money without
+returning the seconds it represents leaves `meter_totals` claiming consumption the ledger has
+already refunded, and the audit path then fails closed against a discrepancy nobody introduced.
 
 **A correction naming an entry of any other kind carries no seconds** and is outside `LDG-38`'s
 arithmetic entirely; `WIR-42`'s re-attribution pairs name `topup` entries and are unaffected.
@@ -753,7 +812,7 @@ unstated:
 | Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
 | Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
 | Ambiguous — `needs_reconciliation` | **Remains reserved in the commitment**, and is *additionally* recorded as a pending fee obligation on the operation (`LDG-67`). The record exists because `OPS-33` releases the commitment in full at the negative window while the operation stays open — so the obligation must survive that release, not replace the reservation before it |
-| Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below* |
+| Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below. `LDG-67`'s parked columns are cleared either way, in `OPS-27`'s single resolution transaction* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider |
 | Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
 | Operator requeue out of `needs_reconciliation` (`OPS-3`, `OPS-4`) | **Never debited for the superseded attempt.** The parked obligation is cleared and the fresh attempt commits and settles its own setup fee through the rows above (`LDG-67`); keeping the old one alive would bill one machine's setup twice |
@@ -893,6 +952,12 @@ carrying the machine or attachment, the provider-native amount and currency (`LD
 elapsed billable time it absorbed** — without which the meter cannot remove that window from the
 charge at all (`LDG-38` subtracts it in seconds) — the cause, and an idempotency key; they MUST
 feed provider payables in the solvency check (`LDG-17`) and MUST NOT alter any tenant balance.
+
+**Absorbed time is zero for every cause but `rate_outage`** (amended 2026-09-02). The others absorb
+**satoshis** against consumption the customer was charged for up to the authority it granted, so
+subtracting their seconds as well would relieve the customer twice for one event (`LDG-38`,
+`LDG-31`). A rate outage absorbs time because there was no rate: the window was never priceable, so
+there is no satoshi figure to absorb and time is the only channel that works.
 **Nothing here is billable to a customer** — that is the whole point of calling it the operator's.
 
 **The rate is nullable and is required only for a cause that had one.** Where a rate existed when
@@ -1112,13 +1177,21 @@ row that `API-34`'s time-to-live could never reclaim.
 the setup fee on the operation until resolution, and that needs a home: `operations` carries
 `pending_fee_native_minor` and `pending_fee_currency` (`05-persistence.md`), in the provider's
 currency because the fee is not yet a satoshi obligation. Alongside the native figure it carries
-`pending_fee_sats`, the **satoshi amount authorized at create**, so a late resolution debits what
+`pending_fee_sats`, the **satoshi amount authorized at create**, so a resolution that debits the fee
+debits what
 the customer actually authorized rather than a re-conversion at whatever the rate has since
-become.
+become — **which is the case where the create's own commitment is still open**; once `OPS-33` has
+released it the fee is not debited at all (`LDG-39`, amended 2026-09-02) and this figure is what the
+operator deficiency records instead.
 
-All three columns are cleared when the fee is debited (resolved-observed) or dropped
-(resolved-absent, deterministic rejection), and on resolved-observed the clear MUST happen inside
-`OPS-27`'s single resolution transaction rather than as a follow-up write. **On `abandoned`
+All three columns are cleared **on every resolution**, and on resolved-observed the clear MUST
+happen inside
+`OPS-27`'s single resolution transaction rather than as a follow-up write. The outcomes differ in
+what the clear *settles*, not in whether it happens: **debited** against a still-open commitment,
+**dropped** on resolved-absent and on a deterministic rejection, and **absorbed as an operator
+deficiency** on `abandoned` and on a resolved-observed whose commitment `OPS-33` had already
+released. *Amended 2026-09-02: this sentence named the debit and the drop and left the third
+outcome — now the ordinary one on a late resolution — with no rule for the parked columns at all.* **On `abandoned`
 (`OPS-31`) the fee is an operator
 deficiency** (`LDG-66`): the operator gave up establishing whether the order landed, and charging
 a customer for an outcome nobody established is not defensible. **On an operator requeue**
@@ -1144,9 +1217,18 @@ order.
 **LDG-23** Customer price MUST be a derived value, never the provider's price string passed
 through. One function maps an offer to a customer price and every caller goes through it.
 
-**LDG-27** The conversion from a provider price string to integer minor units happens **once**,
-at the point a price becomes an obligation — opening or adjusting a commitment, or posting a
-debit. Offers carry the provider's exact string (`DOM-9`); obligations carry integers (`LDG-1`).
+**LDG-27** **AMENDED 2026-09-02 — "once" is right and "at posting" was the defect.** The conversion
+from a provider price string to integer minor units happens **once per obligation**, at the point
+the obligation is *incurred* — opening or adjusting a commitment, or **closing a metered
+increment** (`LDG-38`). Offers carry the provider's exact string (`DOM-9`); obligations carry
+integers (`LDG-1`).
+
+*The withdrawn phrasing was "or posting a debit", and `LDG-38` names it as half of the whole-period
+re-pricing defect: with the conversion at posting time, a tick priced every elapsed second of the
+period at that tick's rate. The increment is the obligation — it is the consumption the customer
+actually incurred, at the rate in force while it happened — and the posting is bookkeeping that may
+arrive later, after a restart or a subdivided cadence. One conversion per increment, never
+re-applied.*
 
 **LDG-24** The margin is a percentage applied to machine time only (`ADR-0007`), expressed in
 basis points (`LDG-29`). Setup fees pass through at cost (`ADR-0006`). It MUST be configuration,

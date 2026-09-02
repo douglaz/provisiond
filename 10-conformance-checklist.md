@@ -866,7 +866,11 @@ rather than acquiring a default.
       moving rate the totals may differ, and the item asserts the bound rather than equality**: each
       cadence prices each increment at the rate in force when that increment closed (`LDG-38`), so
       the two totals differ by at most the rate movement across one increment of the coarser
-      cadence, and **neither cadence ever re-prices an increment already posted**. *Withdrawn
+      cadence, and **neither cadence ever re-prices an increment already posted**. The bound is
+      stated as an inequality over the whole period — the sum over increments of
+      `net_seconds_i × |rate movement across increment i|` — rather than as a single increment's
+      worth, because under a trending rate the per-increment errors share a sign and accumulate.
+      *Withdrawn
       wording:* an unconditional "identical total charge", which under a moving rate is satisfiable
       **only** by re-pricing the whole period at the latest rate — the defect this item sat next to
       and appeared to endorse. (`LDG-38`, `LDG-28`, `LDG-4`)
@@ -995,7 +999,10 @@ rather than acquiring a default.
 - [ ] **CNF-215** **REWRITTEN 2026-08-31 — it tested the claw-back as correct behaviour.** A
       `correction` naming a `usage_debit` carries `corrected_seconds` (`LDG-73`), and after it the
       period's total is **stable**: the next tick posts neither the corrected amount back nor a
-      compensating credit, because both `already_charged` and `billable_seconds` moved. Assert
+      compensating credit, because `already_charged` and `exact_total` both moved by the
+      correction's own magnitude (**amended 2026-09-02** — it said `billable_seconds`, which under
+      per-increment pricing is no longer a term in the charge; the seconds channel still moves, and
+      what it keeps honest is `meter_totals` and `LDG-72`'s audit). Assert
       across a full metering interval, not just the posting. A correction posted in a later period
       still nets against the period of the entry it **names**, not the period it was posted in; and
       a correction naming an entry of another kind is excluded from the sum and carries no seconds.
@@ -1138,7 +1145,12 @@ rather than acquiring a default.
       the storage shape that makes it possible: the running total carries the cumulative charge as
       an **unrounded rational**, the elapsed, absorbed and corrected seconds are maintained rather
       than summed per tick, and a seeded mismatch against a recomputation from `ledger_entries` and
-      `operator_deficiencies` **fails closed** rather than posting from either figure. **The failure
+      `operator_deficiencies` **fails closed** rather than posting from either figure. **Then the
+      clamp**: drive a posting that exceeds the remaining commitment and assert `already_charged`
+      advances by the **full** computed debit while the ledger entry carries only what the tenant's
+      authority covered and the rest becomes a deficiency (`LDG-31`). Advancing it by the entry
+      instead re-charges the written-off remainder on every later tick, and the error is *positive*,
+      so the fail-closed guard never fires. **The failure
       this catches is a customer billed twice for hour one because the price moved in hour two** —
       silent, systematic, and invisible until someone reconciles a month by hand. (`LDG-38`,
       `LDG-72`, `STO-45`, `LDG-31`, `ADR-0011`)

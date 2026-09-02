@@ -576,10 +576,14 @@ returned an empty list to every customer forever.
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
 `currency`, `absorbed_seconds` (the elapsed billable time absorbed, which is what `LDG-38`
-subtracts — in seconds, never converted), `absorbed_from`, `absorbed_until` (**the placement of
-that absorbed window in time**, required for every cause that absorbs time and read by `LDG-38` to
-apportion a window that straddles a period boundary; `outage_started_at` below cannot serve, since
-`LDG-64` ties it to the `rate_outage` cause alone), `rate_num`, `rate_den` (**nullable**; the rate in force
+subtracts — in seconds, never converted; **zero for every cause but `rate_outage`**, since the
+others absorb satoshis against consumption the customer was already charged for and subtracting
+their seconds too would relieve it twice, `LDG-66`), `absorbed_from`, `absorbed_until` (**the
+placement of that absorbed window in time**, required wherever `absorbed_seconds` is non-zero and
+read by `LDG-38` to
+apportion a window that straddles a period or increment boundary; `outage_deadline` below cannot
+serve, since it is a *computed deadline* rather than an end and an outage that clears early absorbed
+less time than it implies), `rate_num`, `rate_den` (**nullable**; the rate in force
 when the record was opened, required only for a cause that had one and permanently null for a
 rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`),
 `outage_started_at`, `outage_deadline`
