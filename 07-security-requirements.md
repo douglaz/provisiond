@@ -117,7 +117,16 @@ itself.** The rule above was written when every image fetch happened on the **re
 inside the credential-holding process. **For that path a host allowlist MUST be configured**, and an
 empty one means **no catalogue install may be requested** rather than "any host" — a fail-open
 default is not a default, it is the absence of the control, and here it is absent inside the
-boundary `OVR-10a` calls the only structural defence left. The allowlist is necessary and not
+boundary `OVR-10a` calls the only structural defence left.
+
+**Two obligations, at two moments, and both are required.** At **startup** the deployment MUST
+refuse to serve catalogue install where the allowlist is empty — not merely warn, which is what the
+paragraph above requires for the rescue path. At **request time** an install naming a host outside
+the list MUST be rejected `invalid_request` before the operation is enqueued, which is `API-13`'s
+image-URL row (amended the same day to drop its "when one is configured"). *Stated as two because
+the startup half alone leaves a running deployment that was configured correctly and then had its
+list emptied, and the request half alone leaves the operator learning the control is off from an
+audit rather than from a boot.* The allowlist is necessary and not
 sufficient: `RSC-44` validates every **resolved address** unconditionally, because an allowlisted
 name still resolves to whatever its owner points it at.
 

@@ -314,6 +314,11 @@ caller's image, verify its `sha256` **as it streams**, store it in operator-cont
 storage (`RSC-30`), and give the provider a URL to that copy. The caller's own URL MUST NOT be
 passed to the provider.
 
+**This fetch is bounded by `RSC-44`**, which validates every address the caller's URL resolves to,
+and by `SEC-19`'s allowlist, which is a **MUST** on this path with an empty list meaning *no
+catalogue install* rather than *any host* — that requirement's fail-open default was written when
+every image fetch happened on the rescue host, and this path reverses who the client is.
+
 Two reasons, and only one of them is about the provider. A caller's signed URL is a credential
 (`SEC-21`), and handing it to a third party with no documented retention behaviour discloses it.
 And **without the re-host this path verifies nothing at all** — the provider fetches and converts
@@ -323,13 +328,16 @@ something.
 *The cost is real and is accepted: the control plane is in the data path for the size of the image,
 which `RSC-1` was written to prevent. That prohibition is narrowed rather than broken.*
 
-**RSC-44** **Every address a caller-supplied URL resolves to MUST be validated before a byte is
-sent to it, and again after every redirect.** `RSC-39` makes provisiond itself fetch an anonymous
+**RSC-44** **Where *provisiond itself* fetches a caller-supplied URL — today exactly `RSC-39`'s
+catalogue re-host, and any fetch a later requirement adds inside this process — every address that
+URL resolves to MUST be validated before a byte is sent to it, and again after every redirect.**
+`RSC-39` makes provisiond fetch an anonymous
 stranger's URL, inside the process that holds every provider credential and root on every customer
 machine — which is a server-side request forgery primitive in the worst place this system has.
 `RSC-40` puts hostile-input handling there deliberately and bounds it by refusing to *parse* the
 bytes; nothing bounded where they are fetched **from**. `SEC-19`'s host allowlist is the only other
-control and it is optional and fail-open, so on a default deployment `https://169.254.169.254/…`
+control and **was** optional and fail-open until `SEC-19`'s amendment of the same day made it a MUST
+on this path, so on the default deployment as it stood `https://169.254.169.254/…`
 or `https://127.0.0.1:8080/…` was a legal image URL.
 
 - **Resolve first, then check every resolved address** — both families, every A and AAAA record.
@@ -341,12 +349,22 @@ or `https://127.0.0.1:8080/…` was a legal image URL.
 - **Connect to the address that was validated**, pinning it for the connection, or re-validate at
   connect time. Otherwise the name is resolved twice and the second answer is the attacker's: DNS
   rebinding defeats a check performed only on the first lookup.
-- **Re-validate after every redirect, and cap the redirect count.** `RSC-17` already restricts the
-  *scheme* across redirects; a redirect to a public host that then answers `302` to
-  `http://169.254.169.254/` satisfies every rule this set had before today.
-- **Refuse the fetch, never report why in a way that describes the target.** The response body MUST
+- **Re-validate after every redirect, and cap the redirect count.** A redirect to a public host that
+  then answers `302` to `http://169.254.169.254/` satisfies every rule this set had before today.
+- **Hold the scheme across every hop**: `https` only, or `http` where a deployment has explicitly
+  enabled it (`SEC-18`), refused on redirect as well as on the original URL. *`RSC-17` states that
+  rule for the **rescue host's** fetch tool and binds nothing here — it sits under remote command
+  transport and governs a shell running on the customer's machine — so this path had no
+  scheme rule across hops at all, and citing `RSC-17` for it was citing a requirement about a
+  different program.*
+- **Refuse with `invalid_request`** (`DOM-17`), and **never report why in a way that describes the
+  target**. The response body MUST
   NOT reach the caller and the error MUST NOT carry the resolved address, the status or the response
-  size — those turn a refused fetch into a port scanner with an oracle.
+  size — those turn a refused fetch into a port scanner with an oracle. *The kind is named because
+  `API-24` forbids a handler choosing one, and a refusal with no kind is the defect this same review
+  fixed for `SEC-39` by minting `ceiling_exceeded`. `invalid_request` rather than a new kind: the
+  URL genuinely is one the caller may not supply, the caller's remedy is to send a different one,
+  and `retryable` is `false`.*
 
 **This is a bounded fetch, so bounding it is cheap.** The alternative considered was isolating the
 fetcher in a process with no credential — which is stronger and is what a deployment SHOULD do where
@@ -354,9 +372,18 @@ it can, since it also bounds the parser-shaped hazards `RSC-40` refuses to creat
 mandated because `ADR-0001` chose one deployable and a second process is a second deployment shape
 the rest of this set does not model; the address validation is required unconditionally either way.
 
-*The rescue strategies are not covered by this and do not need to be: `RSC-1` has the **rescue
-host** fetch the image, so a hostile URL there reaches the customer's own machine on the customer's
-own request. `RSC-39` is the one path where this system is the client.*
+**The rescue strategies are outside this requirement, and the reason is narrower than "it is the
+customer's own machine".** `RSC-1` has the **rescue host** fetch the image, so the client is a
+machine the caller has already paid for and is already root on — but that machine sits in the
+*operator's* provider account (`DOM-3`), where `169.254.169.254` is the operator's metadata service
+and the neighbours are other tenants' servers. **That is `07-security-requirements.md`'s primary
+threat, not a bystander**, and it is bounded by different controls than this one: the rescue host
+runs the caller's chosen OS moments later and can reach whatever that OS can reach, so an
+address filter on its `curl` protects nothing an install does not immediately undo. What actually
+bounds it is `SEC-41`'s account-level segregation and `SEC-43`'s distribution across accounts.
+*Recorded rather than asserted, because the obvious sentence — "it only reaches the customer's own
+machine" — is false, and a reviewer who believes it will not go looking for the control that is
+really doing the work.*
 
 **RSC-40** **provisiond measures a caller's image and MUST NOT interpret it.** It counts the bytes
 and hashes them. It MUST NOT parse the content — not the partition table, not the image format, not

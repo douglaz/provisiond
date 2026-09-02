@@ -860,7 +860,7 @@ Validation happens at the boundary *and* again in the worker (`OPS-23`).
 | catalog image | 1–256 characters |
 | user data / post-install script | ≤1 MiB |
 | provider options | MUST be a JSON object |
-| image URL | ≤8192 bytes, no fragment, no embedded credentials, scheme `https` (or `http` only where explicitly enabled), host in the allowlist when one is configured |
+| image URL | ≤8192 bytes, no fragment, no embedded credentials, scheme `https` (or `http` only where explicitly enabled), host in the allowlist. **For a `provider_catalogue` install the allowlist is mandatory and an empty one refuses the request** (`SEC-19`, `RSC-39`), since provisiond itself is the client there; on the rescue strategies an empty list still means any host and is a startup warning. *"When one is configured" applied the fail-open reading to both paths and was withdrawn 2026-09-02* |
 | digest | exactly 64 hex characters (`DOM-14`) |
 | strategy/image pairing | per `DOM-13` |
 | host-key policy | pinned keys and "accept unpinned" MUST be mutually exclusive |
