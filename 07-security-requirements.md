@@ -142,11 +142,13 @@ deployment SHOULD refuse the first-use-trust option for that provider entirely.
 
 ## Destructive and billable actions
 
-**SEC-25** Installs and deletions MUST carry a per-request destructive acknowledgement
-(`API-14`).
-
-**SEC-26** Orders MUST carry a per-request purchase acknowledgement *and* an account-level
-opt-in (`API-15`, `PRV-10`).
+*`SEC-25` and `SEC-26` were deleted on 2026-09-02 and are in the README's withdrawn-identifier
+index. They restated `API-14` and `API-15`/`PRV-10` word for word and added no security obligation —
+which is precisely what this document's own scope note forbids, and the failure `SEC-46` is the
+standing example of: a second normative copy is not redundancy, it is a second thing to forget. The
+acknowledgements themselves are unchanged and are `API-14`'s and `API-15`'s; what they are worth
+against a caller that is a program is `SEC-39`'s, which is the requirement that actually says
+something.*
 
 **SEC-27** Ambiguous mutations MUST NOT be retried automatically (`OPS-12`). Automatic
 retry of a create is how a control plane buys two servers.
@@ -185,7 +187,7 @@ it can technically enforce, which it can only contractually require, and what it
 provider abuse notice.
 
 **SEC-39** **A per-request acknowledgement is not a control when the caller is not human.**
-`API-14` and `SEC-25` require an explicit destructive acknowledgement on every install and
+`API-14` requires an explicit destructive acknowledgement on every install and
 delete, and that works because a person reading a confirmation is a person who can decline.
 An autonomous caller sets the flag from a template on every request; it becomes a constant,
 and the safety property it was carrying quietly disappears while the field is still present

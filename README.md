@@ -190,6 +190,8 @@ Deleted from the documents. Never reused. Listed so an older citation still reso
 | `API-31` | The front service's own audit log | Same shape, same reason. `SEC-32` already names the identity and tenant |
 | `PRV-24` | The driver's iPXE shebang check | Swept with the rest of the iPXE surface — `DOM-22` deferred the capability from v1 and no launch driver declares it |
 | `SEC-40` | Where per-principal ceilings live | `SEC-39` carries the whole obligation unconditionally |
+| `SEC-25` | "Installs and deletions MUST carry a per-request destructive acknowledgement" | A word-for-word restatement of `API-14`, adding no security obligation. Deleted 2026-09-02 under this document's own scope note; `SEC-39` is the requirement that says something about what an acknowledgement is worth against a caller that is a program |
+| `SEC-26` | "Orders MUST carry a per-request purchase acknowledgement *and* an account-level opt-in" | Same, for `API-15` and `PRV-10` |
 | `CNF-66` | The front service's chosen tenancy option, recorded | Conditional on a deployment shape `ADR-0001` deleted |
 | `CNF-67` | The front service's per-tenant signing or allowlist test | Same |
 | `CNF-68` | The front service's own audit log, joined by correlation id | Same |

@@ -156,7 +156,6 @@ commitment is opened or re-sized, into the ledger unit:
 
 ```
 reserve_native = setup_fee                              # at cost, no markup (ADR-0006)
-               + accrued_unbilled_usage
                + requested_runway × customer_rate       # PRV-13d, customer-chosen
                + wind_down_cost                         # see below
                + billable_attachments                   # PRV-13a
@@ -164,6 +163,13 @@ reserve_native = setup_fee                              # at cost, no markup (AD
 
 commitment_sats = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 ```
+
+*The `accrued_unbilled_usage` term was deleted from this formula on 2026-09-02.* Nothing produces
+it: the sizing happens at create, where by construction no usage has accrued, and once the meter was
+specified (`LDG-37`, `LDG-38`) consumption became a debit against the commitment rather than an
+input to it. It is a survivor of the first version of the ledger — the one `12-billing-and-ledger.md`
+opens by saying "consumed `accrued_unbilled_usage` in `PRV-13b`'s reserve formula and never said
+what produced it". Deleted rather than tombstoned: nobody re-adds a zero term by accident.
 
 **`customer_rate`, not provider cost.** The reserve must cover what the *customer* is committing
 to spend, and since `customer_rate ≥ provider_rate` by construction, committing the customer

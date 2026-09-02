@@ -54,12 +54,16 @@ rate reading can move a date but can never destroy a disk.
   rate could grab customers' available balances via forced widening. Nothing widens
   automatically, so there is nothing to trigger. A manipulated rate can shorten a runway *date*,
   which persistence and the median-of-sources rule (`LDG-58`–`LDG-60`) already guard.
-- **`ADR-0003`'s "matched at all times" is amended to name its two real exceptions**, both
+- **`ADR-0003`'s "matched at all times" is amended to name its real exceptions**, all
   bounded and priceable: the persistence window (a real crash gets a few extra hours of
-  partially-covered burn on machines already at the edge), and the scheduled-cancellation branch,
+  partially-covered burn on machines already at the edge — hours, because `PRV-13e` re-derives on
+  its own stated interval rather than per billing period), the scheduled-cancellation branch,
   where billing cannot be stopped before the effective date and a commitment that cannot be
   topped from available leaves the gap with the operator — bounded per machine by `PRV-31`'s
-  declared worst case.
+  declared worst case — **and every other cause `LDG-66` enumerates**, since an operator deficiency
+  *is* a gap the operator absorbs rather than one the arithmetic closes. *Amended 2026-09-02: this
+  bullet said "two exceptions" and `LDG-66` counted six, having grown twice since. The requirement
+  is the list; this ADR cites it, which is the only arrangement that cannot drift again.*
 - **The runway guarantee changes meaning, and the terms must say so.** "Guaranteed until
   `runway_until`" is now a promise whose date moves with the price of bitcoin. That is not a
   weakening slipped in — it is the honest reading of a satoshi-denominated prepayment, and hiding

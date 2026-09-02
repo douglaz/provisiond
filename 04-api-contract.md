@@ -130,9 +130,18 @@ issued at runtime and governed by `API-32`–`API-37`.** Operator credentials re
 environment-supplied, and outside the tenant model entirely — which is also what keeps `API-19`
 (requeue is a purchase) genuinely operator-only.
 
-**API-5** Each token maps to exactly one tenant and an admin flag. An admin token MAY act
-for another tenant by sending a tenant override header; a non-admin token MUST NOT, and
+**API-5** **AMENDED 2026-09-02.** Each token maps to exactly one **principal** and an admin flag. A
+customer token's principal is exactly one tenant (`STO-21`); **the operator token's principal is the
+operator, which is no tenant at all** (`API-4`) — it is environment-supplied, outside the tenant
+model, and names its subject per request through the override header instead. An admin token MAY act
+for another tenant by sending that header (`WIR-33`); a non-admin token MUST NOT, and
 the header MUST be ignored rather than honoured for it.
+
+*"Each token maps to exactly one tenant" was false of the only token that reaches the operator
+routes, and a builder implementing it literally either invented a synthetic operator tenant — which
+`STO-21` would then have to hold, and `LDG-6` would attribute entries to — or made every
+operator-only endpoint unreachable. Deleted rather than annotated; the correction is one word,
+`principal`, and `WIR-5` already used it.*
 
 **API-6** An overridden tenant identifier MUST be validated against `DOM-1` before use.
 
@@ -824,12 +833,22 @@ currently contradicts.
 A deployment MUST therefore define, before accepting creates from more than one tenant:
 
 - **which provider accounts a tenant may create in** — an explicit assignment, not "all
-  configured ones"; and
-- **that tenant's spending authority** — a ceiling per interval (`SEC-39`), a prepaid balance,
-  or an operator approval step.
+  configured ones" (`API-57` writes it, `API-62` changes it, `SEC-43` is why it is also the
+  blast-radius control); and
+- **that tenant's spending authority, which is its prepaid balance and nothing else** — the
+  `available ≥ required_commitment` check of `LDG-9`, serialized per tenant by `LDG-35`, in the same
+  transaction that opens the commitment (`LDG-11`).
 
 Absent both, any tenant can order unbounded billable hardware in any configured account, and no
 other requirement in this document stops it.
+
+*The second bullet offered a choice of three — "a ceiling per interval, a prepaid balance, or an
+operator approval step" — until 2026-09-02. `ADR-0002` made that choice and rejected the other two
+by name, so the paragraph was reading as open while the whole of `12-billing-and-ledger.md` was
+written on the answer. Deleted rather than annotated, per the README's retention rule: no trap sits
+behind a settled option list. `SEC-39`'s per-principal ceilings still exist and are still required —
+they bound what a looping agent can **destroy**, which is a different question from what it may
+**buy**, and conflating the two is what let this sentence survive.*
 
 **API-18** **AMENDED 2026-08-12 — adoption is an operator-only verb.** Under self-serve
 enrolment every machine lives in the operator's provider accounts, so a customer cannot have a

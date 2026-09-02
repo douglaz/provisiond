@@ -67,12 +67,24 @@ than resolved.
 
 ---
 
-¹ **Amended by `ADR-0011` (2026-08-12).** "At all times" has two bounded exceptions, recorded
-rather than papered over: the persistence window (cancellation requires a deficiency to survive
+¹ **Amended by `ADR-0011` (2026-08-12), and again 2026-09-02 for the count.** "At all times" has
+bounded exceptions, recorded rather than papered over. Two are timing: the persistence window
+(cancellation requires a deficiency to survive
 more than one derivation, so a real crash gets a few extra hours of partially-covered burn on
-machines already at the edge), and the scheduled-cancellation branch (`LDG-63`), where billing
+machines already at the edge — measured in `PRV-13e`'s re-derivation intervals, not in billing
+periods), and the scheduled-cancellation branch (`LDG-63`), where billing
 cannot be stopped before its effective date and a commitment that available cannot top leaves the
-gap with the operator, bounded per machine by `PRV-31`. Everywhere else the matching is delivered
+gap with the operator, bounded per machine by `PRV-31`.
+
+**The rest are the operator deficiencies `LDG-66` enumerates, and that requirement is the canonical
+list rather than this footnote.** *There were four when `LDG-66` was written, six when it was last
+counted, and this footnote and `ADR-0011` both still said "two" — because they were counting the
+two they happened to know about and nothing pointed the count at the record.* A deficiency is
+precisely a place where the matching is delivered by the operator absorbing a gap rather than by the
+arithmetic, so the honest statement is: **`LDG-66`'s causes are the exceptions, plus the persistence
+window above.** Citing rather than enumerating is what stops this drifting a third time.
+
+Everywhere else the matching is delivered
 by `ADR-0011`'s mechanism — usage debits at spot, a fixed commitment, and a runway date that
 floats — not by re-sizing reservations after the fact. `F27` was the finding; this footnote is
 its closure.

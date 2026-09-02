@@ -53,8 +53,16 @@ sometimes the customer's own account is the most credible thing to send — but 
 default, and the decision is an artifact rather than a habit.
 
 The operator's existing power to stop serving a tenant (`API-58`) is untouched and stays what
-`SEC-45` made it: the operator's own decision, not a race against a deadline. Nothing in the case
-fires on a timer (`DOM-25`).
+`SEC-45` made it: the operator's own decision, not a race against a deadline. **No *consequence* of
+a case fires on a timer** (`DOM-25`).
+
+*Amended 2026-09-02: this sentence read "nothing in the case fires on a timer", which is `DOM-25`'s
+withdrawn wording preserved past its withdrawal. `DOM-25` is a rule about **consequences** — a passed
+deadline may not suspend a tenant, cancel a machine, seal the case or move a balance — and the
+absolute form forbade `STO-42`'s retention purge, which `ADR-0005` requires and which is the only
+clock in the whole surface that fires without an operator. An ADR that preserves the withdrawn half
+of a requirement is worse than one that omits it: the requirement carries its own correction, and
+this file did not.*
 
 ## Consequences
 

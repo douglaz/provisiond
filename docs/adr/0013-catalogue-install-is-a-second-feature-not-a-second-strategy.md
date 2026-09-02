@@ -32,9 +32,17 @@ is not.
 |---|---|---|
 | Whose bytes reach the disk | the customer's, verbatim | the provider's conversion of them |
 | Digest verified by provisiond | yes, on the rescue host before writing | no — the import API has no checksum field |
-| Guest requirements | none; any bootloader, any filesystem | BIOS, ext3/ext4, cloud-init with `ConfigDrive` before `NoCloud`, `sshd` |
+| Guest requirements | none; any bootloader, any filesystem | BIOS, ext3/ext4, cloud-init with `ConfigDrive` before `NoCloud` |
 | Disk layout | caller-controlled: partitions, RAID, LVM | whatever was baked into the image |
 | If it goes wrong | boot rescue and fix it | there is no way back in |
+
+*`sshd` stood in that last cell until 2026-09-02, and it contradicted this ADR's own decision three
+sections down — "a custom image may legitimately ship no `sshd` at all", which is why provisiond
+makes no reachability probe. The table was reproducing the provider's published *recommendations*
+as though they were enforced preconditions. They are neither: nothing in the import path checks for
+an SSH daemon, and an image without one is a supported outcome whose consequence is that the
+customer, not provisiond, decides whether the machine works. What the offer relays is prose
+(`WIR-30`'s `guest_requirements`), and prose is exactly where a recommendation belongs.*
 
 ## Decision
 
@@ -113,9 +121,12 @@ structural defence left.
 - **The control plane is now in the data path for up to 100 GB per install.** That is
   bandwidth and storage nobody had budgeted, and it is the direct cost of keeping a digest
   check.
-- **`LDG-25` already covers the money.** Catalogue install is a privileged operation: free in
-  v1, metered from the first release, and the units to meter are the transferred bytes and
-  the storage-seconds.
+- **`LDG-25` covers the money, and as of 2026-09-02 it says so.** Catalogue install is a privileged
+  operation: free in v1, metered from the first release, and the units to meter are the transferred
+  bytes and the storage-seconds of the operator's re-hosted copy. *This bullet said `LDG-25`
+  "already covers" them while that requirement named no unit at all — it said only that privileged
+  operations "MUST be metered", which is a requirement nobody can build against and nobody can test.
+  The units are now in the requirement, which is where a developer looks.*
 
 ## Rejected
 

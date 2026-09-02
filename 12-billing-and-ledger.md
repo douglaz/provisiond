@@ -1109,6 +1109,21 @@ resolvable per provider account or product class, and MUST NOT be a constant in 
 v1 but MUST be metered from the first release. A price cannot be introduced later for something
 that was never counted.
 
+**AMENDED 2026-09-02 — the units are named, because a requirement to "meter" that does not say what
+to count cannot be built.** Per privileged operation a deployment MUST record: the operation kind,
+the machine, and the **duration** of the privileged phase — rescue occupancy for a rescue-entering
+operation, import-to-switchover for a catalogue install. **A catalogue install MUST additionally
+record the bytes transferred and the storage-seconds of the operator's re-hosted copy**
+(`RSC-39`, `RSC-42`), which are the two units that path actually consumes and the only two that
+scale with the customer's own choice of image. `ADR-0013` asserted that this requirement "already
+covers the money … the units to meter are the transferred bytes and the storage-seconds" while this
+requirement named no unit at all; it does now, and the ADR's claim is true rather than
+aspirational.
+
+*These are meter records, not `LDG-7` entries.* Nothing is debited in v1 — that is what "free"
+means — and the point of counting is that `ADR-0007`'s decision to price only machine time can be
+revisited against real numbers instead of guesses.
+
 **LDG-26** **AMENDED twice.** The offers endpoint MUST return customer prices. It MUST NOT return
 the operator's own cost as a *field* — and because `DOM-9`'s offer carries the provider's price
 and raw metadata, a deployment MUST **strip** them on the customer-facing path. `WIR-30` says the
@@ -1173,9 +1188,20 @@ per-tick cap on commitment adjustment is withdrawn with the adjustment itself.*
 
 **LDG-17** **AMENDED — wording is load-bearing here.** The operator MUST maintain satoshi reserves
 at least equal to the float plus provider payables already incurred. Customer float is not
-operating capital and MUST NOT be spent on operating costs, and the operator's own margin MUST be
-distinguishable in the ledger from customer balances — which requires an operator account in the
-ledger model, since `LDG-6` otherwise attributes every entry to a tenant.
+operating capital and MUST NOT be spent on operating costs.
+
+**AMENDED 2026-09-02 — the operator-account clause is deleted.** *It said the operator's own margin
+"MUST be distinguishable in the ledger from customer balances — which requires an operator account
+in the ledger model, since `LDG-6` otherwise attributes every entry to a tenant". `05-persistence.md`
+has no such account, `LDG-6` requires a tenant on every entry, and `STO-21`'s categories rule offers
+nowhere to put one — so this was a MUST with no schema, in the shape `STO-38` names as this set's
+recurring defect.* **It is deleted rather than built, because the float is computable without it:**
+the float is the sum of tenant balances (`CONTEXT.md`), every one of which is a `ledger_entries` row
+carrying a tenant identifier, and margin is the difference between customer price and provider cost
+on entries that already denormalise both (`LDG-2`, `LDG-24`). An operator account would be a second
+representation of a number the entries already answer, inside the one table `LDG-5` makes
+append-only and `LDG-22` exempts from retention — the most expensive place in the set to put a
+duplicate.
 
 **LDG-18** The float MUST NOT be pledged, lent, or posted as collateral (`ADR-0003`).
 
