@@ -106,9 +106,13 @@ cost:
 
 The residual advantage keys held — the secret never travels, so a request captured after TLS
 yields a one-request signature rather than a reusable credential — is real but modest against a
-non-extractable asset, and did not justify the cost. **`API-33`'s delayed issuance therefore
-un-collapses** (a generated token *is* transmitted at issuance, so the throttle protecting that
-moment matters again).
+non-extractable asset, and did not justify the cost. *A note here read "`API-33`'s delayed issuance
+therefore un-collapses — a generated token *is* transmitted at issuance, so the throttle protecting
+that moment matters again", and it is withdrawn 2026-09-02 with the delayed issuance it described.
+The reasoning did not survive contact with the mechanism: a delay after the token is in the caller's
+hands protects that moment not at all, which is `API-33`'s own conclusion. The throttle that
+survived is the admission gate, and it protects a different thing — the pending-tenant slot, not the
+secret.*
 
 **AMENDED again 2026-08-13: revocation and replacement are IN scope** (`API-55`, `API-56`,
 `WIR-38`). This paragraph previously excluded them, on the reasoning that a stolen token "cannot
