@@ -620,8 +620,9 @@ the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the
 (`OPS-27`);
 `{"resolution": "absent", "operator_ref": "opref-7d41ca"}` records that nothing was created and releases
 the commitment (`LDG-32`); `{"resolution": "abandoned", "operator_ref": "opref-7d41cb"}` gives up.
-**AMENDED 2026-09-02 — two more members, for the kinds that act on a machine that already exists**
-(`OPS-31`): `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` and
+**AMENDED 2026-09-02 — two more members, for the kinds that act on a machine that already exists —
+install, power, reverse DNS and delete** (`OPS-31`, `OPS-45`):
+`{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` and
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
 `external_id` — the machine is already known, which is the whole difference from a create. **They
 are refused on a create** (`invalid_request`), and **`not_applied` is refused where `OPS-45`'s

@@ -789,10 +789,14 @@ evidence, and abandonment MUST close the commitment and release it in full (`LDG
 
 **AMENDED 2026-09-02 — those three verbs are create-shaped, and three operation kinds cannot use
 them.** `observed` names an `external_id` that a create produced; `absent` says nothing was created.
-An install, a power action and a reverse-DNS change all act on a machine that **already exists**, so
+An install, a power action, a reverse-DNS change and a **delete** all act on a machine that
+**already exists**, so
 neither verb has a meaning there and the only reachable one is `abandoned` — which is why every
 install that failed after entering rescue could be resolved exactly one way, as a loss, with
-`retryable: false` returned to the caller. **Two further verbs therefore exist, `applied` and
+`retryable: false` returned to the caller. **On a delete the create-shaped verbs are worse than
+useless: `absent` reads as "the resource is gone", which for a cancellation is *success* and for a
+create is *failure*** — the same word, opposite meanings, on the operation an exposure-reducing
+episode hangs on (`OPS-44`). **Two further verbs therefore exist, `applied` and
 `not_applied`** (`WIR-35`), which are the non-create shapes of `observed` and `absent`: the mutation
 took effect, so the operation settles `succeeded`; or it did not, so it settles `failed`. `abandoned`
 remains for the case nobody can establish. **`not_applied` MUST be refused where `OPS-45`'s
@@ -819,7 +823,7 @@ that could have altered the machine, and before that phase runs:
 | install, `rootfs_via_rescue` | the provider's OS installer is started (`RSC-25` verifies the digest first, so nothing before that point has touched the disk) |
 | install, `raw_disk` | the first byte is written to the target device (`RSC-28`) |
 | install, `provider_native` / `provider_catalogue` | the provider's rebuild call is dispatched |
-| power, reverse DNS | the provider call is dispatched |
+| power, reverse DNS, delete | the provider call is dispatched |
 
 **Where the marker is unset, the outcome is deterministic and the operation settles `failed`** — no
 ambiguity exists to represent, and representing one anyway is what filled an operator's queue with
