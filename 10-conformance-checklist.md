@@ -1116,6 +1116,18 @@ rather than acquiring a default.
       today `SEC-46`'s three states had no verb and no column at all**, so `CNF-114`, `CNF-188` and
       `CNF-243` each fault-injected a transition nothing could perform. (`API-63`, `WIR-50`,
       `STO-47`, `SEC-46`, `LDG-32`, `API-62`)
+- [ ] **CNF-279** **An install that wrote nothing is not a mystery.** Drive an install against a
+      machine whose pinned host key does not match: `RSC-3` aborts **before connecting**, the
+      write-started marker is unset, and the operation settles **`failed`** — not
+      `needs_reconciliation`, and not an operator's problem. Repeat for a failure after rescue is
+      entered but before the first write, and for `OPS-40`'s claim-time URL gate: both `failed`.
+      Then set the marker — mismatch the digest mid-stream on the raw-disk path (`RSC-29`) — and
+      assert `needs_reconciliation`, that `applied` and `not_applied` are both offered where
+      `observed`/`absent` are not, that `not_applied` is **refused** `409` `state` while the marker
+      is set, and that both are refused on a create. Assert the marker survives the payload purge.
+      **The failure this catches is the differentiator's own safety abort resolving only as
+      `abandoned`**, which is what happened when three create-shaped verbs were the only ones there
+      were. (`OPS-45`, `OPS-11`, `OPS-31`, `WIR-35`, `RSC-3`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
@@ -1714,7 +1726,9 @@ aiming the credential-holding process at the operator's own metadata service or 
 `CNF-277` (unstoppable billing for a machine that does not exist, which the customer discovers and
 the operator does not); `CNF-278` (the release of every affected customer's commitments hangs on
 this verb, and a wrong or reversible `terminated` re-reserves or double-releases balances across a
-whole account).
+whole account); `CNF-279` (destroyed data on the wrong side of it: an operator told a partly written
+disk was "nothing happened", and the pinned-host-key abort — this set's most security-critical
+success case — reachable only as an abandoned loss).
 
 **PRE-SCALE** — `CNF-275`. A stale `runway_until` and an over-long persistence window degrade a
 disclosure and delay an exhaustion rather than losing money on the first occurrence — but it

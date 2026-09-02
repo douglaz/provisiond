@@ -187,7 +187,7 @@ This is `OVR-5` made concrete.
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
 | suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. It is a parent whose per-machine children carry their own outcomes (`WIR-39`), and it settles `succeeded` once every child has either settled or **reached `needs_reconciliation`** — a child that reached that state counts as complete for the parent. `needs_reconciliation` is not itself settled (`OPS-3`); it is a state only evidence or an operator moves, so an unresolved child is a child-level fact, and blocking the parent on it would leave every suspended tenant's record permanently open. |
 | rescue inventory | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
-| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `integrity`, `internal`, and `conflict`. `failed` **only** for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` — each of which means the request was rejected before anything was written. An install that got further than that may have begun overwriting a disk. |
+| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited`, **and for any failure at all while that marker is unset** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk; one that did not, provably did not. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
 
 **The table MUST be total, and six kinds added later were missing.** `insufficient_balance`,
@@ -757,6 +757,56 @@ MUST NOT claim a resource whose operation is still `running` and holding its lea
 record an observed resource by its external identifier, record that nothing was created, or
 abandon the operation and accept the loss. Each MUST record who resolved it and on what
 evidence, and abandonment MUST close the commitment and release it in full (`LDG-32`).
+
+**AMENDED 2026-09-02 — those three verbs are create-shaped, and three operation kinds cannot use
+them.** `observed` names an `external_id` that a create produced; `absent` says nothing was created.
+An install, a power action and a reverse-DNS change all act on a machine that **already exists**, so
+neither verb has a meaning there and the only reachable one is `abandoned` — which is why every
+install that failed after entering rescue could be resolved exactly one way, as a loss, with
+`retryable: false` returned to the caller. **Two further verbs therefore exist, `applied` and
+`not_applied`** (`WIR-35`), which are the non-create shapes of `observed` and `absent`: the mutation
+took effect, so the operation settles `succeeded`; or it did not, so it settles `failed`. `abandoned`
+remains for the case nobody can establish. **`not_applied` MUST be refused where `OPS-45`'s
+write-started marker is set** — a partially written disk is not "nothing happened", and recording it
+as such tells a caller its data survived. There the honest verbs are `applied` or `abandoned`.
+
+**And an operator MUST NOT be the first resort here.** `OPS-45` requires the engine's own record of
+whether a write began to be consulted before any of this: most install failures never reached a
+disk, and those are deterministic outcomes, not questions for a human.
+
+**OPS-45** **The engine knows whether it started writing, and that knowledge MUST be recorded and
+used before anyone asks a human.** `OPS-11` sends an install's `integrity` failure to
+`needs_reconciliation`; `RSC-3`'s host-key abort is an `integrity` failure that happens **before the
+connection is made**, with nothing written and the machine's disk untouched — and `OPS-31`'s verbs
+could only ever call that outcome "abandoned". So the differentiator's most security-critical
+success case (a pinned key that did not match, aborting exactly as designed) ended as an
+operator-resolved loss.
+
+**The engine MUST persist a write-started marker on the operation**, at the moment a phase begins
+that could have altered the machine, and before that phase runs:
+
+| Kind | The marker is set when |
+|---|---|
+| install, `rootfs_via_rescue` | the provider's OS installer is started (`RSC-25` verifies the digest first, so nothing before that point has touched the disk) |
+| install, `raw_disk` | the first byte is written to the target device (`RSC-28`) |
+| install, `provider_native` / `provider_catalogue` | the provider's rebuild call is dispatched |
+| power, reverse DNS | the provider call is dispatched |
+
+**Where the marker is unset, the outcome is deterministic and the operation settles `failed`** — no
+ambiguity exists to represent, and representing one anyway is what filled an operator's queue with
+work that had a known answer. **Where it is set, `OPS-11`'s classification stands**, and resolution
+proceeds by `PRV-29`/`PRV-36`'s provider evidence where the driver can produce it, falling back to
+`OPS-31`'s `applied`/`not_applied`/`abandoned` where it cannot.
+
+**Entering rescue is not writing.** A failure between rescue activation and the first write leaves
+the machine in rescue — recoverable, and `WIR-20`'s `on_failure` already governs it — but it has not
+altered a disk, so it is `failed` and not an unresolved question. *That is the distinction the
+withdrawn install row could not draw: it treated "got as far as rescue" and "began overwriting"
+as one state, and only the second is genuinely ambiguous.*
+
+**The marker MUST survive the payload purge** (`ADR-0005`, `OPS-2`) in `request_summary`: it is a
+fact about what was attempted, not a caller secret, and it is read precisely when the record is being
+resolved long afterwards.
 
 **OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
 Periodic reconciliation MUST run across each provider account independently of any stuck

@@ -613,6 +613,15 @@ the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the
 (`OPS-27`);
 `{"resolution": "absent", "operator_ref": "opref-7d41ca"}` records that nothing was created and releases
 the commitment (`LDG-32`); `{"resolution": "abandoned", "operator_ref": "opref-7d41cb"}` gives up.
+**AMENDED 2026-09-02 — two more members, for the kinds that act on a machine that already exists**
+(`OPS-31`): `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` and
+`{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
+`external_id` — the machine is already known, which is the whole difference from a create. **They
+are refused on a create** (`invalid_request`), and **`not_applied` is refused where `OPS-45`'s
+write-started marker is set** — `409` `conflict`, `details.reason: "state"` — because a partly
+written disk is not "nothing happened". *Without these an install, a power action or a reverse-DNS
+change reaching `needs_reconciliation` had exactly one reachable verb, `abandoned`, so the
+differentiator's failure path resolved only as a loss.*
 **`operator_ref` carries the same constraint as `WIR-42`'s**: an opaque reference to a record kept
 outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`). *The
 reviewers flagged the field on `WIR-42`; it was here too, and an operation record is retained

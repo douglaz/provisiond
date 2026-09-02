@@ -222,7 +222,8 @@ deleted rows.
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
-| `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` (`OPS-27`, `OPS-31`) |
+| `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, power, reverse DNS (`OPS-27`, `OPS-31`, `OPS-45`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02 |
+| `write_started_at` | timestamp | nullable; `OPS-45`'s marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin, which makes the failure deterministic rather than ambiguous (`OPS-11`) and refuses `not_applied`'s opposite (`OPS-31`). Mirrored into `request_summary` so it survives the payload purge (`ADR-0005`); it records what was attempted, not what the caller sent |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
