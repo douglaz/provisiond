@@ -244,8 +244,15 @@ enrol within it asks for another.
 **A request that is abandoned before the delay elapses MUST leave nothing behind**, which is the
 whole economic argument (`API-33`): the cost of a slot is a *held* connection, and a token that
 could be collected later would convert it back into a free request. The endpoint MUST NOT be
-`202`-shaped, MUST NOT return a handle to poll, and MUST NOT be rate-limited into uselessness —
-per-source concurrency is the control, and it is in memory (`API-36`, `ADR-0005`).
+`202`-shaped and MUST NOT return a handle to poll.
+
+**The limit on this route is per-source *concurrency*, not per-source rate** — how many token
+requests one address may hold open at once — and it, like every other limiter here, is held in
+memory and never persisted (`API-36`, `ADR-0005`). A request-rate limit is the wrong instrument:
+the delay already paces a single caller to one token per interval, so a rate limit tight enough to
+matter would refuse the second honest signup from a shared address while costing a distributed
+attacker nothing. Exceeding the concurrency limit is `rate_limited` with a `retry_after_ms`
+(`WIR-9a`), never a hung connection.
 
 **WIR-12** **AMENDED three times** `POST /v1/enrol` — unauthenticated (`API-32`), **no
 `Idempotency-Key`**. Body `{"admission_token": "pvd_a_2Kd8vQmR6tY1nX4pZbL9cH3eJ7gS5fW0aM2xB6uT"}`
