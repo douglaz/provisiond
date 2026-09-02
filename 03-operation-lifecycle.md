@@ -763,6 +763,16 @@ operation, comparing what the provider reports against what this system believes
 catches drift no operation record would reveal: machines created by hand, machines deleted behind
 the system's back, and orphans from an operation whose correlator search was given up on.
 
+**AMENDED 2026-09-02 — the sweep records what it saw, it does not only report it.** Where the sweep
+finds a machine this system believes exists and the provider does not, it MUST write that
+observation to the machine row — the state and the instant — in the same pass. `LDG-74` is why: the
+meter reads the machine record, `DOM-8` refreshes that record only on an explicit caller operation,
+and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
+draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not
+enough, because the cost accrues while the report sits unread. **This sweep's stated interval is
+therefore a money parameter** (`LDG-42`): it is the maximum time a customer can be billed for a
+machine that no longer exists.
+
 **A machine is unclaimed when it is absent from the `machines` table by
 `(provider_account, external_id)`** — *not* when it bears no correlator. The previous wording
 would have reported as unclaimed, on every sweep forever, **every Hetzner Robot machine** (whose

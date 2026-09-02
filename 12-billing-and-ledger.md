@@ -438,6 +438,46 @@ exist. A deployment MUST define, and record:
   the window `DOM-19` was written to make visible;
 - **the treatment of a partial period**, rounded per `LDG-28`.
 
+**LDG-74** **The meter MUST stop on evidence that the machine is gone, and no caller action may be
+required to produce that evidence.** `LDG-37` meters from "the machine record's own state
+transitions"; `DOM-8` makes that record a cache "refreshed by explicit refresh operations";
+`05-persistence.md` concedes that **nothing in this set refreshes a machine on a schedule**; and
+`OPS-32`'s account sweep *reports* a machine deleted behind the system's back and does nothing
+else. So a machine the provider terminated — which `08-provider-notes.md` records as one of
+Hetzner's own abuse remedies — went on draining its tenant's commitment until the tenant happened
+to refresh or an operator intervened. The customer pays for a machine that does not exist, and
+nothing in the system raises anything.
+
+- **Any authoritative observation that the resource is gone stops the meter**: a refresh (`DOM-8`),
+  a driver read during any operation, or `OPS-32`'s sweep finding the machine absent from the
+  provider's listing. The states are `DOM-7`'s `deleted` and `failed`, plus absence itself.
+- **`OPS-32` MUST record what it saw on the machine row, not merely report it** — the state and the
+  observation instant — so the meter stops without a caller. That is the one change that makes this
+  rule self-executing rather than another thing waiting on a human.
+- **Billing stops at the observation instant, not at the unknown instant the provider acted.**
+  provisiond polls rather than watches, so the earlier instant is not knowable; `STO-41` already
+  draws that distinction for addresses and it is the same one. Guessing backwards would credit time
+  nobody can evidence, on a ledger whose entries are the authorization system.
+- **The commitment closes by `LDG-32`**, once every billable attachment (`PRV-13a`, `STO-18`) has
+  also stopped — a terminated machine can leave volumes behind, and those are still costing the
+  operator.
+
+**The residual is the sweep interval, and it is therefore a money parameter.** `OPS-32` already
+requires the interval to be stated; it is **this rule's error bound**, the maximum time a customer
+can be billed for a machine that is gone, and it MUST be stated as such with the other deployment
+parameters (`LDG-42`) rather than chosen as an operational convenience.
+
+**The credential-outage case is deliberately the other way, and the asymmetry is recorded rather
+than smoothed.** Where `SEC-46` records `account_unreachable` or `credentials_rejected`, the meter
+**continues**: the machines are almost certainly still running, still serving the customer, and
+still billing the operator, and `SEC-46` retains the commitments for exactly that reason. That is
+not the same as `LDG-64`'s rate outage, where the operator absorbs the window — there, consumption
+is happening and provisiond cannot *price* it, and the customer can do nothing about it either way.
+Here the customer still has the machine. *A customer whose own delete fails `authentication` during
+such an outage is nonetheless paying for the operator's problem, which is the sharp edge of this
+choice; the operator's remedy is to fix the credential, and the deficiency machinery (`LDG-66`) is
+what carries any exposure it decides to absorb instead.*
+
 **LDG-71** **A machine whose network a provider has blocked over abuse MUST be told to its owner as
 still consuming runway.** The abuse case is where that is said (`DOM-23`), because a customer who
 cannot reach a machine and is not told why will read the drain as theft, and under `ADR-0005` there

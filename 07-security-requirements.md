@@ -110,6 +110,17 @@ carry embedded credentials, and MUST NOT carry a fragment (`API-13`).
 "any host" — this is a fail-open default and MUST be flagged loudly at startup when the
 service is not in a development mode.
 
+**AMENDED 2026-09-02 — SHOULD and fail-open are wrong for the one URL this process fetches
+itself.** The rule above was written when every image fetch happened on the **rescue host**
+(`RSC-1`), where a hostile URL reaches the customer's own machine at the customer's own request.
+`RSC-39` reversed that for catalogue install: provisiond fetches an anonymous caller's URL from
+inside the credential-holding process. **For that path a host allowlist MUST be configured**, and an
+empty one means **no catalogue install may be requested** rather than "any host" — a fail-open
+default is not a default, it is the absence of the control, and here it is absent inside the
+boundary `OVR-10a` calls the only structural defence left. The allowlist is necessary and not
+sufficient: `RSC-44` validates every **resolved address** unconditionally, because an allowlisted
+name still resolves to whatever its owner points it at.
+
 **SEC-20** Wildcard allowlist patterns MUST match only proper subdomains — `*.example.com`
 MUST NOT match `example.com` — and matching MUST be case-insensitive.
 

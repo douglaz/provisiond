@@ -1070,6 +1070,31 @@ rather than acquiring a default.
       against a machine whose `earliest_cancellation_date` is days away, since a monthly interval
       swallows it into the ordinary path and silently deletes the `DOM-19`/`LDG-63` branch.
       (`PRV-13e`, `LDG-68`, `LDG-16`, `PRV-13c`, `LDG-42`)
+- [ ] **CNF-276** **The catalogue fetch cannot be pointed at the inside.** Drive `RSC-39` with a URL
+      resolving to loopback, to `169.254.169.254`, to an RFC 1918 address, and to an IPv4-mapped
+      IPv6 wrapper around each: every one is refused before a byte is sent. Then the three that a
+      naive implementation passes — a name whose **second** resolution answers with a private
+      address (rebinding: the connection must go to the address that was validated, or revalidate at
+      connect), a public host that redirects to a private one (revalidated per hop, with the hop
+      count capped), and a public host that redirects to a **scheme** change (`RSC-17`). Assert the
+      refusal carries no resolved address, status or body size, so a refused fetch is not a port
+      scanner with an oracle. And assert `SEC-19`'s half: with an empty allowlist, a catalogue
+      install is **refused** rather than admitted to any host. **This is an SSRF primitive inside
+      the process holding every provider credential and root on every customer machine** — `RSC-40`
+      put the hostile input there on purpose and bounded only what is done with the bytes.
+      (`RSC-44`, `RSC-39`, `SEC-19`, `RSC-17`, `OVR-10a`)
+- [ ] **CNF-277** **A machine the provider destroyed stops being billed without anyone asking.**
+      Delete a machine at the provider behind the system's back and then run **only** `OPS-32`'s
+      sweep — no refresh, no caller request, no operator action. Assert the sweep **writes** the
+      observation to the machine row, the meter posts nothing for time after that instant, and the
+      commitment closes once the last billable attachment has stopped (`LDG-32`, `STO-18`). Then the
+      halves that are easy to get wrong: nothing is credited for the window **before** the
+      observation, since provisiond polls rather than watches and the earlier instant is not
+      knowable; and under `SEC-46`'s `account_unreachable` or `credentials_rejected` the meter
+      **keeps running**, because the machines are still there and still billing the operator. Run
+      the first half on a machine created and never refreshed — that is the ordinary machine, and
+      binding the stop to a caller's refresh leaves it draining forever. (`LDG-74`, `OPS-32`,
+      `LDG-37`, `DOM-8`, `SEC-46`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
@@ -1662,6 +1687,11 @@ satoshis: a payment credited twice, or a real customer's balance made unreachabl
 `CNF-274` (retroactive re-pricing of hours the customer already paid for, or a positive
 `usage_debit` growing a commitment nobody authorized — the operator would learn of either from a
 customer, if at all).
+
+`CNF-276` (the boundary-crossed family, and the escaped-secret one behind it: an anonymous stranger
+aiming the credential-holding process at the operator's own metadata service or management network);
+`CNF-277` (unstoppable billing for a machine that does not exist, which the customer discovers and
+the operator does not).
 
 **PRE-SCALE** — `CNF-275`. A stale `runway_until` and an over-long persistence window degrade a
 disclosure and delay an exhaustion rather than losing money on the first occurrence — but it

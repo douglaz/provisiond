@@ -323,6 +323,41 @@ something.
 *The cost is real and is accepted: the control plane is in the data path for the size of the image,
 which `RSC-1` was written to prevent. That prohibition is narrowed rather than broken.*
 
+**RSC-44** **Every address a caller-supplied URL resolves to MUST be validated before a byte is
+sent to it, and again after every redirect.** `RSC-39` makes provisiond itself fetch an anonymous
+stranger's URL, inside the process that holds every provider credential and root on every customer
+machine — which is a server-side request forgery primitive in the worst place this system has.
+`RSC-40` puts hostile-input handling there deliberately and bounds it by refusing to *parse* the
+bytes; nothing bounded where they are fetched **from**. `SEC-19`'s host allowlist is the only other
+control and it is optional and fail-open, so on a default deployment `https://169.254.169.254/…`
+or `https://127.0.0.1:8080/…` was a legal image URL.
+
+- **Resolve first, then check every resolved address** — both families, every A and AAAA record.
+  The fetch MUST be refused where any of them is loopback, link-local (`169.254.0.0/16`,
+  `fe80::/10`), private (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7`), carrier-grade NAT
+  (`100.64/10`), multicast, broadcast, unspecified, or an IPv4-mapped or IPv4-compatible IPv6
+  address wrapping any of those. A deployment MUST be able to add ranges — its own metadata service,
+  its own management network — and MUST NOT be able to remove the list.
+- **Connect to the address that was validated**, pinning it for the connection, or re-validate at
+  connect time. Otherwise the name is resolved twice and the second answer is the attacker's: DNS
+  rebinding defeats a check performed only on the first lookup.
+- **Re-validate after every redirect, and cap the redirect count.** `RSC-17` already restricts the
+  *scheme* across redirects; a redirect to a public host that then answers `302` to
+  `http://169.254.169.254/` satisfies every rule this set had before today.
+- **Refuse the fetch, never report why in a way that describes the target.** The response body MUST
+  NOT reach the caller and the error MUST NOT carry the resolved address, the status or the response
+  size — those turn a refused fetch into a port scanner with an oracle.
+
+**This is a bounded fetch, so bounding it is cheap.** The alternative considered was isolating the
+fetcher in a process with no credential — which is stronger and is what a deployment SHOULD do where
+it can, since it also bounds the parser-shaped hazards `RSC-40` refuses to create. It is not
+mandated because `ADR-0001` chose one deployable and a second process is a second deployment shape
+the rest of this set does not model; the address validation is required unconditionally either way.
+
+*The rescue strategies are not covered by this and do not need to be: `RSC-1` has the **rescue
+host** fetch the image, so a hostile URL there reaches the customer's own machine on the customer's
+own request. `RSC-39` is the one path where this system is the client.*
+
 **RSC-40** **provisiond measures a caller's image and MUST NOT interpret it.** It counts the bytes
 and hashes them. It MUST NOT parse the content — not the partition table, not the image format, not
 the filesystem — and the caller's declared `format` and `compression` are taken on trust exactly as
