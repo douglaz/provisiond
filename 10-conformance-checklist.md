@@ -1082,9 +1082,15 @@ rather than acquiring a default.
       (`failed`) — and assert for each: the episode entry stays open, `destroy_committed` stays set,
       `LDG-62` is still refused `conflict`, and an operator requeue of that same operation **runs
       the provider call again** rather than aborting into a false `succeeded`. Then the other half
-      of `OPS-44`'s table: a `succeeded` cancellation removes the entry and clears the fence in the
+      of `OPS-44`'s table: a cancellation that succeeded **with the resource gone** removes the
+      entry and clears the fence in the
       terminal transaction, an operator `abandoned` clears it so a later sweep can fence afresh, and
-      a `failed` one appears in the operator listing `OPS-26` requires. **The failure this catches
+      a `failed` one appears in the operator listing `OPS-26` requires. **Then the row a reader will
+      get wrong**: a cancellation the provider merely *scheduled* (`DOM-19`) settles `succeeded` and
+      the entry and fence both **stay** until the effective date passes and the machine is
+      tombstoned — resolving there lets the next exhaustion sweep mint a fresh episode and place a
+      second cancellation against a machine already scheduled, which `OPS-39` warns can alter or
+      repeat the first's mutation. **The failure this catches
       is a sweep loop that settles `succeeded` forever while the machine bills forever.**
       (`OPS-44`, `OPS-42`, `OPS-39`, `OPS-41`, `LDG-62`)
 - [ ] **CNF-272** **A suspension terminates even when a child cannot delete.** Suspend a tenant

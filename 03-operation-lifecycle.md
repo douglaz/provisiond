@@ -741,16 +741,24 @@ what resolves it when the delete actually ran.** That gap is what let `API-58`'s
 
 | The cancellation settled | The episode entry (`machines.system_trigger_ids`) | `machines.destroy_committed` |
 |---|---|---|
-| `succeeded` — including `OPS-11`'s goal-state row and `OPS-41`'s no-mutation abort | **Removed**, in the same transaction as the terminal write | **Cleared**, same transaction |
+| `succeeded`, resource gone — including `OPS-11`'s goal-state row and `OPS-41`'s no-mutation abort | **Removed**, in the same transaction as the terminal write | **Cleared**, same transaction |
+| `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | **Stays open until the effective date passes and the machine is tombstoned** | **Stays set** |
 | `failed` — deterministic, the provider rejected the request and did not act | **Stays open** | **Stays set** |
 | `needs_reconciliation` | **Stays open** | **Stays set** |
 | Resolved by an operator (`OPS-31`) — for a cancellation the verbs are `applied`, `not_applied` and `abandoned` (`OPS-45`) | **Removed**, in the resolution transaction | **Cleared**, same transaction |
 
-**The two "stays" rows are the point.** A cancellation that did not happen leaves a machine that is
+**The "stays" rows are the point, and the second one is the one a reader will not expect.** A
+cancellation that did not happen leaves a machine that is
 still running, still billing and still unfunded, so the exposure is unchanged and the episode is not
 over: the entry is what keeps a later sweep from enqueuing a **second** delete against the same
 machine (`OPS-39`), and the fence is what keeps `LDG-62` from selling runway on a machine the
-operator has already decided to destroy. Recovery is `API-19`'s requeue of that same operation under
+operator has already decided to destroy. **A cancellation that succeeded *as a schedule* is in the
+same position**: `DOM-19` says the machine is still running, still reachable and still billing until
+its effective date, so it is still unfunded and the next exhaustion sweep will find it. Resolving
+the episode there is precisely the case `OPS-39`'s 2026-08-14 amendment warns about — "on a provider
+that accepts a *scheduled* cancellation the second call can then alter or repeat the first's
+mutation" — reached through resolution instead of through a reason key. The entry is released when
+the machine is tombstoned (`STO-8a`), which is when the exposure actually ends. Recovery is `API-19`'s requeue of that same operation under
 its existing trigger id, which `OPS-42`'s amended guard now permits. **A `failed` exposure-reducing
 cancellation MUST therefore be surfaced to the operator** in the same listing `OPS-26` requires for
 `needs_reconciliation`: it is the one settled state in this set that nothing automatic will look at
@@ -768,10 +776,13 @@ names a machine that already exists.*
 
 **Nothing else clears `destroy_committed`.** `05-persistence.md` described it as "cleared when the
 episode resolves without a mutation (`OPS-41`)", which is one row of the table above; the column's
-life is now stated for all five outcomes in one place, and the deliberate answer for an attempt that
-*did* reach the provider is that the fence **persists** — the customer keeps its satoshis and is
+life is now stated for every outcome in one place, and the deliberate answer for an attempt that
+*did* reach the provider without ending the exposure is that the fence **persists** — the customer
+keeps its satoshis and is
 told plainly that the machine is being cancelled, which is `OPS-42`'s stated residual rather than an
-oversight.
+oversight. On the scheduled branch that is also the right answer on its own terms: runway bought
+past an effective cancellation date buys nothing, since `LDG-33` already protects the cost of
+running to it and the machine goes on that date regardless.
 
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look
