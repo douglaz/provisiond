@@ -1166,12 +1166,17 @@ rather than acquiring a default.
       today `SEC-46`'s three states had no verb and no column at all**, so `CNF-114`, `CNF-188` and
       `CNF-243` each fault-injected a transition nothing could perform. (`API-63`, `WIR-50`,
       `STO-47`, `SEC-46`, `LDG-32`, `API-62`)
-- [ ] **CNF-279** **An install that wrote nothing is not a mystery.** Drive an install against a
+- [ ] **CNF-279** **An install that wrote nothing and left nothing in rescue is not a mystery.**
+      Drive an install against a
       machine whose pinned host key does not match: `RSC-3` aborts **before connecting**, the
-      write-started marker is unset, and the operation settles **`failed`** — not
-      `needs_reconciliation`, and not an operator's problem. Repeat for a failure after rescue is
-      entered but before the first write, and for `OPS-40`'s claim-time URL gate: both `failed`.
-      Then set the marker — mismatch the digest mid-stream on the raw-disk path (`RSC-29`) — and
+      write-started marker is unset, `on_failure: exit_rescue` closes the session cleanly, and the
+      operation settles **`failed`** — not
+      `needs_reconciliation`, and not an operator's problem. **Then the same abort with the rescue
+      exit failing: `needs_reconciliation`**, because the machine may be sitting in rescue with a
+      temporary credential registered (`PRV-22`), and an untouched disk is not the same fact. Both
+      halves, or the item passes an implementation that reads only one marker. `OPS-40`'s claim-time
+      URL gate, which fires before rescue is entered at all, is `failed`.
+      Then set the write marker — mismatch the digest mid-stream on the raw-disk path (`RSC-29`) — and
       assert `needs_reconciliation`, that `applied` and `not_applied` are both offered where
       `observed`/`absent` are not, that `not_applied` is **refused** `409` `state` while the marker
       is set, and that both are refused on a create. Assert the marker survives the payload purge.

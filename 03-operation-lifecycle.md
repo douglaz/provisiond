@@ -187,7 +187,7 @@ This is `OVR-5` made concrete.
 | adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
 | suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. It is a parent whose per-machine children carry their own outcomes (`WIR-39`), and it settles `succeeded` once every child has either settled or **reached `needs_reconciliation`** — a child that reached that state counts as complete for the parent. `needs_reconciliation` is not itself settled (`OPS-3`); it is a state only evidence or an operator moves, so an unresolved child is a child-level fact, and blocking the parent on it would leave every suspended tenant's record permanently open. |
 | rescue inventory | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
-| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited`, **and for any failure at all while that marker is unset** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk; one that did not, provably did not. |
+| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited`, **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. |
 | create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
 
 **The table MUST be total, and six kinds added later were missing.** `insufficient_balance`,
@@ -825,21 +825,34 @@ that could have altered the machine, and before that phase runs:
 | install, `provider_native` / `provider_catalogue` | the provider's rebuild call is dispatched |
 | power, reverse DNS, delete | the provider call is dispatched |
 
-**Where the marker is unset, the outcome is deterministic and the operation settles `failed`** — no
-ambiguity exists to represent, and representing one anyway is what filled an operator's queue with
-work that had a known answer. **Where it is set, `OPS-11`'s classification stands**, and resolution
+**Entering rescue is itself a mutation, so a second marker is required and the two are read
+together.** Activating rescue reboots the machine into another operating system (`PRV-15`) and
+`PRV-22` makes *failure* of the exit always ambiguous — so "nothing was written" is not on its own
+"nothing happened". The engine MUST therefore also record **whether the rescue session it opened
+was closed without error**: set when the driver's end-rescue call returns success, left unset when
+it fails, when it is never attempted (`on_failure: leave_in_rescue`), or when the operation dies
+before reaching it.
+
+**An operation settles `failed` — deterministically, with no operator and no reconciliation — when
+the write-started marker is unset *and* either no rescue session was opened or the one that was
+opened was closed without error.** In that state the engine has positive evidence from its own
+execution that the disk is untouched and the machine is back where it started. Everything else
+follows `OPS-11`'s classification, and resolution then
 proceeds by `PRV-29`/`PRV-36`'s provider evidence where the driver can produce it, falling back to
 `OPS-31`'s `applied`/`not_applied`/`abandoned` where it cannot.
 
-**Entering rescue is not writing.** A failure between rescue activation and the first write leaves
-the machine in rescue — recoverable, and `WIR-20`'s `on_failure` already governs it — but it has not
-altered a disk, so it is `failed` and not an unresolved question. *That is the distinction the
-withdrawn install row could not draw: it treated "got as far as rescue" and "began overwriting"
-as one state, and only the second is genuinely ambiguous.*
+**The pinned-host-key abort is the case this exists for.** `RSC-3` refuses to connect when the trust
+decision cannot be made — the security-critical decision in the whole workflow, working exactly as
+designed — and with `on_failure: exit_rescue` succeeding, the machine is back in its installed
+system with nothing written. That is a clean, deterministic refusal, and it was reaching
+`needs_reconciliation` and then an operator's `abandoned`. **Where the same abort is followed by a
+failed rescue exit it stays ambiguous**, because the machine may be sitting in rescue with a
+temporary credential registered — which is `PRV-22`'s point and is a fact about the *machine*, not
+about the disk.
 
-**The marker MUST survive the payload purge** (`ADR-0005`, `OPS-2`) in `request_summary`: it is a
-fact about what was attempted, not a caller secret, and it is read precisely when the record is being
-resolved long afterwards.
+**Both markers MUST survive the payload purge** (`ADR-0005`, `OPS-2`) in `request_summary`: they are
+facts about what was attempted, not caller secrets, and they are read precisely when the record is
+being resolved long afterwards.
 
 **OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
 Periodic reconciliation MUST run across each provider account independently of any stuck
