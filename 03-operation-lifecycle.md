@@ -824,6 +824,7 @@ that could have altered the machine, and before that phase runs:
 | install, `raw_disk` | the first byte is written to the target device (`RSC-28`) |
 | install, `provider_native` / `provider_catalogue` | the provider's rebuild call is dispatched |
 | power, reverse DNS, delete | the provider call is dispatched |
+| rescue inventory (`RSC-38`) | **never** — it writes nothing to a disk by construction, so its whole classification turns on the second marker below |
 
 **Entering rescue is itself a mutation, so a second marker is required and the two are read
 together.** Activating rescue reboots the machine into another operating system (`PRV-15`) and
