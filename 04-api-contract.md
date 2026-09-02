@@ -42,6 +42,7 @@
 | POST | `/v1/machines/{id}/actions/record-network-restriction` | ✓ | Operator: record a restriction no driver can read (`DOM-27`, `WIR-47`) |
 | POST | `/v1/abuse-cases/{id}/actions/revise-deadline` | ✓ | Operator: extend `respond_by`, keeping the old value (`STO-44`, `WIR-47`) |
 | POST | `/v1/tenants/{tenant_id}/actions/assign-provider-account` | ✓ | Operator: add or replace a tenant's provider-account assignment (`API-62`, `WIR-48`) |
+| POST | `/v1/provider-accounts/{account}/actions/record-status` | ✓ | Operator: record an account unreachable, its credentials rejected, or its termination confirmed (`API-63`, `WIR-50`) |
 
 **The enrolment, funding and balance rows were absent until 2026-08-12** — enrolment shipped on
 2026-08-11 and funding earlier the same day as that note, and the recovery, resolve, suspend,
@@ -177,6 +178,21 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     kind — create or adopt — is rejected `suspended` like any other write, because `OPS-20` places
     a *second physical order*, and buying a suspended tenant a machine after `API-58`'s fan-out has
     settled is the same purchase 5b exists to refuse, merely reached through an operator verb.
+
+5c. **enforce `SEC-39`'s per-principal ceilings** and reject `ceiling_exceeded` (`DOM-17`) with
+    `details.ceiling`, `details.limit`, `details.interval_seconds` and `details.retry_after_ms`
+    (`WIR-9a`). **Added 2026-09-02**: `SEC-39` is the control that replaces a per-request
+    acknowledgement when the caller is a program, `CNF-69` is BLOCKING, and **no step of this
+    pipeline checked it** — so a builder following these steps literally shipped no ceilings at all
+    while the requirement and its test both existed. It sits **after** 5a and 5b for the same
+    reasons those sit where they do: a replay must return its stored result rather than spend a slot
+    it already spent, and a suspended tenant is refused before its budget is consulted. It sits
+    **before** the tail, so a ceiling refusal happens before any commitment opens and before
+    anything is enqueued.
+    **The exemptions are exactly two, and both are named elsewhere.** `OPS-39` exempts
+    exposure-reducing **system** cancellations, because a tenant that hit its destruction limit
+    would otherwise keep machines it cannot pay for at the operator's expense. And `SEC-39`'s stated
+    override path for a genuine incident is the operator's, recorded as the uncapped thing.
 
 The tail then depends on what the endpoint does:
 
@@ -661,6 +677,12 @@ endpoint that exempts itself is how the first two exemptions went unrecorded.*
 tenant, writes nothing at all, and answers the caller directly after its stated delay. It is the
 only member of this list that is deliberately *slow*, and that is the point of it.
 
+**AMENDED (2026-09-02): `POST /v1/provider-accounts/{account}/actions/record-status` also joins**
+(`API-63`, `WIR-50`) — it records an observation about a provider account and touches no provider.
+It moves customer money (`SEC-46` closes commitments on a confirmed termination) and still mints no
+operation, because `OPS-39` reserves those for provider mutations and says in terms that a pure
+balance event is the ledger's to record.
+
 **AMENDED (2026-08-31): `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` also joins**
 (`API-62`, `WIR-48`) — it writes an assignment row and touches no provider.
 
@@ -1007,10 +1029,41 @@ principal, the tenant, the accounts before and after, and the reason — because
 expected to be driven semi-automatically by an internal agent (`SEC-39` as amended for operator
 principals), and an automated re-assignment nobody can observe is one nobody can stop.
 
+*Where that surfacing happens was unstated until 2026-09-02, and "MUST surface" with no surface is
+not a requirement.* `API-63`'s `record-status` is the call that confirms a termination, and it
+returns the assigned tenants in its own response (`WIR-50`'s `affected_tenants`) — the operator
+learns who is stranded from the act that strands them, rather than by remembering to look.
+
 *Automatic re-assignment on account loss was rejected: it moves every affected tenant at once,
 precisely when the surviving accounts are least able to absorb them, and `SEC-43` exists to prevent
 concentration. It also removes the operator's ability to hold back the tenant that caused the
 termination.*
+
+**API-63** **A provider account's status MUST be recordable, and recording `terminated` MUST do
+what `SEC-46` says it does.** `POST /v1/provider-accounts/{account}/actions/record-status` is
+**operator-only** (`WIR-34`, `WIR-50`), synchronous, mints no operation (`API-48`), and writes
+`STO-47`. Without it `SEC-46`'s three states were unreachable: nothing could observe an account
+unreachable, nothing could record credentials rejected, and nothing could confirm a termination —
+while `LDG-32` cited that confirmation as a commitment-closing event and `API-62` promised to
+surface the tenants it affects.
+
+**Recording `terminated` MUST, in one transaction:** write the status; **close and release in full
+every open commitment on machines in that account** (`SEC-46`, `LDG-32`); and **return the list of
+tenants assigned to it** (`STO-36`) — which is `API-62`'s "MUST surface the affected tenants", now
+answered by the call that creates the situation rather than left for the operator to discover.
+Re-assignment stays a separate, deliberate act (`API-62`), because doing it automatically moves
+every affected tenant at once, precisely when the surviving accounts can least absorb them.
+
+**Recording a status the driver itself reports MUST be refused** `conflict` with
+`details.reason: "state"`, exactly as `WIR-47` refuses an operator network-restriction where the
+driver is authoritative. **`terminated` MUST NOT be reversible** through this verb or any other: it
+has already released customer money, and a state that can be left silently would re-reserve balances
+against machines the provider says are gone. The remedy for a mistaken termination is a fresh
+account and `API-62`, which is a decision with a record.
+
+**Every use MUST emit a monitorable event** naming the principal, the account, the status before and
+after, and the reason (`SEC-39`, `SEC-32`) — this is an operator verb that moves customer money, and
+`SEC-39` as amended assumes the operator principal is a program.
 
 *A case id is a resource id and is principal-scoped like any other: another tenant's case is `404`,
 identical to one that does not exist. That is `WIR-36`, cited rather than restated — a draft of

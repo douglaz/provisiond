@@ -577,6 +577,25 @@ rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 
+**STO-47** **`provider_account_status`** — `provider_account` (text, primary key), `status`
+(`healthy` | `account_unreachable` | `credentials_rejected` | `terminated`), `source`
+(`driver_observation` | `operator_record`), `observed_at`, `operator_ref` (text, nullable; the same
+opaque-reference constraint as `WIR-42`'s, never a name or contact string), `updated_at`.
+
+**`SEC-46` models three ways to lose an account and closes a tenant's commitments on one of them,
+and until 2026-09-02 there was no verb, no column and no way to be in any of the states.** It is a
+table because a provider account is otherwise pure configuration (`DOM-2`) with nowhere to hang an
+observation, and `CNF-114`, `CNF-188` and `CNF-243` each fault-inject a transition that nothing
+could perform. It is keyed on the account rather than on the tenant because the fact is about the
+account: `SEC-43` deliberately spreads tenants across accounts, so one row answers for all of them
+and a per-tenant copy would be the two-homes drift `DOM-27` was reorganised to avoid.
+
+**`status` defaults to `healthy` and `source` records which established it**, on
+`machines.network_restriction`'s reasoning: a driver observation is authoritative over an operator
+record, and an operator MUST NOT be able to shadow a fact the driver can read. **`terminated` is
+write-once**: it is the state that releases customer commitments (`SEC-46`, `LDG-32`), and a state
+that can be entered and left silently re-opens or re-releases every affected tenant's money.
+
 **STO-33** **A terminal operation MUST remain readable at least as long as its idempotency record
 can refuse a reused key, and the two horizons MUST be stated to callers as one number.** `STO-14`
 deletes terminal operations; `STO-25` makes idempotency records outlive them. Misalign the two in

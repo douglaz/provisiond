@@ -111,6 +111,7 @@ agent to parse English. Minimum keys:
 | `insufficient_balance` | `available_sats`, `required_sats` |
 | `not_activated` | `activation_minimum_sats` |
 | `rate_limited` | `retry_after_ms` |
+| `ceiling_exceeded` | `ceiling` (which one, from `SEC-39`'s stated set), `limit`, `interval_seconds`, `retry_after_ms` (to the end of the current interval) |
 | `halted` | `retry_after_ms`, `gate` (`"solvency"` \| `"rate_unavailable"`) |
 | `gone` | `retained_until` — and the safe reaction is to read machines and balance, never re-issue (`DOM-21`) |
 | `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`) \| `"case_closed"` (`WIR-43`) \| `"signup_window_closed"` (`API-34`) \| `"deposit_already_attributed"` (`WIR-42`) \| `"cancellation_committed"` (`OPS-42`)) |
@@ -875,12 +876,46 @@ flagged assignable is `conflict` with `details.reason: "state"`. Assigning a ten
 that `SEC-46` has recorded as confirmed-terminated is also `conflict` — the failure this verb exists
 to repair should not be reachable by using it.
 
+**WIR-50** **ADDED 2026-09-02** `POST /v1/provider-accounts/{account}/actions/record-status` —
+**operator-only** (`WIR-34`), **synchronous** `200`, minting no operation (`API-63`, `API-48`),
+carrying `Idempotency-Key` under `WIR-24`'s one-transaction rule. `{account}` is an opaque
+provider-scoped string (`WIR-1`), not a UUID. Body:
+
+```json
+{"status": "terminated", "observed_at": "2026-09-01T08:12:00Z", "operator_ref": "opref-7d41d4"}
+```
+
+`status` ∈ {`healthy`, `account_unreachable`, `credentials_rejected`, `terminated`} (`SEC-46`,
+`STO-47`). `operator_ref` carries the same constraint as `WIR-42`'s, `WIR-35`'s and `WIR-48`'s: an
+opaque reference to a record kept outside this system, never a name, address or contact string
+(`ADR-0005`, `STO-21`). The response returns the stored status **and the tenants the account is
+assigned to**:
+
+```json
+{
+  "provider_account": "hetzner-cloud-2",
+  "status": "terminated",
+  "source": "operator_record",
+  "observed_at": "2026-09-01T08:12:00Z",
+  "affected_tenants": ["t-0198c1f0"],
+  "commitments_released": 3
+}
+```
+
+**`affected_tenants` is `API-62`'s "MUST surface the affected tenants"**, answered by the call that
+creates the situation. `commitments_released` is non-zero only for `terminated`, which closes them
+in this same transaction (`SEC-46`, `LDG-32`); the other three statuses **retain** commitments and
+report `0`. Naming an account the deployment does not have configured is `invalid_request`.
+Recording a status the driver itself reports is `conflict` with `details.reason: "state"`
+(`API-63`), and so is any attempt to move an account **out of** `terminated`, which is write-once
+because it has already released customer money.
+
 ## Listeners, limits and fixtures
 
 **WIR-34** **Operator-only routes** (`WIR-18` adopt, `WIR-28` requeue, `WIR-35` resolve, `WIR-39`
 suspend, `WIR-41` resume, `WIR-42` attribute, `WIR-44`'s three abuse-case verbs, `WIR-46`
 address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, `WIR-48`
-assign-provider-account, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+assign-provider-account, `WIR-50` record-status, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
 

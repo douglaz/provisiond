@@ -234,6 +234,17 @@ and an emptied account.
 The distinguishing property is simple: **a ceiling is something the caller cannot set for
 itself.** Any control the caller supplies in its own request is advisory.
 
+**AMENDED 2026-09-02 — the refusal now has a kind and a place in the pipeline, and had neither.**
+A ceiling rejection MUST be `ceiling_exceeded` (`DOM-17`), carrying which ceiling, its limit, the
+interval and the time to the end of the current one (`WIR-9a`), and it MUST be enforced at `API-7`
+step 5c — after the idempotency fingerprint and the suspension check, before any commitment opens or
+anything is enqueued. *Neither existed. `DOM-17`'s closed set had nothing that could express this
+refusal and `API-24` forbids a handler inventing a status, so a builder picked `rate_limited` or
+`halted` and the agent's recovery differed by deployment; `API-7`'s steps contained no ceiling check
+at all, so a builder following the pipeline literally shipped none of this while `CNF-69` sat
+BLOCKING. A control with a test and no mechanism is the failure mode this document's own scope note
+exists to catch.*
+
 **SEC-29** Request bodies MUST be size-capped globally, and individual fields MUST be
 capped per `API-13`.
 
@@ -401,6 +412,14 @@ satoshis back while the operator keeps paying for machines that are still runnin
 | `account_unreachable` | API down, network partition | **Retained** — the machines are almost certainly still running and still billing |
 | `credentials_rejected` | Auth failing; the account may be intact | **Retained** — losing the key is not losing the servers |
 | Confirmed termination | The provider states the resources are gone | **Closed, released in full** (`LDG-32`) |
+
+**AMENDED 2026-09-02 — these are states a deployment can now be *in*.** The table above modelled
+three conditions, released a tenant's money on one of them, and named no verb, no column and no
+transition — so nothing could enter a state, `API-62`'s promise to "surface the affected tenants"
+surfaced them nowhere, and three conformance items fault-injected a change that no mechanism could
+produce. `STO-47`'s `provider_account_status` is the record and `API-63` is the verb; a driver
+observation outranks an operator record, and `terminated` is write-once because it is the state that
+releases customer commitments.
 
 Where exposure must be carried without confirmation, it MUST be recorded as an **operator
 deficiency** (`LDG-66`) rather than left implicit. On confirmed termination the customers did

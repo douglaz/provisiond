@@ -529,7 +529,17 @@ not optional hardening — they are the only structural defence there is.
 
 - [ ] **CNF-69** A principal that sets every acknowledgement flag on every request still cannot
       exceed its destruction, creation, imaging or spend ceiling. Drive it with a loop that
-      acknowledges everything and assert the ceiling stops it. (`SEC-39`)
+      acknowledges everything and assert the ceiling stops it. **AMENDED 2026-09-02 — assert the
+      refusal, not only the stop.** The rejection is kind `ceiling_exceeded` (`DOM-17`), never
+      `rate_limited` and never `halted`, and carries `details.ceiling`, `details.limit`,
+      `details.interval_seconds` and `details.retry_after_ms` (`WIR-9a`). It happens at `API-7`
+      step 5c: **after** the idempotency fingerprint, so a replay returns its stored result rather
+      than spending a slot twice, and **before** any commitment opens or anything is enqueued.
+      Assert `OPS-39`'s exemption too — an exposure-reducing system cancellation is not refused by a
+      principal's destruction ceiling, or a tenant that hit its limit keeps machines the operator
+      pays for. *Until today this item was BLOCKING against a taxonomy that could not express its
+      rejection and a pipeline that never performed its check.* (`SEC-39`, `DOM-17`, `API-7`,
+      `WIR-9a`, `OPS-39`)
 - [ ] **CNF-70** The deployment has recorded *where* ceilings are enforced and what each integer
       is. Under `ADR-0001` that is this control plane — there is no front service to defer to,
       which is why the front-service variant of this rule was swept. (`SEC-39`)
@@ -1095,6 +1105,17 @@ rather than acquiring a default.
       the first half on a machine created and never refreshed — that is the ordinary machine, and
       binding the stop to a caller's refresh leaves it draining forever. (`LDG-74`, `OPS-32`,
       `LDG-37`, `DOM-8`, `SEC-46`)
+- [ ] **CNF-278** **An account can actually be recorded lost, and the right thing happens.** Drive
+      `POST /v1/provider-accounts/{account}/actions/record-status` through all four statuses:
+      `account_unreachable` and `credentials_rejected` **retain** every commitment on that account's
+      machines, `terminated` closes and releases them all in **one** transaction and returns the
+      assigned tenants in `affected_tenants`, and `healthy` restores nothing that was released.
+      Then the three refusals: recording a status the driver itself reports is `409` `state`, moving
+      an account **out of** `terminated` is `409` `state`, and a customer-authenticated request is
+      `404`. Assert the event is emitted with principal, account, before, after and reason. **Until
+      today `SEC-46`'s three states had no verb and no column at all**, so `CNF-114`, `CNF-188` and
+      `CNF-243` each fault-injected a transition nothing could perform. (`API-63`, `WIR-50`,
+      `STO-47`, `SEC-46`, `LDG-32`, `API-62`)
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
@@ -1691,7 +1712,9 @@ customer, if at all).
 `CNF-276` (the boundary-crossed family, and the escaped-secret one behind it: an anonymous stranger
 aiming the credential-holding process at the operator's own metadata service or management network);
 `CNF-277` (unstoppable billing for a machine that does not exist, which the customer discovers and
-the operator does not).
+the operator does not); `CNF-278` (the release of every affected customer's commitments hangs on
+this verb, and a wrong or reversible `terminated` re-reserves or double-releases balances across a
+whole account).
 
 **PRE-SCALE** — `CNF-275`. A stale `runway_until` and an over-long persistence window degrade a
 disclosure and delay an exhaustion rather than losing money on the first occurrence — but it
