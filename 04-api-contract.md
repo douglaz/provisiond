@@ -425,6 +425,15 @@ exists is money kept from someone the operator has made itself unable to find.**
 and MUST NOT be persisted — retaining caller addresses to defend the enrolment endpoint would
 give up `ADR-0005` to protect a table.
 
+**AMENDED 2026-09-02 — on `POST /v1/enrol/token` the limit is per-source *concurrency*, and that is
+a MUST rather than a preference.** The delay already paces one caller to one token per interval
+(`API-33`), so a request-rate limit tight enough to matter would refuse the second honest signup
+from a shared address while costing a distributed attacker nothing; what is scarce there is held
+connections, and bounding those is the control (`WIR-49`). It is in memory and unpersisted like
+every other limiter here, so `ADR-0005` is untouched, and **the per-source concurrency limit is a
+deployment parameter that MUST be stated** — `API-41`'s global ceiling is defensible only because
+this one exists.
+
 **API-37** **AMENDED — there is no *identity* recovery, but there is a recovery *credential*
 (`API-55`).** No identity is collected, so nothing an operator could verify proves ownership; any
 mechanism built on that would be account takeover wearing a helpful name. What replaces it is
@@ -622,14 +631,30 @@ fence, and the refusal is a `conflict` naming the running suspension.
 
 **API-40** Enrolment and every other write MUST be reachable under the general rules, and three
 of those rules do not fit an unauthenticated, pre-tenant request. They are resolved here rather
-than left as exceptions a builder must invent:
+than left as exceptions a builder must invent.
+
+**AMENDED 2026-09-02 — `POST /v1/enrol/token` is governed by this requirement too.** It is the
+second pre-tenant route and it was added without being brought here, while `API-48` and `API-49`
+were both amended for it the same day — so its exemptions existed only inside `WIR-49`, in the
+document that describes bodies rather than the one that reconciles the rules. Every bullet below
+applies to it, with one addition: **it creates nothing**, so `API-1` exempts it as it exempts
+enrolment, and there is not even a handle to return.
 
 - **`API-7` (authenticate before validating)** — enrolment is unauthenticated by definition
   (`API-32`); there is no tenant yet. `API-7`'s ordering applies to authenticated endpoints, and
   enrolment's own defences are `API-33`'s admission token, `API-36`'s rate limit and `API-41`'s
-  global ceiling. **The admission token MUST be checked before the rest of the body is validated**,
+  global ceiling. **The admission token MUST be checked before any other validation of the body**,
   which is `API-7`'s ordering argument reaching the one route that has no principal to authenticate:
-  an unadmitted caller MUST NOT be able to make the server do parsing or policy work either.
+  an unadmitted caller MUST NOT be able to make the server do policy work either.
+
+  **The order resolves a conflict between two MUSTs, so it is stated as a precedence.** `WIR-2`
+  requires an unknown body field to be rejected **naming the first one**; `WIR-12` requires a bad
+  admission token to be refused **without saying which of absent, expired, unknown or spent it was**.
+  A body carrying both a bad token and an unknown field satisfies one and violates the other
+  whichever way a handler goes. **The token check wins**: the response is `invalid_request` naming no
+  field and giving no token detail. Enrolment is the one route where naming a field is a free
+  oracle handed to an unadmitted stranger, and `WIR-2`'s naming rule exists for interoperability with
+  callers that got in — which this one has not.
 - **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
   returns its handle directly. It creates no provider mutation, so it needs no durable operation,
   and `operations.tenant_id` could not name a tenant that does not exist yet.
@@ -1052,7 +1077,7 @@ it. Whatever else that set contains, `GET /v1/balance` is not in it and answers 
 so a freshly enrolled agent that has already paid
 could learn it was active only by issuing a create and reading the rejection, which is the exact
 pathology `API-47` was written out of the post-activation path. `GET /v1/enrol/{handle}` MUST
-answer with the tenant's current status (`pending` | `active`) after credential issuance, and
+answer with the tenant's current status (`pending` | `active` | `suspended`, `WIR-13`), and
 `API-43` lists it for exactly this reason.
 
 **API-53** **Every operation view carries a `revision`**: a per-operation counter that strictly

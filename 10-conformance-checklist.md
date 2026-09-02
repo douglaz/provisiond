@@ -955,7 +955,9 @@ rather than acquiring a default.
       pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
 - [ ] **CNF-208** **AMENDED 2026-09-02 — one instant, because the other no longer exists.** The
       enrolment status poll never returns `expires_at`; only the enrolment response does, and the
-      poll's status enum is exactly `pending` | `active`. Publishing the signup's deadline on an
+      poll's status enum is exactly `pending` | `active` | `suspended` — the third added 2026-09-02,
+      since `tenants.status` admits it and a suspended tenant's handle had no legal answer without it.
+      Publishing the signup's deadline on an
       unauthenticated, handle-addressable endpoint yields its creation instant by subtraction from
       `API-34`'s stated time-to-live. *`issuable_at` was the other half of this item and was
       withdrawn with the field (`API-33`).* (`WIR-13`, `API-33`, `API-34`)
@@ -1696,7 +1698,12 @@ explicitly and record:
    identifiers to tenants** (`API-18`).
 2. Whether first-use trust is permitted at all, and for which providers (`SEC-24`).
 3. Whether the raw-disk path runs in single-pass or two-pass mode (`RSC-30`).
-4. What the image host allowlist is (`SEC-19`).
+4. What the image host allowlist is (`SEC-19`) — and note it is a **MUST** for the one URL
+   provisiond fetches itself (`RSC-39`), where an empty list means no catalogue install rather than
+   any host.
+4a. **The per-source concurrency limit on `POST /v1/enrol/token`** (`API-36`, `WIR-49`). `API-41`'s
+   global pending-tenant ceiling is defensible only because this one exists, so shipping the ceiling
+   without stating this figure re-creates the denial of service `API-33` named. Added 2026-09-02.
 5. Which provider accounts may order, and what the spend ceiling is (`DOM-16`).
 6. Who is on the rota for `needs_reconciliation`, and what the response procedure is
    (`OPS-26`).

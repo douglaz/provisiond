@@ -257,7 +257,8 @@ attacker nothing. Exceeding the concurrency limit is `rate_limited` with a `retr
 **WIR-12** **AMENDED three times** `POST /v1/enrol` — unauthenticated (`API-32`), **no
 `Idempotency-Key`**. Body `{"admission_token": "pvd_a_2Kd8vQmR6tY1nX4pZbL9cH3eJ7gS5fW0aM2xB6uT"}`
 (`WIR-49`; absent, expired, unknown or already spent is `invalid_request`, and the message MUST NOT
-say which). Response `200`, and **this is the only time either secret is ever transmitted**:
+say which — **and that check precedes `WIR-2`'s unknown-field rule, so a body with both a bad token
+and an unknown field is refused naming no field at all**, `API-40`'s stated precedence). Response `200`, and **this is the only time either secret is ever transmitted**:
 
 ```json
 {
@@ -290,7 +291,11 @@ only; the replay rule is withdrawn regardless, because a shared handle is a shar
 a leaked capability is not.
 
 **WIR-13** **AMENDED twice** `GET /v1/enrol/{handle}` — unauthenticated, **status only, no secrets
-ever**: `{"status": "pending" | "active"}`.
+ever**: `{"status": "pending" | "active" | "suspended"}`. *`suspended` was added 2026-09-02: the
+`tenants` row admits it (`STO-21`, `API-58`) and this enum did not, so a suspended tenant's handle
+poll had no legal answer at all — and the handle is unauthenticated, so answering `active` would be
+a lie to whoever holds it and answering `pending` would be a different one. It discloses nothing a
+suspended tenant does not already learn from its next write being refused `suspended` (`API-7`).*
 **`expires_at` MUST NOT appear here.** It is returned once, in the enrolment response (`WIR-12`), to
 the caller that created the signup; echoing the signup's own deadline on an unauthenticated,
 handle-addressable endpoint publishes the signup's creation instant by subtraction from a stated
