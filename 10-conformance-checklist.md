@@ -1290,7 +1290,12 @@ rather than acquiring a default.
       `extend-runway` committing before the worker's fence write leaves the machine alive with the
       worker making no provider call; a fence written first refuses the extension with `conflict`
       and **moves no satoshis**. Neither ordering may both take the payment and destroy the disk.
-      (`OPS-42`, `OPS-41`, `LDG-62`)
+      **AMENDED 2026-09-02 — drive the third interleaving, which is the one that used to win.**
+      Commit the extension **after** the worker's funding read and **before** its fence write: the
+      machine must survive, which it does only if `OPS-41`'s read and `OPS-42`'s fence write are one
+      serialized transaction. An implementation that reads, then extends, then fences on a still-null
+      column passes the two orderings above and destroys a paid-for machine on this one.
+      (`OPS-42`, `OPS-41`, `LDG-62`, `LDG-35`, `LDG-69`)
 - [ ] **CNF-240** **Attribution across two tenants deadlocks under no interleaving.** Two concurrent
       `WIR-42` attributions naming each other's tenants both complete, in one transaction each, with
       the primitives acquired in ascending tenant order; and an attribution whose source tenant row

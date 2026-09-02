@@ -608,7 +608,9 @@ release, a re-derivation — mints **no** operation; the ledger is already that 
 **OPS-41** **An exposure-reducing cancellation MUST re-check funding under the lock, and abort if
 the machine is funded.** A worker executing a system cancellation whose reason is exhaustion or a
 late-attach cleanup (`OPS-39`) MUST, **after acquiring the machine lock and before any provider
-mutation**, re-read that machine's commitment and its `runway_until`. Where the remaining
+mutation**, re-read that machine's commitment and its `runway_until` — **in the same serialized
+transaction that writes `OPS-42`'s fence**, without which the extension it is racing can commit
+between the read and the write. Where the remaining
 commitment now covers the wind-down floor at the current rate — `LDG-16`'s invariant, the same
 test that routed it here — the worker MUST make no provider call, settle the operation
 `succeeded` with a result recording that no mutation was required, and resolve the episode's
@@ -690,9 +692,20 @@ Nothing in `LDG-62`, `OPS-36`, `OPS-39` or `OPS-41` closed it.
   `destroy_committed IS NULL`, and MUST fail `conflict` where it affects no row. **No commitment is
   opened or grown and no balance moves**; the tenant is told plainly that the machine is already
   being cancelled.
-- Because both write the same row, the store totally orders them. Fence first: the extension is
-  refused, and the customer keeps its satoshis. Extension first: the worker's guarded write fails,
-  it re-reads under `OPS-41`, sees the new commitment, and makes no provider call.
+- **`OPS-41`'s re-check and this fence write MUST be one transaction, under `LDG-35`'s per-tenant
+  serialization.** The worker holds the machine lock and enters the serialization for that bounded
+  read-and-write, which is the one nesting direction `LDG-69` permits; it releases it before the
+  provider call, which `LDG-69` forbids inside. **AMENDED 2026-09-02, because without this the fence
+  does not fence.** `LDG-62` runs in its own `LDG-35` transaction, so unless the read and the fence
+  write are inside one too, the extension can commit in the gap *between them* — the worker reads
+  *unfunded*, the extension commits and grows the commitment, the worker's `IS NULL` write then
+  succeeds because nothing has touched that column, and the machine the customer has just paid for
+  is destroyed. That is the identical window this requirement was written to close, moved earlier by
+  one step. Serializing the pair is what makes the next sentence true.
+- Because both transactions take the same tenant primitive and write the same row, the store totally
+  orders them. Fence first: the extension is
+  refused, and the customer keeps its satoshis. Extension first: the worker's read sees the new
+  commitment, `OPS-41` applies, and it makes no provider call at all.
 
 **This needs no lock at all, which is why it is the fence rather than the ordering.** `LDG-62` takes
 no machine lock — a synchronous caller write cannot wait behind an install holding that lock for up

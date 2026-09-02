@@ -187,7 +187,6 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     kind — create or adopt — is rejected `suspended` like any other write, because `OPS-20` places
     a *second physical order*, and buying a suspended tenant a machine after `API-58`'s fan-out has
     settled is the same purchase 5b exists to refuse, merely reached through an operator verb.
-
 5c. **enforce `SEC-39`'s per-principal ceilings** and reject `ceiling_exceeded` (`DOM-17`) with
     `details.ceiling`, `details.limit`, `details.interval_seconds` and `details.retry_after_ms`
     (`WIR-9a`). **Added 2026-09-02**: `SEC-39` is the control that replaces a per-request
