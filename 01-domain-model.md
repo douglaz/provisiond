@@ -147,7 +147,18 @@ auction/market listing.
 | `kind` | `virtual` \| `bare_metal` |
 | `regions` | Where the offer can be placed |
 | `currency`, `hourly_price`, `monthly_price` | Nullable; prices are strings to avoid float rounding |
+| `install_strategies` | The offer's subset of `DOM-13`'s strategies, which **gates** them (`WIR-30`). Present on every offer; empty means no install is available for it |
+| `max_image_bytes` | The ceiling `RSC-40` enforces against a caller-supplied image stream |
+| `guest_requirements` | Prose the caller relays to whoever built the image; null where the strategy imposes none, non-null for `provider_catalogue` (`RSC-43`, `WIR-30`) |
+| `min_runway_seconds`, `setup_fee_sats`, `max_rate_outage_seconds` | `PRV-13d`'s floor, `LDG-39`'s at-cost fee, and `LDG-64`'s disclosed bound (`WIR-30`) |
 | `metadata` | Raw provider payload |
+
+*The six rows after the prices were added 2026-09-02.* Every one of them is required on the wire by
+`WIR-30` and load-bearing somewhere — `install_strategies` is a **safety gate** whose absence
+authorizes a disk-wiping install (`05-persistence.md`), `max_rate_outage_seconds` discloses a second
+trigger that destroys a machine — and none was in the entity this document defines. A caller reading
+`01` learned the domain had an offer with a price and a name; a caller reading `13` received six more
+fields with no entity behind them.
 
 **DOM-9** Prices MUST be carried as strings exactly as the provider returned them.
 Parsing them into floating point loses money.
