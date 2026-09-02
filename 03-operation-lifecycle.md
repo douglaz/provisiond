@@ -422,7 +422,9 @@ This is one rule with **three entry points** — the provider **accepting the or
 `OPS-27` **resolving-observed** a create whose reply was lost, and `OPS-36`'s **late attach** of a
 machine whose commitment `OPS-33` had already released — because each writes a set of effects a
 partial commit of which is unrepairable. Those effects are: the terminal write on
-the operation (`STO-19`'s write-once columns), the machine row, the setup-fee debit (`LDG-39`), the
+the operation (`STO-19`'s write-once columns), the machine row, the **settlement of the setup fee**
+— a debit where a commitment is still open, an `LDG-66` operator deficiency where `OPS-33` has
+released it (`LDG-39`, amended 2026-09-02; it is never taken from available balance) — the
 clearing of any parked `LDG-67` pending-fee record, and the commitment decrement where a commitment
 is still open (`LDG-31`). They MUST commit together, under `LDG-35`'s per-tenant serialization
 because the debit reads the balance. **The late-attach entry point carries three further effects,
