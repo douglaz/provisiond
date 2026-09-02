@@ -918,8 +918,11 @@ rather than acquiring a default.
       carries stable identifiers checked against the inventory fingerprint, exactly as raw-disk
       does. (`RSC-26`, `RSC-22`, `WIR-20`)
 - [ ] **CNF-201** A rescue-inventory run carries a trust policy and is capability-gated on
-      `rescue_ssh`; an ambiguous failure classifies like an install, not like a refresh — the machine can
-      be left in rescue. (`WIR-40`, `DOM-10`, `OPS-11`)
+      `rescue_ssh`; a failure whose rescue exit **also** failed classifies like an install, not like
+      a refresh — the machine can be left in rescue — while one whose exit succeeded is `failed`,
+      since the pass writes nothing to a disk and `OPS-45`'s first marker is never set for it. Both
+      halves; classifying every inventory failure as ambiguous fills an operator's queue with runs
+      that ended cleanly. (`WIR-40`, `DOM-10`, `OPS-11`, `OPS-45`)
 - [ ] **CNF-202** Suspending a tenant returns a `suspend_tenant` operation whose children are
       readable through `GET /v1/operations`; resume is synchronous and restores no machines.
       (`WIR-39`, `WIR-41`, `API-58`)
