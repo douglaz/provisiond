@@ -606,6 +606,23 @@ force when it closes, and its contribution to `exact_total` never changes afterw
 applies to the cumulative total rather than to each posting**, which is what keeps cadence out of
 the price (`CNF-185`) — the rounding argument survives intact; only the pricing point moves.
 
+**A rate change MUST split the increment it lands in.** `PRV-13e` re-derives rates on an interval of
+its own and the meter runs on its own cadence, so a re-derivation can land *inside* an open
+increment. Pricing that whole increment at the rate in force when it closes re-prices every second
+before the change — the identical defect this amendment removes, at a smaller scale. The meter MUST
+therefore close an increment at each rate-change instant inside its elapsed window and open the next
+one there, so that **every increment is priced at a rate that held for the whole of it**. The
+boundary is the rate's own effective instant, which `LDG-4` already records; no new clock is needed.
+
+*This is not a rounding refinement — it is what makes the sentence above true.* At 7 sats/hour
+doubling to 14 exactly at the half hour, one hourly increment charges **14** for the hour while a
+half-hourly or per-minute meter charges **11**, for identical consumption: the first half hour is
+billed at a rate that did not exist while it elapsed. With the split, every cadence charges 11 —
+hourly, half-hourly, per-minute and per-second alike. Splitting therefore restores **exact**
+cadence-independence rather than the bound `CNF-185` had to settle for, which is why that item is
+tightened back to equality in the same change. *Found by `codex` on 2026-09-02 and confirmed by
+running the arithmetic.*
+
 **`net_seconds_i` clamps at zero**, so `exact_total` never decreases through metering. An absorbed
 window can exceed the *billable* seconds inside an increment — a machine that was `deleted` for part
 of it is not billable while the outage that absorbed the window ran regardless — and a negative

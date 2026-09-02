@@ -864,21 +864,24 @@ rather than acquiring a default.
       satoshi debit is posted when the rate returns, the native accrual appears as an operator
       deficiency, and machines are cancelled at the stated maximum outage if no rate comes back.
       (`LDG-64`, `LDG-65`)
-- [ ] **CNF-185** **AMENDED 2026-09-02 — the invariant needs a fixed rate to be stated against, and
-      the withdrawn wording was satisfiable only by the defect.** **At a constant rate**, metering
-      the same period at one-minute and one-hour cadence produces the **identical** total charge:
-      rounding is cumulative, not per tick — a property test over arbitrary subdivision. **Under a
-      moving rate the totals may differ, and the item asserts the bound rather than equality**: each
-      cadence prices each increment at the rate in force when that increment closed (`LDG-38`), so
-      the two totals differ by at most the rate movement across one increment of the coarser
-      cadence, and **neither cadence ever re-prices an increment already posted**. The bound is
-      stated as an inequality over the whole period — the sum over increments of
-      `net_seconds_i × |rate movement across increment i|` — rather than as a single increment's
-      worth, because under a trending rate the per-increment errors share a sign and accumulate.
-      *Withdrawn
-      wording:* an unconditional "identical total charge", which under a moving rate is satisfiable
-      **only** by re-pricing the whole period at the latest rate — the defect this item sat next to
-      and appeared to endorse. (`LDG-38`, `LDG-28`, `LDG-4`)
+- [ ] **CNF-185** **AMENDED 2026-09-02 (twice in one day; read the note).** Metering the same period
+      at one-minute and one-hour cadence produces the **identical** total charge — **at a constant
+      rate and under a moving one alike**. Rounding is cumulative rather than per tick (`LDG-28`),
+      and every increment is priced at a rate that held for the whole of it, because `LDG-38` splits
+      an increment at each rate change; any finer subdivision of a rate-homogeneous span sums to the
+      same product. A property test over **arbitrary subdivision and arbitrary rate movement**. A
+      meter that does not split fails it: at 7 sats/hour doubling to 14 at the half hour, an unsplit
+      hourly meter charges 14 where every splitting cadence charges 11.
+      *Two withdrawn wordings, and the pair is the lesson. The first was an unconditional "identical
+      total charge" sitting beside a formula that re-priced the whole period at the latest rate —
+      under a moving rate it was satisfiable **only** by that defect, so the item appeared to endorse
+      what it should have caught. The second, written hours later, retreated to a bound: the totals
+      "may differ" by the sum over increments of `net_seconds_i × |rate movement across increment
+      i|`. That was true, and it was worse, because a bound wide enough to admit the wrong answer
+      certifies it — an unsplit meter passes. The fix belonged in `LDG-38`, not here: make the
+      increments rate-homogeneous and the original unconditional claim becomes both true and
+      demanding. When a conformance item has to be weakened to stay true, suspect the requirement.*
+      (`LDG-38`, `LDG-28`, `LDG-4`, `PRV-13e`)
 - [ ] **CNF-186** Two credited payments each below the activation minimum, summing above it,
       activate the tenant atomically. (`LDG-52`, `API-35`)
 - [ ] **CNF-187** A machine deleted while a billable attachment survives keeps its commitment
