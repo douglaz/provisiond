@@ -1302,10 +1302,15 @@ rather than acquiring a default.
       the primitives acquired in ascending tenant order; and an attribution whose source tenant row
       was already reaped by `API-34` succeeds, proving the primitive does not require a live tenant
       row. (`LDG-35`, `WIR-42`, `STO-26`, `API-34`)
-- [ ] **CNF-236** The running total is provably derived. An audit recomputation of
-      `charged_magnitude` and `high_water_increment_end` from `ledger_entries` equals the stored
+- [ ] **CNF-236** The running total is provably derived. An audit recomputation of **every** column
+      of `meter_totals` — `charged_magnitude`, the exact-charge rational, the elapsed, absorbed and
+      corrected seconds, and `high_water_increment_end` — from `ledger_entries` and
+      `operator_deficiencies` equals the stored
       row; a seeded mismatch **fails closed** rather than answering from either figure. This is
-      `CNF-219` applied to the second denormalised money number. (`LDG-72`, `STO-45`)
+      `CNF-219` applied to the second denormalised money number. **The rational is the one that
+      would otherwise be believed rather than checked**: recomputing it means replaying each
+      increment at the rate denormalised onto its own entry (`LDG-4`), which is the only way to
+      prove no increment was re-priced. (`LDG-72`, `STO-45`, `LDG-38`, `LDG-4`)
 - [ ] **CNF-216** The billing period boundary is `00:00:00Z` on the first of the month for every
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either. The same test covers a deficiency's
