@@ -208,8 +208,8 @@ defined classification for every operation kind. There is no implicit default, b
 defaulting to `failed` invites a caller to retry a mutation that may have happened, and
 defaulting to `needs_reconciliation` pages a human for a typo. `CNF-31b` tests totality.
 
-One case needs stating because two requirements appear to disagree. `PRV-22` says end-rescue
-failure is *always* ambiguous. That does not conflict with the install row: an install whose
+One case needs stating because two requirements appear to disagree. `PRV-22` says "Failure of end
+rescue is *always* ambiguous". That does not conflict with the install row: an install whose
 *rescue exit* fails has already done its work and reached the provider, so it is never a
 deterministic caller error, and the install row classifies it `needs_reconciliation` regardless
 of which error kind the driver reports.
@@ -780,8 +780,9 @@ still running, still billing and still unfunded, so the exposure is unchanged an
 over: the entry is what keeps a later sweep from enqueuing a **second** delete against the same
 machine (`OPS-39`), and the fence is what keeps `LDG-62` from selling runway on a machine the
 operator has already decided to destroy. **A cancellation that succeeded *as a schedule* is in the
-same position**: `DOM-19` says the machine is still running, still reachable and still billing until
-its effective date, so it is still unfunded and the next exhaustion sweep will find it. Resolving
+same position**: `DOM-19` says "the machine is still running, the customer can still reach it, and
+the operator is still paying for it" until its effective date, so it is still unfunded and the next
+exhaustion sweep will find it. Resolving
 the episode there is precisely the case `OPS-39`'s 2026-08-14 amendment warns about — "on a provider
 that accepts a *scheduled* cancellation the second call can then alter or repeat the first's
 mutation" — reached through resolution instead of through a reason key. The entry is released when

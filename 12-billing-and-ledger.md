@@ -215,8 +215,8 @@ The spending authority check is `available ≥ required_commitment`, and it is t
 authorization a create or an adopt receives (`ADR-0002`, `API-17b`).
 
 **LDG-70** **`Σ(ledger entries)` is a definition, not a read strategy, and the read is
-`balance_after` on the tenant's latest entry.** `LDG-5` says balance is the sum of entries and
-nothing else; `LDG-6` puts a running balance on every entry; `STO-21` permits a cached balance.
+`balance_after` on the tenant's latest entry.** `LDG-5` says "**Balance is the sum of entries** and
+nothing else"; `LDG-6` puts a running balance on every entry; `STO-21` permits a cached balance.
 Three statements about one number, and none of them said which the authorization check reads —
 so the literal implementation scans a tenant's entire ledger on every create, every extend and
 every metered posting, over a table `LDG-22` exempts from purge and `STO-24` forbids retention
@@ -455,8 +455,9 @@ exist. A deployment MUST define, and record:
   exhaustion can be detected and therefore an input to `wind_down_cost` (`PRV-13b`);
 - **which machine states are billable.** `stopped` **is billable** — powering a machine off does
   not stop provider billing on either the cloud or the dedicated products (`LDG-13`). So is
-  `cancellation_scheduled`: `DOM-19` states the machine is still running and still billing until
-  its effective date, and a meter that stops at cancellation acceptance under-bills for exactly
+  `cancellation_scheduled`: `DOM-19` states that "the machine is still running, the customer can
+  still reach it, and the operator is still paying for it" until its effective date, and a meter
+  that stops at cancellation acceptance under-bills for exactly
   the window `DOM-19` was written to make visible;
 - **the treatment of a partial period**, rounded per `LDG-28`.
 

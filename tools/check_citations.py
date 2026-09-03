@@ -68,13 +68,19 @@ from check_obligations import bodies  # noqa: E402  -- one span-splitter, not tw
 SPEECH = r"says|said|states|stated|reads|read"
 NOUN = r"rule|claim|wording|statement|sentence|words|text"
 ATTRIB = re.compile(
-    r"`((?:%s)-\d+[a-z]?)`(?:'s)?\s+(?:own\s+)?(?:%s)\b"
-    r"|`((?:%s)-\d+[a-z]?)`'s\s+(?:own\s+)?(?:%s)\s+that\b" % (NS, SPEECH, NS, NOUN)
+    r"`((?:%s)-\d+[a-z]?)`(?:'s)?\s+(?:own\s+)?(%s)\b"
+    r"|`((?:%s)-\d+[a-z]?)`'s\s+(?:own\s+)?(%s)\s+that\b" % (NS, SPEECH, NS, NOUN)
 )
+
+# "reads" is two verbs. "`WIR-9` reads \"...\"" attributes text; "`LDG-74` reads
+# it" and "`LDG-38` reads both from this record" mean CONSULTS, and consulting
+# never carries a quote -- so the unquoted rule would fire on every one of them.
+# Checked when a quote is present, ignored when one is not.
+CONSULTS = {"reads", "read"}
 # A bullet whose items end in ";" is one sentence to any splitter, which lets
 # one item's attribution collect the next item's quote. Break on list markers
 # and blank lines as well as sentence enders.
-SPLIT = re.compile(r"(?<=[.!?])\s+|\n\s*[-*]\s+|\n\s*\n")
+SPLIT = re.compile(r"(?<=[.!?])\s+|\n\s*[-*]\s+|\n\s*\n|\n(?=\|)")
 
 # Paired quotes only. An unpaired quote character makes every span between two
 # of them look like a quotation, which reports the prose BETWEEN two real
@@ -130,7 +136,8 @@ def find(docs, adr, reqs):
             m = ATTRIB.search(sent)
             if not m or HISTORICAL.search(sent) or TEACHING.search(sent):
                 continue
-            rid = m.group(1) or m.group(2)
+            rid = m.group(1) or m.group(3)
+            verb = (m.group(2) or "").lower()
             quotes = [(qm.start(), qm.group(1) or qm.group(2))
                       for qm in QUOTE.finditer(sent)]
             # Only quotes AFTER the attribution verb: a quote earlier in the
@@ -140,7 +147,8 @@ def find(docs, adr, reqs):
             quotes = [(p, q) for p, q in quotes
                       if len(norm(q).split()) >= 4 and p > m.start()]
             if not quotes:
-                unquoted.append((f, rid, " ".join(sent.split())[:100]))
+                if verb not in CONSULTS:
+                    unquoted.append((f, rid, " ".join(sent.split())[:100]))
                 continue
             docpool = [norm(docs[d]) for d in DOC.findall(sent) if d in docs]
             for _pos, q in quotes:
