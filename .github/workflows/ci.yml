@@ -61,3 +61,20 @@ jobs:
             exit 1
           fi
           echo "obligation gate correctly rejected an orphaned obligation"
+
+      # The citation gate's known-positive is the WIR-1 miscitation that lived in
+      # 13-wire-contract.md until 2026-09-03; `--selftest` reads it from history
+      # and a shallow CI checkout does not have it. Prove it synthetically here.
+      - name: Prove the citation gate can fail
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n`OVR-1` says "a phrase OVR-1 has never contained anywhere".\n' \
+            >> 00-overview.md
+          if python3 tools/check_citations.py; then
+            echo "::error::citation gate passed a quote its target does not contain"
+            exit 1
+          fi
+          echo "citation gate correctly rejected an unverifiable quoted attribution"
