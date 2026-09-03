@@ -234,13 +234,13 @@ than a default. The rule exists because the two are trivially conflated on the c
 resolving a missing key to "unrestricted" would send an install the gate refuses, and one resolving
 it to "nothing permitted" would refuse installs the machine can take — so the field is mandatory and
 `[]` carries the meaning: **no install is permitted on this machine**, which is the ordinary reading
-for an adopted machine whose eligibility adoption could not establish. **`DOM-30` owns the rule that
-a client may not substitute the offer's list or the account's capabilities for an empty one** — cited
-rather than restated, because a second normative copy of a MUST is the drift `SEC-46` is this set's
-standing example of. *Added 2026-09-03: the gate that authorizes a disk-wiping install read a list no
-response returned, which on an adopted machine and on a machine attached by resolution leaves a
-caller no route to the limit but an acknowledged install (`DOM-30` scopes it to those two; an
-ordinary create's caller could have retained the accepted offer's list).*
+for an adopted machine whose eligibility adoption could not establish. **What a client may do with an
+empty array is `DOM-30`'s, stated there and not here.** *Added 2026-09-03: the gate that authorizes a
+disk-wiping install read a list no response returned; `DOM-30` holds the argument and the three paths
+it applies to. This sentence twice tried to carry the rule as well as the pointer — first as its own
+`MUST NOT`, then paraphrased as "may not" while claiming to cite rather than restate. **A paraphrase
+is not a citation in a document whose opening paragraph makes everything in it normative**, so the
+second copy survived the fix that was supposed to remove it.*
 
 ## Endpoints
 
