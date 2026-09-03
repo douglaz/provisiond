@@ -351,12 +351,11 @@ the authorization system.
 | `tenant_id` | text | not null; **no foreign key** (`STO-26`) |
 | `seq` | integer | not null; the per-tenant monotonic sequence of `LDG-6` |
 | `kind` | enum | `topup` \| `usage_debit` \| `setup_fee_debit` \| `operation_fee_debit` \| `correction` — closed by `LDG-7` |
-| `amount_sats` | integer | **signed** (`LDG-1`); a debit is negative, which is what makes `LDG-38`'s netting come out right |
+| `amount_sats` | integer | **signed** (`LDG-1`); a debit is negative. *Until 2026-09-02 this read "which is what makes `LDG-38`'s netting come out right" — `LDG-38` no longer nets over entries at all, and the sign rule stands on `LDG-1` alone* |
 | `balance_after` | integer | the running balance after this entry (`LDG-6`); authoritative for reads per `LDG-70` |
-| `subject_kind`, `subject_id` | enum, UUID | nullable; `machine` \| `attachment` — **`LDG-8`'s *subject*.** Required on every `usage_debit`, because a machine and each of its billable attachments (`PRV-13a`, `machine_attachments`) are separately metered subjects and `LDG-38` sums `already_charged` **per subject**. Carrying only `machine_id` merges them, and the merge under-bills by whichever subject is not the one being posted |
-| `billing_period` | text | nullable; the period this entry falls in (`LDG-68`), required on every `usage_debit`. Part of `LDG-8`'s key and the boundary `LDG-38` apportions corrections and absorbed windows across |
-| `corrects_entry_id` | UUID | nullable; the entry this one corrects (`LDG-5`). Set on `correction` and on nothing else. `LDG-38` nets over "every correction naming one of them" and `WIR-42`'s re-attribution is reached through it — without the column neither is implementable |
-| `corrected_seconds` | integer | nullable; **required on a `correction` whose `corrects_entry_id` names a `usage_debit`, and null on every other correction** (`LDG-73`). The billable seconds the correction returns or adds, which `LDG-38` subtracts from `billable_seconds`. Without it a correction changes what has been charged but not what the period should total, and the next tick charges it straight back |
+| `subject_kind`, `subject_id` | enum, UUID | nullable; `machine` \| `attachment` — **`LDG-8`'s *subject*.** Required on every `usage_debit`, because a machine and each of its billable attachments (`PRV-13a`, `machine_attachments`) are separately metered subjects and `LDG-38` carries a rounding credit and a high-water mark **per subject** (`STO-45`). Carrying only `machine_id` merges them into one meter, and the merge under-bills by whichever subject is not the one being posted |
+| `billing_period` | text | nullable; the period this entry falls in (`LDG-68`), required on every `usage_debit`. Part of `LDG-8`'s key and the boundary `LDG-38` apportions absorbed windows across. On a `correction` it is the period of the entry corrected, never the period of posting (`LDG-38`) |
+| `corrects_entry_id` | UUID | nullable; the entry this one corrects (`LDG-5`). Set on `correction` and on nothing else. it is what files a correction under the period of the entry it names (`LDG-38`), and `WIR-42`'s re-attribution is reached through it — without the column neither is implementable |
 | `idempotency_key` | text | not null; unique within the tenant (`LDG-8`). Derived from the thing being billed or from the payment (`STO-31`), never from a count of what has been posted |
 | `operation_id`, `machine_id`, `commitment_id` | UUID | nullable; `LDG-6`'s causation ids |
 | `deposit_id` | UUID | nullable; **required on every `topup`** and on the `correction` pair `WIR-42` posts. `LDG-43` requires an unattributed credit to carry the deposit it arrived at, because the deposit id is the only handle a returning customer still holds (`WIR-14`'s disclosure) and `ADR-0005` retains nothing about the payer — so without this column `WIR-42` can find the credits it must move by no route at all. It is the operator's own binding (`LDG-49`, `STO-29`), not information about a counterparty, so it costs `LDG-21` nothing. *Added 2026-09-02; it was a MUST in `12-billing-and-ledger.md` with no column anywhere, which is `STO-38`'s failure class for the fourth time* |
@@ -373,9 +372,9 @@ Constraints: unique `(tenant_id, idempotency_key)`; unique `(tenant_id, seq)`; i
 
 **STO-38** **`subject_kind`/`subject_id` and `corrects_entry_id` are load-bearing, not
 bookkeeping.** A deployment MUST NOT substitute `machine_id` for the subject: `LDG-32` requires
-each billable attachment be metered "on its own identity", and two subjects sharing a column net
-against each other inside `LDG-38`'s `already_charged` — silently, and in the customer's favour on
-every posting after the first. A deployment MUST NOT record a correction by any means other than
+each billable attachment be metered "on its own identity", and two subjects sharing a column share
+one rounding credit and one high-water mark — so each one's increments discard the other's as already
+posted, silently, and in the customer's favour. A deployment MUST NOT record a correction by any means other than
 `corrects_entry_id`: `LDG-5` makes the corrected row survive unchanged, so a correction that names
 nothing is invisible to the netting, and the next tick either re-charges what a correction added or
 hands back a second time what it refunded. Both were requirements with no column, which is how
@@ -392,9 +391,7 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 |---|---|---|
 | `subject_kind`, `subject_id` | enum, UUID | `machine` \| `attachment` — `LDG-8`'s subject, the same one `ledger_entries` carries. A machine and each of its billable attachments are separately metered (`STO-38`) and so are separately totalled |
 | `billing_period` | text | `LDG-68`'s calendar month in UTC |
-| `charged_magnitude` | integer | the magnitude charged to date for this subject and period — `LDG-38`'s `already_charged`, maintained rather than recomputed |
-| `exact_charge_num`, `exact_charge_den` | integer, integer | `LDG-38`'s `exact_total`: the cumulative **unrounded** charge as an exact rational (`LDG-4`, `LDG-1`). Each increment adds its own seconds at **its own** rate and the sum is never rounded here — `ceil` is applied once, at posting, which is what keeps metering cadence out of the price (`CNF-185`). Rounding this column would be per-tick rounding wearing a different name |
-| `billable_seconds`, `absorbed_seconds`, `corrected_seconds` | integer | the elapsed billable seconds counted for this subject and period, the part of every deficiency-absorbed window (`LDG-66`, `STO-37`) that fell inside it, and the seconds returned by corrections naming its usage debits (`LDG-73`). **Maintained, not summed per tick** — `LDG-38` read the last two as queries over `ledger_entries` and `operator_deficiencies`, which is exactly the quadratic shape `LDG-72` was written to remove, surviving in the channel nobody counted. They are also what the audit path recomputes |
+| `rounding_credit_num`, `rounding_credit_den` | integer, integer | `LDG-38`'s `r`: how far the last posting's `ceil` ran **ahead** of the exact charge, as an exact rational (`LDG-4`, `LDG-1`). **The invariant `0 ≤ r < 1` is the whole of this table's integrity story** — `LDG-72` checks it by inspection, and an in-range value that is nonetheless wrong costs the subject at most one satoshi for the life of the period. *Five columns stood here until 2026-09-02: `charged_magnitude`, `exact_charge_num`/`den` and three cumulative seconds figures. They are withdrawn together and the trap behind them is worth keeping — see `STO-45`* |
 | `high_water_increment_end` | timestamp | the greatest `increment end` posted for this subject and period. An increment ending at or before it is discarded, not posted (`LDG-38`) |
 | `version` | integer | for the conditional write, in the manner of `LDG-34` |
 | `updated_at` | timestamp | |
@@ -402,22 +399,28 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 Primary key `(subject_kind, subject_id, billing_period)`.
 
 **STO-45** **The row MUST be written in the same transaction as the entry it summarises, and by no
-other path.** Every `usage_debit` and every `correction` carrying `corrected_seconds` updates it in
-the transaction that appends the entry, under `LDG-35`'s per-tenant serialization. There is no
+other path.** Every `usage_debit` updates it in the transaction that appends the entry, under
+`LDG-35`'s per-tenant serialization. A `correction` does not touch it at all (`LDG-38`). There is no
 lazy-repair path and no background reconciler: `API-54` forbids a `GET` taking a write transaction,
 so a total repaired on read was never available, and `LDG-70` reached the same conclusion for
 `balance_after` by the same route.
 
-**It is a derived figure and MUST be provably derived.** `LDG-72` requires an audit path that
-recomputes **every** column from `ledger_entries` and `operator_deficiencies` and fails closed on a
-mismatch. The entries are the
-truth; this table is the speed. *The exact rational is derivable too, and it is the one that would
-otherwise be believed rather than checked: recomputing it means replaying each increment at the rate
-denormalised onto its own entry (`LDG-4`), which is why that evidence is required to survive the
-pruning of any rate table.* *This is the third denormalised money figure in the set —
-`balance_after`, the commitment's `reserved_sats`, and now this — and each one exists because the
-literal reading of its defining requirement was a scan. Stated here so the pattern is visible
-rather than rediscovered a fourth time.*
+**It is NOT a derived figure, and that is the point of the 2026-09-02 redesign.** `r` records where
+the last posting's rounding landed. Nothing else in the store holds that, and `LDG-72` therefore
+checks it by **range** — `0 ≤ r < 1` — rather than by reconstruction, with the high-water mark
+checked one-sidedly against the increment ends encoded in `LDG-8`'s idempotency keys.
+
+*This table used to claim the opposite, and the claim was false in a way nothing caught for a day.*
+It said `LDG-72` recomputes **every** column from `ledger_entries` and `operator_deficiencies` — "the
+entries are the truth; this table is the speed" — and specifically that the exact rational was
+recoverable by "replaying each increment at the rate denormalised onto its own entry". A
+`usage_debit` row carries no seconds and no increment boundary, and its amount is a rounded
+difference between two cumulative figures, so neither the rational nor `billable_seconds` was ever
+recoverable from it. `CNF-236` required a test no implementation could pass. **The trap is the
+sentence "the entries are the truth", which is true of every money figure in this set except this
+one** — and being true four times is what made nobody check the fifth. `balance_after` and the
+commitment's `reserved_sats` really are derivable from the entries; the rounding credit is not, and
+it does not need to be, because `[0,1)` bounds what a wrong value can cost to a single satoshi.
 
 **STO-26** `ledger_entries` MUST NOT carry a foreign key to `tenants`. The ledger is append-only
 and exempt from retention (`LDG-22`), while a pending tenant is deleted at its time-to-live
@@ -585,7 +588,12 @@ transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home
 returned an empty list to every customer forever.
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
-`currency`, `absorbed_seconds` (the elapsed billable time absorbed, which is what `LDG-38`
+`currency`, `clamped_sats` (**nullable**; required on a `clamp_overflow` and null on every other
+cause — the satoshi remainder `LDG-31`'s clamp wrote off, recorded directly because it *originated*
+in satoshis. *Added 2026-09-02: the record carried only `native_minor` plus a rate, and recovering
+the satoshi figure meant reversing a `ceil`'d conversion, which is off by up to one. A deficiency
+that cannot state its own size in the unit it arose in is not a durable record of anything*),
+`absorbed_seconds` (the elapsed billable time absorbed, which is what `LDG-38`
 subtracts — in seconds, never converted; **zero for every cause but `rate_outage`**, since the
 others absorb satoshis against consumption the customer was already charged for and subtracting
 their seconds too would relieve it twice, `LDG-66`), `absorbed_from`, `absorbed_until` (**the

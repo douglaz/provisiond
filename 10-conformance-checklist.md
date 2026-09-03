@@ -1003,23 +1003,25 @@ rather than acquiring a default.
       evidence, and **no automatic attach occurs on any hostname or timing similarity**. The
       negative window still releases the commitment in full. (`PRV-33`, `OPS-29`, `OPS-33`)
 - [ ] **CNF-214** A machine and one of its billable attachments, both metered in the same period,
-      produce **separate** `already_charged` sums: charging the attachment does not reduce what
-      the machine is billed, and neither does the reverse. Asserted against the stored subject,
-      not against `machine_id`. (`STO-38`, `LDG-8`, `LDG-38`, `LDG-32`)
-- [ ] **CNF-215** **REWRITTEN 2026-08-31 — it tested the claw-back as correct behaviour.** A
-      `correction` naming a `usage_debit` carries `corrected_seconds` (`LDG-73`), and after it the
+      carry **separate** `meter_totals` rows: charging the attachment does not move the machine's
+      rounding credit or high-water mark, and neither does the reverse. Asserted against the stored
+      subject, not against `machine_id`. *Said "separate `already_charged` sums" until 2026-09-02;
+      the quantity is renamed but the failure is the same one — a shared row bills two subjects as
+      one.* (`STO-38`, `LDG-8`, `LDG-38`, `LDG-32`)
+- [ ] **CNF-215** **A correction is never clawed back, and the meter is not involved.** Post a
+      `correction` naming a `usage_debit`, then meter at least one more increment and assert the
       period's total is **stable**: the next tick posts neither the corrected amount back nor a
-      compensating credit, because `already_charged` and `exact_total` both moved by the
-      correction's own magnitude (**amended 2026-09-02** — it said `billable_seconds`, which under
-      per-increment pricing is no longer a term in the charge; the seconds channel still moves, and
-      what it keeps honest is `meter_totals` and `LDG-72`'s audit). Assert
-      across a full metering interval, not just the posting. A correction posted in a later period
-      still nets against the period of the entry it **names**, not the period it was posted in; and
-      a correction naming an entry of another kind is excluded from the sum and carries no seconds.
-      *Withdrawn clauses:* "A `correction` that **reduces** a charge makes the next tick post
-      **more**; one that **increases** it makes the next tick post **less**" — true of the
-      arithmetic as it stood, and it described a credit being reclaimed within one tick.
-      (`LDG-73`, `LDG-38`, `LDG-5`, `LDG-7`, `STO-38`)
+      compensating credit. Assert the mechanism, because it is what makes the guarantee cheap —
+      the subject's `rounding_credit` is **byte-identical before and after** the correction
+      (`LDG-38`). Assert across a full metering interval, not just the posting. A correction is
+      still filed under the period of the entry it **names**, not the period it was posted in.
+      *Two withdrawn forms, and the pair is the record. The original tested the claw-back as
+      correct behaviour — "a `correction` that reduces a charge makes the next tick post more" —
+      which described a credit being reclaimed within one tick. Its 2026-08-31 rewrite required the
+      correction to carry `corrected_seconds` and asserted that `already_charged` and `exact_total`
+      moved together. Both were true of a meter whose state was what-has-been-charged. Under the
+      rounding credit the correction cannot reach the meter at all, `LDG-73` is withdrawn, and the
+      seconds it required are gone from the schema.* (`LDG-38`, `LDG-5`, `LDG-7`, `STO-38`)
 - [ ] **CNF-235** The meter's cost per tick does not grow within a period. Meter one subject for a
       full period at a cadence that subdivides it, and assert the storage reads per posting are
       constant rather than proportional to the number of prior postings — asserted at the storage
@@ -1154,24 +1156,24 @@ rather than acquiring a default.
       not permit by accident, and until today the deposit binding, the payment record and the
       enumeration it needs were three MUSTs pointing at each other with no column underneath.
       (`STO-46`, `STO-30`, `STO-31`, `LDG-43`, `WIR-42`)
-- [ ] **CNF-274** **A rate move never re-prices an hour already billed.** Meter one subject across a
-      period, move the rate **up** between two increments, and assert the second posting charges
-      only the second increment's seconds at the new rate — not the whole elapsed period. Then move
-      it **down** and assert the posting is a smaller positive figure and **never negative**: a
-      positive `usage_debit` is undefined (`LDG-7`) and `LDG-31` would take it as a debit to pair
-      with and **grow** the commitment, which is the automatic widening `ADR-0011` abolished. Assert
-      the storage shape that makes it possible: the running total carries the cumulative charge as
-      an **unrounded rational**, the elapsed, absorbed and corrected seconds are maintained rather
-      than summed per tick, and a seeded mismatch against a recomputation from `ledger_entries` and
-      `operator_deficiencies` **fails closed** rather than posting from either figure. **Then the
-      clamp**: drive a posting that exceeds the remaining commitment and assert `already_charged`
-      advances by the **full** computed debit while the ledger entry carries only what the tenant's
-      authority covered and the rest becomes a deficiency (`LDG-31`). Advancing it by the entry
-      instead re-charges the written-off remainder on every later tick, and the error is *positive*,
-      so the fail-closed guard never fires. **The failure
-      this catches is a customer billed twice for hour one because the price moved in hour two** —
-      silent, systematic, and invisible until someone reconciles a month by hand. (`LDG-38`,
-      `LDG-72`, `STO-45`, `LDG-31`, `ADR-0011`)
+- [ ] **CNF-274** **A rate move never re-prices time already billed — within an increment or
+      across one.** Meter one subject across a period, move the rate **up** between two increments,
+      and assert the second posting charges only the second increment's seconds at the new rate.
+      Move it **up mid-increment** and assert the increment **splits** at `rate_observed_at`, so the
+      seconds before the move are charged at the old rate (`LDG-38`); an implementation that prices
+      the whole increment at the closing rate fails here and is the defect `CNF-185` also catches.
+      Then move the rate **down** and assert the posting is a smaller positive figure and **never
+      negative**: a positive `usage_debit` is undefined (`LDG-7`) and `LDG-31` would take it as a
+      debit to pair with and **grow** the commitment, which is the automatic widening `ADR-0011`
+      abolished. **Then the clamp**: drive a posting that exceeds the remaining commitment and
+      assert the ledger entry carries only what the tenant's authority covered, the remainder is an
+      `operator_deficiencies` row whose `clamped_sats` states it in satoshis, and the subject's
+      rounding credit advances as though the full computed debit had been posted. *The withdrawn
+      form asserted that `already_charged` advances by the full computed debit rather than the
+      clamped entry — a rule that existed because the meter's state was what-has-been-charged, and
+      that `LDG-38`'s own formula contradicted for a day. The recurrence no longer names the entry,
+      so there is nothing left to get wrong in that direction.* (`LDG-38`, `LDG-72`, `STO-45`,
+      `LDG-31`, `ADR-0011`)
 - [ ] **CNF-275** **Re-derivation runs on its own clock, not the billing period's.** The deployment
       states a re-derivation interval separately from `LDG-68`'s period; `runway_until` on a live
       machine is never staler than that interval; `LDG-16`'s "more than one derivation" is measured
@@ -1372,15 +1374,23 @@ rather than acquiring a default.
       the primitives acquired in ascending tenant order; and an attribution whose source tenant row
       was already reaped by `API-34` succeeds, proving the primitive does not require a live tenant
       row. (`LDG-35`, `WIR-42`, `STO-26`, `API-34`)
-- [ ] **CNF-236** The running total is provably derived. An audit recomputation of **every** column
-      of `meter_totals` — `charged_magnitude`, the exact-charge rational, the elapsed, absorbed and
-      corrected seconds, and `high_water_increment_end` — from `ledger_entries` and
-      `operator_deficiencies` equals the stored
-      row; a seeded mismatch **fails closed** rather than answering from either figure. This is
-      `CNF-219` applied to the second denormalised money number. **The rational is the one that
-      would otherwise be believed rather than checked**: recomputing it means replaying each
-      increment at the rate denormalised onto its own entry (`LDG-4`), which is the only way to
-      prove no increment was re-priced. (`LDG-72`, `STO-45`, `LDG-38`, `LDG-4`)
+- [ ] **CNF-236** **The meter's state is checked by range, not by reconstruction, and the checks
+      are scoped to one subject.** Assert all four: (a) `0 ≤ r < 1` holds after an arbitrary
+      sequence of increments, corrections and clamps; (b) a seeded **out-of-range** `r` is caught
+      without consulting any other table; (c) a seeded **in-range but wrong** `r` changes what the
+      subject is ever charged by **at most one satoshi** — the bound, asserted, not assumed; (d) the
+      high-water mark is checked **one-sidedly** against the greatest increment end in any
+      `usage_debit` idempotency key, so a mark *ahead* of every entry passes — an increment can post
+      no entry at all, clamped to nothing or rounded to nothing — while a mark *behind* one fails.
+      Assert the failure is **quarantine of that subject**: its usage debits, commitment decrements
+      and exhaustion decisions stop, cancellation and deletion still work, and no other tenant is
+      affected. *WITHDRAWN FORM, and it is the reason this item is worth reading:* it required "an
+      audit recomputation of **every** column of `meter_totals` … from `ledger_entries` and
+      `operator_deficiencies`", including replaying each increment at the rate on its own entry.
+      **No implementation could have passed it.** A `usage_debit` carries no seconds and no
+      increment boundary, and its amount is a rounded difference of two cumulative figures, so the
+      rational was never recoverable. It read as the most rigorous item in the file for a day.
+      (`LDG-72`, `STO-45`, `LDG-38`, `LDG-8`)
 - [ ] **CNF-216** The billing period boundary is `00:00:00Z` on the first of the month for every
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either. The same test covers a deficiency's

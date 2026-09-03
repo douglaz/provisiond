@@ -549,33 +549,46 @@ For each metered increment i of this SUBJECT, closing at increment_end_i:
                        elapsed billable seconds inside i
                      − the part of any deficiency-absorbed window (LDG-66) lying inside i)
 
-  exact_total   += net_seconds_i × customer_rate_i     # the rate in force at i's close,
+  exact_i        = net_seconds_i × customer_rate_i     # the rate in force throughout i,
                                                        # carried as a rational (LDG-4)
                                                        # and NEVER rounded
 
-already_charged  = meter_totals.charged_magnitude for this (SUBJECT, period)  (LDG-72)
-                 = Σ(every posted_debit already COMPUTED for this SUBJECT and period,
-                       each in FULL — never the amount the tenant was debited, which
-                       LDG-31's clamp may have reduced; see the clamp paragraph below)
-                   adjusted by every correction naming one of those debits, by the same
-                   integer magnitude it moves exact_total (LDG-5, LDG-7, LDG-73)
+  posted_debit_i = ceil(exact_i − r)                   # r is the rounding credit carried
+                                                       # forward from the previous increment,
+                                                       # read from LDG-72's record
 
-posted_debit     = ceil(exact_total) − already_charged
+  r'             = r + posted_debit_i − exact_i        # INVARIANT: 0 ≤ r < 1, always
 ```
 
-`exact_total`, `already_charged`, the elapsed-seconds figures and the high-water mark are all read
-from and written to `LDG-72`'s running total for this `(subject, billing period)`, never recomputed
-by query.
+`r` and the high-water mark are the whole of the meter's state. Both are read from and written to
+`LDG-72`'s running total for this `(subject, billing period)`, never recomputed by query.
 
-*The `already_charged` line read "− Σ(signed amounts of the previous usage debits … plus every
-correction naming one of them)" until 2026-09-02 — a definition from the ledger **entries** — while
-the clamp paragraph below defined the same term as what the meter **computed** and `CNF-274` tested
-that second reading. The trap is that the entries definition is the one a builder copies, it is
-correct in every period where nothing clamps, and where something does clamp it re-posts the
-written-off remainder on every subsequent tick, forever: `posted_debit` is measured against a
-smaller `already_charged` each time. The drift is **positive**, so the fail-closed guard below —
-which fires only on a negative `posted_debit` — never sees it. Found by both reviewers of
-2026-09-02, independently.* **Deficiency-absorbed time is subtracted in seconds, before conversion — never as a
+**This is the cumulative-ceiling rule, restated so that its state is bounded.** The withdrawn form
+carried `exact_total` and `already_charged` and posted `ceil(exact_total) − already_charged`. That is
+algebraically identical to the recurrence above — the two produce the *same debit on every
+increment*, for any subdivision and any rate movement — but it stores two quantities that grow
+without limit, and **a corrupted running total mis-bills the entire remainder of the period by an
+unbounded amount.** `r` is confined to `[0,1)` by construction, so a corrupted `r` that is merely
+*in range* changes what the subject is ever charged **by at most one satoshi**, and one that is out
+of range is detectable by looking at it. The correctness argument does not change; the blast radius
+does, and it is the reason `LDG-72` no longer needs to reconstruct anything.
+
+**Two things fall out, and both remove machinery rather than adding it:**
+
+- **`LDG-31`'s clamp no longer needs a rule about what the meter remembers.** `r` advances by
+  `posted_debit_i` — what the meter **computed** — while the ledger entry may be smaller because the
+  clamp reduced it. Nothing has to say "advance by the full amount, not the clamped one", because
+  the recurrence never mentions the entry. *The withdrawn form needed exactly that rule and stated it
+  twice, in two incompatible ways: the formula derived `already_charged` from the entries and the
+  clamp paragraph derived it from the computation. Both reviewers found the contradiction on
+  2026-09-02. It is not fixed here; it has nowhere left to occur.*
+- **A correction cannot be clawed back, structurally.** A correction moves the balance and leaves `r`
+  untouched, so the next increment posts `ceil(exact − r)` exactly as it would have. `LDG-73` existed
+  to stop the next tick re-charging a credit — a real defect of the withdrawn form, where a
+  correction lowered `already_charged` and the next tick made it back. That failure is now
+  unreachable, and `LDG-73`'s seconds channel is withdrawn with it.
+
+**Deficiency-absorbed time is subtracted in seconds, before conversion — never as a
 satoshi amount.** An outage deficiency accrues precisely
 while no rate exists (`LDG-64`), so there is no rate at which it could be converted; removing the
 time it absorbed needs none, and the units never mix.
@@ -602,7 +615,7 @@ tick *k*'s rate. Three things follow from that and all three are wrong:
   prices". Neither is true of a formula that reprices elapsed time.
 
 **Under the amended form nothing is re-priced.** An increment is converted once, at the rate in
-force when it closes, and its contribution to `exact_total` never changes afterwards. **`ceil` still
+force throughout it, and its contribution to the charge never changes afterwards. **`ceil` still
 applies to the cumulative total rather than to each posting**, which is what keeps cadence out of
 the price (`CNF-185`) — the rounding argument survives intact; only the pricing point moves.
 
@@ -636,48 +649,48 @@ cadence-independence rather than the bound `CNF-185` had to settle for, which is
 tightened back to equality in the same change. *Found by `codex` on 2026-09-02 and confirmed by
 running the arithmetic.*
 
-**`net_seconds_i` clamps at zero**, so `exact_total` never decreases through metering. An absorbed
+**`net_seconds_i` clamps at zero**, so no increment can reduce the charge. An absorbed
 window can exceed the *billable* seconds inside an increment — a machine that was `deleted` for part
 of it is not billable while the outage that absorbed the window ran regardless — and a negative
 increment would then hand back time from an increment priced at a different rate, which is the
 re-pricing this amendment removes arriving by subtraction. The excess is simply not owed; there is
 nothing to carry forward.
 
-**`posted_debit` MUST NOT be negative**, and a computed negative means the running total has drifted
-from the entries: the meter MUST **fail closed** in the manner of `LDG-20`'s solvency check rather
-than post anything. `exact_total` is
-non-decreasing, `ceil` is monotonic, and a correction moves `exact_total` and `already_charged` by
-the same **integer** magnitude, so nothing in the ordinary path can drive it below zero.
-
-**`already_charged` is what the meter *computed*, not what the tenant was *debited*, and `LDG-31`'s
-clamp is why the two differ.** Where a debit exceeds the commitment's remaining amount the
-commitment decrements to zero, **the tenant is debited only up to the authority it granted**, and
-the remainder becomes an operator deficiency. So the ledger entry is smaller than `posted_debit`
-was. `already_charged` MUST nonetheless advance by the **full** `posted_debit`, and
-`meter_totals.charged_magnitude` MUST record it, because the question that term answers is *what has
-this period already accounted for* — not *what did the tenant pay*.
-
-*Getting that wrong re-charges written-off money, silently and forever.* With `exact_total` at 100
-and 30 of commitment left, a clamped posting debits 30 and books 70 as the operator's. If
-`already_charged` advances by 30, the next increment of 50 posts `ceil(150) − 30 = 120` — the
-customer billed for 70 the operator has already absorbed, on top of its own 50. And the error is
-**positive**, so the fail-closed guard above never fires: it is not a drift the meter can detect, it
-is the meter computing the wrong number correctly. The clamped remainder is reachable through the
-wind-down window and `LDG-16`'s persistence delay (`LDG-31`), so this is an ordinary path rather
-than an exotic one. **The deficiency record carries the difference** (`LDG-66`, `STO-37`), which is
-also what makes `LDG-72`'s audit recomputation reconcile: entries plus deficiencies, never entries
-alone. It MUST NOT
-post a positive `usage_debit` under any circumstance: the entry kind means money leaving a balance
+**`posted_debit_i` cannot be negative, and this is now a property rather than a rule.**
+`net_seconds_i` clamps at zero so `exact_i ≥ 0`, and the invariant holds `r < 1`, so
+`exact_i − r > −1` and its ceiling is at least zero. A computed negative therefore means `r` itself
+is out of range — the one corruption of the meter's state that is visible by inspection — and the
+meter MUST **fail closed** for that subject in the manner of `LDG-72` rather than post anything.
+*The withdrawn form needed this as a MUST with a supporting argument about monotonic sums, because
+`ceil(exact_total) − already_charged` could go negative in several ways.* It MUST NOT post a
+positive `usage_debit` under any circumstance: the entry kind means money leaving a balance
 (`CONTEXT.md`), and a positive one is a growth path nothing authorized.
 
-**A `correction` naming one of this subject and period's usage debits moves `exact_total` by its own
-magnitude, in the same transaction that appends it** (`LDG-72`, `LDG-73`) — `exact_total := exact_total
-− amount_sats`, so a credit of +50 lowers both sides by 50 and the next tick posts neither more nor
-less. That is what makes `LDG-73`'s guarantee hold under per-increment pricing: seconds removed from
-an increment that closed at a rate no longer in force cannot be re-priced, and the correction's own
-satoshi figure is the only correct adjustment. **`corrected_seconds` remains required** and remains
-`LDG-73`'s: it keeps the elapsed-seconds channel truthful for deficiency apportionment and for
-`LDG-72`'s audit, which is the channel that has no rate in it at all.
+**`LDG-31`'s clamp changes the entry and not the meter.** Where a debit exceeds the commitment's
+remaining amount the commitment decrements to zero, **the tenant is debited only up to the authority
+it granted**, and the remainder becomes an operator deficiency carrying the difference (`LDG-66`,
+`STO-37`, whose `clamped_sats` is that figure). The ledger entry is therefore smaller than
+`posted_debit_i`. **`r` advances by `posted_debit_i` regardless**, because the recurrence is stated
+over what the meter computed and never mentions the entry at all.
+
+*This was the set's most dangerous arithmetic defect and the redesign removes its habitat.* Under
+the withdrawn cumulative form the specification had to say, in prose, that `already_charged` advances
+by the full computed debit rather than the clamped entry — and it said the opposite in the formula
+directly above. With 100 exact and 30 of commitment left, a clamped posting debits 30 and books 70
+as the operator's; advancing by 30 makes the next 50-unit increment post `ceil(150) − 30 = 120`,
+billing the customer for 70 the operator had already absorbed. The error is **positive**, so no
+fail-closed guard could see it: the meter computes a wrong number correctly, forever. The clamped
+remainder is reachable through the wind-down window and `LDG-16`'s persistence delay (`LDG-31`), so
+this was an ordinary path, not an exotic one. There is no longer a term that could be defined two
+ways.
+
+**A `correction` leaves the meter's state untouched.** It moves the balance, and `r` does not change,
+so the next increment posts `ceil(exact − r)` exactly as it would have and the credit stays with the
+customer. *Under the withdrawn form a correction lowered `already_charged`, the next tick observed
+the period short by that amount and charged it straight back — the customer watched a credit appear
+and vanish inside one metering interval, on the ledger `ADR-0002` makes the authorization system.
+`LDG-73` existed to close that hole and required every correction to carry the billable seconds it
+returned. Both the hole and the seconds channel are withdrawn: the guarantee is now structural.*
 
 **And it is subtracted increment by increment, which subsumes period by period.** Since 2026-09-02
 each increment removes only the part of an absorbed window lying inside *it*, so a window straddling
@@ -687,7 +700,7 @@ to make the period rule automatic rather than a second calculation. A deficiency
 opened in an earlier period absorbed time that period already removed from its own charge;
 subtracting the whole `absorbed_seconds` again here would hand the customer that window a second
 time, in a period where it absorbed nothing — and an outage long enough would drive a later
-period's `billable_seconds` to zero for consumption nobody disputes, which is the operator paying
+period's billable time to zero for consumption nobody disputes, which is the operator paying
 twice for one interruption. Where an absorbed window straddles a period boundary each period
 subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
 **The window is read from the deficiency record's `absorbed_from` and `absorbed_until`**
@@ -701,7 +714,7 @@ not a split an implementation can perform.
 clause said "a `clamp_overflow` deficiency absorbs billable time too", and that double-relieves the
 customer.* A clamp overflow is the operator absorbing **satoshis**: the consumption happened, the
 tenant was debited up to the authority it granted (`LDG-31`), and the excess became the operator's.
-Subtracting the seconds as well would make the period's `exact_total` fall, so every later posting
+Subtracting the seconds as well would make the period's charge fall, so every later posting
 would be smaller too — the customer relieved once in money and again in time, for one event.
 `LDG-66`'s other causes are one-off amounts and meter no elapsed time at all. **A rate outage is
 different in kind**: no rate existed, so the window was never priceable and there is nothing for the
@@ -711,49 +724,29 @@ one appears in the subtraction above. *This also removes the case nothing had a 
 recorded after that increment was priced could never be applied to it — which is unanswerable if the
 cause absorbs time and moot now that it does not.*
 
-**What is subtracted is a magnitude, because `LDG-1` makes a debit negative.** The signed sum of
-the prior usage debits is a negative number — the worked table above posts `usage_debit` −100 for
-the first hour — so negating it is what turns it into the amount already charged. Subtracting that
-signed sum *unnegated* would add it back: a second tick whose cumulative charge is 200, against a
-prior debit of −100, would post `200 − (−100) = 300` and the period would collect 400 for 200 of
-consumption, over-charging by the running total on every tick after the first. `posted_debit` is a
-magnitude for the same reason, and the entry `LDG-6` writes for it carries `LDG-1`'s debit sign.
-
-**Corrections net against the debits they name.** `LDG-5` makes a correction a new entry rather
-than an edit, so the corrected `usage_debit` row survives unchanged and a gross subtraction cannot
-see it. The next posting would then re-charge whatever a correction added, or hand back a second
-time whatever it refunded — the customer paying twice, or the operator, for a row that exists
-precisely because the first figure was wrong. The subtraction is therefore over the **net**: the
-prior usage debits for that subject and period, plus every `correction` (`LDG-7`) naming one of
-them. A correction naming an entry of any other kind is not part of this sum.
+**`posted_debit_i` is a magnitude, and the entry `LDG-6` writes for it carries `LDG-1`'s debit
+sign.** The recurrence works in magnitudes throughout; nothing in it reads a signed entry.
 
 **A correction is attributed to the period of the entry it corrects, never to the period it was
-posted in.** Corrections arrive late by nature — a wrong figure is usually found after the period
-it fell in has closed — so the entry it names is the only thing that places it, and "naming one of
-them" is the whole test. A correction posted much later against a debit for this subject and period
-is inside this period's `already_charged`; a correction posted inside this period against an
-earlier period's debit is outside it, and belongs to that earlier period's arithmetic. Placing it
-by its posting instant instead would drop it from the period whose charge it actually alters and
-admit it to a period whose debits it does not name — and both errors reach the customer wherever
-that period still has a posting to make, which is an ordinary occurrence: a late increment after a
-restart, or any cadence that subdivides the period (`LDG-8`).
+posted in.** Corrections arrive late by nature — a wrong figure is usually found after the period it
+fell in has closed — so the entry it names is the only thing that places it. This is what
+`ledger_entries.billing_period` holds for a `correction` row, and it is a fact about the ledger
+rather than about the meter: placing a correction by its posting instant would file it under a period
+whose debits it does not name, and every period statement would then disagree with the entries it
+summarises.
 
-**A correction carries its own sign, and the netting must respect it.** A correction that
-*reduces* a charge is a positive entry: it moves the negative net toward zero and therefore
-**lowers** `already_charged`. A correction that *increases*
-a charge is negative and raises `already_charged`. Netting the signed amounts and negating once,
-as the formula does, is what makes both directions come out right; taking the absolute value of
-each entry before summing would make a refund add to the amount already charged and re-charge the
-customer for money handed back.
-
-**AMENDED 2026-09-02 — and it does NOT follow that the next tick posts more.** This paragraph used
-to end "so the next tick posts more, not less", which is the claw-back `CNF-215` was rewritten on
-2026-08-31 to forbid and `LDG-73` exists to prevent — the customer watching a credit appear and
-vanish inside one metering interval. It was true of an arithmetic where only `already_charged`
-moved. It is not true now: a correction moves `already_charged` **and** `exact_total` by the same
-integer magnitude, so `ceil(exact_total) − already_charged` is unchanged and **the next tick posts
-neither more nor less**. The sign rule above is still exactly right and still load-bearing; only the
-conclusion drawn from it was wrong, and it survived one amendment of its own conformance item.
+*A long sub-section stood here until 2026-09-02, and its removal is the point of this redesign
+rather than a tidy-up.* It established how corrections **net** against the debits they name, why the
+signed sum had to be negated exactly once, and what each direction of correction did to
+`already_charged` — an argument that was correct, load-bearing, and delicate enough that the
+paragraph concluding it stated the wrong result ("so the next tick posts more, not less") and
+survived an amendment of its own conformance item before anyone noticed. All of it existed because
+the meter's state was *what has been charged*, a quantity the entries also determine, so the two had
+to be reconciled on every tick and in both directions. **The rounding credit is not that quantity.**
+`r` records only where the last increment left the rounding, corrections do not move it, and the
+whole netting argument has nothing left to be about. The trap worth retaining is the general one:
+the sub-section was not wrong, it was *unnecessary*, and unnecessary correct machinery is the kind
+that hides a wrong conclusion for a month.
 
 **The subject's high-water mark is the greatest `increment end` already posted for it**, and
 **an increment whose end instant is at or before that mark MUST be discarded, not posted** — a
@@ -771,86 +764,109 @@ the arithmetic that forced it.
 
 **`LDG-8` owns the key**; this requirement does not restate it. *A restatement here said `(subject, billing period, kind, posting index)` — the form `LDG-8` withdrew as unable to deduplicate — which is the duplication habit this set keeps paying for.*
 
-**LDG-72** **The meter keeps a running total per `(subject, billing period)`, written in the same
-transaction as the debit.** `LDG-38` defined `already_charged` as a sum over every prior usage debit
-for that subject and period, and its high-water mark as a query over the same rows — explicitly
-adding no schema. **That is withdrawn, and the reason is arithmetic:** tick *k* reads *k−1* rows, so
-the cost of metering a period is quadratic in the number of ticks in it. At hourly cadence that is
-roughly 267,000 row reads per subject per month; at the one-minute cadence `LDG-38`'s own rounding
-rule is written to accommodate, roughly 933 million — all of it inside `LDG-35`'s per-tenant
-serialization, on the single-writer store `STO-6` describes, whose one recorded starvation
-(`DEF-11`) was caused by two write transactions per second.
+**LDG-72** **The meter keeps a running record per `(subject, billing period)`, written in the same
+transaction as the debit, and it is two values: the rounding credit and the high-water mark.**
+`LDG-38` once defined `already_charged` as a sum over every prior usage debit for that subject and
+period, and its high-water mark as a query over the same rows — explicitly adding no schema. **That
+is withdrawn, and the reason is arithmetic:** tick *k* reads *k−1* rows, so the cost of metering a
+period is quadratic in the number of ticks in it. At hourly cadence that is roughly 267,000 row reads
+per subject per month; at the one-minute cadence `LDG-38`'s rounding rule is written to accommodate,
+roughly 933 million — all of it inside `LDG-35`'s per-tenant serialization, on the single-writer
+store `STO-6` describes, whose one recorded starvation (`DEF-11`) was caused by two write
+transactions per second.
 
 **`LDG-70` diagnosed this exact shape for the balance read and fixed it. The meter had the same
 defect and the fix was not carried across.** It is carried across now, on the same terms:
 
-- The record MUST carry the **magnitude charged to date**, the **cumulative exact charge as a
-  rational**, the **elapsed billable seconds**, the **absorbed** and **corrected** seconds, and the
-  **greatest `increment end` posted** for that `(subject, billing period)`; every one of them MUST be
-  written inside the same serialized
-  transaction that appends the debit (`LDG-35`, `STO-45`). It is therefore not a cache that can
-  drift — the serialization that already exists to prevent write skew is what keeps it exact.
-- `LDG-38` reads all of them from this record, which makes a tick a single indexed row read
-  regardless of cadence or of how far into the period it falls.
-- A `correction` naming one of that subject and period's usage debits MUST update the record in the
-  same transaction that appends it (`LDG-73`), so the satoshi and second channels never diverge from
-  the entries they summarise.
+- The record MUST carry the **rounding credit** `r` as an exact rational (`LDG-4`; `LDG-1`'s
+  no-floating-point rule reaches it) and the **greatest `increment end` posted** for that
+  `(subject, billing period)`. Both MUST be written inside the same serialized transaction that
+  appends the debit (`LDG-35`, `STO-45`).
+- `LDG-38` reads both from this record, which makes a tick a single indexed row read regardless of
+  cadence or of how far into the period it falls.
+- A `correction` does **not** touch this record. It moves the balance and leaves `r` alone
+  (`LDG-38`), so there is nothing to keep in step and no second channel to keep honest.
 
-**AMENDED 2026-09-02 — the seconds were still a scan, and the exact charge had nowhere to live.**
-The original carried two figures and left `LDG-38`'s `Σ corrected_seconds` and `Σ absorbed_seconds`
-as per-tick queries over `ledger_entries` and `operator_deficiencies` — the same quadratic shape this
-requirement exists to remove, surviving in the channel nobody counted. And once each increment is
-priced at its own rate (`LDG-38`), the **unrounded** cumulative charge has to persist between ticks:
-recomputing it would mean re-pricing every earlier increment, which is the defect that amendment
-removed. So the record carries `exact_charge_num`/`exact_charge_den` as an exact rational (`LDG-4`,
-`LDG-1`'s no-floating-point rule reaches it), never a rounded satoshi figure — rounding the running
-total is rounding per tick with extra steps, and `CNF-185` is the test that catches it.
-The bullets resume, and the last one is amended by the paragraph above rather than orphaned by it:
+**AMENDED 2026-09-02 — the record carried six figures and five of them are withdrawn.** It held the
+magnitude charged to date, the cumulative exact charge as a rational, and the billable, absorbed and
+corrected seconds; and it required an audit that recomputed **every** column from `ledger_entries`
+and `operator_deficiencies`, failing closed on a mismatch. Three separate things were wrong with
+that, and they were found together:
 
-- A deployment MUST provide an audit path that recomputes **every** column of the record — not the
-  two the original carried — from `ledger_entries` **and `operator_deficiencies`**, and a mismatch
-  MUST **fail closed** in the manner of `LDG-20`'s solvency check. The
-  record is authoritative for speed; those two tables remain authoritative for truth, and they are
-  reconciled rather than assumed equal. **Both sources are required, and `LDG-31`'s clamp is why**:
-  where a debit exceeded the commitment the entry is smaller than what the meter charged, the
-  difference is a deficiency, and a recomputation from entries alone would report a discrepancy on
-  every clamped posting and fail closed against nothing.
+- **The seconds columns bill nothing.** Once each increment is priced at its own rate, there is no
+  cumulative-seconds term in the charge at all (`LDG-73`). Their only reader was the audit written to
+  check them, which is circular. *They were added by an amendment on the same day another amendment
+  removed the term they existed to serve, and neither noticed the other.*
+- **The audit could not be performed.** A `usage_debit` row records a satoshi amount and nothing
+  about time, and that amount is a rounded difference between two cumulative figures, so neither
+  `billable_seconds` nor the exact rational is recoverable from the entries. `CNF-236` required a
+  test no implementation could pass.
+- **The audit's whole purpose was to bound an unbounded risk that no longer exists.** It guarded a
+  cumulative total whose corruption mis-billed the entire remainder of a period. `r` lives in
+  `[0,1)`, so an in-range corruption is worth **at most one satoshi** to the subject, ever, and an
+  out-of-range one is visible without consulting any other table. Reconstructing increments to
+  protect a sub-satoshi residual is machinery guarding less than it costs.
 
-**LDG-73** **A `correction` naming a `usage_debit` MUST carry the billable seconds it corrects, and
-`LDG-38` subtracts them.** Without this a correction is undone by the next tick, and the
-specification mandates it.
+**What replaces it is two checks, a stated trigger, and a bounded blast radius.**
 
-`LDG-38` computes what to post as *the period's correct total minus what has already been charged*.
-A correction changes the second term and not the first, so the next tick observes that the period is
-short by exactly the corrected amount and charges it again. The customer sees a credit appear and
-vanish inside one metering interval, on the ledger `ADR-0002` makes the authorization system.
+- **Range.** `0 ≤ r < 1` MUST hold. This needs no other table, and it is the only corruption of the
+  meter's state that can cost more than a satoshi.
+- **High-water, one-sided.** The mark MUST be **at least** the greatest `increment end` encoded in
+  any `usage_debit` idempotency key for that `(subject, billing period)` (`LDG-8`). It is one-sided
+  deliberately: an increment can post **no entry at all** — clamped to nothing by `LDG-31`, or
+  rounded to nothing at a cadence finer than one satoshi per tick — so a mark ahead of every entry is
+  ordinary and only a mark *behind* one is evidence of loss.
+- **Trigger.** The deployment MUST run both **before serving a subject after a restore, import or
+  migration**, and MAY run them at period close or on operator request. It MUST NOT run them on the
+  posting path: a per-tick audit is the quadratic scan this requirement exists to remove, and would
+  reintroduce it in the name of checking it.
+- **Fail closed means the SUBJECT, not the deployment.** On a failed check the deployment MUST
+  quarantine further usage debits, commitment decrements and exhaustion decisions for that subject,
+  MUST alert, and MUST continue to admit cancellation and deletion — a machine nobody can bill is
+  still a machine somebody is paying for. *`LDG-20`'s deployment-wide solvency halt was cited here
+  and is the wrong instrument: one subject's corrupted rounding credit is not evidence that the
+  float is short, and halting every tenant over it converts a one-satoshi exposure into an outage.*
 
-**The two channels must move together.** `LDG-66` already established the mechanism: deficiency
-time is subtracted in **seconds**, before any conversion, because an outage accrues while no rate
-exists. This opens that same channel to the only other thing that adjusts a charge. A correction
-that returns *n* satoshis' worth of consumption carries the seconds that consumption represented.
+**What is deliberately not audited: `r` itself is not reconstructible, and that is the design.** No
+table records what it should have been, because nothing needs to — the bound is structural. *Say
+this plainly rather than leaving the earlier "entries remain authoritative for truth" claim standing:
+for the rounding credit there is no second source, and pretending otherwise is what produced an
+impossible conformance item the first time.*
 
-**AMENDED 2026-09-02 — which channel carries the money changed, and this requirement survives with
-a different job.** *The withdrawn sentence was "`LDG-38` removes them from `billable_seconds`, and
-the period's correct total falls to match".* Under the whole-period formula that was how the total
-fell; under per-increment pricing there is no `billable_seconds` term in the charge at all, and
-seconds removed from an increment that closed at a rate no longer in force **cannot be re-priced**.
-So `LDG-38` adjusts `exact_total` by the correction's own **satoshi magnitude**, which is the only
-figure that is still true, and the guarantee is unchanged: the next tick posts nothing to claw back.
+**LDG-73** **WITHDRAWN 2026-09-02. A `correction` carries no seconds, and the claw-back this
+requirement prevented is now structurally unreachable.**
 
-**`corrected_seconds` is still required and is still this requirement's.** It keeps the
-elapsed-seconds channel honest — the channel that has no rate in it, which `LDG-66`'s deficiency
-apportionment reads and `LDG-72`'s audit recomputes. A correction that returns money without
-returning the seconds it represents leaves `meter_totals` claiming consumption the ledger has
-already refunded, and the audit path then fails closed against a discrepancy nobody introduced.
+*What it required, and why it was right at the time.* `LDG-38` used to compute what to post as *the
+period's correct total minus what had already been charged*. A correction changed the second term and
+not the first, so the next tick observed the period short by exactly the corrected amount and charged
+it straight back — the customer watching a credit appear and vanish inside one metering interval, on
+the ledger `ADR-0002` makes the authorization system. `LDG-73` closed that by requiring every
+correction naming a `usage_debit` to carry the billable seconds it returned, so both channels moved
+together. It was amended once, on 2026-09-02, when per-increment pricing removed the `billable_seconds`
+term from the charge: seconds returned from an increment that closed at a rate no longer in force
+cannot be re-priced, so the money channel moved by the correction's own satoshi magnitude and the
+seconds channel survived to keep `meter_totals` honest for the audit.
 
-**A correction naming an entry of any other kind carries no seconds** and is outside `LDG-38`'s
-arithmetic entirely; `WIR-42`'s re-attribution pairs name `topup` entries and are unaffected.
+*Why it goes.* The meter's state is now the rounding credit `r`, and **a correction does not move
+it** (`LDG-38`). The next increment posts `ceil(exact − r)` exactly as it would have, so the credit
+stays with the customer with no rule required. The seconds channel then had one reader left,
+`LDG-72`'s audit, which is itself withdrawn — and a required column whose only consumer is the check
+written to verify it is `STO-38`'s failure class inverted. `ledger_entries.corrected_seconds` goes
+with it.
 
-*The cost accepted: a purely discretionary credit unrelated to elapsed time must still be expressed
-in seconds, which is an odd unit for it. The alternative considered and rejected was a new entry
-kind excluded from the netting, which opens `LDG-7`'s closed set and creates a second way to move a
-balance that the meter cannot see.*
+*The cost this requirement accepted is also withdrawn:* a purely discretionary credit unrelated to
+elapsed time no longer has to be expressed in seconds, which was always an odd unit for it.
+
+**A correction naming an entry of any kind still carries no seconds and is outside `LDG-38`'s
+arithmetic entirely**; `WIR-42`'s re-attribution pairs name `topup` entries and were never affected.
+
+*The lesson worth keeping, and it is not about corrections.* This requirement was correct, carefully
+argued, amended once to stay correct, and unnecessary — it existed only because the meter's state was
+a quantity the ledger also determined, so the two had to be reconciled in both directions on every
+tick. Changing the state variable deleted the requirement, its amendment, its conformance item and
+its stored column together. **When a requirement exists to keep two representations of one quantity
+in step, the question is whether the second representation should exist** (`LDG-70` reached the same
+conclusion for the balance read, one quantity earlier).
 
 **LDG-39** **AMENDED — the setup fee has a lifecycle, not a single moment.** It is committed at
 create as part of `PRV-13b`'s sizing, and it becomes a debit **only when the order is known to
