@@ -264,7 +264,7 @@ the requirement exists, and it does not depend on what any particular component 
 *This said "every one of the components below writes money, touches a provider, or both" until
 2026-09-03, and it was already false when written: `API-34`'s time-to-live sweep is "tenancy records,
 no provider and no rail", `STO-14`'s retention job deletes request records, and the solvency check
-only reads balances. The retention row added the same day was one more. **A universal claim used as a
+"Reads balances and held satoshis". The retention row added the same day was one more. **A universal claim used as a
 rationale is worth less than the argument underneath it**, which was in the next sentence all along.
 The first correction of this note counted the counterexamples and undercounted them — the third time
 in one day that a number written into prose in this set turned out wrong, which is why there is no

@@ -37,6 +37,38 @@ has been validated against a running system, a real provider response, or a payi
 design is now internally consistent and considerably more opinionated than it was — which raises,
 rather than lowers, the value of the first real transaction.
 
+## Open — found 2026-09-03
+
+**F36. Resolution cannot identify which attempt landed when the correlator is the operation UUID,
+and two requirements assume it can.** Not decided here: the fix is a design choice about the
+install safety gate and the setup fee, and it wants an identifier minted at acceptance
+(README, *A decision gets its identifier when it is accepted*).
+
+`OPS-13` states the mechanism twice: `request_summary` "holds a list aligned one-to-one with
+`correlator_value`", and "Resolution uses the entry of the attempt **whose correlator matched**".
+`PRV-26` states the opposite case: "Where the correlator is the operation UUID the list simply holds
+that one value, however many attempts were made."
+
+**Both are true, and together they leave the selection undefined on two of the three launch
+drivers.** Hetzner Cloud and DigitalOcean take a free caller-controlled field, so every attempt of a
+requeued create carries the *same* correlator; a search that matches it selects no particular
+attempt, and there is nothing for "the entry of the attempt whose correlator matched" to name. Only
+Hetzner Robot, where `PRV-32`'s per-order key differs per attempt, has the discriminator the rule
+assumes. `WIR-35`'s operator `observed` verb does not close it either: it carries an `external_id`
+and no attempt index.
+
+**What rides on it.** `machines.install_strategies` is a safety gate whose absence authorizes a
+disk-wiping install (`05-persistence.md`), and `LDG-39` debits the matched attempt's at-cost setup
+fee — so the wrong snapshot is both a destroyed disk and a wrong charge. `CNF-257` is BLOCKING and
+tests that a create whose *earlier* attempt landed attaches that attempt's snapshot, which is a
+behaviour with no mechanism behind it wherever the correlators are identical.
+
+*Found by a cross-model review of `DOM-30`, which had asserted the mechanism as settled while
+describing something else. The set has been here before: `F1` closed on a correlator premise nobody
+had checked, and `PRV-30` and `PRV-26`'s create-only scope were the two that failed on inspection.
+This is the third — and unlike those, it is not a provider fact but an interaction between two of
+our own requirements.*
+
 ## Critical — closed 2026-08-11
 
 **F1. `needs_reconciliation` had no resolution path.** → `OPS-27`–`OPS-33`. The mechanism turned
