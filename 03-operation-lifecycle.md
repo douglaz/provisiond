@@ -824,16 +824,18 @@ MUST NOT claim a resource whose operation is still `running` and holding its lea
 record an observed resource by its external identifier, record that nothing was created, or
 abandon the operation and accept the loss. Each MUST record who resolved it and on what
 evidence, and abandonment MUST close the commitment and release it in full (`LDG-32`) **where the
-operation opened one** — a create or an adopt (`LDG-11`, `LDG-36`). An install, a power action, a
-reverse-DNS change and a delete open none, and the only commitment within reach of one is the
+operation opened one** — a create or an adopt (`LDG-11`, `LDG-36`). An install, a rescue inventory,
+a power action, a
+reverse-DNS change and a delete open none (`API-7`'s tail), and the only commitment within reach of one is the
 machine's **running** commitment, which abandonment MUST NOT touch: the machine is still there and
 still consuming it. *Scoped 2026-09-02; unscoped, abandoning a failed install released the funding
 of a machine that is still running, which is `LDG-13`'s unfunded machine created by an operator
 verb.*
 
-**AMENDED 2026-09-02 — those three verbs are create-shaped, and three operation kinds cannot use
+**AMENDED 2026-09-02 — those three verbs are create-shaped, and five operation kinds cannot use
 them.** `observed` names an `external_id` that a create produced; `absent` says nothing was created.
-An install, a power action, a reverse-DNS change and a **delete** all act on a machine that
+An install, a **rescue inventory**, a power action, a reverse-DNS change and a **delete** all act on
+a machine that
 **already exists**, so
 neither verb has a meaning there and the only reachable one is `abandoned` — which is why every
 install that failed after entering rescue could be resolved exactly one way, as a loss, with
@@ -850,6 +852,17 @@ as such tells a caller its data survived. There the honest verbs are `applied` o
 **And an operator MUST NOT be the first resort here.** `OPS-45` requires the engine's own record of
 whether a write began to be consulted before any of this: most install failures never reached a
 disk, and those are deterministic outcomes, not questions for a human.
+
+*Both enumerations above said "an install, a power action, a reverse-DNS change and a delete" until
+2026-09-03, and the header counted them as three. **Rescue inventory was the missing member**, in a
+set `OPS-45`, `WIR-35` and `05-persistence.md` all state as five. It is not a harmless omission in
+either place: `OPS-11` classifies a rescue inventory with `install` precisely because it can strand a
+machine in rescue, so it reaches `needs_reconciliation` and `CNF-201` tests that it does — after
+which a builder following this list would find `applied` and `not_applied` unavailable for it and
+resolve it the one way this amendment exists to abolish, as `abandoned`. **The defect was removed for
+four kinds and left standing for the fifth.** The commitment sentence had the mirror gap: rescue
+inventory fell between "a create or an adopt", which opens a commitment, and an enumeration that did
+not name it, so the requirement gave no rule for the one case it did not mention.*
 
 **OPS-45** **The engine knows whether it started writing, and that knowledge MUST be recorded and
 used before anyone asks a human.** `OPS-11` sends an install's `integrity` failure to

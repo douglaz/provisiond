@@ -355,6 +355,49 @@ these bytes and whether there is a rescue path back into this provider at all. W
 remedy it can reason its way to is install, which on a catalogue-install provider is both the sole
 remedy and the likely cause. That is `DOM-27`'s argument arriving at a second surface.
 
+**DOM-30** **ADDED 2026-09-03. A machine's permitted install strategies MUST be readable by its
+owner** — the machine's own copy (`machines.install_strategies`), rendered on the machine view
+(`WIR-11`), present on every machine and **empty where no install is permitted**. It is the frozen
+copy the gate evaluates, never the offer's list as it stands now, which is the distinction `DOM-13`
+already draws for the server and this requirement extends to the caller.
+
+**On two paths the caller provably cannot know the list, and there the only way to discover a
+destructive limit is to attempt the destructive act.** An install naming an ineligible strategy is
+refused — but a caller that guesses *right* wipes the disk, and the request carries
+`acknowledge_destruction: true` (`API-14`) either way, so nothing available before the send tells the
+two apart.
+
+- **An adopted machine.** It came from no offer — `offer_id` is null — so there is nothing the caller
+  could have retained, and `05-persistence.md` requires adoption to persist an **empty** list
+  wherever it cannot establish a safe one, refusing every strategy.
+- **A machine attached by resolution.** The machine takes its copy from the **matched attempt's**
+  `request_summary` snapshot (`OPS-13`), and on a requeued create the caller does not know which
+  attempt landed — so it cannot know which of several snapshots the machine now holds. `CNF-257`
+  tests that case.
+
+**On those paths this is `API-47`'s argument arriving at a destructive verb.** No endpoint returned a
+balance until 2026-08-12, so a caller could learn its own solvency only by attempting a purchase and
+reading the rejection; `CNF-150` is BLOCKING because making an ordinary check into a failed write
+pushes an autonomous caller toward retrying purchases. The same shape pushes it toward issuing an
+acknowledged install to find out whether installs are allowed.
+
+*On an ordinary create the caller **could** have retained the accepted offer's list, which is the
+same list the machine copied — so there the read is a convenience rather than the only route, and
+this requirement is deliberately stated at that strength and no higher. The withdrawn wording
+claimed "both routes are closed", on the ground that `WIR-30` forbids a caller trusting what the
+offer said at create. **`WIR-30` says no such thing**: it forbids the **server** re-resolving the
+**live** offer at install time and mandates the create-time copy — which is the caller's snapshot
+too. Overstating a requirement's necessity is how `CNF-224` came to fail every conforming
+implementation, so the correction is recorded here rather than quietly narrowed. Found at `xhigh`
+effort by a reviewer that had already passed the same text at `high`.*
+
+*This adds a read, not a fact: the list is already recorded, already frozen at create and already
+authoritative. `DOM-29` was added for the neighbouring reason, and the two together answer an agent's
+two questions about a machine it cannot reach — what was done to this disk, and what may still be
+done to it.* **A client MUST NOT fall back to the offer's list or to the provider account's declared
+capabilities when the array is empty** (`DOM-10`): capabilities are per account and eligibility is
+per product, which is the substitution `05-persistence.md` refuses for the same reason.
+
 **DOM-14** A digest MUST be required for `rootfs_tarball` and `raw_disk`, and MUST be
 exactly 64 hexadecimal characters, compared case-insensitively.
 

@@ -14,7 +14,7 @@
 | POST | `/v1/machines/{id}/actions/refresh` | | Re-read from the provider |
 | POST | `/v1/machines/{id}/actions/power` | | Power on/off, reboot, hard reset |
 | POST | `/v1/machines/{id}/actions/rescue-inventory` | | Boot rescue and report the disks, before a destructive write (`RSC-38`, `WIR-40`) |
-| POST | `/v1/machines/{id}/actions/install` | | Install an image |
+| POST | `/v1/machines/{id}/actions/install` | | Install an image (`WIR-20`, `DOM-13`) |
 | POST | `/v1/machines/{id}/actions/reverse-dns` | | Set a PTR record |
 | POST | `/v1/machines/{id}/actions/delete` | | Delete the machine |
 | GET | `/v1/operations` | ✓ | List operations, filterable by status |

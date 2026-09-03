@@ -266,22 +266,41 @@ of the 2026-08-11 decisions** and it should be read as such: choosing self-serve
 prepaid balance did not merely add features, it added a money system whose correctness gates
 launch. A reader deciding whether that trade was worth it will find the number there.
 
-### Tiering the other 234 requirements — first pass
+### Tiering the rest of the requirement set — first pass
 
 The same three questions apply. This pass is at *area* level with named exceptions, because an
-honest per-item verdict on 234 requirements needs a target deployment in front of you. Treat it
-as a starting sort, not a ruling.
+honest per-item verdict on every requirement in the set needs a target deployment in front of you.
+Treat it as a starting sort, not a ruling.
+
+*The heading and this paragraph both said "234 requirements" until 2026-09-03; `tools/check_coverage.py`
+counted 490 on that date. The figure is deleted rather than updated, on **The blocking count**'s own
+finding: a number written into prose in two places disagrees with itself the first time either moves,
+and this one was in two places in three lines.*
 
 **Blocking as a whole area** — the safety spine, where a first pass is safe because almost
 everything in them is irreversible:
 
-- **`SEC-*` (the entire namespace, now `SEC-1`–`SEC-53`).** All of it. Every one guards a family in the irreversible
+- **`SEC-*` — the entire namespace, whatever its extent.** All of it. Every one guards a family in the irreversible
   list. Exceptions that are genuinely PRE-SCALE: `SEC-30`/`SEC-31` (rate limiting and
   starvation — a queue with one tenant cannot starve anyone), `SEC-33` (separate audit sink),
   `SEC-38` (rotation procedures, needed before the first credential ages out rather than before
   the first customer).
-- **`RSC-*` (now `RSC-1`–`RSC-38`).** Rescue writes to disks and holds root credentials. `RSC-31` (partition
+- **`RSC-*` — the entire namespace, whatever its extent.** Rescue writes to disks and holds root credentials. `RSC-31` (partition
   growth), `RSC-33`/`RSC-34` (inventory capture) are the plausible PRE-SCALE exceptions.
+  **`RSC-39`–`RSC-44` are in scope although they enter no rescue at all**, and the reason above does
+  not reach them: catalogue install has the *control plane* fetch an anonymous stranger's URL, so
+  `RSC-44` is an SSRF control inside the credential-holding process (escaped-secret and
+  boundary-crossed, `CNF-276`), `RSC-39`/`RSC-40` are the only integrity check that path has and the
+  refusal to run a parser over hostile binary (`CNF-265`), and `RSC-42` is a copy of a customer's
+  operating system left in the operator's account (`CNF-267`). `RSC-41` and `RSC-43` are the
+  PRE-SCALE pair — a lock-hold bound and a disclosure.
+
+*Both bullets named a closing identifier — `SEC-1`–`SEC-53` and `RSC-1`–`RSC-38` — until 2026-09-03,
+by which point `SEC-55` and `RSC-44` existed. **The ranges are deleted rather than corrected**: a
+namespace's extent moves every time a requirement is added, and a sort that says "all of it" has no
+use for a number that will be wrong again next week. `CNF-233`/`CNF-234` fell off the end of a range
+block written the same way, which this document already records as a defect — the fix is the same
+one, applied to the requirement sort instead of to the item sort.*
 - **`PRV-6`, `PRV-9`–`PRV-13c`, `PRV-17`, `PRV-22`.** Injection, key-material timing, deletion
   semantics, rescue credential handling, ambiguity honesty.
 - **`OPS-1`–`OPS-23`.** The uncertainty model is the product's most valuable property and it
@@ -1034,8 +1053,14 @@ rather than acquiring a default.
       latest attempt's, and not the offer as it stands now. Then assert an install naming a strategy
       absent from that copy is refused before enqueue. **No conformance item anywhere mentioned
       `install_strategies` before this one**, and `05-persistence.md` calls it a safety gate: get it
-      wrong and a disk-wiping install is authorized on a machine that cannot take one. (`OPS-13`,
-      `WIR-30`, `DOM-13`)
+      wrong and a disk-wiping install is authorized on a machine that cannot take one.
+      **AMENDED 2026-09-03 — the caller must be able to read the gate's input** (`DOM-30`): the
+      machine view returns that same copy, the key is present on **every** machine, and an
+      **adopted** machine whose eligibility could not be established renders `[]` rather than
+      omitting the key or echoing the account's capabilities. Assert an agent can tell a permitted
+      strategy from a refused one **without sending an install** — the gate authorizes wiping a disk,
+      so discovering it by attempting it is `CNF-150`'s probe-by-purchase with a destructive verb.
+      (`OPS-13`, `WIR-30`, `DOM-13`, `DOM-30`, `WIR-11`)
 - [ ] **CNF-258** **Adopt places a commitment and gets a runway.** An adopt with insufficient
       available balance is refused with no provider call; a successful one opens a commitment, sets
       `runway_until`, and the machine enters the exhaustion sweep. Without it an adopted machine
@@ -1263,11 +1288,18 @@ rather than acquiring a default.
       ceiling; the rescue-entry ceiling counts the inventory pass and rescue-entering installs
       together. Drive it with a loop that acknowledges everything. (`SEC-39`, `RSC-38`)
 - [ ] **CNF-253** **The operator principal is capped and observed.** An operator principal exceeding
-      its stated requeue, resolution, suspension or re-assignment ceiling is refused; the override
+      its stated requeue, resolution, suspension, re-assignment **or provider-account
+      status-recording** ceiling is refused; the override
       path works and is itself recorded; and every operator verb emits a monitorable event naming
       principal, target and reason. The failure this catches is a looping operator agent buying
       duplicate servers or attaching a machine to the wrong tenant — strictly more power than any
-      customer holds, previously uncapped. (`SEC-39`, `SEC-32`, `API-62`)
+      customer holds, previously uncapped. **AMENDED 2026-09-03 — the fifth ceiling was missing.**
+      `SEC-39` added status recordings on 2026-09-02 and named the reason: confirming a termination
+      releases every affected tenant's commitments (`API-63`, `SEC-46`), which is the largest single
+      money movement any operator verb performs — so the one ceiling this item omitted guards more
+      money than the four it tested. *A closed list extended in the requirement and not in the item
+      that tests it is this set's most-repeated defect; here it left the biggest member untested.*
+      (`SEC-39`, `SEC-32`, `API-62`, `API-63`)
 - [ ] **CNF-254** **The credential-holding process cannot move the float.** Its Lightning credential
       permits exactly `SEC-48`'s six operations — create, look up, list, subscribe, **cancel an
       unsettled invoice**, and **read the channel and on-chain wallet balances** — and nothing else:

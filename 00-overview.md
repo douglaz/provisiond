@@ -10,7 +10,7 @@ these by reducing them to a common subset ends up unable to do the one thing bar
 is for: putting an arbitrary, operator-controlled image on a machine.
 
 The system specified here unifies the *lifecycle* — create, adopt, refresh, power,
-install, reverse-DNS, delete — while treating provider-specific capability as
+rescue inventory, install, reverse-DNS, delete — while treating provider-specific capability as
 first-class rather than as an exception. Rescue mode in particular is a workflow the
 control plane orchestrates, not an opaque flag it forwards.
 
@@ -256,9 +256,16 @@ not merely tested — there are none left to verify.)*
 
 **OVR-17** **Every component that runs without a caller MUST be assigned to a module, and here is
 the assignment.** The table above allocates the request path; the periodic and background work was
-allocated nowhere — every one of the components below writes money, touches a provider, or both, and
-none had a stated home. A component with no module has no dependency rule, which means it has no
-credential boundary either.
+allocated nowhere, and none of it had a stated home. **Most of the components below write money,
+touch a provider, or both** — and the rest still need an assignment, because a component with no
+module has no dependency rule, which means it has no credential boundary either. That is the reason
+the requirement exists, and it does not depend on what any particular component does.
+
+*This said "every one of the components below writes money, touches a provider, or both" until
+2026-09-03, and it was already false of two rows when written: `API-34`'s time-to-live sweep is
+"tenancy records, no provider and no rail", and `STO-14`'s retention job deletes request records. The
+row added on 2026-09-03 made it false a third time. **A universal claim used as a rationale is worth
+less than the argument underneath it**, which was in the next sentence all along.*
 
 | Component | Module | Why there |
 |---|---|---|
@@ -273,6 +280,7 @@ credential boundary either.
 | The settlement watcher (`STO-30`–`STO-32`, `LDG-47`, `LDG-57`) | `api` | It holds the payment-rail material `OVR-10b` keeps away from the lifecycle side, and posts its credits through `ledger` |
 | `API-34`'s time-to-live sweep | `api` | Tenancy records, no provider and no rail |
 | `STO-14`'s retention job | `api` | It deletes settled operations, which is a **request** record; it MUST NOT touch `machines.system_trigger_ids`, which `STO-14` states in terms — retention resetting `OPS-39`'s deduplication is the defect that requirement exists to forbid |
+| `STO-42`/`STO-43`'s abuse and address retention | `api` | Tenancy-adjacent records, no provider and no rail. **It is not the row above**: `STO-43` says `STO-14` "reaches **settled operations** and nothing else", so closed cases, statement bodies and `machine_addresses` run on ages of their own. Added 2026-09-03 |
 
 **Three of these placements are the ones a builder gets wrong**, so the reasoning is recorded rather
 than left to be re-derived. The exhaustion sweep looks like money and is not: it is a machine
@@ -283,9 +291,19 @@ it in `ledger` would drag a spending-adjacent credential into the module `engine
 the retention job looks like a store-maintenance chore that could live anywhere: it deletes rows the
 queue depends on, and the one table it must **not** reach is on the machine.
 
-*The list is closed as of 2026-09-02 and MUST be extended when a component is added, which is the
+*The list is closed as of 2026-09-03 and MUST be extended when a component is added, which is the
 obligation this requirement really carries — an unassigned background job is an unassigned
 credential boundary.*
+
+*It was extended once already, the day after it was closed, and by exactly the omission it warns
+about: `STO-42` and `STO-43` require a purge of closed cases, statement bodies and address history on
+stated ages of their own, and the table carried only `STO-14`'s operation retention. `STO-43` had
+even written down why the two are not one job — a citation to `STO-14` "is not a clock" — and this
+list still read as though it were. **The obligation is not merely to add a row when a component is
+invented; it is to add one when a requirement elsewhere mandates periodic work**, which is the form
+this miss actually took. The `machine_addresses` half is the one with a customer-visible
+consequence: purging it shortens the horizon `SEC-54` can answer an abuse notice over, so an
+unassigned job here silently narrows a control two BLOCKING items depend on.*
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive

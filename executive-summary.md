@@ -2,7 +2,8 @@
 
 *A single-file orientation to the specification set, for a reader who has never seen it.
 Written 2026-08-14 against 660 requirements across 14 numbered documents, 11 ADRs and a glossary;
-refreshed 2026-08-16 against 700+ requirements and 12 ADRs. Re-derive the count before quoting it —
+refreshed 2026-08-16 against 700+ requirements and 12 ADRs; §3 refreshed 2026-09-03 for the two
+decisions missing from its survey. Re-derive the count before quoting it —
 `10-conformance-checklist.md` records why numbers in this set go stale.*
 
 ---
@@ -20,7 +21,8 @@ The problem it solves is that providers expose incompatible surfaces. A cloud VP
 create/rebuild/delete against an image catalogue. A dedicated-server API offers an *ordering
 system*, a rescue environment and an out-of-band reset, and expects you to bring your own operating
 system. Unify those by intersection and you throw away the thing bare metal is for. So the set
-unifies the **lifecycle** — create, adopt, refresh, power, install, reverse-DNS, delete — while
+unifies the **lifecycle** — create, adopt, refresh, power, rescue inventory, install, reverse-DNS,
+delete — while
 treating provider capability as first-class and discoverable at runtime.
 
 The differentiator is that **rescue-mode installation is an orchestrated workflow rather than a
@@ -71,7 +73,13 @@ is server-paced instead, and a rate-limited *read* must never become the reason 
 
 ## 3. The decisions everything else follows from
 
-Eleven ADRs, each recording what was rejected. The rejections are the informative half.
+The decisions live in `docs/adr/`, and each one records what was rejected. The rejections are the
+informative half. *This paragraph opened "Eleven ADRs" until 2026-09-03, two decisions after the
+count moved — and neither of those two was surveyed below, so the number was not merely stale, it was
+the marker of a gap: `ADR-0012` appeared nowhere in this file at all, and `ADR-0013` only in a §7
+open-items bullet about DigitalOcean's rescue question. The directory is the list; this cites it
+rather than counting it, which is the arrangement that cannot drift again. `ADR-0003`'s footnote and
+`ADR-0011` each reached the same conclusion about an enumeration of their own.*
 
 **One deployable, not a front service over a credential-holding engine** (`ADR-0001`). The rejected
 split isolated credentials better, but it put tenancy on a forwarded header and — decisively —
@@ -147,6 +155,36 @@ whole fleet behind it. Also: margin is a percentage of machine time, with instal
 *but metered from day one*, because a price cannot be introduced later for something that was never
 counted (`ADR-0007`); and v1 is pass-through resale, with inventory and VM-slicing deferred
 *together*, because a setup fee only amortizes with density (`ADR-0006`).
+
+**The abuse channel is the operator's, in both directions** (`ADR-0012`). A provider's abuse notice
+stops at the operator: its case reference, its statement link, its own wording and any third party it
+named never reach a tenant. What the tenant sees is a **case the operator wrote** — the machine, the
+allegation, what was threatened, one deadline — and provider-neutrality is produced by the act of
+rewriting, which is why there is no allegation taxonomy and no parser. Outbound, the tenant's
+statement stops at the operator too, though forwarding it verbatim survives as a recorded per-case
+decision. The rejected option was the cheap one and was the standing recommendation for part of a
+session: relay the notice and let the tenant follow the provider's own link. **A real notice killed
+it** — that link is a single-use bearer credential whose *use concludes the deadline*, so handed to
+an autonomous caller a poll loop ends the operator's window in the first second, with no human ever
+deciding to answer. That is `SEC-39`'s reasoning arriving at a surface nobody had looked at. Owning
+the channel also exposed a latent defect: answering a notice means knowing who held an address at an
+*instant*, and current state cannot say — every design that relays the notice hides this, because
+the provider's own records do the resolving.
+
+**Catalogue install is a second feature, not a second strategy** (`ADR-0013`). DigitalOcean exposes
+no way to boot a droplet into recovery through its public API — two documentation passes and a live
+probe returning `404 "The specified action type is not available."`, which is positive evidence of
+absence rather than an argument from silence. The differentiator survives there by another route:
+import the caller's image into the operator's private catalogue and have the provider build from its
+own converted copy. **The two make different promises, so they carry different names.** A rescue
+install writes bytes provisiond verified onto a disk provisiond laid out, and leaves a way back in; a
+catalogue install hands the image over, and the provider exposes no checksum field, imposes its own
+guest requirements, and offers no rescue path when the machine comes up unreachable. The rejected
+option — one feature with two strategies — was the neatest, and it would let an agent believe its
+bytes were checked when nothing checked them. Rejected with it: forwarding the caller's signed URL to
+the provider, which discloses a credential and abandons verification entirely; and inspecting the
+image before importing it, which is a parser for hostile binary inside the process holding every
+provider credential.
 
 ## 4. How the system is shaped
 

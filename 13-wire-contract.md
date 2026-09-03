@@ -210,6 +210,7 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
   "committed_sats": 71900,
   "runway_until": "2026-09-11T14:00:00Z",
   "network_restriction": {"status": "none", "source": "provider_api", "observed_at": "2026-08-12T15:03:00Z"},
+  "install_strategies": ["provider_native", "raw_disk"],
   "last_install": {"strategy": "raw_disk", "bytes_verified_by_provisiond": true, "at": "2026-08-12T14:40:00Z"},
   "rate_outage_deadline": null,
   "effective_cancellation_date": null,
@@ -225,6 +226,21 @@ rescue address. `external_id` and raw provider metadata are **absent** on the cu
 response. `last_install` is `DOM-29`'s, and is `null` on a machine nothing has installed; a client
 reading `bytes_verified_by_provisiond: false` is being told this system never saw what reached the
 disk, not that anything is wrong. `abuse_cases` (`WIR-43`) is absent when the machine has none.
+
+**`install_strategies` is `DOM-30`'s, and it is the *machine's* frozen copy — not the offer's live
+list** (`WIR-30`, `05-persistence.md`). **The key is present on every machine**, unlike
+`abuse_cases`: omission is not a legal representation here, and `[]` is a positive statement rather
+than a default. The rule exists because the two are trivially conflated on the client side — a reader
+resolving a missing key to "unrestricted" would send an install the gate refuses, and one resolving
+it to "nothing permitted" would refuse installs the machine can take — so the field is mandatory and
+`[]` carries the meaning: **no install is permitted on this machine**, which is the ordinary reading
+for an adopted machine whose eligibility adoption could not establish. **`DOM-30` owns the rule that
+a client may not substitute the offer's list or the account's capabilities for an empty one** — cited
+rather than restated, because a second normative copy of a MUST is the drift `SEC-46` is this set's
+standing example of. *Added 2026-09-03: the gate that authorizes a disk-wiping install read a list no
+response returned, which on an adopted machine and on a machine attached by resolution leaves a
+caller no route to the limit but an acknowledged install (`DOM-30` scopes it to those two; an
+ordinary create's caller could have retained the accepted offer's list).*
 
 ## Endpoints
 
@@ -501,7 +517,8 @@ can bound a purchase priced at an attacker-influenceable rate (`LDG-41`).
 **WIR-19** `POST /v1/machines/{id}/actions/power` — `{"action": "on" | "off" | "reboot" |
 "hard_reset"}`. The last requires the `hard_reset` capability (`DOM-10`).
 
-**WIR-20** **AMENDED — the install body is a closed discriminated union, one variant per `DOM-13`
+**WIR-20** `POST /v1/machines/{id}/actions/install` — **AMENDED — the install body is a closed
+discriminated union, one variant per `DOM-13`
 pairing, and it carries every field the rescue engine needs from the caller.** The withdrawn body
 showed only `rootfs_via_rescue` and omitted the raw-disk target device (`RSC-26`), the host-key
 trust decision (`RSC-3`/`RSC-4`), the layout (`RSC-22`) and the installed keys (`RSC-13`) — so
@@ -596,6 +613,17 @@ carries no digest — this system does not touch those bytes (`SEC-16`). A `url`
 subject to `OPS-40`'s two validity gates fails `invalid_request` with `details.url_expires_at`
 when it cannot outlive the install.
 
+*The route was added to this requirement's opening on 2026-09-03. Every other endpoint here leads
+with its method and path; this one led with its body, so **the single most destructive request in
+the set was the one request whose address this document never stated** — a reader could bind it to
+`/v1/machines/{id}/actions/install` only by inference from the surrounding requirements' ordering,
+and `04-api-contract.md`'s surface row carried no citation back. This document's opening paragraph
+says it wins where a shape disagrees with prose elsewhere, which it cannot do for a route it does not
+name. *That sentence cited `WIR-1` until later the same day; `WIR-1` is the JSON, money and timestamp
+conventions, and the precedence rule is in the unnumbered preamble above it. A false stable-id
+citation inside an amendment note is the defect class this set treats as worst, so it is corrected
+in place rather than silently repointed.*
+
 **WIR-21** `POST /v1/machines/{id}/actions/reverse-dns` — `{"ip": "203.0.113.7", "ptr":
 "mail.example.org"}`; `"ptr": null` clears the record. The `ip` MUST be one of the machine's
 assigned addresses.
@@ -657,7 +685,10 @@ the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the
 `{"resolution": "absent", "operator_ref": "opref-7d41ca"}` records that nothing was created and releases
 the commitment (`LDG-32`); `{"resolution": "abandoned", "operator_ref": "opref-7d41cb"}` gives up.
 **AMENDED 2026-09-02 — two more members, for the kinds that act on a machine that already exists —
-install, power, reverse DNS and delete** (`OPS-31`, `OPS-45`):
+install, rescue inventory, power, reverse DNS and delete** (`OPS-31`, `OPS-45`; *this sentence
+omitted rescue inventory until 2026-09-03, four lines above the closed-set paragraph that carries it
+correctly — and that paragraph is the one a strict server is built from, which is the only reason the
+omission cost nothing here*):
 `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` and
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
 `external_id` — the machine is already known, which is the whole difference from a create.
@@ -669,8 +700,12 @@ For `install`, `rescue_inventory`, `power`, `reverse_dns` and `delete_machine`: 
 accepts none of them. `abandoned` is the one member common to both sets — it says nobody
 established what happened, which is a sentence about any kind. *Stated as two sets rather than as
 "refused on a create": that phrasing left `adopt_machine` taking the non-create verbs and
-`rescue_inventory` taking the create ones, and `WIR-1`'s rule that this document wins means a strict
-server would have admitted both.* **`not_applied` is additionally refused where `OPS-45`'s
+`rescue_inventory` taking the create ones, and this document's preamble rule that it wins over prose
+elsewhere means a strict server would have admitted both.* *(That clause cited `WIR-1` until
+2026-09-03. `WIR-1` carries the JSON, money and timestamp conventions; the precedence rule is in the
+unnumbered opening paragraph. Both instances of the miscitation are corrected — the other was in
+`WIR-20`, and finding the second one is why a corrected claim gets grepped across the set rather
+than fixed where it was reported.)* **`not_applied` is additionally refused where `OPS-45`'s
 write-started marker is set** — `409` `conflict`, `details.reason: "state"` — because a partly
 written disk is not "nothing happened". *Without these an install, a power action or a reverse-DNS
 change reaching `needs_reconciliation` had exactly one reachable verb, `abandoned`, so the
@@ -747,7 +782,8 @@ install is available for that offer. **The gate reads the copy the machine took 
 `machines.install_strategies` (`05-persistence.md`) — not the offer as it stands at install time**,
 because an offer is a live listing that can change or disappear between the two, and re-resolving
 it either fails an install on a machine that is running and paid for or answers from terms its
-owner never bought. `offer_id` remains the provenance record of which offer that copy came from.
+owner never bought. **That copy is returned to the caller on the machine view** (`WIR-11`,
+`DOM-30`), so a caller reasons about the same list the gate does rather than about this one. `offer_id` remains the provenance record of which offer that copy came from.
 An **adopted** machine has no offer to copy from, so **adoption derives and persists a list of its
 own** — empty where it cannot establish one, refusing every strategy. It does **not** fall back to
 the provider account's declared capabilities (`DOM-10`): capabilities are per account and eligibility
