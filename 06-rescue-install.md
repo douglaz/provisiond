@@ -351,6 +351,14 @@ or `https://127.0.0.1:8080/…` was a legal image URL.
   rebinding defeats a check performed only on the first lookup.
 - **Re-validate after every redirect, and cap the redirect count.** A redirect to a public host that
   then answers `302` to `http://169.254.169.254/` satisfies every rule this set had before today.
+- **Re-check `SEC-19`'s host allowlist on every hop, against the redirect target's own name.**
+  *Added 2026-09-04, and it is a different control from the bullets above rather than a restatement
+  of them.* Those validate resolved **addresses**; an allowlisted `images.example.com` answering
+  `302` to `https://images.attacker.example/` sends provisiond to a name nobody allowed, at an
+  address that is public, routable and entirely ordinary — so every address class passes, the scheme
+  is held, and the fetch proceeds. The allowlist was checked once, at request time, against a URL
+  the attacker was free to abandon on the first hop. A redirect whose target is outside the list
+  MUST be refused, exactly as the original URL would have been.
 - **Hold the scheme across every hop**: `https` only, or `http` where a deployment has explicitly
   enabled it (`SEC-18`), refused on redirect as well as on the original URL. *`RSC-17` states that
   rule for the **rescue host's** fetch tool and binds nothing here — it sits under remote command

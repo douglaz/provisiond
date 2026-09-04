@@ -1218,9 +1218,15 @@ rather than acquiring a default.
       itself, since `RSC-17` binds the rescue host's fetch tool and not this one. Assert every
       refusal is kind `invalid_request` (`API-24` forbids a handler choosing) and carries no
       resolved address, status or body size, so a refused fetch is not a port
-      scanner with an oracle. And assert `SEC-19`'s two halves: with an empty allowlist the
-      deployment **refuses to serve catalogue install at startup**, and a request naming a host
-      outside a configured list is rejected **before enqueue** (`API-13`). **This is an SSRF primitive inside
+      scanner with an oracle. And assert `SEC-19`'s three moments: with an empty allowlist the
+      deployment **refuses to serve catalogue install at startup**; a request naming a host
+      outside a configured list is rejected **before enqueue** (`API-13`); and **an allowlisted host
+      that redirects to a host outside the list is refused at the hop**, with the redirect target
+      resolving to an ordinary public address so no address-class rule can account for the refusal.
+      *That third case was added 2026-09-04 and is the one a build passes by accident: the two
+      redirect cases above it both turn on something about the address or the scheme, so an
+      implementation checking the allowlist once at request time satisfies every one of them.*
+      **This is an SSRF primitive inside
       the process holding every provider credential and root on every customer machine** — `RSC-40`
       put the hostile input there on purpose and bounded only what is done with the bytes.
       (`RSC-44`, `RSC-39`, `SEC-19`, `RSC-17`, `OVR-10a`)

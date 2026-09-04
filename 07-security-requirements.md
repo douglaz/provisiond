@@ -119,16 +119,21 @@ empty one means **no catalogue install may be requested** rather than "any host"
 default is not a default, it is the absence of the control, and here it is absent inside the
 boundary `OVR-10a` calls the only structural defence left.
 
-**Two obligations, at two moments, and both are required.** At **startup** the deployment MUST
+**Three obligations, at three moments, and all three are required.** At **startup** the deployment MUST
 refuse to serve catalogue install where the allowlist is empty — not merely warn, which is what the
 paragraph above requires for the rescue path. At **request time** an install naming a host outside
 the list MUST be rejected `invalid_request` before the operation is enqueued, which is `API-13`'s
 image-URL row (amended the same day to drop its "when one is configured"). *Stated as two because
 the startup half alone leaves a running deployment that was configured correctly and then had its
 list emptied, and the request half alone leaves the operator learning the control is off from an
-audit rather than from a boot.* The allowlist is necessary and not
+audit rather than from a boot.* At **every redirect hop** the target's own name MUST be on the list
+too (`RSC-44`), *which was the moment this pair missed: an allowlisted host answering `302` to a
+host nobody allowed defeats a control checked once, against a URL the attacker never intended to
+serve from. Added 2026-09-04.* The allowlist is necessary and not
 sufficient: `RSC-44` validates every **resolved address** unconditionally, because an allowlisted
-name still resolves to whatever its owner points it at.
+name still resolves to whatever its owner points it at — and the two controls are independent, since
+an address check passes a redirect to any ordinary public host and a name check passes a name whose
+owner points it at the metadata service.
 
 **SEC-20** Wildcard allowlist patterns MUST match only proper subdomains — `*.example.com`
 MUST NOT match `example.com` — and matching MUST be case-insensitive.
