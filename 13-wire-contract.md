@@ -995,8 +995,7 @@ provider-scoped string (`WIR-1`), not a UUID. Body:
 `status` ∈ {`healthy`, `account_unreachable`, `credentials_rejected`, `terminated`} (`SEC-46`,
 `STO-47`). `operator_ref` carries the same constraint as `WIR-42`'s, `WIR-35`'s and `WIR-48`'s: an
 opaque reference to a record kept outside this system, never a name, address or contact string
-(`ADR-0005`, `STO-21`). The response returns the stored status **and the tenants the account is
-assigned to**:
+(`ADR-0005`, `STO-21`). The response returns the stored status and **two distinct tenant lists**:
 
 ```json
 {
@@ -1004,15 +1003,31 @@ assigned to**:
   "status": "terminated",
   "source": "operator_record",
   "observed_at": "2026-09-01T08:12:00Z",
-  "affected_tenants": ["t-0198c1f0"],
+  "affected_tenants": ["t-0198c1f0", "t-0198d3aa"],
+  "assigned_tenants": ["t-0198c1f0", "t-0199b402"],
   "commitments_released": 3
 }
 ```
 
-**`affected_tenants` is `API-62`'s "MUST surface the affected tenants"**, answered by the call that
-creates the situation. `commitments_released` is non-zero only for `terminated`, which closes them
+**`affected_tenants` is the set whose money this call moved** — the distinct owners of machines in
+that account, which is exactly the set whose commitments were released and whose meters were
+stopped. **`assigned_tenants` is the set now pointed at a dead account** (`STO-36`), which is the
+set `API-62` has to re-assign. **Neither list contains the other**, and the fixture above shows
+that: `t-0198d3aa` was re-assigned away before the termination and still has machines here, because
+a machine cannot move between provider accounts; `t-0199b402` was assigned recently and has bought
+nothing yet, so it lost nothing. Together they are `API-62`'s "MUST surface the affected tenants",
+answered by the call that creates the situation.
+
+*Corrected 2026-09-04. One list was returned, and it was the assignment list — the wrong one for
+the sentence it was answering. The operator was handed the tenants who could not buy **next**, while
+the tenants whose commitments had just been released went unnamed; a deployment that had already
+re-assigned everyone off a failing account, which is the responsible thing to have done, would
+report `affected_tenants: []` in the transaction that stranded all of them.*
+
+`commitments_released` is non-zero only for `terminated`, which closes them
 in this same transaction (`SEC-46`, `LDG-32`); the other three statuses **retain** commitments and
-report `0`. Naming an account the deployment does not have configured is `invalid_request`.
+report `0`, and their `affected_tenants` is `[]` — nothing was moved. Naming an account the
+deployment does not have configured is `invalid_request`.
 Recording a status the driver itself reports is `conflict` with `details.reason: "state"`
 (`API-63`), and so is any attempt to move an account **out of** `terminated`, which is write-once
 because it has already released customer money.

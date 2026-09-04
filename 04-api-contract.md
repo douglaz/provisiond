@@ -1138,8 +1138,9 @@ principals), and an automated re-assignment nobody can observe is one nobody can
 
 *Where that surfacing happens was unstated until 2026-09-02, and "MUST surface" with no surface is
 not a requirement.* `API-63`'s `record-status` is the call that confirms a termination, and it
-returns the assigned tenants in its own response (`WIR-50`'s `affected_tenants`) — the operator
-learns who is stranded from the act that strands them, rather than by remembering to look.
+returns both tenant lists in its own response (`WIR-50`'s `affected_tenants` and `assigned_tenants`)
+— the operator learns who is stranded from the act that strands them, rather than by remembering to
+look.
 
 *Automatic re-assignment on account loss was rejected: it moves every affected tenant at once,
 precisely when the surviving accounts are least able to absorb them, and `SEC-43` exists to prevent
@@ -1161,9 +1162,14 @@ surface the tenants it affects.
 
 **Recording `terminated` MUST, in one transaction:** write the status; **stop the meter for every
 metered subject in that account** (`LDG-74`) at the recording instant; **close and release in full
-every open commitment on machines in that account** (`SEC-46`, `LDG-32`); and **return the list of
-tenants assigned to it** (`STO-36`) — which is `API-62`'s "MUST surface the affected tenants", now
+every open commitment on machines in that account** (`SEC-46`, `LDG-32`); and **return two tenant
+lists** (`WIR-50`) — the tenants whose commitments it just released, and the tenants the account is
+assigned to (`STO-36`). Together those are `API-62`'s "MUST surface the affected tenants", now
 answered by the call that creates the situation rather than left for the operator to discover.
+**They are different sets and both are needed**: the first is who lost money, the second is who
+`API-62` must move. *Until 2026-09-04 only the assignment list was returned, and a deployment that
+had already re-assigned its tenants off a failing account — the responsible thing to have done —
+named none of the tenants it was in the act of stranding.*
 
 **The meter stop MUST come first, and it MUST cover the attachments as well as the machines.**
 *Added 2026-09-04. The release was specified without it, and the two are not the same act:

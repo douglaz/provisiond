@@ -1245,8 +1245,12 @@ rather than acquiring a default.
       `POST /v1/provider-accounts/{account}/actions/record-status` through all four statuses:
       `account_unreachable` and `credentials_rejected` **retain** every commitment on that account's
       machines **and keep metering them**, `terminated` closes and releases them all in **one**
-      transaction and returns the assigned tenants in `affected_tenants`, and `healthy` restores
-      nothing that was released. **On the `terminated` case, advance the clock past at least one
+      transaction, and `healthy` restores nothing that was released. **Seed the two tenant lists so
+      that neither contains the other** — one tenant re-assigned away that still has machines here,
+      one assigned here that owns none — and assert `affected_tenants` holds exactly the first and
+      `assigned_tenants` exactly the second, plus whatever tenant is in both (`WIR-50`). *A single
+      list, or a fixture where the two sets coincide, passes the build this item exists to reject.*
+      **On the `terminated` case, advance the clock past at least one
       metered increment and assert no debit posts for any machine in that account or for any
       unreleased billable attachment it left behind** — both stop at the recording instant
       (`LDG-74`, `API-63`). *Added 2026-09-04: the release was asserted and the stop was not, so a
