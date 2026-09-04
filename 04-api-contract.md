@@ -157,22 +157,33 @@ operator-only endpoint unreachable. Deleted rather than annotated; the correctio
 unauthenticated caller MUST NOT be able to learn anything from validation error text, and
 MUST NOT be able to make the server do parsing or policy work. See `DEF-4`.
 
-**AMENDED 2026-09-04 — steps 2, 4 and 5b are tenant-state steps, and an operator principal has no
-tenant.** They apply to a **tenant** principal. An operator principal is authorized by *principal*:
-it reaches these routes only on the operator listener (`WIR-34`), step 4 authorizes the target
-resource by existence rather than by ownership, and its budget is `SEC-39`'s per-principal ceilings
-at 5c. *Step 2's own amendment already said the right thing — revoke, resolve, resume and requeue
-are "authorized by principal rather than by tenant state" — and then said it as a four-verb
-allowlist. The operator surface has since grown to suspend, attribute, assign-provider-account,
-record-status, record-network-restriction, revise-deadline, address-resolution and `WIR-44`'s three
-abuse verbs, none of which were added to it. Read literally, every one of them was rejected at step
-2 for a tenant the principal does not have — which is the closed-list-extended-in-one-place defect
-`STO-38` names as this set's recurring failure, here sitting on the whole operator surface.* The
-carve-out is therefore stated as a **property of the principal**, not as a list of verbs, so it
-cannot fall behind again.
+**AMENDED 2026-09-04 — steps 2 and 5b test a TENANT, and an operator principal has none of its
+own.** Every step still runs for every authenticated write, operator writes included: they carry
+`Idempotency-Key` (`WIR-24`) so step 3 and 5a are load-bearing for them, and `SEC-39`'s ceilings at
+5c are the operator's whole budget. What changes is **whose** tenant steps 2 and 5b read, and what
+step 4 authorizes against:
+
+- **Where an operator verb names a target tenant**, steps 2 and 5b test **that** tenant, exactly as
+  they would for the tenant itself. This is what keeps `API-58`'s "an operator may requeue a failed
+  cancellation, though not a create" and the requeue row's "an ordering requeue for a suspended
+  tenant is rejected `suspended`" reachable — both are 5b refusals on an operator-only verb, and
+  `adopt` is operator-only too and opens a commitment against the named tenant.
+- **Where it names none**, steps 2 and 5b have nothing to read and are skipped. The principal is
+  authorized by being on the operator listener (`WIR-34`) and bounded at 5c.
+- **Step 4** authorizes the target resource by **existence** rather than by ownership for an
+  operator, since cross-tenant reach is the point of the surface.
+
+*Step 2's own amendment already had this idea — revoke, resolve, resume and requeue are "authorized
+by principal rather than by tenant state" — and then expressed it as a four-verb allowlist while the
+operator surface grew to suspend, attribute, assign-provider-account, record-status,
+record-network-restriction, revise-deadline, address-resolution and `WIR-44`'s three abuse verbs.
+Read literally, every one of those was rejected at step 2 for a tenant the principal does not have.
+A first repair on 2026-09-04 over-corrected, exempting operators from 5b outright — which deleted
+the two ordering refusals above, since both live on operator-only verbs and no other step performs
+them. The carve-out is about the principal having no tenant **of its own**, and nothing more.*
 
 **The tail is per endpoint class, because one universal pipeline was wrong for four of
-the five classes.** Steps 1–5 are common to every authenticated write **by a tenant principal**:
+the five classes.** Steps 1–5 are common to every authenticated write:
 
 1. authenticate, resolve principal;
 2. **reject a tenant that has never been activated** — a `pending` tenant fails `not_activated`
@@ -234,7 +245,7 @@ The tail then depends on what the endpoint does:
 
 | Class | Tail |
 |---|---|
-| **create, adopt** | spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
+| **create, adopt** | **refuse `conflict`/`state` where the named provider account is not `healthy`** (`STO-47`, `WIR-29`) — before any gate, since a dead account can take no order; then spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
 | **power, install, reverse-DNS, refresh, rescue inventory** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
 | **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates, then **reuses the original commitment where it is still open** and opens a new one only where it was closed (`OPS-20`, `LDG-30`). It takes that class at **5b** as well: an ordering requeue for a suspended tenant is rejected `suspended`, an exposure-reducing one is not |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
@@ -1190,14 +1201,21 @@ answered by the call that creates the situation rather than left for the operato
 had already re-assigned its tenants off a failing account — the responsible thing to have done —
 named none of the tenants it was in the act of stranding.*
 
-**The transaction MUST hold every affected tenant's `LDG-35` primitive, acquired in ascending
-tenant-identifier order** — the ordering `LDG-35` already states for the two-tenant attribution case,
-applied here to n tenants. *Added 2026-09-04, and it is the half that statement order cannot supply:
-ordering the writes **inside** one transaction says nothing about a meter transaction already in
-flight for one of these tenants, which reads a machine that is still billable, and posts its
-`usage_debit` after the termination released the commitment — straight into free balance, which is
-the exact failure the meter stop was added to prevent. `LDG-70` puts every ledger append inside this
+**The transaction MUST hold the `LDG-35` primitive of every tenant in `WIR-50`'s
+`affected_tenants`, acquired in ascending tenant-identifier order** — the ordering `LDG-35` already
+states for the two-tenant attribution case, applied here to n tenants, and that set rather than "the
+tenants whose commitments were released" because a metered machine need not have one (`OPS-36`) and
+its meter is exactly what this serializes against. *Added 2026-09-04, and it is the half that
+statement order cannot supply: ordering the writes **inside** one transaction says nothing about a
+meter transaction already in flight for one of these tenants, which reads a machine that is still
+billable and posts its `usage_debit` after the release. `LDG-70` puts every ledger append inside this
 serialization already, so holding the primitive is what serializes the two; nothing weaker does.*
+**What that late debit costs is the operator, not the customer** — with the commitment closed there
+is no remaining amount, so `LDG-31` debits the tenant nothing and books the whole of it as an
+operator deficiency (`LDG-66`, `STO-37`). *A draft said it posted "straight into free balance",
+which `LDG-31` forbids eight lines further down this same requirement. The lock is still required:
+without it the operator absorbs a deficiency for seconds that were already billed before the stop,
+and the meter's rounding credit advances against an increment nobody authorized.*
 It acquires **no machine lock** — `LDG-69` forbids that under the serialization, and these are the
 same columns `OPS-32`'s sweep writes outside any machine lock (`STO-48`).
 

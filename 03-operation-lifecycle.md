@@ -635,8 +635,8 @@ the machine is funded.** A worker executing a system cancellation whose reason i
 late-attach cleanup (`OPS-39`) MUST, **after acquiring the machine lock and before any provider
 mutation**, re-read that machine's commitment and its `runway_until` — **in the same serialized
 transaction that writes `OPS-42`'s fence**, without which the extension it is racing can commit
-between the read and the write. Where re-deriving `LDG-33` from what it read now yields
-**`usable_sats > 0`**, the worker MUST make no provider call, settle the
+between the read and the write. Where re-deriving `LDG-33` from what it read now puts
+**`runway_until` strictly in the future**, the worker MUST make no provider call, settle the
 operation `succeeded` with a result recording that no mutation was required, **clear
 `machines.destroy_committed`**, and resolve the episode's `system_trigger_id` entry
 (`machines.system_trigger_ids`) so a later lapse can open a fresh one.
@@ -656,20 +656,23 @@ sent to perform. `LDG-13` — "a machine whose funding fails MUST be cancelled" 
 by the only path that reaches it, and an unfunded machine bills the operator indefinitely. Two
 full-set cross-model reviews read past this; the requirement cited the very thing that made it
 wrong.* What distinguishes a machine funded **since** routing is not the floor, which held all along,
-but `usable_sats`. `OPS-41` already re-reads both terms `LDG-33` needs; only the test applied to them
-was wrong.
+but the re-derived date. `OPS-41` already re-reads both terms `LDG-33` needs; only the test applied
+to them was wrong.
 
-**The predicate is `usable_sats > 0` and NOT `runway_until` strictly in the future, and the two are
-not interchangeable.** `LDG-33` floors the division, so they differ wherever the remaining money buys
-less than one whole second: one sat at two sats per second leaves `usable_sats > 0` while
-`runway_until == now`. **`usable_sats > 0` is the exact negation of what routed the machine here** —
-`LDG-33` states that "exhaustion begins when `usable_sats` reaches zero" — and any predicate stricter
-than that negation destroys machines in a band the sweep itself would not have routed, so the two
-halves of one rule would disagree about the same machine. *A draft on 2026-09-04 offered the two forms
-as equivalent and then chose the date, which is the stricter one and therefore the destroying one.*
-Note also that an extension is not the only thing that can satisfy this test: `LDG-33` re-derives in
-both directions, so a price cut raises `usable_sats` too, and a build testing for a grown commitment
-rather than for the re-derived figure would be wrong on exactly that path.
+**The predicate is the re-derived `runway_until`, because that is what the sweep routes on.**
+`05-persistence.md` indexes `machines` on `(runway_until)` "for the exhaustion sweep (`LDG-13`)" and
+`LDG-65` has the sweep continue through an outage "on the last derived `runway_until`" —
+`usable_sats` is a term inside `LDG-33`'s formula and not a stored column, so no sweep can query it.
+*`usable_sats > 0` was tried on 2026-09-04 and reverted the same day. The argument for it read
+`LDG-33`'s "exhaustion begins when `usable_sats` reaches zero" as the sweep's predicate; in context
+that sentence is an argument for subtracting `protected_sats` before dividing, against a withdrawn
+form that divided the whole commitment. The two forms differ only where the remaining money buys
+under one second, and there the sweep does route the machine — so `usable_sats > 0` aborts, settles
+`succeeded` saying no mutation was needed, clears the fence, and hands the same machine back to the
+next pass, once per sweep, each cycle minting a tenant-visible operation that claims to be done.*
+Note that an extension is not the only thing that can satisfy this test: `LDG-33` re-derives in both
+directions, so a price cut moves the date too, and a build testing for a grown commitment rather than
+for the re-derived date would be wrong on exactly that path.
 
 **Without this the survival path `OPS-36` offers does not work.** That branch attaches the machine
 and enqueues the cleanup cancellation *in the same transaction*, then tells the tenant it may
@@ -953,16 +956,17 @@ accepts the verb except the two rescue-based install variants.* Where the marker
 dispatch, whether the mutation landed is exactly the question `OPS-31`'s resolution exists to
 answer, and it is answered from the provider (`PRV-36`'s evidence sources), never from this column.
 
-**Write-once is right for the disk fact and wrong for the dispatch fact, so the column MUST NOT be
-read as sticky evidence about a later attempt.** "Once any attempt has begun altering the disk, the
+**Write-once is right for the disk fact and wrong for the dispatch fact, so the column's life is
+keyed on kind exactly as the table above is.** "Once any attempt has begun altering the disk, the
 disk may have been altered" is true forever; "a provider call was dispatched" is true of *that
-attempt*. A requeue (`OPS-20`) whose second attempt fails **before** dispatching anything would
-otherwise inherit the first attempt's marker and be classified ambiguous, when the engine has the
-same positive evidence of a clean stop that settles the first case `failed`. **On the dispatch kinds,
-the deterministic-`failed` test above reads the marker of the attempt being settled**; the column's
-write-once life is about the disk claim, which is the only claim that outlives an attempt. *Recorded
-2026-09-04. A deployment MAY carry the two as separate columns, and the ordinary reading of one
-sticky column is the reason to say so.*
+attempt*. **`write_started_at` is therefore write-once and never cleared on `rootfs_via_rescue` and
+`raw_disk`, and MUST be cleared by `OPS-20`'s requeue on the five dispatch kinds.** *Recorded
+2026-09-04. Otherwise a requeue whose second attempt fails **before** dispatching anything inherits
+the first attempt's marker and is classified ambiguous, when the engine has exactly the positive
+evidence of a clean stop that settles the first case `failed` — and no single write-once column can
+answer "did **this** attempt dispatch". A draft said the failed test "reads the marker of the attempt
+being settled" while two other sites still called the column never-cleared, which is unsatisfiable;
+the schema is where that had to be fixed.*
 
 **The pinned-host-key abort is the case this exists for.** `RSC-3` refuses to connect when the trust
 decision cannot be made — the security-critical decision in the whole workflow, working exactly as
@@ -980,9 +984,11 @@ of `operations.system_trigger_id`, and the columns are authoritative. *Stated be
 two homes and no authority rule is how `SEC-46`'s amendment came to ship claiming it had applied.*
 
 **The two markers behave differently across attempts, and the difference is not stylistic.**
-`write_started_at` is **write-once and is never cleared, including by a requeue** (`OPS-20`): once
-any attempt has begun altering the disk, the disk may have been altered, and that stays true however
-many later attempts stop short. `rescue_exited_cleanly` is the opposite — it describes **the machine
+`write_started_at` is **write-once and never cleared, including by a requeue** (`OPS-20`), **on
+`rootfs_via_rescue` and `raw_disk`**: once any attempt has begun altering the disk, the disk may have
+been altered, and that stays true however many later attempts stop short. **On the five kinds where
+it records a dispatch it is per-attempt and a requeue clears it** (2026-09-04), because dispatch is a
+fact about one attempt and a sticky copy makes a later clean stop read as ambiguous. `rescue_exited_cleanly` is the opposite — it describes **the machine
 right now**, so each attempt overwrites it, and a requeue that exits rescue cleanly genuinely repairs
 what a previous one left open. *A single rule for both would be wrong in one direction or the other:
 sticky, and a repaired machine reads as stranded forever; per-attempt, and a written disk reads as

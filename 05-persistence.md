@@ -233,7 +233,7 @@ deleted rows.
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
 | `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create **or adopt**, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, rescue inventory, power, reverse DNS, delete (`OPS-27`, `OPS-31`, `OPS-45`, `WIR-35`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02. **The store MUST reject a value outside the set its operation's kind admits**, which is `WIR-35`'s rule enforced where `API-24` cannot reach |
-| `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin, and with the column below makes the failure deterministic rather than ambiguous (`OPS-11`) — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean bytes reached the disk, and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once, and never cleared by a requeue**: once an attempt has begun altering the disk that stays true however many later attempts stop short. Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`) |
+| `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin, and with the column below makes the failure deterministic rather than ambiguous (`OPS-11`) — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean bytes reached the disk, and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once and never cleared by a requeue on `rootfs_via_rescue` and `raw_disk`** — once an attempt has begun altering the disk that stays true however many later attempts stop short — **and per-attempt, cleared by `OPS-20`'s requeue, on the five kinds where it records a dispatch** (`OPS-45`). *One write-once column cannot answer "did **this** attempt dispatch", and reading a stale marker makes a later clean stop ambiguous; the life is keyed on kind exactly as `OPS-45`'s table is.* Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`) |
 | `rescue_exited_cleanly` | boolean | nullable; `OPS-45`'s second marker — true when the driver's end-rescue call returned success, null where no rescue session was opened, false where the exit failed, was never attempted (`on_failure: leave_in_rescue`), or the operation died before reaching it. **Unlike the column above it describes the machine *now*, so each attempt overwrites it** and a requeue that exits cleanly repairs what an earlier one left open. **A null `write_started_at` alone does not make a failure deterministic**: entering rescue reboots the machine into another operating system and `PRV-22` makes a failed exit always ambiguous, so an untouched disk on a machine possibly still sitting in rescue is not "nothing happened". Both are copied into `request_summary` so an operator reading a resolved record still has them after the payload purge (`ADR-0005`); **these columns are authoritative and the copy is a convenience**, in the manner of `system_trigger_id` |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
@@ -585,7 +585,13 @@ states.
 **STO-36** **`tenant_provider_accounts`** — `tenant_id`, `provider_account`, `assigned_at`,
 `policy_version`, unique on `(tenant_id, provider_account)`. Populated in the activation
 transaction (`API-57`). Without it `API-17b`'s "explicit assignment" had no home and `WIR-29`
-returned an empty list to every customer forever.
+returned an empty list to every customer forever. **A row MUST NOT be written naming a
+`provider_account` whose `STO-47` status is anything but `healthy`**, which binds `API-57`'s
+activation and `API-62`'s re-assignment alike without either restating it. *Added 2026-09-04:
+`API-57` assigns over the accounts a configuration flags assignable and consulted no status at all,
+so a tenant activated after a termination was assigned to the dead account — an empty catalogue and
+a balance `ADR-0004` forbids refunding, on a tenant too new to appear in any `record-status`
+response.*
 
 **STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
 `currency`, `clamped_sats` (**nullable**; required on a `clamp_overflow` and null on every other
@@ -612,9 +618,11 @@ rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 
 **STO-47** **This table has readers, and until 2026-09-04 it had none.** `WIR-29` filters the
-customer catalogue on `healthy` and the create and adopt paths refuse anything else; `API-63` is the
-writer. *A one-writer, zero-reader table is not a control, and this one was cited by `API-62` as the
-reason its re-assignment verb exists.*
+customer catalogue on it, the create and adopt paths refuse anything but `healthy`, and `STO-36`
+refuses to record an assignment to one — which is the sharper of the three, since `WIR-48` refused
+only `terminated` and `API-57` consulted nothing. `API-63` is the writer. *A one-writer, zero-reader
+table is not a control, and this one was cited by `API-62` as the reason its re-assignment verb
+exists.*
 
 **`provider_account_status`** — `provider_account` (text, primary key), `status`
 (`healthy` | `account_unreachable` | `credentials_rejected` | `terminated`), `source`

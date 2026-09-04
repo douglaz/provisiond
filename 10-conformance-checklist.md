@@ -1292,7 +1292,10 @@ rather than acquiring a default.
       free balance passed this item.* **Then assert the account stops being sellable**: `GET
       /v1/providers` omits it for an assigned tenant, and a create naming it is `409` `state` —
       including a create issued against a catalogue read taken **before** the termination, since the
-      listing is advisory. *Also 2026-09-04. `STO-47` had one writer and no reader at all, while
+      listing is advisory. **Then activate a fresh tenant while that account is terminated and assert
+      it is never assigned to it** (`STO-36`, `API-57`) — the failure is a tenant that lands on a dead
+      account at activation, reads an empty catalogue, and holds a balance `ADR-0004` forbids
+      refunding, having appeared in no `record-status` response because it did not yet exist. *Also 2026-09-04. `STO-47` had one writer and no reader at all, while
       `API-62` cited "`WIR-29` returns it nothing it can buy from" as the reason its re-assignment
       verb exists; the create reached a driver holding revoked credentials.*
       Then the three refusals: recording a status the driver itself reports is `409` `state` —
@@ -1359,11 +1362,16 @@ rather than acquiring a default.
       money than the four it tested. *A closed list extended in the requirement and not in the item
       that tests it is this set's most-repeated defect; here it left the biggest member untested.*
       **AMENDED 2026-09-04 — assert the operator principal traverses the write pipeline at all.**
-      Drive **every** operator-only verb (`WIR-34`'s list) end to end with an operator credential
-      and no tenant context, and assert none is rejected at `API-7` step 2, step 4 or step 5b: those
-      are tenant-state steps, and an operator has no tenant to be pending or suspended. *Read
-      literally, the pre-amendment pipeline refused the entire operator surface except the four
-      verbs its carve-out happened to name.* (`SEC-39`, `SEC-32`, `API-62`, `API-63`, `API-7`)
+      Drive **every** operator-only verb (`WIR-34`'s list) end to end with an operator credential and
+      assert none is rejected for **the principal's own** tenant state at `API-7` step 2 or 5b — an
+      operator has no tenant to be pending or suspended. **Then assert the converse on the same
+      steps**, since it is the half a careless exemption deletes: an operator's **ordering** requeue
+      and an `adopt` against a **suspended target tenant** are both still rejected `suspended` at 5b,
+      and every operator write still takes its `Idempotency-Key` through steps 3 and 5a and its
+      ceiling at 5c. *Read literally, the pre-amendment pipeline refused the entire operator surface
+      except the four verbs its carve-out named; a first repair then exempted operators from 5b
+      outright and deleted the two ordering refusals, which live only on operator verbs.*
+      (`SEC-39`, `SEC-32`, `API-62`, `API-63`, `API-7`, `API-58`)
 - [ ] **CNF-254** **The credential-holding process cannot move the float.** Its Lightning credential
       permits exactly `SEC-48`'s six operations — create, look up, list, subscribe, **cancel an
       unsettled invoice**, and **read the channel and on-chain wallet balances** — and nothing else:
