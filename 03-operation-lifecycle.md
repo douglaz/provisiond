@@ -635,16 +635,30 @@ the machine is funded.** A worker executing a system cancellation whose reason i
 late-attach cleanup (`OPS-39`) MUST, **after acquiring the machine lock and before any provider
 mutation**, re-read that machine's commitment and its `runway_until` — **in the same serialized
 transaction that writes `OPS-42`'s fence**, without which the extension it is racing can commit
-between the read and the write. Where the remaining
-commitment now covers the wind-down floor at the current rate — `LDG-16`'s invariant, the same
-test that routed it here — the worker MUST make no provider call, settle the operation
-`succeeded` with a result recording that no mutation was required, **clear
-`machines.destroy_committed`**, and resolve the episode's
-`system_trigger_id` entry (`machines.system_trigger_ids`) so a later lapse can open a fresh one.
+between the read and the write. Where re-deriving `LDG-33` from what it read now puts
+`runway_until` **strictly in the future** — equivalently `usable_sats > 0`, which is exactly what an
+extension buys and nothing else produces — the worker MUST make no provider call, settle the
+operation `succeeded` with a result recording that no mutation was required, **clear
+`machines.destroy_committed`**, and resolve the episode's `system_trigger_id` entry
+(`machines.system_trigger_ids`) so a later lapse can open a fresh one.
 **Those last two happen in the terminal transaction** (`OPS-44`'s first row): the fence exists to
 order this worker against `LDG-62`, and leaving it set on a machine the worker has just decided not
 to cancel would refuse every future extension on a funded, running machine — permanently, since
 nothing else would clear it.
+
+**AMENDED 2026-09-04 — the abort predicate was the routing predicate, so every correctly routed
+cancellation aborted.** *It read "where the remaining commitment now covers the wind-down floor at
+the current rate — `LDG-16`'s invariant, the same test that routed it here", and that parenthesis
+was the tell nobody followed. `LDG-16`'s invariant is a condition on the routing itself: a machine
+enters this path **while** its commitment still covers wind-down, so the operator is never left
+paying for a stop it can no longer afford. Every machine the sweep routes correctly therefore
+satisfies it on arrival, and a worker re-testing it under the lock aborts every cancellation it was
+sent to perform. `LDG-13` — "a machine whose funding fails MUST be cancelled" — becomes unreachable
+by the only path that reaches it, and an unfunded machine bills the operator indefinitely. Two
+full-set cross-model reviews read past this; the requirement cited the very thing that made it
+wrong.* What distinguishes a machine funded **since** routing is not the floor, which held all
+along, but `usable_sats` — zero when the sweep routed it, positive only if money arrived. `OPS-41`
+already re-reads both terms `LDG-33` needs; only the test applied to them was wrong.
 
 **Without this the survival path `OPS-36` offers does not work.** That branch attaches the machine
 and enqueues the cleanup cancellation *in the same transaction*, then tells the tenant it may
