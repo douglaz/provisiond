@@ -635,8 +635,8 @@ the machine is funded.** A worker executing a system cancellation whose reason i
 late-attach cleanup (`OPS-39`) MUST, **after acquiring the machine lock and before any provider
 mutation**, re-read that machine's commitment and its `runway_until` — **in the same serialized
 transaction that writes `OPS-42`'s fence**, without which the extension it is racing can commit
-between the read and the write. Where re-deriving `LDG-33` from what it read now puts
-`runway_until` **strictly in the future**, the worker MUST make no provider call, settle the
+between the read and the write. Where re-deriving `LDG-33` from what it read now yields
+**`usable_sats > 0`**, the worker MUST make no provider call, settle the
 operation `succeeded` with a result recording that no mutation was required, **clear
 `machines.destroy_committed`**, and resolve the episode's `system_trigger_id` entry
 (`machines.system_trigger_ids`) so a later lapse can open a fresh one.
@@ -656,19 +656,20 @@ sent to perform. `LDG-13` — "a machine whose funding fails MUST be cancelled" 
 by the only path that reaches it, and an unfunded machine bills the operator indefinitely. Two
 full-set cross-model reviews read past this; the requirement cited the very thing that made it
 wrong.* What distinguishes a machine funded **since** routing is not the floor, which held all along,
-but the re-derived `runway_until`. `OPS-41` already re-reads both terms `LDG-33` needs; only the test
-applied to them was wrong.
+but `usable_sats`. `OPS-41` already re-reads both terms `LDG-33` needs; only the test applied to them
+was wrong.
 
-**`runway_until` is the predicate, and `usable_sats > 0` is NOT an equivalent form of it.** They
-differ exactly where `usable_sats` is positive but buys less than one whole second, since `LDG-33`
-floors the division — and there one predicate destroys the disk while the other resolves the episode.
-The date is the right one of the two: it is the number the customer is shown (`LDG-15`), the number
-an extension moves, and the one whose failure mode matches this requirement's stated bias, since a
-machine with under a second of runway is cancelled rather than kept alive to be re-routed
-immediately. *A draft on 2026-09-04 offered the two as interchangeable. Anything a rate movement can
-change, `LDG-33` re-derives in both directions — so an extension is not the only thing that can make
-this test pass, and a build testing for a grown commitment instead of a moved date would be wrong on
-a price cut.*
+**The predicate is `usable_sats > 0` and NOT `runway_until` strictly in the future, and the two are
+not interchangeable.** `LDG-33` floors the division, so they differ wherever the remaining money buys
+less than one whole second: one sat at two sats per second leaves `usable_sats > 0` while
+`runway_until == now`. **`usable_sats > 0` is the exact negation of what routed the machine here** —
+`LDG-33` states that "exhaustion begins when `usable_sats` reaches zero" — and any predicate stricter
+than that negation destroys machines in a band the sweep itself would not have routed, so the two
+halves of one rule would disagree about the same machine. *A draft on 2026-09-04 offered the two forms
+as equivalent and then chose the date, which is the stricter one and therefore the destroying one.*
+Note also that an extension is not the only thing that can satisfy this test: `LDG-33` re-derives in
+both directions, so a price cut raises `usable_sats` too, and a build testing for a grown commitment
+rather than for the re-derived figure would be wrong on exactly that path.
 
 **Without this the survival path `OPS-36` offers does not work.** That branch attaches the machine
 and enqueues the cleanup cancellation *in the same transaction*, then tells the tenant it may
@@ -952,6 +953,17 @@ accepts the verb except the two rescue-based install variants.* Where the marker
 dispatch, whether the mutation landed is exactly the question `OPS-31`'s resolution exists to
 answer, and it is answered from the provider (`PRV-36`'s evidence sources), never from this column.
 
+**Write-once is right for the disk fact and wrong for the dispatch fact, so the column MUST NOT be
+read as sticky evidence about a later attempt.** "Once any attempt has begun altering the disk, the
+disk may have been altered" is true forever; "a provider call was dispatched" is true of *that
+attempt*. A requeue (`OPS-20`) whose second attempt fails **before** dispatching anything would
+otherwise inherit the first attempt's marker and be classified ambiguous, when the engine has the
+same positive evidence of a clean stop that settles the first case `failed`. **On the dispatch kinds,
+the deterministic-`failed` test above reads the marker of the attempt being settled**; the column's
+write-once life is about the disk claim, which is the only claim that outlives an attempt. *Recorded
+2026-09-04. A deployment MAY carry the two as separate columns, and the ordinary reading of one
+sticky column is the reason to say so.*
+
 **The pinned-host-key abort is the case this exists for.** `RSC-3` refuses to connect when the trust
 decision cannot be made — the security-critical decision in the whole workflow, working exactly as
 designed — and with `on_failure: exit_rescue` succeeding, the machine is back in its installed
@@ -1005,6 +1017,16 @@ the sweep, whose create the provider's listing had not yet caught up with, was r
 running and billing the operator with no funding behind it and nothing scheduled to look again.* A
 machine inside the window is not evidence either way and MUST be skipped, not deferred to a second
 opinion; the next pass has evidence.
+
+**Eligibility MUST be tested against the instant the pass began, not the instant it writes.** A pass
+paginates, so it can read page one, have a machine created behind it, and finish minutes later —
+by which point that machine's visibility window has elapsed even though the listing that missed it
+was assembled before the machine existed. Testing the window at write time then calls an incomplete
+view authoritative and records a live machine gone, which is the failure this whole clause exists to
+prevent, reintroduced by the clause itself. *Noted 2026-09-04: the age test is about whether **this
+listing** could have contained the machine, and the listing's age is the pass's, not the writer's.*
+A deployment MAY instead re-read each absent candidate directly before recording it, which answers
+the same question with a fresh read rather than with a cutoff.
 
 **It is `PRV-36`'s window and NOT `OPS-33`'s negative window, and the two must not be conflated.**
 `OPS-33`'s bounds a **correlator search** for a create whose outcome is unknown — derived from a

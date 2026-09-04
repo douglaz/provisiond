@@ -1260,14 +1260,21 @@ rather than acquiring a default.
       the longer one passes this seeding and bills a terminated machine for hours. Assert too that an
       **adopted** machine (`PRV-28`) records an absence on the first pass, having no create to
       measure from. *Added 2026-09-04 — without it a build that stopped the meter and released the
-      commitment on a live machine passed every other half of this item.* Run the first half on a machine created and never refreshed — that is the
+      commitment on a live machine passed every other half of this item.* Run the first half on a machine created and never refreshed — **aged past its
+      visibility window before the external delete**, or a conforming sweep skips it while this item
+      waits for an absence write — that is the
       ordinary machine, and binding the stop to a caller's refresh leaves it draining forever.
       (`LDG-74`, `OPS-32`, `STO-48`, `LDG-37`, `DOM-7`, `DOM-8`, `STO-18`, `SEC-46`)
 - [ ] **CNF-278** **An account can actually be recorded lost, and the right thing happens.** Drive
-      `POST /v1/provider-accounts/{account}/actions/record-status` through all four statuses:
+      `POST /v1/provider-accounts/{account}/actions/record-status` across all four statuses, **on
+      independent account fixtures** — `terminated` is write-once (`API-63`), so a single account
+      cannot be walked through the four and any `healthy` assertion made after it on the same account
+      is unreachable rather than passing. *Corrected 2026-09-04: this item said "through all four
+      statuses", which is a sequence the endpoint refuses.* The four:
       `account_unreachable` and `credentials_rejected` **retain** every commitment on that account's
       machines **and keep metering them**, `terminated` closes and releases them all in **one**
-      transaction, and `healthy` restores nothing that was released. **Seed the two tenant lists so
+      transaction, and `healthy` on an account that was **`account_unreachable`** — the reachable
+      recovery, not the forbidden one — restores nothing and re-derives normally. **Seed the two tenant lists so
       that neither contains the other** — one tenant re-assigned away that still has machines here,
       one assigned here that owns none — and assert `affected_tenants` holds exactly the first and
       `assigned_tenants` exactly the second, plus whatever tenant is in both (`WIR-50`). *A single
@@ -1306,12 +1313,16 @@ rather than acquiring a default.
       assert `needs_reconciliation`, that `applied` and `not_applied` are both offered where
       `observed`/`absent` are not, that `not_applied` is **refused** `409` `state` while the marker
       is set, and that both are refused on a create. **Then the same verb on a `delete_machine`
-      whose provider call was dispatched and whose response was lost, and on a `reverse_dns`:
-      the marker is set on both and `not_applied` is `200`, not `409`** — there the marker records a
-      dispatch, not a written disk (`OPS-45`), and the operator has read the provider. *Added
-      2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind whose marker
-      is set at dispatch, which is every such operation that ever reaches an operator — and this item
-      asserted only the raw-disk half, where the refusal is right.* Assert the marker survives the payload purge.
+      whose provider call was dispatched and whose response was lost — and table-drive the same
+      assertion across **every** dispatch-marked row of `OPS-45`'s table**: `provider_native` install,
+      `provider_catalogue` install, power, reverse DNS and delete. The marker is set on all five and
+      `not_applied` is `200`, not `409` — there the marker records a dispatch, not a written disk
+      (`OPS-45`), and the operator has read the provider. Assert it at the engine and the store as
+      well as the wire, since `OPS-31` and `05-persistence.md` each carried their own copy of the
+      refusal. *Added 2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind
+      whose marker is set at dispatch, which is every such operation that ever reaches an operator —
+      and this item asserted only the raw-disk half, where the refusal is right. Naming two of the
+      five would pass an implementation that special-cased them.* Assert the marker survives the payload purge.
       **The failure this catches is the differentiator's own safety abort resolving only as
       `abandoned`**, which is what happened when three create-shaped verbs were the only ones there
       were. (`OPS-45`, `OPS-11`, `OPS-31`, `WIR-35`, `RSC-3`)
@@ -1947,8 +1958,12 @@ machine in rescue rather than losing money or data.
 
 **BLOCKING** — `CNF-271` (unstoppable billing: a cancellation that can never run again while the
 record claims it succeeded, which the operator would not learn from anything but an invoice);
-`CNF-272` (a suspension that either never completes or completes with a billing machine on a
-suspended tenant — `SEC-45`'s one action is the operator's whole remedy and it must land);
+`CNF-272` (a suspension that never completes, or one whose deterministically failed child is left
+**unlisted or unrequeueable** — `SEC-45`'s one action is the operator's whole remedy and it must
+land, and where a credential is rejected the listing is the only remedy there is, so losing it is
+unbounded billing. *Corrected 2026-09-04: this read "completes with a billing machine on a suspended
+tenant", which the amended item now deliberately permits — that machine is the expected settled
+state, and the failure is nobody being told about it*);
 `CNF-273` (money-in, the family this checklist already calls the only one where a bug **mints**
 satoshis: a payment credited twice, or a real customer's balance made unreachable forever);
 `CNF-274` (retroactive re-pricing of hours the customer already paid for, or a positive

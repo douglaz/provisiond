@@ -1176,6 +1176,17 @@ answered by the call that creates the situation rather than left for the operato
 had already re-assigned its tenants off a failing account — the responsible thing to have done —
 named none of the tenants it was in the act of stranding.*
 
+**The transaction MUST hold every affected tenant's `LDG-35` primitive, acquired in ascending
+tenant-identifier order** — the ordering `LDG-35` already states for the two-tenant attribution case,
+applied here to n tenants. *Added 2026-09-04, and it is the half that statement order cannot supply:
+ordering the writes **inside** one transaction says nothing about a meter transaction already in
+flight for one of these tenants, which reads a machine that is still billable, and posts its
+`usage_debit` after the termination released the commitment — straight into free balance, which is
+the exact failure the meter stop was added to prevent. `LDG-70` puts every ledger append inside this
+serialization already, so holding the primitive is what serializes the two; nothing weaker does.*
+It acquires **no machine lock** — `LDG-69` forbids that under the serialization, and these are the
+same columns `OPS-32`'s sweep writes outside any machine lock (`STO-48`).
+
 **The order is the requirement, and each step exists because the one after it destroys the evidence
 it needs.** The closing increment cannot post after the release, because there is no commitment left
 to post it against and `LDG-31`'s clamp would write the whole of it off as an operator deficiency —
@@ -1191,8 +1202,9 @@ per machine — the `CNF-272` scenario, at the scale of a whole account.*
 
 **The meter stop MUST come first, and it MUST cover the attachments as well as the machines.**
 *Added 2026-09-04. The release was specified without it, and the two are not the same act:
-`LDG-32`'s other four terminal outcomes all rest on billing having already stopped — its first row
-says so in as many words — while the account-termination row added on 2026-09-02 released the money
+`LDG-32`'s first terminal outcome reads "the machine stops billing **and every billable attachment
+it left behind has stopped billing**", which is the shape the other rows share — while the
+account-termination row added on 2026-09-02 released the money
 and left every meter running. The debits then post against a closed commitment, which is to say
 directly against the tenant's free balance, for machines nobody can observe, on an account whose
 credentials no longer work. `LDG-13`'s exhaustion sweep eventually cancels what it cannot reach,

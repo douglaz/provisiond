@@ -513,8 +513,9 @@ instant is the recording instant, per the polls-not-watches rule above. It is al
 the machine subject and its attachment subjects stop together**: the no-collapsing rule exists
 because unreleased volumes outlive their machine, and nothing in a terminated account outlives it.
 *Added 2026-09-04. `LDG-32` gained an account-termination row on 2026-09-02 that closes and
-releases every commitment on that account, and closing a commitment does not stop a meter — its
-other four rows all presuppose billing has already stopped. Left as written, the debits went on
+releases every commitment on that account, and closing a commitment does not stop a meter — while
+its first row reads "the machine stops billing **and every billable attachment it left behind has
+stopped billing**", which is the precondition the new row arrived without. Left as written, the debits went on
 posting against a released commitment, which is the tenant's free balance, for machines on an
 account whose credentials no longer work.*
 
