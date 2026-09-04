@@ -282,8 +282,10 @@ because spending what you already committed neither frees nor freezes anything:
 on **every** terminal outcome: the machine stops billing **and every billable attachment it left
 behind has stopped billing** (`PRV-13a`, `STO-18`); the create fails deterministically; the create
 is resolved absent (`OPS-27`); the create or adopt is abandoned (`OPS-31`); **or the machine's
-provider account is recorded `terminated`** (`SEC-46`, `API-63`), which closes every open commitment
-on that account's machines in the transaction that records it.
+provider account is recorded `terminated`** (`SEC-46`, `API-63`), which stops every meter in that
+account (`LDG-74`) and closes every open commitment on its machines in the transaction that records
+it — *the stop is named here because the first row above makes stopped billing the precondition for
+every other outcome on this list, and the termination row arrived without it.*
 
 *The account-termination row was missing until 2026-09-02 while `SEC-46` and `API-63` both cited
 this requirement as the closing rule and the commitment state machine above drew the edge — the
@@ -499,6 +501,18 @@ nothing in the system raises anything.
 requires the interval to be stated; it is **this rule's error bound**, the maximum time a customer
 can be billed for a machine that is gone, and it MUST be stated as such with the other deployment
 parameters (`LDG-42`) rather than chosen as an operational convenience.
+
+**A confirmed account termination stops every meter in the account, machines and attachments
+alike.** Recording `terminated` (`API-63`, `SEC-46`) is an authoritative observation that the whole
+account is gone, so it is a trigger of this rule and not an exception to it — the observation
+instant is the recording instant, per the polls-not-watches rule above. It is also **the one place
+the machine subject and its attachment subjects stop together**: the no-collapsing rule exists
+because unreleased volumes outlive their machine, and nothing in a terminated account outlives it.
+*Added 2026-09-04. `LDG-32` gained an account-termination row on 2026-09-02 that closes and
+releases every commitment on that account, and closing a commitment does not stop a meter — its
+other four rows all presuppose billing has already stopped. Left as written, the debits went on
+posting against a released commitment, which is the tenant's free balance, for machines on an
+account whose credentials no longer work.*
 
 **The credential-outage case is deliberately the other way, and the asymmetry is recorded rather
 than smoothed.** Where `SEC-46` records `account_unreachable` or `credentials_rejected`, the meter

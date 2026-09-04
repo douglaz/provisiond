@@ -1244,8 +1244,14 @@ rather than acquiring a default.
 - [ ] **CNF-278** **An account can actually be recorded lost, and the right thing happens.** Drive
       `POST /v1/provider-accounts/{account}/actions/record-status` through all four statuses:
       `account_unreachable` and `credentials_rejected` **retain** every commitment on that account's
-      machines, `terminated` closes and releases them all in **one** transaction and returns the
-      assigned tenants in `affected_tenants`, and `healthy` restores nothing that was released.
+      machines **and keep metering them**, `terminated` closes and releases them all in **one**
+      transaction and returns the assigned tenants in `affected_tenants`, and `healthy` restores
+      nothing that was released. **On the `terminated` case, advance the clock past at least one
+      metered increment and assert no debit posts for any machine in that account or for any
+      unreleased billable attachment it left behind** — both stop at the recording instant
+      (`LDG-74`, `API-63`). *Added 2026-09-04: the release was asserted and the stop was not, so a
+      build that closed the commitments and went on metering into the tenant's free balance passed
+      this item.*
       Then the three refusals: recording a status the driver itself reports is `409` `state` —
       asserted against a **stubbed** driver observation, since no launch driver reports one and
       `driver_observation` is reserved (`STO-47`), and the test MUST say which it used — moving

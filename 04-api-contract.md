@@ -1159,10 +1159,23 @@ unreachable, nothing could record credentials rejected, and nothing could confir
 while `LDG-32` cited that confirmation as a commitment-closing event and `API-62` promised to
 surface the tenants it affects.
 
-**Recording `terminated` MUST, in one transaction:** write the status; **close and release in full
+**Recording `terminated` MUST, in one transaction:** write the status; **stop the meter for every
+metered subject in that account** (`LDG-74`) at the recording instant; **close and release in full
 every open commitment on machines in that account** (`SEC-46`, `LDG-32`); and **return the list of
 tenants assigned to it** (`STO-36`) — which is `API-62`'s "MUST surface the affected tenants", now
 answered by the call that creates the situation rather than left for the operator to discover.
+
+**The meter stop MUST come first, and it MUST cover the attachments as well as the machines.**
+*Added 2026-09-04. The release was specified without it, and the two are not the same act:
+`LDG-32`'s other four terminal outcomes all rest on billing having already stopped — its first row
+says so in as many words — while the account-termination row added on 2026-09-02 released the money
+and left every meter running. The debits then post against a closed commitment, which is to say
+directly against the tenant's free balance, for machines nobody can observe, on an account whose
+credentials no longer work. `LDG-13`'s exhaustion sweep eventually cancels what it cannot reach,
+so the customer's whole balance drains into a provider that already threw the machines away.*
+**This is the one case where a machine's meter and its attachments' meters stop together**, against
+`LDG-74`'s general rule that they must not be collapsed: that rule protects volumes which outlive
+their machine, and nothing in a terminated account outlives it.
 Re-assignment stays a separate, deliberate act (`API-62`), because doing it automatically moves
 every affected tenant at once, precisely when the surviving accounts can least absorb them.
 
