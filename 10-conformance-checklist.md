@@ -1163,11 +1163,20 @@ rather than acquiring a default.
       `needs_reconciliation`. Assert the fan-out **terminates** — a later pass enqueues nothing for
       those machines, because an episode entry exists for each — the parent settles `succeeded` with
       that child named in `WIR-39`'s `cancellations`, `WIR-41`'s resume becomes available, the
-      failed child is listed for the operator, an operator requeue of it is admitted although the
-      tenant is suspended (`API-7` step 5b), and the machine keeps draining runway so `LDG-13`
-      reaches it unaided. Both wrong answers fail this item: a fan-out that never settles, and one
-      that settles while nothing at all accounts for the machine. (`API-58`, `OPS-44`, `OPS-39`,
-      `API-7`, `LDG-13`)
+      failed child is listed for the operator, and an operator requeue of it is admitted although the
+      tenant is suspended (`API-7` step 5b). **Then run the clock out and assert that nothing
+      automatic cancels the machine**: the meter keeps posting, the debit clamps at the commitment's
+      remaining amount and the remainder accrues as an operator deficiency (`LDG-31`, `LDG-66`), and
+      the exhaustion sweep enqueues nothing, because the episode entry it would need to mint one is
+      the same entry that made the fan-out terminate. The operator listing is the entire remedy,
+      which is why `OPS-44` makes it a MUST and calls this "the one settled state in this set that
+      nothing automatic will look at again". *Corrected 2026-09-04: this item said "the machine keeps
+      draining runway so `LDG-13` reaches it unaided", one clause after asserting that a later pass
+      enqueues nothing for exactly these machines. Both cannot hold, `OPS-44` is the half that is
+      true, and a build could satisfy the item by implementing either.* Three wrong answers fail
+      this item: a fan-out that never settles, one that settles while nothing at all accounts for
+      the machine, and one that quietly re-enqueues a delete the credential cannot perform.
+      (`API-58`, `OPS-44`, `OPS-39`, `API-7`, `LDG-13`, `LDG-31`)
 - [ ] **CNF-273** **A settled payment is findable afterwards, by the only handle anyone kept.**
       Settle a deposit on both rails, reap its tenant at `API-34`'s time-to-live, and then attribute
       the deposit to a fresh tenant: the two payments are enumerated from `payments` by
