@@ -1160,16 +1160,34 @@ unreachable, nothing could record credentials rejected, and nothing could confir
 while `LDG-32` cited that confirmation as a commitment-closing event and `API-62` promised to
 surface the tenants it affects.
 
-**Recording `terminated` MUST, in one transaction:** write the status; **stop the meter for every
-metered subject in that account** (`LDG-74`) at the recording instant; **close and release in full
-every open commitment on machines in that account** (`SEC-46`, `LDG-32`); and **return two tenant
-lists** (`WIR-50`) — the tenants whose commitments it just released, and the tenants the account is
+**Recording `terminated` MUST, in one transaction, and in this order:** write the status; **record
+every machine in that account gone** — `machines.state` and `machines.state_observed_at` (`STO-48`)
+set to the recording instant, which is the write `LDG-74` stops a meter by, and `released_at` set on
+every unreleased billable attachment, which is how an attachment's meter stops (`LDG-32`, `STO-18`);
+**post each subject's closing partial increment against its commitment** (`LDG-38`), for the time
+between its last increment end and the recording instant, which is time the customer consumed and
+the last moment there is a commitment to post it against; **close and release in full
+every open commitment on machines in that account** (`SEC-46`, `LDG-32`); tombstone what `STO-18`
+now permits; and **return two tenant lists** (`WIR-50`) — the tenants whose commitments it just released, and the tenants the account is
 assigned to (`STO-36`). Together those are `API-62`'s "MUST surface the affected tenants", now
 answered by the call that creates the situation rather than left for the operator to discover.
 **They are different sets and both are needed**: the first is who lost money, the second is who
 `API-62` must move. *Until 2026-09-04 only the assignment list was returned, and a deployment that
 had already re-assigned its tenants off a failing account — the responsible thing to have done —
 named none of the tenants it was in the act of stranding.*
+
+**The order is the requirement, and each step exists because the one after it destroys the evidence
+it needs.** The closing increment cannot post after the release, because there is no commitment left
+to post it against and `LDG-31`'s clamp would write the whole of it off as an operator deficiency —
+so the customer's last minutes would be free and the operator's ledger would carry a loss it never
+incurred. The tombstones cannot come before the attachment writes, because `STO-18` forbids
+tombstoning while a billable attachment has a null `released_at`. And **leaving the machine rows
+without a gone state is not a smaller version of this rule but a different failure**: the rows stay
+in inventory at zero usable satoshis, `LDG-13`'s exhaustion sweep reads them off `runway_until`,
+mints an `exhausted` delete against each one, every delete fails deterministically against a
+credential the provider has revoked, and `OPS-44` files each in the operator listing with its episode
+open forever. *Confirming one termination would flood that listing with one permanently-open episode
+per machine — the `CNF-272` scenario, at the scale of a whole account.*
 
 **The meter stop MUST come first, and it MUST cover the attachments as well as the machines.**
 *Added 2026-09-04. The release was specified without it, and the two are not the same act:

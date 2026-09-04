@@ -636,8 +636,7 @@ late-attach cleanup (`OPS-39`) MUST, **after acquiring the machine lock and befo
 mutation**, re-read that machine's commitment and its `runway_until` — **in the same serialized
 transaction that writes `OPS-42`'s fence**, without which the extension it is racing can commit
 between the read and the write. Where re-deriving `LDG-33` from what it read now puts
-`runway_until` **strictly in the future** — equivalently `usable_sats > 0`, which is exactly what an
-extension buys and nothing else produces — the worker MUST make no provider call, settle the
+`runway_until` **strictly in the future**, the worker MUST make no provider call, settle the
 operation `succeeded` with a result recording that no mutation was required, **clear
 `machines.destroy_committed`**, and resolve the episode's `system_trigger_id` entry
 (`machines.system_trigger_ids`) so a later lapse can open a fresh one.
@@ -656,9 +655,20 @@ satisfies it on arrival, and a worker re-testing it under the lock aborts every 
 sent to perform. `LDG-13` — "a machine whose funding fails MUST be cancelled" — becomes unreachable
 by the only path that reaches it, and an unfunded machine bills the operator indefinitely. Two
 full-set cross-model reviews read past this; the requirement cited the very thing that made it
-wrong.* What distinguishes a machine funded **since** routing is not the floor, which held all
-along, but `usable_sats` — zero when the sweep routed it, positive only if money arrived. `OPS-41`
-already re-reads both terms `LDG-33` needs; only the test applied to them was wrong.
+wrong.* What distinguishes a machine funded **since** routing is not the floor, which held all along,
+but the re-derived `runway_until`. `OPS-41` already re-reads both terms `LDG-33` needs; only the test
+applied to them was wrong.
+
+**`runway_until` is the predicate, and `usable_sats > 0` is NOT an equivalent form of it.** They
+differ exactly where `usable_sats` is positive but buys less than one whole second, since `LDG-33`
+floors the division — and there one predicate destroys the disk while the other resolves the episode.
+The date is the right one of the two: it is the number the customer is shown (`LDG-15`), the number
+an extension moves, and the one whose failure mode matches this requirement's stated bias, since a
+machine with under a second of runway is cancelled rather than kept alive to be re-routed
+immediately. *A draft on 2026-09-04 offered the two as interchangeable. Anything a rate movement can
+change, `LDG-33` re-derives in both directions — so an extension is not the only thing that can make
+this test pass, and a build testing for a grown commitment instead of a moved date would be wrong on
+a price cut.*
 
 **Without this the survival path `OPS-36` offers does not work.** That branch attaches the machine
 and enqueues the cleanup cancellation *in the same transaction*, then tells the tenant it may
@@ -860,9 +870,14 @@ create is *failure*** — the same word, opposite meanings, on the operation an 
 episode hangs on (`OPS-44`). **Two further verbs therefore exist, `applied` and
 `not_applied`** (`WIR-35`), which are the non-create shapes of `observed` and `absent`: the mutation
 took effect, so the operation settles `succeeded`; or it did not, so it settles `failed`. `abandoned`
-remains for the case nobody can establish. **`not_applied` MUST be refused where `OPS-45`'s
-write-started marker is set** — a partially written disk is not "nothing happened", and recording it
-as such tells a caller its data survived. There the honest verbs are `applied` or `abandoned`.
+remains for the case nobody can establish. **`not_applied` MUST be refused, on a `rootfs_via_rescue`
+or `raw_disk` install only, where `OPS-45`'s write-started marker is set** — a partially written disk
+is not "nothing happened", and recording it as such tells a caller its data survived. There the
+honest verbs are `applied` or `abandoned`. *The scope was absent until 2026-09-04, and it is the
+difference between a rule and its opposite: on every other kind `OPS-45` sets that marker when the
+provider call is **dispatched**, so the refusal covered every operation an operator could ever be
+asked to resolve. `WIR-35` carries the same rule for the wire; this sentence is the engine's copy of
+it, and the first correction reached only the wire.*
 
 **And an operator MUST NOT be the first resort here.** `OPS-45` requires the engine's own record of
 whether a write began to be consulted before any of this: most install failures never reached a
@@ -932,7 +947,8 @@ that **a request was dispatched**, which is a fact about this process and not ab
 rebuild the provider never began, a power call it dropped, a delete whose response was lost, all set
 the marker and all may have changed nothing. *Recorded 2026-09-04 because a single column carrying
 two meanings was read as carrying the first one everywhere — see `WIR-35`, where it made
-`not_applied` unreachable on five of the seven kinds that accept it.* Where the marker means
+`not_applied` unreachable on every kind whose marker is set at dispatch, which is every kind that
+accepts the verb except the two rescue-based install variants.* Where the marker means
 dispatch, whether the mutation landed is exactly the question `OPS-31`'s resolution exists to
 answer, and it is answered from the provider (`PRV-36`'s evidence sources), never from this column.
 
@@ -979,18 +995,27 @@ the account would record every unlisted machine as gone — stopping their meter
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
 
-**And it may record an absence only about a machine past `OPS-33`'s negative window** — measured
-from the create that produced its `external_id`, per the provider's declared visibility window
-(`PRV-36`). *Added 2026-09-04. The sweep's listing is a read of provider state, and `PRV-36` reads
-"a read of provider state is not authoritative about a mutation the driver issued until that
-provider's declared visibility window has elapsed"; `OPS-33` states that direction outright for
-creates — absence within the negative window is not evidence that nothing was created. Nothing drew
-the line to here, so a machine created seconds before the sweep, whose create the provider's listing
-had not yet caught up with, was recorded gone: `LDG-74` stopped its meter, `LDG-32` closed and
-released its commitment, and the machine went on running and billing the operator with no funding
-behind it and nothing scheduled to look again.* A machine inside the window is simply not evidence
-either way and MUST be skipped, not deferred to a second opinion; the next pass, one sweep interval
-later, has evidence. `LDG-74` is why the write exists at all: the
+**And it may record an absence only about a machine past `PRV-36`'s declared visibility window for
+that provider**, measured from the dispatch of the create that produced its `external_id`. *Added
+2026-09-04. The sweep's listing is a read of provider state, and `PRV-36` reads "a read of provider
+state is not authoritative about a mutation the driver issued until that provider's declared
+visibility window has elapsed". Nothing drew the line to here, so a machine created seconds before
+the sweep, whose create the provider's listing had not yet caught up with, was recorded gone:
+`LDG-74` stopped its meter, `LDG-32` closed and released its commitment, and the machine went on
+running and billing the operator with no funding behind it and nothing scheduled to look again.* A
+machine inside the window is not evidence either way and MUST be skipped, not deferred to a second
+opinion; the next pass has evidence.
+
+**It is `PRV-36`'s window and NOT `OPS-33`'s negative window, and the two must not be conflated.**
+`OPS-33`'s bounds a **correlator search** for a create whose outcome is unknown — derived from a
+provider's allocation behaviour, and on Hetzner Robot bounded by how quickly a human looks
+(`PRV-33`). Binding absence detection to it would let a machine the provider terminated in its first
+hours go on billing its customer for that whole window, while `LDG-74` makes the **sweep interval**
+"this rule's error bound, the maximum time a customer can be billed for a machine that is gone". `PRV-36`'s window is
+listing lag — eight seconds against live DigitalOcean — which is the quantity actually in play here.
+**A machine with no create of its own has no window at all**: an adopted machine (`PRV-28`) and a
+late-attached one (`OPS-36`) were both observed present at the provider before they became records
+here, so an absence is evidence about them from the first pass. `LDG-74` is why the write exists at all: the
 meter reads the machine record, `DOM-8` refreshes that record only on an explicit caller operation,
 and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
 draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not

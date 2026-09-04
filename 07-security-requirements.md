@@ -123,7 +123,7 @@ boundary `OVR-10a` calls the only structural defence left.
 refuse to serve catalogue install where the allowlist is empty — not merely warn, which is what the
 paragraph above requires for the rescue path. At **request time** an install naming a host outside
 the list MUST be rejected `invalid_request` before the operation is enqueued, which is `API-13`'s
-image-URL row (amended the same day to drop its "when one is configured"). *Stated as two because
+image-URL row (amended the same day to drop its "when one is configured"). *Stated separately because
 the startup half alone leaves a running deployment that was configured correctly and then had its
 list emptied, and the request half alone leaves the operator learning the control is off from an
 audit rather than from a boot.* At **every redirect hop** the target's own name MUST be on the list

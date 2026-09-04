@@ -712,8 +712,8 @@ happened". *Without these an install, a power action or a reverse-DNS
 change reaching `needs_reconciliation` had exactly one reachable verb, `abandoned`, so the
 differentiator's failure path resolved only as a loss.*
 
-**AMENDED 2026-09-04 — the refusal was unscoped, which made `not_applied` unreachable on five of
-the seven kinds that accept it.** *It applied to any kind. But on `provider_native`,
+**AMENDED 2026-09-04 — the refusal was unscoped, which made `not_applied` unreachable everywhere
+except the two install variants it was written for.** *It applied to any kind. But on `provider_native`,
 `provider_catalogue`, power, reverse DNS and delete the marker is set when the provider call is
 **dispatched** (`OPS-45`'s table), and an operation of those kinds reaches `needs_reconciliation`
 only after a dispatch whose outcome was lost — so the marker is set on every one of them that an
@@ -1023,10 +1023,15 @@ opaque reference to a record kept outside this system, never a name, address or 
 }
 ```
 
-**`affected_tenants` is the set whose money this call moved** — the distinct owners of machines in
-that account, which is exactly the set whose commitments were released and whose meters were
-stopped. **`assigned_tenants` is the set now pointed at a dead account** (`STO-36`), which is the
-set `API-62` has to re-assign. **Neither list contains the other**, and the fixture above shows
+**`affected_tenants` is the set whose money this call moved**, defined once and in one way: the
+distinct owners of **any metered subject or open commitment in that account** at the recording
+instant. *Stated that way rather than as "owners of machines there" — a machine can be metered with
+no commitment (`OPS-36`'s late attach) and an attachment can be metered after its machine is gone
+(`LDG-74`), so "machines", "released commitments" and "stopped meters" name three sets that were
+offered as one on 2026-09-04 and are not.* **`assigned_tenants` is the set now pointed at a dead
+account** (`STO-36`), which is the set `API-62` has to re-assign; it is returned on **all four**
+statuses, since an account that is merely unreachable is still one an operator may want to move
+tenants off. **Neither list contains the other**, and the fixture above shows
 that: `t-0198d3aa` was re-assigned away before the termination and still has machines here, because
 a machine cannot move between provider accounts; `t-0199b402` was assigned recently and has bought
 nothing yet, so it lost nothing. Together they are `API-62`'s "MUST surface the affected tenants",

@@ -1165,9 +1165,8 @@ rather than acquiring a default.
       that child named in `WIR-39`'s `cancellations`, `WIR-41`'s resume becomes available, the
       failed child is listed for the operator, and an operator requeue of it is admitted although the
       tenant is suspended (`API-7` step 5b). **Then run the clock out and assert that nothing
-      automatic cancels the machine**: the meter keeps posting, the debit clamps at the commitment's
-      remaining amount and the remainder accrues as an operator deficiency (`LDG-31`, `LDG-66`), and
-      the exhaustion sweep enqueues nothing, because the episode entry it would need to mint one is
+      automatic cancels the machine**: it stays in the operator listing and the exhaustion sweep
+      enqueues nothing, because the episode entry it would need to mint one is
       the same entry that made the fan-out terminate. The operator listing is the entire remedy,
       which is why `OPS-44` makes it a MUST and calls this "the one settled state in this set that
       nothing automatic will look at again". *Corrected 2026-09-04: this item said "the machine keeps
@@ -1176,7 +1175,7 @@ rather than acquiring a default.
       true, and a build could satisfy the item by implementing either.* Three wrong answers fail
       this item: a fan-out that never settles, one that settles while nothing at all accounts for
       the machine, and one that quietly re-enqueues a delete the credential cannot perform.
-      (`API-58`, `OPS-44`, `OPS-39`, `API-7`, `LDG-13`, `LDG-31`)
+      (`API-58`, `OPS-44`, `OPS-39`, `API-7`, `LDG-13`)
 - [ ] **CNF-273** **A settled payment is findable afterwards, by the only handle anyone kept.**
       Settle a deposit on both rails, reap its tenant at `API-34`'s time-to-live, and then attribute
       the deposit to a fresh tenant: the two payments are enumerated from `payments` by
@@ -1253,12 +1252,15 @@ rather than acquiring a default.
       attachment stops its **own** meter and is **not** tombstoned (`STO-18`), while the attachment
       keeps being metered on its own subject. And a sweep pass that **yields to `rate_limited` part
       way records no absence at all** — the half-listing must not close a whole account's
-      commitments. **A machine created inside `OPS-33`'s negative window and not yet in the
-      provider's listing records no absence either**, and its meter keeps running: seed a listing
+      commitments. **A machine created inside `PRV-36`'s declared visibility window and not yet in
+      the provider's listing records no absence either**, and its meter keeps running: seed a listing
       that omits a machine created seconds ago, assert the sweep writes nothing, then re-run past
       the window with the machine present and assert it is still metered and still committed.
-      *Added 2026-09-04 — without it a build that stopped the meter and released the commitment on a
-      live machine passed every other half of this item.* Run the first half on a machine created and never refreshed — that is the
+      Assert the window used is `PRV-36`'s and **not** `OPS-33`'s negative window — a build wired to
+      the longer one passes this seeding and bills a terminated machine for hours. Assert too that an
+      **adopted** machine (`PRV-28`) records an absence on the first pass, having no create to
+      measure from. *Added 2026-09-04 — without it a build that stopped the meter and released the
+      commitment on a live machine passed every other half of this item.* Run the first half on a machine created and never refreshed — that is the
       ordinary machine, and binding the stop to a caller's refresh leaves it draining forever.
       (`LDG-74`, `OPS-32`, `STO-48`, `LDG-37`, `DOM-7`, `DOM-8`, `STO-18`, `SEC-46`)
 - [ ] **CNF-278** **An account can actually be recorded lost, and the right thing happens.** Drive
@@ -1270,12 +1272,17 @@ rather than acquiring a default.
       one assigned here that owns none — and assert `affected_tenants` holds exactly the first and
       `assigned_tenants` exactly the second, plus whatever tenant is in both (`WIR-50`). *A single
       list, or a fixture where the two sets coincide, passes the build this item exists to reject.*
-      **On the `terminated` case, advance the clock past at least one
-      metered increment and assert no debit posts for any machine in that account or for any
-      unreleased billable attachment it left behind** — both stop at the recording instant
-      (`LDG-74`, `API-63`). *Added 2026-09-04: the release was asserted and the stop was not, so a
-      build that closed the commitments and went on metering into the tenant's free balance passed
-      this item.*
+      **On the `terminated` case, assert the whole ordered transaction and then run the clock out.**
+      Each machine carries a gone state and `state_observed_at` at the recording instant, every
+      unreleased billable attachment carries a `released_at`, and the **last** debit for each subject
+      ends exactly at that instant — neither dropped nor clamped away, which is what posting it after
+      the release would do. Then advance past at least one metered increment and assert **nothing
+      further posts**, for any machine in that account or any attachment it left behind. Finally
+      assert the exhaustion sweep mints **no** delete for those machines: a build that stops the
+      meters and leaves the rows in inventory floods the operator listing with one permanently-open
+      episode per machine (`LDG-13`, `OPS-44`). *Added 2026-09-04: the release was asserted and the
+      stop was not, so a build that closed the commitments and went on metering into the tenant's
+      free balance passed this item.*
       Then the three refusals: recording a status the driver itself reports is `409` `state` —
       asserted against a **stubbed** driver observation, since no launch driver reports one and
       `driver_observation` is reserved (`STO-47`), and the test MUST say which it used — moving
