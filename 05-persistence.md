@@ -611,7 +611,12 @@ rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 
-**STO-47** **`provider_account_status`** — `provider_account` (text, primary key), `status`
+**STO-47** **This table has readers, and until 2026-09-04 it had none.** `WIR-29` filters the
+customer catalogue on `healthy` and the create and adopt paths refuse anything else; `API-63` is the
+writer. *A one-writer, zero-reader table is not a control, and this one was cited by `API-62` as the
+reason its re-assignment verb exists.*
+
+**`provider_account_status`** — `provider_account` (text, primary key), `status`
 (`healthy` | `account_unreachable` | `credentials_rejected` | `terminated`), `source`
 (`driver_observation` | `operator_record`), `observed_at`, `operator_ref` (text, nullable; the same
 opaque-reference constraint as `WIR-42`'s, never a name or contact string), `updated_at`.

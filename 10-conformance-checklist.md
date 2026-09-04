@@ -1289,7 +1289,12 @@ rather than acquiring a default.
       meters and leaves the rows in inventory floods the operator listing with one permanently-open
       episode per machine (`LDG-13`, `OPS-44`). *Added 2026-09-04: the release was asserted and the
       stop was not, so a build that closed the commitments and went on metering into the tenant's
-      free balance passed this item.*
+      free balance passed this item.* **Then assert the account stops being sellable**: `GET
+      /v1/providers` omits it for an assigned tenant, and a create naming it is `409` `state` —
+      including a create issued against a catalogue read taken **before** the termination, since the
+      listing is advisory. *Also 2026-09-04. `STO-47` had one writer and no reader at all, while
+      `API-62` cited "`WIR-29` returns it nothing it can buy from" as the reason its re-assignment
+      verb exists; the create reached a driver holding revoked credentials.*
       Then the three refusals: recording a status the driver itself reports is `409` `state` —
       asserted against a **stubbed** driver observation, since no launch driver reports one and
       `driver_observation` is reserved (`STO-47`), and the test MUST say which it used — moving
@@ -1353,7 +1358,12 @@ rather than acquiring a default.
       money movement any operator verb performs — so the one ceiling this item omitted guards more
       money than the four it tested. *A closed list extended in the requirement and not in the item
       that tests it is this set's most-repeated defect; here it left the biggest member untested.*
-      (`SEC-39`, `SEC-32`, `API-62`, `API-63`)
+      **AMENDED 2026-09-04 — assert the operator principal traverses the write pipeline at all.**
+      Drive **every** operator-only verb (`WIR-34`'s list) end to end with an operator credential
+      and no tenant context, and assert none is rejected at `API-7` step 2, step 4 or step 5b: those
+      are tenant-state steps, and an operator has no tenant to be pending or suspended. *Read
+      literally, the pre-amendment pipeline refused the entire operator surface except the four
+      verbs its carve-out happened to name.* (`SEC-39`, `SEC-32`, `API-62`, `API-63`, `API-7`)
 - [ ] **CNF-254** **The credential-holding process cannot move the float.** Its Lightning credential
       permits exactly `SEC-48`'s six operations — create, look up, list, subscribe, **cancel an
       unsettled invoice**, and **read the channel and on-chain wallet balances** — and nothing else:

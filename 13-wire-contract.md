@@ -753,7 +753,18 @@ see the disk inventory *before* committing to a destructive write — the inform
 attached to the result of the operation that had already destroyed the disk.
 
 **WIR-29** `GET /v1/providers` — customer auth returns only the accounts assigned to the tenant
-(`DOM-3`, `API-17b`); operator auth returns all configured accounts.
+(`DOM-3`, `API-17b`) **whose `STO-47` status is `healthy`**; operator auth returns all configured
+accounts, each carrying its status.
+
+**AMENDED 2026-09-04 — the status column was written by `API-63` and read by nothing.** *`API-62`
+already stated this behaviour as fact — "the tenant is then assigned to a dead account, `WIR-29`
+returns it nothing it can buy from" — and used it to justify the whole re-assignment verb. Nothing
+implemented it: `STO-47` had exactly one writer and no reader anywhere in the set, so a terminated
+provider account went on advertising its offers, and a create against it reached a driver holding
+credentials the provider has revoked. The claim was load-bearing for `API-62`'s rationale and was
+never true.* **A create or adopt naming an account that is not `healthy` MUST be refused
+`conflict` with `details.reason: "state"`** — the catalogue read is advisory and a termination can
+land between the two calls, so omission from the listing is not by itself the control.
 `{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
 "capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
 `DOM-22`).

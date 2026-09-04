@@ -157,8 +157,22 @@ operator-only endpoint unreachable. Deleted rather than annotated; the correctio
 unauthenticated caller MUST NOT be able to learn anything from validation error text, and
 MUST NOT be able to make the server do parsing or policy work. See `DEF-4`.
 
-**AMENDED — the tail is per endpoint class, because one universal pipeline was wrong for four of
-the five classes.** Steps 1–5 are common to every authenticated write:
+**AMENDED 2026-09-04 — steps 2, 4 and 5b are tenant-state steps, and an operator principal has no
+tenant.** They apply to a **tenant** principal. An operator principal is authorized by *principal*:
+it reaches these routes only on the operator listener (`WIR-34`), step 4 authorizes the target
+resource by existence rather than by ownership, and its budget is `SEC-39`'s per-principal ceilings
+at 5c. *Step 2's own amendment already said the right thing — revoke, resolve, resume and requeue
+are "authorized by principal rather than by tenant state" — and then said it as a four-verb
+allowlist. The operator surface has since grown to suspend, attribute, assign-provider-account,
+record-status, record-network-restriction, revise-deadline, address-resolution and `WIR-44`'s three
+abuse verbs, none of which were added to it. Read literally, every one of them was rejected at step
+2 for a tenant the principal does not have — which is the closed-list-extended-in-one-place defect
+`STO-38` names as this set's recurring failure, here sitting on the whole operator surface.* The
+carve-out is therefore stated as a **property of the principal**, not as a list of verbs, so it
+cannot fall behind again.
+
+**The tail is per endpoint class, because one universal pipeline was wrong for four of
+the five classes.** Steps 1–5 are common to every authenticated write **by a tenant principal**:
 
 1. authenticate, resolve principal;
 2. **reject a tenant that has never been activated** — a `pending` tenant fails `not_activated`

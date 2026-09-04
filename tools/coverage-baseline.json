@@ -1,5 +1,5 @@
 {
-  "max_uncovered_ratcheted": 102,
-  "recorded": "2026-09-02",
-  "note": "Lower is better. Raise only deliberately, with a reason."
+  "max_uncovered_ratcheted": 101,
+  "recorded": "2026-09-04",
+  "note": "Lower is better. Raise only deliberately, with a reason. 102 -> 101 when CNF-253 gained the API-7 operator-principal assertion."
 }
