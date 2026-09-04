@@ -924,6 +924,18 @@ follows `OPS-11`'s classification, and resolution then
 proceeds by `PRV-29`/`PRV-36`'s provider evidence where the driver can produce it, falling back to
 `OPS-31`'s `applied`/`not_applied`/`abandoned` where it cannot.
 
+**The marker means two different things across the table above, and only one of them can foreclose
+anything.** On `rootfs_via_rescue` and `raw_disk` it means **bytes have reached the disk** — the
+installer is running, or a byte is written — and there the machine's old contents are gone whatever
+the outcome. On `provider_native`, `provider_catalogue`, power, reverse DNS and delete it means only
+that **a request was dispatched**, which is a fact about this process and not about the machine: a
+rebuild the provider never began, a power call it dropped, a delete whose response was lost, all set
+the marker and all may have changed nothing. *Recorded 2026-09-04 because a single column carrying
+two meanings was read as carrying the first one everywhere — see `WIR-35`, where it made
+`not_applied` unreachable on five of the seven kinds that accept it.* Where the marker means
+dispatch, whether the mutation landed is exactly the question `OPS-31`'s resolution exists to
+answer, and it is answered from the provider (`PRV-36`'s evidence sources), never from this column.
+
 **The pinned-host-key abort is the case this exists for.** `RSC-3` refuses to connect when the trust
 decision cannot be made — the security-critical decision in the whole workflow, working exactly as
 designed — and with `on_failure: exit_rescue` succeeding, the machine is back in its installed

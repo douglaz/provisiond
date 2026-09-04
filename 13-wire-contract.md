@@ -705,11 +705,25 @@ elsewhere means a strict server would have admitted both.* *(That clause cited `
 2026-09-03. `WIR-1` carries the JSON, money and timestamp conventions; the precedence rule is in the
 unnumbered opening paragraph. Both instances of the miscitation are corrected — the other was in
 `WIR-20`, and finding the second one is why a corrected claim gets grepped across the set rather
-than fixed where it was reported.)* **`not_applied` is additionally refused where `OPS-45`'s
-write-started marker is set** — `409` `conflict`, `details.reason: "state"` — because a partly
-written disk is not "nothing happened". *Without these an install, a power action or a reverse-DNS
+than fixed where it was reported.)* **`not_applied` is additionally refused, on a
+`rootfs_via_rescue` or `raw_disk` install only, where `OPS-45`'s write-started marker is set** —
+`409` `conflict`, `details.reason: "state"` — because a partly written disk is not "nothing
+happened". *Without these an install, a power action or a reverse-DNS
 change reaching `needs_reconciliation` had exactly one reachable verb, `abandoned`, so the
 differentiator's failure path resolved only as a loss.*
+
+**AMENDED 2026-09-04 — the refusal was unscoped, which made `not_applied` unreachable on five of
+the seven kinds that accept it.** *It applied to any kind. But on `provider_native`,
+`provider_catalogue`, power, reverse DNS and delete the marker is set when the provider call is
+**dispatched** (`OPS-45`'s table), and an operation of those kinds reaches `needs_reconciliation`
+only after a dispatch whose outcome was lost — so the marker is set on every one of them that an
+operator could ever be asked to resolve. Meanwhile `OPS-45` settles the marker-unset case `failed`
+by itself, without an operator, so the verb was refused in precisely the state it exists for and
+redundant in the only state it was allowed. The operator was left with `abandoned` on a machine that
+demonstrably still runs, whose rDNS demonstrably still reads the old name.* The refusal's own
+reasoning is what scopes it: "a partly written disk" is a claim the marker supports on those two
+install variants and on nothing else. For the rest, whether the mutation landed is read from the
+provider (`PRV-36`), which is what the operator is doing when they answer.
 **`operator_ref` carries the same constraint as `WIR-42`'s**: an opaque reference to a record kept
 outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`). *The
 reviewers flagged the field on `WIR-42`; it was here too, and an operation record is retained

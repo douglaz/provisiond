@@ -1289,7 +1289,13 @@ rather than acquiring a default.
       Then set the write marker — mismatch the digest mid-stream on the raw-disk path (`RSC-29`) — and
       assert `needs_reconciliation`, that `applied` and `not_applied` are both offered where
       `observed`/`absent` are not, that `not_applied` is **refused** `409` `state` while the marker
-      is set, and that both are refused on a create. Assert the marker survives the payload purge.
+      is set, and that both are refused on a create. **Then the same verb on a `delete_machine`
+      whose provider call was dispatched and whose response was lost, and on a `reverse_dns`:
+      the marker is set on both and `not_applied` is `200`, not `409`** — there the marker records a
+      dispatch, not a written disk (`OPS-45`), and the operator has read the provider. *Added
+      2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind whose marker
+      is set at dispatch, which is every such operation that ever reaches an operator — and this item
+      asserted only the raw-disk half, where the refusal is right.* Assert the marker survives the payload purge.
       **The failure this catches is the differentiator's own safety abort resolving only as
       `abandoned`**, which is what happened when three create-shaped verbs were the only ones there
       were. (`OPS-45`, `OPS-11`, `OPS-31`, `WIR-35`, `RSC-3`)
