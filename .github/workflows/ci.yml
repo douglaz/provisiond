@@ -78,3 +78,22 @@ jobs:
             exit 1
           fi
           echo "citation gate correctly rejected an unverifiable quoted attribution"
+
+      # The arithmetic gate executes LDG-33 and LDG-38 rather than reading them,
+      # so its negative control is a predicate swap rather than a text edit. The
+      # first draft of its OPS-41 check derived both sides of the comparison from
+      # one variable and was therefore a tautology that could never fail; this
+      # step exists so that can never ship again.
+      - name: Prove the arithmetic gate can fail
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/if cycles(abort_date, reserved/if cycles(abort_sats, reserved/' \
+            tools/check_arithmetic.py
+          if python3 tools/check_arithmetic.py; then
+            echo "::error::arithmetic gate passed the withdrawn OPS-41 predicate"
+            exit 1
+          fi
+          echo "arithmetic gate correctly rejected the non-terminating predicate"
