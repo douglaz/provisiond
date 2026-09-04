@@ -1259,7 +1259,11 @@ rather than acquiring a default.
       Assert the window used is `PRV-36`'s and **not** `OPS-33`'s negative window — a build wired to
       the longer one passes this seeding and bills a terminated machine for hours. Assert too that an
       **adopted** machine (`PRV-28`) records an absence on the first pass, having no create to
-      measure from. *Added 2026-09-04 — without it a build that stopped the meter and released the
+      measure from. **And assert no absence is recorded without a direct re-read**: seed a listing
+      that is *complete* and still omits a live machine — page churn, an offset listing where a
+      deletion ahead of it slides it onto a page already fetched — and assert the sweep re-reads
+      `(provider_account, external_id)`, finds it, and writes nothing. *A build that trusts a
+      complete listing passes every other half of this item and stops a live machine's meter.* *Added 2026-09-04 — without it a build that stopped the meter and released the
       commitment on a live machine passed every other half of this item.* Run the first half on a machine created and never refreshed — **aged past its
       visibility window before the external delete**, or a conforming sweep skips it while this item
       waits for an absence write — that is the
@@ -1292,8 +1296,17 @@ rather than acquiring a default.
       free balance passed this item.* **Then assert the account stops being sellable**: `GET
       /v1/providers` omits it for an assigned tenant, and a create naming it is `409` `state` —
       including a create issued against a catalogue read taken **before** the termination, since the
-      listing is advisory. **Then activate a fresh tenant while that account is terminated and assert
-      it is never assigned to it** (`STO-36`, `API-57`) — the failure is a tenant that lands on a dead
+      listing is advisory. Assert the refusal on **all three** unhealthy statuses and on **both**
+      catalogue routes — the collection and `/providers/{account}/offers` (`WIR-30`) — and on adopt
+      as well as create. **Barrier case, and it is the one a lock alone fails**: hold a meter tick
+      that has already read the machine as billable, commit the termination, then release the tick —
+      it must post nothing, because `LDG-38` re-reads billability inside the serialization rather
+      than trusting what it read before. **Second barrier**: admit a create that passes the health
+      check, commit the termination before its commitment opens, and assert the create is refused —
+      the check and the commitment share one transaction against `STO-47`'s row. **Then activate a
+      fresh tenant while that account is terminated and assert it is never assigned to it**
+      (`STO-36`, `API-57`), and that a re-assignment cannot leave a tenant with no healthy
+      assignment — the failure is a tenant that lands on a dead
       account at activation, reads an empty catalogue, and holds a balance `ADR-0004` forbids
       refunding, having appeared in no `record-status` response because it did not yet exist. *Also 2026-09-04. `STO-47` had one writer and no reader at all, while
       `API-62` cited "`WIR-29` returns it nothing it can buy from" as the reason its re-assignment
@@ -1325,9 +1338,7 @@ rather than acquiring a default.
       assertion across **every** dispatch-marked row of `OPS-45`'s table**: `provider_native` install,
       `provider_catalogue` install, power, reverse DNS and delete. The marker is set on all five and
       `not_applied` is `200`, not `409` — there the marker records a dispatch, not a written disk
-      (`OPS-45`), and the operator has read the provider. Assert it at the engine and the store as
-      well as the wire, since `OPS-31` and `05-persistence.md` each carried their own copy of the
-      refusal. *Added 2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind
+      (`OPS-45`), and the operator has read the provider. *Added 2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind
       whose marker is set at dispatch, which is every such operation that ever reaches an operator —
       and this item asserted only the raw-disk half, where the refusal is right. Naming two of the
       five would pass an implementation that special-cased them.* Assert the marker survives the payload purge.

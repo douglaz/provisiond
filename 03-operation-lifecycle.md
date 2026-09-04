@@ -1024,15 +1024,17 @@ running and billing the operator with no funding behind it and nothing scheduled
 machine inside the window is not evidence either way and MUST be skipped, not deferred to a second
 opinion; the next pass has evidence.
 
-**Eligibility MUST be tested against the instant the pass began, not the instant it writes.** A pass
-paginates, so it can read page one, have a machine created behind it, and finish minutes later —
-by which point that machine's visibility window has elapsed even though the listing that missed it
-was assembled before the machine existed. Testing the window at write time then calls an incomplete
-view authoritative and records a live machine gone, which is the failure this whole clause exists to
-prevent, reintroduced by the clause itself. *Noted 2026-09-04: the age test is about whether **this
-listing** could have contained the machine, and the listing's age is the pass's, not the writer's.*
-A deployment MAY instead re-read each absent candidate directly before recording it, which answers
-the same question with a fresh read rather than with a cutoff.
+**A missing machine MUST be re-read directly before its absence is recorded.** The listing narrows
+the candidates; it never establishes one. *Added 2026-09-04, replacing a pass-start eligibility
+cutoff drafted the same day — which was strictly weaker, because the problem is not only timing.*
+**Pagination is not a snapshot.** A live machine can move from an unread page onto one already read
+when another resource disappears ahead of it, and a create dispatched before the pass began can
+attach locally after its page was fetched. Both survive any age test, and the traversal is
+*complete* in each case — so the completeness guard above does not see them either, and a running
+machine is recorded gone, its meter stopped and its commitment released. A direct read of
+`(provider_account, external_id)` answers the question the listing only suggested, costs one call
+per candidate rather than per machine, and is needed anyway on any provider that does not promise
+snapshot-consistent pagination — which is all of them.
 
 **It is `PRV-36`'s window and NOT `OPS-33`'s negative window, and the two must not be conflated.**
 `OPS-33`'s bounds a **correlator search** for a create whose outcome is unknown — derived from a

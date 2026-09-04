@@ -779,7 +779,10 @@ an account that can order bare metal and not reboot it is not a shape any launch
 fixture is a claim about a legal configuration, and this one asserted the illegal one.*
 
 **WIR-30** **AMENDED** `GET /v1/providers/{account}/offers` — customer prices only (`LDG-26`), an
-unassigned account `404`s (`WIR-36`):
+unassigned account `404`s (`WIR-36`), and **an account whose `STO-47` status is not `healthy` `404`s
+on this route too** — *added 2026-09-04, because the health filter went onto the collection route
+alone and this one is reachable by any caller that remembers an account name, serving a full price
+list that `WIR-29`'s create refusal then rejects at purchase*:
 
 ```json
 {"offers": [{

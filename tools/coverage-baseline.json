@@ -1,5 +1,5 @@
 {
   "max_uncovered_ratcheted": 101,
   "recorded": "2026-09-04",
-  "note": "Lower is better. Raise only deliberately, with a reason. 102 -> 101 when CNF-253 gained the API-7 operator-principal assertion."
+  "note": "Lower is better. Raise only deliberately, with a reason. 102 -> 101 when CNF-277 gained its adopted-machine assertion, giving PRV-28 its first checklist citation. A first note claimed the drop came from CNF-253's API-7 assertion; API-7 already had nine citations, and a further citation of a covered requirement cannot move this count."
 }

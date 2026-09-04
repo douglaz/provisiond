@@ -475,8 +475,10 @@ nothing in the system raises anything.
 
 - **The trigger is that the resource is *gone*, not that it is broken.** An authoritative
   observation that the machine no longer exists at the provider — a refresh (`DOM-8`), a driver read
-  during any operation, or a **complete** pass of `OPS-32`'s sweep not finding it **past `PRV-36`'s
-  declared visibility window for that provider** — stops the meter for that machine. Inside that
+  during any operation, or `OPS-32`'s sweep concluding it absent **on that requirement's terms** —
+  a complete pass, past `PRV-36`'s declared visibility window for that provider, and confirmed by a
+  direct re-read, since a listing narrows candidates and never establishes one — stops the meter for
+  that machine. Inside that
   window a read is not evidence of absence at all, which is the same rule everywhere else in this set
   and is why a machine created moments ago does not stop its own meter. That window is listing lag,
   not `OPS-33`'s negative window, which bounds a correlator search and is far longer; binding the
@@ -556,6 +558,17 @@ not, and it had been copied into three documents by the time a cross-model check
 **LDG-38** **AMENDED.** A `usage_debit` MUST be idempotent per **`(subject, billing period, kind,
 increment end)`** (`LDG-8`), and posting **any** machine-attributable debit MUST decrement that
 machine's commitment in the same transaction (`LDG-31`).
+
+**The subject's billability and its stop boundary MUST be re-read inside the same `LDG-35`
+serialization that appends, and the increment clipped to them.** *Added 2026-09-04, and it is the
+half a lock alone does not buy.* `LDG-70` already puts every append inside that primitive, so two
+appends cannot interleave — but nothing said the *inputs* had to be read there. A tick that read
+`running` before an `API-63` termination or an `LDG-74` stop, then waited, then took the primitive,
+posts an increment computed from state that is no longer true. Holding the primitive orders the
+writes and does nothing about the stale read. The debit is not the customer's — with the commitment
+closed `LDG-31` clamps it to zero against the tenant and books the remainder as an operator
+deficiency — so the visible damage is an operator loss for time nobody consumed, plus a rounding
+credit advanced against an increment that never existed.
 
 **Rounding MUST be applied to the cumulative charge, never per tick.** `LDG-28` rounds debits up;
 applied to each posting, that makes a customer's price depend on how often the meter happens to

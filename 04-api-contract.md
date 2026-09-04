@@ -1201,6 +1201,19 @@ answered by the call that creates the situation rather than left for the operato
 had already re-assigned its tenants off a failing account — the responsible thing to have done —
 named none of the tenants it was in the act of stranding.*
 
+**It MUST also contend with admission on the account row itself, and that ordering comes first.**
+The create and adopt health check MUST read `STO-47`'s row **in the transaction that opens the
+commitment**, so a create admitted after a termination is impossible rather than merely unlikely —
+the same one-row-two-writers shape `OPS-42` uses for the destroy fence. *Added 2026-09-04: per-tenant
+primitives cannot supply this. They do not cover a tenant with no machines in the account yet, and
+the check and the commitment sat in different transactions, so a create could pass the health check,
+have the termination commit behind it, and open a commitment against a dead account.* **A create
+already dispatched to the provider when the termination commits is not reachable by any lock**, and
+is `OPS-36`'s late attach: the machine appears under a terminated account, `OPS-36` attaches it and
+enqueues the cleanup cancellation, that cancellation fails against the revoked credential, and
+`OPS-44` files it in the operator listing. That is the honest end for it, and it is stated so the
+machine is *somewhere* rather than orphaned in silence.
+
 **The transaction MUST hold the `LDG-35` primitive of every tenant in `WIR-50`'s
 `affected_tenants`, acquired in ascending tenant-identifier order** — the ordering `LDG-35` already
 states for the two-tenant attribution case, applied here to n tenants, and that set rather than "the
