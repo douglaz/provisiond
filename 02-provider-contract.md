@@ -566,7 +566,12 @@ documents it on the field itself:
 > — `MathiasPius/hrobot-rs`, `src/api/ordering/models.rs`, `ProductOrder::comment`
 
 The same caveat appears on the auction-market order. This is the written verification `CNF-148`
-demanded. **The `comment` field MUST NOT be used as a
+demanded.
+
+**Confirmed first-party 2026-09-04.** The caveat is not only a client library's doc comment — it is
+in Hetzner's own API parameter table, on **both** ordering endpoints: "comment — Order comment
+(optional); Please note that if a comment is supplied, the order will be processed manually."
+**[observed 2026-09-04]** The library was right and the provider says so itself. **The `comment` field MUST NOT be used as a
 correlator, or for anything else, on a Robot order.** Using it would convert every dedicated order
 into a human-latency order and invalidate the negative window (`OPS-33`) for the one product where
 a lost reply is most expensive.
@@ -600,17 +605,53 @@ transactions (`08-provider-notes.md`) and matches on that fingerprint.
    documents any for the key field, and a differing *value* in a structured field has no mechanism
    by which to summon a human, where free text plainly does.
 
-**The residual is empirical, not structural, and `PRV-34` makes it free to close.** Condition 2 is
-established by exclusion and by the field's role; a test-mode order confirms it end to end at zero
-cost, and `CNF-180` requires that confirmation before the driver ships. Until it passes, the
-driver MUST declare no correlator and `PRV-33` governs.
+**The residual was empirical, not structural, and it is now closed on the auction channel by two
+real orders.** *The withdrawn sentence said `PRV-34` "makes it free to close"; it does not, and
+`F37` is why — a simulated order is never listed, so test mode cannot exercise the half that
+matters.* Until a driver's own channel passes `CNF-180`, it MUST declare no correlator and `PRV-33`
+governs.
+
+**AMENDED 2026-09-04 — verified against the live API, and per-attempt discrimination is now an
+observation rather than an argument.** Two throwaway ED25519 keys were registered and two auction
+orders placed, one carrying each fingerprint. Both appeared in
+`GET /order/server_market/transaction`, and **each fingerprint matched exactly one transaction**,
+naming its own transaction id, server number and product. The first was matched while its
+`server_number` was still `null`, which is the case `PRV-27` needs — it requires the driver
+"resolve by searching the provider's transaction listing for the correlator, which answers 'which
+orders did I place' directly rather than inferring it from which machines exist", and that is what
+the listing did. Each order also entered ordinary `in process` handling rather than manual review,
+which is two live data points for condition 2. **[observed 2026-09-04]**
+
+That second result is the one `OPS-13` rests on: it requires that "Resolution uses the entry of the
+attempt **whose correlator matched**", and on this provider two attempts genuinely carry
+distinguishable correlators. It is the reason Hetzner Robot is outside `F36`.
+
+**The correlator format is Hetzner's MD5-style colon fingerprint** — `29:07:2c:f3:97:3b:ad:70:0d:0f:94:be:9a:9b:ff:ce`,
+47 characters — not the SHA-256 form `ssh-keygen -l` prints. A driver comparing the wrong
+representation matches nothing, forever, and fails silently into `PRV-33`.
+
+**Two residuals remain.** The **standard** channel's listing is unconfirmed with a real order —
+only auction was bought, and standard is where the setup fees are (`08-provider-notes.md`) — and
+the listing window is still `[verify]`.
 
 **PRV-34** **Robot orders have a test mode, and the driver MUST use it in conformance testing.**
 The order request carries a `test` parameter; with `test=true` the API **simulates** the purchase
 and returns a `Cancelled` transaction instead of buying anything. This is a genuinely valuable
-provider fact and it was missed until 2026-08-13: it means the entire dedicated ordering path —
-request shape, authorization, the transaction listing, and the correlator round-trip of `PRV-32` —
-can be exercised against the **live** API without a setup fee or a server.
+provider fact and it was missed until 2026-08-13.
+
+**AMENDED 2026-09-04 — the claim was too broad, and one live order disproved it (`F37`).** Test
+mode exercises the **order request** path: shape, authorization, the acknowledgement gates, and
+that a caller-set correlator is accepted and echoed in the response. It does **not** exercise the
+transaction listing. A `test=true` order returns `201` with `status: "cancelled"` and is then
+absent from `GET /order/server/transaction` **and** from `/order/server/transaction/{id}` for the
+transaction just created. **[observed 2026-09-04]** The resolution half of `PRV-32` therefore
+cannot be confirmed in test mode, and `CNF-180`'s fall-back — one real order — is the only road.
+*The withdrawn sentence read: "it means the entire dedicated ordering path — request shape,
+authorization, the transaction listing, and the correlator round-trip of `PRV-32` — can be
+exercised against the **live** API without a setup fee or a server." It is kept here because `F37`
+quotes it, and a finding about a false claim is worth nothing once the claim it names is gone.
+"The transaction listing" and "the correlator round-trip of `PRV-32`" were the two items that were
+wrong, and they were the two that mattered.*
 
 A deployment MUST therefore: default its conformance runs to `test=true`; treat the *absence* of
 an explicit spend intent as test mode rather than as a real order; and verify that a live purchase

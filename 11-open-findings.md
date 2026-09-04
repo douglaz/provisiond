@@ -37,6 +37,39 @@ has been validated against a running system, a real provider response, or a payi
 design is now internally consistent and considerably more opinionated than it was — which raises,
 rather than lowers, the value of the first real transaction.
 
+## Closed by measurement — 2026-09-04
+
+**F37. `PRV-34`'s free-verification claim was false, and only `CNF-180`'s hedge survived contact.**
+`PRV-34` said test mode meant "the entire dedicated ordering path — request shape, authorization,
+the transaction listing, and the correlator round-trip of `PRV-32` — can be exercised against the
+**live** API without a setup fee or a server."
+
+**A `test=true` transaction is not listed.** Placed against `/order/server/transaction` on
+2026-09-04: `201 CREATED`, `status: "cancelled"`, the correlator echoed in the response body — and
+then `404 NOT_FOUND "no transactions found"` from both the listing and `/transaction/{id}` for the
+transaction just created. Test mode exercises the **order** half and none of the **resolution**
+half, which is the only half `PRV-32` exists for, because Robot resolution *is* matching a
+fingerprint in that listing.
+
+`CNF-180` already carried the hedge — "If simulated transactions do not appear in the listing, one
+real order closes the remaining half" — so the checklist survived intact and the prose did not.
+`PRV-34`, `PRV-32` and `08-provider-notes.md` are amended.
+
+**What the real orders then settled.** Two auction orders (about €0.16 in total, both cancelled
+immediately) confirmed the correlator round-trip *and* the property `F36` turns on: two distinct
+fingerprints each matched **exactly one** transaction. `OPS-13` requires that "Resolution uses the
+entry of the attempt **whose correlator matched**", and on Hetzner Robot two attempts genuinely
+carry distinguishable correlators — an observation now, not an argument. **`F36`'s surface is
+therefore Hetzner Cloud and DigitalOcean alone**, and on those two the setup fee is `0`, so it is
+an install-safety problem rather than a money one. `CNF-280` is the new item that keeps a driver
+honest about the discrimination, which `CNF-180` alone never tested.
+
+*This is the fourth provider premise in this set to fail on contact — `F1`'s correlator premise,
+`PRV-30`'s `comment` field, `PRV-26`'s create-only scope, and now this. Unlike the first three it
+was not findable by reading a client library: the documentation says `test` means the order "will
+not be processed", which is entirely consistent with the transaction never existing. Three audits
+and two cross-model reviews read the claim without doubting it. It took eight cents.*
+
 ## Open — found 2026-09-03
 
 **F36. Resolution cannot identify which attempt landed when the correlator is the operation UUID,

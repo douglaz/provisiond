@@ -873,12 +873,24 @@ rather than acquiring a default.
 - [ ] **CNF-148** **The Robot order `comment` field is never populated, by any code path** —
       Hetzner routes commented orders to manual processing (`PRV-30`, confirmed). Asserted against
       the outbound request, not by reading the driver.
-- [ ] **CNF-180** `PRV-32`'s correlator round-trip is confirmed against the live Robot API before
-      the driver ships — **using `test=true`, so it costs nothing** (`PRV-34`): an order carrying a
-      unique SSH key is placed, the transaction is fetched, and the returned
-      `authorized_key[].fingerprint` matches the key sent. If simulated transactions do not appear
-      in the listing, one real order closes the remaining half. Failing that, the driver declares
-      no correlator (`PRV-33`). (`PRV-32`, `PRV-34`)
+- [ ] **CNF-180** **AMENDED 2026-09-04 — the `test=true` route does not reach this, and the
+      fall-back clause is now the whole item (`F37`).** `PRV-32`'s correlator round-trip is
+      confirmed against the live Robot API before the driver ships: an order carrying a unique SSH
+      key is placed, the transaction is fetched from the listing, and the returned
+      `authorized_key[].fingerprint` matches the key sent. **A simulated order cannot satisfy this**
+      — `PRV-34` as amended records that a `test=true` transaction is absent from the listing and
+      from its own id — so it takes a **real** order, which the auction channel makes cost about
+      €0.08 because its `price_setup` is `0.0000` (`08-provider-notes.md`). Failing that, the driver
+      declares no correlator (`PRV-33`). **Satisfied on the auction channel 2026-09-04; the standard
+      channel remains open**, and it is the one that carries the setup fee. (`PRV-32`, `PRV-34`)
+- [ ] **CNF-280** **Two attempts of one create are told apart by their correlators.** Place two
+      orders carrying two distinct correlators, fetch the listing, and assert each correlator
+      matches **exactly one** order, each naming its own resource. This is the property `OPS-13`
+      assumes when it says "Resolution uses the entry of the attempt **whose correlator matched**",
+      and one correlator round-tripping does not establish it — a driver can pass `CNF-180` and
+      still be unable to tell two attempts apart, which is exactly `F36` on the providers where the
+      correlator is the operation UUID. **Observed to hold on Hetzner Robot's auction channel
+      2026-09-04**; a driver must still demonstrate it. (`PRV-32`, `OPS-13`, `OPS-38`)
 - [ ] **CNF-184** A rate outage bills the customer **nothing** for the window: no deferred
       satoshi debit is posted when the rate returns, the native accrual appears as an operator
       deficiency, and machines are cancelled at the stated maximum outage if no rate comes back.

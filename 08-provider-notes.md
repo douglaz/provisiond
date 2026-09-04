@@ -122,6 +122,15 @@ genuinely exists here, so no separate term SKU is needed. The **setup fee** is t
 exposure — commonly charged on standard servers, undocumented as refundable, so treat it as non-refundable, **commit it before ordering and debit it only on confirmed
 acceptance** (`LDG-39`). Auction servers carry no setup fee.
 
+**Measured against the live API 2026-09-04, because `LDG-39` calls the fee "unrecoverable" and the
+set never stated a size.** Standard catalogue setup fees range **€59 to €1349 net** across 29
+orderable products; the auction market's `price_setup` is **`0.0000` on all 156 offers**.
+**[observed 2026-09-04]** That range is what a single lost standard order can cost, and it is the
+reason a requeue on this channel is the most expensive action the system exposes. Two further facts
+from the same pull: standard prices are a **per-location array** (`prices[]`, each entry carrying
+its own `price` and `price_setup`) while auction prices are flat scalars, and two catalogue
+products were listed with an **empty `prices[]`** — visible in the feed and not orderable.
+
 **The exception branch is real and adoption is its main road.** Hetzner states cancellation
 periods depend on the individual contract, so a machine you *adopted* carries whatever terms it
 came with. Two things remain **[verify]**: the universal worst case across legacy and custom
@@ -311,7 +320,7 @@ by `PRV-30`.
 | Provider shape | Field carried at create | Shape | Find it afterwards | Confidence |
 |---|---|---|---|---|
 | Hetzner Cloud | `labels` | `map[string]string` | `label_selector` query parameter on list | **[observed — official `hcloud-go` client, `ServerCreateOpts.Labels` and `ListOpts.LabelSelector` → `label_selector`]** |
-| Hetzner Robot | ~~`comment`~~ **UNUSABLE** → per-order SSH key | key **fingerprint** | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one | **`comment` CONFIRMED UNUSABLE** — comments require manual provisioning (`PRV-30`). **Key substitute [observed]** — the transaction returns `authorized_key[].fingerprint`, confirmed in two independent clients (`PRV-32`) |
+| Hetzner Robot | ~~`comment`~~ **UNUSABLE** → per-order SSH key | key **fingerprint**, MD5-colon form (47 chars) | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one. **The two channels keep separate listings and a search of one is not a search of the provider** | **`comment` CONFIRMED UNUSABLE** — comments require manual provisioning (`PRV-30`), and Hetzner's own parameter table says so. **Key substitute [observed 2026-09-04 — two real auction orders, two distinct fingerprints, each matching exactly one transaction]** (`PRV-32`). Standard channel still unconfirmed with a real order |
 | Cherry Servers | `tags` | `map[string]string` | returned on the server object | **[observed — official `cherrygo` client]**; server-side filtering **[verify]** |
 | DigitalOcean | `tags` | `[]string` — flat strings, **not** key/value | `ListByTag` | **[observed — official `godo` client]** |
 
@@ -336,15 +345,57 @@ Notes that change driver code:
 - **Robot orders have a `test` mode, and this was missed until 2026-08-13.** Setting `test=true`
   makes the API **simulate** the purchase and return a `Cancelled` transaction. **[observed —
   `hrobot-rs` encodes the flag explicitly; `appscode/go-hetzner` declares `Test bool
-  \`url:"test"\``]** This is the single most useful fact in this document for conformance
-  testing: the whole dedicated ordering path, including the correlator round-trip, is exercisable
-  against the live API for free (`PRV-34`, `CNF-180`). **[verify]** whether a simulated
-  transaction appears in the transaction listing — if it does, the entire round-trip is free; if
-  not, the listing half needs one real order.
+  \`url:"test"\``]** It is useful for the order path and useless for the resolution path, and the
+  distinction cost a real order to learn.
+
+  **RESOLVED 2026-09-04 — a simulated transaction is NOT listed.** A `test=true` order returned
+  `201` with `status: "cancelled"`, and both `GET /order/server/transaction` and
+  `/order/server/transaction/{id}` then answered `404 NOT_FOUND "no transactions found"` for it.
+  **[observed 2026-09-04]** So test mode covers request shape, authorization and the correlator
+  being accepted — and none of the transaction listing, which is the half `PRV-32` exists for. The
+  `[verify]` that stood here is answered in the direction that costs money: the listing half needs
+  a real order (`PRV-34` amended, `F37`).
+
+  **The cheap way to buy one is the auction channel**, where `price_setup` is `0.0000` across every
+  offer and billing is hourly: two real auction orders placed and cancelled immediately on
+  2026-09-04 cost about €0.16 in total. **[observed 2026-09-04]**
 - **Robot's correlator does not live on the machine.** It goes on the order, and the resulting
   server carries no caller field at create — `server_name` is settable only afterwards, via
   `POST /server/{server-number}`, which is precisely the follow-up call `PRV-26` forbids relying
   on. So Robot reconciles through the transaction list, not through machine search.
+- **Measured on two real auction orders, 2026-09-04.** Both were ordered, delivered and cancelled
+  immediately; the account was returned to its prior state. **[observed 2026-09-04]**
+
+  | What | Observed | Why it is recorded |
+  |---|---|---|
+  | `in process` → `ready` | **7 min 24 s** and **4 min 03 s** | `OPS-33` says robot-style orders "poll through an `in process` state with no documented bound". These are the first real numbers; they differ by nearly 2×, which is the argument against hard-coding one |
+  | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way |
+  | `earliest_cancellation_date` on delivery | **same day**, both | Confirms the cancellation note above |
+  | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible; you learn which case applies only by reading `GET /server/{id}/cancellation` first. The mandatory branch was not exercised |
+  | `server_ip` on delivery | **`null`** — no IPv4 | Hetzner's docs: "If you do not specify the parameter, the server will be ordered without an IPv4 address by default." `addon[]=primary_ipv4` is priced separately |
+  | after cancellation | `GET /server/{n}` → `404 SERVER_NOT_FOUND`; account list back to its prior contents | Immediate destroy, no scheduled tail |
+  | the transaction afterwards | **still `status: "ready", server_number: N`** | The listing outlives the machine. A correlator match proves an order landed; it is not a statement that the resource exists |
+  | `cancellation_reason` | provider advertises a 9-item enum and accepted the unlisted value `"Other"` | Do not model it as a closed set |
+
+- **Ordering is rate-limited: 20 requests per day**, on `POST /order/server/transaction` and again
+  on `POST /order/server_market/transaction`; cancellation is 200 per hour.
+  **[observed 2026-09-04 — Hetzner API documentation]** This is a ceiling on how many dedicated
+  machines a whole deployment can provision in a day, shared across every tenant, and an `OPS-20`
+  requeue spends from it exactly as an original create does.
+
+- **Three failed logins block the source IP for ten minutes, across the whole API** — not merely
+  the endpoint that failed. **[observed 2026-09-04 — Hetzner Robot webservice documentation]** A
+  driver that retries a bad credential takes its own reconciliation offline at the moment it is
+  most needed. *Authorization failures are not authentication failures: a namespace the account has
+  not enabled answers `401` without counting toward the lockout — four such responses on `/order/*`
+  left `/server` answering `200` immediately afterwards.* **[observed 2026-09-04]**
+
+- **Ordering is a separate opt-in from the webservice user.** A `#ws+` webservice user authenticates
+  against `/server`, `/key` and the rest while every `/order/*` path answers `401` until ordering is
+  activated in Robot under *Administration → Settings → Web Service Settings → Ordering*.
+  **[observed 2026-09-04]** A deployment can therefore hold credentials that manage machines and
+  cannot order or reconcile them.
+
 - **Robot's transaction listing is time-bounded** — the client library documents the last 30
   days. **[verify]** the exact window, because it is the hard limit on how long an unresolved
   ambiguous order stays automatically recoverable. After it, resolution is manual.

@@ -47,7 +47,7 @@ containing zero tests, and a green check beside it.
 | `08-provider-notes.md` | Per-provider API facts worth preserving, and their caveats |
 | `09-known-defects.md` | Defects found in the reference implementation, as prohibitions |
 | `10-conformance-checklist.md` | What a reimplementation must demonstrate before it serves traffic |
-| `11-open-findings.md` | **Read this before building.** Findings `F1`–`F36` accumulated over several successive audits, which are fixed and which are open, and the three questions a builder must ask first — all three now answered |
+| `11-open-findings.md` | **Read this before building.** Findings `F1`–`F37` accumulated over several successive audits, which are fixed and which are open, and the three questions a builder must ask first — all three now answered. `F37` is the first closed by measuring a live provider rather than by reading one |
 | `12-billing-and-ledger.md` | The ledger, commitments, the meter, funding, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
 | `CONTEXT.md` | Glossary. Which word means what, and which words are banned |
 | `13-wire-contract.md` | Bodies, headers, bearer auth, the error envelope. Closes `F19`, panel-reviewed |
