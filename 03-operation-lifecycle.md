@@ -965,7 +965,20 @@ pass. **Only a pass that enumerated the account completely may record an absence
 paginated part way and then yielded to `rate_limited` has seen a subset, and treating that subset as
 the account would record every unlisted machine as gone — stopping their meters and closing their
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
-absence; what it observed *present* it may still record. `LDG-74` is why the write exists at all: the
+absence; what it observed *present* it may still record.
+
+**And it may record an absence only about a machine past `OPS-33`'s negative window** — measured
+from the create that produced its `external_id`, per the provider's declared visibility window
+(`PRV-36`). *Added 2026-09-04. The sweep's listing is a read of provider state, and `PRV-36` reads
+"a read of provider state is not authoritative about a mutation the driver issued until that
+provider's declared visibility window has elapsed"; `OPS-33` states that direction outright for
+creates — absence within the negative window is not evidence that nothing was created. Nothing drew
+the line to here, so a machine created seconds before the sweep, whose create the provider's listing
+had not yet caught up with, was recorded gone: `LDG-74` stopped its meter, `LDG-32` closed and
+released its commitment, and the machine went on running and billing the operator with no funding
+behind it and nothing scheduled to look again.* A machine inside the window is simply not evidence
+either way and MUST be skipped, not deferred to a second opinion; the next pass, one sweep interval
+later, has evidence. `LDG-74` is why the write exists at all: the
 meter reads the machine record, `DOM-8` refreshes that record only on an explicit caller operation,
 and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
 draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not

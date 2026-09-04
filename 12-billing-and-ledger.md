@@ -475,8 +475,10 @@ nothing in the system raises anything.
 
 - **The trigger is that the resource is *gone*, not that it is broken.** An authoritative
   observation that the machine no longer exists at the provider — a refresh (`DOM-8`), a driver read
-  during any operation, or a **complete** pass of `OPS-32`'s sweep not finding it — stops the meter
-  for that machine. **`DOM-7`'s `failed` does NOT stop it**: that state means "provider reports a
+  during any operation, or a **complete** pass of `OPS-32`'s sweep not finding it **past `OPS-33`'s
+  negative window** — stops the meter for that machine. Inside that window a read is not evidence of
+  absence at all (`PRV-36`), which is the same rule everywhere else in this set and is why a machine
+  created moments ago does not stop its own meter. **`DOM-7`'s `failed` does NOT stop it**: that state means "provider reports a
   terminal failure", and a failed dedicated machine is still allocated, still in the operator's
   account and still on the invoice. `LDG-37` continues to own which states are billable; this rule
   is about the resource ceasing to exist, which is not a state so much as the absence of one.

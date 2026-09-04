@@ -1238,7 +1238,12 @@ rather than acquiring a default.
       attachment stops its **own** meter and is **not** tombstoned (`STO-18`), while the attachment
       keeps being metered on its own subject. And a sweep pass that **yields to `rate_limited` part
       way records no absence at all** — the half-listing must not close a whole account's
-      commitments. Run the first half on a machine created and never refreshed — that is the
+      commitments. **A machine created inside `OPS-33`'s negative window and not yet in the
+      provider's listing records no absence either**, and its meter keeps running: seed a listing
+      that omits a machine created seconds ago, assert the sweep writes nothing, then re-run past
+      the window with the machine present and assert it is still metered and still committed.
+      *Added 2026-09-04 — without it a build that stopped the meter and released the commitment on a
+      live machine passed every other half of this item.* Run the first half on a machine created and never refreshed — that is the
       ordinary machine, and binding the stop to a caller's refresh leaves it draining forever.
       (`LDG-74`, `OPS-32`, `STO-48`, `LDG-37`, `DOM-7`, `DOM-8`, `STO-18`, `SEC-46`)
 - [ ] **CNF-278** **An account can actually be recorded lost, and the right thing happens.** Drive
