@@ -541,9 +541,13 @@ is worth replacing from the instant it is transmitted.*
 transaction that activates it — where at least one assignable account is `healthy` (`STO-36`,
 `STO-47`). Where none is, activation MUST proceed with no assignment, MUST emit a monitorable
 event naming the tenant (`SEC-32`), and the deployment MUST assign it by this same policy,
-automatically, when an assignable account next becomes `healthy` — on `API-63` recording that
-status or on configuration adding an account — so the tenant is neither `API-34`'s to reap nor
-left for an operator to remember (`API-62` remains the override).** *The automatic retry was added
+automatically, once an assignable account is `healthy` — **by a durable pass over active tenants
+lacking a healthy assignment, run on every `OPS-32` sweep pass and woken early by `API-63`
+recording `healthy` or by configuration adding an account** — so the tenant is neither `API-34`'s
+to reap nor left for an operator to remember (`API-62` remains the override).** *State-driven
+rather than event-driven (2026-09-05): an event with no durable work behind it is lost to a crash
+between the recording and the assignment, and the tenant it was for stays active and unusable
+forever.* *The automatic retry was added
 2026-09-05: an audit event is not a placement queue, and a paid tenant that stays active and
 unusable until a human notices is the stranding this clause exists to prevent, by another route.* *The conditional was added 2026-09-05. Read unconditionally against `STO-36`'s refusal of an
 unhealthy account, activation was unsatisfiable whenever every assignable account was down, the
@@ -585,8 +589,10 @@ cancellations, which the system really did request (`OPS-39`). This transition i
 worker classification: nothing was claimed and no driver was called, so `OPS-11`'s install row —
 which sends `conflict` to `needs_reconciliation` — does not reach it, and the operation goes
 straight to `failed` as stated. **Not being a classification does not exempt the database write**:
-it is `STO-3`'s fourth named case, guarded on `(id, status = queued, tenant suspended, this
-suspension's parent still unsettled)` and reporting whether it affected a row, so a child claimed
+it is `STO-3`'s fourth named case, guarded on its full predicate — `(id, status = queued,
+requested_by = caller, tenant suspended, this suspension's parent still unsettled)`, quoted rather
+than paraphrased since 2026-09-05, when a paraphrase here dropped the `requested_by` term and let
+step (4) fail the system delete step (3) had just named — and reporting whether it affected a row, so a child claimed
 by a real worker in the meantime loses this race and settles through that worker instead. The fan-out then lets anything
 already `running` settle, **then re-sweeps: a create that
 settled after the fan-out has produced a machine the first pass never saw, and it MUST be
@@ -632,7 +638,10 @@ existing operation in `cancellations`**, which is what "accounted for" means for
 duplicate — nor name it, so every pass found it un-cancelled, the parent never settled, `WIR-41`'s
 resume was refused forever and a worker slot was pinned for the life of the tenant.* **An operation
 that `OPS-41`'s no-mutation abort settled does NOT account for its machine**, whatever list names
-it: the abort removed the episode entry, so the next pass enqueues afresh, which `OPS-39` permits
+it: the abort removed the episode entry, so the next pass enqueues afresh — **and replaces the
+aborted operation's id in `cancellations` with the fresh one's**, so the per-machine result always
+names the child currently accounting for the machine rather than one that settled without acting —
+which `OPS-39` permits
 precisely because the entry is gone. *Added 2026-09-05 against the interleaving where the worker's
 re-check reads the entry before the join appends `tenant_suspended`, finds the machine funded after
 a price cut, and aborts — after which a pass that trusted the name would settle the parent over a
@@ -1186,7 +1195,8 @@ not from a driver (`DOM-23`); the operator supplies the machine — or an addres
 cannot tell the system its machine was blocked, and cannot grant itself more time.
 
 **API-62** **A tenant's provider-account assignment MUST be changeable by an operator.** `API-57`
-writes it once, automatically, in the activation transaction, and nothing could change it
+writes it automatically — in the activation transaction where a healthy account exists, and by its
+reconciling pass afterwards where none did — and nothing could change it
 afterwards — while `SEC-46` models the provider confirming an account is terminated and closes the
 tenant's commitments. The tenant is then assigned to a dead account, `WIR-29` returns it nothing it
 can buy from, and it holds a balance `ADR-0004` forbids refunding. **On a non-refundable product,
@@ -1235,8 +1245,9 @@ every unreleased billable attachment, which is how an attachment's meter stops (
 **post each subject's closing partial increment against its commitment** (`LDG-38`), for the time
 between its last increment end and the recording instant, which is time the customer consumed and
 the last moment there is a commitment to post it against — **and where a rate outage is in force,
-post only the segment priced before the outage began, close **the machine's existing `rate_outage`
-deficiency record** at the subject's meter-stop instant (`LDG-38` — the recording instant, or the
+post only the segment priced before the outage began, close **every affected subject's existing `rate_outage`
+deficiency record — the machine's and each unreleased attachment's, which are metered separately**
+— at that subject's meter-stop instant (`LDG-38` — the recording instant, or the
 earlier `effective_cancellation_date` of a scheduled machine; `STO-37`'s `absorbed_until`; not a
 second record),
 and advance the meter's state without a satoshi debit** (*added 2026-09-05: `LDG-64`
@@ -1277,10 +1288,14 @@ have the termination commit behind it, and open a commitment against a dead acco
 in the transaction that records the attempt's correlator entry (`OPS-35`, `PRV-26`) — the last
 write before the ordering call — the worker MUST repeat the admission check as a conditional write
 on `STO-47`'s row guarded on `healthy`, and where it affects no row MUST fail the operation
-deterministically — `conflict`, `details.reason: "account_terminated"` — releasing its commitment,
+deterministically — `conflict`, with `details.reason: "account_terminated"` where the status is
+`terminated` and `"state"` for the two recoverable statuses, since presenting an unreachable
+account as a permanent termination is false — releasing its commitment,
 with no provider mutation. `LDG-69` keeps the provider call outside that transaction, so a
 termination can still commit between the write and the call; that residue is the dispatched case
-below (*added 2026-09-05; a `running` operation sat between "queued, never claimed" and "already
+below, **and the correlator entry is what tells the termination which case it is**: a claimed
+attempt with no entry has not passed the check and will fail at it, and one with an entry MUST be
+treated as potentially dispatched (*added 2026-09-05; a `running` operation sat between "queued, never claimed" and "already
 dispatched" and matched neither, so it ordered with credentials already known to be dead; the
 transaction is named so a crash between the check and the correlator entry cannot leave an attempt
 recorded with no admission behind it*). **A create

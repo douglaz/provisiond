@@ -237,7 +237,7 @@ hostname or timing — two of a tenant's own concurrent creates can look identic
 wrong machine hands one customer another's server.
 
 **Storage** is specified as invariants rather than a product: an atomic queue claim, an atomic
-conditional machine-lock upsert, guarded settled-state writes, `(tenant, idempotency_key)`
+conditional machine-lock upsert, guarded settled-state writes, `(principal, idempotency_key)` (`STO-4`)
 uniqueness, per-tenant serialization for money, an append-only ledger with no update or delete path,
 and deposits that outlive tenant deletion — because an on-chain address stays payable forever, so
 discarding the binding makes a late payment unattributable by construction. An embedded

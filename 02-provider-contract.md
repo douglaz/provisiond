@@ -278,9 +278,9 @@ amount of a customer's balance.
 Re-derivation MUST run at the deployment's stated **re-derivation interval** at the current rate,
 and what it recomputes is **`runway_until`, not the
 commitment** (`LDG-33`, `ADR-0011`). **It MUST also maintain `machines.exhausted_since`** — set to
-the derivation instant where it moves the date **backward across `now + one re-derivation
-interval`** and the column is null; not touched where the date was already inside that horizon or
-already past; cleared by any write of a future date, the horizon qualifying only the set — which is
+the derivation instant where it moves the date **backward into the past, or backward across
+`now + one re-derivation interval`**, and the column is null; not touched on a backward move that
+stays inside the horizon, or where the date was already past; cleared by any write of a future date, the horizon qualifying only the set — which is
 the column `LDG-16`'s
 "persist across more than one derivation" is measured by (added 2026-09-05; it had no mechanism
 before; a first form set it on any past date, which delayed natural expiry, and a second on

@@ -831,8 +831,9 @@ the arithmetic that forced it.
 **`LDG-8` owns the key**; this requirement does not restate it. *A restatement here said `(subject, billing period, kind, posting index)` — the form `LDG-8` withdrew as unable to deduplicate — which is the duplication habit this set keeps paying for.*
 
 **LDG-72** **The meter keeps a running record per `(subject, billing period)`, written in the same
-transaction that closes the increment — with the debit where one posts, alone where the increment
-rounds or clamps to nothing (`STO-45`) — and it is two values: the rounding credit and the
+transaction that closes the increment — with the debit where one posts, without a ledger entry but
+with any deficiency `STO-45` requires where the increment rounds or clamps to nothing — and it is
+two values: the rounding credit and the
 high-water mark.**
 `LDG-38` once defined `already_charged` as a sum over every prior usage debit for that subject and
 period, and its high-water mark as a query over the same rows — explicitly adding no schema. **That
@@ -1340,8 +1341,10 @@ The obligation is settled **on every resolution**, and on resolved-observed the 
 happen inside
 `OPS-27`'s single resolution transaction rather than as a follow-up write. The outcomes differ in
 what it *settles*, not in whether it happens: **debited** against a still-open commitment,
-**dropped** on resolved-absent and on a deterministic rejection, and **absorbed as an operator
-deficiency** on `abandoned` and on a resolved-observed whose commitment `OPS-33` had already
+**dropped** on resolved-absent and on a deterministic rejection — *except a fee the provider's own
+transaction shows was charged for an order whose machine is nonetheless gone, which `LDG-39`'s
+absent row sends to an `unrecoverable_setup_fee` deficiency, atomically with the resolution
+(2026-09-05)* — and **absorbed as an operator deficiency** on `abandoned` and on a resolved-observed whose commitment `OPS-33` had already
 released. *Amended 2026-09-02: this sentence named the debit and the drop and left the third
 outcome — now the ordinary one on a late resolution — with no rule for the parked obligation at all.* **On `abandoned`
 (`OPS-31`) the fee is an operator
@@ -1505,9 +1508,12 @@ per-tick cap on commitment adjustment is withdrawn with the adjustment itself.*
 
 **"More than one derivation" is `machines.exhausted_since`, and until 2026-09-05 it was nothing.**
 Re-derivation (`PRV-13e`) sets that column to the derivation instant **only when it moves the date
-backward across `now + one re-derivation interval`** — from beyond the next derivation to before
-it, which is a rate-induced jump the next derivation cannot confirm before the machine would
-expire — and **does not touch it** where the date was already inside that horizon or already past;
+backward into the past, or backward across `now + one re-derivation interval`** — either way a
+rate-induced jump that brings expiry within reach before the next derivation can confirm it — and
+**does not touch it** on a backward move that stays inside the horizon, or where the date was
+already past; *the into-the-past case was restored 2026-09-05 after a horizon-only form let one
+poisoned reading move a date from thirty minutes out to one minute past with the column still
+null;*
 **any write of a future `runway_until` clears it**, including `LDG-62`'s and `OPS-41`'s abort's —
 the horizon qualifies only the *set*, never the clear, since a second derivation writing inside the
 horizon still precedes any routing. **And while no rate exists for the machine's currency, the

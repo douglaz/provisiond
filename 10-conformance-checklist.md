@@ -705,8 +705,11 @@ not optional hardening — they are the only structural defence there is.
       poisoned rate reading, assert re-derivation writes a past `runway_until` **and** sets
       `machines.exhausted_since`, assert the sweep does **not** route the machine while that column
       is younger than one re-derivation interval, feed a sane reading, and assert the column clears.
-      **Then let a runway expire with no rate movement at all and assert the machine is routed on
-      the very next pass, the column still null** — a build that gates every past date on the
+      **Then the two edges of the set rule**: a poisoned reading that moves a date from thirty
+      minutes out to one minute past sets the column and the sweep waits, and an honest reading
+      that moves a date from forty-five to forty minutes out leaves it null and the machine routes at
+      forty. **Then let a runway expire with no rate movement at all and assert the machine is
+      routed on the very next pass, the column still null** — a build that gates every past date on the
       interval runs each ordinary exhaustion one interval into the wind-down reserve.
       Then hold the bad rate across two intervals and assert the machine **is** routed. *The per-tick cap clause is withdrawn with the construct it tested
       (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
@@ -944,8 +947,11 @@ rather than acquiring a default.
       **spending token cannot revoke or rotate itself**. Both halves — the second is what stops a
       thief locking the owner out. (`API-56`, `WIR-38`)
 - [ ] **CNF-191** A freshly activated tenant has at least one assigned provider account,
-      recorded durably, and successive tenants are spread across accounts rather than filling one.
-      (`API-57`, `STO-36`, `SEC-43`)
+      recorded durably — **where a healthy account exists; where none does, it activates
+      unassigned, and kill the process after an account is recorded `healthy` and before the
+      assignment lands: on restart the reconciling pass assigns it with no event to prompt it**
+      (2026-09-05) — and successive tenants are spread across accounts rather than filling one.
+      (`API-57`, `STO-36`, `SEC-43`, `STO-47`)
 - [ ] **CNF-192** An install naming a device identifier absent from a freshly re-read inventory,
       or carrying a stale `inventory_fingerprint`, aborts `integrity` **with no bytes written**.
       Verified by mutating the inventory between the rescue-inventory pass and the install.
@@ -1360,7 +1366,10 @@ rather than acquiring a default.
       `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
       that claims it afterwards dispatches against revoked credentials and freezes the customer's
       money for `OPS-33`'s window. **Fourth**: claim a create, commit the termination before its
-      correlator entry is written, and assert it fails `account_terminated` with no provider call.
+      correlator entry is written, and assert it fails `account_terminated` with no provider call;
+      then commit the termination *after* the entry is written and before the call, and assert the
+      termination treats that attempt as potentially dispatched — neither failed nor released, and
+      resolved through `OPS-36`'s late attach.
       **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
       **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
@@ -1485,7 +1494,9 @@ rather than acquiring a default.
       names the shortfall. With the price unchanged or lower, it proceeds. **With the provider's
       price unchanged and the satoshi rate moved — in either direction — it proceeds**: that is the
       case a build comparing satoshi reserves refuses, and under a falling market it refused every
-      resubmission (added 2026-09-05). No commitment grows in any case. (`OPS-43`, `PRV-13b`,
+      resubmission (added 2026-09-05). **Restart the process between acceptance and claim and
+      assert the gate still runs**, from the attempt entry's recorded native price — a build that
+      keeps it in memory cannot compare anything after a restart. No commitment grows in any case. (`OPS-43`, `PRV-13b`,
       `ADR-0011`, `LDG-2`)
 - [ ] **CNF-242** **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
@@ -1781,7 +1792,10 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
 - [ ] **CNF-162** **REWRITTEN.** The setup fee follows `LDG-39`'s table: debited **on confirmed
       acceptance** and the commitment decremented in the **same transaction** (kill the process
       between them and neither survives); **released in full** on deterministic rejection and on
-      resolved-absent; **held** through `needs_reconciliation`. Assert `available` never goes
+      resolved-absent — **except a fee the provider's transaction shows was charged for a matched
+      order whose machine is gone, which becomes an `unrecoverable_setup_fee` deficiency in the
+      resolution's own transaction** (2026-09-05; kill the process between them and neither
+      survives); **held** through `needs_reconciliation`. Assert `available` never goes
       negative across the whole sequence — that is the bug this item missed by testing only the
       debit. (`LDG-39`, `LDG-31`, `LDG-10`)
 - [ ] **CNF-163** Two concurrent creates against a balance that can fund exactly one result in
