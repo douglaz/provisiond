@@ -308,7 +308,7 @@ itself; the ceiling is `LDG-16`'s window, which MUST stay small against a machin
 machine can drain its whole commitment inside one interval and nothing would notice.
 
 **The billing period and the re-derivation interval are different quantities and MUST NOT be
-derived from each other.** The period is a **netting boundary** for the meter's arithmetic
+derived from each other.** The period is a **boundary** for the meter's arithmetic
 (`LDG-68`); this is a **staleness bound** on a price-derived date. `LDG-68` fused them in a sentence
 about what a phrase had carried, and the fusion is withdrawn there as well. The commitment is fixed at open and exactly **three** paths
 increase it: a caller action (`LDG-62`), an operator requeue of a create, which reprices the

@@ -633,7 +633,9 @@ mutation the deployment performs on a tenant's machine without a caller request 
 this queue — lock, lease, settled states, `needs_reconciliation` included, because a cancel
 whose outcome cannot be established is ambiguous no matter who requested it — and MUST appear in the
 tenant's operation list marked `requested_by: system` with a stated reason (`exhausted`,
-`late_attach_cleanup`, `account_lost`, `tenant_suspended`, `rate_outage_bound`). Without this,
+`late_attach_cleanup`, `tenant_suspended`, `rate_outage_bound`; *`account_lost` was in this list
+until 2026-09-05 with nothing that enqueued it — `SEC-46` cancels nothing on an unreachable or
+rejected credential and has nothing left to cancel on a termination*). Without this,
 `GET /v1/operations` is not the history of
 a tenant's fleet, and the hole sits exactly where the most alarming event does: the machine that
 vanished overnight (`F31`). A pure balance event with no provider mutation — a commitment
@@ -851,7 +853,10 @@ exhaustion sweep will find it. Resolving
 the episode there is precisely the case `OPS-39`'s 2026-08-14 amendment warns about — "on a provider
 that accepts a *scheduled* cancellation the second call can then alter or repeat the first's
 mutation" — reached through resolution instead of through a reason key. The entry is released when
-the machine is tombstoned (`STO-8a`), which is when the exposure actually ends. Recovery is `API-19`'s requeue of that same operation under
+the machine is tombstoned (`STO-8a`), which is when the exposure actually ends — **and the tombstone
+clears `destroy_committed` in the same transaction**, the third path that clears it beside the two
+rows of the table above (*named 2026-09-05; the "nothing else clears" paragraph below did not
+mention it, so on this path the fence had no stated end*). Recovery is `API-19`'s requeue of that same operation under
 its existing trigger id, which `OPS-42`'s amended guard now permits. **A `failed` exposure-reducing
 cancellation MUST therefore be surfaced to the operator** in the same listing `OPS-26` requires for
 `needs_reconciliation`: it is the one settled state in this set that nothing automatic will look at

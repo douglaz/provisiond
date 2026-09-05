@@ -1204,7 +1204,10 @@ rather than acquiring a default.
 - [ ] **CNF-273** **A settled payment is findable afterwards, by the only handle anyone kept.**
       Settle a deposit on both rails, reap its tenant at `API-34`'s time-to-live, and then attribute
       the deposit to a fresh tenant: the two payments are enumerated from `payments` by
-      `deposit_id`, each `correction` pair names that payment's own credit entry, and every entry
+      `deposit_id`, each `correction` pair names that payment's own credit entry, **both entries of
+      each pair insert under the key `correction:` plus the payment reference** — keyed on the bare
+      reference the negative entry collides with the source tenant's own `topup` and the whole
+      attribution fails on its ordinary input (2026-09-05) — and every entry
       carries the `deposit_id`. Assert the storage shape too, because it is what makes the rest
       possible: a payment row and its `topup` commit in one transaction (kill the process between
       them and neither survives), `payment_ref` is unique so a replayed settlement credits once, and
@@ -1270,7 +1273,11 @@ rather than acquiring a default.
       commitment closes once the last billable attachment has stopped (`LDG-32`, `STO-18`). Then the
       halves that are easy to get wrong. Nothing is credited for the window **before** the
       observation, since provisiond polls rather than watches and the earlier instant is not
-      knowable. Under `SEC-46`'s `account_unreachable` or `credentials_rejected` the meter
+      knowable. **A `cancellation_scheduled` machine stops at its `effective_cancellation_date`, not
+      at the sweep pass that later observes it gone** — advance the clock one full sweep interval
+      past the date before the pass runs and assert no debit lands in that interval (`LDG-38`,
+      `DOM-19`; added 2026-09-05, when a build that billed to the observation passed this item
+      either way). Under `SEC-46`'s `account_unreachable` or `credentials_rejected` the meter
       **keeps running**, because the machines are still there and still billing the operator. A
       machine in `DOM-7`'s **`failed`** keeps being metered — it is broken, not gone, and a failed
       dedicated machine is still allocated and still invoiced. A machine with an unreleased billable
@@ -1547,8 +1554,12 @@ rather than acquiring a default.
       (`LDG-72`, `STO-45`, `LDG-38`, `LDG-8`)
 - [ ] **CNF-216** The billing period boundary is `00:00:00Z` on the first of the month for every
       tenant and every machine, and a metered increment straddling it is apportioned across the
-      two periods rather than falling wholly into either. The same test covers a deficiency's
-      `absorbed_from`/`absorbed_until` window straddling the boundary. (`LDG-68`, `LDG-38`,
+      two periods rather than falling wholly into either — **the increment closes at the boundary,
+      the old period's `meter_totals` row posts its part with its own credit, and the new period's
+      row starts at `r = 0`**, so the two rows never read each other. The same test covers a
+      deficiency's `absorbed_from`/`absorbed_until` window straddling the boundary. *The mechanism
+      clause was added 2026-09-05; this item asserted apportioning while `LDG-38` split only at a
+      rate change, so a straddling increment had two credits and no rule.* (`LDG-68`, `LDG-38`,
       `STO-37`)
 - [ ] **CNF-217** No transaction holding `LDG-35`'s serialization primitive acquires a
       `machine_locks` row, waits on an operation lease, waits on a child operation, or makes a

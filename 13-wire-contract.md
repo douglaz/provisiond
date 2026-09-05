@@ -156,8 +156,11 @@ commitment reserved, so a caller reads what it spent without diffing `GET /v1/ba
 `suspend_tenant`}; `status` ∈ {`queued`,
 `running`, `succeeded`, `failed`, `needs_reconciliation`} (`OPS-3`); `requested_by` ∈ {`caller`,
 `system`, `operator`} (`OPS-39`); and **`system_reason` ∈ {`exhausted`, `late_attach_cleanup`,
-`account_lost`, `tenant_suspended`, `rate_outage_bound`}, null unless `requested_by` is `system`**
-(`OPS-39`, `05-persistence.md`).
+`tenant_suspended`, `rate_outage_bound`}, null unless `requested_by` is `system`**
+(`OPS-39`, `05-persistence.md`). *`account_lost` was a fifth member until 2026-09-05 and no
+requirement ever produced it — `SEC-46` cancels nothing on the two credential states and `API-63`
+enqueues nothing on a termination — so a strict client carried a value the server could never
+emit. Removing a value a server never emits breaks no client.*
 
 *`system_reason` was added to this list on 2026-08-31. It reaches the caller in every operation
 view and its value set was stated in two other documents, but this document wins over prose
@@ -365,8 +368,12 @@ parent operation already has all three.
 was reaped (`API-34`) to a live tenant — **which MAY be `pending`**, the ordinary case since a
 returning customer enrols afresh, and the credit then counts toward `API-35`'s activation minimum
 like any other — **by posting one `correction` pair per settled payment** (`LDG-7`, `LDG-5`) — each a negative
-entry naming the original credit it corrects and a positive one to the named tenant, keyed on that
-payment's identity (`LDG-8`), all committed in one transaction under deposit-level idempotency.
+entry naming the original credit it corrects and a positive one to the named tenant, keyed on
+**`correction:` followed by that payment's reference** (`LDG-8`, `STO-31`), all committed in one
+transaction under deposit-level idempotency. *The prefix was added 2026-09-05. Keyed on the bare
+payment identity, the negative entry collided with the source tenant's own `topup`, which already
+holds that identity under the unique `(tenant_id, idempotency_key)` — so the correction could not
+insert, on the only route an orphaned balance has back.*
 **The settled payments are enumerated from `payments` by `deposit_id`** (`STO-46`), and each pair's
 negative entry names that payment's own `ledger_entry_id`; both entries carry the `deposit_id`
 (`05-persistence.md`). *Added 2026-09-02: this endpoint's central verb was "correct the credits this

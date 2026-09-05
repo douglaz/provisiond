@@ -236,13 +236,13 @@ deleted rows.
 | `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create **or adopt**, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, rescue inventory, power, reverse DNS, delete (`OPS-27`, `OPS-31`, `OPS-45`, `WIR-35`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02. **The store MUST reject a value outside the set its operation's kind admits**, which is `WIR-35`'s rule enforced where `API-24` cannot reach |
 | `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin, and with the column below makes the failure deterministic rather than ambiguous (`OPS-11`) — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean bytes reached the disk, and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once and never cleared by a requeue on `rootfs_via_rescue` and `raw_disk`** — once an attempt has begun altering the disk that stays true however many later attempts stop short — **and per-attempt, cleared by `OPS-20`'s requeue, on the five kinds where it records a dispatch** (`OPS-45`). *One write-once column cannot answer "did **this** attempt dispatch", and reading a stale marker makes a later clean stop ambiguous; the life is keyed on kind exactly as `OPS-45`'s table is.* Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`) |
 | `rescue_exited_cleanly` | boolean | nullable; `OPS-45`'s second marker — true when the driver's end-rescue call returned success, null where no rescue session was opened, false where the exit failed, was never attempted (`on_failure: leave_in_rescue`), or the operation died before reaching it. **Unlike the column above it describes the machine *now*, so each attempt overwrites it** and a requeue that exits cleanly repairs what an earlier one left open. **A null `write_started_at` alone does not make a failure deterministic**: entering rescue reboots the machine into another operating system and `PRV-22` makes a failed exit always ambiguous, so an untouched disk on a machine possibly still sitting in rescue is not "nothing happened". Both are copied into `request_summary` so an operator reading a resolved record still has them after the payload purge (`ADR-0005`); **these columns are authoritative and the copy is a convenience**, in the manner of `system_trigger_id` |
+| `privileged_seconds`, `bytes_transferred`, `storage_seconds` | integer, integer, integer | nullable; `LDG-25`'s metering of a privileged operation — rescue occupancy or import-to-switchover, and for a catalogue install the bytes transferred and the storage-seconds of the re-hosted copy (`RSC-39`, `RSC-42`). Free in v1 and counted from the first release, because a price cannot be introduced later for something that was never counted. Metering facts, not caller payload: they survive `ADR-0005`'s purge. *Added 2026-09-05; the MUST had no column* |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
 | `revision` | integer | strictly increases on every client-visible change (`API-53`); arbitrates out-of-order polls |
-| `pending_fee_native_minor`, `pending_fee_currency` | integer, text | nullable; `LDG-67`'s parked setup fee in the **provider's** currency (`LDG-2`) |
-| `pending_fee_sats` | integer | nullable; the same fee at the rate authorized at create (`LDG-67`), so a late resolution debits what the customer agreed to rather than a re-conversion. All three are cleared on resolution, and on an operator requeue, whose fresh attempt carries its own fee (`LDG-67`). **These three are the scalar copy of the *latest* attempt's fee**, kept for reading the outstanding obligation; the amount actually debited on resolution is the matched attempt's entry in `request_summary`, which is the only place an earlier attempt's fee still exists |
+| *`pending_fee_native_minor`, `pending_fee_currency`, `pending_fee_sats`* | — | **Withdrawn 2026-09-05.** *They were "the scalar copy of the latest attempt's fee, kept for reading the outstanding obligation", while `LDG-67` itself said the amount debited on resolution is the matched attempt's entry in `request_summary` — a second representation of a figure the per-attempt entries already hold, the shape `LDG-73` was removed for. The outstanding obligation is the latest attempt's entry (`LDG-67`)* |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
-| `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `account_lost`, `tenant_suspended` (`API-58`'s per-machine cancellations, never the caller's own queued work that the same fan-out fails: that keeps `requested_by = caller`, a null `system_reason`, and carries the reason in `error`), `rate_outage_bound` (`LDG-64`) |
+| `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `tenant_suspended` (`API-58`'s per-machine cancellations, never the caller's own queued work that the same fan-out fails: that keeps `requested_by = caller`, a null `system_reason`, and carries the reason in `error`), `rate_outage_bound` (`LDG-64`) |
 | `system_trigger_id` | text | nullable; a **convenience copy** of `OPS-39`'s durable episode identifier, carried for querying and for requeue under an existing id. A constraint here over the episode key and this copy is a redundant guard, never the enforcing one — `STO-14` deletes these rows and takes it with them. The enforcing uniqueness is on `machines.system_trigger_ids` |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
@@ -367,7 +367,7 @@ the authorization system.
 
 Constraints: unique `(tenant_id, idempotency_key)`; unique `(tenant_id, seq)`; index on
 `(tenant_id, seq desc)` for the balance read (`LDG-70`); index on
-`(subject_kind, subject_id, billing_period, kind)` for `LDG-38`'s netting query; index on
+`(subject_kind, subject_id, billing_period, kind)` for `LDG-8`'s idempotency key and `LDG-38`'s period placement; index on
 `(corrects_entry_id)`, which that same query traverses; index on `(deposit_id)`, which is how
 `WIR-42` reaches the credits a deposit produced.
 
@@ -377,8 +377,12 @@ each billable attachment be metered "on its own identity", and two subjects shar
 one rounding credit and one high-water mark — so each one's increments discard the other's as already
 posted, silently, and in the customer's favour. A deployment MUST NOT record a correction by any means other than
 `corrects_entry_id`: `LDG-5` makes the corrected row survive unchanged, so a correction that names
-nothing is invisible to the netting, and the next tick either re-charges what a correction added or
-hands back a second time what it refunded. Both were requirements with no column, which is how
+nothing cannot be attributed to the entry it corrects or placed in that entry's period (`LDG-38`),
+which are the two things the column is for. *Until 2026-09-05 this sentence gave the withdrawn
+meter's reason — an unnamed correction was "invisible to the netting" and the next tick re-charged
+it — three days after `LDG-38` stopped netting over entries at all, so a builder following the
+schema document built the withdrawn meter. One rule, two homes, one amended.* Both were
+requirements with no column, which is how
 `operations.commitment_id` was once "a foreign key to nothing".
 
 **STO-22** `ledger_entries` MUST be append-only at the storage layer, not merely by convention —
@@ -619,8 +623,10 @@ serve, since it is a *computed deadline* rather than an end and an outage that c
 less time than it implies), `rate_num`, `rate_den` (**nullable**; the rate in force
 when the record was opened, required only for a cause that had one and permanently null for a
 rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`),
-`outage_started_at`, `outage_deadline`
-(`LDG-64`, both persisted so a restart cannot re-apply the bound from a fresh start),
+`outage_deadline`
+(`LDG-64`, persisted so a restart cannot re-apply the bound from a fresh start; the outage's start
+is `absorbed_from`, the same instant for the only cause that has one — *`outage_started_at` was a
+second column for it until 2026-09-05*),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not

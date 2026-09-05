@@ -75,8 +75,9 @@ re-derivation to **monthly** — under which `runway_until` is up to a month sta
 future" swallows every cancellation date under about thirty days. `PRV-13e` now states its own
 interval, defaulting to hourly, and `LDG-42` carries it as a separate deployment parameter.
 
-**Two quantities, and the distinction is worth holding on to:** a billing period is a **netting
-boundary** — where `LDG-38`'s arithmetic starts over and which entries a correction may name — while
+**Two quantities, and the distinction is worth holding on to:** a billing period is a **boundary** —
+where `LDG-38`'s increment closes and its rounding credit starts afresh, and which entries a
+correction may name — while
 a re-derivation interval is a **staleness bound** on a price-derived date. They answer different
 questions, they have no reason to be equal, and fusing them made one requirement's silence set
 another requirement's clock.
@@ -85,9 +86,11 @@ another requirement's clock.
 provider's invoice month would make one machine's period depend on which account it landed in and
 would encode a commercial term as a constant (`PRV-13c`); deriving it from the machine's create
 instant gives an attached machine (`OPS-27`, `OPS-36`) two defensible start instants and no rule to
-choose between them. The single boundary also makes `LDG-38`'s netting a range scan on
-`(subject_kind, subject_id, billing_period, kind)` rather than a per-subject calculation
-(`05-persistence.md`).
+choose between them. The single boundary also makes `LDG-8`'s idempotency key and `LDG-38`'s
+period placement a range scan on `(subject_kind, subject_id, billing_period, kind)`
+(`05-persistence.md`). *"Netting" was deleted from this sentence and three others on 2026-09-05;
+`LDG-38` stopped netting over entries on 2026-09-02, and the word had survived in every document
+but the one that changed.*
 
 **This is a deployment parameter only in the sense that it MUST be stated** (`LDG-42`): it is fixed
 at deployment and MUST NOT vary per tenant, because a correction naming an entry in another
@@ -570,6 +573,22 @@ closed `LDG-31` clamps it to zero against the tenant and books the remainder as 
 deficiency — so the visible damage is an operator loss for time nobody consumed, plus a rounding
 credit advanced against an increment that never existed.
 
+**For a `cancellation_scheduled` machine the stop boundary is the earlier of its
+`effective_cancellation_date` and any gone observation** (`LDG-74`, `DOM-19`). *Added 2026-09-05.
+`LDG-37` bills that state "until its effective date" and `LDG-74` stops at the observation instant —
+and nothing observes the machine at the date except `OPS-32`'s next pass, so the customer paid up to
+one sweep interval for a machine whose end the record had held in advance. The observation-instant
+rule exists because the earlier instant is usually unknowable; here it is the one instant the
+deployment knew before the provider did.* The sweep's tombstone on that path releases `OPS-44`'s
+entry and clears the fence, which is stated there.
+
+**An increment also closes at every period boundary** (`LDG-68`), and the new period's
+`meter_totals` row starts with `r = 0`: the credit is at most one satoshi and it is forfeited in the
+customer's favour, once a month. *Added 2026-09-05 — `CNF-216` asserted that a straddling increment
+is apportioned across the two periods while this requirement split only at `rate_observed_at`, and
+the row is keyed per period, so a straddling increment had two credits to read and no rule for
+either.*
+
 **Rounding MUST be applied to the cumulative charge, never per tick.** `LDG-28` rounds debits up;
 applied to each posting, that makes a customer's price depend on how often the meter happens to
 run — a deployment that meters every minute charges more than one that meters hourly, for
@@ -737,11 +756,11 @@ period's billable time to zero for consumption nobody disputes, which is the ope
 twice for one interruption. Where an absorbed window straddles a period boundary each period
 subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
 **The window is read from the deficiency record's `absorbed_from` and `absorbed_until`**
-(`STO-37`), which every cause that absorbs time MUST carry. `outage_started_at` and
-`outage_deadline` are not that window: `LDG-64` ties the first to the `rate_outage` cause and the
-second is a *computed deadline* rather than an end, so an outage that clears early absorbed less
-time than the pair implies, and a split no record can locate in time is
-not a split an implementation can perform.
+(`STO-37`), which every cause that absorbs time MUST carry. `outage_deadline` is not that window's
+end: it is a *computed deadline*, so an outage that clears early absorbed less time than it
+implies, and a split no record can locate in time is not a split an implementation can perform.
+*`absorbed_from` is also the outage's start for `LDG-64`'s bound; a separate `outage_started_at`
+held the same instant until 2026-09-05.*
 
 **AMENDED 2026-09-02 — exactly one cause absorbs time, and it is `rate_outage`.** *The withdrawn
 clause said "a `clamp_overflow` deficiency absorbs billable time too", and that double-relieves the
@@ -1277,20 +1296,23 @@ human.
 row that `API-34`'s time-to-live could never reclaim.
 
 **LDG-67** **A pending fee obligation is a record, not an entry.** `LDG-39`'s ambiguous row parks
-the setup fee on the operation until resolution, and that needs a home: `operations` carries
-`pending_fee_native_minor` and `pending_fee_currency` (`05-persistence.md`), in the provider's
-currency because the fee is not yet a satoshi obligation. Alongside the native figure it carries
-`pending_fee_sats`, the **satoshi amount authorized at create**, so a resolution that debits the fee
-debits what
-the customer actually authorized rather than a re-conversion at whatever the rate has since
-become — **which is the case where the create's own commitment is still open**; once `OPS-33` has
-released it the fee is not debited at all (`LDG-39`, amended 2026-09-02) and this figure is what the
-operator deficiency records instead.
+the setup fee on the operation until resolution, and that home is **the attempt's entry in
+`operations.request_summary`**: each attempt's entry MUST carry the fee in the provider's currency
+(`LDG-2`), because it is not yet a satoshi obligation, **and the satoshi amount authorized for that
+attempt**, so a resolution that debits the fee debits what the customer actually authorized rather
+than a re-conversion at whatever the rate has since become — **which is the case where the create's
+own commitment is still open**; once `OPS-33` has released it the fee is not debited at all
+(`LDG-39`, amended 2026-09-02) and that figure is what the operator deficiency records instead.
+**The outstanding obligation is the latest attempt's entry, and resolution debits the matched
+attempt's.** *Until 2026-09-05 `operations` also carried three scalar columns as "the copy of the
+latest attempt's fee" — a second representation of a figure the entries already held, and the same
+shape `LDG-73` was withdrawn for. They are gone; nothing needed a scalar that a read of the latest
+entry does not answer.*
 
-All three columns are cleared **on every resolution**, and on resolved-observed the clear MUST
+The obligation is settled **on every resolution**, and on resolved-observed the settlement MUST
 happen inside
 `OPS-27`'s single resolution transaction rather than as a follow-up write. The outcomes differ in
-what the clear *settles*, not in whether it happens: **debited** against a still-open commitment,
+what it *settles*, not in whether it happens: **debited** against a still-open commitment,
 **dropped** on resolved-absent and on a deterministic rejection, and **absorbed as an operator
 deficiency** on `abandoned` and on a resolved-observed whose commitment `OPS-33` had already
 released. *Amended 2026-09-02: this sentence named the debit and the drop and left the third
@@ -1347,7 +1369,11 @@ the machine, and the **duration** of the privileged phase — rescue occupancy f
 operation, import-to-switchover for a catalogue install. **A catalogue install MUST additionally
 record the bytes transferred and the storage-seconds of the operator's re-hosted copy**
 (`RSC-39`, `RSC-42`), which are the two units that path actually consumes and the only two that
-scale with the customer's own choice of image. `ADR-0013` asserted that this requirement "already
+scale with the customer's own choice of image. **The home is three nullable columns on
+`operations`** — `privileged_seconds`, `bytes_transferred`, `storage_seconds`
+(`05-persistence.md`) — since the kind and the machine are already there. *Named 2026-09-05; the
+MUST had no table for three days, which is `STO-38`'s failure class, and they are metering facts
+rather than caller payload so `ADR-0005`'s purge does not reach them.* `ADR-0013` asserted that this requirement "already
 covers the money … the units to meter are the transferred bytes and the storage-seconds" while this
 requirement named no unit at all; it does now, and the ADR's claim is true rather than
 aspirational.
