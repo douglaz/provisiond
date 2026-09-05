@@ -372,26 +372,22 @@ Notes that change driver code:
   | What | Observed | Why it is recorded |
   |---|---|---|
   | `in process` → `ready` | **7 min 24 s** and **4 min 03 s** | `OPS-33` says robot-style orders "poll through an `in process` state with no documented bound". These are the first real numbers; they differ by nearly 2×, which is the argument against hard-coding one |
-  | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way |
+  | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way. `PRV-42` owns what a driver does with it |
   | `earliest_cancellation_date` on delivery | **same day**, both | Confirms the cancellation note above |
   | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible; you learn which case applies only by reading `GET /server/{id}/cancellation` first. The mandatory branch was not exercised |
-  | `server_ip` on delivery | **`null`** — no IPv4 | Hetzner's docs: "If you do not specify the parameter, the server will be ordered without an IPv4 address by default." `addon[]=primary_ipv4` is priced separately |
+  | `server_ip` on delivery | **`null`** — no IPv4 | Hetzner's docs: "If you do not specify the parameter, the server will be ordered without an IPv4 address by default." `addon[]=primary_ipv4` is priced separately; `RSC-45` owns what a driver must do about it |
   | after cancellation | `GET /server/{n}` → `404 SERVER_NOT_FOUND`; account list back to its prior contents | Immediate destroy, no scheduled tail |
-  | the transaction afterwards | **still `status: "ready", server_number: N`** | The listing outlives the machine. A correlator match proves an order landed; it is not a statement that the resource exists |
+  | the transaction afterwards | **still `status: "ready", server_number: N`** while `GET /server/N` answered `404` | The listing outlives the machine; `PRV-43` owns the consequence |
   | `cancellation_reason` | provider advertises a 9-item enum and accepted the unlisted value `"Other"` | Do not model it as a closed set |
 
 - **Ordering is rate-limited: 20 requests per day**, on `POST /order/server/transaction` and again
   on `POST /order/server_market/transaction`; cancellation is 200 per hour.
-  **[observed 2026-09-04 — Hetzner API documentation]** This is a ceiling on how many dedicated
-  machines a whole deployment can provision in a day, shared across every tenant, and an `OPS-20`
-  requeue spends from it exactly as an original create does.
+  **[observed 2026-09-04 — Hetzner API documentation]** `PRV-40` owns what follows from it.
 
 - **Three failed logins block the source IP for ten minutes, across the whole API** — not merely
-  the endpoint that failed. **[observed 2026-09-04 — Hetzner Robot webservice documentation]** A
-  driver that retries a bad credential takes its own reconciliation offline at the moment it is
-  most needed. *Authorization failures are not authentication failures: a namespace the account has
-  not enabled answers `401` without counting toward the lockout — four such responses on `/order/*`
-  left `/server` answering `200` immediately afterwards.* **[observed 2026-09-04]**
+  the endpoint that failed. **[observed 2026-09-04 — Hetzner Robot webservice documentation]**
+  Authorization failures do not count toward it: four `401`s on `/order/*` left `/server` answering
+  `200` immediately afterwards. **[observed 2026-09-04]** `PRV-41` owns the rule.
 
 - **Ordering is a separate opt-in from the webservice user.** A `#ws+` webservice user authenticates
   against `/server`, `/key` and the rest while every `/order/*` path answers `401` until ordering is

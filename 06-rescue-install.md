@@ -460,3 +460,22 @@ MUST record that provisiond did not verify these bytes (`DOM-29`). An image that
 requirements produces a machine that is running, billing, draining runway and unreachable, with no
 rescue path on this provider to fix it — and the customer's only remedy is delete. *That is a
 residual disclosed rather than solved, in the manner of `RSC-29`.*
+
+## Reaching the machine at all
+
+**RSC-45** **A driver MUST NOT assume a newly ordered machine has an IPv4 address, and MUST declare
+which address family its rescue path uses.** A Hetzner Robot order carries **no IPv4 address unless
+one is bought**: the API states that "If you do not specify the parameter, the server will be
+ordered without an IPv4 address by default", and `addon[]=primary_ipv4` is separately priced. Two
+auction orders placed on 2026-09-04 were delivered with `server_ip: null`. **[observed 2026-09-04]**
+
+Everything in this document reaches the machine over SSH and pins its host key, and nothing in it
+states which address family that connection uses. A deployment whose control plane has no IPv6 path
+cannot reach a default-ordered Robot machine **at all** — and it discovers this after the money is
+spent, on a machine that exists, bills, and drains runway exactly as `RSC-43`'s unreachable case
+does, for a different reason and with the same remedy.
+
+A driver MUST therefore either order the address addon and carry its cost into the offer's price, or
+declare that its rescue path is IPv6-capable and that the deployment running it must be too. The
+choice is a per-driver fact and belongs in `08-provider-notes.md`; what MUST NOT happen is a machine
+bought before anyone established it could be reached.

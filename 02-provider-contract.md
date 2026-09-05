@@ -768,6 +768,136 @@ delete-to-billing-stop latency asks a different question, overlaps this one in t
 owed for every launch driver. *The 2026-08-31 DigitalOcean sample is a visibility sample, n=1,
 recorded as such in `08-provider-notes.md`; it is not a billing-stop sample.*
 
+**PRV-38** **A provider with more than one ordering channel has more than one transaction listing,
+and a search of one is not a search of the provider.** Hetzner Robot's standard catalogue and
+auction market keep separate listings: with one live auction order outstanding,
+`GET /order/server_market/transaction` returned it while `GET /order/server/transaction` answered
+`404 no transactions found` in the same second. **[observed 2026-09-04]**
+
+`OPS-27` requires a search over "**every correlator the operation recorded**". That is necessary and
+not sufficient. **The union MUST also be taken over every ordering channel the driver can order
+through**, and a driver MUST declare its channels.
+
+The cost of getting it wrong is not a missed match. A resolution that searched one channel and found
+nothing reaches `OPS-27`'s second row — "The provider's search is authoritative and returns nothing
+for any of them, and the negative window has elapsed" — whose effect that table gives as "Closed and
+released in full (`LDG-32`)". So the customer's balance is released and the operation closed while a
+physical server bought on the other channel runs unclaimed at the operator's expense. `OPS-32`'s
+account sweep MUST therefore cover every channel too; it is the only thing that would ever find it,
+and that document states its interval as "the maximum time a customer can be billed for a machine
+that no longer exists" — here it bounds the mirror case, a machine nobody is billed for at all.
+
+**PRV-39** **A provider that answers an empty search with an error status MUST have that answer
+translated into an empty result, never into an error kind.** Hetzner Robot returns
+`404 {"error":{"code":"NOT_FOUND","message":"no transactions found"}}` for a transaction listing
+with nothing in it — the same status and the same word as a genuinely missing resource.
+**[observed 2026-09-04]**
+
+`PRV-5` is where this is decided: it maps "provider non-2xx responses to `provider` (or the more
+specific `authentication`, `not_found`, `conflict`, `rate_limited` where the status warrants it)",
+and here the status does **not** warrant `not_found`. A driver that takes the obvious reading
+converts `OPS-27`'s *resolved-absent* — whose effect is "Closed and released in full (`LDG-32`)",
+the outcome that returns a customer's money — into an operation failure, and the balance stays
+committed behind an order that provably never landed.
+
+*This is the `OPS-11` amendment's defect on the search path. That amendment was written because
+`DELETE /v2/images/{id}` answers `422 "Can not delete an already deleted image."` — a provider using
+an error status to report a non-error — and its rule reaches only mutations, because it is phrased
+as "A provider rejection whose meaning is "already in the target state" MUST classify `succeeded`."
+Nothing is mutated here, so that rule does not reach it.*
+
+**PRV-40** **A driver MUST declare its provider's ordering rate limit, and the deployment MUST
+treat it as a capacity bound rather than discover it mid-order.** Hetzner Robot documents **20
+requests per day** on each of its two order endpoints, and 200 per hour on cancellation.
+**[observed 2026-09-04]**
+
+This is a ceiling on how many machines the whole deployment can provision in a day, shared across
+every tenant, and three things spend from it that nothing in this set counts: an ordinary create,
+**every `OPS-20` requeue** — which is one more reason a requeue is not a free retry — and every
+conformance run that places an order, including a simulated one.
+
+The deployment MUST state the limit and MUST refuse a create deterministically, before any provider
+call, once the budget is exhausted. `OPS-11` requires that shape: such a refusal is decided "before
+any driver call" and classifies `failed` for every operation kind, so nothing ambiguous is created
+and no reconciliation is owed. **A limit first encountered during an incident is encountered exactly
+when requeue is being used most.**
+
+**PRV-41** **An authentication failure MUST NOT be retried against a provider that locks out on
+repeated failures.** Hetzner Robot blocks the **source IP for ten minutes after three failed login
+attempts**, across the whole API rather than the endpoint that failed. **[observed 2026-09-04]**
+
+The blast radius is total and account-wide: `PRV-27`'s transaction listing, `OPS-32`'s account sweep
+and every tenant's operations against that provider go dark together, from one deployment's address.
+It lands at the worst moment, because a create sitting in `needs_reconciliation` is spending
+`OPS-33`'s window while the lockout runs.
+
+Nothing today forbids it. `DOM-17` requires every error to carry "a boolean `retryable`" that "describes
+whether repeating the *same request* is safe and sensible", and `OPS-12` binds only the system's
+retrying of ambiguous mutations. A driver MUST therefore treat an `authentication` failure as
+terminal for that credential, MUST NOT re-attempt it on a schedule, and MUST surface it for an
+operator (`OPS-26`). A rotated or mistyped credential is an operator problem; automating around it
+converts it into a provider-wide outage.
+
+*Authorization failures are not authentication failures. A namespace an account has not enabled
+answers `401` without counting toward the lockout — four such responses on Robot's `/order/*` paths
+left `/server` answering `200` immediately afterwards. **[observed 2026-09-04]** A driver that
+conflates them will back off from a condition no backoff repairs.*
+
+**PRV-42** **Where a provider's offer identifier *is* the resource identifier, resolution MUST be an
+identity read rather than a search, and the correlator is unnecessary.** On Hetzner Robot's auction
+channel the two are the same number: offer `3068756` provisioned as server `3068756` and offer
+`3068758` as server `3068758`, each leaving the offer feed on purchase. **[observed 2026-09-04,
+twice]** That market lists *specific physical machines*; the standard catalogue lists products, and
+there the server number is unknown until the order is filled.
+
+Where the identity holds, an ambiguous create resolves by reading the resource directly:
+
+| Response | Outcome |
+|---|---|
+| the account owns it | `OPS-27`'s first row, "Exactly one resource across all of this operation's correlators", reached without a search and naming the machine exactly |
+| absent, past `PRV-36`'s declared visibility window | `OPS-27`'s resolved-absent |
+
+This is stronger than a correlator search on four counts: it is an identity lookup, so `OPS-29`'s
+"A correlator match MUST be exact" is satisfied by construction; it is not bounded by a transaction
+listing's retention, which removes `OPS-33`'s hardest limit on this channel; it needs no ordering
+permission, which a webservice user may not hold (`08-provider-notes.md`); and **it supplies
+per-attempt discrimination for free**, because a requeue must name a different listing — the first
+is gone the moment anyone buys it — so every attempt carries its own known resource identity.
+
+A driver MUST declare, per ordering channel, whether the offer identifier is the resource
+identifier, and MUST prefer the identity read where it is. **This does not reach a catalogue
+channel**, where the offer is a product and `PRV-32`'s correlator remains the only road.
+
+*The absence answer is `PRV-39`'s case: `404 SERVER_NOT_FOUND` is an answer, not an error. And the
+identity rests on two observations of one provider — that it holds by rule rather than by
+coincidence is `[verify]` before a driver depends on it.*
+
+**PRV-43** **A correlator match proves an order landed. It is never evidence that the resource still
+exists.** The transaction listing outlives the machine: after server `3068756` was cancelled and
+destroyed — `GET /server/3068756` answering `404 SERVER_NOT_FOUND`, the account list back to its
+prior contents — `GET /order/server_market/transaction` still reported that order as
+`status: "ready", server_number: 3068756`. **[observed 2026-09-04]** The listing records what was
+*ordered*; it makes no claim about what exists.
+
+`OPS-27`'s first row instructs "**Resolved-observed.** Attach it and complete the operation as
+though it had succeeded", and gives the effect on the commitment as "Becomes the machine's running
+commitment". Applied to a destroyed machine that writes a `machines` row for something that is gone,
+opens a commitment against it and starts the meter — which is the defect `OPS-32` was amended to
+close, arriving by another road: "the meter reads the machine record, `DOM-8` refreshes that record
+only on an explicit caller operation, and nothing in this set refreshes on a schedule — so a machine
+the provider terminated went on draining its tenant's commitment until somebody happened to look."
+
+**Resolution MUST therefore establish that the resource currently exists by reading the resource
+itself, not the order that produced it**, and MUST interpret its absence through `PRV-36`'s declared
+window rather than as an immediate negative, since a machine just delivered may not be readable yet.
+Where the order reads landed and the resource is gone, the outcome is **not** resolved-observed:
+there is nothing to attach, the customer owes nothing for it, and the operator has a destroyed
+machine to account for.
+
+*Reachable without anyone misbehaving. `OPS-33`'s window can be long, an exposure-reducing
+cancellation or an operator action can destroy the machine inside it, and resolution then arrives at
+a transaction that still reads `ready`.*
+
 ## Adding a driver
 
 A new driver is expected to:

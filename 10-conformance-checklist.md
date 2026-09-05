@@ -905,6 +905,41 @@ rather than acquiring a default.
       still be unable to tell two attempts apart, which is exactly `F36` on the providers where the
       correlator is the operation UUID. **Observed to hold on Hetzner Robot's auction channel
       2026-09-04**; a driver must still demonstrate it. (`PRV-32`, `OPS-13`, `OPS-38`)
+- [ ] **CNF-281** **Resolution searches every ordering channel.** Order on one channel, resolve with
+      a driver configured to query only the other, and assert the outcome is **not** resolved-absent.
+      A driver that declares more than one channel and searches one fails. Without it a customer's
+      balance is released in full while a physical server bought on the unsearched channel runs
+      unclaimed. (`PRV-38`, `OPS-27`, `OPS-32`)
+- [ ] **CNF-282** **An authoritative-empty search is an empty result, not an error.** Present the
+      driver with the provider's empty-listing response — for Robot a `404` carrying
+      `no transactions found` — and assert it reaches `OPS-27`'s resolved-absent and releases the
+      commitment, and is never surfaced as `DOM-17`'s `not_found`. Both failures end with a
+      customer's satoshis committed behind an order that never landed. (`PRV-39`, `OPS-27`,
+      `LDG-32`)
+- [ ] **CNF-283** **The ordering budget is enforced at admission.** Exhaust the driver's declared
+      daily order limit and assert the next create is refused before any provider call, classified
+      `failed` per `OPS-11`'s admission-only rule, with nothing ambiguous created — and that a
+      requeue spends from the same budget. (`PRV-40`, `OPS-11`, `OPS-20`)
+- [ ] **CNF-284** **An authentication failure is attempted once.** Give a driver a bad credential
+      and assert it makes exactly one attempt and escalates, with no scheduled re-attempt. Asserted
+      by counting requests, not by reading the code. On a provider that locks out on repeated
+      failures the retry loop takes every tenant's operations offline with it. (`PRV-41`, `OPS-26`)
+- [ ] **CNF-285** **Where the offer identifier is the resource identifier, resolution reads the
+      resource.** For a channel a driver declares as identity-shaped, assert an ambiguous create
+      resolves by reading the named resource rather than by searching a listing, and that absence is
+      interpreted through `PRV-36`'s window. A driver that declares the identity and still searches
+      is carrying `OPS-33`'s listing horizon for no reason. (`PRV-42`, `PRV-36`, `OPS-27`)
+- [ ] **CNF-286** **BLOCKING** — **A landed order is not attached without confirming the resource
+      exists.** Resolve a create whose order record reports success and whose resource has since been
+      destroyed, and assert the outcome is **not** resolved-observed: no `machines` row, no
+      commitment, no meter. Without it the system bills a customer for a machine that is gone, which
+      is the defect `OPS-32` was amended to close reached through the resolution path instead of
+      through drift. (`PRV-43`, `OPS-27`, `PRV-36`)
+- [ ] **CNF-287** **The rescue path can reach a machine as ordered.** Assert the driver either
+      orders an address the deployment can route to, with its cost carried into the offer price, or
+      declares its rescue path IPv6-capable — and that a create is refused rather than placed where
+      neither holds. A machine bought and unreachable bills and drains runway with delete as the only
+      remedy. (`RSC-45`, `PRV-13b`)
 - [ ] **CNF-184** A rate outage bills the customer **nothing** for the window: no deferred
       satoshi debit is posted when the rate returns, the native accrual appears as an operator
       deficiency, and machines are cancelled at the stated maximum outage if no rate comes back.
