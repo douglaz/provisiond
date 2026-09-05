@@ -115,7 +115,7 @@ agent to parse English. Minimum keys:
 | `ceiling_exceeded` | `ceiling` (which one, from `SEC-39`'s stated set), `limit`, `interval_seconds`, `retry_after_ms` (to the end of the current interval) |
 | `halted` | `retry_after_ms`, `gate` (`"solvency"` \| `"rate_unavailable"`) |
 | `gone` | `retained_until` — and the safe reaction is to read machines and balance, never re-issue (`DOM-21`) |
-| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`) \| `"case_closed"` (`WIR-43`) \| `"signup_window_closed"` (`API-34`) \| `"deposit_already_attributed"` (`WIR-42`) \| `"cancellation_committed"` (`OPS-42`) \| `"price_moved"` (`OPS-43`) \| `"account_terminated"` (`API-63`)) |
+| `conflict` | `reason` (`"idempotency_mismatch"` \| `"state"` \| `"credential_already_replaced"` (`API-56`) \| `"suspension_in_flight"` (`WIR-41`) \| `"tenant_suspended"` (`API-58`) \| `"case_closed"` (`WIR-43`) \| `"signup_window_closed"` (`API-34`) \| `"deposit_already_attributed"` (`WIR-42`) \| `"cancellation_committed"` (`OPS-42`) \| `"price_moved"` (`OPS-43`; with `shortfall_native` and `currency`) \| `"account_terminated"` (`API-63`)) |
 | `unsupported` | `provider_account`, `capability` (`DOM-10`) |
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
@@ -698,8 +698,9 @@ omitted rescue inventory until 2026-09-03, four lines above the closed-set parag
 correctly — and that paragraph is the one a strict server is built from, which is the only reason the
 omission cost nothing here*):
 `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` — **and on a
-`delete_machine` MAY carry `"effective_cancellation_date": "2026-09-12T00:00:00Z"`** where the
-operator established that the provider *scheduled* rather than performed it, which settles
+`delete_machine` MUST carry `"effective_cancellation_date": "2026-09-12T00:00:00Z"`** where the
+operator established that the provider *scheduled* rather than performed it — an `applied` without
+the date asserts the resource is gone, and is the only other thing it can mean — which settles
 `succeeded` as `cancellation_scheduled` and keeps `OPS-44`'s episode and fence until the tombstone
 (*added 2026-09-05; without it an operator confirming a scheduled cancellation had no way to say so,
 and the resolution cleared the fence on a machine still billing*) — and

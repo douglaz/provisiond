@@ -1458,7 +1458,12 @@ cancellation contend for one row so that one of them provably loses, and a custo
 lands after the fence keeps its satoshis rather than paying for a machine that is going.
 
 **In that same transaction an extension MUST write the re-derived `runway_until` (`LDG-33`) to the
-machine row and clear `machines.exhausted_since`.** *Added 2026-09-05. The exhaustion sweep routes
+machine row and clear `machines.exhausted_since` — and, where it opens the commitment on a machine
+carrying an unresolved `late_attach_cleanup` deficiency (`OPS-36`, `STO-37`), write that record's
+`resolved_at`**, because the commitment it opens is sized with `protected_sats` and is what ends
+the operator's exposure; *the abort that follows only notices it (moved here from `OPS-41` on
+2026-09-05 — resolving on the abort left a phantom liability across a crash, or forever where the
+funding re-check was skipped).* *Added 2026-09-05. The exhaustion sweep routes
 on the stored date (`05-persistence.md`'s index), and re-derivation runs on `PRV-13e`'s interval,
 not on events — so an extension that grew the commitment and wrote no date left the stored one in
 the past for up to a whole interval. Every sweep pass in that window opened a fresh episode,
@@ -1491,17 +1496,21 @@ per-tick cap on commitment adjustment is withdrawn with the adjustment itself.*
 
 **"More than one derivation" is `machines.exhausted_since`, and until 2026-09-05 it was nothing.**
 Re-derivation (`PRV-13e`) sets that column to the derivation instant **only when it moves the date
-from the future into the past** — a rate-induced backward jump, which is the one thing this rule
-guards — and leaves it null where the date was already past or where the clock simply reached it;
-any write of a future date clears it, including `LDG-62`'s and `OPS-41`'s abort's. **The exhaustion
+backward across `now + one re-derivation interval`** — from beyond the next derivation to before
+it, which is a rate-induced jump the next derivation cannot confirm before the machine would
+expire — and **does not touch it** where the date was already inside that horizon or already past;
+any write of a date beyond the horizon clears it, including `LDG-62`'s and `OPS-41`'s abort's.
+*The trigger was "from the future into the past" for a few hours on 2026-09-05, which left the
+admitted hole below: a jump landing in the near future, then elapsing naturally, was unguarded. The
+horizon closes it.* **The exhaustion
 sweep MUST route a machine where its stored `runway_until` has passed and `exhausted_since` is
 either null or older than one re-derivation interval**; `OPS-41`'s re-derivation at claim is
 itself the second derivation, so it reads the column only to clear it. *The null case routes
 immediately, and that is the point: natural expiry of a runway the
 customer was shown is not a glitch, and delaying it an interval would run every ordinary exhaustion
-one interval into the wind-down reserve this requirement exists to keep whole. A backward jump that
-lands in the future and then elapses is not caught here — it shortens runway by the size of the
-glitch, a bounded loss, and `LDG-58`'s median is the primary control against it.* *Without it the sentence above was a BLOCKING conformance item (`CNF-99`)
+one interval into the wind-down reserve this requirement exists to keep whole. `LDG-58`'s median
+remains the primary control; this column is the second derivation the sentence above asks for,
+made durable.* *Without it the sentence above was a BLOCKING conformance item (`CNF-99`)
 with no mechanism: the sweep routed on the date alone, `OPS-41` re-derived at the same rate that
 produced it, and one poisoned rate reading — the case `LDG-58`'s median exists to survive — moved
 the date into the past and destroyed the disk within one sweep interval.*

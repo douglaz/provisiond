@@ -539,9 +539,13 @@ is worth replacing from the instant it is transmitted.*
 
 **API-57** **A tenant MUST be assigned at least one provider account, automatically, in the same
 transaction that activates it — where at least one assignable account is `healthy` (`STO-36`,
-`STO-47`). Where none is, activation MUST proceed with no assignment and MUST emit a monitorable
-event naming the tenant (`SEC-32`), so the tenant is `API-62`'s to place rather than `API-34`'s to
-reap.** *The conditional was added 2026-09-05. Read unconditionally against `STO-36`'s refusal of an
+`STO-47`). Where none is, activation MUST proceed with no assignment, MUST emit a monitorable
+event naming the tenant (`SEC-32`), and the deployment MUST assign it by this same policy,
+automatically, when an assignable account next becomes `healthy` — on `API-63` recording that
+status or on configuration adding an account — so the tenant is neither `API-34`'s to reap nor
+left for an operator to remember (`API-62` remains the override).** *The automatic retry was added
+2026-09-05: an audit event is not a placement queue, and a paid tenant that stays active and
+unusable until a human notices is the stranding this clause exists to prevent, by another route.* *The conditional was added 2026-09-05. Read unconditionally against `STO-36`'s refusal of an
 unhealthy account, activation was unsatisfiable whenever every assignable account was down, the
 tenant stayed `pending` holding money above the minimum, and `API-34` reaped it into `LDG-43` — a
 paying customer lost to the interaction of two rules each correct alone.* `API-17b` requires an
@@ -1267,7 +1271,13 @@ write (`STO-47`), and `STO-27` lists this among the primitives a replacement eng
 reproduce.* *Added 2026-09-04: per-tenant
 primitives cannot supply this. They do not cover a tenant with no machines in the account yet, and
 the check and the commitment sat in different transactions, so a create could pass the health check,
-have the termination commit behind it, and open a commitment against a dead account.* **A create
+have the termination commit behind it, and open a commitment against a dead account.* **A create claimed but not yet dispatched is reachable, and MUST be caught**: immediately before
+every ordering call the worker MUST repeat the admission check as a conditional write on `STO-47`'s
+row guarded on `healthy`, and where it affects no row MUST fail the operation deterministically —
+`conflict`, `details.reason: "account_terminated"` — releasing its commitment, with no provider
+mutation (*added 2026-09-05; a `running` operation sat between "queued, never claimed" and
+"already dispatched" and matched neither, so it ordered with credentials already known to be
+dead*). **A create
 already dispatched to the provider when the termination commits is not reachable by any lock**, and
 is `OPS-36`'s late attach: the machine appears under a terminated account, `OPS-36` attaches it and
 enqueues the cleanup cancellation, that cancellation fails against the revoked credential, and

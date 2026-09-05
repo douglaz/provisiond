@@ -278,11 +278,12 @@ amount of a customer's balance.
 Re-derivation MUST run at the deployment's stated **re-derivation interval** at the current rate,
 and what it recomputes is **`runway_until`, not the
 commitment** (`LDG-33`, `ADR-0011`). **It MUST also maintain `machines.exhausted_since`** — set to
-the derivation instant where it moves the date **from the future into the past** and the column is
-null, a rate-induced backward jump; left untouched where the date was already past; cleared where
-the date is in the future — which is the column `LDG-16`'s "persist across more than one
-derivation" is measured by (added 2026-09-05; it had no mechanism before, and a first form set it
-on any past date, which delayed natural expiry too).
+the derivation instant where it moves the date **backward across `now + one re-derivation
+interval`** and the column is null; not touched where the date was already inside that horizon or
+already past; cleared where it writes a date beyond the horizon — which is the column `LDG-16`'s
+"persist across more than one derivation" is measured by (added 2026-09-05; it had no mechanism
+before; a first form set it on any past date, which delayed natural expiry, and a second on
+past-only, which missed a jump landing just short of the next derivation).
 
 **AMENDED 2026-09-02 — the interval is this requirement's own parameter, and it is not the billing
 period.** The withdrawn wording was "each billing period", and `LDG-68` later defined that as the

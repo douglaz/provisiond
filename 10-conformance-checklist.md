@@ -451,7 +451,9 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-22** Same key, different body: `409`, and no second operation exists.
       (`API-11`)
 - [ ] **CNF-23** Same key, different tenants: two independent operations, neither
-      observable by the other, and no internal error. (`API-10`)
+      observable by the other, and no internal error. **Same key, a tenant and an operator; and
+      same key, two operator identities: the same three assertions** (2026-09-05 — operator
+      writes carry the key and had no scope). (`API-10`, `STO-4`, `STO-35`)
 - [ ] **CNF-24** Semantically identical bodies differing only in JSON key order do not
       produce a spurious conflict. (`API-12`)
 - [ ] **CNF-25** Requeue with the same key twice enqueues the work once. (`OPS-18`)
@@ -1038,10 +1040,13 @@ rather than acquiring a default.
       the acknowledgement absent and confirming the API returns a `Cancelled` transaction and no
       server. **A driver defaulting to "real purchase" turns every mistaken conformance run into a
       bought server.** (`PRV-34`, `API-15`, `PRV-10`)
-- [ ] **CNF-181** With no verified correlator, an ambiguous Robot create ends in
-      `needs_reconciliation` awaiting an operator, the recent-order listing is surfaced as
-      evidence, and **no automatic attach occurs on any hostname or timing similarity**. The
-      negative window still releases the commitment in full. (`PRV-33`, `OPS-29`, `OPS-33`)
+- [ ] **CNF-181** On a channel with no verified correlator — Robot's **standard** channel — an
+      ambiguous create ends in `needs_reconciliation` awaiting an operator, the recent-order
+      listing is surfaced as evidence, and **no automatic attach occurs on any hostname or timing
+      similarity**. The negative window still releases the commitment in full. **And the same
+      create on the auction channel of the same account resolves automatically through
+      `CNF-180`'s path** — correlation is per channel, and a build that switches it on or off
+      provider-wide fails one half (2026-09-05). (`PRV-33`, `OPS-29`, `OPS-33`, `PRV-32`)
 - [ ] **CNF-214** A machine and one of its billable attachments, both metered in the same period,
       carry **separate** `meter_totals` rows: charging the attachment does not move the machine's
       rounding credit or high-water mark, and neither does the reverse. Asserted against the stored
@@ -1067,7 +1072,11 @@ rather than acquiring a default.
       constant rather than proportional to the number of prior postings — asserted at the storage
       layer over the suite's traffic in the manner of `CNF-157`, not by reading the code. The
       running total and the entry commit together: kill the process between them and neither
-      survives. (`LDG-72`, `STO-45`, `LDG-35`)
+      survives. **Then two zero-debit increments** (2026-09-05): one that **rounds** to nothing
+      commits the meter row alone, with no ledger entry; one that **clamps** to nothing commits the
+      meter row and its `STO-37` deficiency together — kill the process between those two and
+      neither survives. A build that cannot write meter state without an entry, or writes it
+      without the deficiency, fails one of the two. (`LDG-72`, `STO-45`, `LDG-35`, `LDG-31`)
 - [ ] **CNF-257** **The install gate reads the matched attempt's copy, and nothing tests it today.**
       Resolve an ambiguous create whose *earlier* attempt landed, and assert the attached machine's
       `install_strategies` is the snapshot from that attempt's `request_summary` entry — not the

@@ -37,7 +37,11 @@ relaxation — and the fan-out worker MUST report whether the write affected a r
 others do, because a child claimed by a real worker between the pass and the write must lose this
 race and settle as its own worker's write instead.
 
-**STO-4** The store MUST enforce uniqueness of `(tenant_id, idempotency_key)` (`API-10`).
+**STO-4** The store MUST enforce uniqueness of `(scope_kind, scope_id, key)` on `STO-35`'s
+`idempotency_records` — the tenant or the operator identity as the scope (`API-10`). *"Of
+`(tenant_id, idempotency_key)`" until 2026-09-05, a fourth home for the tenant-only scope after
+`API-10`, `WIR-3` and `API-7` had moved to the principal; the store had carried the right shape
+since `STO-35` was written.*
 
 **STO-5** The store MUST survive process restart with no loss of queued or running
 operations.
@@ -136,7 +140,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
-| `exhausted_since` | timestamp | nullable; **`LDG-16`'s persistence rule, as a column** (added 2026-09-05). Set by re-derivation only when it moves the date from the future into the past — a rate-induced jump — and null otherwise, including on natural expiry; cleared by any write of a future `runway_until`. The exhaustion sweep routes where the date has passed and this is null or older than one re-derivation interval; `OPS-41` clears it with the future date it writes and tests nothing else here, its own re-derivation being the second one — so one poisoned rate reading moves a date and destroys nothing, while a runway that simply ran out is routed on the first pass. *A BLOCKING item, `CNF-99`, tested this behaviour for three weeks with no mechanism behind it* |
+| `exhausted_since` | timestamp | nullable; **`LDG-16`'s persistence rule, as a column** (added 2026-09-05). Set by re-derivation only when it moves the date backward across `now + one re-derivation interval` — a rate-induced jump the next derivation could not confirm in time — and untouched otherwise, including on natural expiry; cleared by any write of a `runway_until` beyond that horizon. The exhaustion sweep routes where the date has passed and this is null or older than one re-derivation interval; `OPS-41` clears it with the future date it writes and tests nothing else here, its own re-derivation being the second one — so one poisoned rate reading moves a date and destroys nothing, while a runway that simply ran out is routed on the first pass. *A BLOCKING item, `CNF-99`, tested this behaviour for three weeks with no mechanism behind it* |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
 | `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
 | `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
@@ -394,8 +398,10 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 
 ### `rate_observations`
 
-**STO-49** **`rate_observations`** — `rate_num`, `rate_den` (`LDG-4`'s exact rational), `source`,
-`observed_at`, `haircut_bps`, `rounding_version`, unique on `observed_at`. **One row per rate the
+**STO-49** **`rate_observations`** — `currency` (the provider-native currency this rate converts
+from — there is one rate per billing currency, EUR and USD on the launch set), `rate_num`,
+`rate_den` (`LDG-4`'s exact rational), `source`, `observed_at`, `haircut_bps`, `rounding_version`,
+unique on `(currency, observed_at)`. Readers select on the subject's currency. **One row per rate the
 deployment accepts** (`LDG-58`'s median), **written before that rate is used for anything**, and
 retained at least until every subject **with an open increment** has closed one past its
 `observed_at` — a stopped subject closes no further increment and must not pin the table forever.
@@ -654,8 +660,9 @@ second column for it until 2026-09-05*),
 `late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
-**`resolved_at` is written by the one event that ends an exposure this record carries — `OPS-41`'s
-no-mutation abort, for `late_attach_cleanup`** — and by nothing else: every other cause is a loss
+**`resolved_at` is written by the one event that ends an exposure this record carries — the
+`LDG-62` extension that opens a covering commitment on the machine, for `late_attach_cleanup`** —
+and by nothing else: every other cause is a loss
 the operator has already borne, not one that can be undone, and a null there is the truth. *Stated
 2026-09-05; the column had no writer at all, so `OPS-36`'s wind-down deficiency outlived the
 extension that funded it, and `LDG-20`'s solvency check carried a phantom liability for the life of

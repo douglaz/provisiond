@@ -146,7 +146,7 @@ auction/market listing.
 | `name` | Human-readable |
 | `kind` | `virtual` \| `bare_metal` |
 | `regions` | Where the offer can be placed |
-| `currency`, `hourly_price`, `monthly_price` | Nullable; prices are strings to avoid float rounding |
+| `currency`, `recurring_price`, `recurring_period` (`hour` \| `month`), `setup_fee` | Prices are strings to avoid float rounding. **Exactly one recurring price with its period, and one setup fee (`"0"` where the channel charges none), all required** — *until 2026-09-05 this row was two nullable prices and no setup fee, which could not carry Robot's per-location `price_setup` at all and let an offer with neither price pass as legal* |
 | `install_strategies` | The offer's subset of `DOM-13`'s strategies, which **gates** them (`WIR-30`). Present on every offer; empty means no install is available for it |
 | `max_image_bytes` | The ceiling `RSC-40` enforces against a caller-supplied image stream |
 | `guest_requirements` | Prose the caller relays to whoever built the image; null where the strategy imposes none, non-null for `provider_catalogue` (`RSC-43`, `WIR-30`) |

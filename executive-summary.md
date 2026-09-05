@@ -320,8 +320,8 @@ Four areas deserve real thought:
    and per-attempt records so resolution debits what the matched attempt actually cost. Three
    successive audits each found the *same class* of defect here.
 2. **The meter.** Rounding applies to the cumulative charge and never per tick, or a deployment that
-   meters every minute charges more than one metering hourly. Corrections net by sign into the period
-   they correct, not the period they are posted. Absorbed time is subtracted in *seconds*, because it
+   meters every minute charges more than one metering hourly. A correction names the entry it
+   corrects and is reported in that entry's period, and leaves the meter's state untouched. Absorbed time is subtracted in *seconds*, because it
    accrued while no rate existed. Every clause exists because a simpler version double-charged or
    double-refunded — including one that charged 400 for 200 sats of consumption.
 3. **Disk identity.** The most serious finding of the fourth audit was a path to destroying the

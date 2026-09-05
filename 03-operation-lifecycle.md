@@ -423,7 +423,7 @@ searches return, and reaches one of the four outcomes below:
 | Exactly one resource across all of this operation's correlators | **Resolved-observed.** Attach it and complete the operation as though it had succeeded. | Becomes the machine's running commitment (`OPS-36` where it was already released) |
 | The provider's search is authoritative and returns nothing for any of them, and the negative window has elapsed | **Resolved-absent.** The mutation did not happen. | Closed and released in full (`LDG-32`) |
 | More than one resource across all of this operation's correlators | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
-| Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
+| Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no verified correlator exists for the attempt's ordering channel (`PRV-33`) | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
 **A correlator match is proof that an order landed, not that the resource exists, and the first
 row MUST be confirmed by a direct read before it attaches anything.** `08-provider-notes.md`
@@ -570,8 +570,9 @@ bound.
 
 Before any ordering call the worker MUST re-read the offer's current price **in the provider's own
 currency** and compare it with the native price the commitment was sized from — **carried on the
-attempt's entry in `operations.request_summary`, which already snapshots the offer and is re-priced
-per requeue** (`LDG-2`; *named 2026-09-05 — a first form cited a native figure on the commitment
+attempt's entry in `operations.request_summary`, which MUST hold the accepted recurring price, its
+currency and its period, and the accepted setup fee, and is re-priced per requeue** (`LDG-2`; *the
+fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment
 row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
 provider
 mutation — where the provider's price has risen past what the reserve covers**: `conflict`,
@@ -671,10 +672,7 @@ the extension it is racing can commit between the read and the write. Where re-d
 from what it read now puts **`runway_until` strictly in the future**, the worker MUST make no
 provider call, settle the operation `succeeded` with a result recording that no mutation was
 required, **write that re-derived `runway_until` to the machine row and clear
-`machines.exhausted_since`** (`LDG-16`), **write `resolved_at` on the episode's
-`late_attach_cleanup` deficiency where one exists** (`STO-37` — the extension that funded the abort
-sized its commitment with `protected_sats`, so the wind-down the operator booked at attach is no
-longer its exposure; added 2026-09-05, when nothing wrote that column), **clear
+`machines.exhausted_since`** (`LDG-16`), **clear
 `machines.destroy_committed`**, and resolve the
 episode's `system_trigger_id` entry (`machines.system_trigger_ids`) so a later lapse can open a
 fresh one. *The date write was added 2026-09-05: the sweep routes on the **stored** date, and an
@@ -749,16 +747,26 @@ fence's abort shape applies "whatever its reason" only where the fence write los
 contends for it.* For this reason the re-check asks **first whether a rate exists now**: where one
 does, the machine is re-derived at it and treated like any other; where none does, the paragraph
 above applies and the cancel proceeds, because a bound the outage has not cleared is still the
-bound.
+bound. **"Now" is established by a conditional write, not a read**: in the same fence transaction
+the worker MUST conditional-write the deployment's open outage record (`STO-37`'s `rate_outage`
+row, guarded on `absorbed_until IS NULL`), and where that write affects no row — restoration
+(`LDG-64`) closed it first — the worker MUST abort before any provider mutation and settle as the
+no-mutation case. *Added 2026-09-05. A read of "no rate" from a snapshot taken before restoration
+committed let the worker proceed on stale evidence and delete a funded fleet; the outage record is
+deployment-wide, so `LDG-35`'s per-tenant primitive orders nothing here, and the record itself is
+the one row both sides can contend for — `OPS-42`'s shape again.*
 
-**The funding re-check does not apply where the episode's `reasons` set contains
-`tenant_suspended`** (`machines.system_trigger_ids`, `API-58`, `OPS-27`) — keyed on the entry's set,
-not on the reason the operation itself was enqueued under. That reason is not about funding, and a
-suspended tenant topping up its balance is not permission to keep the fleet. *The key moved to the
-set on 2026-09-05: `API-58`'s fan-out now joins an already-open exhaustion episode by appending its
-reason rather than enqueuing a second delete, so the operation the worker holds may carry
-`exhausted` while the machine's tenant is suspended — and a price rise between enqueue and claim
-would have aborted it as funded and left a suspended tenant's machine running.*
+**The funding re-check does not apply where the machine's tenant IS suspended at the moment of
+the re-check, read in the same fence transaction** (`API-58`, `OPS-27`) — keyed on the tenant's
+current state, not on the reason the operation was enqueued under and not on the episode's
+`reasons` set, which is deduplication history. A suspension is not about funding, and a suspended
+tenant topping up its balance is not permission to keep the fleet. *Rewritten twice on 2026-09-05.
+The operation's own reason was wrong because `API-58`'s fan-out joins an already-open exhaustion
+episode, so the worker may hold an `exhausted` delete on a suspended tenant and a price rise would
+have aborted it as funded. The `reasons` set was wrong the other way: the reason is history, so a
+tenant that was later **resumed** (`WIR-41`) and funded its machine still had `tenant_suspended` on
+the entry, and a requeue skipped the funding check and destroyed a machine its live tenant had
+paid for.*
 
 **AMENDED 2026-09-02 — the exemption is scoped to the re-check, not to the abort.** `OPS-42` keys
 its fence on the **action**, so a `tenant_suspended` delete is an exposure-reducing cancellation and
