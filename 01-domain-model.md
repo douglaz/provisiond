@@ -381,10 +381,12 @@ before the send tells the two apart. Three paths, three different reasons:
   accepted** (`OPS-13`), and an offer is "a live listing that can change or disappear between the
   two" (`WIR-30`). A caller that read the offer beforehand may well hold the right list — but
   nothing binds its read to the accepted snapshot, and nothing reports a drift between the two.
-- **A machine attached by resolution of a requeued create.** Each attempt appends its own snapshot
-  (`OPS-13`), so several lists exist and the caller knows neither which attempt landed nor which
-  list the machine took. *Which one it takes is `F36`'s open question rather than a settled rule,
-  and that is a reason the read is needed, not an argument against it.*
+- **A machine attached by resolution.** It takes the create's retained snapshot (`OPS-13`), and the
+  caller never saw that snapshot — the request that produced it was purged on entry to
+  `needs_reconciliation` (`ADR-0005`). *This bullet described a requeued create with several
+  snapshots to choose between, which is `F36`'s question; `ADR-0014` withdrew the requeue and there
+  is now one snapshot. The reason the read is needed survives the simplification — one list the
+  caller cannot see is still a list the caller cannot see.*
 - **An adopted machine.** It came from no offer — `offer_id` is null — so there is nothing to have
   retained, and `05-persistence.md` requires adoption to persist an **empty** list wherever it cannot
   establish a safe one, refusing every strategy.

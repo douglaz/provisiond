@@ -70,12 +70,46 @@ was not findable by reading a client library: the documentation says `test` mean
 not be processed", which is entirely consistent with the transaction never existing. Three audits
 and two cross-model reviews read the claim without doubting it. It took eight cents.*
 
-## Open — found 2026-09-03
+## Open — found 2026-09-05
+
+**F38. `target` is undefined, and the set spends the word three ways.** `OPS-34`'s requeue
+equivalence check runs over "kind, machine, provider account, **target**", `OPS-13` reasons from the
+same four, and `CNF-221` tests them by name — but `target` is defined nowhere, is not a column in
+`05-persistence.md`, and is not in `CONTEXT.md`. Meanwhile `WIR-20` and `RSC-26`/`RSC-27` use
+`target` for **the disk about to be overwritten**, and `API-17b` uses it for the thing a verb
+authorizes against, stating that "Creation … is the only operation that has no target to authorize
+against." Read through `API-17b`, a create's `target` is null and the check collapses to kind plus
+provider account.
+
+**`ADR-0014` removes the create case rather than defining the word, and the word is still
+undefined for every kind that remains.** The deeper defect is the relation, not the noun: `OPS-34`
+demands equivalence "in every respect the summary records" while `OPS-13` makes the offer snapshot
+"evidence, not a comparison field", so which retained facts participate is unstated — and
+`request_summary`'s own opening description is "what was attempted", which nothing enumerates. The
+remedy is a per-kind table of comparison fields, not a fourth meaning for one word.
+
+**F39. Install requeue has `ADR-0014`'s defect and was not decided with it.** `RSC-42` says "A
+requeue carries a fresh payload (`OPS-34`) and re-uploads" — image bytes the operator does not hold,
+purged by `STO-9` exactly as a create's keys are. `OPS-46` admits the kinds whose payload the
+operation record determines and deliberately does **not** grant `install`; this finding is why it
+was left open rather than settled by omission. The same question applies: what does an operator
+re-upload, and whose image is it?
+
+## Closed by decision — 2026-09-05
 
 **F36. Resolution cannot identify which attempt landed when the correlator is the operation UUID,
-and two requirements assume it can.** Not decided here: the fix is a design choice about the
-install safety gate and the setup fee, and it wants an identifier minted at acceptance
-(README, *A decision gets its identifier when it is accepted*).
+and two requirements assume it can.** → **`ADR-0014`**. A create can no longer be requeued, so a
+create has exactly one attempt, one correlator, one offer snapshot and one setup fee, and "the entry
+of the attempt whose correlator matched" has nothing left to disambiguate.
+
+*The finding was narrowed twice before it was closed. A live probe on 2026-09-04 (`F37`) established
+that Hetzner Robot's per-order key does discriminate attempts, which removed Robot from the surface
+and left Hetzner Cloud and DigitalOcean — where the setup fee is zero, so what remained was an
+install-safety problem rather than a money one. The remedy considered at that point was a
+fail-closed intersection of `install_strategies`. It was overtaken: the mechanism that produced
+multiple attempts turned out not to be defensible on its own terms.*
+
+**The original finding, retained because the reasoning is the record:**
 
 `OPS-13` states the mechanism twice: `request_summary` "holds a list aligned one-to-one with
 `correlator_value`", and "Resolution uses the entry of the attempt **whose correlator matched**".

@@ -317,8 +317,10 @@ Four areas deserve real thought:
    customer can neither see nor escape, and for an agent buying compute it is indistinguishable from
    theft." Everything downstream is intricate: the late-arriving machine (attach it truthfully, then
    route it straight to cancellation), the setup fee's lifecycle across every resolution outcome,
-   and per-attempt records so resolution debits what the matched attempt actually cost. Three
-   successive audits each found the *same class* of defect here.
+   and a retained snapshot so resolution debits what the order actually cost. Three
+   successive audits each found the *same class* of defect here — and a fourth pass removed the
+   machinery instead of repairing it: a create can no longer be requeued (`ADR-0014`), so there is
+   one attempt, one snapshot and nothing to select between.
 2. **The meter.** Rounding applies to the cumulative charge and never per tick, or a deployment that
    meters every minute charges more than one metering hourly. A correction names the entry it
    corrects and is reported in that entry's period, and leaves the meter's state untouched. Absorbed time is subtracted in *seconds*, because it

@@ -951,7 +951,7 @@ unstated:
 | Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below. `LDG-67`'s parked obligation is settled either way, in `OPS-27`'s single resolution transaction* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider — **except where the provider's own transaction shows the order landed and a fee was charged for a machine that is nonetheless gone** (`OPS-27`'s direct read past the visibility window), in which case the fee is an **operator deficiency** (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged (*row added 2026-09-05*) |
 | Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
-| Operator requeue out of `needs_reconciliation` (`OPS-3`, `OPS-4`) | **Never debited for the superseded attempt.** The parked obligation is cleared and the fresh attempt commits and settles its own setup fee through the rows above (`LDG-67`); keeping the old one alive would bill one machine's setup twice |
+| ~~Operator requeue out of `needs_reconciliation`~~ | **WITHDRAWN 2026-09-05** — a create cannot be requeued (`OPS-46`, `ADR-0014`), so this row has no trigger. *It read: never debited for the superseded attempt, the parked obligation cleared and the fresh attempt settling its own fee, because keeping the old one alive would bill one machine's setup twice. The row that replaces it is `abandoned`, where the fee becomes an operator deficiency* |
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
 a deterministic rejection or a resolved-absent create left the customer paying a non-refundable
@@ -1356,16 +1356,18 @@ own setup fee under `LDG-39`, so keeping the old obligation alive would bill one
 twice. It moves no satoshis while it sits there, so it is not a `LDG-7` entry kind — the same
 reason `LDG-66`'s deficiencies are not.
 
-**AMENDED 2026-08-14 — the three columns are the *latest* attempt's fee, and resolution debits the
-*matched* attempt's.** A requeued create can have several attempts outstanding at once (`OPS-20`,
-`PRV-26`), and clearing the parked scalar on requeue leaves nothing behind for the superseded
-attempt — whose order may still be the one that landed. Each attempt's at-cost fee is therefore
-also kept in its own entry in `request_summary` (`OPS-13`, `05-persistence.md`), and when
-resolution matches an attempt's correlator the amount `LDG-39` settles is **that entry's**
-fee, not the scalar's — debited against a still-open commitment, or carried as an operator
-deficiency where `OPS-33` released it (amended 2026-09-02 with `LDG-39`'s late-fee row). Where the match is the latest attempt the two agree, which is the ordinary
-case; where it is an earlier one, the scalar would bill terms the provider never charged for that
-order.
+**AMENDED 2026-09-05 — the scalar and the record are the same fee, because there is one attempt**
+(`OPS-46`, `ADR-0014`). A create cannot be requeued, so there is never a superseded attempt whose
+order might still be the one that landed, and the parked columns and `request_summary`'s retained
+fee describe the same order. Resolution settles that fee: debited against a still-open commitment,
+or carried as an operator deficiency where `OPS-33` released it (`LDG-39`'s late-fee row).
+
+*The withdrawn amendment of 2026-08-14 made the three columns "the *latest* attempt's fee" while
+resolution debited "the *matched* attempt's", kept per-attempt in `request_summary`, because a
+requeued create could have several attempts outstanding at once and clearing the parked scalar on
+requeue left nothing behind for the superseded one. It was correct machinery for a mechanism that no
+longer exists, and `F36` is the finding that its selection step had no discriminator wherever the
+attempts shared a correlator.*
 
 ## Pricing
 

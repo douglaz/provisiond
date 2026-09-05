@@ -129,8 +129,8 @@ terminal state, and that is an explicit privacy exception recorded here so a rea
 find it contradictory.
 
 **OPS-4** Only `failed` and `needs_reconciliation` MAY be requeued, and only by an
-explicit operator action (`API-19`). There is no automatic transition out of a terminal
-state.
+explicit operator action (`API-19`), **and only for a kind `OPS-46` admits — never
+`create_machine`**. There is no automatic transition out of a terminal state.
 
 ## Claiming and leases
 
@@ -263,15 +263,19 @@ account and the target do — and it is retained as **evidence**, not as a compa
 snapshot adds no fifth test, because an auction offer that has since been withdrawn does not make
 the requeue wrong.
 
-**One snapshot per attempt, not one per operation.** `request_summary` holds a list aligned
-one-to-one with `correlator_value` (`05-persistence.md`, `PRV-26`); a requeue **appends** an entry
-and overwrites none; and each entry carries that attempt's correlator, its offer snapshot and its
-at-cost setup fee (`LDG-67`). Resolution uses the entry of the attempt **whose correlator matched**
-(`OPS-27`). A single snapshot for several attempts is not enough, because `OPS-20`'s requeue places
-a second order under whatever terms are live then, and the order that finally turns up may be the
-first attempt's: resolution would otherwise copy the wrong `install_strategies` onto the machine —
-a safety gate — or debit a setup fee that is not what the provider actually charged for that order
-(`LDG-39`).
+**One snapshot, because there is one attempt** (`OPS-46`, `ADR-0014`). `request_summary` carries the
+create's correlator, its offer snapshot and its at-cost setup fee (`LDG-67`, `05-persistence.md`),
+and resolution reads them without choosing.
+
+*Withdrawn 2026-09-05, and the two sentences are kept verbatim because `F36` quotes them and a
+finding whose quotes resolve to nothing is worthless. They read: "`request_summary` holds a list
+aligned one-to-one with `correlator_value`", and "Resolution uses the entry of the attempt **whose
+correlator matched**". A requeue appended an entry and overwrote none. The machinery existed because `OPS-20`'s requeue placed a
+second order under whatever terms were live then, so the order that finally turned up might be the
+first attempt's and resolution would otherwise copy the wrong `install_strategies` onto the machine
+— a safety gate — or debit a setup fee the provider never charged for that order. `F36` is the
+finding that the selection rule had no discriminator wherever the correlator was the operation UUID.
+`ADR-0014` removed the second order instead of repairing the selection.*
 
 ## Interrupted workers
 
@@ -307,7 +311,42 @@ of a fast poll loop generates continuous write transactions for no benefit. See 
 
 **OPS-18** Requeue MUST be an explicit operator action on a single operation, MUST be
 allowed only from `failed` or `needs_reconciliation`, and MUST itself be idempotent —
-repeating a requeue with the same idempotency key MUST NOT enqueue the work twice.
+repeating a requeue with the same idempotency key MUST NOT enqueue the work twice. **It is
+additionally restricted by kind (`OPS-46`), which excludes `create_machine`.**
+
+**OPS-46** **ADDED 2026-09-05 (`ADR-0014`) — requeue is admissible only for kinds whose payload the
+operation record fully determines, and `create_machine` is not one of them.** A requeue of a
+`create_machine` operation MUST be refused, in both requeue-eligible states, with `OPS-31`'s
+resolution verbs named as the alternative.
+
+**The reason is that the operator cannot re-place the customer's order and has nobody to ask for
+it.** `OPS-34` requires "a fresh payload supplied by the operator". For a create that payload cannot
+be the customer's: `STO-9` purges the request — "signed image URLs, SSH keys, and up to 1 MiB of
+post-install script" — on entry to `needs_reconciliation`; `request_summary` retains none of the
+hostname, keys, user data, runway or spending cap; `ADR-0002` gives the customer "no identity, no
+email"; and `PRV-8` requires a create to carry at least one SSH key. The operator must supply their
+own. **The machine that arrives is one the customer holds no credential on and did not configure,
+bought with the customer's satoshis** — a different machine, not the order re-placed.
+
+**`OPS-34`'s second bullet already required this and was read past.** It says: "Where the summary
+cannot establish equivalence, requeue MUST be refused and `OPS-31`'s resolution verbs are the only
+road." A create's summary cannot establish equivalence for any field that matters, so that sentence
+already disposed of every create requeue; this requirement states it rather than implying it.
+
+**The admissible kinds are those the record determines**: an exposure-reducing cancellation, power,
+reverse DNS, end rescue, and `adopt_machine`, whose target is an `external_id` the record holds.
+*`install` is **not** established as admissible and is left open rather than granted by omission —
+`RSC-42` has a requeue "carry a fresh payload (`OPS-34`) and re-upload" image bytes the operator
+does not hold, which is this defect on another kind (`F39`).*
+
+**What replaces it.** A create in `failed` is the caller's to resubmit, which is the set's idiom
+everywhere else — `OPS-28` calls a post-resolution purchase "a new decision by the caller, and a new
+purchase", and `API-51` requires the contract to state "in words that re-issuing the request under a
+fresh idempotency key **is a second purchase**, not a retry". A create in `needs_reconciliation` has
+`OPS-31`'s three verbs and nothing else. **The cost is borne deliberately**: a tenant whose balance
+is committed behind an ambiguous order waits for a verb or for `OPS-33`'s window before buying
+again, and `OPS-33` already settled that trade — "Where the two are in tension, the operator takes
+the visible loss."
 
 **OPS-19** Requeue MUST preserve an audit trail: the previous error, the stated reason,
 and the requeue timestamp MUST survive on the record.
@@ -317,6 +356,12 @@ requires, after verifying every comparison the retained summary supports. *It is
 of the original request: `ADR-0005` purges that once the operation stops being live, so the withdrawn wording
 ("re-executes the original request verbatim") described something that no longer exists while
 `API-19`, `OPS-31` and `DEF-17` all rested on it.*
+
+**WITHDRAWN FOR CREATES 2026-09-05 (`OPS-46`, `ADR-0014`).** Everything in this requirement about
+placing a second order, reusing or re-pricing a create's commitment, and acknowledging a duplicate
+purchase is unreachable: a `create_machine` operation can no longer be requeued at all. The text is
+kept because `adopt_machine` remains requeueable and opens a commitment (`LDG-36`), and because the
+re-pricing rule below is what `OPS-43` generalised to the original create.
 
 For an ordering operation a requeue means **placing a second order**, so it MUST pass the same
 spending gates a fresh create would (`API-7`'s create class). **Where the original operation's
@@ -341,16 +386,19 @@ on the stale size buys a machine at a price the customer's balance was never che
 is the same unauthorized money-out this paragraph refuses when the commitment was closed — reached
 through a stale number instead of through a missing record.
 
-**A requeued create MUST NOT settle `succeeded` on the strength of the attempt in hand.** A second
-order was placed and the earlier attempt's order may have landed too, so before the terminal write
-the system MUST reconcile **every** correlator the operation recorded — the union `OPS-27` searches,
-never the latest attempt's alone — and MUST settle `succeeded` only where that union yields exactly
-one resource. A create settles exactly one machine, so a union returning **more** resources than
-that is `OPS-38`'s many-case: it MUST NOT auto-attach either, and it goes to an
-operator (`OPS-31`), never to `succeeded`. Settling on the latest attempt alone leaves an operation
-that reads clean while a second billable server runs in the operator's account. An order that lands
-*after* the union was taken is beyond what any settle-time search can see, and `OPS-32`'s account
-sweep is the backstop for it.
+**A create MUST NOT settle `succeeded` on the strength of the reply in hand alone.** Before the
+terminal write the system MUST search the correlator across every ordering channel the driver
+reaches (`OPS-27`, `PRV-38`) and MUST settle `succeeded` only where that search yields exactly one
+resource. A create settles exactly one machine, so **more** than one is `OPS-38`'s many-case: it
+MUST NOT auto-attach either, and it goes to an operator (`OPS-31`), never to `succeeded`. An order
+that lands *after* the search was taken is beyond what any settle-time search can see, and
+`OPS-32`'s account sweep is the backstop for it.
+
+*Withdrawn 2026-09-05: this required reconciling "**every** correlator the operation recorded — the
+union `OPS-27` searches, never the latest attempt's alone", because a requeue placed a second order
+and the earlier attempt's order may have landed too. `ADR-0014` removed the second order. The
+check itself is kept and its scope moved: what has to be searched is no longer several attempts but
+several channels, which `PRV-38` found was never covered.*
 
 ## Resolving `needs_reconciliation`
 
@@ -538,14 +586,27 @@ provider that cannot filter server-side. `OPS-33` governs: the commitment is rel
 operation stays open. **Nothing about a customer's balance may depend on which provider's search
 API is weaker.**
 
-**OPS-38** Correlator matching MUST define cardinality: zero, one, or many — counted over the
-**union** of every attempt's correlator (`OPS-27`), never over one attempt's alone. Many is
-reachable by a documented procedure: `OPS-20` requeue places a second order, so a late-succeeding
-first attempt and a successful second are two machines. Where the correlator is a free field both
-orders carry the same operation UUID and one search finds both; where it is a per-order artifact
-(`PRV-32`) each order carries its own, and only the union sees the pair — **a search of the latest
-attempt alone would report *one* and attach it, leaving the first attempt's machine billing
-undiscovered.** A driver MUST reject a caller-supplied label that collides with the correlator's
+**OPS-38** Correlator matching MUST define cardinality: zero, one, or many — counted over every
+correlator the operation recorded and every ordering channel the driver can reach (`OPS-27`,
+`PRV-38`).
+
+**AMENDED 2026-09-05 — the union over attempts is gone; the cardinality check is not** (`OPS-46`,
+`ADR-0014`). A create records one correlator, so there is no union over attempts left to take. **Many
+remains reachable and MUST still be handled**: `API-51` requires the contract to state "in words
+that re-issuing the request under a fresh idempotency key **is a second purchase**, not a retry",
+and nothing stops a caller's agent from doing exactly that — two operations, two correlators, two
+machines — while a provider can also answer one order with more than one resource. A search that
+finds more than one MUST NOT auto-attach either.
+
+*The withdrawn text made many "reachable by a documented procedure: `OPS-20` requeue places a second
+order, so a late-succeeding first attempt and a successful second are two machines", and required
+the union because on a free-field provider both orders carried the same operation UUID while on a
+per-order artifact only the union saw the pair. That procedure no longer exists. What replaces it as
+the live source of duplicates is the caller, not the operator — which is worse for detection, since
+two operations do not share a correlator to search on, and `OPS-32`'s account sweep is what finds
+them.*
+
+A driver MUST reject a caller-supplied label that collides with the correlator's
 reserved key, and `OPS-31`'s operator verbs MUST be able to record which of several duplicates was
 kept.
 

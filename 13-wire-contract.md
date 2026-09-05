@@ -687,7 +687,17 @@ endpoint's shape — the create body of `WIR-17`, the install body of `WIR-20`, 
 verifies the fresh payload against the stored summary and refuses on any mismatch. `acknowledge_duplicate_purchase` MUST be
 literal `true` when the operation's kind places an order — the fresh payload's own
 `acknowledge_purchase` does **not** satisfy `OPS-20`'s "second, distinct" acknowledgement, because
-requeueing a create is a purchase decision, not a retry.
+requeueing an order is a purchase decision, not a retry.
+
+**AMENDED 2026-09-05 — a `create_machine` operation MUST be refused here** (`OPS-46`, `ADR-0014`),
+with `409` `conflict`, `details.reason: "kind"`, and a message naming `WIR-35`'s resolution verbs as
+the road out. The refusal is on the **kind**, not on the payload, so it precedes the equivalence
+check and no create payload is ever compared. *That sentence about requeueing a create being a
+purchase decision is why: the decision is the customer's, and the payload the operator would have to
+supply is not the customer's — `STO-9` purged it and `ADR-0002` leaves nobody to ask.* The remaining
+requeueable kinds are `adopt_machine` — the one that still places an order, so
+`acknowledge_duplicate_purchase` keeps its referent — plus cancellation, power, reverse DNS and end
+rescue.
 
 **WIR-35** `POST /v1/operations/{id}/actions/resolve` — **operator-only** (`API-19`, `WIR-34`),
 the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the operator half of

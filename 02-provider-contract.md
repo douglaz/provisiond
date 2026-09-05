@@ -533,19 +533,24 @@ Three constraints on what is written:
 - **It MUST survive the payload purge.** The correlator is a provider-side identifier, which
   `OPS-13` already requires be retained, so it outlives the request body it was derived from.
 
-**AMENDED — the record is a list, one entry per attempt, and a requeue appends to it rather than
-replacing it.** `OPS-20` requeue of an ordering operation places a **second physical order**, and
-where the correlator is a per-order artifact rather than a free field — `PRV-32`'s SSH key, which
-is unique per order because `PRV-32` says so and `PRV-9` registers a throwaway key for each order
-anyway — that second order necessarily carries a *different* value. A single stored pair forced a choice between two broken outcomes: replace it and
-the first attempt's machine becomes unfindable forever, or reuse the first attempt's key and break
-the per-order uniqueness `PRV-32` rests on. So `correlator_value` holds one entry per attempt in
-the order the attempts were made, and **an entry is never removed or overwritten**;
-`correlator_kind` is one value for the operation, because the kind is a property of the driver and
-does not change between attempts. `OPS-27`'s search MUST try **every** recorded entry and combine
-what they return, which is what lets `OPS-38`'s many-case see a duplicate that two different orders
-produced. Where the correlator is the operation UUID the list simply holds that one value, however
-many attempts were made.
+**AMENDED 2026-09-05 — one create, one correlator. The list is withdrawn** (`OPS-46`, `ADR-0014`).
+
+*The withdrawn text made `correlator_value` "a list, one entry per attempt", because `OPS-20`
+requeue of an ordering operation placed a **second physical order** and, where the correlator is a
+per-order artifact rather than a free field, that second order necessarily carried a different
+value. A single stored pair then forced a choice between two broken outcomes: replace it and the
+first attempt's machine becomes unfindable forever, or reuse the first attempt's key and break the
+per-order uniqueness `PRV-32` rests on. The list resolved that. It also carried the sentence "Where
+the correlator is the operation UUID the list simply holds that one value, however many attempts
+were made" — which is what `F36` was about, because a list of identical values names no attempt.*
+
+**A create can no longer be requeued, so a create has exactly one attempt and records exactly one
+correlator.** `correlator_kind` and `correlator_value` are a single pair on the operation, written
+before the order is sent. `OPS-27`'s search has one value to try. `OPS-38`'s cardinality check is
+**not** thereby unnecessary: `API-51` makes a duplicate purchase reachable across two separate
+operations under two idempotency keys, and a provider can produce two resources from one order, so
+"more than one" remains a real finding — what is gone is the documented procedure inside a single
+operation that used to produce it.
 
 **PRV-27** **AMENDED — the original required something impossible.** It said the driver "MUST
 record the provider's own transaction identifier **before** treating the outcome as ambiguous."
@@ -861,8 +866,12 @@ This is stronger than a correlator search on four counts: it is an identity look
 "A correlator match MUST be exact" is satisfied by construction; it is not bounded by a transaction
 listing's retention, which removes `OPS-33`'s hardest limit on this channel; it needs no ordering
 permission, which a webservice user may not hold (`08-provider-notes.md`); and **it supplies
-per-attempt discrimination for free**, because a requeue must name a different listing — the first
-is gone the moment anyone buys it — so every attempt carries its own known resource identity.
+per-attempt discrimination for free**, because a create has exactly one attempt (`OPS-46`) and its
+identity is known before the order is sent. *Until 2026-09-05 this clause read "because a requeue
+must name a different listing — the first is gone the moment anyone buys it", which was overbroad
+even while create requeue existed: an attempt that failed deterministically before any provider call
+bought nothing, so the listing could still be available and a requeue could name the same one.
+`ADR-0014` removed the case rather than the overstatement, and both are corrected here.*
 
 A driver MUST declare, per ordering channel, whether the offer identifier is the resource
 identifier, and MUST prefer the identity read where it is. **This does not reach a catalogue

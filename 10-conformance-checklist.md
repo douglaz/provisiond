@@ -897,14 +897,19 @@ rather than acquiring a default.
       €0.08 because its `price_setup` is `0.0000` (`08-provider-notes.md`). Failing that, the driver
       declares no correlator (`PRV-33`). **Satisfied on the auction channel 2026-09-04; the standard
       channel remains open**, and it is the one that carries the setup fee. (`PRV-32`, `PRV-34`)
-- [ ] **CNF-280** **Two attempts of one create are told apart by their correlators.** Place two
-      orders carrying two distinct correlators, fetch the listing, and assert each correlator
-      matches **exactly one** order, each naming its own resource. This is the property `OPS-13`
-      assumes when it says "Resolution uses the entry of the attempt **whose correlator matched**",
-      and one correlator round-tripping does not establish it — a driver can pass `CNF-180` and
-      still be unable to tell two attempts apart, which is exactly `F36` on the providers where the
-      correlator is the operation UUID. **Observed to hold on Hetzner Robot's auction channel
-      2026-09-04**; a driver must still demonstrate it. (`PRV-32`, `OPS-13`, `OPS-38`)
+- [ ] **CNF-280** **WITHDRAWN 2026-09-05** — it tested that two attempts of one create are told
+      apart by their correlators, and `ADR-0014` means a create has one attempt. *The provider
+      property it asserted was observed to hold on Hetzner Robot's auction channel on 2026-09-04 and
+      is recorded in `PRV-32`; what is gone is any operation that needs it.* The surviving
+      cardinality obligation is `OPS-38`'s, whose live source of duplicates is now a caller
+      re-issuing under a fresh key (`API-51`), tested by `CNF-165`. (`PRV-32`, `OPS-38`, `ADR-0014`)
+- [ ] **CNF-288** **BLOCKING** — **A create cannot be requeued.** Assert that a requeue of a
+      `create_machine` operation is refused from **both** `failed` and `needs_reconciliation`, that
+      the refusal names `OPS-31`'s verbs as the alternative, and that no provider call is made and
+      no commitment is opened or re-priced. Then assert an admissible kind — a cancellation, power,
+      reverse DNS, end rescue, or `adopt_machine` — still requeues. A deployment that admits the
+      create case buys a machine the customer holds no credential on with the customer's satoshis
+      (`ADR-0014`). (`OPS-46`, `OPS-4`, `OPS-18`, `WIR-28`)
 - [ ] **CNF-281** **Resolution searches every ordering channel.** Order on one channel, resolve with
       a driver configured to query only the other, and assert the outcome is **not** resolved-absent.
       A driver that declares more than one channel and searches one fails. Without it a customer's
@@ -1118,11 +1123,13 @@ rather than acquiring a default.
       meter row and its `STO-37` deficiency together — kill the process between those two and
       neither survives. A build that cannot write meter state without an entry, or writes it
       without the deficiency, fails one of the two. (`LDG-72`, `STO-45`, `LDG-35`, `LDG-31`)
-- [ ] **CNF-257** **The install gate reads the matched attempt's copy, and nothing tests it today.**
-      Resolve an ambiguous create whose *earlier* attempt landed, and assert the attached machine's
-      `install_strategies` is the snapshot from that attempt's `request_summary` entry — not the
-      latest attempt's, and not the offer as it stands now. Then assert an install naming a strategy
-      absent from that copy is refused before enqueue. **No conformance item anywhere mentioned
+- [ ] **CNF-257** **The install gate reads the create's retained copy, and nothing tested it before
+      this item.** Resolve an ambiguous create and assert the attached machine's
+      `install_strategies` is the snapshot from its `request_summary` — **not the offer as it stands
+      now**. Then assert an install naming a strategy absent from that copy is refused before
+      enqueue. *Amended 2026-09-05: this said "the **matched attempt's** copy … not the latest
+      attempt's", which `ADR-0014` made unreachable — a create has one attempt. The offer-drift half
+      is the whole of the test now, and it was always the half every provider could reach.* **No conformance item anywhere mentioned
       `install_strategies` before this one**, and `05-persistence.md` calls it a safety gate: get it
       wrong and a disk-wiping install is authorized on a machine that cannot take one.
       **AMENDED 2026-09-03 — the caller must be able to read the gate's input** (`DOM-30`): the
@@ -1674,10 +1681,14 @@ rather than acquiring a default.
       lock is held by a long-running operation and confirming the reserve covered the full wait.
       (`PRV-13b`, `OPS-9`, `LDG-42`)
 - [ ] **CNF-221** A requeue supplying a payload that differs from the retained `request_summary`
-      in kind, machine, provider account or target is **refused**; one that matches proceeds; and
+      in kind, machine or provider account is **refused**; one that matches proceeds; and
       one whose summary cannot establish equivalence is refused with `OPS-31`'s verbs named as the
       alternative. `OPS-34` had no conformance item at all, on the requirement that made requeue
-      implementable after `ADR-0005`. (`OPS-34`, `OPS-20`, `API-19`)
+      implementable after `ADR-0005`. **Asserted on an admissible kind** — `create_machine` is
+      refused on kind before any payload is compared (`CNF-288`). *Amended 2026-09-05: the fourth
+      field was `target`, which is defined nowhere and which the set spends on two other concepts
+      (`F38`); it is dropped from the assertion rather than tested, because a conformance item
+      cannot test a name with no referent.* (`OPS-34`, `OPS-20`, `API-19`, `OPS-46`)
 
 ### The abuse surface (grill session, 2026-08-16)
 

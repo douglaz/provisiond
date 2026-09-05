@@ -75,6 +75,14 @@ settles to `succeeded` or `failed` on evidence or an operator verb, or returns t
 operator requeue — and nothing else moves it: no automatic retry, no timer, no caller action.
 _Avoid_: terminal (withdrawn 2026-08-13), stuck, errored, retryable
 
+**Requeue**:
+An operator returning a `failed` or `needs_reconciliation` operation to the queue with a fresh
+payload. Available only for kinds whose payload the operation record fully determines — **never a
+create**, whose payload was purged and whose customer cannot be asked for it (`ADR-0014`). It is
+not a retry and not a resolution: a create's roads out are the resolution verbs, or a new create
+the caller submits.
+_Avoid_: retry, replay, re-run, resubmit (that is the caller's word, and it is a second purchase)
+
 **Rescue**:
 A provider-supplied minimal OS booted in place of the installed one, over which provisiond
 installs custom images. Provider-specific and the reason this is not a thin API proxy.
@@ -205,10 +213,10 @@ action, never by an automatic grab of its balance.
 _Avoid_: grace period, term, credit, trial, guarantee (the date moves)
 
 **Correlator**:
-Whatever a create writes or leaves behind at the provider that later identifies which operation
+Whatever a create writes or leaves behind at the provider that later identifies which **operation**
 produced a resource — the operation identifier where a free field exists, a per-order artifact
-where none does (`PRV-32`). One is recorded per attempt (`PRV-26`), and what announces need not be
-the machine: on an order-shaped provider it is the order.
+where none does (`PRV-32`). What announces need not be the machine: on an order-shaped provider it
+is the order. One create records one correlator, because a create is placed once (`ADR-0014`).
 _Avoid_: tag, label, marker, reference
 
 **Setup fee**:
