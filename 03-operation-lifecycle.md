@@ -631,15 +631,22 @@ vanished overnight (`F31`). A pure balance event with no provider mutation — a
 release, a re-derivation — mints **no** operation; the ledger is already that record.
 
 **OPS-41** **An exposure-reducing cancellation MUST re-check funding under the lock, and abort if
-the machine is funded.** A worker executing a system cancellation whose reason is exhaustion or a
-late-attach cleanup (`OPS-39`) MUST, **after acquiring the machine lock and before any provider
-mutation**, re-read that machine's commitment and its `runway_until` — **in the same serialized
-transaction that writes `OPS-42`'s fence**, without which the extension it is racing can commit
-between the read and the write. Where re-deriving `LDG-33` from what it read now puts
-**`runway_until` strictly in the future**, the worker MUST make no provider call, settle the
-operation `succeeded` with a result recording that no mutation was required, **clear
-`machines.destroy_committed`**, and resolve the episode's `system_trigger_id` entry
-(`machines.system_trigger_ids`) so a later lapse can open a fresh one.
+the machine is funded.** A worker executing a system cancellation whose reason is exhaustion, a
+late-attach cleanup, **or a rate-outage bound** (`OPS-39`, `LDG-64`) MUST, **after acquiring the
+machine lock and before any provider mutation**, re-read that machine's commitment and its
+`runway_until` — **in the same serialized transaction that writes `OPS-42`'s fence**, without which
+the extension it is racing can commit between the read and the write. Where re-deriving `LDG-33`
+from what it read now puts **`runway_until` strictly in the future**, the worker MUST make no
+provider call, settle the operation `succeeded` with a result recording that no mutation was
+required, **write that re-derived `runway_until` to the machine row and clear
+`machines.exhausted_since`** (`LDG-16`), **clear `machines.destroy_committed`**, and resolve the
+episode's `system_trigger_id` entry (`machines.system_trigger_ids`) so a later lapse can open a
+fresh one. *The date write was added 2026-09-05: the sweep routes on the **stored** date, and an
+abort that re-derived a future date and wrote nothing left the stored one in the past — so the next
+pass routed the same machine, the worker aborted again, and the fence was set and cleared once per
+sweep until the next scheduled re-derivation. That is the non-terminating loop this requirement
+warns about for the withdrawn predicate, reached through a stale column instead. `LDG-62` had the
+same gap and carries the same write.*
 **Those last two happen in the terminal transaction** (`OPS-44`'s first row): the fence exists to
 order this worker against `LDG-62`, and leaving it set on a machine the worker has just decided not
 to cancel would refuse every future extension on a funded, running machine — permanently, since
@@ -695,6 +702,18 @@ last derived `runway_until`. A funding re-check that cannot be computed MUST NOT
 "funded": the worker cancels. Failing safe here costs a machine that may have been rescuable;
 failing the other way is an unfunded machine billing indefinitely, which is what `LDG-13` exists
 to prevent.
+
+**A `rate_outage_bound` cancellation is where that paragraph does the most work, and it was outside
+this requirement's scope until 2026-09-05.** `LDG-64` has the outage canceller "cancel machines at
+that bound if no rate has returned", one delete per machine — and the re-check above named only
+exhaustion and late-attach cleanup, so those deletes ran with no re-check at all. *The interleaving:
+the outage reaches its bound at T and every machine in the deployment is enqueued for deletion; the
+rate returns at T+1s; workers claim at T+2s and destroy a fleet that is funded for months. The
+fence's abort shape applies "whatever its reason" only where the fence write loses, and here nothing
+contends for it.* For this reason the re-check asks **first whether a rate exists now**: where one
+does, the machine is re-derived at it and treated like any other; where none does, the paragraph
+above applies and the cancel proceeds, because a bound the outage has not cleared is still the
+bound.
 
 **The funding re-check does not apply to a `tenant_suspended` cancellation** (`API-58`, `OPS-27`).
 That one is not about funding, and a suspended tenant topping up its balance is not permission to

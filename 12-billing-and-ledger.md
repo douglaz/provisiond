@@ -1406,6 +1406,15 @@ already being cancelled. `OPS-42` holds the argument: the extension and an expos
 cancellation contend for one row so that one of them provably loses, and a customer whose payment
 lands after the fence keeps its satoshis rather than paying for a machine that is going.
 
+**In that same transaction an extension MUST write the re-derived `runway_until` (`LDG-33`) to the
+machine row and clear `machines.exhausted_since`.** *Added 2026-09-05. The exhaustion sweep routes
+on the stored date (`05-persistence.md`'s index), and re-derivation runs on `PRV-13e`'s interval,
+not on events — so an extension that grew the commitment and wrote no date left the stored one in
+the past for up to a whole interval. Every sweep pass in that window opened a fresh episode,
+enqueued a delete, had `OPS-41` abort it, and set and cleared the fence; and inside each pass there
+was a moment where a second extension was refused `cancellation_committed`. The machine survived;
+the customer was told, once per pass, that it was being cancelled.*
+
 *Stated here because it was stated everywhere else.* `OPS-42` and `05-persistence.md` both say
 `LDG-62` MUST perform this write, and the string `destroy_committed` did not occur in this document
 at all — so a builder implementing extend-runway from the two requirements that define it, this one
@@ -1428,6 +1437,16 @@ wind-down **at the current rate** — that invariant, not commitment widening, i
 operator whole — and cancellation MUST still require the deficiency to persist across more than
 one derivation, so a single bad rate reading can move a date but can never destroy a disk. *The
 per-tick cap on commitment adjustment is withdrawn with the adjustment itself.*
+
+**"More than one derivation" is `machines.exhausted_since`, and until 2026-09-05 it was nothing.**
+Re-derivation (`PRV-13e`) sets that column to the derivation instant when the date it writes is in
+the past and the column is null, and clears it when the date is in the future; `LDG-62` and
+`OPS-41`'s abort clear it with the date they write. **The exhaustion sweep MUST route a machine
+only where `exhausted_since` is older than one re-derivation interval**, and `OPS-41` tests the same
+column under the lock. *Without it the sentence above was a BLOCKING conformance item (`CNF-99`)
+with no mechanism: the sweep routed on the date alone, `OPS-41` re-derived at the same rate that
+produced it, and one poisoned rate reading — the case `LDG-58`'s median exists to survive — moved
+the date into the past and destroyed the disk within one sweep interval.*
 
 ## Solvency
 

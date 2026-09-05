@@ -699,8 +699,15 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-98** Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
 - [ ] **CNF-99** A single adverse rate read cannot cancel a machine: the deficiency must persist
-      across derivations. *The per-tick cap clause is withdrawn with the construct it tested
-      (`ADR-0011`).* (`PRV-13e`, `LDG-16`)
+      across derivations. **Asserted through the mechanism, not the outcome** (2026-09-05): feed one
+      poisoned rate reading, assert re-derivation writes a past `runway_until` **and** sets
+      `machines.exhausted_since`, assert the sweep does **not** route the machine while that column
+      is younger than one re-derivation interval, feed a sane reading, and assert the column clears.
+      Then hold the bad rate across two intervals and assert the machine **is** routed and `OPS-41`
+      re-checks the same column. *The per-tick cap clause is withdrawn with the construct it tested
+      (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
+      no reader behind it, and a build that routed on the date alone passed it by never being fed a
+      poisoned reading.* (`PRV-13e`, `LDG-16`, `LDG-58`)
 - [ ] **CNF-100** At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
 - [ ] **CNF-101** Under a failing solvency check, every bill-increasing operation is refused
@@ -1534,9 +1541,17 @@ rather than acquiring a default.
       an accident the set happened to satisfy.* (`LDG-69`, `LDG-35`, `OPS-8`, `OPS-41`, `OPS-42`)
 - [ ] **CNF-218** A machine funded by `extend-runway` **after** its cleanup cancellation was
       enqueued is **not** deleted: the worker re-reads funding under the machine lock, makes no
-      provider call, settles `succeeded`, and resolves the trigger episode. The same test with
-      **no rate available** cancels the machine, because a funding check that cannot be computed
-      is not a funded machine. (`OPS-41`, `OPS-36`, `LDG-62`, `LDG-40`)
+      provider call, settles `succeeded`, and resolves the trigger episode. **Afterwards
+      `machines.destroy_committed` is null, the stored `runway_until` is the re-derived future date,
+      and a second `extend-runway` succeeds** — a build that leaves the fence set passes the first
+      sentence and refuses every later extension forever, and one that leaves the stored date in
+      the past is re-routed by the next sweep and loops. **Then the same with a `rate_outage_bound`
+      cancellation** whose rate returns between enqueue and claim: the worker re-derives at the
+      returned rate and aborts. The same test with **no rate available** cancels the machine,
+      because a funding check that cannot be computed is not a funded machine. *The fence and date
+      assertions and the outage case were added 2026-09-05; the outage kind was outside `OPS-41`
+      entirely, so a bound reached one second before the rate returned destroyed the fleet.*
+      (`OPS-41`, `OPS-36`, `LDG-62`, `LDG-40`, `LDG-64`)
 - [ ] **CNF-219** `GET /v1/balance` is answered from the latest entry's `balance_after` and takes
       no write transaction; an audit recomputation of `Σ(ledger entries)` equals it; and a seeded
       mismatch **fails closed** rather than answering from either number. (`LDG-70`, `LDG-9`,
