@@ -431,11 +431,12 @@ records, from a live order, that Hetzner Robot's transaction "still" reports `st
 server_number: N` after the server is gone — "the listing outlives the machine". So resolution
 MUST follow a match with *get machine* (`PRV-12`) on the matched `external_id`. Where that read
 finds the machine, the first row applies. **Where it returns `not_found` inside `PRV-36`'s
-visibility window, the operation stays unresolved and `OPS-32` keeps looking** — a Robot order
-reports `ready` with a server number before the server API lists the machine, and a read inside
-that window is not evidence of absence. **Where it returns `not_found` past the window, the
-operation resolves *absent*** (the second row): no machine is attached and the commitment is
-released in full — with one addition to `LDG-39`, that a setup fee the provider's own transaction
+visibility window, the operation stays unresolved and resolution retries on its next pass** — a
+Robot order reports `ready` with a server number before the server API lists the machine, and a
+read inside that window is not evidence of absence. **Where it returns `not_found` past the
+window, the operation resolves *absent* — the second row's outcome, reached without waiting for
+`OPS-33`'s negative window, because a direct read past the visibility window is authoritative
+where a listing was not**: no machine is attached and the commitment is released in full — with one addition to `LDG-39`, that a setup fee the provider's own transaction
 shows was charged becomes an `unrecoverable_setup_fee` deficiency rather than being pretended away.
 *Added 2026-09-05, and corrected the same day: a first form invented an "accepted-but-gone"
 outcome, which had no value in `WIR-35`'s closed `resolution` set, no settled status, no `LDG-39`
@@ -747,14 +748,24 @@ fence's abort shape applies "whatever its reason" only where the fence write los
 contends for it.* For this reason the re-check asks **first whether a rate exists now**: where one
 does, the machine is re-derived at it and treated like any other; where none does, the paragraph
 above applies and the cancel proceeds, because a bound the outage has not cleared is still the
-bound. **"Now" is established by a conditional write, not a read**: in the same fence transaction
-the worker MUST conditional-write the deployment's open outage record (`STO-37`'s `rate_outage`
-row, guarded on `absorbed_until IS NULL`), and where that write affects no row — restoration
-(`LDG-64`) closed it first — the worker MUST abort before any provider mutation and settle as the
-no-mutation case. *Added 2026-09-05. A read of "no rate" from a snapshot taken before restoration
-committed let the worker proceed on stale evidence and delete a funded fleet; the outage record is
-deployment-wide, so `LDG-35`'s per-tenant primitive orders nothing here, and the record itself is
-the one row both sides can contend for — `OPS-42`'s shape again.*
+bound. **"No rate" is established by a conditional write, not a read, and only on that branch**:
+where the re-check finds no rate for the machine's currency, the worker MUST, in the same fence
+transaction, conditional-write **this machine's** open `rate_outage` deficiency record (`STO-37`,
+guarded on `absorbed_until IS NULL`; a no-op write on the row, whose only purpose is to contend).
+Where that write affects a row the outage is still open for this machine and the cancel proceeds.
+Where it affects no row, something closed the window first: where a rate now exists —
+restoration (`LDG-64`) — the worker re-derives at it and applies the ordinary predicate above, and
+where none does the machine's own meter stopped (`LDG-74`), there is nothing left to cancel, and it
+settles as the no-mutation case. A `rate_outage_bound` cancellation is enqueued only for a machine
+carrying such a record, which under `LDG-64` is every machine metered through the outage. *Added
+2026-09-05 and corrected the same day: a first form named a deployment-wide outage row that
+`STO-37` does not have, applied the write on every exposure-reducing cancellation — so on the
+ordinary exhaustion path, with a rate in force and no open record, it affected no row and aborted
+every delete into the once-per-sweep loop — and mandated abort where restoration had closed the row
+even when re-derivation at the restored rate still put the date in the past. The race it closes is
+real: a read of "no rate" from a snapshot taken before restoration committed let the worker delete a
+funded fleet on stale evidence, and `LDG-35`'s per-tenant primitive orders nothing against a
+deployment-wide event.*
 
 **The funding re-check does not apply where the machine's tenant IS suspended at the moment of
 the re-check, read in the same fence transaction** (`API-58`, `OPS-27`) — keyed on the tenant's
@@ -1090,11 +1101,6 @@ paginated part way and then yielded to `rate_limited` has seen a subset, and tre
 the account would record every unlisted machine as gone — stopping their meters and closing their
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
-
-**A `cancellation_scheduled` machine the sweep finds still present after its
-`effective_cancellation_date` MUST be listed for the operator** in `OPS-26`'s listing, in the same
-pass: its meter stopped at the date (`LDG-38`), its fence is set and its episode is open (`OPS-44`),
-so it is billing the operator with nothing scheduled to look at it (*added 2026-09-05*).
 
 **And it may record an absence only about a machine past `PRV-36`'s declared visibility window for
 that provider**, measured from the dispatch of the create that produced its `external_id`. *Added

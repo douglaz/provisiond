@@ -659,7 +659,11 @@ destruction.*
 
 **WIR-25** `GET /v1/machines`, `GET /v1/machines/{id}` — machine views; the list is
 cursor-paginated (`WIR-32`): `{"machines": [], "next_cursor": null}`. The example shows an empty
-page; each element is `WIR-11`'s machine view, elided here rather than placeheld (`WIR-37`).
+page; each element is `WIR-11`'s machine view, elided here rather than placeheld (`WIR-37`). **The
+list takes `?state=` over `DOM-7`'s machine states** (*added 2026-09-05*): an operator finds a
+`cancellation_scheduled` machine still present after its date by
+`state=cancellation_scheduled` and the view's own `effective_cancellation_date` (`LDG-74`), which
+is a query and not a sweep clause.
 
 **WIR-26** `GET /v1/operations?terminal=false&status=queued,running&limit=100&cursor=b3AtY3Vyc29yLTAxOThjMWUw` — the fleet poll
 (`API-49`): `{"operations": [], "next_cursor": null, "poll_after_ms": 5000}`, each element

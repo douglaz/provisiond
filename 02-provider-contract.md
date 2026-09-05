@@ -280,7 +280,8 @@ and what it recomputes is **`runway_until`, not the
 commitment** (`LDG-33`, `ADR-0011`). **It MUST also maintain `machines.exhausted_since`** — set to
 the derivation instant where it moves the date **backward across `now + one re-derivation
 interval`** and the column is null; not touched where the date was already inside that horizon or
-already past; cleared where it writes a date beyond the horizon — which is the column `LDG-16`'s
+already past; cleared by any write of a future date, the horizon qualifying only the set — which is
+the column `LDG-16`'s
 "persist across more than one derivation" is measured by (added 2026-09-05; it had no mechanism
 before; a first form set it on any past date, which delayed natural expiry, and a second on
 past-only, which missed a jump landing just short of the next derivation).

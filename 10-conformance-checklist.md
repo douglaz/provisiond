@@ -1201,8 +1201,12 @@ rather than acquiring a default.
       already has an open exhaustion episode**, and assert the fan-out terminates: the pass appends
       `tenant_suspended` to that entry's `reasons`, names the existing delete in `cancellations`, and
       enqueues nothing new — and that `OPS-41`'s re-check treats that delete as a suspension cancel
-      even though the operation itself carries `exhausted`. *Added 2026-09-05: with a pre-existing
-      episode the pass could neither enqueue nor name the machine, so the parent never settled.*
+      even though the operation itself carries `exhausted`. **Then resume that tenant (`WIR-41`),
+      fund the machine, requeue the delete, and assert the machine survives**: the exemption reads
+      the tenant's *current* state, and a build keyed on the episode's `reasons` history destroys a
+      machine its live tenant has paid for. *Added 2026-09-05: with a pre-existing episode the pass
+      could neither enqueue nor name the machine, so the parent never settled; the resume case is
+      the third rewrite of the exemption in one day.*
       The operator listing is the entire remedy,
       which is why `OPS-44` makes it a MUST and calls this "the one settled state in this set that
       nothing automatic will look at again". *Corrected 2026-09-04: this item said "the machine keeps
@@ -1355,11 +1359,15 @@ rather than acquiring a default.
       a create `queued` and unclaimed naming the account, commit the termination, and assert it is
       `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
       that claims it afterwards dispatches against revoked credentials and freezes the customer's
-      money for `OPS-33`'s window. **Then activate a
+      money for `OPS-33`'s window. **Fourth**: claim a create, commit the termination before its
+      correlator entry is written, and assert it fails `account_terminated` with no provider call.
+      **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
+      **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
       (`STO-36`, `API-57`); with **every** assignable account unhealthy, assert activation still
       succeeds with no assignment and emits the event `API-57` requires, rather than leaving the
-      tenant `pending` for `API-34` to reap; and that a re-assignment cannot leave a tenant with no
+      tenant `pending` for `API-34` to reap — **and that recording one account `healthy` afterwards
+      assigns that tenant automatically, with no operator verb**; and that a re-assignment cannot leave a tenant with no
       healthy assignment — the failure is a tenant that lands on a dead
       account at activation, reads an empty catalogue, and holds a balance `ADR-0004` forbids
       refunding, having appeared in no `record-status` response because it did not yet exist. *Also 2026-09-04. `STO-47` had one writer and no reader at all, while
@@ -1599,7 +1607,10 @@ rather than acquiring a default.
       sentence and refuses every later extension forever, and one that leaves the stored date in
       the past is re-routed by the next sweep and loops. **Then the same with a `rate_outage_bound`
       cancellation** whose rate returns between enqueue and claim: the worker re-derives at the
-      returned rate and aborts. **Then the same with the commitment unchanged and only the price
+      returned rate and aborts. **And the same with restoration committing *after* the worker's
+      snapshot and before its fence transaction**: the worker's conditional write on the machine's
+      `rate_outage` record affects no row, and it still makes no provider call — a build that
+      establishes "no rate" by a read passes the first case and deletes the fleet in this one. **Then the same with the commitment unchanged and only the price
       cut** between enqueue and claim: the re-derived date is in the future, the worker aborts,
       makes no provider call, and clears the fence — a worker that aborts only on a grown
       commitment passes every other case here and destroys a machine a price cut rescued. The same

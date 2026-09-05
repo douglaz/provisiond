@@ -1236,7 +1236,9 @@ every unreleased billable attachment, which is how an attachment's meter stops (
 between its last increment end and the recording instant, which is time the customer consumed and
 the last moment there is a commitment to post it against — **and where a rate outage is in force,
 post only the segment priced before the outage began, close **the machine's existing `rate_outage`
-deficiency record** at the recording instant (`STO-37`'s `absorbed_until`; not a second record),
+deficiency record** at the subject's meter-stop instant (`LDG-38` — the recording instant, or the
+earlier `effective_cancellation_date` of a scheduled machine; `STO-37`'s `absorbed_until`; not a
+second record),
 and advance the meter's state without a satoshi debit** (*added 2026-09-05: `LDG-64`
 forbids a deferred satoshi debit at a later rate, and a closing increment with no rate to price it
 at had either to break that rule or to leave the meter unclosable*); **close and release in full
@@ -1271,13 +1273,17 @@ write (`STO-47`), and `STO-27` lists this among the primitives a replacement eng
 reproduce.* *Added 2026-09-04: per-tenant
 primitives cannot supply this. They do not cover a tenant with no machines in the account yet, and
 the check and the commitment sat in different transactions, so a create could pass the health check,
-have the termination commit behind it, and open a commitment against a dead account.* **A create claimed but not yet dispatched is reachable, and MUST be caught**: immediately before
-every ordering call the worker MUST repeat the admission check as a conditional write on `STO-47`'s
-row guarded on `healthy`, and where it affects no row MUST fail the operation deterministically —
-`conflict`, `details.reason: "account_terminated"` — releasing its commitment, with no provider
-mutation (*added 2026-09-05; a `running` operation sat between "queued, never claimed" and
-"already dispatched" and matched neither, so it ordered with credentials already known to be
-dead*). **A create
+have the termination commit behind it, and open a commitment against a dead account.* **A create claimed but not yet dispatched narrows the unreachable case to a dispatched order**:
+in the transaction that records the attempt's correlator entry (`OPS-35`, `PRV-26`) — the last
+write before the ordering call — the worker MUST repeat the admission check as a conditional write
+on `STO-47`'s row guarded on `healthy`, and where it affects no row MUST fail the operation
+deterministically — `conflict`, `details.reason: "account_terminated"` — releasing its commitment,
+with no provider mutation. `LDG-69` keeps the provider call outside that transaction, so a
+termination can still commit between the write and the call; that residue is the dispatched case
+below (*added 2026-09-05; a `running` operation sat between "queued, never claimed" and "already
+dispatched" and matched neither, so it ordered with credentials already known to be dead; the
+transaction is named so a crash between the check and the correlator entry cannot leave an attempt
+recorded with no admission behind it*). **A create
 already dispatched to the provider when the termination commits is not reachable by any lock**, and
 is `OPS-36`'s late attach: the machine appears under a terminated account, `OPS-36` attaches it and
 enqueues the cleanup cancellation, that cancellation fails against the revoked credential, and

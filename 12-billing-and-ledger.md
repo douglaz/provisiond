@@ -496,9 +496,12 @@ nothing in the system raises anything.
 - **Billing stops at the observation instant, not at the unknown instant the provider acted** —
   except for a `cancellation_scheduled` machine, whose stop is the earlier of its
   `effective_cancellation_date` and the observation (`LDG-38`), because that is the one end the
-  deployment knew before the provider did. A machine observed **still present** after its date is
-  `OPS-32`'s to list for the operator, since with its meter stopped and its fence set nothing else
-  will look at it (*both added 2026-09-05*).
+  deployment knew before the provider did. A machine **still present after its date** has its
+  meter stopped and is billing the operator, and the operator finds it by listing machines in
+  `cancellation_scheduled` whose date has passed (`WIR-25`) — a query over columns that exist,
+  not a sweep clause: `OPS-26` lists *operations*, the scheduled delete settled `succeeded`, and a
+  caller's own delete can be scheduled too, with no episode and no fence behind it (*added
+  2026-09-05; a first form put this on `OPS-32` and `OPS-26`, where it had no verb*).
   provisiond polls rather than watches, so the earlier instant is not knowable; `STO-41` already
   draws that distinction for addresses and it is the same one. Guessing backwards would credit time
   nobody can evidence, on a ledger whose entries are the authorization system.
@@ -1026,8 +1029,11 @@ count MUST be odd, so the median is an observed price rather than an average of 
 
 **LDG-59** **Each source MUST carry a staleness bound, and a stale source MUST be excluded rather
 than used.** A deployment MUST state a **quorum**: the minimum number of live, non-excluded
-sources below which there is **no rate**, at which point `LDG-40`'s per-operation behaviour
-applies — create halts, re-derivation halts without triggering exhaustion, the exhaustion sweep
+sources below which there is **no rate** — **per billing currency**: there is one rate, one
+quorum, one outage and one bound for each currency the deployment bills in, a subject's rate is
+its offer's currency, and a USD quorum loss halts nothing priced in EUR (*added 2026-09-05, when
+`STO-49` gained a currency dimension that "the rate" upstream did not have*) — at which point
+`LDG-40`'s per-operation behaviour applies — create halts, re-derivation halts without triggering exhaustion, the exhaustion sweep
 continues, the solvency check fails closed. **Falling back to the last known rate MUST NOT
 happen.** A stale rate is not a degraded rate; it is a number that was true once and is now being
 used to price a purchase, which is exactly the condition `LDG-40` makes create halt for.
@@ -1056,8 +1062,9 @@ usage cannot be converted to satoshis. A deployment MUST:
   against because the commitment was already open;
 - **close the absorbed window at the first valid rate observation** — `STO-37`'s `absorbed_until`
   is written with that observation's instant, by the observation that restores `LDG-59`'s quorum
-  — **or with the subject's own meter-stop instant where that comes first** (`LDG-74`, `API-63`),
-  since a machine that died mid-outage absorbed nothing after it died — and by nothing else (*added 2026-09-05; the column was required by `LDG-38`'s apportioning and had
+  — **or with the subject's own meter-stop instant where that comes first** (`LDG-38`, `LDG-74`,
+  `API-63`), since a machine that died mid-outage absorbed nothing after it died — and by no
+  other event (*added 2026-09-05; the column was required by `LDG-38`'s apportioning and had
   no writer, so the meter could neither end the window nor tell where billable time resumed*);
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
   a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
@@ -1110,7 +1117,9 @@ in this specification converts it: `absorbed_seconds` alone is what the meter ne
 **LDG-65** **The exhaustion sweep continues during an outage on the last derived
 `runway_until`** (`LDG-40` requires it keep running), which remains correct because `LDG-33`
 recomputes the date only when a rate exists. A machine whose runway expires mid-outage is
-cancelled normally; what is suspended is *pricing*, not *protection*.
+cancelled normally — **unless `machines.exhausted_since` is set**, since a rate-induced jump with no
+rate to confirm it is exactly what `LDG-16` withholds until a second derivation (2026-09-05); what
+is suspended is *pricing*, not *protection*.
 
 **Why there is no ADR for this.** Two of the three tests fail. The trade-off is real and the
 alternatives were considered — a single named exchange, a published reference index, and
@@ -1499,10 +1508,17 @@ Re-derivation (`PRV-13e`) sets that column to the derivation instant **only when
 backward across `now + one re-derivation interval`** — from beyond the next derivation to before
 it, which is a rate-induced jump the next derivation cannot confirm before the machine would
 expire — and **does not touch it** where the date was already inside that horizon or already past;
-any write of a date beyond the horizon clears it, including `LDG-62`'s and `OPS-41`'s abort's.
-*The trigger was "from the future into the past" for a few hours on 2026-09-05, which left the
-admitted hole below: a jump landing in the near future, then elapsing naturally, was unguarded. The
-horizon closes it.* **The exhaustion
+**any write of a future `runway_until` clears it**, including `LDG-62`'s and `OPS-41`'s abort's —
+the horizon qualifies only the *set*, never the clear, since a second derivation writing inside the
+horizon still precedes any routing. **And while no rate exists for the machine's currency, the
+sweep MUST NOT route a machine whose `exhausted_since` is set at all**, however old: the second
+derivation this rule requires has not happened, and `LDG-64`'s bound already caps the exposure of
+waiting. *The trigger was "from the future into the past" for a few hours on 2026-09-05, which left
+a jump landing in the near future unguarded; the horizon closes it. The no-rate clause is from the
+same day: a poisoned median that set the column, followed by the poisoned source's exclusion
+dropping the quorum, meant no derivation ran, the column aged past one interval, the sweep routed,
+and `OPS-41` read "no rate, the cancel proceeds" — a disk destroyed by one reading, which is the
+sentence above's one promise.* **The exhaustion
 sweep MUST route a machine where its stored `runway_until` has passed and `exhausted_since` is
 either null or older than one re-derivation interval**; `OPS-41`'s re-derivation at claim is
 itself the second derivation, so it reads the column only to clear it. *The null case routes
