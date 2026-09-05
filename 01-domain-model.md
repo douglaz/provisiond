@@ -163,6 +163,15 @@ fields with no entity behind them.
 **DOM-9** Prices MUST be carried as strings exactly as the provider returned them.
 Parsing them into floating point loses money.
 
+**An offer carries exactly one recurring price and one setup fee, and where a provider prices per
+location the driver MUST emit one offer per priced location, with a singleton `regions`.** A
+product with no price in the feed is not an offer and MUST NOT be listed. *Added 2026-09-05 from
+`08-provider-notes.md`'s live pull: Hetzner Robot's standard catalogue carries a per-location
+`prices[]`, each entry with its own `price` and `price_setup`, and two products were listed with an
+empty array. One offer spanning several regions with one price pair either under-reserves the
+expensive location or overstates the cheap one — on the channel where a setup fee runs to €1349 —
+and an empty array had no legal price at all.*
+
 Where a provider has more than one ordering channel, the driver SHOULD namespace offer
 identifiers so the create path can route on them (for example `standard:` and `market:`
 prefixes). This is a driver-internal convention; clients treat the identifier as opaque.

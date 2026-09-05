@@ -42,9 +42,12 @@ It decays as usage is debited (`LDG-31`). Outside that one branch re-derivation 
 in both directions. The customer's runway date floats with the price; the caller can read it at any time
 (`LDG-15`) and extend it with an explicit, separately-authorized action if it wants more.
 
-The exhaustion trigger becomes the invariant that actually protects the operator: a machine is
-routed into the exhaustion path when its remaining commitment no longer covers wind-down (plus
-any cost-through-effective-date, on the scheduled-cancellation branch) **at the current rate** —
+The exhaustion trigger becomes the invariant that actually protects the operator — `LDG-16`'s, and
+it is quoted rather than restated: "A machine MUST be routed into that path **while** its remaining
+commitment still covers wind-down at the current rate" (plus any cost-through-effective-date, on
+the scheduled-cancellation branch). *Until 2026-09-05 this ADR said the inverse — routed "when its
+remaining commitment no longer covers wind-down" — which waits until the operator can no longer
+fund stopping the machine. An ADR carrying its own copy of a predicate is how the copies drift.* —
 with cancellation still gated on the deficiency persisting across derivations, so a single bad
 rate reading can move a date but can never destroy a disk.
 

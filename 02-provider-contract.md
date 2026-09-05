@@ -278,9 +278,11 @@ amount of a customer's balance.
 Re-derivation MUST run at the deployment's stated **re-derivation interval** at the current rate,
 and what it recomputes is **`runway_until`, not the
 commitment** (`LDG-33`, `ADR-0011`). **It MUST also maintain `machines.exhausted_since`** — set to
-the derivation instant where the date it writes is in the past and the column is null, cleared
-where the date is in the future — which is the column `LDG-16`'s "persist across more than one
-derivation" is measured by (added 2026-09-05; it had no mechanism before).
+the derivation instant where it moves the date **from the future into the past** and the column is
+null, a rate-induced backward jump; left untouched where the date was already past; cleared where
+the date is in the future — which is the column `LDG-16`'s "persist across more than one
+derivation" is measured by (added 2026-09-05; it had no mechanism before, and a first form set it
+on any past date, which delayed natural expiry too).
 
 **AMENDED 2026-09-02 — the interval is this requirement's own parameter, and it is not the billing
 period.** The withdrawn wording was "each billing period", and `LDG-68` later defined that as the
@@ -592,7 +594,11 @@ requires the driver to register a temporary key per order, so making it **unique
 nothing and its fingerprint is a stamp the operator chose. Resolution then lists recent order
 transactions (`08-provider-notes.md`) and matches on that fingerprint.
 
-**Both conditions were verified 2026-08-13 and the hypothesis holds.**
+**Both conditions were verified against two client libraries on 2026-08-13, and against the live
+API on 2026-09-04 — on the auction channel only; the standard channel remains open (`F37`).** *The
+sentence read "verified 2026-08-13 and the hypothesis holds" until 2026-09-05, three lines above an
+amendment recording that a library reading is not a live order and that only one of two channels
+has had one.*
 
 1. **The transaction listing returns the key, with its fingerprint.** Two independent client
    libraries agree: `hrobot-rs` deserializes a purchased product's
@@ -637,7 +643,10 @@ representation matches nothing, forever, and fails silently into `PRV-33`.
 only auction was bought, and standard is where the setup fees are (`08-provider-notes.md`) — and
 the listing window is still `[verify]`.
 
-**PRV-34** **Robot orders have a test mode, and the driver MUST use it in conformance testing.**
+**PRV-34** **Robot orders have a test mode, and the driver MUST use it for the order-request half
+of conformance testing — `CNF-180` and `CNF-280` place real orders, because test mode cannot reach
+the listing.** *The headline said "MUST use it in conformance testing" until 2026-09-05, unqualified,
+directly above its own amendment explaining why that is impossible for the half that matters.*
 The order request carries a `test` parameter; with `test=true` the API **simulates** the purchase
 and returns a `Cancelled` transaction instead of buying anything. This is a genuinely valuable
 provider fact and it was missed until 2026-08-13.
@@ -663,8 +672,12 @@ sets `test=false` exactly once, at the point `API-15`'s acknowledgement and `PRV
 mistaken conformance run into a bought server**, which is the same money-out family as a duplicate
 order.
 
-**PRV-33** **Where a provider offers no verified correlator, an ambiguous create MUST resolve to
-an operator, never to a guess.** The driver MUST declare the absence, the deployment MUST surface
+**PRV-33** **Where a provider — or one of its ordering channels — offers no verified correlator,
+an ambiguous create on that channel MUST resolve to an operator, never to a guess.** *"Or one of
+its ordering channels" was added 2026-09-05: `PRV-32`'s live verification covered Hetzner Robot's
+auction channel and not its standard one, so the correlator is a per-channel fact and a provider-wide
+reading either forced manual resolution on a verified channel or automated it on an unverified
+one.* The driver MUST declare the absence, the deployment MUST surface
 the recent-order listing to the operator as evidence, and attaching a discovered machine to a
 tenant MUST be an operator action (`OPS-31`, `WIR-35`) — `OPS-29`'s prohibition on heuristic
 matching by hostname and timing is not relaxed by the correlator being unavailable. **The

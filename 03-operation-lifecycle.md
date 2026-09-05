@@ -425,6 +425,18 @@ searches return, and reaches one of the four outcomes below:
 | More than one resource across all of this operation's correlators | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
 | Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no correlator exists for this operation kind | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
+**A correlator match is proof that an order landed, not that the resource exists, and the first
+row MUST be confirmed by a direct read before it attaches anything.** `08-provider-notes.md`
+records, from a live order, that Hetzner Robot's transaction "still" reports `status: "ready",
+server_number: N` after the server is gone — "the listing outlives the machine". So resolution
+MUST follow a match with *get machine* (`PRV-12`) on the matched `external_id`. Where that read
+finds the machine, the first row applies. **Where it returns `not_found`, the outcome is
+*accepted-but-gone***: no machine is attached, the commitment is closed and released in full
+(`LDG-32`), and the setup fee is settled per `LDG-39` **only where the provider's own transaction
+shows it was charged** — an order that produced a machine someone then deleted did cost the fee,
+and one the provider cancelled did not. *Added 2026-09-05. Without the read, reconciliation
+attached, metered and fee-settled a ghost.*
+
 **A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
 This is one rule with **three entry points** — the provider **accepting the order in its reply**,
 `OPS-27` **resolving-observed** a create whose reply was lost, and `OPS-36`'s **late attach** of a
@@ -862,11 +874,17 @@ cancellation MUST therefore be surfaced to the operator** in the same listing `O
 `needs_reconciliation`: it is the one settled state in this set that nothing automatic will look at
 again, and the cost of not looking is unbounded provider billing.
 
-**Operator resolution clears the fence, and that is deliberate — for every one of the three verbs.**
-`not_applied` says the machine is still there, `abandoned` says nobody established what happened,
-and even `applied` may leave a `cancellation_scheduled` machine billing to its effective date
-(`DOM-19`) — so in all three a later exhaustion sweep MUST be able to open a fresh episode and fence
-again. Leaving the fence set would make every subsequent
+**Operator resolution clears the fence, and that is deliberate — for `not_applied`, for
+`abandoned`, and for an `applied` that reports the resource gone.** `not_applied` says the machine
+is still there and `abandoned` says nobody established what happened — so in both a later
+exhaustion sweep MUST be able to open a fresh episode and fence again. **An `applied` that carries
+an `effective_cancellation_date` (`WIR-35`) is the table's second row, not its last**: the machine
+is still running and billing to that date, so the entry and the fence stay until the tombstone,
+exactly as they would had the worker's own call returned the schedule. *Corrected 2026-09-05. The
+earlier text cleared on all three verbs and said so was deliberate, reasoning that `applied` "may
+leave a `cancellation_scheduled` machine billing" — which is precisely the case where clearing lets
+the next sweep send a second cancellation against a machine the provider has already scheduled,
+the exact mutation `OPS-39`'s 2026-08-14 amendment warns about.* Leaving the fence set would make every subsequent
 sweep abort on a stranger's id and settle `succeeded` without acting, which is the defect
 `OPS-42`'s amendment removed by another route. *A cancellation resolves through `OPS-45`'s verbs,
 not through `observed`/`absent`: those name a resource a create may have produced, and a cancellation
@@ -1129,8 +1147,9 @@ negative window has elapsed, the commitment MUST be closed and released in full 
 operation remains open, and `OPS-32`'s account sweep MUST continue searching for the correlator
 indefinitely afterwards. `OPS-36` governs what happens if the machine then appears.
 
-**Where a provider has no verified correlator** (`PRV-33` — Hetzner Robot is the live case after
-`PRV-30` disqualified its `comment` field), the window MUST still be bounded and the commitment
+**Where a provider channel has no verified correlator** (`PRV-33` — Hetzner Robot's **standard**
+channel is the live case after `PRV-30` disqualified its `comment` field; its auction channel
+passed `CNF-180` on 2026-09-04), the window MUST still be bounded and the commitment
 MUST still be released on it, but the search it bounds is an **operator** search, not an automatic
 one. The release rule does not weaken: a customer's satoshis are not held hostage to how quickly a
 human looks.

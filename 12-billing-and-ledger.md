@@ -678,6 +678,12 @@ before the change — the identical defect this amendment removes, at a smaller 
 therefore close an increment at each rate-change instant inside its elapsed window and open the next
 one there, so that **every increment is priced at a rate that held for the whole of it**.
 
+**The boundary MUST be durable before the rate is used, in `STO-49`'s `rate_observations`.** The
+split is read from that record at posting time, not from process memory, so a rate observed
+mid-increment and a crash before the tick still split the increment where the deployment learned
+the rate. *Added 2026-09-05; without a durable record the rule below was unkeepable across a
+restart, which is the ordinary way a long-running meter ends an increment.*
+
 **The boundary is the rate's `rate_observed_at` (`LDG-4`, denormalised onto the entry), not the
 instant the market moved.** `LDG-4` records a rate's *observation* time and nothing records an effective time, because
 provisiond **polls a rate source rather than watching one** — the identical distinction `STO-48`
@@ -1041,6 +1047,10 @@ usage cannot be converted to satoshis. A deployment MUST:
   posted** — a customer would be billed for hours at a price that did not exist while it was
   consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
   against because the commitment was already open;
+- **close the absorbed window at the first valid rate observation** — `STO-37`'s `absorbed_until`
+  is written with that observation's instant, by the observation that restores `LDG-59`'s quorum
+  and by nothing else (*added 2026-09-05; the column was required by `LDG-38`'s apportioning and had
+  no writer, so the meter could neither end the window nor tell where billable time resumed*);
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
   a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
   and quietly extend the exposure past the bound. The deficiency record (`STO-37`) is where they
@@ -1468,11 +1478,17 @@ one derivation, so a single bad rate reading can move a date but can never destr
 per-tick cap on commitment adjustment is withdrawn with the adjustment itself.*
 
 **"More than one derivation" is `machines.exhausted_since`, and until 2026-09-05 it was nothing.**
-Re-derivation (`PRV-13e`) sets that column to the derivation instant when the date it writes is in
-the past and the column is null, and clears it when the date is in the future; `LDG-62` and
-`OPS-41`'s abort clear it with the date they write. **The exhaustion sweep MUST route a machine
-only where `exhausted_since` is older than one re-derivation interval**, and `OPS-41` tests the same
-column under the lock. *Without it the sentence above was a BLOCKING conformance item (`CNF-99`)
+Re-derivation (`PRV-13e`) sets that column to the derivation instant **only when it moves the date
+from the future into the past** — a rate-induced backward jump, which is the one thing this rule
+guards — and leaves it null where the date was already past or where the clock simply reached it;
+any write of a future date clears it, including `LDG-62`'s and `OPS-41`'s abort's. **The exhaustion
+sweep MUST route a machine where its stored `runway_until` has passed and `exhausted_since` is
+either null or older than one re-derivation interval**, and `OPS-41` tests the same column under
+the lock. *The null case routes immediately, and that is the point: natural expiry of a runway the
+customer was shown is not a glitch, and delaying it an interval would run every ordinary exhaustion
+one interval into the wind-down reserve this requirement exists to keep whole. A backward jump that
+lands in the future and then elapses is not caught here — it shortens runway by the size of the
+glitch, a bounded loss, and `LDG-58`'s median is the primary control against it.* *Without it the sentence above was a BLOCKING conformance item (`CNF-99`)
 with no mechanism: the sweep routed on the date alone, `OPS-41` re-derived at the same rate that
 produced it, and one poisoned rate reading — the case `LDG-58`'s median exists to survive — moved
 the date into the past and destroyed the disk within one sweep interval.*

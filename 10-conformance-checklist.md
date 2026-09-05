@@ -703,6 +703,9 @@ not optional hardening — they are the only structural defence there is.
       poisoned rate reading, assert re-derivation writes a past `runway_until` **and** sets
       `machines.exhausted_since`, assert the sweep does **not** route the machine while that column
       is younger than one re-derivation interval, feed a sane reading, and assert the column clears.
+      **Then let a runway expire with no rate movement at all and assert the machine is routed on
+      the very next pass, the column still null** — a build that gates every past date on the
+      interval runs each ordinary exhaustion one interval into the wind-down reserve.
       Then hold the bad rate across two intervals and assert the machine **is** routed and `OPS-41`
       re-checks the same column. *The per-tick cap clause is withdrawn with the construct it tested
       (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
@@ -1223,6 +1226,10 @@ rather than acquiring a default.
       Move it **up mid-increment** and assert the increment **splits** at `rate_observed_at`, so the
       seconds before the move are charged at the old rate (`LDG-38`); an implementation that prices
       the whole increment at the closing rate fails here and is the defect `CNF-185` also catches.
+      **Then the same mid-increment move followed by a process kill before the tick**: on restart
+      the increment still splits at the recorded `rate_observed_at`, read from `STO-49`'s
+      `rate_observations` — a build that keeps the accepted rate in memory prices the whole
+      increment at whichever rate restart finds first (2026-09-05).
       Then move the rate **down** and assert the posting is a smaller positive figure and **never
       negative**: a positive `usage_debit` is undefined (`LDG-7`) and `LDG-31` would take it as a
       debit to pair with and **grow** the commitment, which is the automatic widening `ADR-0011`
@@ -1377,7 +1384,11 @@ rather than acquiring a default.
       assertion across **every** dispatch-marked row of `OPS-45`'s table**: `provider_native` install,
       `provider_catalogue` install, power, reverse DNS and delete. The marker is set on all five and
       `not_applied` is `200`, not `409` — there the marker records a dispatch, not a written disk
-      (`OPS-45`), and the operator has read the provider. *Added 2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind
+      (`OPS-45`), and the operator has read the provider. **Then, on each of those five, dispatch
+      an attempt, resolve it `not_applied`, requeue, and fail the second attempt before dispatch:
+      it settles `failed` deterministically with the marker cleared, while the same sequence on a
+      `raw_disk` install keeps the first attempt's marker and reaches `needs_reconciliation`**
+      (2026-09-05; the per-attempt clear was untested and a sticky column passed). *Added 2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind
       whose marker is set at dispatch, which is every such operation that ever reaches an operator —
       and this item asserted only the raw-disk half, where the refusal is right. Naming two of the
       five would pass an implementation that special-cased them.* Assert the marker survives the payload purge.
@@ -1580,7 +1591,11 @@ rather than acquiring a default.
       sentence and refuses every later extension forever, and one that leaves the stored date in
       the past is re-routed by the next sweep and loops. **Then the same with a `rate_outage_bound`
       cancellation** whose rate returns between enqueue and claim: the worker re-derives at the
-      returned rate and aborts. The same test with **no rate available** cancels the machine,
+      returned rate and aborts. **Then the same with the commitment unchanged and only the price
+      cut** between enqueue and claim: the re-derived date is in the future, the worker aborts,
+      makes no provider call, and clears the fence — a worker that aborts only on a grown
+      commitment passes every other case here and destroys a machine a price cut rescued. The same
+      test with **no rate available** cancels the machine,
       because a funding check that cannot be computed is not a funded machine. *The fence and date
       assertions and the outage case were added 2026-09-05; the outage kind was outside `OPS-41`
       entirely, so a bound reached one second before the rate returned destroyed the fleet.*

@@ -35,12 +35,13 @@ fields**, so the server can add fields without a version bump.
 
 **WIR-3** **AMENDED.** The canonical form of a body — for idempotency comparison only — is
 **RFC 8785 (JCS)** over the I-JSON of `WIR-1a`. The **idempotency fingerprint** persisted per
-`(tenant, key)` (`API-12`, `API-38`, `STO-25`) is `SHA-256` of
+`(principal, key)` (`API-10`, `API-12`, `API-38`, `STO-25`; the tenant for a tenant credential, the
+operator identity for an operator credential) is `SHA-256` of
 `{uppercase method}\n{request target per WIR-5a}\n{lowercase-hex SHA-256 of the JCS body, or the
 empty-body digest}`. **Method and target are part of the fingerprint**: without them, the same
 idempotency key reused against a different machine or endpoint would replay the first call's
 result instead of conflicting — masking or misapplying a destructive action. Any fingerprint that
-is not byte-equal to the stored one, under the same `(tenant, key)`, is a `409 conflict`
+is not byte-equal to the stored one, under the same `(principal, key)`, is a `409 conflict`
 (`details.reason: "idempotency_mismatch"`), never a replay. *The earlier text tied canonicalization
 to a signing scheme that no longer exists (`API-39`); idempotency is now its only consumer.*
 
@@ -696,7 +697,12 @@ install, rescue inventory, power, reverse DNS and delete** (`OPS-31`, `OPS-45`; 
 omitted rescue inventory until 2026-09-03, four lines above the closed-set paragraph that carries it
 correctly — and that paragraph is the one a strict server is built from, which is the only reason the
 omission cost nothing here*):
-`{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` and
+`{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` — **and on a
+`delete_machine` MAY carry `"effective_cancellation_date": "2026-09-12T00:00:00Z"`** where the
+operator established that the provider *scheduled* rather than performed it, which settles
+`succeeded` as `cancellation_scheduled` and keeps `OPS-44`'s episode and fence until the tombstone
+(*added 2026-09-05; without it an operator confirming a scheduled cancellation had no way to say so,
+and the resolution cleared the fence on a machine still billing*) — and
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
 `external_id` — the machine is already known, which is the whole difference from a create.
 

@@ -129,7 +129,9 @@ orderable products; the auction market's `price_setup` is **`0.0000` on all 156 
 reason a requeue on this channel is the most expensive action the system exposes. Two further facts
 from the same pull: standard prices are a **per-location array** (`prices[]`, each entry carrying
 its own `price` and `price_setup`) while auction prices are flat scalars, and two catalogue
-products were listed with an **empty `prices[]`** — visible in the feed and not orderable.
+products were listed with an **empty `prices[]`** — visible in the feed and not orderable. **The
+driver therefore emits one offer per priced location and omits the empty ones** (`DOM-9`, added
+2026-09-05).
 
 **The exception branch is real and adoption is its main road.** Hetzner states cancellation
 periods depend on the individual contract, so a machine you *adopted* carries whatever terms it
@@ -334,7 +336,8 @@ Notes that change driver code:
   everything else. This was `F29`, carried as `[verify]` through three audits and now resolved
   against the design's assumption.
 - **The substitute is a per-order throwaway SSH key** (`PRV-32`), whose fingerprint acts as the
-  stamp, and **both conditions verified on 2026-08-13**. The order transaction returns the
+  stamp, and **both conditions verified against client libraries on 2026-08-13 and against the live
+  API on 2026-09-04 — auction channel only, standard still open (`F37`)**. The order transaction returns the
   authorized keys with fingerprints — `hrobot-rs` deserializes
   `#[serde(rename = "authorized_key")] authorized_keys: Vec<InitialProductSshKey>` where
   `InitialProductSshKey` carries `fingerprint`, and `appscode/go-hetzner` independently declares

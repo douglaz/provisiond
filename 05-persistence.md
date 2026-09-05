@@ -132,7 +132,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
-| `exhausted_since` | timestamp | nullable; **`LDG-16`'s persistence rule, as a column** (added 2026-09-05). Set by re-derivation to the derivation instant when the date it writes is past and this is null; cleared by any write of a future `runway_until`. The exhaustion sweep routes only where this is older than one re-derivation interval, and `OPS-41` tests the same column under the lock — so one poisoned rate reading moves a date and destroys nothing. *A BLOCKING item, `CNF-99`, tested this behaviour for three weeks with no mechanism behind it* |
+| `exhausted_since` | timestamp | nullable; **`LDG-16`'s persistence rule, as a column** (added 2026-09-05). Set by re-derivation only when it moves the date from the future into the past — a rate-induced jump — and null otherwise, including on natural expiry; cleared by any write of a future `runway_until`. The exhaustion sweep routes where the date has passed and this is null or older than one re-derivation interval, and `OPS-41` tests the same column under the lock — so one poisoned rate reading moves a date and destroys nothing, while a runway that simply ran out is routed on the first pass. *A BLOCKING item, `CNF-99`, tested this behaviour for three weeks with no mechanism behind it* |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
 | `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
 | `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
@@ -388,6 +388,19 @@ requirements with no column, which is how
 **STO-22** `ledger_entries` MUST be append-only at the storage layer, not merely by convention —
 no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 
+### `rate_observations`
+
+**STO-49** **`rate_observations`** — `rate_num`, `rate_den` (`LDG-4`'s exact rational), `source`,
+`observed_at`, `haircut_bps`, `rounding_version`, unique on `observed_at`. **One row per rate the
+deployment accepts** (`LDG-58`'s median), **written before that rate is used for anything**, and
+retained at least until every metered subject has closed an increment past its `observed_at`.
+*Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
+self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
+a rate's acceptance and the next increment's posting there was no durable record of it at all, so a
+rate observed half-way through an increment and a crash before the tick left restart with no
+boundary: `LDG-38`'s split, the rule that no increment is ever re-priced, could not survive a
+restart, and the whole increment posted at whichever rate restart found first.*
+
 ### `meter_totals`
 
 `LDG-72`'s running total. One row per `(subject_kind, subject_id, billing_period)`.
@@ -403,9 +416,14 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 
 Primary key `(subject_kind, subject_id, billing_period)`.
 
-**STO-45** **The row MUST be written in the same transaction as the entry it summarises, and by no
-other path.** Every `usage_debit` updates it in the transaction that appends the entry, under
-`LDG-35`'s per-tenant serialization. A `correction` does not touch it at all (`LDG-38`). There is no
+**STO-45** **The row MUST be written in the same transaction as the increment it closes, and by no
+other path.** Every increment updates it under `LDG-35`'s per-tenant serialization — in the
+transaction that appends the `usage_debit` where one posts, and **in a meter-only transaction under
+the same serialization where the increment rounds or clamps to nothing** (`LDG-72`), since the
+rounding credit and the high-water mark advance either way and a zero-value ledger row is not
+legal. *"The entry it summarises" was the wording until 2026-09-05, which forbade the second case
+outright and left a zero-debit increment with no legal way to record that it had happened.* A
+`correction` does not touch it at all (`LDG-38`). There is no
 lazy-repair path and no background reconciler: `API-54` forbids a `GET` taking a write transaction,
 so a total repaired on read was never available, and `LDG-70` reached the same conclusion for
 `balance_after` by the same route.

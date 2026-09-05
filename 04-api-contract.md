@@ -207,7 +207,7 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 4. authorize the target resource against the tenant;
 5. deserialize and validate the body;
 5a. **compute the request fingerprint and check it** (`WIR-3`): an equal fingerprint under the
-    same `(tenant, key)` returns the stored result, a different one fails `conflict`. This step
+    same `(principal, key)` returns the stored result, a different one fails `conflict`. This step
     needs the parsed body, which is why it cannot live at step 3;
 5b. **reject with `suspended`** if the tenant is suspended and this is not a maintenance action
     (`API-58`, `DOM-20`). **This is the only step that rejects for suspension** — step 2 passes a
@@ -649,8 +649,12 @@ child's failure is a record of its own, named in the parent's result (`WIR-39`'s
 and readable through `GET /v1/operations`. `OPS-44` requires a `failed` exposure-reducing
 cancellation to be **surfaced to the operator** in the same listing as `needs_reconciliation`, and
 keeps it requeueable under its existing trigger id — which `API-7` step 5b already exempts from the
-suspension refusal for exactly this reason. And the machine keeps consuming its commitment, so
-`LDG-13`'s exhaustion path reaches it on the ordinary schedule whether or not anyone looks. **A
+suspension refusal for exactly this reason. *Until 2026-09-05 this sentence continued "and the
+machine keeps consuming its commitment, so `LDG-13`'s exhaustion path reaches it on the ordinary
+schedule whether or not anyone looks" — which `OPS-44` forbids: the failed cancellation keeps its
+episode, the sweep enqueues nothing against an open episode, and the operator listing and requeue
+are the only recovery. `CNF-272` carried the same false clause and was corrected the day before;
+this copy was not.* **A
 suspension is not a promise that the fleet is gone; it is a promise that every machine has been
 accounted for and that nothing further can be bought.** The terms and the operator documentation
 MUST say so in those words, because "suspended" reads as "stopped" and on this one branch it is not.
@@ -864,9 +868,14 @@ inside one TTL is a self-inflicted outage, and that arithmetic MUST be stated wi
 **API-9** The key MUST be 8–200 characters of ASCII letters, digits, `.`, `_`, `:`, or
 `-`.
 
-**API-10** Idempotency MUST be scoped to `(tenant, key)`. A key collision across tenants
-MUST NOT be observable by either tenant — not as a conflict, not as a shared operation,
-and not as an internal error.
+**API-10** Idempotency MUST be scoped to `(principal, key)` — the tenant for a tenant credential,
+the operator identity for an operator credential — which is what `STO-35`'s `(scope_kind, scope_id,
+key)` already stores. A key collision across principals MUST NOT be observable by either — not as a
+conflict, not as a shared operation, and not as an internal error. *"Scoped to `(tenant, key)`"
+until 2026-09-05, while every operator write carries the key and an operator is no tenant at all —
+so a builder had to invent a synthetic tenant, pick an arbitrary affected one, or make operator keys
+global, and for `record-status`, which touches many tenants, there was no defensible choice. The
+store had the right shape and the prose did not.*
 
 **API-11** Re-sending the same key with a byte-equivalent request MUST return the
 existing operation. Re-sending it with a different request MUST fail `409 Conflict` and
@@ -916,8 +925,11 @@ delete request MUST carry one. Absent or false MUST fail `400`. This is per requ
 is not satisfied by authentication, by idempotency, or by having sent one previously.
 
 **API-15** A create request against an order-billed provider MUST carry an explicit
-purchase acknowledgement in its provider options, in addition to the account being
-configured to allow ordering (`PRV-10`).
+purchase acknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract
+owns — in addition to the account being configured to allow ordering (`PRV-10`). *"In its provider
+options" until 2026-09-05, while `WIR-17` placed it at the top level; the wire contract wins, and a
+spending authorization nested inside a driver-private object is one a strict server could not tell
+from any other option.*
 
 **API-16** A reverse-DNS request MUST be rejected unless the supplied address is present
 in the machine's recorded address list, and the hostname MUST be 1–253 characters with no
@@ -1211,7 +1223,11 @@ set to the recording instant, which is the write `LDG-74` stops a meter by, and 
 every unreleased billable attachment, which is how an attachment's meter stops (`LDG-32`, `STO-18`);
 **post each subject's closing partial increment against its commitment** (`LDG-38`), for the time
 between its last increment end and the recording instant, which is time the customer consumed and
-the last moment there is a commitment to post it against; **close and release in full
+the last moment there is a commitment to post it against — **and where a rate outage is in force,
+post only the segment priced before the outage began, book the rest as `LDG-64`'s native-only
+deficiency, and advance the meter's state without a satoshi debit** (*added 2026-09-05: `LDG-64`
+forbids a deferred satoshi debit at a later rate, and a closing increment with no rate to price it
+at had either to break that rule or to leave the meter unclosable*); **close and release in full
 every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create or adopt naming that
 account straight to `failed`** — `conflict`, `details.reason: "account_terminated"` — **and close
 and release its commitment**, exactly as `API-58` step 4 does for a suspension and for the same
@@ -1219,8 +1235,11 @@ reason, that it has touched no provider (*added 2026-09-05: a create's commitmen
 `machine_id`, so "every open commitment on machines in that account" left it standing; a worker then
 dispatched against revoked credentials, the reply was ambiguous, and the customer's money sat frozen
 for `OPS-33`'s window — days on Robot*); tombstone what `STO-18`
-now permits; and **return two tenant lists** (`WIR-50`) — the tenants whose commitments it just released, and the tenants the account is
-assigned to (`STO-36`). Together those are `API-62`'s "MUST surface the affected tenants", now
+now permits; and **return two tenant lists** (`WIR-50`) — `affected_tenants`, "the distinct owners of any metered subject or open commitment in
+that account at the recording instant", and `assigned_tenants`, the account's `STO-36` assignment
+set (*quoted rather than paraphrased since 2026-09-05: a paraphrase here read "the tenants whose
+commitments it just released", which drops a tenant whose late-attached machine is metered and has
+no commitment — a tenant that then appeared in neither list*). Together those are `API-62`'s "MUST surface the affected tenants", now
 answered by the call that creates the situation rather than left for the operator to discover.
 **They are different sets and both are needed**: the first is who lost money, the second is who
 `API-62` must move. *Until 2026-09-04 only the assignment list was returned, and a deployment that
