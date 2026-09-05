@@ -1212,7 +1212,13 @@ every unreleased billable attachment, which is how an attachment's meter stops (
 **post each subject's closing partial increment against its commitment** (`LDG-38`), for the time
 between its last increment end and the recording instant, which is time the customer consumed and
 the last moment there is a commitment to post it against; **close and release in full
-every open commitment on machines in that account** (`SEC-46`, `LDG-32`); tombstone what `STO-18`
+every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create or adopt naming that
+account straight to `failed`** — `conflict`, `details.reason: "account_terminated"` — **and close
+and release its commitment**, exactly as `API-58` step 4 does for a suspension and for the same
+reason, that it has touched no provider (*added 2026-09-05: a create's commitment has a null
+`machine_id`, so "every open commitment on machines in that account" left it standing; a worker then
+dispatched against revoked credentials, the reply was ambiguous, and the customer's money sat frozen
+for `OPS-33`'s window — days on Robot*); tombstone what `STO-18`
 now permits; and **return two tenant lists** (`WIR-50`) — the tenants whose commitments it just released, and the tenants the account is
 assigned to (`STO-36`). Together those are `API-62`'s "MUST surface the affected tenants", now
 answered by the call that creates the situation rather than left for the operator to discover.
@@ -1222,9 +1228,16 @@ had already re-assigned its tenants off a failing account — the responsible th
 named none of the tenants it was in the act of stranding.*
 
 **It MUST also contend with admission on the account row itself, and that ordering comes first.**
-The create and adopt health check MUST read `STO-47`'s row **in the transaction that opens the
-commitment**, so a create admitted after a termination is impossible rather than merely unlikely —
-the same one-row-two-writers shape `OPS-42` uses for the destroy fence. *Added 2026-09-04: per-tenant
+The create and adopt health check MUST **conditional-write** `STO-47`'s row, guarded on
+`status = healthy`, **in the transaction that opens the commitment**, and fail `conflict` with
+`details.reason: "state"` where that write affects no row — so a create admitted after a
+termination is impossible rather than merely unlikely, because the two contend on one row and one
+provably loses, which is `OPS-42`'s shape. *A draft of 2026-09-04 had the create **read** the row
+in that transaction and called it the same shape; it was not. Under the snapshot isolation a server
+engine (`STO-6`) ordinarily gives, a read contends with nothing, and the create committed against an
+account terminated behind it. The row now exists from configuration so there is always one to
+write (`STO-47`), and `STO-27` lists this among the primitives a replacement engine must
+reproduce.* *Added 2026-09-04: per-tenant
 primitives cannot supply this. They do not cover a tenant with no machines in the account yet, and
 the check and the commitment sat in different transactions, so a create could pass the health check,
 have the termination commit behind it, and open a commitment against a dead account.* **A create

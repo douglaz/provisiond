@@ -1328,7 +1328,12 @@ rather than acquiring a default.
       it must post nothing, because `LDG-38` re-reads billability inside the serialization rather
       than trusting what it read before. **Second barrier**: admit a create that passes the health
       check, commit the termination before its commitment opens, and assert the create is refused —
-      the check and the commitment share one transaction against `STO-47`'s row. **Then activate a
+      the create **conditional-writes** `STO-47`'s row guarded on `healthy` in the transaction that opens
+      the commitment, and a mere read there is not enough under snapshot isolation. **Third**: leave
+      a create `queued` and unclaimed naming the account, commit the termination, and assert it is
+      `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
+      that claims it afterwards dispatches against revoked credentials and freezes the customer's
+      money for `OPS-33`'s window. **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
       (`STO-36`, `API-57`); with **every** assignable account unhealthy, assert activation still
       succeeds with no assignment and emits the event `API-57` requires, rather than leaving the
@@ -1442,8 +1447,12 @@ rather than acquiring a default.
 - [ ] **CNF-241** **A create is refused rather than bought at a price nobody authorized.** With the
       offer's provider price raised between accept and claim so the open commitment no longer covers
       `PRV-13b`'s reserve, the worker fails the operation deterministically **with no provider call
-      and no ordering request**, and the error names the shortfall. With the price unchanged or
-      lower, it proceeds. No commitment grows in either case. (`OPS-43`, `PRV-13b`, `ADR-0011`)
+      and no ordering request**, `conflict` with `details.reason: "price_moved"`, and the error
+      names the shortfall. With the price unchanged or lower, it proceeds. **With the provider's
+      price unchanged and the satoshi rate moved — in either direction — it proceeds**: that is the
+      case a build comparing satoshi reserves refuses, and under a falling market it refused every
+      resubmission (added 2026-09-05). No commitment grows in any case. (`OPS-43`, `PRV-13b`,
+      `ADR-0011`, `LDG-2`)
 - [ ] **CNF-242** **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
       are cancelled and a payment attempted against one fails back with the payer's funds intact; an
@@ -1554,7 +1563,9 @@ rather than acquiring a default.
       enqueued is **not** deleted: the worker re-reads funding under the machine lock, makes no
       provider call, settles `succeeded`, and resolves the trigger episode. **Afterwards
       `machines.destroy_committed` is null, the stored `runway_until` is the re-derived future date,
-      and a second `extend-runway` succeeds** — a build that leaves the fence set passes the first
+      a second `extend-runway` succeeds, and — where the episode was `OPS-36`'s late-attach cleanup —
+      the wind-down deficiency it booked carries `resolved_at` and no longer feeds the solvency
+      check** — a build that leaves the fence set passes the first
       sentence and refuses every later extension forever, and one that leaves the stored date in
       the past is re-routed by the next sweep and loops. **Then the same with a `rate_outage_bound`
       cancellation** whose rate returns between enqueue and claim: the worker re-derives at the

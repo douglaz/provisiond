@@ -550,10 +550,19 @@ provider's own price can move in that window — which on the dedicated product 
 `OPS-33` records that robot-style orders poll through an `in process` state with no documented
 bound.
 
-Before any ordering call the worker MUST re-read the offer's current price, recompute `PRV-13b`'s
-reserve at the current rate, and **fail the operation deterministically — before any provider
-mutation — where the open commitment no longer covers it**, with an error naming the shortfall and
-telling the caller to re-submit. Same shape and same point in the lifecycle as `OPS-40`'s
+Before any ordering call the worker MUST re-read the offer's current price **in the provider's own
+currency** and compare it with the native price the commitment was sized from (`LDG-2`
+denormalises it onto the record), and **fail the operation deterministically — before any provider
+mutation — where the provider's price has risen past what the reserve covers**: `conflict`,
+`details.reason: "price_moved"`, the shortfall in `details`, telling the caller to re-submit. **A
+movement in the satoshi rate alone MUST NOT refuse** — that is `ADR-0011`'s business, and it moves
+the runway date rather than the order. *Corrected 2026-09-05. The withdrawn test was "recompute
+`PRV-13b`'s reserve at the current rate … where the open commitment no longer covers it", and the
+reserve carries the satoshi rate, so any downtick between accept and claim refused; the caller
+resubmitted at the new rate, the next downtick refused again, and under a falling market creates
+failed persistently on a product that had no shortage of provider capacity. It also named no error
+kind, and `OPS-11` makes `insufficient_balance` admission-only, so a worker had nothing legal to
+emit.* Same shape and same point in the lifecycle as `OPS-40`'s
 signed-URL gate: it fails before anything is bought, so nothing ambiguous is created and no
 reconciliation is needed.
 
@@ -639,7 +648,11 @@ the extension it is racing can commit between the read and the write. Where re-d
 from what it read now puts **`runway_until` strictly in the future**, the worker MUST make no
 provider call, settle the operation `succeeded` with a result recording that no mutation was
 required, **write that re-derived `runway_until` to the machine row and clear
-`machines.exhausted_since`** (`LDG-16`), **clear `machines.destroy_committed`**, and resolve the
+`machines.exhausted_since`** (`LDG-16`), **write `resolved_at` on the episode's
+`late_attach_cleanup` deficiency where one exists** (`STO-37` — the extension that funded the abort
+sized its commitment with `protected_sats`, so the wind-down the operator booked at attach is no
+longer its exposure; added 2026-09-05, when nothing wrote that column), **clear
+`machines.destroy_committed`**, and resolve the
 episode's `system_trigger_id` entry (`machines.system_trigger_ids`) so a later lapse can open a
 fresh one. *The date write was added 2026-09-05: the sweep routes on the **stored** date, and an
 abort that re-derived a future date and wrote nothing left the stored one in the past — so the next

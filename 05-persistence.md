@@ -459,7 +459,9 @@ transaction, or a conditional write against a versioned balance — and the depl
 which. **`STO-6` invites replacing the embedded single-writer engine and lists the primitives a
 replacement must reproduce; this one was missing from that list**, so a deployment could move to
 a server engine and silently lose the only thing preventing two creates from spending the same
-balance.
+balance. **The create's conditional write on `STO-47`'s row (`API-63`) is on that list too** (added
+2026-09-05): it is what orders admission against a termination, and a read in its place is not a
+primitive at all under snapshot isolation.
 
 **STO-28** Decrementing a commitment MUST be a conditional write on its `version` (`LDG-34`), and
 posting a `usage_debit` MUST happen in the same transaction as the decrement (`LDG-31`).
@@ -590,9 +592,11 @@ returned an empty list to every customer forever. **A row MUST NOT be written na
 `provider_account` whose `STO-47` status is anything but `healthy`**, which binds `API-57`'s
 activation and `API-62`'s re-assignment alike without either restating it — and **a re-assignment
 MUST leave the tenant holding at least one healthy assignment**, since replacing its only one with
-nothing is the same stranding by another route. **An absent `STO-47` row reads as `healthy`**: a
-freshly configured account has none, `API-63` is the only writer and a column default cannot create
-one, so without this the rule would refuse every assignment on a new deployment. *Added 2026-09-04:
+nothing is the same stranding by another route. **A row exists for every configured account from the moment it is
+configured** — `healthy`, `source: configuration` — so there is no absent case. *A rule of
+2026-09-04 read an absent row as `healthy` instead, because `API-63` was then the only writer; that
+made the create's admission check a **read**, and a read contends with nothing under snapshot
+isolation, so the row had to exist for the create to conditional-write it (`API-63`).* *Added 2026-09-04:
 `API-57` assigns over the accounts a configuration flags assignable and consulted no status at all,
 so a tenant activated after a termination was assigned to the dead account — an empty catalogue and
 a balance `ADR-0004` forbids refunding, on a tenant too new to appear in any `record-status`
@@ -621,6 +625,12 @@ rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`
 `late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
+**`resolved_at` is written by the one event that ends an exposure this record carries — `OPS-41`'s
+no-mutation abort, for `late_attach_cleanup`** — and by nothing else: every other cause is a loss
+the operator has already borne, not one that can be undone, and a null there is the truth. *Stated
+2026-09-05; the column had no writer at all, so `OPS-36`'s wind-down deficiency outlived the
+extension that funded it, and `LDG-20`'s solvency check carried a phantom liability for the life of
+the machine.*
 
 **STO-47** **This table has readers, and until 2026-09-04 it had none.** `WIR-29` filters the
 customer catalogue on it, the create and adopt paths refuse anything but `healthy`, and `STO-36`
@@ -631,7 +641,7 @@ exists.*
 
 **`provider_account_status`** — `provider_account` (text, primary key), `status`
 (`healthy` | `account_unreachable` | `credentials_rejected` | `terminated`), `source`
-(`driver_observation` | `operator_record`), `observed_at`, `operator_ref` (text, nullable; the same
+(`driver_observation` | `operator_record` | `configuration`), `observed_at`, `operator_ref` (text, nullable; the same
 opaque-reference constraint as `WIR-42`'s, never a name or contact string), `updated_at`.
 
 **`SEC-46` models three ways to lose an account and closes a tenant's commitments on one of them,

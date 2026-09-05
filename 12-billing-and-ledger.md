@@ -1050,8 +1050,11 @@ have nowhere legal to live — six sources, not the four an earlier draft counte
 MUST persist them in a separate record (`STO-37`)
 carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), **the
 elapsed billable time it absorbed** — without which the meter cannot remove that window from the
-charge at all (`LDG-38` subtracts it in seconds) — the cause, and an idempotency key; they MUST
-feed provider payables in the solvency check (`LDG-17`) and MUST NOT alter any tenant balance.
+charge at all (`LDG-38` subtracts it in seconds) — the cause, and an idempotency key; **while
+unresolved** they MUST feed provider payables in the solvency check (`LDG-17`) and MUST NOT alter
+any tenant balance. *"While unresolved" was added 2026-09-05: `STO-37` carried a `resolved_at`
+that nothing wrote, so the one cause that can be undone — `OPS-36`'s wind-down, once an extension
+funds the machine — stayed on the operator's books as a liability it no longer had.*
 
 **Absorbed time is zero for every cause but `rate_outage`** (amended 2026-09-02). The others absorb
 **satoshis** against consumption the customer was charged for up to the authority it granted, so
