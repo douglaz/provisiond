@@ -715,9 +715,14 @@ does, the machine is re-derived at it and treated like any other; where none doe
 above applies and the cancel proceeds, because a bound the outage has not cleared is still the
 bound.
 
-**The funding re-check does not apply to a `tenant_suspended` cancellation** (`API-58`, `OPS-27`).
-That one is not about funding, and a suspended tenant topping up its balance is not permission to
-keep the fleet.
+**The funding re-check does not apply where the episode's `reasons` set contains
+`tenant_suspended`** (`machines.system_trigger_ids`, `API-58`, `OPS-27`) — keyed on the entry's set,
+not on the reason the operation itself was enqueued under. That reason is not about funding, and a
+suspended tenant topping up its balance is not permission to keep the fleet. *The key moved to the
+set on 2026-09-05: `API-58`'s fan-out now joins an already-open exhaustion episode by appending its
+reason rather than enqueuing a second delete, so the operation the worker holds may carry
+`exhausted` while the machine's tenant is suspended — and a price rise between enqueue and claim
+would have aborted it as funded and left a suspended tenant's machine running.*
 
 **AMENDED 2026-09-02 — the exemption is scoped to the re-check, not to the abort.** `OPS-42` keys
 its fence on the **action**, so a `tenant_suspended` delete is an exposure-reducing cancellation and

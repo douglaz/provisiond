@@ -1186,7 +1186,13 @@ rather than acquiring a default.
       tenant is suspended (`API-7` step 5b). **Then run the clock out and assert that nothing
       automatic cancels the machine**: it stays in the operator listing and the exhaustion sweep
       enqueues nothing, because the episode entry it would need to mint one is
-      the same entry that made the fan-out terminate. The operator listing is the entire remedy,
+      the same entry that made the fan-out terminate. **Then suspend a tenant one of whose machines
+      already has an open exhaustion episode**, and assert the fan-out terminates: the pass appends
+      `tenant_suspended` to that entry's `reasons`, names the existing delete in `cancellations`, and
+      enqueues nothing new — and that `OPS-41`'s re-check treats that delete as a suspension cancel
+      even though the operation itself carries `exhausted`. *Added 2026-09-05: with a pre-existing
+      episode the pass could neither enqueue nor name the machine, so the parent never settled.*
+      The operator listing is the entire remedy,
       which is why `OPS-44` makes it a MUST and calls this "the one settled state in this set that
       nothing automatic will look at again". *Corrected 2026-09-04: this item said "the machine keeps
       draining runway so `LDG-13` reaches it unaided", one clause after asserting that a later pass
@@ -1324,8 +1330,10 @@ rather than acquiring a default.
       check, commit the termination before its commitment opens, and assert the create is refused —
       the check and the commitment share one transaction against `STO-47`'s row. **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
-      (`STO-36`, `API-57`), and that a re-assignment cannot leave a tenant with no healthy
-      assignment — the failure is a tenant that lands on a dead
+      (`STO-36`, `API-57`); with **every** assignable account unhealthy, assert activation still
+      succeeds with no assignment and emits the event `API-57` requires, rather than leaving the
+      tenant `pending` for `API-34` to reap; and that a re-assignment cannot leave a tenant with no
+      healthy assignment — the failure is a tenant that lands on a dead
       account at activation, reads an empty catalogue, and holds a balance `ADR-0004` forbids
       refunding, having appeared in no `record-status` response because it did not yet exist. *Also 2026-09-04. `STO-47` had one writer and no reader at all, while
       `API-62` cited "`WIR-29` returns it nothing it can buy from" as the reason its re-assignment
@@ -1398,7 +1406,10 @@ rather than acquiring a default.
       steps**, since it is the half a careless exemption deletes: an operator's **ordering** requeue
       and an `adopt` against a **suspended target tenant** are both still rejected `suspended` at 5b,
       and every operator write still takes its `Idempotency-Key` through steps 3 and 5a and its
-      ceiling at 5c. *Read literally, the pre-amendment pipeline refused the entire operator surface
+      ceiling at 5c. **And assert the two-verb scope is not wider**: `WIR-42`'s attribution to a
+      **`pending`** target is admitted, and every abuse-case verb, restriction recording and deadline
+      revision against a **suspended** target is admitted — *a repair of 2026-09-04 read "wherever a
+      tenant is named" and refused all of those.* *Read literally, the pre-amendment pipeline refused the entire operator surface
       except the four verbs its carve-out named; a first repair then exempted operators from 5b
       outright and deleted the two ordering refusals, which live only on operator verbs.*
       (`SEC-39`, `SEC-32`, `API-62`, `API-63`, `API-7`, `API-58`)

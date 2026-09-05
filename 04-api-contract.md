@@ -163,13 +163,19 @@ own.** Every step still runs for every authenticated write, operator writes incl
 5c are the operator's whole budget. What changes is **whose** tenant steps 2 and 5b read, and what
 step 4 authorizes against:
 
-- **Where an operator verb names a target tenant**, steps 2 and 5b test **that** tenant, exactly as
-  they would for the tenant itself. This is what keeps `API-58`'s "an operator may requeue a failed
-  cancellation, though not a create" and the requeue row's "an ordering requeue for a suspended
-  tenant is rejected `suspended`" reachable — both are 5b refusals on an operator-only verb, and
-  `adopt` is operator-only too and opens a commitment against the named tenant.
-- **Where it names none**, steps 2 and 5b have nothing to read and are skipped. The principal is
-  authorized by being on the operator listener (`WIR-34`) and bounded at 5c.
+- **For an operator principal, steps 2 and 5b apply to exactly two verbs — `adopt` and an
+  *ordering* `requeue` — against the tenant they name.** Those are the two that buy: `adopt` opens a
+  commitment against the named tenant, and an ordering requeue places a second physical order. This
+  is what keeps `API-58`'s "an operator may requeue a failed cancellation, though not a create" and
+  the requeue row's "an ordering requeue for a suspended tenant is rejected `suspended`" reachable.
+- **Every other operator verb skips 2 and 5b**, whether or not it names a tenant. *Stated as a
+  two-verb list and not as "wherever a tenant is named", because the second reading — a repair of
+  2026-09-04 — refused the operator surface on its ordinary inputs: `WIR-42`'s attribution target
+  "MAY be `pending`, the ordinary case since a returning customer enrols afresh", so the only route
+  back for an orphaned balance failed `not_activated`; and opening, closing, transmitting, revising a
+  deadline and recording a restriction all name a tenant the operator may have just suspended for
+  silence, so `SEC-45`'s escalation refused the case it escalates.* The principal is authorized by
+  being on the operator listener (`WIR-34`) and bounded at 5c.
 - **Step 4** authorizes the target resource by **existence** rather than by ownership for an
   operator, since cross-tenant reach is the point of the surface.
 
@@ -532,7 +538,14 @@ replacing", and `API-33` has since withdrawn `issuable_at`: there is no such win
 is worth replacing from the instant it is transmitted.*
 
 **API-57** **A tenant MUST be assigned at least one provider account, automatically, in the same
-transaction that activates it.** `API-17b` requires an explicit assignment and the provider views
+transaction that activates it — where at least one assignable account is `healthy` (`STO-36`,
+`STO-47`). Where none is, activation MUST proceed with no assignment and MUST emit a monitorable
+event naming the tenant (`SEC-32`), so the tenant is `API-62`'s to place rather than `API-34`'s to
+reap.** *The conditional was added 2026-09-05. Read unconditionally against `STO-36`'s refusal of an
+unhealthy account, activation was unsatisfiable whenever every assignable account was down, the
+tenant stayed `pending` holding money above the minimum, and `API-34` reaped it into `LDG-43` — a
+paying customer lost to the interaction of two rules each correct alone.* `API-17b` requires an
+explicit assignment and the provider views
 return only assigned accounts (`WIR-29`, `WIR-30`) — but **nothing produced one**, so a literal
 build gave every enrolled customer an empty provider list forever, on the product's only revenue
 path. Both reviewers found it independently.
@@ -605,7 +618,14 @@ builder could reach were both wrong. **A machine is *cancelled* for the purpose 
 for it** — the fan-out enqueued a cancellation for it, whatever that cancellation then did —
 **and *un-cancelled* otherwise.** The parent records the machines it has enqueued for, in
 `WIR-39`'s `cancellations` result; the pass enqueues for every non-tombstoned machine of the tenant
-that is not already named there, and terminates when a pass finds none.
+that is not already named there, and terminates when a pass finds none. **Where `OPS-39`'s episode
+is already open on a machine under the `delete` key** — an exhaustion episode that predates the
+suspension, or the machine `OPS-27`'s suspended-attach clause enqueued for — the pass MUST NOT
+enqueue, and MUST instead **append `tenant_suspended` to that entry's `reasons` set and name the
+existing operation in `cancellations`**, which is what "accounted for" means for it. *Added
+2026-09-05. Without this the pass could neither enqueue for such a machine — `OPS-39` forbids the
+duplicate — nor name it, so every pass found it un-cancelled, the parent never settled, `WIR-41`'s
+resume was refused forever and a worker slot was pinned for the life of the tenant.*
 
 *The test is the parent's own record, not `machines.system_trigger_ids`.* An earlier draft of this
 amendment keyed it on that entry existing "open or already resolved", which fails in both
