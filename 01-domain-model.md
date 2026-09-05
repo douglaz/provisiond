@@ -164,7 +164,9 @@ fields with no entity behind them.
 Parsing them into floating point loses money.
 
 **An offer carries exactly one recurring price and one setup fee, and where a provider prices per
-location the driver MUST emit one offer per priced location, with a singleton `regions`.** A
+location the driver MUST emit one offer per priced location, with a singleton `regions` and a
+**distinct identifier that encodes the location** — never one product id shared across several
+offers, which breaks any client keyed on it.** A
 product with no price in the feed is not an offer and MUST NOT be listed. *Added 2026-09-05 from
 `08-provider-notes.md`'s live pull: Hetzner Robot's standard catalogue carries a per-location
 `prices[]`, each entry with its own `price` and `price_setup`, and two products were listed with an

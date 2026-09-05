@@ -564,7 +564,8 @@ requeue a failed cancellation, though not a create (`API-7` step 5b) — then (2
 **fences work already in flight** — a create claimed before the suspension landed MUST be allowed
 to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
-then (3) enqueues a system cancellation per machine (`OPS-39`) — then (4) **transitions work already
+then (3) enqueues a system cancellation per machine (`OPS-39`) — then (4) **transitions the tenant's own work — `requested_by: caller`, never a system
+cancellation — that is already
 `queued` but never claimed straight to `failed`, carrying the reason in the operation's `error`:
 `conflict`, with `details.reason: "tenant_suspended"`** (`WIR-9a`, `WIR-10b`) — it
 has touched no provider, so cancelling it needs no operation, and it does **not** carry the error
@@ -625,7 +626,13 @@ enqueue, and MUST instead **append `tenant_suspended` to that entry's `reasons` 
 existing operation in `cancellations`**, which is what "accounted for" means for it. *Added
 2026-09-05. Without this the pass could neither enqueue for such a machine — `OPS-39` forbids the
 duplicate — nor name it, so every pass found it un-cancelled, the parent never settled, `WIR-41`'s
-resume was refused forever and a worker slot was pinned for the life of the tenant.*
+resume was refused forever and a worker slot was pinned for the life of the tenant.* **An operation
+that `OPS-41`'s no-mutation abort settled does NOT account for its machine**, whatever list names
+it: the abort removed the episode entry, so the next pass enqueues afresh, which `OPS-39` permits
+precisely because the entry is gone. *Added 2026-09-05 against the interleaving where the worker's
+re-check reads the entry before the join appends `tenant_suspended`, finds the machine funded after
+a price cut, and aborts — after which a pass that trusted the name would settle the parent over a
+funded fleet on a suspended tenant.*
 
 *The test is the parent's own record, not `machines.system_trigger_ids`.* An earlier draft of this
 amendment keyed it on that entry existing "open or already resolved", which fails in both
@@ -707,7 +714,7 @@ enrolment, and there is not even a handle to return.
 - **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
   returns its handle directly. It creates no provider mutation, so it needs no durable operation,
   and `operations.tenant_id` could not name a tenant that does not exist yet.
-- **`API-8`/`API-10` (idempotency scoped to `(tenant, key)`)** — **AMENDED: enrolment carries no
+- **`API-8`/`API-10` (idempotency scoped to `(principal, key)`)** — **AMENDED: enrolment carries no
   idempotency replay at all** (`WIR-12`). The withdrawn rule scoped it to the `Idempotency-Key`
   header alone, which is a **global unauthenticated key space**: two callers choosing the same
   low-entropy key would receive the same handle, and under `API-33` that handle's response carries
@@ -1224,8 +1231,9 @@ every unreleased billable attachment, which is how an attachment's meter stops (
 **post each subject's closing partial increment against its commitment** (`LDG-38`), for the time
 between its last increment end and the recording instant, which is time the customer consumed and
 the last moment there is a commitment to post it against — **and where a rate outage is in force,
-post only the segment priced before the outage began, book the rest as `LDG-64`'s native-only
-deficiency, and advance the meter's state without a satoshi debit** (*added 2026-09-05: `LDG-64`
+post only the segment priced before the outage began, close **the machine's existing `rate_outage`
+deficiency record** at the recording instant (`STO-37`'s `absorbed_until`; not a second record),
+and advance the meter's state without a satoshi debit** (*added 2026-09-05: `LDG-64`
 forbids a deferred satoshi debit at a later rate, and a closing increment with no rate to price it
 at had either to break that rule or to leave the meter unclosable*); **close and release in full
 every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create or adopt naming that

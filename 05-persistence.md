@@ -27,8 +27,12 @@ operation sitting in `needs_reconciliation`.*
 **AMENDED 2026-08-14 — a fourth named case: the suspension fan-out's administrative transition.**
 `API-58` step (4) moves an operation that is still `queued` and was never claimed straight to
 `failed`, and that write matches none of the three guards above. It is guarded on
-`(id, status = queued, the operation's tenant is suspended, and that suspension's fan-out parent is
-still unsettled)`. The three guards above are **unchanged** — this is an addition, not a
+`(id, status = queued, requested_by = caller, the operation's tenant is suspended, and that
+suspension's fan-out parent is still unsettled)`. *`requested_by = caller` was added 2026-09-05: the
+fan-out now joins a pre-existing exhaustion episode by naming its queued delete rather than
+enqueuing a second one, and without this term step (4) failed the very delete step (3) had just
+named — a system cancellation that `OPS-44` then keeps open for an operator, on a machine the
+suspension had reported as accounted for.* The three guards above are **unchanged** — this is an addition, not a
 relaxation — and the fan-out worker MUST report whether the write affected a row, exactly as the
 others do, because a child claimed by a real worker between the pass and the write must lose this
 race and settle as its own worker's write instead.
@@ -132,7 +136,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
-| `exhausted_since` | timestamp | nullable; **`LDG-16`'s persistence rule, as a column** (added 2026-09-05). Set by re-derivation only when it moves the date from the future into the past — a rate-induced jump — and null otherwise, including on natural expiry; cleared by any write of a future `runway_until`. The exhaustion sweep routes where the date has passed and this is null or older than one re-derivation interval, and `OPS-41` tests the same column under the lock — so one poisoned rate reading moves a date and destroys nothing, while a runway that simply ran out is routed on the first pass. *A BLOCKING item, `CNF-99`, tested this behaviour for three weeks with no mechanism behind it* |
+| `exhausted_since` | timestamp | nullable; **`LDG-16`'s persistence rule, as a column** (added 2026-09-05). Set by re-derivation only when it moves the date from the future into the past — a rate-induced jump — and null otherwise, including on natural expiry; cleared by any write of a future `runway_until`. The exhaustion sweep routes where the date has passed and this is null or older than one re-derivation interval; `OPS-41` clears it with the future date it writes and tests nothing else here, its own re-derivation being the second one — so one poisoned rate reading moves a date and destroys nothing, while a runway that simply ran out is routed on the first pass. *A BLOCKING item, `CNF-99`, tested this behaviour for three weeks with no mechanism behind it* |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
 | `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
 | `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
@@ -393,7 +397,8 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 **STO-49** **`rate_observations`** — `rate_num`, `rate_den` (`LDG-4`'s exact rational), `source`,
 `observed_at`, `haircut_bps`, `rounding_version`, unique on `observed_at`. **One row per rate the
 deployment accepts** (`LDG-58`'s median), **written before that rate is used for anything**, and
-retained at least until every metered subject has closed an increment past its `observed_at`.
+retained at least until every subject **with an open increment** has closed one past its
+`observed_at` — a stopped subject closes no further increment and must not pin the table forever.
 *Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
 self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
 a rate's acceptance and the next increment's posting there was no durable record of it at all, so a
@@ -418,10 +423,10 @@ Primary key `(subject_kind, subject_id, billing_period)`.
 
 **STO-45** **The row MUST be written in the same transaction as the increment it closes, and by no
 other path.** Every increment updates it under `LDG-35`'s per-tenant serialization — in the
-transaction that appends the `usage_debit` where one posts, and **in a meter-only transaction under
-the same serialization where the increment rounds or clamps to nothing** (`LDG-72`), since the
-rounding credit and the high-water mark advance either way and a zero-value ledger row is not
-legal. *"The entry it summarises" was the wording until 2026-09-05, which forbade the second case
+transaction that appends the `usage_debit` where one posts, and **in a transaction with no ledger
+entry — but still carrying any `STO-37` deficiency row a clamp owes — under the same serialization
+where the increment rounds or clamps to nothing** (`LDG-72`), since the rounding credit and the
+high-water mark advance either way and a zero-value ledger row is not legal. *"The entry it summarises" was the wording until 2026-09-05, which forbade the second case
 outright and left a zero-debit increment with no legal way to record that it had happened.* A
 `correction` does not touch it at all (`LDG-38`). There is no
 lazy-repair path and no background reconciler: `API-54` forbids a `GET` taking a write transaction,
@@ -679,7 +684,11 @@ and a per-tenant copy would be the two-homes drift `DOM-27` was reorganised to a
 
 **`status` defaults to `healthy` and `source` records which established it**, on
 `machines.network_restriction`'s reasoning: a driver observation is authoritative over an operator
-record, and an operator MUST NOT be able to shadow a fact the driver can read. **`terminated` is
+record, and an operator MUST NOT be able to shadow a fact the driver can read. **`configuration`
+ranks below both**: a configuration load MUST insert a `healthy` row only where none exists and
+MUST NOT update one that does — *stated 2026-09-05, when the row was required to exist and nothing
+named its writer, so a reload that re-inserted `healthy` would have overwritten a write-once
+`terminated`.* **`terminated` is
 write-once**: it is the state that releases customer commitments (`SEC-46`, `LDG-32`), and a state
 that can be entered and left silently re-opens or re-releases every affected tenant's money.
 
@@ -687,7 +696,8 @@ that can be entered and left silently re-opens or re-releases every affected ten
 requirement in `02-provider-contract.md` obliges a driver to report account-level status, and no
 launch driver does — unlike `PRV-35`, where the providers demonstrably expose a per-machine
 restriction signal and the precedence rule therefore bites. So on a launch deployment every row
-carries `operator_record`, and `API-63`'s refusal of an operator value that would shadow a driver
+carries `configuration` until an operator records something and `operator_record` after — never
+`driver_observation` — and `API-63`'s refusal of an operator value that would shadow a driver
 value is a rule with nothing to fire on. **It is written now rather than later** because the
 alternative — adding it when a driver first reports one — is the amendment that gets forgotten while
 an operator value silently overrides a readable fact, which is exactly the drift `PRV-35` was
@@ -883,7 +893,7 @@ out.
 tombstone that still refuses a reused key. `API-11` promises that reusing a key returns the
 existing operation; `STO-14` deletes that operation; after which the same key performs the
 mutation again — **a duplicate purchase, by design.** Either retention preserves the
-`(tenant, key)` pair beyond the operation, or `API-11`'s promise must be given an explicit
+`(principal, key)` pair beyond the operation, or `API-11`'s promise must be given an explicit
 expiry that the API states to callers. This was `F8`.
 
 **STO-15** The database volume and the rescue recovery directory MUST be encrypted at

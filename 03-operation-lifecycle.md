@@ -430,12 +430,18 @@ row MUST be confirmed by a direct read before it attaches anything.** `08-provid
 records, from a live order, that Hetzner Robot's transaction "still" reports `status: "ready",
 server_number: N` after the server is gone — "the listing outlives the machine". So resolution
 MUST follow a match with *get machine* (`PRV-12`) on the matched `external_id`. Where that read
-finds the machine, the first row applies. **Where it returns `not_found`, the outcome is
-*accepted-but-gone***: no machine is attached, the commitment is closed and released in full
-(`LDG-32`), and the setup fee is settled per `LDG-39` **only where the provider's own transaction
-shows it was charged** — an order that produced a machine someone then deleted did cost the fee,
-and one the provider cancelled did not. *Added 2026-09-05. Without the read, reconciliation
-attached, metered and fee-settled a ghost.*
+finds the machine, the first row applies. **Where it returns `not_found` inside `PRV-36`'s
+visibility window, the operation stays unresolved and `OPS-32` keeps looking** — a Robot order
+reports `ready` with a server number before the server API lists the machine, and a read inside
+that window is not evidence of absence. **Where it returns `not_found` past the window, the
+operation resolves *absent*** (the second row): no machine is attached and the commitment is
+released in full — with one addition to `LDG-39`, that a setup fee the provider's own transaction
+shows was charged becomes an `unrecoverable_setup_fee` deficiency rather than being pretended away.
+*Added 2026-09-05, and corrected the same day: a first form invented an "accepted-but-gone"
+outcome, which had no value in `WIR-35`'s closed `resolution` set, no settled status, no `LDG-39`
+row, and ignored the visibility window — so the ordinary Robot create resolved as gone and came
+back as an `OPS-36` late attach carrying a wind-down deficiency. Without the read at all,
+reconciliation attached, metered and fee-settled a ghost.*
 
 **A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
 This is one rule with **three entry points** — the provider **accepting the order in its reply**,
@@ -563,8 +569,11 @@ provider's own price can move in that window — which on the dedicated product 
 bound.
 
 Before any ordering call the worker MUST re-read the offer's current price **in the provider's own
-currency** and compare it with the native price the commitment was sized from (`LDG-2`
-denormalises it onto the record), and **fail the operation deterministically — before any provider
+currency** and compare it with the native price the commitment was sized from — **carried on the
+attempt's entry in `operations.request_summary`, which already snapshots the offer and is re-priced
+per requeue** (`LDG-2`; *named 2026-09-05 — a first form cited a native figure on the commitment
+row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
+provider
 mutation — where the provider's price has risen past what the reserve covers**: `conflict`,
 `details.reason: "price_moved"`, the shortfall in `details`, telling the caller to re-submit. **A
 movement in the satoshi rate alone MUST NOT refuse** — that is `ADR-0011`'s business, and it moves
@@ -851,7 +860,8 @@ what resolves it when the delete actually ran.** That gap is what let `API-58`'s
 | `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | **Stays open until the effective date passes and the machine is tombstoned** | **Stays set** |
 | `failed` — deterministic, the provider rejected the request and did not act | **Stays open** | **Stays set** |
 | `needs_reconciliation` | **Stays open** | **Stays set** |
-| Resolved by an operator (`OPS-31`) — for a cancellation the verbs are `applied`, `not_applied` and `abandoned` (`OPS-45`) | **Removed**, in the resolution transaction | **Cleared**, same transaction |
+| Resolved by an operator (`OPS-31`) — `not_applied`, `abandoned`, or an `applied` reporting the resource gone (`OPS-45`) | **Removed**, in the resolution transaction | **Cleared**, same transaction |
+| Resolved `applied` **with an `effective_cancellation_date`** (`WIR-35`) — the operator established the provider *scheduled* it | The second row applies: **stays open until the effective date passes and the machine is tombstoned** | **Stays set** |
 
 **The "stays" rows are the point, and the second one is the one a reader will not expect.** A
 cancellation that did not happen leaves a machine that is
@@ -1072,6 +1082,11 @@ paginated part way and then yielded to `rate_limited` has seen a subset, and tre
 the account would record every unlisted machine as gone — stopping their meters and closing their
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
+
+**A `cancellation_scheduled` machine the sweep finds still present after its
+`effective_cancellation_date` MUST be listed for the operator** in `OPS-26`'s listing, in the same
+pass: its meter stopped at the date (`LDG-38`), its fence is set and its episode is open (`OPS-44`),
+so it is billing the operator with nothing scheduled to look at it (*added 2026-09-05*).
 
 **And it may record an absence only about a machine past `PRV-36`'s declared visibility window for
 that provider**, measured from the dispatch of the create that produced its `external_id`. *Added

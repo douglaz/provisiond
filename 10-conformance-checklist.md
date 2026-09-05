@@ -706,8 +706,7 @@ not optional hardening — they are the only structural defence there is.
       **Then let a runway expire with no rate movement at all and assert the machine is routed on
       the very next pass, the column still null** — a build that gates every past date on the
       interval runs each ordinary exhaustion one interval into the wind-down reserve.
-      Then hold the bad rate across two intervals and assert the machine **is** routed and `OPS-41`
-      re-checks the same column. *The per-tick cap clause is withdrawn with the construct it tested
+      Then hold the bad rate across two intervals and assert the machine **is** routed. *The per-tick cap clause is withdrawn with the construct it tested
       (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
       no reader behind it, and a build that routed on the date alone passed it by never being fed a
       poisoned reading.* (`PRV-13e`, `LDG-16`, `LDG-58`)

@@ -493,7 +493,12 @@ nothing in the system raises anything.
   observation instant, in `machines.state` and `machines.state_observed_at` (`STO-48`) — so the
   meter stops without a caller. That is the one change that makes this
   rule self-executing rather than another thing waiting on a human.
-- **Billing stops at the observation instant, not at the unknown instant the provider acted.**
+- **Billing stops at the observation instant, not at the unknown instant the provider acted** —
+  except for a `cancellation_scheduled` machine, whose stop is the earlier of its
+  `effective_cancellation_date` and the observation (`LDG-38`), because that is the one end the
+  deployment knew before the provider did. A machine observed **still present** after its date is
+  `OPS-32`'s to list for the operator, since with its meter stopped and its fence set nothing else
+  will look at it (*both added 2026-09-05*).
   provisiond polls rather than watches, so the earlier instant is not knowable; `STO-41` already
   draws that distinction for addresses and it is the same one. Guessing backwards would credit time
   nobody can evidence, on a ledger whose entries are the authorization system.
@@ -823,7 +828,9 @@ the arithmetic that forced it.
 **`LDG-8` owns the key**; this requirement does not restate it. *A restatement here said `(subject, billing period, kind, posting index)` — the form `LDG-8` withdrew as unable to deduplicate — which is the duplication habit this set keeps paying for.*
 
 **LDG-72** **The meter keeps a running record per `(subject, billing period)`, written in the same
-transaction as the debit, and it is two values: the rounding credit and the high-water mark.**
+transaction that closes the increment — with the debit where one posts, alone where the increment
+rounds or clamps to nothing (`STO-45`) — and it is two values: the rounding credit and the
+high-water mark.**
 `LDG-38` once defined `already_charged` as a sum over every prior usage debit for that subject and
 period, and its high-water mark as a query over the same rows — explicitly adding no schema. **That
 is withdrawn, and the reason is arithmetic:** tick *k* reads *k−1* rows, so the cost of metering a
@@ -839,7 +846,7 @@ defect and the fix was not carried across.** It is carried across now, on the sa
 - The record MUST carry the **rounding credit** `r` as an exact rational (`LDG-4`; `LDG-1`'s
   no-floating-point rule reaches it) and the **greatest `increment end` posted** for that
   `(subject, billing period)`. Both MUST be written inside the same serialized transaction that
-  appends the debit (`LDG-35`, `STO-45`).
+  closes the increment — the one that appends the debit where one posts (`LDG-35`, `STO-45`).
 - `LDG-38` reads both from this record, which makes a tick a single indexed row read regardless of
   cadence or of how far into the period it falls.
 - A `correction` does **not** touch this record. It moves the balance and leaves `r` alone
@@ -937,8 +944,8 @@ unstated:
 | Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
 | Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
 | Ambiguous — `needs_reconciliation` | **Remains reserved in the commitment**, and is *additionally* recorded as a pending fee obligation on the operation (`LDG-67`). The record exists because `OPS-33` releases the commitment in full at the negative window while the operation stays open — so the obligation must survive that release, not replace the reservation before it |
-| Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below. `LDG-67`'s parked columns are cleared either way, in `OPS-27`'s single resolution transaction* |
-| Resolved *absent* | **Released in full**; no fee was incurred at the provider |
+| Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below. `LDG-67`'s parked obligation is settled either way, in `OPS-27`'s single resolution transaction* |
+| Resolved *absent* | **Released in full**; no fee was incurred at the provider — **except where the provider's own transaction shows the order landed and a fee was charged for a machine that is nonetheless gone** (`OPS-27`'s direct read past the visibility window), in which case the fee is an **operator deficiency** (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged (*row added 2026-09-05*) |
 | Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
 | Operator requeue out of `needs_reconciliation` (`OPS-3`, `OPS-4`) | **Never debited for the superseded attempt.** The parked obligation is cleared and the fresh attempt commits and settles its own setup fee through the rows above (`LDG-67`); keeping the old one alive would bill one machine's setup twice |
 
@@ -1049,7 +1056,8 @@ usage cannot be converted to satoshis. A deployment MUST:
   against because the commitment was already open;
 - **close the absorbed window at the first valid rate observation** — `STO-37`'s `absorbed_until`
   is written with that observation's instant, by the observation that restores `LDG-59`'s quorum
-  and by nothing else (*added 2026-09-05; the column was required by `LDG-38`'s apportioning and had
+  — **or with the subject's own meter-stop instant where that comes first** (`LDG-74`, `API-63`),
+  since a machine that died mid-outage absorbed nothing after it died — and by nothing else (*added 2026-09-05; the column was required by `LDG-38`'s apportioning and had
   no writer, so the meter could neither end the window nor tell where billable time resumed*);
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
   a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
@@ -1326,7 +1334,7 @@ what it *settles*, not in whether it happens: **debited** against a still-open c
 **dropped** on resolved-absent and on a deterministic rejection, and **absorbed as an operator
 deficiency** on `abandoned` and on a resolved-observed whose commitment `OPS-33` had already
 released. *Amended 2026-09-02: this sentence named the debit and the drop and left the third
-outcome — now the ordinary one on a late resolution — with no rule for the parked columns at all.* **On `abandoned`
+outcome — now the ordinary one on a late resolution — with no rule for the parked obligation at all.* **On `abandoned`
 (`OPS-31`) the fee is an operator
 deficiency** (`LDG-66`): the operator gave up establishing whether the order landed, and charging
 a customer for an outcome nobody established is not defensible. **On an operator requeue**
@@ -1383,7 +1391,11 @@ scale with the customer's own choice of image. **The home is three nullable colu
 `operations`** — `privileged_seconds`, `bytes_transferred`, `storage_seconds`
 (`05-persistence.md`) — since the kind and the machine are already there. *Named 2026-09-05; the
 MUST had no table for three days, which is `STO-38`'s failure class, and they are metering facts
-rather than caller payload so `ADR-0005`'s purge does not reach them.* `ADR-0013` asserted that this requirement "already
+rather than caller payload so `ADR-0005`'s purge does not reach them — **but `STO-14`'s retention
+job does**, since it removes the settled operation row and the columns with it. That is accepted in
+words: the count exists for as long as the row does, which is the configured retention age, and a
+deployment that intends to price these later MUST aggregate before that age or lengthen it. A
+column that outlives its row would be a second table for a price nobody has set.* `ADR-0013` asserted that this requirement "already
 covers the money … the units to meter are the transferred bytes and the storage-seconds" while this
 requirement named no unit at all; it does now, and the ADR's claim is true rather than
 aspirational.
@@ -1483,8 +1495,9 @@ from the future into the past** — a rate-induced backward jump, which is the o
 guards — and leaves it null where the date was already past or where the clock simply reached it;
 any write of a future date clears it, including `LDG-62`'s and `OPS-41`'s abort's. **The exhaustion
 sweep MUST route a machine where its stored `runway_until` has passed and `exhausted_since` is
-either null or older than one re-derivation interval**, and `OPS-41` tests the same column under
-the lock. *The null case routes immediately, and that is the point: natural expiry of a runway the
+either null or older than one re-derivation interval**; `OPS-41`'s re-derivation at claim is
+itself the second derivation, so it reads the column only to clear it. *The null case routes
+immediately, and that is the point: natural expiry of a runway the
 customer was shown is not a glitch, and delaying it an interval would run every ordinary exhaustion
 one interval into the wind-down reserve this requirement exists to keep whole. A backward jump that
 lands in the future and then elapses is not caught here — it shortens runway by the size of the
