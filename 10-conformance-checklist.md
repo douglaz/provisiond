@@ -903,6 +903,14 @@ rather than acquiring a default.
       is recorded in `PRV-32`; what is gone is any operation that needs it.* The surviving
       cardinality obligation is `OPS-38`'s, whose live source of duplicates is now a caller
       re-issuing under a fresh key (`API-51`), tested by `CNF-165`. (`PRV-32`, `OPS-38`, `ADR-0014`)
+- [ ] **CNF-289** **BLOCKING** — **`request_summary` carries nothing outside its enumeration.**
+      Submit a create and an install whose bodies carry a caller-chosen hostname, SSH keys, user
+      data, a post-install script, a signed image URL and a disk layout; drive each to a state that
+      purges the payload; then assert `request_summary` contains **none** of them. Asserted by
+      reading the stored record, not the API response — `API-21` already hides `request`, so a
+      summary that quietly retained the payload would pass every surface test. This is `ADR-0005`
+      enforced where it is actually enforceable: the purge is only as good as the list of what
+      survives it. (`STO-50`, `STO-9`, `ADR-0005`, `OPS-13`)
 - [ ] **CNF-288** **BLOCKING** — **A create cannot be requeued.** Assert that a requeue of a
       `create_machine` operation is refused from **both** `failed` and `needs_reconciliation`, that
       the refusal names `OPS-31`'s verbs as the alternative, and that no provider call is made and

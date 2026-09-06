@@ -293,6 +293,32 @@ including `needs_reconciliation` (`ADR-0005`). Encryption is not the control her
 data is. `request_summary` is what an operator investigating a stuck record actually reads, and
 `OPS-13` is satisfied by identifiers rather than secrets.
 
+**STO-50** **ADDED 2026-09-06 (`F38`) — `request_summary` is a closed enumeration, and anything not
+on the list MUST NOT be written to it.** Its opening description is "what was attempted", which
+names no field, and an open-ended summary standing beside a purged `request` is a hole in the purge
+rather than a note about it: **`ADR-0005` is enforced by what survives, not by what is removed**, so
+a bucket that admits anything admits exactly the material `STO-9` above lists as the reason the
+purge exists. The contents are:
+
+- **Always** — the operation's kind, its machine where it has one, the resolved provider account
+  (`OPS-35`), and what `OPS-13` requires: what was attempted, and any provider-side identifiers
+  that were created.
+- **For a create** — the correlator, the offer snapshot and the at-cost setup fee enumerated on the
+  `request_summary` row below.
+- **For `OPS-45`'s five kinds** — the two markers, `write_started_at` and `rescue_exited_cleanly`,
+  copied from their columns as that row already requires.
+
+**Nothing else.** In particular the summary MUST NOT carry a caller-chosen hostname, SSH public
+keys, user data, a post-install script, a signed image URL, a disk layout, or a spending cap —
+whether or not a given field looks harmless alone. *`PRV-26` already forbids a correlator encoding
+"a hostname the customer chose", and there is no reason the record beside it should be laxer than
+the value written into the provider.*
+
+*This is what `F38` was really about. `OPS-34` compares "every respect the summary records", and
+that phrase pointed at a list nobody had written — which is how `OPS-46` came to state a test it
+could not run (`F39`). A closed enumeration makes the phrase finite; the fields the comparison
+actually needs are columns, and were never in question.*
+
 **STO-19** `resolution` and its evidence columns MUST be write-once. A `needs_reconciliation`
 record that can be silently re-resolved is an audit trail that can be edited, and these records
 exist precisely for the cases where money moved and nobody is sure.

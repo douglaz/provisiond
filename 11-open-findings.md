@@ -72,7 +72,17 @@ and two cross-model reviews read the claim without doubting it. It took eight ce
 
 ## Open — found 2026-09-05
 
-**F38. `target` is undefined, and the set spends the word three ways.** `OPS-34`'s requeue
+**F38. CLOSED 2026-09-06 — `target` withdrawn from the comparison, `request_summary` enumerated.**
+The word is withdrawn from `OPS-34`, whose check is now `kind` and `machine` — two columns, and
+enough, because `OPS-46` left one requeueable kind whose payload is a single literal (`WIR-22`).
+`CONTEXT.md` records that **target means the disk** and forbids a third sense. The deeper half is
+`STO-50`: `request_summary` is now a **closed enumeration**, because "what was attempted" standing
+beside a purged `request` is a hole in `ADR-0005`'s purge rather than a note about it — a purge is
+enforced by what survives, not by what is removed. `CNF-289` is BLOCKING and asserts it against the
+stored record rather than the API surface, since `API-21` already hides `request` and a summary that
+quietly retained the payload would pass every surface test.
+
+*The finding as recorded 2026-09-05:* `OPS-34`'s requeue
 equivalence check runs over "kind, machine, provider account, **target**", `OPS-13` reasons from the
 same four, and `CNF-221` tests them by name — but `target` is defined nowhere, is not a column in
 `05-persistence.md`, and is not in `CONTEXT.md`. Meanwhile `WIR-20` and `RSC-26`/`RSC-27` use

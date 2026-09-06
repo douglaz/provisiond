@@ -33,12 +33,26 @@ verbatim", and the payload is purged on entry to **either** requeue-eligible sta
 `API-19`, `OPS-31` and `DEF-17` all rest on it, the resolution is:
 
 - **Requeue MUST carry a fresh payload supplied by the operator**, and the system MUST verify it
-  is equivalent to the stored summary in every respect the summary records (kind, machine,
-  provider account, target). It is no longer a replay of bytes the system holds; it is a new
-  submission checked against what survived.
+  is equivalent to the stored summary in every respect the summary records. It is no longer a
+  replay of bytes the system holds; it is a new submission checked against what survived.
 - Where the summary cannot establish equivalence, requeue MUST be refused and `OPS-31`'s
   resolution verbs are the only road.
 - `API-11`'s idempotency comparison has the same problem and the same answer (`API-38`).
+
+**AMENDED 2026-09-06 — `target` is withdrawn from the comparison, and what remains is two fields
+(`F38`).** The list read "kind, machine, provider account, target". **`target` was never defined**:
+it is not a column, it is not in `CONTEXT.md`, and the set spends the word on two other concepts —
+`WIR-20`'s and `RSC-26`'s block device about to be overwritten, and the thing a verb authorizes
+against, of which `API-17b` says "Creation needs an authorization rule, and it is the only operation
+that has no target to authorize against." A comparison field with no referent
+cannot be checked, and `CNF-221` tested it by name for three weeks.
+
+**Withdrawing it costs nothing, because `OPS-46` left one requeueable kind.** An exposure-reducing
+cancellation's payload is `{"acknowledge_destruction": true}` (`WIR-22`) — one literal, with the
+machine named in the path. **The comparison is therefore `kind` and `machine`**, both of them
+columns rather than summary fields, and the third and fourth entries had nothing left to do.
+`STO-50` closes the summary's enumeration so that "every respect the summary records" names a
+finite list rather than an open one.
 
 **OPS-35** The provider account MUST be resolved and written to the operation record **before**
 any driver call. `05` marks it nullable, and a create whose reply is lost is precisely the case
@@ -258,8 +272,9 @@ create later resolved-observed attaches a machine whose install eligibility can 
 from nothing the system still holds: the offer is a live listing that may have been re-priced,
 changed or withdrawn in the meantime (`DOM-9`), which is the same reason the gate reads the copy
 rather than the offer. It is terms, not secrets, so it survives the purge exactly as the provider
-account and the target do — and it is retained as **evidence**, not as a comparison field:
-`OPS-34`'s requeue equivalence check is over kind, machine, provider account and target, and the
+account does — and it is retained as **evidence**, not as a comparison field:
+`OPS-34`'s requeue equivalence check is over kind and machine (amended 2026-09-06; it named
+`provider_account` and an undefined `target` until `F38`), and the
 snapshot adds no fifth test, because an auction offer that has since been withdrawn does not make
 the requeue wrong.
 

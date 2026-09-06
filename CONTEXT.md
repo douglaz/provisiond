@@ -293,6 +293,13 @@ whatever was baked in, and the image must satisfy the provider's guest requireme
 comes up unreachable with no rescue path to fix it. Never write "install" unqualified where a reader
 could infer the bytes were checked.
 
+**"Target" means the disk, and nothing else.** In `WIR-20`'s install body and `RSC-26`/`RSC-27` it
+is the block device about to be overwritten, and that is the only sense the word keeps here. A
+second sense — a requeue comparison field — was carried in three requirements and defined in none,
+and is withdrawn (`OPS-34`, amended 2026-09-06; `F38` holds the reasoning). Never introduce
+another: an undefined comparison field reads as checkable and is not, which is how that one
+survived three reviews and a conformance item that tested it by name.
+
 **"Preflight" is banned**, and it is banned for causing the misreading it names. It was the word for
 what is now **rescue inventory**, and it reads as harmless: it is read-only about the *disk* and not
 about the *machine*, which it reboots into another operating system and can strand there.
