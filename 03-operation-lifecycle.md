@@ -333,11 +333,46 @@ cannot establish equivalence, requeue MUST be refused and `OPS-31`'s resolution 
 road." A create's summary cannot establish equivalence for any field that matters, so that sentence
 already disposed of every create requeue; this requirement states it rather than implying it.
 
-**The admissible kinds are those the record determines**: an exposure-reducing cancellation, power,
-reverse DNS, end rescue, and `adopt_machine`, whose target is an `external_id` the record holds.
-*`install` is **not** established as admissible and is left open rather than granted by omission —
-`RSC-42` has a requeue "carry a fresh payload (`OPS-34`) and re-upload" image bytes the operator
-does not hold, which is this defect on another kind (`F39`).*
+**AMENDED 2026-09-06 — the admissible set was hand-enumerated and was wrong (`F39`). It is now one
+kind.** The test this requirement states — a payload the operation record fully determines — cannot
+be applied, because `05-persistence.md` enumerates `request_summary`'s contents **for a create and
+for no other kind**; everything else is "what was attempted", which nothing defines (`F38`). An
+enumeration written against an unanswerable test is a guess, and this one admitted two kinds that
+provably fail it.
+
+**A requeue is admissible only for an exposure-reducing cancellation — a cancel or a delete.**
+`API-7` already named it as the case that matters: "Requeue is exempt here only where the operation
+it requeues reduces exposure — a cancel or a delete. That much is load-bearing: a suspended tenant's
+failed cancellation must stay requeueable **or its machine bills forever**." Its payload is
+`{"acknowledge_destruction": true}` (`WIR-22`) — a single literal, with the machine named in the
+path — so the record determines it without needing `F38`'s enumeration at all.
+
+**And it is the only kind no caller will re-issue.** That is the sharper rule underneath: an
+exposure-reducing cancellation is *system*-triggered (`OPS-39`), so there is nobody to re-submit it.
+Every other machine-acting kind is the caller's own action on a machine the caller owns, costs no
+money to repeat (`ADR-0007` meters installs and rescue but charges nothing for them), and is
+re-issued by calling the endpoint again — which is what `OPS-40` and `OPS-43` already tell a caller
+to do.
+
+**The two that provably fail the test**, and were admitted here for one day:
+
+- **`install`.** `WIR-20`'s body carries the image `source.url` and `sha256`, `authorized_keys`,
+  the `layout` or `target` naming which disk is overwritten, up to 1 MiB of `post_install_script`,
+  `acknowledge_destruction`, and the `trust` object. `STO-9` purges "signed image URLs, SSH keys,
+  and up to 1 MiB of post-install script" by name. An operator requeue therefore chooses the bytes
+  written to a customer's disk, who may log into the result, and the host-key decision `SEC-22`
+  requires as an explicit per-request opt-in — a choice `WIR-20` calls "a silent security
+  downgrade" when a schema makes it instead of the caller.
+- **`adopt_machine`.** `WIR-18`'s body carries `runway_seconds`, and `LDG-36` requires adopt to
+  "place a commitment and pass the same authorization check as create". Purged, the operator picks
+  how much of the customer's balance to commit — which is `ADR-0014`'s argument verbatim, on the
+  kind that ADR admitted while making it.
+
+*`power` and `reverse_dns` are refused for a weaker reason and it is still sufficient: nothing says
+their payloads survive. A power action is a choice between `on` and `hard_reset`, which are not the
+same act on a machine mid-write, and `WIR-21`'s `ptr` is a customer-chosen hostname — the kind
+`PRV-26` calls linkable and `ADR-0005` purges. Neither is admitted on the presumption that it is
+probably fine; that presumption is what this amendment exists to remove.*
 
 **What replaces it.** A create in `failed` is the caller's to resubmit, which is the set's idiom
 everywhere else — `OPS-28` calls a post-resolution purchase "a new decision by the caller, and a new
@@ -619,8 +654,11 @@ before any provider mutation and before rescue is entered — if the URL cannot 
 install's stated worst-case duration, with an error kind and message telling the caller to
 re-submit with a fresh URL. An expiry mid-stream after that gate is an ordinary install failure
 under `OPS-11`'s classification. **The gate exists because the alternative is entering rescue and
-beginning a destructive write fed by a URL that is already doomed.** Operator requeue already
-carries a fresh payload (`OPS-34`), so no refresh mechanism inside the record is needed.
+beginning a destructive write fed by a URL that is already doomed.** No refresh mechanism inside the
+record is needed, because the caller re-submits with a fresh URL — which this requirement already
+tells it to do. *Until 2026-09-06 the reason given was "Operator requeue already carries a fresh
+payload (`OPS-34`)". An install cannot be requeued at all (`OPS-46`, `F39`), and the caller path was
+always the real one: the operator never held the signed URL, `STO-9` having purged it.*
 
 **OPS-43** **The provider's price MUST be re-checked at claim, and the order refused where the
 commitment no longer covers it.** A create is priced and its commitment sized when the API accepts

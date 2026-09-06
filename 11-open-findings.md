@@ -88,12 +88,42 @@ demands equivalence "in every respect the summary records" while `OPS-13` makes 
 `request_summary`'s own opening description is "what was attempted", which nothing enumerates. The
 remedy is a per-kind table of comparison fields, not a fourth meaning for one word.
 
-**F39. Install requeue has `ADR-0014`'s defect and was not decided with it.** `RSC-42` says "A
-requeue carries a fresh payload (`OPS-34`) and re-uploads" — image bytes the operator does not hold,
-purged by `STO-9` exactly as a create's keys are. `OPS-46` admits the kinds whose payload the
-operation record determines and deliberately does **not** grant `install`; this finding is why it
-was left open rather than settled by omission. The same question applies: what does an operator
-re-upload, and whose image is it?
+**F39. `OPS-46`'s admissible set was hand-enumerated against a test that cannot be applied, and it
+admitted two kinds that fail it.** Found 2026-09-06, one day after `OPS-46` was written, by
+following its own reasoning to the kinds it granted instead of the one it withheld.
+
+`OPS-46` admits "kinds whose payload the operation record fully determines". **That test is
+unanswerable today**: `05-persistence.md` enumerates `request_summary`'s contents for a create and
+for no other kind, and everything else is "what was attempted", which nothing defines (`F38`). The
+enumeration was therefore a guess dressed as a derivation.
+
+- **`install` fails provably.** `WIR-20`'s body carries the image `source.url` and `sha256`,
+  `authorized_keys`, the `layout`/`target` naming the disk to overwrite, `post_install_script`,
+  `acknowledge_destruction` and the `trust` object — and `STO-9` purges "signed image URLs, SSH
+  keys, and up to 1 MiB of post-install script" by name. It was withheld for the right reason and
+  the reason was understated: this is worse than the create case, because the operator would choose
+  the bytes written to a customer's disk and the host-key decision `SEC-22` requires the *caller* to
+  make.
+- **`adopt_machine` fails provably, and was granted.** `WIR-18` carries `runway_seconds`; `LDG-36`
+  makes adopt "place a commitment and pass the same authorization check as create". An operator
+  requeue therefore chooses how much of the customer's balance to commit — `ADR-0014`'s own
+  argument, on a kind that ADR admitted in the act of making it.
+- **`power` and `reverse_dns` were granted on presumption.** Nothing says their payloads survive,
+  `WIR-19`'s action distinguishes `on` from `hard_reset`, and `WIR-21`'s `ptr` is a customer-chosen
+  hostname of the kind `ADR-0005` purges.
+
+**Amended rather than left open**: `OPS-46` now admits only the exposure-reducing cancellation,
+which `API-7` had already identified as the load-bearing case — "a suspended tenant's failed
+cancellation must stay requeueable or its machine bills forever" — whose payload is one literal, and
+which is the only kind **no caller will re-issue**, being system-triggered under `OPS-39`. Every
+other kind is the caller's own action on a machine the caller owns, costs nothing to repeat, and is
+re-issued by calling the endpoint again.
+
+*The lesson is not that the enumeration was careless. `OPS-46` opens "requeue is admissible only for
+kinds whose payload the operation record fully determines, and `create_machine` is not one of them"
+— a test, followed by an answer that no available record could have produced. A derivation and a
+guess read identically once both are written down, and only the guess needs `F38` discharged before
+anyone can check it. `F38` was already open when this one was written.*
 
 ## Closed by decision — 2026-09-05
 

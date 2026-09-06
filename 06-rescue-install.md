@@ -439,7 +439,10 @@ entry to `needs_reconciliation`**, exactly as `OPS-2` purges the request payload
 `ADR-0005` applied to a new object rather than a new rule invented for one, which is the move
 `STO-42` made for abuse statements.
 
-A requeue carries a fresh payload (`OPS-34`) and re-uploads. **The provider-side copy is deleted by
+**AMENDED 2026-09-06 — an install cannot be requeued** (`OPS-46`, `F39`), so a fresh copy arrives
+only by the caller sending a fresh install. *The withdrawn sentence read "A requeue carries a fresh
+payload (`OPS-34`) and re-uploads", which asked an operator to re-upload image bytes `STO-9` had
+purged and never gave them.* **The provider-side copy is deleted by
 a call that may fail or be lost**, so the import MUST carry the operation's correlator as a
 provider-side tag and `OPS-32`'s account sweep MUST delete any image whose operation has settled or
 vanished. An orphan is not merely a storage charge: it is a copy of a customer's operating system

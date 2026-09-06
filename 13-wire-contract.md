@@ -694,10 +694,17 @@ with `409` `conflict`, `details.reason: "kind"`, and a message naming `WIR-35`'s
 the road out. The refusal is on the **kind**, not on the payload, so it precedes the equivalence
 check and no create payload is ever compared. *That sentence about requeueing a create being a
 purchase decision is why: the decision is the customer's, and the payload the operator would have to
-supply is not the customer's — `STO-9` purged it and `ADR-0002` leaves nobody to ask.* The remaining
-requeueable kinds are `adopt_machine` — the one that still places an order, so
-`acknowledge_duplicate_purchase` keeps its referent — plus cancellation, power, reverse DNS and end
-rescue.
+supply is not the customer's — `STO-9` purged it and `ADR-0002` leaves nobody to ask.*
+
+**AMENDED AGAIN 2026-09-06 (`F39`) — the refusal is every kind but one.** `OPS-46` now admits only
+an exposure-reducing cancellation, so this endpoint accepts `delete_machine` and refuses every other
+kind on the same `409` `conflict` / `details.reason: "kind"`. **`acknowledge_duplicate_purchase` is
+therefore unreachable and MUST NOT be sent**: it was required "when the operation's kind places an
+order", and no requeueable kind places one. *It survived the 2026-09-05 amendment because that
+amendment kept `adopt_machine`, which `F39` found fails `OPS-46`'s own test — `WIR-18` carries
+`runway_seconds` and `LDG-36` makes adopt open a commitment, so an operator requeue would size a
+customer's commitment for them.* The `request` object is `{"acknowledge_destruction": true}`
+(`WIR-22`), which the operation record already determines.
 
 **WIR-35** `POST /v1/operations/{id}/actions/resolve` — **operator-only** (`API-19`, `WIR-34`),
 the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the operator half of

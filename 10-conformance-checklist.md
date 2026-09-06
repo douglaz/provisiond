@@ -906,10 +906,16 @@ rather than acquiring a default.
 - [ ] **CNF-288** **BLOCKING** — **A create cannot be requeued.** Assert that a requeue of a
       `create_machine` operation is refused from **both** `failed` and `needs_reconciliation`, that
       the refusal names `OPS-31`'s verbs as the alternative, and that no provider call is made and
-      no commitment is opened or re-priced. Then assert an admissible kind — a cancellation, power,
-      reverse DNS, end rescue, or `adopt_machine` — still requeues. A deployment that admits the
+      no commitment is opened or re-priced. **Then assert the admissible set is exactly one kind**:
+      an exposure-reducing cancellation requeues, and `install`, `adopt_machine`, `power` and
+      `reverse_dns` are each refused on kind. Assert `acknowledge_duplicate_purchase` is rejected as
+      an unknown field, since no requeueable kind places an order. A deployment that admits the
       create case buys a machine the customer holds no credential on with the customer's satoshis
-      (`ADR-0014`). (`OPS-46`, `OPS-4`, `OPS-18`, `WIR-28`)
+      (`ADR-0014`); one that admits `install` lets an operator choose the bytes written to a
+      customer's disk and the host-key decision `SEC-22` reserves for the caller; one that admits
+      `adopt_machine` lets an operator size a customer's commitment (`F39`). *Amended 2026-09-06:
+      this item asserted that four of those five still requeue.* (`OPS-46`, `OPS-4`, `OPS-18`,
+      `WIR-28`, `API-7`)
 - [ ] **CNF-281** **Resolution searches every ordering channel.** Order on one channel, resolve with
       a driver configured to query only the other, and assert the outcome is **not** resolved-absent.
       A driver that declares more than one channel and searches one fails. Without it a customer's

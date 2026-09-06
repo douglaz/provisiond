@@ -76,12 +76,13 @@ operator requeue — and nothing else moves it: no automatic retry, no timer, no
 _Avoid_: terminal (withdrawn 2026-08-13), stuck, errored, retryable
 
 **Requeue**:
-An operator returning a `failed` or `needs_reconciliation` operation to the queue with a fresh
-payload. Available only for kinds whose payload the operation record fully determines — **never a
-create**, whose payload was purged and whose customer cannot be asked for it (`ADR-0014`). It is
-not a retry and not a resolution: a create's roads out are the resolution verbs, or a new create
-the caller submits.
-_Avoid_: retry, replay, re-run, resubmit (that is the caller's word, and it is a second purchase)
+An operator returning a `failed` or `needs_reconciliation` operation to the queue. It exists for
+the one operation **no caller will ever re-issue** — the system-triggered cancellation that stops a
+machine billing — and for nothing else (`OPS-46`). Every other action is the caller's own, on a
+machine the caller owns, and the caller repeats it by calling the endpoint again. It is neither a
+retry nor a resolution.
+_Avoid_: retry, replay, re-run, resubmit (that is the caller's word, and on a create it is a second
+purchase)
 
 **Rescue**:
 A provider-supplied minimal OS booted in place of the installed one, over which provisiond
