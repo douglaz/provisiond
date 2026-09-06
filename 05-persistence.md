@@ -48,26 +48,47 @@ operations.
 
 ### Engine choice
 
-An embedded single-writer engine (SQLite and similar) satisfies all of the above for a
-single-process deployment and was what the reference implementation used. It has two
-consequences that MUST be accepted deliberately:
+**The store is PostgreSQL** (`ADR-0015`, 2026-09-06). An embedded single-writer engine (SQLite and
+similar) satisfies every requirement above for a single-process deployment and was what the
+reference implementation used; `STO-6` is why that is no longer the choice.
 
-**STO-6** With an embedded single-writer store, the service is a single point of failure
-and MUST NOT be run as multiple replicas against a shared file. Horizontal availability
-requires replacing the store with a transactional server-based engine, and the claim and
-lock primitives above are what a replacement must reproduce.
+**STO-6** **AMENDED 2026-09-06 — this is now the reason for an accepted decision rather than a
+standing constraint on the deployment.** With an embedded single-writer store, the service is a
+single point of failure and MUST NOT be run as multiple replicas against a shared file. Horizontal
+availability requires replacing the store with a transactional server-based engine, and the claim
+and lock primitives above are what a replacement must reproduce.
+
+**That single point of failure is a money mechanism.** A machine at a provider bills whether or not
+this process is up, and every mechanism that stops it lives inside this process — `LDG-14`'s
+exhaustion cancellation, `SEC-45`'s one-action suspension, `OPS-14`'s lease sweeper and `OPS-32`'s
+account sweep, of whose interval `OPS-32` says it is "the maximum time a customer can be billed for
+a machine that no longer exists". **A deployment MUST NOT run its store on an engine that forbids a
+second replica**, and the primitives a replacement reproduces are `STO-1`'s engine-checked atomic
+claim, `STO-2`'s conditional lock upsert and `LDG-35`'s per-tenant serialization.
+
+**`LDG-35`'s "MUST state which" is discharged in `ADR-0015`**: per-tenant advisory locks held for
+the transaction, acquired in ascending tenant-identifier order where one transaction spans two
+tenants. *It went unstated for as long as it did because a single-writer engine satisfied it by
+accident — the global write lock serialized everything, so the primitive existed without anyone
+choosing it. This is the third dependency in this set that was being met for free and would have
+broken silently on the engine that meets it deliberately.*
 
 *Note for a future change feed (deferred 2026-08-12 — see `11-open-findings.md`): if one is ever
 built, its cursor needs a per-tenant sequence allocated in the same transaction as each state
-change. On this engine, commit order and allocation order coincide because there is one writer;
-on a server engine they **decouple**, and a `since=seq` reader then silently skips changes that
-committed after a higher sequence was already read. That primitive would join this list — recorded
-now because `STO-27` exists precisely because a primitive was once left off it.*
+change. On the withdrawn engine, commit order and allocation order coincided because there was one
+writer; **on the chosen one they decouple**, and a `since=seq` reader then silently skips changes
+that committed after a higher sequence was already read. **This is no longer a hypothetical about a
+possible engine — it is a property of the store this set has chosen**, so a feed built later owes a
+cursor correct under out-of-order commit rather than a bare sequence. Recorded because `STO-27`
+exists precisely because a primitive was once left off this list.*
 
-**STO-7** Connection-scoped settings (foreign-key enforcement, busy timeout, write-ahead
-logging) MUST be applied to *every* pooled connection, not once at migration time.
-Applying them inside a migration affects only the connection that ran the migration, and
-whether the system behaves correctly then depends on the driver's defaults. See `DEF-12`.
+**STO-7** Connection-scoped settings MUST be applied to *every* pooled connection, not once at
+migration time. Applying them inside a migration affects only the connection that ran the
+migration, and whether the system behaves correctly then depends on the driver's defaults. See
+`DEF-12`. *Amended 2026-09-06: the examples were foreign-key enforcement, busy timeout and
+write-ahead logging, which are the withdrawn engine's pragmas. On PostgreSQL the surface is
+`statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`, the isolation level and
+`search_path` — an entirely different configuration reached by the identical defect (`ADR-0015`).*
 
 ## Schema
 

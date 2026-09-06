@@ -79,6 +79,8 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0011` | Commitments are fixed at open and never auto-widen — save for the scheduled-cancellation branch, the one automatic exception (`LDG-63`); a price move shifts the runway date instead. Closes `F27`; amends `ADR-0003`'s matching claim |
 | `0012` | Abuse handling is the operator's in both directions: the provider's notice, case reference and one-shot statement link never reach a tenant, and a tenant's statement reaches the provider only through the operator. Closes `F34` |
 | `0013` | Catalogue install is a second feature, not a second strategy: DigitalOcean has no rescue API, but imports custom images, so bring-your-own-OS exists on both companies by different means and with different promises. Closes `F32` |
+| `0014` | A create cannot be requeued: the operator cannot re-place the customer's order and `ADR-0002` leaves nobody to ask for it. Closes `F36` by deleting the mechanism that produced it; opens `F38` and `F39` |
+| `0015` | PostgreSQL is the store. The single-writer engine's single point of failure is an outage of every mechanism that stops a machine billing, and `LDG-35`'s "MUST state which" had been met by accident for as long as it stood |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
@@ -210,12 +212,17 @@ written by nothing, read by nothing, and left over from the `holds` model `LDG-3
 
 ## Language and runtime
 
-Nothing in this specification assumes a particular language, HTTP framework, or
-database engine, except where a requirement explicitly says otherwise (see
-`05-persistence.md` for the transactional guarantees the operation queue needs). The
-reference implementation used Rust, an async HTTP framework, and SQLite; only the
-last of those had architectural consequences, and `05` describes what a replacement
-must provide.
+Nothing in this specification assumes a particular language or HTTP framework, and
+`02-provider-contract.md` "deliberately does not give a signature in any language."
+
+**The database engine is no longer open**: it is PostgreSQL (`ADR-0015`, 2026-09-06).
+That was always the one choice with architectural consequences — the reference
+implementation used Rust, an async HTTP framework and SQLite, and only the last of
+those reached the requirements. `05-persistence.md` still states what the store must
+provide rather than how, so a reimplementation is free to satisfy `STO-1`–`STO-7`
+another way; what it may not do is satisfy them on an engine that forbids a second
+replica, because `STO-6`'s single point of failure is an outage of every mechanism
+that stops a machine billing.
 
 ## Status
 

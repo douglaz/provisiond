@@ -363,6 +363,13 @@ transaction, or a conditional write against a versioned balance row, and MUST st
 `STO-1` and `STO-2` specify exactly this kind of primitive for the queue and the machine lock;
 money needs one too, and did not have one.
 
+**Stated 2026-09-06 (`ADR-0015`): per-tenant advisory locks**, held for the transaction and acquired
+in the ascending order the amendment below requires. *The obligation to state one stood unmet from
+the day it was written, because the reference store was an embedded single-writer engine whose
+global write lock served the purpose without anyone selecting it (`STO-6`). A requirement met by
+accident reads as met, which is why this one survived every review that checked whether the rule
+existed rather than whether anything had chosen how to satisfy it.*
+
 **AMENDED 2026-08-31 — two tenants, one transaction, and the primitive cannot depend on a tenant
 row.** `WIR-42`'s attribution appends a correction pair spanning **two** tenants' ledgers and
 `LDG-70` requires every append to happen inside this serialization, so one transaction must hold two

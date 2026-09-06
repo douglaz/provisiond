@@ -241,8 +241,11 @@ conditional machine-lock upsert, guarded settled-state writes, `(principal, idem
 uniqueness, per-tenant serialization for money, an append-only ledger with no update or delete path,
 and deposits that outlive tenant deletion — because an on-chain address stays payable forever, so
 discarding the binding makes a late payment unattributable by construction. An embedded
-single-writer engine satisfies all of it for one process; horizontal availability requires a
-transactional server database reproducing the same primitives.
+single-writer engine satisfies all of it for one process, and **that is why the store is
+PostgreSQL** (`ADR-0015`): the single point of failure such an engine imposes is an outage of every
+mechanism that stops a machine billing, and `LDG-35`'s per-tenant serialization — which the set
+requires a deployment to *state* — had been met by that engine's global write lock without anyone
+choosing it.
 
 ## 5. The money model is the security model
 
