@@ -23,8 +23,11 @@ only because `PRV-20` forbids a refresh that downgrades one.
 **PRV-3** *Get machine* MUST be implemented by every driver. It is the refresh primitive
 the whole lifecycle depends on.
 
-**PRV-4** A driver MUST NOT declare a capability it does not implement, and MUST NOT
-implement an operation whose capability it does not declare (`DOM-15`).
+**PRV-4** A driver MUST NOT declare a capability it does not implement, and — for every
+operation with a capability entry in `DOM-10`'s table — MUST NOT implement one whose capability
+it does not declare (`DOM-15`). The three methods with no entry there — *describe capabilities*,
+*get machine* and *refresh rescue session* — are outside the second clause; `PRV-2` and `PRV-3`
+govern them.
 
 **PRV-5** A driver MUST map provider transport failures to `network`, provider timeouts
 to `timeout`, provider non-2xx responses to `provider` (or the more specific
@@ -38,19 +41,33 @@ additionally validate `external_id` against a provider-appropriate character set
 `external_id` containing `/`, `.`, `?`, or `#` can otherwise redirect the request to a
 different endpoint of the same authenticated account. See `DEF-2`.
 
-**PRV-7** A driver MUST NOT log, return, or store a provider credential, a generated
-rescue password, or a private key. Where it captures a provider response into an error,
-it MUST redact first (`DOM-18`).
+**PRV-7** A driver MUST NOT expose a provider credential, a generated rescue password, or a
+private key in a result, an error, a log or a persisted record; handing a rescue session to the
+engine in-process (`DOM-11`) is not exposure. Where it captures a provider response into an
+error, it MUST redact first (`DOM-18`).
 
 ## Operations
 
 ### Describe capabilities
 
 **Input** — none.
-**Output** — account identifier, provider kind, and the declared capability set.
+**Output** — the descriptor (`PRV-44`).
 
 Pure and synchronous; it MUST NOT perform network I/O. It is called on every capability
 check and on every `GET /v1/providers`.
+
+**PRV-44** The descriptor is a typed, immutable value: `account`, `kind`, `capabilities`,
+`ordering_channels` (each with `correlator: operation_id | per_order_key | none`, `PRV-32`,
+`PRV-33`, `PRV-38`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
+`visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
+`billing_stop_window` of the same shape (`PRV-13b`), `order_budget` `{limit, per}` (`PRV-40`),
+`cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
+`rescue_address_family` (`RSC-45`), and `surviving_attachments` (the kinds that survive deletion,
+each with `cleanup: api | manual`, `PRV-13a`). A field with nothing to declare says so explicitly.
+**A value the engine reads MUST come from here and never from `08-provider-notes.md`**, which is
+commentary on why a descriptor says what it says (`ADR-0018`). `WIR-29` exposes a subset of it.
+`CNF-18` iterates its fields as it iterates capabilities: a declared value has a working code path
+behind it.
 
 ### List offers
 
@@ -136,20 +153,24 @@ category MUST NOT declare `delete_machine`; modelling a contract termination as 
 API call is a business error, not a missing feature.
 
 **PRV-13a** Deleting a machine does not necessarily delete everything billable that was
-attached to it. A driver MUST document which associated resources — volumes, snapshots,
+attached to it. A driver MUST declare which associated resources — volumes, snapshots,
 backups, reserved addresses — survive machine deletion and continue to bill, and MUST expose
-cleanup for every such resource the provider's API can delete. Only resources the API cannot
-reach may be left to an operator procedure, and those MUST be named. A control plane that
-reports a machine deleted while its storage continues to accrue cost is reporting a falsehood.
+cleanup for every such resource the provider's API can delete. **AMENDED 2026-09-08
+(`ADR-0018`) — the declaration and the cleanup both had no carrier.** The kinds are declared in
+the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`, and the
+cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an
+operator procedure, and those are the `manual` ones. A control plane that reports a machine
+deleted while its storage continues to accrue cost is reporting a falsehood.
 
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
 exposure before taking money. That requires, per product: an API path to stop the cost, a
 **measured** worst-case delay before cost actually stops, and cleanup for every billable
-attachment (`PRV-13a`). *"Measured" has a procedure (`F18`): the worst observed
+attachment (`PRV-13a`, `PRV-45`). *"Measured" has a procedure (`F18`): the worst observed
 request-to-billing-stop latency over at least twenty real deletions on that product, in seconds,
-recorded with its sample size and date in the adapter notes — re-measured when the provider
-changes the API. Until twenty samples exist, the driver MUST carry a declared conservative bound
-instead, marked as unmeasured.*
+declared in the descriptor's `billing_stop_window` with its sample size and date (`PRV-44`) —
+re-declared when the provider changes the API. Until twenty samples exist, the driver MUST carry a
+declared conservative bound instead, marked as unmeasured.* The effective value is `PRV-36`'s
+`max(declared, max(observed))` over `STO-53`'s `billing_stop` samples.
 
 The reserve is computed **in the provider's billing currency** and converted once, when the
 commitment is opened or re-sized, into the ledger unit:
@@ -222,8 +243,8 @@ lost create reply lacks. `PRV-36` ranks the sources and bounds their freshness.
 **A driver can resolve a non-create mutation if and only if it can bound the time after which its
 evidence is truthful** — by a source that is truthful immediately (the write path's own report, the
 provider's mutation history) or by `PRV-36`'s measured visibility window on a resource read. A
-driver that can do neither MUST declare so, and its machines MUST carry the unreduced
-`wind_down_cost`.
+driver that can do neither declares so in the descriptor's `evidence_sources` (`PRV-44`), and its
+machines MUST carry the unreduced `wind_down_cost`.
 
 Where a provider genuinely has long-lived *scheduled* and *accepted-pending* states — the
 robot-style cancellation with an effective date (`PRV-13c`, `DOM-19`) — the driver MUST additionally
@@ -247,28 +268,27 @@ evidenced separately. An action reporting `completed` does not establish that bi
 is `LDG-32`'s test and `PRV-13a`'s attachments' as well.
 
 **AMENDED 2026-08-15 — `wind_down_cost` MUST include the time the cancellation spends waiting for
-the machine lock.** Both sizings above measure from the moment the provider is *called*, and
+the machine.** Both sizings above measure from the moment the provider is *called*, and
 neither accounts for reaching that moment. An exposure-reducing cancellation is an ordinary
-operation: it takes the per-machine lock (`OPS-8`), and where a long-running operation already
-holds it — an install, whose lease the heartbeat keeps alive for the whole install (`OPS-7`,
-`OPS-10`) — the cancellation is returned to `queued` with a short delay and retried (`OPS-9`),
-not failed and not escalated. The wait is therefore bounded by the deployment's longest
+operation: it holds the machine (`OPS-8`), and where a long-running operation already
+holds it — an install — the cancellation is deferred with a short delay (`OPS-8`), not failed
+and not escalated. The wait is therefore bounded by the deployment's longest
 machine-holding operation, which on the dedicated product is a full rescue-and-install
 (`06-rescue-install.md`), and it falls on exactly the machine being reinstalled when its funding
 runs out.
 
-The term is **the deployment's stated worst-case machine-lock hold**, and it MUST be stated with
-the other deployment parameters (`LDG-42`). Naming it rather than pre-empting the lock is
-deliberate: the exposure is one machine's burn for one install's duration — bounded, priceable,
-and cheaper than a mechanism that destroys an in-flight install to save it. `OPS-39`'s
-"pacing MAY delay such a cancellation briefly" is what this term prices; *briefly* is the
-install's length, and the reserve must say so.
+The term is **the deployment's stated worst-case operation hold** — the longest an operation may
+hold a machine under `OPS-8` — and it MUST be stated with the other deployment parameters
+(`OVR-19`). Naming it rather than pre-empting the hold is deliberate: the exposure is one
+machine's burn for one install's duration — bounded, priceable, and cheaper than a mechanism that
+destroys an in-flight install to save it. `OPS-39`'s "pacing MAY delay such a cancellation
+briefly" is what this term prices; *briefly* is the install's length, and the reserve must say so.
 
 **Where billing is capped per period, that cap is a catastrophe bound worth having.**
 
 **PRV-13d** A create MAY carry a caller-requested **runway** — how long the machine should be
 guaranteed to run before an exhausted balance can cancel it. The deployment MUST enforce a floor
-equal to `wind_down_cost`'s duration, below which the operator is not covered, and MUST reject a
+equal to `wind_down_cost`'s duration (`OVR-19`), below which the operator is not covered, and MUST reject a
 create whose available balance cannot fund the resulting commitment. Making runway a caller input
 rather than an operator constant matters because the caller is software that knows its own
 intent: a two-hour scratch box and a machine meant to survive a month should not freeze the same
@@ -304,7 +324,7 @@ works monthly**, and four things break outright:
   of "two derivation periods" inside one night. Both are describing hours; the requirement said a
   month.
 
-**A deployment MUST state the interval with the other deployment parameters (`LDG-42`), and it MUST
+**A deployment MUST state the interval with the other deployment parameters (`OVR-19`), and it MUST
 be short enough that all four of those hold.** *Hourly is the sensible default*, which makes
 `LDG-16`'s persistence window a couple of hours, `PRV-13c`'s "materially in the future" a few hours
 plus wind-down, and `runway_until` never more than an hour stale. The floor is the cost of the pass
@@ -314,16 +334,13 @@ machine can drain its whole commitment inside one interval and nothing would not
 **The billing period and the re-derivation interval are different quantities and MUST NOT be
 derived from each other.** The period is a **boundary** for the meter's arithmetic
 (`LDG-68`); this is a **staleness bound** on a price-derived date. `LDG-68` fused them in a sentence
-about what a phrase had carried, and the fusion is withdrawn there as well. The commitment is fixed at open and exactly **three** paths
-increase it: a caller action (`LDG-62`), an operator requeue of a create, which reprices the
-commitment it reuses at the current rate (`OPS-20`), and the scheduled-cancellation exception
-(`LDG-63`) — the one automatic one. *Version one said a
+about what a phrase had carried, and the fusion is withdrawn there as well. The commitment is fixed at open and exactly **two** paths
+increase it: a caller action (`LDG-62`) and the scheduled-cancellation exception
+(`LDG-63`) — the one automatic one (`ADR-0017` deleted the third). *Version one said a
 higher re-derivation places "an additional hold" — stacking a second reservation, the double-count
 `LDG-9` was amended to remove. Version two re-sized the single commitment upward automatically —
 solving the operator's anxiety with the customer's money, and creating a freeze surface where one
-bad rate reading grabs every tenant's available balance. Version three named only two growth paths
-after `OPS-20`'s requeue top-up was added, so a builder implementing this requirement literally
-would refuse the top-up `OPS-20` mandates.* Where the recomputed runway has already
+bad rate reading grabs every tenant's available balance.* Where the recomputed runway has already
 run out, the machine enters the same
 balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
 MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to
@@ -349,7 +366,8 @@ create. **The machine's *actual* date, read after ordering, updates the
 cost-through-earliest-cancellation-date term of `LDG-33`'s `protected_sats` — it MUST NOT
 resize the commitment.** A shorter actual term therefore lengthens the customer's runway rather than
 returning satoshis, which is the same money reaching the customer through the mechanism
-`ADR-0011` sanctions instead of through an automatic resize it forbids. In practice the bound is trivial for the launch set — current Robot
+`ADR-0011` sanctions instead of through an automatic resize it forbids. The bound is declared in
+the descriptor's `cancellation_bound` (`PRV-44`), or reported on the offer. In practice the bound is trivial for the launch set — current Robot
 dedicated servers have no minimum term and a new machine's date is normally today
 (`08-provider-notes.md`) — and adoption never needs it, because an adopted machine's date is read
 before its commitment opens (`PRV-28`, `LDG-36`).
@@ -374,6 +392,30 @@ each asserted a different set of terms for the same provider, and two of the thr
 Assumptions about commercial terms do not survive review, and they do not survive the provider
 changing them. Adoption is the main road onto the exception branch, not a legacy curiosity: an
 adopted machine carries whatever contract it came with.*
+
+### List attachments / Release attachment
+
+**Input** — *list attachments*: `external_id`. *Release attachment*: an attachment's `kind` and
+`external_id`.
+**Output** — *list*: the attachments the provider still holds for that machine, each
+`{kind, external_id, billable, cleanup: api | manual}`. *Release*: an action result with
+delete's outcome classes.
+**Capability** — `delete_machine`. No capability of their own: a driver that can delete a
+machine can say what it left behind (`ADR-0018`).
+
+**PRV-45** *List attachments* is read-only under `PRV-12`'s guarantee. The engine MUST call it on
+every delete that succeeds with the resource gone and MUST write one `machine_attachments` row
+(`05-persistence.md`) per attachment returned, in the same transaction as the delete's outcome.
+*Release attachment* is its own operation kind, `release_attachment` (`WIR-10a`), one operation
+per `machine_attachments` row: enqueued by the delete's terminal transaction for every `billable`
+row whose `cleanup` is `api`, and by an operator against a row that still holds `STO-18`'s
+tombstone gate open. It is a kind rather than a phase of the delete because a delete that succeeded
+with the resource gone and a release that failed ambiguously are two facts, and one operation
+cannot carry two statuses — the shape `ADR-0017` corrected on the episode. It holds the machine
+under `OPS-8`, MUST be safe to call twice — a provider answering "already deleted" is reporting
+the goal state, which `OPS-11` classifies as success — and its failures classify under `OPS-11`'s
+delete row. A successful release writes the row's `released_at` in its terminal transaction; a
+`manual` row is released only by an operator.
 
 ### Power
 
@@ -469,9 +511,9 @@ capability had nothing to implement and `DOM-15`'s "declaration and implementati
 unsatisfiable in one direction. **The operation is three provider calls and MUST be exposed as
 three**, because each fails independently and two of them cost money:
 
-- **import** — submit the URL, then poll to a usable state, both **outside the machine lock**
-  (`RSC-41`) and inside that requirement's stated maximum wait;
-- **build** — the switch-over, under the machine lock, re-validated first (`OPS-23`); this is where
+- **import** — submit the URL, then poll to a usable state, both **with the operation yielded**
+  (`RSC-41`, `OPS-8`) and inside that requirement's stated maximum wait;
+- **build** — the switch-over, holding the machine, re-validated first (`OPS-23`); this is where
   the driver may reuse whatever it uses for *Rebuild*, but the capability gate is the catalogue one
   (`DOM-10`), because the caller's promise is `DOM-28`'s and not `native_rebuild`'s;
 - **delete the imported image** — called on settle and on entry to `needs_reconciliation`
@@ -517,7 +559,7 @@ to a human.
 
 Three constraints on what is written:
 
-- **It MUST be opaque and unique per operation, and it is recorded once per attempt.** The
+- **It MUST be opaque and unique per operation, and it is recorded once.** The
   operation UUID where the provider offers a free caller-controlled field; where it does not, a
   per-order artifact durably bound to the operation before the order is sent (`PRV-32`'s SSH key
   fingerprint is the live case). Nothing else. Whichever it is, the kind and the value MUST be
@@ -533,19 +575,8 @@ Three constraints on what is written:
 - **It MUST survive the payload purge.** The correlator is a provider-side identifier, which
   `OPS-13` already requires be retained, so it outlives the request body it was derived from.
 
-**AMENDED 2026-09-05 — one create, one correlator. The list is withdrawn** (`OPS-46`, `ADR-0014`).
-
-*The withdrawn text made `correlator_value` "a list, one entry per attempt", because `OPS-20`
-requeue of an ordering operation placed a **second physical order** and, where the correlator is a
-per-order artifact rather than a free field, that second order necessarily carried a different
-value. A single stored pair then forced a choice between two broken outcomes: replace it and the
-first attempt's machine becomes unfindable forever, or reuse the first attempt's key and break the
-per-order uniqueness `PRV-32` rests on. The list resolved that. It also carried the sentence "Where
-the correlator is the operation UUID the list simply holds that one value, however many attempts
-were made" — which is what `F36` was about, because a list of identical values names no attempt.*
-
-**A create can no longer be requeued, so a create has exactly one attempt and records exactly one
-correlator.** `correlator_kind` and `correlator_value` are a single pair on the operation, written
+**A create has exactly one attempt and records exactly one correlator** (`ADR-0014`, `ADR-0017`).
+`correlator_kind` and `correlator_value` are a single pair on the operation, written
 before the order is sent. `OPS-27`'s search has one value to try. `OPS-38`'s cardinality check is
 **not** thereby unnecessary: `API-51` makes a duplicate purchase reachable across two separate
 operations under two idempotency keys, and a provider can produce two resources from one order, so
@@ -684,7 +715,8 @@ an ambiguous create on that channel MUST resolve to an operator, never to a gues
 its ordering channels" was added 2026-09-05: `PRV-32`'s live verification covered Hetzner Robot's
 auction channel and not its standard one, so the correlator is a per-channel fact and a provider-wide
 reading either forced manual resolution on a verified channel or automated it on an unverified
-one.* The driver MUST declare the absence, the deployment MUST surface
+one.* The driver declares the absence as that channel's `correlator: none` in the descriptor's
+`ordering_channels` (`PRV-44`), the deployment MUST surface
 the recent-order listing to the operator as evidence, and attaching a discovered machine to a
 tenant MUST be an operator action (`OPS-31`, `WIR-35`) — `OPS-29`'s prohibition on heuristic
 matching by hostname and timing is not relaxed by the correlator being unavailable. **The
@@ -735,7 +767,7 @@ driver that reads "the machine still exists" as "the delete failed" therefore re
 deletion as a failure, and the remedy for a failed delete is to perform it again.
 
 **Per mutation kind it can be asked to resolve, a driver MUST declare its evidence sources in
-descending strength:**
+descending strength** — the descriptor's `evidence_sources` (`PRV-44`):
 
 1. **The mutation endpoint's own report that the goal state already holds.** Truthful immediately;
    it comes from the write path. *(The same measurement found `DELETE /v2/images/{id}` answers `422`
@@ -753,20 +785,23 @@ stronger one.
 **For the resource read the driver MUST declare a measured visibility window** in seconds, with
 sample size and date, under `PRV-13b`'s procedure — the worst observed request-to-observation
 latency over at least twenty real mutations — carrying a declared conservative bound marked
-**unmeasured** until twenty samples exist. Every ordinary mutation is a free sample. The window MUST
-be widened by any observed sample that exceeds it, and MUST NOT be narrowed except by
-re-measurement.
+**unmeasured** until twenty samples exist. **AMENDED 2026-09-08 (`ADR-0018`) — the effective
+window is a max, not the declaration.** The declared value lives in the descriptor's
+`visibility_window` (`PRV-44`), immutable. The engine writes every ordinary mutation and every
+resolution as an observed sample to `provider_observations` (`STO-53`), and the effective window
+is `max(declared, max(observed))`. Widening by an observed sample that exceeds the declaration is
+thereby automatic; narrowing is a human re-declaring and archiving the samples.
 
 **Within the window, a read showing the pre-mutation state is no evidence and resolution stays
 pending.** `OPS-27`'s resolution MUST NOT take its first read before the window has elapsed. **A
 read showing the post-mutation state is evidence at any time, and MUST NOT be reverted by a later
 contrary read** — reads flap in both directions, and a resolution already reached on absence is not
-undone by a stale replica. Beyond the window, a read still showing the pre-mutation state resolves
+undone by a stale read. Beyond the window, a read still showing the pre-mutation state resolves
 the mutation as *not applied*.
 
 **Exceeding a declared window is a breach of the declaration, not a resolution.** It MUST be
-surfaced, MUST widen future sizing, and MUST NOT authorize a replay — `OPS-12` is untouched by this
-requirement.
+surfaced, it widens future sizing through `STO-53`, and it MUST NOT authorize a replay — `OPS-12`
+is untouched by this requirement.
 
 **Visibility and billing-stop are separate measurements and MUST NOT be conflated.** `PRV-13b`'s
 delete-to-billing-stop latency asks a different question, overlaps this one in time, and is still
@@ -781,7 +816,7 @@ auction market keep separate listings: with one live auction order outstanding,
 
 `OPS-27` requires a search over "**every correlator the operation recorded**". That is necessary and
 not sufficient. **The union MUST also be taken over every ordering channel the driver can order
-through**, and a driver MUST declare its channels.
+through**, and a driver declares its channels in the descriptor's `ordering_channels` (`PRV-44`).
 
 The cost of getting it wrong is not a missed match. A resolution that searched one channel and found
 nothing reaches `OPS-27`'s second row — "The provider's search is authoritative and returns nothing
@@ -817,15 +852,15 @@ requests per day** on each of its two order endpoints, and 200 per hour on cance
 **[observed 2026-09-04]**
 
 This is a ceiling on how many machines the whole deployment can provision in a day, shared across
-every tenant, and three things spend from it that nothing in this set counts: an ordinary create,
-**every `OPS-20` requeue** — which is one more reason a requeue is not a free retry — and every
-conformance run that places an order, including a simulated one.
+every tenant, and two things spend from it that nothing in this set counts: an ordinary create and
+every conformance run that places an order, including a simulated one.
 
-The deployment MUST state the limit and MUST refuse a create deterministically, before any provider
-call, once the budget is exhausted. `OPS-11` requires that shape: such a refusal is decided "before
-any driver call" and classifies `failed` for every operation kind, so nothing ambiguous is created
-and no reconciliation is owed. **A limit first encountered during an incident is encountered exactly
-when requeue is being used most.**
+The limit is declared in the descriptor's `order_budget` `{limit, per}` (`PRV-44`); the deployment
+MAY lower it and MUST NOT raise it (`OVR-19`). The deployment MUST refuse a create
+deterministically, before any provider call, once the budget is exhausted. `OPS-11` requires that
+shape: such a refusal is decided "before any driver call" and classifies `failed` for every
+operation kind, so nothing ambiguous is created and no reconciliation is owed. **A limit first
+encountered during an incident is encountered exactly when creates are being placed fastest.**
 
 **PRV-41** **An authentication failure MUST NOT be retried against a provider that locks out on
 repeated failures.** Hetzner Robot blocks the **source IP for ten minutes after three failed login
@@ -866,12 +901,8 @@ This is stronger than a correlator search on four counts: it is an identity look
 "A correlator match MUST be exact" is satisfied by construction; it is not bounded by a transaction
 listing's retention, which removes `OPS-33`'s hardest limit on this channel; it needs no ordering
 permission, which a webservice user may not hold (`08-provider-notes.md`); and **it supplies
-per-attempt discrimination for free**, because a create has exactly one attempt (`OPS-46`) and its
-identity is known before the order is sent. *Until 2026-09-05 this clause read "because a requeue
-must name a different listing — the first is gone the moment anyone buys it", which was overbroad
-even while create requeue existed: an attempt that failed deterministically before any provider call
-bought nothing, so the listing could still be available and a requeue could name the same one.
-`ADR-0014` removed the case rather than the overstatement, and both are corrected here.*
+per-attempt discrimination for free**, because a create has exactly one attempt (`ADR-0014`) and
+its identity is known before the order is sent.
 
 A driver MUST declare, per ordering channel, whether the offer identifier is the resource
 identifier, and MUST prefer the identity read where it is. **This does not reach a catalogue
@@ -918,6 +949,7 @@ A new driver is expected to:
 4. Map provider status strings to normalized machine states, mapping the unrecognized to
    `unknown` (`DOM-7`).
 5. Encode every path segment (`PRV-6`).
-6. Record, in `08-provider-notes.md`, the answers to: does key material get copied at
-   create time or read later (`PRV-9`)? does the provider publish rescue host keys
-   (`PRV-16`)? is deletion an API call or a contract process (`PRV-13`)?
+6. Declare, in the descriptor (`PRV-44`), every value the engine reads. The reasoning behind
+   each — does key material get copied at create time or read later (`PRV-9`)? does the
+   provider publish rescue host keys (`PRV-16`)? is deletion an API call or a contract process
+   (`PRV-13`)? — is commentary and goes in `08-provider-notes.md`.

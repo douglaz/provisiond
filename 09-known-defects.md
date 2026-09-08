@@ -151,9 +151,11 @@ the database file.
 
 The expiry sweep ran at the top of the worker loop, which polled every 750 ms when idle,
 producing two write transactions per second forever against an embedded single-writer
-database — for a condition that changes on the scale of the lease duration.
+database — for a condition that changed on the scale of a lease duration.
 
-**Prohibition** — tie the sweep interval to the lease duration (`OPS-17`).
+**Prohibition** — a periodic job runs on an interval of its own, never on the idle loop's poll.
+The expiry sweep itself no longer exists: with one engine process there are no leases, and an
+interrupted operation is found by `OPS-15`'s startup pass (`ADR-0016`).
 
 *Reference: `crates/server/src/worker.rs:30-40`.*
 
@@ -163,8 +165,9 @@ Requeue re-executed the original request verbatim. For a create against an order
 provider that is a second purchase, gated by nothing beyond the same tenant token that
 placed the first one.
 
-**Prohibition** — requeue is operator-only (`API-19`) and re-purchase MUST be explicit
-(`OPS-20`).
+**Prohibition** — a create gets exactly one attempt and nothing re-places the order (`ADR-0014`);
+requeue itself no longer exists (`ADR-0017`), and the surviving operator recovery, `API-64`'s retry
+of a `stalled` episode, re-issues only a cancellation and never a purchase.
 
 *Reference: `crates/server/src/store.rs:437`.*
 

@@ -73,7 +73,7 @@ things the undefined phrase was carrying, and defining the phrase as a calendar 
 re-derivation to **monthly** — under which `runway_until` is up to a month stale, `LDG-16`'s
 "persist across more than one derivation" becomes two months, and `PRV-13c`'s "materially in the
 future" swallows every cancellation date under about thirty days. `PRV-13e` now states its own
-interval, defaulting to hourly, and `LDG-42` carries it as a separate deployment parameter.
+interval, defaulting to hourly, and `OVR-19` carries it as a separate deployment parameter.
 
 **Two quantities, and the distinction is worth holding on to:** a billing period is a **boundary** —
 where `LDG-38`'s increment closes and its rounding credit starts afresh, and which entries a
@@ -92,7 +92,7 @@ period placement a range scan on `(subject_kind, subject_id, billing_period, kin
 `LDG-38` stopped netting over entries on 2026-09-02, and the word had survived in every document
 but the one that changed.*
 
-**This is a deployment parameter only in the sense that it MUST be stated** (`LDG-42`): it is fixed
+**This is a deployment parameter only in the sense that it MUST be stated** (`OVR-19`): it is fixed
 at deployment and MUST NOT vary per tenant, because a correction naming an entry in another
 tenant's period arithmetic is not a case any requirement here defines.
 
@@ -153,8 +153,8 @@ late-attach branch, which deliberately opens **no** commitment at all, leaving `
 thing that can open one on that machine. `05-persistence.md` marks the column nullable for exactly
 this. What a commitment is a reservation *against* is the machine, not the operation.
 
-**A machine MUST have at most one `open` commitment at a time.** This is the invariant `OPS-20`'s
-reuse rule and `LDG-31`'s "that machine's commitment" both rest on, and until now it was stated
+**A machine MUST have at most one `open` commitment at a time.** This is the invariant
+`LDG-31`'s "that machine's commitment" rests on, and until now it was stated
 only as a storage constraint (`05-persistence.md`). It does not forbid a machine having two
 commitments over its life: a create's is opened before the machine row exists — identified by its
 operation until then — and `OPS-36`'s wind-down commitment is opened only after `OPS-33` closed
@@ -173,7 +173,6 @@ stateDiagram-v2
 
     Open --> Open : usage_debit posted<br/>LDG-31 decrements by the same<br/>amount, same transaction
     Open --> Open : extend-runway<br/>LDG-62, caller action, fenced by OPS-42
-    Open --> Open : operator requeue re-prices<br/>OPS-20, at the current rate
     Open --> Open : scheduled-cancellation top-up<br/>LDG-63, the one automatic growth
 
     Open --> Closed : machine and every billable<br/>attachment stopped billing<br/>LDG-32, STO-18
@@ -338,8 +337,7 @@ at the exact moment of cancellation, on every ordinary exhaustion rather than on
 `LDG-16`'s invariant ("still covers wind-down at the current rate") is satisfiable only with
 `protected_sats` subtracted first. A commitment is sized once at open, decays as usage is debited
 (`LDG-31`), and **is never increased without an explicit authorizing action** (`LDG-62`'s caller
-extend-runway, or `OPS-20`'s operator requeue re-pricing the commitment it reuses; the scheduled-
-cancellation branch is the one automatic exception, `LDG-63`). *The withdrawn text resized the commitment
+extend-runway; the scheduled-cancellation branch is the one automatic exception, `LDG-63`). *The withdrawn text resized the commitment
 to preserve the runway date, which spent three design rounds on widening speed before the
 interviewee's observation dissolved it: every authorization prices at the current rate, usage
 debits at spot, so a price move belongs to the runway date — the customer's purchasing power —
@@ -360,8 +358,8 @@ transactions can each read the same balance and each commit, leaving twice the b
 and one machine unfunded. This is write skew, and it commits without error under both READ
 COMMITTED and SNAPSHOT isolation. A deployment MUST use a per-tenant lock, a serializable
 transaction, or a conditional write against a versioned balance row, and MUST state which.
-`STO-1` and `STO-2` specify exactly this kind of primitive for the queue and the machine lock;
-money needs one too, and did not have one.
+`STO-1` and `STO-51` specify exactly this kind of primitive for the queue and for one running
+operation per machine; money needs one too, and did not have one.
 
 **Stated 2026-09-06 (`ADR-0015`): per-tenant advisory locks**, held for the transaction and acquired
 in the ascending order the amendment below requires. *The obligation to state one stood unmet from
@@ -386,23 +384,23 @@ primitives — which this requirement never contemplated and never ordered. Ther
 *Found by a cross-model review of the abuse and attribution surfaces. The deadlock is the visible
 half; the missing lock row is the one that fires on the common case.*
 
-**LDG-69** **AMENDED 2026-08-31 — stated as a lock order, because the absolute form forbade what
-`OPS-41` requires.** A deployment MUST hold `LDG-35`'s primitive for the duration of one database
-transaction and no longer. While it is held, an implementation MUST NOT wait on an operation lease,
-a machine lock (`OPS-8`, `machine_locks`), the completion of a child operation (`API-58`,
+**LDG-69** **AMENDED 2026-09-08 (`ADR-0016`) — the machine lock is deleted; the rule binds the hold
+`OPS-8` defines instead.** A deployment MUST hold `LDG-35`'s primitive for the duration of one
+database transaction and no longer. While it is held, an implementation MUST NOT wait on a running
+operation's hold on its machine (`OPS-8`), the completion of a child operation (`API-58`,
 `WIR-39`), or any provider call.
 
-**The permitted order is one-way: operation lease → machine lock → a short tenant-serialized
-transaction.** A worker holding the machine lock MAY enter the serialization for a bounded read or
-write; **a transaction under the serialization MUST NOT acquire or wait on the machine lock.** One
-direction cannot form a cycle, and `OPS-9` makes the machine lock try-and-defer rather than wait, so
-nothing blocks on it either.
+**The permitted order is one-way: a running operation's hold on its machine (`OPS-8`) → a short
+tenant-serialized transaction.** A worker whose operation holds the machine MAY enter the
+serialization for a bounded read or write; **a transaction under the serialization MUST NOT acquire
+or wait on a machine.** One direction cannot form a cycle, and `OPS-8` makes taking a machine
+try-and-defer rather than wait, so nothing blocks on it either.
 
-*The withdrawn clause was "a worker holding the machine lock MUST NOT enter it", stated absolutely
-and then followed by an ordering for the case it had just forbidden. Two independent reviewers
-found the contradiction. It was written when nothing needed the nesting; `OPS-41` was added a week
-later and is exactly a machine-lock-holding worker that must read commitment state another
-transaction writes under this primitive.*
+*The clause withdrawn on 2026-08-31 forbade a worker holding the machine from entering the primitive
+at all, and then ordered the case it had just forbidden. Two independent reviewers found the
+contradiction. It was written when nothing needed the nesting; `OPS-41` was added a week later and
+is exactly a machine-holding worker that must read commitment state another transaction writes
+under this primitive.*
 
 **And the order alone does not make `OPS-41` correct** — which is the sharper half, and both
 reviewers reached it independently. The window that matters is **between the read and the provider
@@ -413,34 +411,32 @@ Entering the serialization changes nothing about that. `OPS-41`'s correctness re
 
 **AMENDED 2026-09-02 — but the fence needs the nesting this requirement permits, so the permission
 is now load-bearing rather than theoretical.** `OPS-42` requires `OPS-41`'s funding read and the
-fence write to be **one** transaction under this primitive, taken by a worker that already holds the
-machine lock: without that, the extension commits between the read and the write, the fence column is
-still null when the worker writes it, and the machine is destroyed anyway. So the permitted direction
-above — machine lock, then a short tenant-serialized transaction — is exactly what the fence is built
-on, and the prohibition that matters is the other clause: **the provider call happens after that
-transaction commits**, never inside it.
+fence write to be **one** transaction under this primitive, taken by a worker whose operation already
+holds the machine: without that, the extension commits between the read and the write, the fence
+column is still null when the worker writes it, and the machine is destroyed anyway. So the
+permitted direction above is exactly what the fence is built on, and the prohibition that matters is
+the other clause: **the provider call happens after that transaction commits**, never inside it.
 
-**This stated an invariant the set satisfied by accident, and as of 2026-09-02 it no longer does.**
-Every `LDG-35`-serialized path *used to be* machine-lock-free — enqueue-time
-authorization (`LDG-11`), `OPS-27`'s resolution (made "by no worker and under no lease",
-`OPS-3`), `OPS-36`'s late attach, the meter (`LDG-38`), extend-runway (`LDG-62`) — and a create
-holds no machine lock at all, because `OPS-8` binds the lock to an operation that *names* a
-machine and a create's `machine_id` is set only on completion (`05-persistence.md`). **`OPS-41`'s
-re-check is now the first path that genuinely nests**, which is why this requirement was written as
-a lock *order* rather than a prohibition, and why `CNF-217` asserts the boundary — no lease, no
-machine-lock acquisition, no child wait and no provider call from *inside* the primitive — rather
-than asserting that nothing outside it holds a lock. The one
-entry kind that would put a debit inside a machine-locked worker is `operation_fee_debit`, and
-`LDG-25` prices privileged operations at zero in v1 — so it is defined, paired by `LDG-31`, and
-posted by nothing. **Price an install and the nesting becomes reachable in the same release**,
-which is why the rule is written now rather than when it first bites.
+**`OPS-41`'s re-check is the one path that genuinely nests.** Every other `LDG-35`-serialized path —
+enqueue-time authorization (`LDG-11`), `OPS-27`'s resolution, `OPS-36`'s late attach, the meter
+(`LDG-38`), extend-runway (`LDG-62`) — runs under no operation's hold on a machine, and a create
+holds none at all, because `OPS-8` binds the hold to an operation that *names* a machine and a
+create's `machine_id` is set only on completion (`05-persistence.md`). That is why this requirement
+is written as an *order* rather than a prohibition, and why `CNF-217` asserts the boundary — no
+acquisition of a machine, no child wait and no provider call from *inside* the primitive — rather
+than asserting that nothing outside it holds one. The one entry kind that would put a debit inside
+a machine-holding worker is `operation_fee_debit`, and `LDG-25` prices privileged operations at zero
+in v1 — so it is defined, paired by `LDG-31`, and posted by nothing. **Price an install and the
+nesting becomes reachable in the same release**, which is why the rule is written now rather than
+when it first bites.
 
 *Recorded because it was checked: an earlier review asserted a live lock-order inversion between
-the machine lock and this primitive, and two independent reviewers refuted it on the reading above.
+the machine hold and this primitive, and two independent reviewers refuted it on the reading above.
 What survived the refutation was the absence of any boundary rule at all — nothing said a money
 transaction may not outlive itself — and that is what this requirement supplies.*
 
-**LDG-11** Opening the commitment and enqueuing the operation MUST be one transaction. A
+**LDG-11** Opening the commitment and enqueuing the operation MUST be one transaction — `store`'s,
+the only module that opens one (`OVR-9`). A
 commitment without an operation silently freezes a customer's money; an operation without a
 commitment spends the operator's. This is the requirement `ADR-0001` was decided on.
 
@@ -524,7 +520,7 @@ nothing in the system raises anything.
 **The residual is the sweep interval, and it is therefore a money parameter.** `OPS-32` already
 requires the interval to be stated; it is **this rule's error bound**, the maximum time a customer
 can be billed for a machine that is gone, and it MUST be stated as such with the other deployment
-parameters (`LDG-42`) rather than chosen as an operational convenience.
+parameters (`OVR-19`) rather than chosen as an operational convenience.
 
 **A confirmed account termination stops every meter in the account, machines and attachments
 alike.** Recording `terminated` (`API-63`, `SEC-46`) is an authoritative observation that the whole
@@ -958,7 +954,6 @@ unstated:
 | Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below. `LDG-67`'s parked obligation is settled either way, in `OPS-27`'s single resolution transaction* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider — **except where the provider's own transaction shows the order landed and a fee was charged for a machine that is nonetheless gone** (`OPS-27`'s direct read past the visibility window), in which case the fee is an **operator deficiency** (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged (*row added 2026-09-05*) |
 | Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
-| ~~Operator requeue out of `needs_reconciliation`~~ | **WITHDRAWN 2026-09-05** — a create cannot be requeued (`OPS-46`, `ADR-0014`), so this row has no trigger. *It read: never debited for the superseded attempt, the parked obligation cleared and the fresh attempt settling its own fee, because keeping the old one alive would bill one machine's setup twice. The row that replaces it is `abandoned`, where the fee becomes an operator deficiency* |
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
 a deterministic rejection or a resolved-absent create left the customer paying a non-refundable
@@ -1091,7 +1086,7 @@ usage cannot be converted to satoshis. A deployment MUST:
   `rate_outage_deadline`, null when no outage is in progress (`WIR-11`)**: otherwise a machine whose advertised `runway_until` is months away is destroyed for a
   reason its owner was never told about and cannot act on — `LDG-14` promises destruction at
   runway exhaustion and this is a second, undisclosed trigger. The bound is the operator's own
-  loss limit, and it MUST be stated with the other deployment parameters (`LDG-42`).
+  loss limit, and it MUST be stated with the other deployment parameters (`OVR-19`).
 
 **LDG-66** **An operator deficiency is a durable record of its own, and it is NOT a ledger
 entry.** `LDG-7`'s entry kinds are closed and every one of them moves *tenant* satoshis, so the
@@ -1139,28 +1134,14 @@ availability behaviour, not implementation.
 
 ## Money in
 
-**LDG-42** **A funding path MUST exist and MUST be specified.** The first version gated tenant
-activation on "a payment has been credited" (`API-35`) and made a payment notification a BLOCKING
-conformance item (`CNF-94`) while specifying no endpoint that takes money — the only path that
-turns a stranger into a customer was missing entirely.
-
-**AMENDED — this requirement previously listed what a deployment must decide; `ADR-0008` decided
-it.** `LDG-46`–`LDG-57` are the decisions. What survives as a deployment obligation is narrower:
-the confirmation depth of `LDG-48`, the per-rail floors of `LDG-52`, the **deposit expiry** of
-`LDG-54`, and the channel-balance treatment of `LDG-53` are all deployment parameters, and each
-MUST be stated rather than left to an implementer's judgement.
-
-**AMENDED 2026-09-02 — four more parameters were mandated by requirements that sent a reader here,
-and this list did not have them.** Each is money, not operations:
-
-- **`PRV-13e`'s re-derivation interval**, separate from `LDG-68`'s billing period, and the bound on
-  how stale `runway_until` may be;
-- **`OPS-32`'s account-sweep interval**, which `LDG-74` makes the maximum time a customer can be
-  billed for a machine the provider has destroyed;
-- **`PRV-13b`'s worst-case machine-lock hold**, which sits inside `wind_down_cost` and therefore
-  inside the commitment every customer posts before buying anything;
-- **`LDG-64`'s maximum tolerated rate outage**, which is a second trigger that destroys a machine
-  and which `WIR-30` must disclose before purchase.
+**LDG-42** **AMENDED 2026-09-08 — the money parameters are on `OVR-19`'s register, and this
+requirement no longer carries a list of its own.** A funding path MUST exist and MUST be specified:
+`ADR-0008` decided it and `LDG-46`–`LDG-57` are the decisions. Every deployment parameter those
+decisions leave open — and every other money parameter the requirements in this document mandate —
+is a row on `OVR-19`, which is the only register; a value stated anywhere else is not a parameter.
+*The first version of this requirement gated tenant activation on "a payment has been credited"
+(`API-35`) while specifying no endpoint that takes money; two later amendments accumulated a list
+here that a reader had to reconcile with three others, which is what `OVR-19` replaces.*
 
 *A requirement that says "MUST be stated with the other deployment parameters" and points at a list
 it is not on has stated nothing. Four did.* The expiry is the load-bearing one:
@@ -1356,25 +1337,15 @@ released. *Amended 2026-09-02: this sentence named the debit and the drop and le
 outcome — now the ordinary one on a late resolution — with no rule for the parked obligation at all.* **On `abandoned`
 (`OPS-31`) the fee is an operator
 deficiency** (`LDG-66`): the operator gave up establishing whether the order landed, and charging
-a customer for an outcome nobody established is not defensible. **On an operator requeue**
-(`OPS-3`'s `needs_reconciliation → queued`, `OPS-4`) **the parked fee is cleared and nothing is
-debited for it**: the requeue re-executes the order, and the fresh attempt commits and settles its
-own setup fee under `LDG-39`, so keeping the old obligation alive would bill one machine's setup
-twice. It moves no satoshis while it sits there, so it is not a `LDG-7` entry kind — the same
-reason `LDG-66`'s deficiencies are not.
+a customer for an outcome nobody established is not defensible. The obligation moves no satoshis
+while it sits there, so it is not a `LDG-7` entry kind — the same reason `LDG-66`'s deficiencies
+are not.
 
 **AMENDED 2026-09-05 — the scalar and the record are the same fee, because there is one attempt**
-(`OPS-46`, `ADR-0014`). A create cannot be requeued, so there is never a superseded attempt whose
+(`ADR-0014`). A create has exactly one attempt, so there is never a superseded attempt whose
 order might still be the one that landed, and the parked columns and `request_summary`'s retained
 fee describe the same order. Resolution settles that fee: debited against a still-open commitment,
 or carried as an operator deficiency where `OPS-33` released it (`LDG-39`'s late-fee row).
-
-*The withdrawn amendment of 2026-08-14 made the three columns "the *latest* attempt's fee" while
-resolution debited "the *matched* attempt's", kept per-attempt in `request_summary`, because a
-requeued create could have several attempts outstanding at once and clearing the parked scalar on
-requeue left nothing behind for the superseded one. It was correct machinery for a mechanism that no
-longer exists, and `F36` is the finding that its selection step had no discriminator wherever the
-attempts shared a correlator.*
 
 ## Pricing
 
@@ -1464,9 +1435,7 @@ extension MUST be sized `requested runway × current customer rate + protected_s
 the same shape a create uses: sized at the requested runway alone it would advertise as runnable
 time the satoshis wind-down and any cancellation date already need, which is exactly the error
 `LDG-33` exists to prevent. It is the only way a **caller** grows a commitment; the only other
-growth paths are `LDG-63`'s scheduled-cancellation top-up and `OPS-20`'s requeue, which re-prices
-the commitment it reuses at the current rate through this same mechanism and is an operator
-purchase decision passing a fresh create's spending gates. It MUST be idempotent per `API-8` — two
+growth path is `LDG-63`'s scheduled-cancellation top-up. It MUST be idempotent per `API-8` — two
 concurrent extends must not reserve twice.
 
 **It is fenced, and this requirement carries the obligation rather than merely being cited for it**

@@ -1,24 +1,30 @@
 # 08 — Provider adapter notes
 
-Facts about specific provider APIs that shaped the architecture and are worth carrying
-forward. **Provenance is per fact, not per document**: many notes were read out of a reference
-implementation's adapters and never checked, several have since been verified against current
-provider documentation and carry the date, and the DigitalOcean section below came from neither —
-the reference set had no such driver. Each note carries a confidence marker, and the marker on the
-individual note governs:
+**This document carries no value the engine reads.** Every declaration the engine turns on —
+capabilities, ordering channels and their correlators, evidence sources, the visibility and
+billing-stop windows, the order budget, the cancellation bound, the rescue address family, the
+attachments that survive deletion — lives in the driver's descriptor (`PRV-44`), and a driver
+that declares it here and not there has declared nothing (`ADR-0018`). What lives here is why a
+descriptor says what it says: the provider facts that shaped the architecture and are worth
+carrying forward. **Provenance is per fact, not per document**: many notes were read out of a
+reference implementation's adapters and never checked, several have since been verified against
+current provider documentation and carry the date, and the DigitalOcean section below came from
+neither — the reference set had no such driver. Each note carries a confidence marker, and the
+marker on the individual note governs:
 
 - **[design]** — an architectural consequence, true regardless of API details.
 - **[observed]** — asserted by the reference implementation; plausible but unverified.
 - **[verify]** — must be checked against current provider documentation before use.
 
-Every adapter MUST answer the questions in "Adding a driver"
-(`02-provider-contract.md`) before it is considered complete, and record the answers
-here. The per-provider sections below are structured around them.
+Every adapter answers the questions in "Adding a driver" (`02-provider-contract.md`) before it is
+considered complete: the answers the engine reads go in the descriptor, and the reasoning behind
+each goes here. The per-provider sections below are structured around them.
 
 ## Capability matrix
 
 The shape the reference implementation arrived at, as an illustration of how unevenly
-providers cover the model. Reproduce this table for whatever providers you implement.
+providers cover the model. A driver's own row is its descriptor's `capabilities` (`PRV-44`); this
+table is not read by anything.
 
 | Capability | Cloud VPS | Dedicated (robot-style) | Dedicated (cherry-style) |
 |---|:--:|:--:|:--:|
@@ -126,7 +132,7 @@ acceptance** (`LDG-39`). Auction servers carry no setup fee.
 set never stated a size.** Standard catalogue setup fees range **€59 to €1349 net** across 29
 orderable products; the auction market's `price_setup` is **`0.0000` on all 156 offers**.
 **[observed 2026-09-04]** That range is what a single lost standard order can cost, and it is the
-reason a requeue on this channel is the most expensive action the system exposes. Two further facts
+reason a lost order on this channel is the most expensive event the system exposes. Two further facts
 from the same pull: standard prices are a **per-location array** (`prices[]`, each entry carrying
 its own `price` and `price_setup`) while auction prices are flat scalars, and two catalogue
 products were listed with an **empty `prices[]`** — visible in the feed and not orderable. **The
@@ -168,7 +174,7 @@ the result. Never assume; read `earliest_cancellation_date` and branch (`PRV-13c
   KVM/ISO or USB, with no support or compatibility warranty. Inherited prohibitions a reseller
   must pass on (`SEC-42`): no manual MAC changes, no scanning foreign networks, no source-IP
   spoofing, no cryptocurrency mining. Windows: a customer may bring its own licence but must not
-  combine it with a Hetzner-leased Windows licence. **[observed]**
+  combine it with a Windows licence rented from Hetzner. **[observed]**
 
 **Status vocabulary** — ready / in process. Everything else maps to `unknown`.
 **[observed]**
@@ -288,8 +294,9 @@ usable as `OPS-32`'s correlator. The image polls `NEW → pending → available`
 `DELETE /v2/droplets/{id}` returned `204`; a `GET` 8 s later returned `200 "active"` with a live
 address; `404` by the next poll, so the window was under ~25 s. **`PRV-36` governs**, and this is a
 **visibility** sample only — `PRV-13b`'s delete-to-billing-stop figure for this provider is still
-unmeasured and still owed. One sample is not a bound; the declared window must be conservative and
-marked unmeasured until twenty exist.
+unmeasured and still owed. One sample is not a bound: the descriptor's `visibility_window` and
+`billing_stop_window` (`PRV-44`) hold the declared values, conservative and marked unmeasured
+until twenty samples exist, and `STO-53` holds the samples the engine collects afterwards.
 
 **Image delete is not idempotent, and disagrees with the read path.** **[observed, 2026-08-31]**
 First `DELETE /v2/images/{id}` → `204`. Second, immediately and again 2.5 minutes later → `422
@@ -415,7 +422,8 @@ spending money. `API-15` remains well-founded; it just has a different author th
 
 ## Writing a new adapter
 
-Answer these before writing code, and record the answers here:
+Answer these before writing code. Where an answer is a value the engine reads, it goes in the
+descriptor (`PRV-44`) and the reasoning goes here; the rest is recorded here:
 
 1. **Does key material get copied at create/rebuild time, or read asynchronously later?**
    Determines whether temporary key cleanup is safe immediately (`PRV-9`).
@@ -425,14 +433,19 @@ Answer these before writing code, and record the answers here:
 3. **Which of `PRV-13`'s three deletion shapes is this — immediate destroy, scheduled
    cancellation, or an out-of-band process?** Determines whether `delete_machine` may be
    declared, and whether "deleted" means "billing stopped." For scheduled cancellation, find
-   the provider's earliest-permitted-date field.
+   the provider's earliest-permitted-date field; the worst case per offer is the descriptor's
+   `cancellation_bound` (`PRV-31`).
 3a. **What else keeps billing after the machine is gone?** Volumes, snapshots, backups,
-   reserved addresses (`PRV-13a`).
+   reserved addresses — the descriptor's `surviving_attachments`, each with whether the API can
+   release it (`PRV-13a`, `PRV-45`).
 4. **Is rescue key-based or password-based?** Determines whether first-use trust should be
    permitted for this provider at all (`SEC-24`).
-5. **Is ordering idempotent?** Determines the requeue policy for creates (`OPS-20`).
+5. **Is ordering idempotent?** Determines how a timed-out order is reported (`PRV-11`).
 6. **What is the identifier character set?** Determines the validation in `PRV-6`.
-7. **Which caller-controlled field can carry a correlator at create, and can you search by
-   it?** Determines whether ambiguous creates resolve automatically or wait for a human
-   (`PRV-26`, `PRV-27`, `OPS-27`). If the field lives on an order rather than the machine,
-   record the listing window too — it bounds how long automatic recovery is possible.
+7. **Which caller-controlled field can carry a correlator at create, per ordering channel, and
+   can you search by it?** Determines whether ambiguous creates resolve automatically or wait
+   for a human (`PRV-26`, `PRV-27`, `OPS-27`), and is the descriptor's `ordering_channels[].correlator`
+   (`PRV-33`, `PRV-38`). If the field lives on an order rather than the machine, record the
+   listing window too — it bounds how long automatic recovery is possible.
+8. **Does a newly ordered machine have an IPv4 address?** The descriptor's
+   `rescue_address_family` (`RSC-45`).

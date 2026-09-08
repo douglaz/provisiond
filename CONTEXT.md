@@ -71,18 +71,29 @@ _Avoid_: job, task, request, action
 **needs_reconciliation**:
 The operation state meaning *the outcome is unknown* — provisiond cannot tell whether the provider
 acted. A first-class answer, not an error. **Resolution-pending, not terminal** (`OPS-3`): it
-settles to `succeeded` or `failed` on evidence or an operator verb, or returns to `queued` by
-operator requeue — and nothing else moves it: no automatic retry, no timer, no caller action.
+settles to `succeeded` or `failed` on evidence or an operator verb — and nothing else moves it: no
+automatic retry, no timer, no caller action, and since `ADR-0017` no requeue.
 _Avoid_: terminal (withdrawn 2026-08-13), stuck, errored, retryable
 
-**Requeue**:
-An operator returning a `failed` or `needs_reconciliation` operation to the queue. It exists for
-the one operation **no caller will ever re-issue** — the system-triggered cancellation that stops a
-machine billing — and for nothing else (`OPS-46`). Every other action is the caller's own, on a
-machine the caller owns, and the caller repeats it by calling the endpoint again. It is neither a
-retry nor a resolution.
-_Avoid_: retry, replay, re-run, resubmit (that is the caller's word, and on a create it is a second
-purchase)
+**Episode**:
+One system-detected condition on one machine that provisiond must act on until it ends — this
+machine's exhaustion, its tenant's suspension, its account's loss (`DOM-31`). Opened by a sweep,
+closed when the exposure ends, and the unit an operator attends to. An episode has **attempts**,
+each an ordinary **operation**; an attempt can settle `failed` while the episode stays open, because
+*the provider refused* is a fact about the attempt and *still billing* is a fact about the episode.
+At most one open episode per machine and key.
+_Avoid_: trigger, incident, case (taken — see **Abuse case**), retry loop
+
+**Attempt**:
+One **operation** enqueued under an **episode**. Settles like any operation and is retained or
+deleted like any operation; the episode outlives it.
+_Avoid_: requeue, run, try
+
+**Retry**:
+An operator opening a fresh **attempt** under a `stalled` **episode** (`API-64`). Never automatic:
+a deterministic refusal repeated by a timer is the loop `OPS-39` exists to prevent.
+_Avoid_: requeue (withdrawn 2026-09-07, `ADR-0017`), replay, re-run, resubmit (that is the caller's
+word for its own action, and on a create it is a second purchase)
 
 **Rescue**:
 A provider-supplied minimal OS booted in place of the installed one, over which provisiond

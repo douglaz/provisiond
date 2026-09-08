@@ -24,35 +24,8 @@ original HTTP request. On entry to any settled state — **and to `needs_reconci
 
 The original text said "MUST persist the full request payload" without qualification, and
 `ADR-0005` narrowed it in a different document without editing this sentence — leaving two
-normative statements with opposite meanings. Three things depended on the unqualified version and
-are corrected by `OPS-34`.
-
-**OPS-34** **Requeue after purge.** `OPS-20` required requeue to "re-execute the original request
-verbatim", and the payload is purged on entry to **either** requeue-eligible state — `failed` (terminal) and
-`needs_reconciliation` (resolution-pending, `OPS-3`) — so after `ADR-0005` it is always gone and requeue as specified cannot work at all. Since
-`API-19`, `OPS-31` and `DEF-17` all rest on it, the resolution is:
-
-- **Requeue MUST carry a fresh payload supplied by the operator**, and the system MUST verify it
-  is equivalent to the stored summary in every respect the summary records. It is no longer a
-  replay of bytes the system holds; it is a new submission checked against what survived.
-- Where the summary cannot establish equivalence, requeue MUST be refused and `OPS-31`'s
-  resolution verbs are the only road.
-- `API-11`'s idempotency comparison has the same problem and the same answer (`API-38`).
-
-**AMENDED 2026-09-06 — `target` is withdrawn from the comparison, and what remains is two fields
-(`F38`).** The list read "kind, machine, provider account, target". **`target` was never defined**:
-it is not a column, it is not in `CONTEXT.md`, and the set spends the word on two other concepts —
-`WIR-20`'s and `RSC-26`'s block device about to be overwritten, and the thing a verb authorizes
-against, of which `API-17b` says "Creation needs an authorization rule, and it is the only operation
-that has no target to authorize against." A comparison field with no referent
-cannot be checked, and `CNF-221` tested it by name for three weeks.
-
-**Withdrawing it costs nothing, because `OPS-46` left one requeueable kind.** An exposure-reducing
-cancellation's payload is `{"acknowledge_destruction": true}` (`WIR-22`) — one literal, with the
-machine named in the path. **The comparison is therefore `kind` and `machine`**, both of them
-columns rather than summary fields, and the third and fourth entries had nothing left to do.
-`STO-50` closes the summary's enumeration so that "every respect the summary records" names a
-finite list rather than an open one.
+normative statements with opposite meanings. Nothing re-executes a purged payload: the operation
+is one attempt, and a later attempt is a fresh operation (`ADR-0017`).
 
 **OPS-35** The provider account MUST be resolved and written to the operation record **before**
 any driver call. `05` marks it nullable, and a create whose reply is lost is precisely the case
@@ -64,7 +37,7 @@ account was only ever determined inside the call that vanished.
 | State | Meaning | Terminal |
 |---|---|---|
 | `queued` | Waiting for a worker | no |
-| `running` | Claimed by a worker under a lease | no |
+| `running` | Claimed by the engine, whose writes are guarded on its epoch (`OPS-47`) | no |
 | `succeeded` | Completed; result recorded | yes |
 | `failed` | Completed unsuccessfully; provider state is known | yes |
 | `needs_reconciliation` | Outcome unknown; resolution pending (`OPS-3`) | **no** — settles to `succeeded` or `failed` |
@@ -72,13 +45,13 @@ account was only ever determined inside the call that vanished.
 ```
                     +----------+
    enqueue -------->|  queued  |<---------------------+
-                    +----+-----+                      | defer (machine locked)
-                         |                            | operator requeue
-                         | claim (lease)              | suspend_tenant parent whose
-                         v                            |   lease expired (OPS-14)
+                    +----+-----+                      | defer (machine held, OPS-8)
+                         |                            | suspend_tenant parent found
+                         | claim (OPS-5)              |   running at startup (OPS-15)
+                         v                            |
                     +----------+---------------------+
-                    | running  |
-                    +----+-----+
+                    | running  |-----------------------> needs_reconciliation
+                    +----+-----+   found running at startup (OPS-15)
                          |
         +----------------+----------------+
         |                |                |
@@ -91,9 +64,7 @@ account was only ever determined inside the call that vanished.
         ^                ^                   |
         |                |                   | resolved observed/applied -> succeeded
         +----------------+-------------------+ resolved absent/not_applied/
-                         |                   |   abandoned -> failed
-                         |                   |
-                         +--- operator requeue ---> queued
+                                                 abandoned -> failed
 
    queued --- tenant suspended, never claimed (API-58) ---> failed, error conflict
                                                             (details.reason tenant_suspended;
@@ -105,14 +76,15 @@ account was only ever determined inside the call that vanished.
 mutation, no timer, no caller action. `OPS-27`'s evidence sweep is itself automatic and does move
 the state; what the system MUST NOT do automatically is retry (`OVR-5`).
 
-**OPS-3** **AMENDED — `needs_reconciliation` is *resolution-pending*, not terminal.** `succeeded`
-and `failed` are the terminal states. **A transition made *by a worker* MUST be conditional on that
-worker still holding the lease** (`STO-3`); a worker that has lost its lease MUST NOT overwrite the
-record. **Resolution transitions out of `needs_reconciliation` are made by no worker and under no
-lease** — by `OPS-27`'s sweep or `OPS-31`/`WIR-35`'s operator verb — and are guarded instead by
-`STO-19`'s write-once resolution columns. Scoping the lease clause to workers is required, not
-stylistic: read unscoped it forbids every transition this amendment enumerates, since an operation
-in `needs_reconciliation` has no lease for anyone to hold.
+**OPS-3** **AMENDED 2026-09-08 (`ADR-0016`) — the worker's guard is the epoch, not a lease.**
+`needs_reconciliation` is *resolution-pending*, not terminal; `succeeded` and `failed` are the
+terminal states. **A transition made *by a worker* MUST be guarded on the engine's epoch**
+(`OPS-47`, `STO-3`); a worker whose guarded write affects no row has been superseded and MUST NOT
+overwrite the record. **Resolution transitions out of `needs_reconciliation` are made by no
+worker** — by `OPS-27`'s sweep or `OPS-31`/`WIR-35`'s operator verb — and are guarded instead by
+`STO-19`'s write-once resolution columns (the sweep is an engine write and carries the epoch term
+as well, `OPS-47`; the operator verb is `api`'s and carries none). Scoping the worker clause is
+required, not stylistic: read unscoped it forbids the operator verb, which no epoch guards.
 
 *Calling it terminal contradicted every requirement that resolves it.* `OPS-27` transitions it
 automatically on a correlator match, `OPS-31`/`WIR-35` transition it by operator verb, and `OPS-4`
@@ -125,7 +97,6 @@ needs_reconciliation --resolved applied (non-create)--> succeeded
 needs_reconciliation --resolved absent (create)--> failed
 needs_reconciliation --resolved not_applied (non-create)--> failed
 needs_reconciliation --resolved abandoned (any kind)--> failed
-needs_reconciliation --operator requeue--> queued
 ```
 
 *The two non-create rows were added 2026-09-02 with `OPS-45`. They are not new transitions — the
@@ -142,60 +113,55 @@ The payload purge (`ADR-0005`) happens **on entry** to `needs_reconciliation` ra
 terminal state, and that is an explicit privacy exception recorded here so a reader does not
 find it contradictory.
 
-**OPS-4** Only `failed` and `needs_reconciliation` MAY be requeued, and only by an
-explicit operator action (`API-19`), **and only for a kind `OPS-46` admits — never
-`create_machine`**. There is no automatic transition out of a terminal state.
+**OPS-4** **AMENDED 2026-09-08 (`ADR-0017`) — there is no operator transition out of a terminal
+state either.** There is no automatic transition out of a terminal state. A `failed` operation is
+re-issued by its caller (`OPS-28`, `API-51`) or, where it is an attempt under an episode, by the
+episode's `retry` (`OPS-48`, `API-64`) — in both cases a fresh operation, never this record moved
+back to `queued`.
 
-## Claiming and leases
+## Claiming
 
-**OPS-5** Claiming MUST be atomic: selecting the next eligible operation and marking it
-`running` with a claimant identity and a lease expiry MUST happen in one indivisible
-step. Two workers MUST NOT be able to claim the same operation.
+**OPS-47** **ADDED 2026-09-08 (`ADR-0016`).** The engine MUST run as exactly one process under an
+external supervisor that restarts it and never runs two. At startup it MUST increment
+`engine_epoch` (`STO-51`) and hold the value for its lifetime. Every engine write to `operations`
+and `machines` MUST be guarded on `epoch = mine` and MUST report whether it affected a row; a write
+that affects no row means the process has been superseded and it MUST exit without further writes.
+*The guard is what makes "exactly one" a property the store checks rather than a deployment
+promise: two engines started by accident leave the later one writing and the earlier one exiting.
+The restart window is the accepted outage, and it is alarmed (`OVR-18`).*
+
+**OPS-5** **AMENDED 2026-09-08 (`ADR-0016`).** Claiming MUST be atomic: selecting the next eligible
+operation and marking it `running` with the engine's epoch (`OPS-47`) MUST happen in one
+indivisible step. No claim carries a deadline; a `running` operation stays claimed until it
+settles or the startup pass finds it (`OPS-15`).
 
 **OPS-6** The claim MUST select the oldest `queued` operation whose availability time has
 passed. Attempt count MUST be incremented on claim.
 
-**OPS-7** A worker MUST renew its lease on a heartbeat interval strictly shorter than the
-lease duration (a third of it is a reasonable default, with a floor). If a heartbeat
-finds the lease is no longer held, the worker MUST abandon the in-flight work
-immediately and MUST NOT record a result.
+## Per-machine serialization
 
-## Per-machine locking
+**OPS-8** **AMENDED 2026-09-08 (`ADR-0016`) — the rule is a store constraint, not a lock.** At
+most one `running` operation that is not yielded may name a machine at a time, enforced by
+`STO-51`'s partial unique index over `operations(machine_id) WHERE status = 'running' AND
+yielded_at IS NULL`. Concurrent install, power, delete, and refresh operations on one machine are
+not merely wasteful, they are dangerous. A claim (`OPS-5`) that the index refuses because another
+running operation holds the machine MUST return the operation to `queued` with a short delay
+rather than fail it — the conflicting work will finish.
 
-**OPS-8** An operation that names a machine MUST hold an exclusive lock on that machine
-for its duration. Concurrent install, power, delete, and refresh operations on one
-machine are not merely wasteful, they are dangerous.
+**One named, bounded phase runs with the machine released.** `RSC-41`'s import-and-poll works on an
+image in the operator's catalogue and never on the machine; it is today the only such phase, and a
+second needs a requirement naming it. The operation expresses it by setting
+`operations.yielded_at` before the phase and clearing it after, and the clear is a conditional
+write that the index refuses while another running operation holds the machine — in which case the
+operation MUST defer with a short delay, as above. It MUST **re-validate** after re-acquiring
+(`OPS-23`): the machine may have been installed, powered or cancelled in the gap, and an
+exposure-reducing cancellation taking the machine during an import is the *intended* behaviour
+(`CNF-266`). Any such phase MUST be bounded by a stated maximum (`RSC-41` states one).
 
-**AMENDED 2026-09-02 — "for its duration" admits a named, bounded exception, and the exception
-already shipped.** `RSC-41` requires a catalogue install's import phase to run holding **no** machine
-lock, and called itself "a narrowing of `OPS-8`'s *for its duration* named explicitly here" — but a
-requirement cannot narrow another by describing itself as a narrowing. Two MUSTs, one of them
-unsatisfiable, and the one that loses is whichever a builder reads second. The rule is therefore:
-
-- **An operation MUST hold the lock for every phase that touches the machine or its provider-side
-  resource**, which is what makes concurrent installs, powers, deletes and refreshes impossible.
-- **It MAY run a phase that touches neither outside the lock, and only where a requirement names
-  that phase explicitly.** Today the list has exactly one member: `RSC-41`'s import-and-poll, which
-  works on an image in the operator's catalogue and never on the machine.
-- **Any such phase MUST be bounded by a stated maximum** (`RSC-41` states one) and the operation
-  MUST **re-acquire the lock and re-validate** before the phase that does touch the machine
-  (`OPS-9`, `OPS-23`) — the machine may have been installed, powered or cancelled in the gap, and
-  an exposure-reducing cancellation acquiring the lock during an import is the *intended* behaviour
-  (`CNF-266`), not an accident to be tolerated.
-
-*Why not simply hold it throughout: `PRV-13b` puts the deployment's worst-case machine-lock hold
+*Why not simply hold it throughout: `PRV-13b` puts the deployment's worst-case operation hold
 inside `wind_down_cost`, which sizes the reserve on **every machine in the fleet**, so an unbounded
 provider import queue on one driver would raise the commitment every customer must post before
-buying anything. The narrowing is real and it is paid for; what was missing was this requirement
-admitting it.*
-
-**OPS-9** Lock acquisition MUST be atomic and MUST succeed only when the lock is free,
-its lease has expired, or it is already held by the same operation. An operation that
-cannot take the lock MUST be returned to `queued` with a short delay rather than failed —
-the conflicting work will finish.
-
-**OPS-10** The machine lock lease MUST be renewed by the same heartbeat that renews the
-operation lease, and losing either MUST be treated as losing both.
+buying anything.*
 
 ## Classifying failures — the ambiguity rule
 
@@ -210,7 +176,7 @@ This is `OVR-5` made concrete.
 | suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. It is a parent whose per-machine children carry their own outcomes (`WIR-39`), and it settles `succeeded` once every child has either settled or **reached `needs_reconciliation`** — a child that reached that state counts as complete for the parent. `needs_reconciliation` is not itself settled (`OPS-3`); it is a state only evidence or an operator moves, so an unresolved child is a child-level fact, and blocking the parent on it would leave every suspended tenant's record permanently open. |
 | rescue inventory | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited`, **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. |
-| create, power, reverse-DNS, delete | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
+| create, power, reverse-DNS, delete, release attachment | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
 
 **The table MUST be total, and six kinds added later were missing.** `insufficient_balance`,
 `not_activated`, `halted`, `gone`, `suspended` and — added 2026-09-02 — `ceiling_exceeded`
@@ -232,8 +198,8 @@ A failure is **ambiguous** when:
 
 - the error kind is `network`, `timeout`, or `internal` — the request may have been
   received and acted on before the transport died; or
-- the error kind is `conflict` *and* it arose from lease or lock loss rather than from a
-  provider-reported state conflict — the worker was cut off mid-flight; or
+- the error kind is `conflict` *and* it arose from the worker being cut off mid-flight
+  (`OPS-21`) rather than from a provider-reported state conflict; or
 - the error kind is `provider` *and* the upstream status was 5xx, or no upstream status
   was recorded at all. A 4xx generally means the provider rejected the request and did not act; a
   5xx means it may have acted and then failed to say so.
@@ -272,21 +238,17 @@ create later resolved-observed attaches a machine whose install eligibility can 
 from nothing the system still holds: the offer is a live listing that may have been re-priced,
 changed or withdrawn in the meantime (`DOM-9`), which is the same reason the gate reads the copy
 rather than the offer. It is terms, not secrets, so it survives the purge exactly as the provider
-account does — and it is retained as **evidence**, not as a comparison field:
-`OPS-34`'s requeue equivalence check is over kind and machine (amended 2026-09-06; it named
-`provider_account` and an undefined `target` until `F38`), and the
-snapshot adds no fifth test, because an auction offer that has since been withdrawn does not make
-the requeue wrong.
+account does — and it is retained as **evidence**, not as a comparison field.
 
-**One snapshot, because there is one attempt** (`OPS-46`, `ADR-0014`). `request_summary` carries the
-create's correlator, its offer snapshot and its at-cost setup fee (`LDG-67`, `05-persistence.md`),
-and resolution reads them without choosing.
+**One snapshot, because there is one attempt** (`ADR-0014`, `ADR-0017`). `request_summary` carries
+the create's correlator, its offer snapshot and its at-cost setup fee (`LDG-67`,
+`05-persistence.md`), and resolution reads them without choosing.
 
 *Withdrawn 2026-09-05, and the two sentences are kept verbatim because `F36` quotes them and a
 finding whose quotes resolve to nothing is worthless. They read: "`request_summary` holds a list
 aligned one-to-one with `correlator_value`", and "Resolution uses the entry of the attempt **whose
-correlator matched**". A requeue appended an entry and overwrote none. The machinery existed because `OPS-20`'s requeue placed a
-second order under whatever terms were live then, so the order that finally turned up might be the
+correlator matched**". The machinery existed because a second order could be placed under the same
+operation, under whatever terms were live then, so the order that finally turned up might be the
 first attempt's and resolution would otherwise copy the wrong `install_strategies` onto the machine
 — a safety gate — or debit a setup fee the provider never charged for that order. `F36` is the
 finding that the selection rule had no discriminator wherever the correlator was the operation UUID.
@@ -294,166 +256,32 @@ finding that the selection rule had no discriminator wherever the correlator was
 
 ## Interrupted workers
 
-A worker that crashes leaves an operation `running` with a lease that will expire.
+With one writer (`OPS-47`), an operation found `running` at engine startup was interrupted, and its
+provider call is uncertain.
 
-**OPS-14** A sweeper MUST periodically move `running` operations whose lease has expired
-into `needs_reconciliation`, and MUST release machine locks whose lease has expired. It
-MUST NOT move them back to `queued`. A crashed worker is exactly the case where the
-provider may have acted and nobody recorded it.
+**OPS-15** **AMENDED 2026-09-08 (`ADR-0016`) — the startup pass is the sweep.** At startup, before
+any claim, the engine MUST move every `running` operation to `needs_reconciliation` — with one
+writer, any `running` row at startup is interrupted — guarded on `(id, status = running)`
+(`STO-3`), and MUST log the count it found. It MUST NOT move them back to `queued`: a crashed
+worker is exactly the case where the provider may have acted and nobody recorded it. No periodic
+pass is needed; nothing but a restart can leave a `running` row with no worker behind it.
 
 **`suspend_tenant` is the single exception, and it MUST NOT require an operator.** A
-`suspend_tenant` parent (`API-58`) whose lease expires MUST be returned to `queued` and re-claimed
-like any other queued work, resuming its fan-out from wherever it stopped. It mutates no provider
-itself — its per-machine children do, and each child is an ordinary operation the rules above
-already govern — so a crashed parent leaves nothing ambiguous to establish, and the re-sweep is
-idempotent by `OPS-39`'s `system_trigger_id`, which is minted per machine and per episode and
-makes a repeated pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead
-would contradict `OPS-11`'s `suspend_tenant` row and would leave a suspended tenant's fleet
-running, and billing, until a human noticed — which is exactly what `SEC-45`'s one-action
-termination MUST NOT depend on.
-
-**OPS-15** The sweeper MUST run at startup as well as periodically, and startup MUST log
-the count of operations it found interrupted.
+`suspend_tenant` parent (`API-58`) found `running` at startup MUST be returned to `queued` and
+re-claimed like any other queued work, resuming its fan-out from wherever it stopped. It mutates no
+provider itself — its per-machine children do, and each child is an ordinary operation the rules
+above already govern — so a crashed parent leaves nothing ambiguous to establish, and the re-sweep
+is idempotent by `OPS-39`'s dedup: an open episode per machine and key (`STO-52`) makes a repeated
+pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead would contradict
+`OPS-11`'s `suspend_tenant` row and would leave a suspended tenant's fleet running, and billing,
+until a human noticed — which is exactly what `SEC-45`'s one-action termination MUST NOT depend on.
 
 **OPS-16** The sweeper MUST NOT overwrite an error already recorded on the operation; it
 fills in a marker only where none exists.
 
-**OPS-17** The sweep interval SHOULD be tied to the lease duration (for example, a
-fraction of it), not to the worker's idle poll interval. Sweeping on every idle iteration
-of a fast poll loop generates continuous write transactions for no benefit. See `DEF-11`.
-
-## Requeue
-
-**OPS-18** Requeue MUST be an explicit operator action on a single operation, MUST be
-allowed only from `failed` or `needs_reconciliation`, and MUST itself be idempotent —
-repeating a requeue with the same idempotency key MUST NOT enqueue the work twice. **It is
-additionally restricted by kind (`OPS-46`), which excludes `create_machine`.**
-
-**OPS-46** **ADDED 2026-09-05 (`ADR-0014`) — requeue is admissible only for kinds whose payload the
-operation record fully determines, and `create_machine` is not one of them.** A requeue of a
-`create_machine` operation MUST be refused, in both requeue-eligible states, with `OPS-31`'s
-resolution verbs named as the alternative.
-
-**The reason is that the operator cannot re-place the customer's order and has nobody to ask for
-it.** `OPS-34` requires "a fresh payload supplied by the operator". For a create that payload cannot
-be the customer's: `STO-9` purges the request — "signed image URLs, SSH keys, and up to 1 MiB of
-post-install script" — on entry to `needs_reconciliation`; `request_summary` retains none of the
-hostname, keys, user data, runway or spending cap; `ADR-0002` gives the customer "no identity, no
-email"; and `PRV-8` requires a create to carry at least one SSH key. The operator must supply their
-own. **The machine that arrives is one the customer holds no credential on and did not configure,
-bought with the customer's satoshis** — a different machine, not the order re-placed.
-
-**`OPS-34`'s second bullet already required this and was read past.** It says: "Where the summary
-cannot establish equivalence, requeue MUST be refused and `OPS-31`'s resolution verbs are the only
-road." A create's summary cannot establish equivalence for any field that matters, so that sentence
-already disposed of every create requeue; this requirement states it rather than implying it.
-
-**AMENDED 2026-09-06 — the admissible set was hand-enumerated and was wrong (`F39`). It is now one
-kind.** The test this requirement states — a payload the operation record fully determines — cannot
-be applied, because `05-persistence.md` enumerates `request_summary`'s contents **for a create and
-for no other kind**; everything else is "what was attempted", which nothing defines (`F38`). An
-enumeration written against an unanswerable test is a guess, and this one admitted two kinds that
-provably fail it.
-
-**A requeue is admissible only for an exposure-reducing cancellation — a cancel or a delete.**
-`API-7` already named it as the case that matters: "Requeue is exempt here only where the operation
-it requeues reduces exposure — a cancel or a delete. That much is load-bearing: a suspended tenant's
-failed cancellation must stay requeueable **or its machine bills forever**." Its payload is
-`{"acknowledge_destruction": true}` (`WIR-22`) — a single literal, with the machine named in the
-path — so the record determines it without needing `F38`'s enumeration at all.
-
-**And it is the only kind no caller will re-issue.** That is the sharper rule underneath: an
-exposure-reducing cancellation is *system*-triggered (`OPS-39`), so there is nobody to re-submit it.
-Every other machine-acting kind is the caller's own action on a machine the caller owns, costs no
-money to repeat (`ADR-0007` meters installs and rescue but charges nothing for them), and is
-re-issued by calling the endpoint again — which is what `OPS-40` and `OPS-43` already tell a caller
-to do.
-
-**The two that provably fail the test**, and were admitted here for one day:
-
-- **`install`.** `WIR-20`'s body carries the image `source.url` and `sha256`, `authorized_keys`,
-  the `layout` or `target` naming which disk is overwritten, up to 1 MiB of `post_install_script`,
-  `acknowledge_destruction`, and the `trust` object. `STO-9` purges "signed image URLs, SSH keys,
-  and up to 1 MiB of post-install script" by name. An operator requeue therefore chooses the bytes
-  written to a customer's disk, who may log into the result, and the host-key decision `SEC-22`
-  requires as an explicit per-request opt-in — a choice `WIR-20` calls "a silent security
-  downgrade" when a schema makes it instead of the caller.
-- **`adopt_machine`.** `WIR-18`'s body carries `runway_seconds`, and `LDG-36` requires adopt to
-  "place a commitment and pass the same authorization check as create". Purged, the operator picks
-  how much of the customer's balance to commit — which is `ADR-0014`'s argument verbatim, on the
-  kind that ADR admitted while making it.
-
-*`power` and `reverse_dns` are refused for a weaker reason and it is still sufficient: nothing says
-their payloads survive. A power action is a choice between `on` and `hard_reset`, which are not the
-same act on a machine mid-write, and `WIR-21`'s `ptr` is a customer-chosen hostname — the kind
-`PRV-26` calls linkable and `ADR-0005` purges. Neither is admitted on the presumption that it is
-probably fine; that presumption is what this amendment exists to remove.*
-
-**What replaces it.** A create in `failed` is the caller's to resubmit, which is the set's idiom
-everywhere else — `OPS-28` calls a post-resolution purchase "a new decision by the caller, and a new
-purchase", and `API-51` requires the contract to state "in words that re-issuing the request under a
-fresh idempotency key **is a second purchase**, not a retry". A create in `needs_reconciliation` has
-`OPS-31`'s three verbs and nothing else. **The cost is borne deliberately**: a tenant whose balance
-is committed behind an ambiguous order waits for a verb or for `OPS-33`'s window before buying
-again, and `OPS-33` already settled that trade — "Where the two are in tension, the operator takes
-the visible loss."
-
-**OPS-19** Requeue MUST preserve an audit trail: the previous error, the stated reason,
-and the requeue timestamp MUST survive on the record.
-
-**OPS-20** **AMENDED.** Requeue executes the **fresh operator-supplied payload** `OPS-34`
-requires, after verifying every comparison the retained summary supports. *It is not a byte replay
-of the original request: `ADR-0005` purges that once the operation stops being live, so the withdrawn wording
-("re-executes the original request verbatim") described something that no longer exists while
-`API-19`, `OPS-31` and `DEF-17` all rested on it.*
-
-**WITHDRAWN FOR CREATES 2026-09-05 (`OPS-46`, `ADR-0014`).** Everything in this requirement about
-placing a second order, reusing or re-pricing a create's commitment, and acknowledging a duplicate
-purchase is unreachable: a `create_machine` operation can no longer be requeued at all. The text is
-kept because `adopt_machine` remains requeueable and opens a commitment (`LDG-36`), and because the
-re-pricing rule below is what `OPS-43` generalised to the original create.
-
-For an ordering operation a requeue means **placing a second order**, so it MUST pass the same
-spending gates a fresh create would (`API-7`'s create class). **Where the original operation's
-commitment is still open it is reused, not duplicated** (`LDG-30`: one open commitment per
-machine); only where it was closed — by `OPS-33`'s window or a terminal outcome — does the requeue
-open a new one (`LDG-11`) — a requeued create that skips them buys a machine with no authorized funding, which is
-the money-out `ADR-0002` exists to prevent, reached through the operator surface. The API MUST make that
-explicit in its response or documentation, and MUST refuse to requeue a provider-non-idempotent
-kind unless the request carries a **second, distinct acknowledgement**
-(`acknowledge_duplicate_purchase`, `WIR-28`) — the fresh payload's own `acknowledge_purchase` does
-not satisfy it, because that one merely says "a purchase is intended", not "a *duplicate* purchase
-is intended". Requeueing a create is a purchase decision, not a retry.
-
-**A reused commitment MUST be re-priced before the second order is placed.** The requeue happens
-later — possibly much later — and the rate moves (`LDG-40`), so a commitment sized at the original
-rate under-reserves the order the requeue is about to place. The requeue's spending check MUST
-therefore re-derive the required amount at the **current** rate (`PRV-13b`'s formula) and top the
-reused commitment from available balance by `LDG-62`'s mechanism, in one transaction under
-`LDG-35`'s per-tenant serialization and subject to `LDG-10`. **Where available cannot fund the
-difference the requeue MUST be refused `insufficient_balance` and MUST place no order.** Proceeding
-on the stale size buys a machine at a price the customer's balance was never checked against, which
-is the same unauthorized money-out this paragraph refuses when the commitment was closed — reached
-through a stale number instead of through a missing record.
-
-**A create MUST NOT settle `succeeded` on the strength of the reply in hand alone.** Before the
-terminal write the system MUST search the correlator across every ordering channel the driver
-reaches (`OPS-27`, `PRV-38`) and MUST settle `succeeded` only where that search yields exactly one
-resource. A create settles exactly one machine, so **more** than one is `OPS-38`'s many-case: it
-MUST NOT auto-attach either, and it goes to an operator (`OPS-31`), never to `succeeded`. An order
-that lands *after* the search was taken is beyond what any settle-time search can see, and
-`OPS-32`'s account sweep is the backstop for it.
-
-*Withdrawn 2026-09-05: this required reconciling "**every** correlator the operation recorded — the
-union `OPS-27` searches, never the latest attempt's alone", because a requeue placed a second order
-and the earlier attempt's order may have landed too. `ADR-0014` removed the second order. The
-check itself is kept and its scope moved: what has to be searched is no longer several attempts but
-several channels, which `PRV-38` found was never covered.*
-
 ## Resolving `needs_reconciliation`
 
-Requeue is not a resolution. It replays the mutation, which is the one thing an ambiguous
-outcome forbids. Until this section existed, `needs_reconciliation` was a terminal state with no
+Until this section existed, `needs_reconciliation` was a terminal state with no
 exit and `OPS-25` retained its records "until an operator resolves them" through a mechanism
 that did not exist.
 
@@ -476,7 +304,7 @@ flowchart TD
     C2 -- "yes, still present" --> NOTAPPLIED["not applied"]
     C2 -- "post-mutation state seen" --> DONE3["applied.<br/>Never reverted by a later read"]
 
-    B -- "yes" --> D["Search EVERY correlator<br/>the operation recorded.<br/>Union, never the latest attempt"]
+    B -- "yes" --> D["Search the correlator on<br/>EVERY ordering channel, PRV-38.<br/>Union over channels"]
     D --> E{"How many resources?"}
 
     E -- "exactly one" --> F["Resolved-observed"]
@@ -511,17 +339,18 @@ answer that is easiest to get wrong.** `OPS-29` forbids closing any of them by g
 tenant's own concurrent creates can look identical, and attaching the wrong machine hands one
 customer another's physical server.
 
-**OPS-27** The system MUST attempt automatic resolution before asking a human. Resolution
-searches the provider for **every correlator the operation recorded** — one per attempt, and a
-requeue appends rather than replaces (`PRV-26`, `PRV-27`) — takes the union of what those
-searches return, and reaches one of the four outcomes below:
+**OPS-27** **AMENDED 2026-09-08 (`ADR-0017`) — one correlator, searched on every channel.** The
+system MUST attempt automatic resolution before asking a human. Resolution searches the provider
+for the operation's correlator (`PRV-26`, `PRV-27`) on **every ordering channel the driver
+reaches** (`PRV-38`), takes the union of what those searches return, and reaches one of the four
+outcomes below:
 
 | Finding | Resolution | Effect on the commitment |
 |---|---|---|
-| Exactly one resource across all of this operation's correlators | **Resolved-observed.** Attach it and complete the operation as though it had succeeded. | Becomes the machine's running commitment (`OPS-36` where it was already released) |
-| The provider's search is authoritative and returns nothing for any of them, and the negative window has elapsed — or a matched resource is read directly and is gone, past `PRV-36`'s window | **Resolved-absent.** No resource exists to attach — *"the mutation did not happen" until 2026-09-05, which the matched-and-gone case falsifies: the order landed and left nothing* | Closed and released in full (`LDG-32`); a charged fee per `LDG-39`'s absent row |
-| More than one resource across all of this operation's correlators | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
-| Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no verified correlator exists for the attempt's ordering channel (`PRV-33`) | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
+| Exactly one resource across every channel | **Resolved-observed.** Attach it and complete the operation as though it had succeeded. | Becomes the machine's running commitment (`OPS-36` where it was already released) |
+| The provider's search is authoritative and returns nothing on any channel, and the negative window has elapsed — or a matched resource is read directly and is gone, past `PRV-36`'s window | **Resolved-absent.** No resource exists to attach — *"the mutation did not happen" until 2026-09-05, which the matched-and-gone case falsifies: the order landed and left nothing* | Closed and released in full (`LDG-32`); a charged fee per `LDG-39`'s absent row |
+| More than one resource across every channel | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
+| Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no verified correlator exists for the operation's ordering channel (`PRV-33`) | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
 **A correlator match is proof that an order landed, not that the resource exists, and the first
 row MUST be confirmed by a direct read before it attaches anything.** `08-provider-notes.md`
@@ -542,6 +371,16 @@ row, and ignored the visibility window — so the ordinary Robot create resolved
 back as an `OPS-36` late attach carrying a wind-down deficiency. Without the read at all,
 reconciliation attached, metered and fee-settled a ghost.*
 
+**A create MUST NOT settle `succeeded` on the strength of the reply in hand alone.** Before the
+terminal write the system MUST search the correlator across every ordering channel the driver
+reaches (`PRV-38`) and MUST settle `succeeded` only where that search yields exactly one
+resource. A create settles exactly one machine, so **more** than one is `OPS-38`'s many-case: it
+MUST NOT auto-attach either, and it goes to an operator (`OPS-31`), never to `succeeded`. An order
+that lands *after* the search was taken is beyond what any settle-time search can see, and
+`OPS-32`'s account sweep is the backstop for it. *Until 2026-09-05 the search was over several
+attempts' correlators; `ADR-0014` removed the second attempt, and what has to be searched is
+several channels, which `PRV-38` found was never covered.*
+
 **A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
 This is one rule with **three entry points** — the provider **accepting the order in its reply**,
 `OPS-27` **resolving-observed** a create whose reply was lost, and `OPS-36`'s **late attach** of a
@@ -555,8 +394,8 @@ is still open (`LDG-31`). They MUST commit together, under `LDG-35`'s per-tenant
 because the debit reads the balance. **The late-attach entry point carries three further effects,
 and they commit in that same transaction**: the attach itself; *either* the wind-down commitment
 *or* the `LDG-66` operator deficiency that stands in for it where available cannot cover the floor,
-never neither and never both; and the enqueue of the cleanup cancellation, which claims `OPS-39`'s
-`(machine_id, late_attach_cleanup)` trigger entry as it goes. A partial commit leaves a state
+never neither and never both; and the enqueue of the cleanup cancellation, which opens the
+machine's `delete` episode as it goes (`OPS-39`, `OPS-48`). A partial commit leaves a state
 nothing in the record can repair: a machine whose fee is still parked bills that setup a second
 time when the obligation is next read, a debit without the machine row charges a customer for a
 machine no tenant owns, a machine row without its debit runs a create nobody paid for, and an
@@ -565,8 +404,9 @@ scheduled to stop it.
 
 **Where the machine's tenant is suspended at the moment of the attach, that same transaction also
 enqueues a system cancellation** — `requested_by: system`, `system_reason: tenant_suspended`, under
-`OPS-39`'s trigger, the identical mechanism `API-58` step (3) uses on the fan-out and the identical
-attach-then-route shape as `OPS-36`. This applies at **all three** entry points. It is needed
+the machine's `delete` episode, opening it or adding the reason to an episode this same transaction
+opened (`OPS-39`, `OPS-48`) — the identical mechanism `API-58` step (3) uses on the fan-out and the
+identical attach-then-route shape as `OPS-36`. This applies at **all three** entry points. It is needed
 because `API-58`'s re-sweep stops once a pass finds no un-cancelled machine, and a create that has
 not yet produced a machine passes that test: the parent settles `succeeded` — counting a
 `needs_reconciliation` child as complete — and no later pass will ever look again. Without it, a
@@ -618,12 +458,12 @@ immediately (`requested_by: system`,
 commit together, under the atomicity rule stated above. **Survival requires a caller action**: the
 tenant may
 `extend-runway` (`LDG-62`) against the attached machine **before the cleanup cancellation this
-transaction enqueued has taken the machine lock** (`OPS-41`), which is an explicit, capped,
+transaction enqueued has written `OPS-42`'s fence** (`OPS-41`), which is an explicit, capped,
 idempotent authorization rather than an inference about what it would have wanted. *"Before the
 exhaustion sweep reaches it" was the withdrawn wording, and it described a race against something
 that had already happened: the delete is enqueued here, in this same transaction, so there is no
-later sweep to beat. `OPS-41`'s re-check under the lock is what makes the deadline real and what
-makes this survival path work at all.* **Where the branch opened no commitment**, `LDG-62` **creates** one, sized as
+later sweep to beat. `OPS-41`'s re-check under `OPS-42`'s fence is what makes the deadline real and
+what makes this survival path work at all.* **Where the branch opened no commitment**, `LDG-62` **creates** one, sized as
 `LDG-62` requires — the requested runway at the current rate **plus `protected_sats`** — rather
 than growing an absent record; otherwise the survival path is
 unreachable for exactly the broke tenant this branch is about. **This is the branch that makes
@@ -640,18 +480,19 @@ API is weaker.**
 correlator the operation recorded and every ordering channel the driver can reach (`OPS-27`,
 `PRV-38`).
 
-**AMENDED 2026-09-05 — the union over attempts is gone; the cardinality check is not** (`OPS-46`,
-`ADR-0014`). A create records one correlator, so there is no union over attempts left to take. **Many
+**AMENDED 2026-09-05 — the union over attempts is gone; the cardinality check is not**
+(`ADR-0014`). A create records one correlator, so there is no union over attempts left to take. **Many
 remains reachable and MUST still be handled**: `API-51` requires the contract to state "in words
 that re-issuing the request under a fresh idempotency key **is a second purchase**, not a retry",
 and nothing stops a caller's agent from doing exactly that — two operations, two correlators, two
 machines — while a provider can also answer one order with more than one resource. A search that
 finds more than one MUST NOT auto-attach either.
 
-*The withdrawn text made many "reachable by a documented procedure: `OPS-20` requeue places a second
-order, so a late-succeeding first attempt and a successful second are two machines", and required
-the union because on a free-field provider both orders carried the same operation UUID while on a
-per-order artifact only the union saw the pair. That procedure no longer exists. What replaces it as
+*The withdrawn text made many reachable by a documented procedure — a second order placed under the
+same operation, so a late-succeeding first attempt and a successful second were two machines — and
+required the union because on a free-field provider both orders carried the same operation UUID
+while on a per-order artifact only the union saw the pair. That procedure no longer exists
+(`ADR-0014`, `ADR-0017`). What replaces it as
 the live source of duplicates is the caller, not the operator — which is worse for detection, since
 two operations do not share a correlator to search on, and `OPS-32`'s account sweep is what finds
 them.*
@@ -671,9 +512,7 @@ re-submit with a fresh URL. An expiry mid-stream after that gate is an ordinary 
 under `OPS-11`'s classification. **The gate exists because the alternative is entering rescue and
 beginning a destructive write fed by a URL that is already doomed.** No refresh mechanism inside the
 record is needed, because the caller re-submits with a fresh URL — which this requirement already
-tells it to do. *Until 2026-09-06 the reason given was "Operator requeue already carries a fresh
-payload (`OPS-34`)". An install cannot be requeued at all (`OPS-46`, `F39`), and the caller path was
-always the real one: the operator never held the signed URL, `STO-9` having purged it.*
+tells it to do; the operator never held the signed URL, `STO-9` having purged it.
 
 **OPS-43** **The provider's price MUST be re-checked at claim, and the order refused where the
 commitment no longer covers it.** A create is priced and its commitment sized when the API accepts
@@ -685,8 +524,8 @@ bound.
 
 Before any ordering call the worker MUST re-read the offer's current price **in the provider's own
 currency** and compare it with the native price the commitment was sized from — **carried on the
-attempt's entry in `operations.request_summary`, which MUST hold the accepted recurring price, its
-currency and its period, and the accepted setup fee, and is re-priced per requeue** (`LDG-2`; *the
+operation's `request_summary`, which MUST hold the accepted recurring price, its
+currency and its period, and the accepted setup fee** (`LDG-2`; *the
 fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment
 row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
 provider
@@ -704,10 +543,10 @@ signed-URL gate: it fails before anything is bought, so nothing ambiguous is cre
 reconciliation is needed.
 
 **Nothing is grown.** This is a refusal, not a top-up, so `ADR-0011` is untouched — a commitment
-still increases only by `LDG-62`, `OPS-20`'s requeue and `LDG-63`'s scheduled-cancellation branch.
+still increases only by `LDG-62` and `LDG-63`'s scheduled-cancellation branch.
 
-*The asymmetry that exposed it: `OPS-20` already mandates exactly this re-pricing for a requeue,
-"because the requeue happens later — possibly much later". An original create has the same latency
+*The asymmetry that exposed it: the second order the set once admitted (`ADR-0014`, `ADR-0017`) was
+re-priced because it "happens later — possibly much later". An original create has the same latency
 and had no such rule, so the operator absorbed the difference silently and learned about it from an
 invoice.*
 
@@ -715,49 +554,32 @@ invoice.*
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
 new purchase.
 
-**OPS-39** **AMENDED — deduplicated, and never blocked by a caller's ceiling.** Each triggering
-episode MUST mint **one** durable `system_trigger_id` and
-**reuse it on every subsequent sweep until that episode is resolved** — the id identifies the
-*condition* (this machine's exhaustion, this account's loss), not the sweep that noticed it.
-**The uniqueness is over the machine's retained set, not over `operations`.** At most one **open**
-entry may exist per key in `machines.system_trigger_ids` (`05-persistence.md`), and a sweep MUST
-claim that entry — atomically, in the manner of `STO-2` — before it enqueues anything, so the
-second sweep finds the episode already open and enqueues no duplicate cancellation.
-**AMENDED 2026-08-14 — for an exposure-reducing cancellation the key is `(machine_id, action)`,
-not `(machine_id, system_reason)`**, and the reasons that contributed are retained as a **set** on
-that one entry. Two reasons to cancel the same machine — exhaustion and its tenant's suspension,
-say — are one exposure, not two: keyed by reason, each sweep claimed its own entry and each
-enqueued its own delete, and `OPS-8`'s per-machine lock only serializes those two calls, it does
-not dedupe them. On a provider that accepts a *scheduled* cancellation (`STO-8a`, `DOM-19`) the
-second call can then alter or repeat the first's mutation. Every other kind of system trigger keeps
-`(machine_id, system_reason)`, because those really are distinct episodes with distinct remedies.
-The operation the first sweep enqueued carries the reason it was enqueued under; the added reasons
-live on the retained entry, so the episode still records why it stayed open.
+**OPS-39** **AMENDED 2026-09-08 (`ADR-0017`) — the episode is a row, its index is the dedup, and
+it is never blocked by a caller's ceiling.** A system-detected condition on a machine is an
+**episode** (`DOM-31`, `STO-52`): opened once, and found open by every subsequent sweep until it
+closes (`OPS-48`). The episode identifies the *condition* (this machine's exhaustion, this
+account's loss), not the sweep that noticed it. `STO-52`'s partial unique index admits at most one
+open episode per `(machine_id, key)`, and a sweep MUST enqueue nothing against a machine whose
+episode under that key is open — the index, not a claim, is what makes the second sweep enqueue no
+duplicate cancellation. **For an exposure-reducing cancellation the key is the action, `delete`,
+not the `system_reason`** (amended 2026-08-14), and the reasons that contributed are retained as
+the episode's `reasons` **set**. Two reasons to cancel the same machine — exhaustion and its
+tenant's suspension, say — are one exposure, not two: keyed by reason, each sweep opened its own
+episode and each enqueued its own delete, and `OPS-8`'s per-machine serialization only orders
+those two calls, it does not dedupe them. On a provider that accepts a *scheduled* cancellation
+(`STO-8a`, `DOM-19`) the second call can then alter or repeat the first's mutation. Every other
+kind of system trigger keys on `(machine_id, system_reason)`, because those really are distinct
+episodes with distinct remedies. The attempt carries the reason it was enqueued under and the
+episode it belongs to (`operations.episode_id`); the added reasons live on the episode, so it
+still records why it stayed open.
 
-`operations.system_trigger_id` is a **convenience copy** carried for
-querying and for requeue under an existing id; a matching constraint over `operations` is a
-redundant guard and MUST NOT be the only one, because `STO-14` deletes the very rows it
-constrains and leaves it nothing to check. **The constraint bounds new
-enqueues, not recovery**: an operation that failed deterministically may still be requeued under
-its existing trigger id (`API-19`, `OPS-20`), because a cancellation that did not happen must
-remain retryable or the machine bills forever. **Minting a fresh id per sweep
-would make the constraint fire never**, which is the defect this rule exists to prevent — otherwise a sweep that runs every minute enqueues a fresh
-cancellation every minute for the same exhausted machine, which is repeated provider mutation by
-timer.
-
-**The id MUST outlive the operations that carry it.** `STO-14` deletes settled operations after a
-configured age, and an id stored only there vanishes with them — after which the next sweep of the
-same unresolved condition mints a new one and re-enqueues, reaching the identical defect through
-retention instead of through a timer. The id is therefore held on the **machine** row, under the
-key stated above — the `action` for an exposure-reducing cancellation, the `system_reason` for
-everything else (`machines.system_trigger_ids`, `05-persistence.md`) — and is removed only
-when the episode resolves, which `OPS-44` defines outcome by outcome. **A tombstoned machine keeps
-any entry that is still open** (`STO-8`), because a machine whose
-cancellation was never established is exactly the row a later sweep reads. *That is not in tension
-with `OPS-44` removing the entry on a cancellation that succeeded with the resource gone: there the
-episode has ended, and the row is kept for the operation records that reference it rather than for
-the dedup. The case this sentence is about is the machine tombstoned by some **other** path while a
-cancellation episode is still unresolved.*
+**Opening a fresh episode per sweep would make the index fire never**, which is the defect this
+rule exists to prevent — otherwise a sweep that runs every minute enqueues a fresh cancellation
+every minute for the same exhausted machine, which is repeated provider mutation by timer. That
+the episode outlives the operations that carry it is trivially true — it is a row, not an entry on
+an operation — so `STO-14`'s deletion of settled attempts leaves the dedup intact. **A tombstoned
+machine keeps any episode that is still open** (`STO-8`), because a machine whose cancellation was
+never established is exactly the row a later sweep reads.
 
 **Exposure-reducing system cancellations MUST be exempt from `SEC-39`'s per-principal destruction
 ceiling.** That ceiling exists to bound what a runaway *caller* can destroy; applying it to the
@@ -767,7 +589,8 @@ briefly; nothing may deny it.
 
 **System-initiated provider mutations MUST be operations, and the tenant MUST see them.** Exhaustion cancelling a machine (`LDG-14`), `OPS-36`'s attach-then-cancel, and any other
 mutation the deployment performs on a tenant's machine without a caller request MUST go through
-this queue — lock, lease, settled states, `needs_reconciliation` included, because a cancel
+this queue — the epoch guard (`OPS-47`), per-machine serialization (`OPS-8`), settled states,
+`needs_reconciliation` included, because a cancel
 whose outcome cannot be established is ambiguous no matter who requested it — and MUST appear in the
 tenant's operation list marked `requested_by: system` with a stated reason (`exhausted`,
 `late_attach_cleanup`, `tenant_suspended`, `rate_outage_bound`; *`account_lost` was in this list
@@ -778,25 +601,24 @@ a tenant's fleet, and the hole sits exactly where the most alarming event does: 
 vanished overnight (`F31`). A pure balance event with no provider mutation — a commitment
 release, a re-derivation — mints **no** operation; the ledger is already that record.
 
-**OPS-41** **An exposure-reducing cancellation MUST re-check funding under the lock, and abort if
+**OPS-41** **An exposure-reducing cancellation MUST re-check funding under the fence, and abort if
 the machine is funded.** A worker executing a system cancellation whose reason is exhaustion, a
-late-attach cleanup, **or a rate-outage bound** (`OPS-39`, `LDG-64`) MUST, **after acquiring the
-machine lock and before any provider mutation**, re-read that machine's commitment and its
+late-attach cleanup, **or a rate-outage bound** (`OPS-39`, `LDG-64`) MUST, **after claiming the
+machine (`OPS-8`) and before any provider mutation**, re-read that machine's commitment and its
 `runway_until` — **in the same serialized transaction that writes `OPS-42`'s fence**, without which
 the extension it is racing can commit between the read and the write. Where re-deriving `LDG-33`
 from what it read now puts **`runway_until` strictly in the future**, the worker MUST make no
 provider call, settle the operation `succeeded` with a result recording that no mutation was
 required, **write that re-derived `runway_until` to the machine row and clear
 `machines.exhausted_since`** (`LDG-16`), **clear
-`machines.destroy_committed`**, and resolve the
-episode's `system_trigger_id` entry (`machines.system_trigger_ids`) so a later lapse can open a
+`machines.destroy_committed`**, and close the episode (`OPS-48`) so a later lapse can open a
 fresh one. *The date write was added 2026-09-05: the sweep routes on the **stored** date, and an
 abort that re-derived a future date and wrote nothing left the stored one in the past — so the next
 pass routed the same machine, the worker aborted again, and the fence was set and cleared once per
 sweep until the next scheduled re-derivation. That is the non-terminating loop this requirement
 warns about for the withdrawn predicate, reached through a stale column instead. `LDG-62` had the
 same gap and carries the same write.*
-**Those last two happen in the terminal transaction** (`OPS-44`'s first row): the fence exists to
+**Those last two happen in the terminal transaction** (`OPS-48`'s no-mutation row): the fence exists to
 order this worker against `LDG-62`, and leaving it set on a machine the worker has just decided not
 to cancel would refuse every future extension on a funded, running machine — permanently, since
 nothing else would clear it.
@@ -807,7 +629,7 @@ the current rate — `LDG-16`'s invariant, the same test that routed it here", a
 was the tell nobody followed. `LDG-16`'s invariant is a condition on the routing itself: a machine
 enters this path **while** its commitment still covers wind-down, so the operator is never left
 paying for a stop it can no longer afford. Every machine the sweep routes correctly therefore
-satisfies it on arrival, and a worker re-testing it under the lock aborts every cancellation it was
+satisfies it on arrival, and a worker re-testing it under the fence aborts every cancellation it was
 sent to perform. `LDG-13` — "a machine whose funding fails MUST be cancelled" — becomes unreachable
 by the only path that reaches it, and an unfunded machine bills the operator indefinitely. Two
 full-set cross-model reviews read past this; the requirement cited the very thing that made it
@@ -839,11 +661,11 @@ committed, and the disk is destroyed anyway. The satoshis come back when `LDG-32
 commitment; the data does not. `OPS-36` calls this branch "what makes `OPS-33`'s early release
 safe", so the release was resting on a path that could not deliver.
 
-**The check belongs under the lock, not in the extension.** Cancelling the queued operation from
-inside `LDG-62`'s transaction would have to win a race it holds no lock for — the worker may
+**The check belongs under the fence, not in the extension.** Cancelling the queued operation from
+inside `LDG-62`'s transaction would have to win a race it holds nothing for — the worker may
 already have claimed the operation — and would still leave the case where the payment lands after
 the claim. Re-reading at the last moment before the mutation is correct under every interleaving,
-including a second extension and a concurrent requeue.
+including a second extension.
 
 **Where there is no rate, the cancellation proceeds.** `LDG-40` requires the exhaustion sweep to
 continue during a rate outage because it reduces exposure, and `LDG-65` keeps it running on the
@@ -890,8 +712,8 @@ The operation's own reason was wrong because `API-58`'s fan-out joins an already
 episode, so the worker may hold an `exhausted` delete on a suspended tenant and a price rise would
 have aborted it as funded. The `reasons` set was wrong the other way: the reason is history, so a
 tenant that was later **resumed** (`WIR-41`) and funded its machine still had `tenant_suspended` on
-the entry, and a requeue skipped the funding check and destroyed a machine its live tenant had
-paid for.*
+the episode, and a later attempt skipped the funding check and destroyed a machine its live tenant
+had paid for.*
 
 **AMENDED 2026-09-02 — the exemption is scoped to the re-check, not to the abort.** `OPS-42` keys
 its fence on the **action**, so a `tenant_suspended` delete is an exposure-reducing cancellation and
@@ -899,7 +721,7 @@ takes the fence like any other — and `OPS-42` then tells a worker whose guarde
 to "settle as `OPS-41` requires", pointing at a requirement that, read whole, disclaimed the case
 entirely. **The abort-and-settle shape below applies to every exposure-reducing cancellation,
 whatever its reason**: make no provider call, settle `succeeded` with a result recording that no
-mutation was required, and resolve the episode per `OPS-44`. What the reason changes is only whether
+mutation was required, and close the episode per `OPS-48`. What the reason changes is only whether
 the *funding* test can send a worker down that path — for exhaustion and late-attach cleanup it can,
 for a suspension it cannot. *In practice a suspension cancel loses that race only to another
 cancellation of the same machine, which `OPS-39`'s per-action episode key already prevents, and
@@ -918,34 +740,29 @@ Nothing in `LDG-62`, `OPS-36`, `OPS-39` or `OPS-41` closed it.
 **The cancellation and the extension MUST contend for one row, so that one of them provably loses:**
 
 - Before any provider mutation, an exposure-reducing cancellation MUST record its decision on the
-  machine row — `machines.destroy_committed` set to its own operation id — as a conditional write
-  guarded on **`destroy_committed IS NULL` *or* `destroy_committed` already holding this
-  operation's own id**, in the manner of `STO-3`. Where the write affects no row, another actor won
-  the race and the worker MUST abort the cancellation and settle as `OPS-41` requires.
+  machine row — `machines.destroy_committed` set to its episode's id (`operations.episode_id`,
+  `STO-52`) — as a conditional write guarded on **`destroy_committed IS NULL` *or*
+  `destroy_committed` already holding this operation's episode id**, in the manner of `STO-3`.
+  Where the write affects no row, another actor won the race and the worker MUST abort the
+  cancellation and settle as `OPS-41` requires.
 
-  **AMENDED 2026-09-02 — the guard was `IS NULL` alone, and that made `OPS-39`'s required retry
-  impossible.** `OPS-39` says in terms that a cancellation which did not happen "must remain
-  retryable or the machine bills forever", and `API-7` step 5b keeps an exposure-reducing requeue
-  reachable even for a suspended tenant. But a first attempt that set the fence, called the provider
-  and failed left its **own** id in that column, so the requeued attempt's `IS NULL` write affected
-  no row, it read that as "another actor won", aborted, and settled `succeeded` recording that no
-  mutation was required — **resolving the episode on a machine that is still running and still
-  billing.** The next sweep then minted a fresh episode and reached the identical false success,
-  forever, while `LDG-62` was refused `conflict` with "the machine is already being cancelled",
-  which was permanently false. Accepting the operation's own id is what makes the recovery path
-  `OPS-39` mandates actually execute. *One id suffices where the finding suggested an episode:
-  `OPS-39` admits at most one **open** entry per key and a sweep MUST claim it before enqueuing, so
-  an open episode has exactly one operation, and a requeue re-queues that same record rather than
-  minting another.* **A worker MUST NOT treat its own id in that column as evidence that its
-  previous attempt succeeded** — the whole reason the attempt is being requeued is that nobody
-  established what happened.
+  **AMENDED 2026-09-08 (`ADR-0017`) — the fence holds the episode, not the attempt.** It held the
+  attempt's operation id until today, and `IS NULL` alone until 2026-09-02: a first attempt that set
+  the fence, called the provider and failed left its own id in the column, a second attempt's write
+  affected no row, read that as "another actor won", and settled `succeeded` recording that no
+  mutation was required — resolving the episode on a machine still running and still billing, while
+  `LDG-62` was refused `conflict` with "the machine is already being cancelled", which was
+  permanently false. The episode outlives every attempt (`ADR-0017`), so a `retry`'s fresh attempt
+  (`OPS-48`, `API-64`) contends on the same id and executes. **A worker MUST NOT treat its episode's
+  id in that column as evidence that a previous attempt succeeded** — the whole reason a retry was
+  issued is that the provider did not act.
 - `LDG-62` MUST, in its own `LDG-35` transaction, conditional-write that same machine row guarded on
   `destroy_committed IS NULL`, and MUST fail `conflict` where it affects no row. **No commitment is
   opened or grown and no balance moves**; the tenant is told plainly that the machine is already
   being cancelled.
 - **`OPS-41`'s re-check and this fence write MUST be one transaction, under `LDG-35`'s per-tenant
-  serialization.** The worker holds the machine lock and enters the serialization for that bounded
-  read-and-write, which is the one nesting direction `LDG-69` permits; it releases it before the
+  serialization.** The worker holds the machine (`OPS-8`) and enters the serialization for that
+  bounded read-and-write, which is the one nesting direction `LDG-69` permits; it releases it before the
   provider call, which `LDG-69` forbids inside. **AMENDED 2026-09-02, because without this the fence
   does not fence.** `LDG-62` runs in its own `LDG-35` transaction, so unless the read and the fence
   write are inside one too, the extension can commit in the gap *between them* — the worker reads
@@ -958,19 +775,19 @@ Nothing in `LDG-62`, `OPS-36`, `OPS-39` or `OPS-41` closed it.
   refused, and the customer keeps its satoshis. Extension first: the worker's read sees the new
   commitment, `OPS-41` applies, and it makes no provider call at all.
 
-**This needs no lock at all, which is why it is the fence rather than the ordering.** `LDG-62` takes
-no machine lock — a synchronous caller write cannot wait behind an install holding that lock for up
-to `RSC-35`'s ninety minutes, and refusing to extend runway for the duration of an install is
-precisely the wrong failure. **The worker takes the machine lock and then the tenant primitive**,
-in that order and only for the bounded read-and-write above; `LDG-62` takes the tenant primitive
-and never a machine lock. A cycle needs two acquirers in opposite orders, and there is no second
-order here.
+**`LDG-62` never waits on the machine, which is why it is the fence rather than the ordering.**
+`LDG-62` is not an operation and holds no machine under `OPS-8` — a synchronous caller write cannot
+wait behind an install holding the machine for up to `RSC-35`'s ninety minutes, and refusing to
+extend runway for the duration of an install is precisely the wrong failure. **The worker holds the
+machine and then takes the tenant primitive**, in that order and only for the bounded
+read-and-write above; `LDG-62` takes the tenant primitive and never the machine. A cycle needs two
+acquirers in opposite orders, and there is no second order here.
 
-*This paragraph said "the worker takes the machine lock and never the tenant primitive" until
-2026-09-02, and it is retained because the trap is live: that sentence was true of the withdrawn
-ordering-only design, it survived the amendment four bullets above that made the worker enter
-`LDG-35`'s serialization, and it is the sentence a builder implementing the lock discipline would
-have read. Implementing it reopens the paid-machine deletion race this whole requirement exists to
+*This paragraph said the worker takes the machine and never the tenant primitive until 2026-09-02,
+and it is retained because the trap is live: that sentence was true of the withdrawn ordering-only
+design, it survived the amendment four bullets above that made the worker enter `LDG-35`'s
+serialization, and it is the sentence a builder implementing the ordering discipline would have
+read. Implementing it reopens the paid-machine deletion race this whole requirement exists to
 close. Found by both reviewers of 2026-09-02, independently.*
 
 **The residual is stated rather than solved:** a payment landing after the fence is refused rather
@@ -979,69 +796,62 @@ honest outcome, and it is the one `OPS-36` promised when it called `OPS-41` "wha
 early release safe" — a promise that requirement could not keep alone.
 
 *Both reviewers of 2026-08-31 rejected the ordering-only fix independently and converged on a fence;
-the shape here is the one that does not make extend-runway wait on a machine lock.*
+the shape here is the one that does not make extend-runway wait on the machine.*
 
-**OPS-44** **An exposure-reducing cancellation episode has a stated end, and every delete outcome
-reaches one.** `OPS-39` mints the episode and says it is "removed only when the episode resolves";
-`OPS-41` resolves it on the one path where no mutation was required; and **nothing anywhere said
-what resolves it when the delete actually ran.** That gap is what let `API-58`'s fan-out and
-`OPS-42`'s fence each reason about "cancelled" with no shared definition. The rules are:
+**OPS-44** **AMENDED 2026-09-08 (`ADR-0017`).** The end of an exposure-reducing cancellation
+episode, outcome by outcome, is `OPS-48`'s table; the fence column there is
+`machines.destroy_committed`'s whole life.
 
-| The cancellation settled | The episode entry (`machines.system_trigger_ids`) | `machines.destroy_committed` |
+**OPS-48** **ADDED 2026-09-08 (`ADR-0017`) — the episode lifecycle.** An episode (`DOM-31`,
+`STO-52`) is opened in `attempting` by the sweep or transaction that detects the condition, with
+its first attempt enqueued in the same transaction; while it is open the index is the dedup and a
+sweep enqueues nothing against it (`OPS-39`). Every attempt is an ordinary operation carrying
+`operations.episode_id`, and `current_operation_id` names the latest. **An attempt settling
+`failed` does not close the episode**: `failed` is a fact about the attempt, and the episode is
+still open, still billing, and waiting on a decision. The transitions are exactly these, keyed on
+how the current attempt settled — by the worker, by `OPS-27`'s evidence, or by `OPS-31`/`OPS-45`'s
+operator verb — and on the one operator verb the episode has:
+
+| The attempt settled | The episode | `machines.destroy_committed` (the fence, `OPS-42`; exposure-reducing cancellations only) |
 |---|---|---|
-| `succeeded`, resource gone — including `OPS-11`'s goal-state row and `OPS-41`'s no-mutation abort | **Removed**, in the same transaction as the terminal write | **Cleared**, same transaction |
-| `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | **Stays open until the effective date passes and the machine is tombstoned** | **Stays set** |
-| `failed` — deterministic, the provider rejected the request and did not act | **Stays open** | **Stays set** |
-| `needs_reconciliation` | **Stays open** | **Stays set** |
-| Resolved by an operator (`OPS-31`) — `not_applied`, `abandoned`, or an `applied` reporting the resource gone (`OPS-45`) | **Removed**, in the resolution transaction | **Cleared**, same transaction |
-| Resolved `applied` **with an `effective_cancellation_date`** (`WIR-35`) — the operator established the provider *scheduled* it | The second row applies: **stays open until the effective date passes and the machine is tombstoned** | **Stays set** |
+| `succeeded`, resource gone — including `OPS-11`'s goal-state row | `closed`, `close_reason: resource_gone`, in the terminal transaction | **Cleared**, same transaction |
+| `succeeded` recording that no mutation was required (`OPS-41`'s abort) | `closed`, `close_reason: funded`, in the terminal transaction: the condition has ended, and a later lapse opens a fresh episode | **Cleared**, same transaction |
+| No attempt settled — the exhaustion sweep finds the machine of a `stalled` episode funded under `OPS-41`'s predicate (a rate rise can do this with no caller action, and the fence forbids the caller's own) | `closed`, `close_reason: funded`, in the sweep's transaction; no provider call is made, so `OPS-39`'s loop concern does not apply | **Cleared**, same transaction |
+| `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | `scheduled`; `closed` in the transaction that tombstones the machine at the effective date | **Stays set**; the tombstone clears it, same transaction |
+| `failed` — deterministic; the provider did not act | `stalled` | **Stays set** |
+| `needs_reconciliation` | `uncertain`, until the attempt is resolved (`OPS-27`, `OPS-31`) and one of the rows below applies | **Stays set** |
+| Resolved `applied`, the resource gone (`OPS-45`) | `closed`, `close_reason: resource_gone`, in the resolution transaction | **Cleared**, same transaction |
+| Resolved `applied` **with an `effective_cancellation_date`** (`WIR-35`) — the operator established the provider *scheduled* it | `scheduled`, as the third row | **Stays set** |
+| Resolved `not_applied` — the machine is still there | `stalled` | **Stays set** |
+| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Cleared**, same transaction, so a later sweep may open a fresh episode and fence again |
+| `retry` (`API-64`) on a `stalled` episode | `attempting`, with a fresh attempt enqueued in the same transaction as the state change; admissible in no other state | Unchanged: the new attempt contends on the same episode id |
 
-**The "stays" rows are the point, and the second one is the one a reader will not expect.** A
-cancellation that did not happen leaves a machine that is
-still running, still billing and still unfunded, so the exposure is unchanged and the episode is not
-over: the entry is what keeps a later sweep from enqueuing a **second** delete against the same
-machine (`OPS-39`), and the fence is what keeps `LDG-62` from selling runway on a machine the
-operator has already decided to destroy. **A cancellation that succeeded *as a schedule* is in the
-same position**: `DOM-19` says "the machine is still running, the customer can still reach it, and
-the operator is still paying for it" until its effective date, so it is still unfunded and the next
-exhaustion sweep will find it. Resolving
-the episode there is precisely the case `OPS-39`'s 2026-08-14 amendment warns about — "on a provider
-that accepts a *scheduled* cancellation the second call can then alter or repeat the first's
-mutation" — reached through resolution instead of through a reason key. The entry is released when
-the machine is tombstoned (`STO-8a`), which is when the exposure actually ends — **and the tombstone
-clears `destroy_committed` in the same transaction**, the third path that clears it beside the two
-rows of the table above (*named 2026-09-05; the "nothing else clears" paragraph below did not
-mention it, so on this path the fence had no stated end*). Recovery is `API-19`'s requeue of that same operation under
-its existing trigger id, which `OPS-42`'s amended guard now permits. **A `failed` exposure-reducing
-cancellation MUST therefore be surfaced to the operator** in the same listing `OPS-26` requires for
-`needs_reconciliation`: it is the one settled state in this set that nothing automatic will look at
-again, and the cost of not looking is unbounded provider billing.
+**A `stalled` episode is never retried by a timer.** A deterministic rejection repeated
+automatically is the loop `OPS-39` exists to prevent, and the transient cases are deferred rather
+than failed (`OPS-11`). A `stalled` or `uncertain` episode is therefore the operator's to look at
+(`OPS-26`): its machine is still running, still billing and still unfunded, the exposure is
+unchanged and the episode is not over. The open episode is what keeps a later sweep from enqueuing
+a **second** delete against the same machine, and the fence is what keeps `LDG-62` from selling
+runway on a machine the operator has already decided to destroy.
 
-**Operator resolution clears the fence, and that is deliberate — for `not_applied`, for
-`abandoned`, and for an `applied` that reports the resource gone.** `not_applied` says the machine
-is still there and `abandoned` says nobody established what happened — so in both a later
-exhaustion sweep MUST be able to open a fresh episode and fence again. **An `applied` that carries
-an `effective_cancellation_date` (`WIR-35`) is the table's second row, not its last**: the machine
-is still running and billing to that date, so the entry and the fence stay until the tombstone,
-exactly as they would had the worker's own call returned the schedule. *Corrected 2026-09-05. The
-earlier text cleared on all three verbs and said so was deliberate, reasoning that `applied` "may
-leave a `cancellation_scheduled` machine billing" — which is precisely the case where clearing lets
-the next sweep send a second cancellation against a machine the provider has already scheduled,
-the exact mutation `OPS-39`'s 2026-08-14 amendment warns about.* Leaving the fence set would make every subsequent
-sweep abort on a stranger's id and settle `succeeded` without acting, which is the defect
-`OPS-42`'s amendment removed by another route. *A cancellation resolves through `OPS-45`'s verbs,
-not through `observed`/`absent`: those name a resource a create may have produced, and a cancellation
-names a machine that already exists.*
+**`scheduled` is the row a reader will not expect.** `DOM-19` says "the machine is still running,
+the customer can still reach it, and the operator is still paying for it" until its effective
+date, so it is still unfunded and the next exhaustion sweep will find it. Closing the episode there
+is precisely the case `OPS-39`'s 2026-08-14 amendment warns about — "on a provider that accepts a
+*scheduled* cancellation the second call can then alter or repeat the first's mutation" — reached
+through resolution instead of through a reason key. So an `applied` carrying an
+`effective_cancellation_date` schedules rather than closes, exactly as it would had the worker's
+own call returned the schedule. *A cancellation resolves through `OPS-45`'s verbs, not through
+`observed`/`absent`: those name a resource a create may have produced, and a cancellation names a
+machine that already exists.*
 
-**Nothing else clears `destroy_committed`.** `05-persistence.md` described it as "cleared when the
-episode resolves without a mutation (`OPS-41`)", which is one row of the table above; the column's
-life is now stated for every outcome in one place, and the deliberate answer for an attempt that
-*did* reach the provider without ending the exposure is that the fence **persists** — the customer
-keeps its satoshis and is
-told plainly that the machine is being cancelled, which is `OPS-42`'s stated residual rather than an
-oversight. On the scheduled branch that is also the right answer on its own terms: runway bought
-past an effective cancellation date buys nothing, since `LDG-33` already protects the cost of
-running to it and the machine goes on that date regardless.
+**Nothing else clears `destroy_committed`.** The column's life is stated for every outcome in the
+table, and the deliberate answer for an attempt that *did* reach the provider without ending the
+exposure is that the fence **persists** — the customer keeps its satoshis and is told plainly that
+the machine is being cancelled — the residual `OPS-42` accepts, not an oversight. On
+the scheduled branch that is also the right answer on its own terms: runway bought past an
+effective cancellation date buys nothing, since `LDG-33` already protects the cost of running to it
+and the machine goes on that date regardless.
 
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look
@@ -1050,10 +860,11 @@ correlator exists, the correct outcome is *unresolved*, not a guess.
 
 **OPS-30** Resolution MUST be idempotent and MUST NOT race a healthy in-flight operation. A
 resource bearing operation X's correlator belongs to operation X and to nothing else; a sweep
-MUST NOT claim a resource whose operation is still `running` and holding its lease.
+MUST NOT claim a resource whose operation is still `running` and not yielded (`OPS-8`).
 
-**OPS-31** Operator verbs MUST exist for the unresolved case and MUST be distinct from requeue:
-record an observed resource by its external identifier, record that nothing was created, or
+**OPS-31** Operator verbs MUST exist for the unresolved case, and they resolve the attempt — an
+episode's `retry` (`API-64`) is a different verb on a different record (`OPS-48`): record an
+observed resource by its external identifier, record that nothing was created, or
 abandon the operation and accept the loss. Each MUST record who resolved it and on what
 evidence, and abandonment MUST close the commitment and release it in full (`LDG-32`) **where the
 operation opened one** — a create or an adopt (`LDG-11`, `LDG-36`). An install, a rescue inventory,
@@ -1159,17 +970,12 @@ accepts the verb except the two rescue-based install variants.* Where the marker
 dispatch, whether the mutation landed is exactly the question `OPS-31`'s resolution exists to
 answer, and it is answered from the provider (`PRV-36`'s evidence sources), never from this column.
 
-**Write-once is right for the disk fact and wrong for the dispatch fact, so the column's life is
-keyed on kind exactly as the table above is.** "Once any attempt has begun altering the disk, the
-disk may have been altered" is true forever; "a provider call was dispatched" is true of *that
-attempt*. **`write_started_at` is therefore write-once and never cleared on `rootfs_via_rescue` and
-`raw_disk`, and MUST be cleared by `OPS-20`'s requeue on the five dispatch kinds.** *Recorded
-2026-09-04. Otherwise a requeue whose second attempt fails **before** dispatching anything inherits
-the first attempt's marker and is classified ambiguous, when the engine has exactly the positive
-evidence of a clean stop that settles the first case `failed` — and no single write-once column can
-answer "did **this** attempt dispatch". A draft said the failed test "reads the marker of the attempt
-being settled" while two other sites still called the column never-cleared, which is unsatisfiable;
-the schema is where that had to be fixed.*
+**The markers are per operation, and nothing clears them** (amended 2026-09-08, `ADR-0017`). An
+operation is one attempt; a later attempt on the same machine is a fresh operation with unset
+markers of its own, so "did **this** attempt dispatch" is answered by this row and no other. *Until
+today the dispatch-kind marker was cleared when the same record was re-run, so a second attempt
+stopping short did not inherit the first's ambiguity; a record is no longer re-run (`ADR-0017`),
+and there is nothing to clear.*
 
 **The pinned-host-key abort is the case this exists for.** `RSC-3` refuses to connect when the trust
 decision cannot be made — the security-critical decision in the whole workflow, working exactly as
@@ -1182,24 +988,20 @@ about the disk.
 
 **Both markers MUST survive the payload purge** (`ADR-0005`, `OPS-2`). They live in named columns on
 the operation (`05-persistence.md`), which is what `OPS-11` and `OPS-31` read; the copy in
-`request_summary` is a **convenience copy for an operator reading a resolved record**, in the manner
-of `operations.system_trigger_id`, and the columns are authoritative. *Stated because one fact with
-two homes and no authority rule is how `SEC-46`'s amendment came to ship claiming it had applied.*
+`request_summary` is a **convenience copy for an operator reading a resolved record**, and the
+columns are authoritative. *Stated because one fact with two homes and no authority rule is how
+`SEC-46`'s amendment came to ship claiming it had applied.*
 
-**The two markers behave differently across attempts, and the difference is not stylistic.**
-`write_started_at` is **write-once and never cleared, including by a requeue** (`OPS-20`), **on
-`rootfs_via_rescue` and `raw_disk`**: once any attempt has begun altering the disk, the disk may have
-been altered, and that stays true however many later attempts stop short. **On the five kinds where
-it records a dispatch it is per-attempt and a requeue clears it** (2026-09-04), because dispatch is a
-fact about one attempt and a sticky copy makes a later clean stop read as ambiguous. `rescue_exited_cleanly` is the opposite — it describes **the machine
-right now**, so each attempt overwrites it, and a requeue that exits rescue cleanly genuinely repairs
-what a previous one left open. *A single rule for both would be wrong in one direction or the other:
-sticky, and a repaired machine reads as stranded forever; per-attempt, and a written disk reads as
-untouched on the next attempt that fails early.*
+**What outlives the operation is the disk, not the marker.** A `rootfs_via_rescue` or `raw_disk`
+install whose marker is set has altered the disk, and that stays true however many later
+operations on the machine stop short; it is read from that operation's row, which `STO-14` retains
+as any settled row. `rescue_exited_cleanly` describes **the machine as that operation left it**,
+and a later operation that exits rescue cleanly genuinely repairs what a previous one left open,
+recorded on its own row.
 
 A worker's write of either is guarded like any other worker write, on
-`(id, status = running, claimant = me)` (`STO-3`), and MUST report whether it affected a row — a
-worker that has lost its lease MUST NOT record that it began writing, because it may not have.
+`(id, status = running, epoch = mine)` (`STO-3`, `OPS-47`), and MUST report whether it affected a
+row — a superseded worker MUST NOT record that it began writing; it exits.
 
 **OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
 Periodic reconciliation MUST run across each provider account independently of any stuck
@@ -1253,7 +1055,7 @@ meter reads the machine record, `DOM-8` refreshes that record only on an explici
 and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
 draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not
 enough, because the cost accrues while the report sits unread. **This sweep's stated interval is
-therefore a money parameter** (`LDG-42`): it is the maximum time a customer can be billed for a
+therefore a money parameter** (`OVR-19`): it is the maximum time a customer can be billed for a
 machine that no longer exists.
 
 **A machine is unclaimed when it is absent from the `machines` table by
@@ -1321,46 +1123,45 @@ the only road, but the commitment was released long before.
 ## Worker algorithm
 
 ```
-loop:
-    if sweeper_due:
-        expire_stale_running_operations()
-        release_expired_machine_locks()
+startup:                                          # OPS-47, OPS-15
+    epoch = increment_engine_epoch()              # STO-51
+    n = move_running_to_needs_reconciliation()    # suspend_tenant parents -> queued
+    log(n)
 
-    op = claim_next_queued_operation(worker_id, lease)
+loop:
+    op = claim_next_queued_operation(epoch)       # OPS-5: atomic, marks running with epoch
     if op is none:
         idle_sleep(); continue
+    if claim refused by the per-machine index:    # STO-51: another running op holds the machine
+        defer(op, delay); continue                # OPS-8
 
-    if op names a machine:
-        if not acquire_machine_lock(machine, op, worker_id, lease):
-            defer(op, delay); continue
-
-    start heartbeat(op, machine, lease)          # renews both leases
-    outcome = race(
-        execute(op),                             # cancelled if lease is lost
-        lease_lost_signal()
-    )
-    stop heartbeat
+    outcome = execute(op)                         # OPS-21: cancellable
+    # a phase RSC-41 names runs with yielded_at set; clearing it is a conditional
+    # write the index may refuse, in which case defer(op, delay)   (OPS-8)
 
     if outcome is success:
-        finish_success(op, worker_id, result)    # conditional on still holding lease
+        ok = finish_success(op, epoch, result)    # guarded (id, running, epoch = mine), STO-3
     else:
         if classify(op, error) is ambiguous:
-            finish_needs_reconciliation(op, worker_id, error)
+            ok = finish_needs_reconciliation(op, epoch, error)
         else:
-            finish_failed(op, worker_id, error)
+            ok = finish_failed(op, epoch, error)
 
-    if op names a machine:
-        release_machine_lock(machine, op, worker_id)
+    if not ok:                                    # affected no row: superseded
+        exit()                                    # OPS-47, OPS-22
 ```
+
+Every guarded write in `execute` — `OPS-45`'s markers, `OPS-42`'s fence — exits the same way.
 
 **OPS-21** `execute` MUST be cancellable, and cancellation MUST be treated as an
 ambiguous outcome. A provider call abandoned mid-flight is exactly the uncertainty this
 design exists to represent.
 
-**OPS-22** **AMENDED.** A **worker** recording a settled state MUST do so conditional on still
-holding the lease (`OPS-3`, `STO-3`); a resolution transition out of `needs_reconciliation` is
-made by no worker and is guarded by `STO-19`'s write-once columns instead. Where the conditional write affects no rows, the worker MUST log it loudly and
-leave the record alone; the sweeper will classify it.
+**OPS-22** **AMENDED 2026-09-08 (`ADR-0016`).** A **worker** recording a settled state MUST do so
+guarded on the engine's epoch (`OPS-3`, `OPS-47`, `STO-3`); a resolution transition out of
+`needs_reconciliation` is made by no worker and is guarded by `STO-19`'s write-once columns
+instead. Where the guarded write affects no row, the worker MUST log it loudly, leave the record
+alone, and exit (`OPS-47`); the successor's startup pass has already classified it (`OPS-15`).
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version
@@ -1380,13 +1181,14 @@ resolved.
 specifically every operation in `needs_reconciliation` (`API-23`). A design that tells
 operators to monitor a state and provides no way to list it is incomplete. See `DEF-8`.
 
-**AMENDED 2026-09-02 — a second thing must be listable, and `status` cannot express it.** `OPS-44`
-and `API-58` both require a **`failed` exposure-reducing cancellation** to reach an operator: it is
-the one settled outcome in this set that nothing automatic will look at again, its machine is still
-running and still billing, and its only recovery is `API-19`'s requeue. Filtering by
-`status=failed` does not find it — it returns every failed operation the deployment has ever
-produced, most of them a caller's typo. **`GET /v1/operations` MUST therefore also filter on
-`requested_by` and on `system_reason`** (`WIR-10a`'s enums, `API-23`), so
-`requested_by=system&system_reason=exhausted,tenant_suspended,late_attach_cleanup&status=failed` is
-one query. *A design that tells operators to monitor a **condition** and provides only a filter for
-a state it shares with everything else is `DEF-8` again, one predicate down.*
+**AMENDED 2026-09-08 (`ADR-0017`) — a second thing must be listable, and it is the episode.**
+`OPS-48` leaves an episode `stalled` or `uncertain` on a machine that is still running and still
+billing, and nothing automatic will look at it again: its only recovery is an operator's `retry`
+(`API-64`) or resolution of its attempt (`OPS-31`). Operators MUST be able to list open episodes by
+state — `stalled` and `uncertain` in particular (`API-64`, `WIR-51`). Filtering operations by
+`status=failed` does not find them: it returns every failed operation the deployment has ever
+produced, most of them a caller's typo, and `STO-14` deletes the attempt while the episode stays
+open. `GET /v1/operations`'s `requested_by` and `system_reason` filters (`WIR-10a`, `API-23`)
+remain, as the history of a machine's attempts. *A design that tells operators to monitor a
+**condition** and provides only a filter for a state it shares with everything else is `DEF-8`
+again, one predicate down; the episode is the condition, made a row.*

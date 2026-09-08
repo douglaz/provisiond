@@ -37,6 +37,113 @@ has been validated against a running system, a real provider response, or a payi
 design is now internally consistent and considerably more opinionated than it was — which raises,
 rather than lowers, the value of the first real transaction.
 
+## The implementation-process review — 2026-09-06, closed 2026-09-07
+
+An implementation-readiness review (`impl-report-01.md`, kept at the root as the record) read the
+whole set as a builder would and named twelve blockers. Each was checked against the current text
+before anything was decided; ten held, one was false, and one was misdescribed. Six decisions
+followed, three of them ADRs. The findings below are numbered in the order the review listed them,
+not in the order they were resolved, because two of them turned out to be the same defect.
+
+**F40. CLOSED — the worker's lease guard could not fail on the condition it existed for.**
+`OPS-3` and `OPS-22` both said a worker's write "MUST be conditional on that worker still holding
+the lease" and both delegated to `STO-3`, whose predicate was `(id, status = running, claimant = me)`
+— no term read `lease_expires_at`. A worker whose lease had expired but which `OPS-14`'s sweeper had
+not yet reached wrote a terminal state that landed; a second operation could take the machine lock
+under `OPS-9` the instant the first's lease expired, while the first's stale write still passed. No
+requirement stated behaviour at equality-at-expiry, and no generation or fencing token existed
+anywhere in the set. **The remedy on the table was a fencing token; the remedy taken was removing
+the second writer** (`ADR-0016`): the engine is one supervised process fenced by a per-lifetime
+epoch, the leases, heartbeat, sweep cadence and machine lock are deleted, and the restart window is
+the accepted outage. `OPS-47`, `STO-51`, `OVR-18`, `CNF-290`.
+
+**F41. CLOSED — the account sweep had no lease and no monotonic guard under replicas.** `OPS-32`
+was thorough about evidence quality and silent about single-flight execution; `STO-48`'s
+`state_observed_at` named two writers and did not order them; `API-63` confirmed the second writer
+was unserialized against the sweep. True as found, and **it does not arise under `ADR-0016`**: one
+engine runs one sweep. Recorded so nobody re-derives replicas as the fix for `F40` and reopens this.
+
+**F42. CLOSED — a failed system cancellation was deleted by retention while the fence still named
+it, and the defect was the model, not the retention job.** `OPS-44`'s table kept the episode entry
+and `destroy_committed` set on a `failed` cancellation; recovery was "requeue of that same
+operation"; `STO-14` deleted settled operations after a configured age with `needs_reconciliation`
+as its only exemption; `CNF-212` ran a sweep "after retention has deleted the first sweep's
+operation row" while `CNF-271` required "an operator requeue of that same operation". Both passed
+inside the window; past it the machine billed forever behind a permanent `conflict`. The first
+remedy proposed was a retention exemption for referenced rows. **The one taken is `ADR-0017`**: the
+episode — a word the lifecycle document used forty times without a row — is an entity with five
+states; `failed` is a terminal fact about one *attempt*; "known, and not done" belongs to the
+episode; recovery is an operator `retry` on the episode. `DOM-31`, `STO-52`, `OPS-48`, `API-64`,
+`WIR-51`, `CNF-291`. `STO-14` is unchanged.
+
+**F43. CLOSED — `OPS-46` left requeue one kind, and fourteen requirements still described the
+others.** `API-7` built two pipeline steps around an "ordering requeue"; `OPS-20` was kept alive
+"because `adopt_machine` remains requeueable"; `PRV-13` and `LDG-62` named requeue as a
+commitment-growth path; `LDG-39` cleared a parked setup fee on it; `OPS-45` cleared markers on it
+across "the five dispatch kinds"; `PRV-40` charged it to the order budget; `OPS-27` still had a requeue
+appending to a correlator list `PRV-26` had already made singular; `CNF-279`, `CNF-283` and
+`CNF-260` tested requeues that could not happen; `WIR-28`'s fixture carried the
+`acknowledge_duplicate_purchase` its own prose, thirteen lines below, forbade sending; and `ADR-0014`'s
+consequence bullet still enumerated five admissible kinds with no amendment note. **Closed by
+`ADR-0017` deleting requeue**: with the one surviving kind's recovery an episode verb, requeue has
+no kinds, and every sentence above is deleted rather than patched. `OPS-4`'s requeue branch,
+`OPS-18`, `OPS-20`, `OPS-34`, `OPS-46`, `API-19` and `WIR-28` are withdrawn.
+
+**F44. CLOSED — the descriptor was three fields and eight declarations had no carrier.** *Describe
+capabilities* returned an account id, a kind and a capability set. `PRV-31`, `PRV-33`, `PRV-36`,
+`PRV-38`, `PRV-40`, `RSC-45` and `PRV-13a` each said a driver "MUST declare" something, three of
+them routed to `08-provider-notes.md`, which calls itself illustrative. `PRV-36`'s "MUST be widened
+by any observed sample that exceeds it" was unimplementable by a constant in driver source: the
+gap between the exceeding sample and the redeploy is a window in which a lost create reply resolves
+`absent` and a second machine is bought. `PRV-13a`'s "MUST expose cleanup" named no method, so
+`machine_attachments` was a fully specified table nothing populated. **`ADR-0018`**: the descriptor
+is typed and immutable (`PRV-44`); a measured window is `max(declared, max(observed))` over
+store-held samples (`STO-53`); attachments get list and release under `delete_machine` (`PRV-45`);
+`CNF-292`.
+
+**F45. CLOSED — the rest, each with one obvious fix.** Recorded together because none needed a
+decision beyond confirming it:
+
+- *Who owns the transaction* (`LDG-11`, `STO-23`, `STO-35`, `API-63` compose one transaction across
+  four modules' rows; "the store" was named in `05` and assigned to no module; "repository"
+  appeared nowhere). A seventh module, `store`, owns migrations, the pool, the transaction handle
+  and every primitive `05` says the store MUST provide; `OVR-9` records that the partition is the
+  current assignment and that two things are not tentative — the credential edge and that one
+  module hands out the transaction.
+- *`OVR-4` versus `API-48`*: `OVR-4` said "Every write operation MUST be asynchronous" with no
+  carve-out; `API-48` owned the exception list, said "exactly" three entries, and was amended eight
+  times below itself to fourteen. `OVR-4` now carves out `API-48`'s closed set; `API-48` is one
+  list.
+- *`PRV-7` forbade a driver to "return" a rescue password* while `DOM-11`, `PRV-17` and `RSC-11`
+  all assume the engine receives one in-process. "Return" is scoped to a result, error, log or
+  persisted record.
+- *`PRV-4` forbade implementing an operation without a capability* while `PRV-3` mandates
+  get-machine and `DOM-10`'s own table has a `none` row. Scoped to operations with a capability
+  entry; the three capability-less methods are named.
+- *Install details*: identifier normalization and the fingerprint's canonical form were silent
+  (`RSC-46` now states both, the fingerprint reusing `WIR-3`'s RFC 8785 rule); `RSC-28`'s digest
+  scope admitted compressed or decompressed bytes (it is the bytes as fetched, for every strategy);
+  `RSC-22`'s image path was unstated.
+- *Wire*: `WIR-9`'s nested error carried a `correlation_id` `WIR-10b` did not list (removed —
+  the view's top-level one is the correlation id); `WIR-16`'s cursor had no stated home (top level,
+  like every collection); no collection stated an order (fixed in `WIR-32`); `WIR-41` and
+  `WIR-42` returned `200` with no body (a tenant projection; the credited balance view); `WIR-48`'s
+  shape was ambiguous (`WIR-29`'s wrapped form); `refresh` was missing from `WIR-35`'s closed
+  resolution union; `WIR-4a` put `Access-Control-Allow-Origin` on the preflight only, so the
+  browser-wasm caller `WIR-4` names could not read a single response (`WIR-4` now requires it on
+  every customer-listener response). **The review's abuse-statement status conflict was false**:
+  `WIR-43` and the endpoint-class table both say `201`.
+- *The parameter register* the review said was missing existed twice — `LDG-42` for money, an
+  unnumbered checklist section for operations — with one item on both, eight on neither, and
+  `LDG-68` citing `LDG-42` while absent from it. `OVR-19` is the one register; a parameter is on it
+  or it is not a parameter, and startup validates every mandatory row.
+
+*What the review got right that this set had not: a green gate is evidence of internal hygiene,
+not of buildability, and the blockers were concentrated exactly where a plausible guess buys a
+second server or destroys the wrong disk. What it got wrong is instructive too — two of its twelve
+were checked against the text and did not hold, which is the base rate `README.md` already warns
+about, now measured on a reviewer instead of on the authors.*
+
 ## Closed by measurement — 2026-09-04
 
 **F37. `PRV-34`'s free-verification claim was false, and only `CNF-180`'s hedge survived contact.**
@@ -153,8 +260,8 @@ multiple attempts turned out not to be defensible on its own terms.*
 
 `OPS-13` states the mechanism twice: `request_summary` "holds a list aligned one-to-one with
 `correlator_value`", and "Resolution uses the entry of the attempt **whose correlator matched**".
-`PRV-26` states the opposite case: "Where the correlator is the operation UUID the list simply holds
-that one value, however many attempts were made."
+`PRV-26` then covered the opposite case — a list holding one value however many attempts were
+made — in wording `ADR-0014` and `ADR-0017` have since deleted.
 
 **Both are true, and together they leave the selection undefined on two of the three launch
 drivers.** Hetzner Cloud and DigitalOcean take a free caller-controlled field, so every attempt of a

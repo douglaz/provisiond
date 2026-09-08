@@ -1,6 +1,9 @@
 # PostgreSQL is the store, and it makes explicit three primitives SQLite was giving away
 
-**Status:** accepted (2026-09-06)
+**Status:** accepted (2026-09-06). **Amended by `ADR-0016` (2026-09-07)**: the consequence "the
+deployable becomes replicable" holds for `api` only. `engine` is one supervised process fenced by
+an epoch, the leases and the machine lock are deleted, and the restart window is the accepted
+outage. The choice of PostgreSQL and the `LDG-35` primitive are untouched.
 
 `05-persistence.md` described the store abstractly and named an embedded single-writer engine
 (SQLite) as what the reference implementation used. **The store is now PostgreSQL.** This is the

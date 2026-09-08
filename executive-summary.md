@@ -188,9 +188,10 @@ provider credential.
 
 ## 4. How the system is shaped
 
-Six modules with one-way dependencies: `core` (domain, capabilities, error taxonomy, the driver
-interface — forbidden from depending on an HTTP client, a database or a web framework), `providers`
-(adapters), `rescue` (generic SSH and installer orchestration, no provider branches), `ledger` (the
+Modules with one-way dependencies (`00-overview.md` holds the table): `core` (domain, capabilities,
+error taxonomy, the driver interface — forbidden from depending on an HTTP client, a database or a
+web framework), `providers` (adapters), `rescue` (generic SSH and installer orchestration, no
+provider branches), `store` (the schema, the pool, and the only transaction handle), `ledger` (the
 money: entries, commitments, the meter, rate derivation, solvency), `engine` (the credential-holding
 lifecycle side: workers, driver invocation, the queue's execution and its sweeps) and `api` (the
 customer-facing surface, enrolment, funding rails, abuse). `engine` may not depend on `api`; both
@@ -228,24 +229,25 @@ per-order throwaway SSH key whose fingerprint appears in the transaction listing
 obvious field — the order `comment` — turned out to route orders to *manual processing*. That
 discovery invalidated an assumption three earlier audits had passed over.
 
-Reconciliation searches every correlator the operation recorded (a requeue **appends**, never
-replaces) and takes the union, reaching one of four outcomes: exactly one resource is
+Reconciliation searches every correlator the operation recorded and takes the union, reaching one
+of four outcomes: exactly one resource is
 resolved-observed and attached; an authoritative zero past a bounded negative window is
 resolved-absent and the money is released; **more than one** is a duplicate that only an operator
 may remediate; and an unfilterable provider is unresolved. Matching is exact, never heuristic on
 hostname or timing — two of a tenant's own concurrent creates can look identical, and attaching the
 wrong machine hands one customer another's server.
 
-**Storage** is specified as invariants rather than a product: an atomic queue claim, an atomic
-conditional machine-lock upsert, guarded settled-state writes, `(principal, idempotency_key)` (`STO-4`)
-uniqueness, per-tenant serialization for money, an append-only ledger with no update or delete path,
-and deposits that outlive tenant deletion — because an on-chain address stays payable forever, so
-discarding the binding makes a late payment unattributable by construction. An embedded
-single-writer engine satisfies all of it for one process, and **that is why the store is
-PostgreSQL** (`ADR-0015`): the single point of failure such an engine imposes is an outage of every
-mechanism that stops a machine billing, and `LDG-35`'s per-tenant serialization — which the set
-requires a deployment to *state* — had been met by that engine's global write lock without anyone
-choosing it.
+**Storage** is specified as invariants rather than a product: an atomic queue claim, a
+store-enforced rule of one running operation per machine, epoch-guarded engine writes, guarded
+settled-state writes, `(principal, idempotency_key)` (`STO-4`) uniqueness, per-tenant serialization
+for money, an append-only ledger with no update or delete path, and deposits that outlive tenant
+deletion — because an on-chain address stays payable forever, so discarding the binding makes a
+late payment unattributable by construction. **The store is PostgreSQL** (`ADR-0015`), and `LDG-35`'s
+per-tenant serialization — which the set requires a deployment to *state* — had been met by an
+embedded engine's global write lock without anyone choosing it. **The engine is one supervised
+process, fenced by an epoch it takes at startup** (`ADR-0016`): `api` replicates, the engine does
+not, its liveness is alarmed (`OVR-18`), and the restart window is the accepted outage — leases,
+heartbeats and the machine lock were deleted rather than fenced.
 
 ## 5. The money model is the security model
 
@@ -322,8 +324,8 @@ Four areas deserve real thought:
    route it straight to cancellation), the setup fee's lifecycle across every resolution outcome,
    and a retained snapshot so resolution debits what the order actually cost. Three
    successive audits each found the *same class* of defect here — and a fourth pass removed the
-   machinery instead of repairing it: a create can no longer be requeued (`ADR-0014`), so there is
-   one attempt, one snapshot and nothing to select between.
+   machinery instead of repairing it: a create gets exactly one attempt (`ADR-0014`), so there is
+   one snapshot and nothing to select between.
 2. **The meter.** Rounding applies to the cumulative charge and never per tick, or a deployment that
    meters every minute charges more than one metering hourly. A correction names the entry it
    corrects and is reported in that entry's period, and leaves the meter's state untouched. Absorbed time is subtracted in *seconds*, because it
@@ -370,12 +372,9 @@ Known open items, in the set's own terms:
   bullet said the question was open until 2026-09-02, three revisions after it closed.*
 - A live correlator round-trip against Hetzner Robot is still required before that driver ships,
   which is cheap: Robot orders have a `test` mode that simulates a purchase without buying anything.
-- Deployment parameters are required to be stated and are not: confirmation depth, rail floors,
-  deposit expiry, rate staleness/quorum/outlier bands, maximum outage bound, the ceiling covering
-  the channel balance **and** the Lightning node's own on-chain wallet, margins, runway floor,
-  autonomous-caller and operator-principal ceilings, provider negative windows, the re-derivation
-  interval, and the account-sweep interval — which is now a money parameter, because it bounds how
-  long a customer can be billed for a machine the provider has destroyed (`LDG-74`).
+- Deployment parameters are required to be stated and are not. `OVR-19` is the one register of
+  them, and startup refuses to run on a missing value; what no deployment has yet done is fill it
+  in.
 - The launch-gating conformance set stands at approximately 182 BLOCKING items of 271, the
   approximation deliberate because the count was wrong more than once and the tiers still live in
   prose. None has been executed. *This bullet said 135 until 2026-09-02, two reviews after the
@@ -404,7 +403,7 @@ decisions rather than evidence.
 | `00-overview` | Problem, goals, system context, non-goals (including three withdrawn ones) |
 | `01-domain-model` | Entities, machine states, capability model, error taxonomy |
 | `02-provider-contract` | What every driver must prove, operation by operation |
-| `03-operation-lifecycle` | Queue, leases, locks, ambiguity, reconciliation |
+| `03-operation-lifecycle` | Queue, claiming, the episode, ambiguity, reconciliation |
 | `04-api-contract` | REST surface, auth, tenancy, enrolment, idempotency |
 | `05-persistence` | Required transactional primitives and the schema |
 | `06-rescue-install` | Rescue workflow, host-key trust, disk identity, image writing |
@@ -418,8 +417,8 @@ decisions rather than evidence.
 | `CONTEXT.md` | Glossary, and the banned vocabulary |
 | `docs/adr/` | The decisions, and what was rejected to reach them |
 
-One convention shapes everything: requirement identifiers are **append-only**. Nothing is deleted or
-renumbered; things are marked `WITHDRAWN` or `AMENDED` in place, with the reason and often the
-superseded text kept inline. The amendment blocks are not clutter — they are frequently the most
-informative content on the page, because they record what was tried, why it broke, and what a
-rebuilder must not reinvent.
+One convention shapes everything: requirement identifiers are **append-only**. None is reused or
+renumbered; a withdrawn identifier goes to the README's index, and withdrawn text is deleted unless
+a trap sits behind it, in which case it stays marked `AMENDED` in place with the reason. The
+amendment blocks that remain are not clutter — they are frequently the most informative content on
+the page, because they record what was tried, why it broke, and what a rebuilder must not reinvent.

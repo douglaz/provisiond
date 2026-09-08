@@ -64,7 +64,7 @@ a tier to a merge marker after it stopped being an item*);
 account, shell metacharacters reach root on the rescue system); `CNF-14`–`CNF-17` (redaction —
 create responses carry machine root passwords, rescue passwords are root on customer machines);
 `CNF-19`, `CNF-20` (capability gating, the enforcement direction); `CNF-21`–`CNF-25`,
-`CNF-26`, `CNF-27`, `CNF-28`, `CNF-29`, `CNF-31a` (the create and ambiguity rows only — see the split below), `CNF-32`
+`CNF-26`, `CNF-27`, `CNF-29`, `CNF-31a` (the create and ambiguity rows only — see the split below), `CNF-32`
 (idempotency and double-mutation — the money-out core; `CNF-32` is `OVR-5`, the spec's
 self-declared most important property); `CNF-36`–`CNF-38`, `CNF-40`, `CNF-41`, `CNF-43`,
 `CNF-44`, `CNF-46` (rescue safety); `CNF-49`–`CNF-51`, `CNF-53` (image supply chain — each ends
@@ -76,7 +76,7 @@ which in the single-component form is the only structural defence there is).
 **PRE-SCALE** — `CNF-2` (lint: hygiene, not harm — free, so do it early, but it gates nothing),
 `CNF-18`, `CNF-30`, `CNF-31b` (the remaining rows), `CNF-33`, `CNF-34` (becomes
 blocking the moment anything but the API writes the store), `CNF-35`, `CNF-39`, `CNF-42`,
-`CNF-45`, `CNF-47`, `CNF-48`, `CNF-52`, `CNF-56`, `CNF-57`, `CNF-59`, `CNF-60`, `CNF-61`,
+`CNF-45`, `CNF-47`, `CNF-52`, `CNF-56`, `CNF-57`, `CNF-59`, `CNF-60`, `CNF-61`,
 `CNF-70`.
 
 **PROMOTED TO BLOCKING 2026-08-13**, under this checklist's own rule rather than by opinion:
@@ -254,8 +254,9 @@ second independent client implementation exists, because at that point the invar
 shared contract.
 
 **BLOCKING** (added with `OPS-39`) — `CNF-159`. It is the destroyed-data event routed through the
-queue's safety machinery: an exhaustion cancel outside the queue has no lock, no lease and no
-`needs_reconciliation` path, which is a blind mutation against a customer machine — the thing
+queue's safety machinery: an exhaustion cancel outside the queue has no per-machine
+serialization (`OPS-8`), no epoch guard (`OPS-47`) and no `needs_reconciliation` path, which is a
+blind mutation against a customer machine — the thing
 `OVR-5` calls the single most important thing this system refuses to do.
 
 See **The blocking count** below.
@@ -293,7 +294,7 @@ everything in them is irreversible:
   boundary-crossed, `CNF-276`), `RSC-39`/`RSC-40` are the only integrity check that path has and the
   refusal to run a parser over hostile binary (`CNF-265`), and `RSC-42` is a copy of a customer's
   operating system left in the operator's account (`CNF-267`). `RSC-41` and `RSC-43` are the
-  PRE-SCALE pair — a lock-hold bound and a disclosure.
+  PRE-SCALE pair — a hold bound and a disclosure.
 
 *Both bullets named a closing identifier — `SEC-1`–`SEC-53` and `RSC-1`–`RSC-38` — until 2026-09-03,
 by which point `SEC-55` and `RSC-44` existed. **The ranges are deleted rather than corrected**: a
@@ -308,7 +309,7 @@ one, applied to the requirement sort instead of to the item sort.*
 - **`OVR-5`, `OVR-9`, `OVR-10`, `OVR-10a`, `OVR-10b`, `OVR-12`.**
 - **`DOM-6`, `DOM-10`, `DOM-13`, `DOM-14`, `DOM-17`–`DOM-19`.** Redaction, capability gating,
   strategy/image pairing, digest requirement, error taxonomy, cancellation honesty.
-- **`API-7`–`API-19`, `API-22`, `API-24`, `API-25`.** Auth ordering, idempotency,
+- **`API-7`–`API-18`, `API-22`, `API-24`, `API-25`.** Auth ordering, idempotency,
   validation, acknowledgements, authorization, redaction before storage, error mapping, message
   hygiene.
 - **`STO-1`–`STO-5`, `STO-8`, `STO-8a`, `STO-9`, `STO-15`.** The transactional primitives the
@@ -369,13 +370,15 @@ not optional hardening — they are the only structural defence there is.
       material — no Lightning or on-chain credential, no destination derivation, no settlement
       subscription (`STO-30`–`STO-32`, `SEC-48`). It **does** write ledger entries and commitments,
       through `ledger`, because `OPS-27` requires a worker to commit the setup-fee debit and the
-      commitment decrement in the same transaction as the machine row. Assert on the types each
-      module's constructors accept, and on the dependency edges (`CNF-251`), not on runtime values.
+      commitment decrement in the same transaction as the machine row — a transaction `store`
+      opened and the worker passed in (`OVR-9`). Assert on the types each module's constructors
+      accept, and on the dependency edges (`CNF-251`), not on runtime values.
       *Withdrawn text:* the lifecycle layer holds no customer credential **or payment material** —
       which, read against the module table, made the product's terminal money write illegal in every
       module that could perform it. (`OVR-10b`, `OVR-9`, `OPS-27`)
-- [ ] **CNF-74** Operator-only routes — requeue above all, since it can re-issue a purchase
-      (`API-19`, `OPS-20`) — are not served on the customer-facing listener. (`API-27`)
+- [ ] **CNF-74** Operator-only routes — `WIR-34`'s list; adopt and `retry` above all, since one
+      sizes a customer's commitment and the other re-dispatches a delete (`API-18`, `API-64`) — are
+      not served on the customer-facing listener. (`API-27`)
 ## Tenancy and authorization
 
 - [ ] **CNF-4** Tenant A cannot read, refresh, power, install on, or delete tenant B's
@@ -401,7 +404,8 @@ not optional hardening — they are the only structural defence there is.
       (`API-5`, `SEC-9`)
 - [ ] **CNF-8** An unauthenticated request to every write endpoint is rejected before any
       body validation error can be observed. (`API-7`, `DEF-4`)
-- [ ] **CNF-9** Requeue is refused for a tenant token. (`API-19`)
+- [ ] **CNF-9** `POST /v1/episodes/{id}/actions/retry` and both episode reads are refused for a
+      tenant token — `404`, never `authentication`. (`API-64`, `WIR-51`, `WIR-34`)
 
 ## Injection
 
@@ -432,9 +436,15 @@ not optional hardening — they are the only structural defence there is.
 
 ## Capability model
 
-- [ ] **CNF-18** For every driver, every declared capability has a working code path, and
-      every implemented operation has its capability declared. Table-driven, one case per
-      (driver, capability) pair. (`DOM-15`, `PRV-4`)
+- [ ] **CNF-18** **AMENDED 2026-09-08 (`ADR-0018`) — the table is `DOM-10`'s, and the descriptor's
+      fields are rows too.** For every driver, every declared capability has a working code path,
+      and every implemented operation with a capability entry in `DOM-10`'s table has its
+      capability declared. Table-driven over that table, one case per (driver, capability) pair;
+      the three capability-less methods are `CNF-20`'s and are not rows here. **Then iterate the
+      descriptor** (`PRV-44`), one case per (driver, field): a declared value has a working code
+      path behind it — a declared ordering channel is searched, a declared evidence source is read,
+      a declared surviving attachment kind is listed — and a field with nothing to declare says so
+      explicitly rather than being absent. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
 - [ ] **CNF-19** Create is refused when the provider has not declared the matching
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
@@ -456,25 +466,21 @@ not optional hardening — they are the only structural defence there is.
       writes carry the key and had no scope). (`API-10`, `STO-4`, `STO-35`)
 - [ ] **CNF-24** Semantically identical bodies differing only in JSON key order do not
       produce a spurious conflict. (`API-12`)
-- [ ] **CNF-25** Requeue with the same key twice enqueues the work once. (`OPS-18`)
+- [ ] **CNF-25** `retry` with the same key twice enqueues one attempt and returns the same
+      episode view. (`API-64`, `WIR-24`)
 
 ## Operation lifecycle
 
 - [ ] **CNF-26** Two workers racing to claim one queued operation: exactly one wins.
       (`OPS-5`)
 - [ ] **CNF-27** Two operations on one machine: the second is deferred back to `queued`,
-      not failed, and runs after the first releases. (`OPS-8`, `OPS-9`)
-- [ ] **CNF-28** A worker whose lease is stolen mid-flight abandons its work and does not
-      write a terminal state. (`OPS-3`, `OPS-7`)
-- [ ] **CNF-29** A `running` operation whose lease expires is swept to
-      `needs_reconciliation` — never back to `queued`. **AMENDED 2026-09-02 — with `OPS-14`'s one
-      exception, which this item contradicted.** A `suspend_tenant` **parent** whose lease expires
-      goes back to `queued` and resumes its fan-out; both halves must hold, and an implementation
-      that passes the first clause universally fails `OPS-14` and strands every suspension whose
-      worker crashed. The parent mutates no provider itself and `OPS-39`'s trigger ids make the
-      re-sweep enqueue nothing twice, which is why it is the exception. (`OPS-14`, `API-58`,
-      `OPS-39`)
-- [ ] **CNF-30** The sweeper does not overwrite an error already recorded. (`OPS-16`)
+      not failed, and runs after the first releases — and the deferral is the store's refusal
+      (`STO-51`'s index), not an application-level check. (`OPS-8`, `STO-51`)
+- [ ] **CNF-29** **AMENDED 2026-09-08 (`ADR-0016`) — the sweep has no deadline; the startup pass
+      is the sweep.** Every operation found `running` when the engine starts is moved to
+      `needs_reconciliation` — never back to `queued` — and the count is logged. Kill the engine
+      with an operation of each dispatching kind `running`, restart, and assert each one. (`OPS-15`)
+- [ ] **CNF-30** The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
       different stakes: rows where a misclassification causes a repeated provider mutation, and
       rows that only need covering for exhaustiveness. They belong in different tiers, and the
@@ -539,9 +545,6 @@ not optional hardening — they are the only structural defence there is.
       `RSC-38`'s inventory pass; a `provider_native` or `provider_catalogue` install returns `{}`,
       since neither boots anything and neither can read a disk (`RSC-33`, `WIR-10b`). An
       unparseable report is captured raw rather than dropped. (`RSC-33`, `RSC-34`, `WIR-10b`)
-- [ ] **CNF-48** A 90-minute install does not lose its lease. Simulated with compressed
-      timers. (`RSC-37`)
-
 ## Image policy
 
 - [ ] **CNF-49** A non-HTTPS URL is rejected unless insecure HTTP is explicitly enabled.
@@ -579,8 +582,12 @@ not optional hardening — they are the only structural defence there is.
       `cancellation_scheduled`, not `deleted`, and is **not** tombstoned until that date
       passes. Assert it still appears in inventory queries that exclude deleted rows.
       (`DOM-19`, `STO-8a`)
-- [ ] **CNF-65** Every billable attachment the provider API can delete has an exposed cleanup
-      path, and the driver's notes name the ones it cannot reach. (`PRV-13a`)
+- [ ] **CNF-65** **AMENDED 2026-09-08 (`ADR-0018`) — the cleanup path now has a method.** After
+      every delete that succeeds with the resource gone, the engine calls *list attachments*
+      (`PRV-45`) and writes `machine_attachments`; a release is enqueued for every row whose kind
+      the descriptor declares `cleanup: api` and which is billable, and the kinds declared
+      `cleanup: manual` in `surviving_attachments` (`PRV-44`) are the only ones left for the
+      operator. Assert against a delete that leaves one of each. (`PRV-13a`, `PRV-44`, `PRV-45`)
 
 ## Ceilings for autonomous callers
 
@@ -592,12 +599,9 @@ not optional hardening — they are the only structural defence there is.
       `details.interval_seconds` and `details.retry_after_ms` (`WIR-9a`). It happens at `API-7`
       step 5c: **after** the idempotency fingerprint, so a replay returns its stored result rather
       than spending a slot twice, and **before** any commitment opens or anything is enqueued.
-      Assert both exemptions. An exposure-reducing system cancellation is not refused by a
+      Assert the exemption. An exposure-reducing system cancellation is not refused by a
       principal's destruction ceiling (`OPS-39`), or a tenant that hit its limit keeps machines the
-      operator pays for. **And a requeue of an exposure-reducing operation is admitted at 5c even
-      when the operator principal's requeue ceiling is exhausted** — it is the only recovery
-      `OPS-44` leaves for a cancellation that failed deterministically, and refusing it one step
-      after 5b admitted it is a machine that bills forever, produced by a safety control. *Until today this item was BLOCKING against a taxonomy that could not express its
+      operator pays for. *Until today this item was BLOCKING against a taxonomy that could not express its
       rejection and a pipeline that never performed its check.* (`SEC-39`, `DOM-17`, `API-7`,
       `WIR-9a`, `OPS-39`)
 - [ ] **CNF-70** The deployment has recorded *where* ceilings are enforced and what each integer
@@ -667,8 +671,8 @@ not optional hardening — they are the only structural defence there is.
       unresolved, not attached. (`OPS-29`)
 - [ ] **CNF-85** Resolution performs no mutation. A driver whose search path mutates fails this
       item. (`OPS-28`)
-- [ ] **CNF-86** A sweep does not claim a resource whose operation is still `running` under a
-      live lease. (`OPS-30`)
+- [ ] **CNF-86** A sweep does not claim a resource whose operation is still `running` and not
+      yielded (`OPS-8`). (`OPS-30`)
 - [ ] **CNF-87** A commitment is closed and its reserved satoshis returned once the negative
       window elapses, even though the operation remains open, and the sweep keeps searching
       afterwards. (`OPS-33`)
@@ -897,12 +901,13 @@ rather than acquiring a default.
       €0.08 because its `price_setup` is `0.0000` (`08-provider-notes.md`). Failing that, the driver
       declares no correlator (`PRV-33`). **Satisfied on the auction channel 2026-09-04; the standard
       channel remains open**, and it is the one that carries the setup fee. (`PRV-32`, `PRV-34`)
-- [ ] **CNF-280** **WITHDRAWN 2026-09-05** — it tested that two attempts of one create are told
+- **CNF-280** — **WITHDRAWN 2026-09-05** — it tested that two attempts of one create are told
       apart by their correlators, and `ADR-0014` means a create has one attempt. *The provider
       property it asserted was observed to hold on Hetzner Robot's auction channel on 2026-09-04 and
       is recorded in `PRV-32`; what is gone is any operation that needs it.* The surviving
       cardinality obligation is `OPS-38`'s, whose live source of duplicates is now a caller
-      re-issuing under a fresh key (`API-51`), tested by `CNF-165`. (`PRV-32`, `OPS-38`, `ADR-0014`)
+      re-issuing under a fresh key (`API-51`), tested by `CNF-165`. *Checkbox removed 2026-09-08:
+      a withdrawn item is a marker, not a box anyone can tick.* (`PRV-32`, `OPS-38`, `ADR-0014`)
 - [ ] **CNF-289** **BLOCKING** — **`request_summary` carries nothing outside its enumeration.**
       Submit a create and an install whose bodies carry a caller-chosen hostname, SSH keys, user
       data, a post-install script, a signed image URL and a disk layout; drive each to a state that
@@ -911,54 +916,92 @@ rather than acquiring a default.
       summary that quietly retained the payload would pass every surface test. This is `ADR-0005`
       enforced where it is actually enforceable: the purge is only as good as the list of what
       survives it. (`STO-50`, `STO-9`, `ADR-0005`, `OPS-13`)
-- [ ] **CNF-288** **BLOCKING** — **A create cannot be requeued.** Assert that a requeue of a
-      `create_machine` operation is refused from **both** `failed` and `needs_reconciliation`, that
-      the refusal names `OPS-31`'s verbs as the alternative, and that no provider call is made and
-      no commitment is opened or re-priced. **Then assert the admissible set is exactly one kind**:
-      an exposure-reducing cancellation requeues, and `install`, `adopt_machine`, `power` and
-      `reverse_dns` are each refused on kind. Assert `acknowledge_duplicate_purchase` is rejected as
-      an unknown field, since no requeueable kind places an order. A deployment that admits the
-      create case buys a machine the customer holds no credential on with the customer's satoshis
-      (`ADR-0014`); one that admits `install` lets an operator choose the bytes written to a
-      customer's disk and the host-key decision `SEC-22` reserves for the caller; one that admits
-      `adopt_machine` lets an operator size a customer's commitment (`F39`). *Amended 2026-09-06:
-      this item asserted that four of those five still requeue.* (`OPS-46`, `OPS-4`, `OPS-18`,
-      `WIR-28`, `API-7`)
-- [ ] **CNF-281** **Resolution searches every ordering channel.** Order on one channel, resolve with
+- [ ] **CNF-290** **BLOCKING** — **The restart drill, which replaces every takeover drill.** Kill the
+      engine between a dispatch and its reply; restart it; assert the interrupted operation is
+      `needs_reconciliation` (`OPS-15`). Then simulate the old process's late write — a worker
+      write to that operation and to its machine carrying the previous `engine_epoch` — and assert
+      each affects **no row** and that the process issuing it exits without a further write
+      (`OPS-47`). Then, with one non-yielded `running` operation on a machine, attempt a second
+      claim against the same machine directly at the store and assert `STO-51`'s index refuses it.
+      Three halves, and the middle one is the fence: a build that only sweeps at startup passes
+      the first and lets a paused process write a terminal state a minute later. (`OPS-47`,
+      `STO-51`, `OPS-15`, `ADR-0016`)
+- [ ] **CNF-291** **BLOCKING** — **The episode outlives its attempts, and there is one of it.**
+      Open a `delete` episode on a machine and attempt to insert a second open `(machine_id,
+      delete)` episode directly at the store: `STO-52`'s index refuses it. Then let the first
+      attempt settle `failed`, run retention past `STO-14`'s horizon so the attempt row is gone,
+      and assert the episode is still `stalled`, `destroy_committed` still holds its id, `LDG-62`'s
+      extend-runway is still refused `conflict`, and `retry` (`API-64`) enqueues a second attempt
+      whose `episode_id` is the same id. **The failure this catches is the one `ADR-0017` was
+      written for**: a fence pointing at a deleted row, a machine that bills forever behind a
+      permanent `conflict`, and a test that passed inside the retention window. (`STO-52`,
+      `DOM-31`, `OPS-48`, `API-64`, `LDG-62`, `STO-14`)
+- [ ] **CNF-292** **BLOCKING** — **An observed sample widens the window without a redeploy.** With a
+      driver whose descriptor declares a visibility window of *n* seconds, dispatch a create whose
+      resource first appears in the listing at *n + k* seconds and assert a `provider_observations`
+      row is written with that `dispatched_at` and `observed_at` (`STO-53`); then dispatch another
+      create, lose its reply, and assert resolution takes no read before *n + k* has elapsed — the
+      effective window is `max(declared, max(observed))` and the process was not restarted between
+      the two. Assert the descriptor value itself is unchanged, and that the same holds for
+      `billing_stop_window` (`PRV-13b`). A build that reads the window from driver source
+      resolves the second create `absent`, releases the commitment, and the machine arrives with
+      nobody paying. (`PRV-36`, `PRV-44`, `STO-53`, `ADR-0018`)
+- [ ] **CNF-288** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0017`) — the verb it tested is deleted,
+      so the item asserts its absence.** **No settled operation of any kind re-enters `queued`.**
+      For every operation kind, drive an operation to `failed` and to `needs_reconciliation` and
+      assert there is no route — no endpoint on either listener, no operator verb, no sweep — that
+      moves it back to `queued` (`OPS-4`). **Then assert the recovery that replaced it is scoped to the episode**: `retry` (`API-64`) on a
+      `stalled` episode enqueues a **fresh** `delete_machine` attempt under the same episode id and
+      leaves the failed attempt's row untouched; `retry` on an episode in any other state is `409`
+      `state`; and no episode ever carries a `create_machine`, `install`, `adopt_machine`, `power`
+      or `reverse_dns` attempt, so none of those kinds has a second attempt by any path. A build
+      that re-runs a settled create buys a machine the customer holds no credential on with the
+      customer's satoshis (`ADR-0014`); one that re-runs an install lets an operator choose the
+      bytes written to a customer's disk and the host-key decision `SEC-22` reserves for the caller;
+      one that re-runs an adopt lets an operator size a customer's commitment (`F39`). (`OPS-4`,
+      `OPS-48`, `API-64`, `ADR-0014`, `ADR-0017`)
+- [ ] **CNF-281** **BLOCKING** — **Resolution searches every ordering channel.** Order on one channel, resolve with
       a driver configured to query only the other, and assert the outcome is **not** resolved-absent.
       A driver that declares more than one channel and searches one fails. Without it a customer's
       balance is released in full while a physical server bought on the unsearched channel runs
-      unclaimed. (`PRV-38`, `OPS-27`, `OPS-32`)
-- [ ] **CNF-282** **An authoritative-empty search is an empty result, not an error.** Present the
+      unclaimed — money out, and the operator learns of it from an invoice. (`PRV-38`, `OPS-27`,
+      `OPS-32`)
+- [ ] **CNF-282** **PRE-SCALE** — **An authoritative-empty search is an empty result, not an error.** Present the
       driver with the provider's empty-listing response — for Robot a `404` carrying
       `no transactions found` — and assert it reaches `OPS-27`'s resolved-absent and releases the
       commitment, and is never surfaced as `DOM-17`'s `not_found`. Both failures end with a
-      customer's satoshis committed behind an order that never landed. (`PRV-39`, `OPS-27`,
-      `LDG-32`)
-- [ ] **CNF-283** **The ordering budget is enforced at admission.** Exhaust the driver's declared
+      customer's satoshis committed behind an order that never landed — which `OPS-31`'s `absent`
+      verb undoes, so the operator can recover it and would see it in the listing. (`PRV-39`,
+      `OPS-27`, `LDG-32`)
+- [ ] **CNF-283** **BLOCKING** — **The ordering budget is enforced at admission.** Exhaust the driver's declared
       daily order limit and assert the next create is refused before any provider call, classified
-      `failed` per `OPS-11`'s admission-only rule, with nothing ambiguous created — and that a
-      requeue spends from the same budget. (`PRV-40`, `OPS-11`, `OPS-20`)
-- [ ] **CNF-284** **An authentication failure is attempted once.** Give a driver a bad credential
+      `failed` per `OPS-11`'s admission-only rule, with nothing ambiguous created. The budget is
+      the only bound on ordering an autonomous caller cannot acknowledge past — unbounded ordering
+      is the money-out family. (`PRV-40`, `OPS-11`)
+- [ ] **CNF-284** **PRE-SCALE** — **An authentication failure is attempted once.** Give a driver a bad credential
       and assert it makes exactly one attempt and escalates, with no scheduled re-attempt. Asserted
       by counting requests, not by reading the code. On a provider that locks out on repeated
-      failures the retry loop takes every tenant's operations offline with it. (`PRV-41`, `OPS-26`)
-- [ ] **CNF-285** **Where the offer identifier is the resource identifier, resolution reads the
+      failures the retry loop takes every tenant's operations offline with it — an outage the
+      operator sees and the provider's support desk undoes. (`PRV-41`, `OPS-26`)
+- [ ] **CNF-285** **PRE-SCALE** — **Where the offer identifier is the resource identifier, resolution reads the
       resource.** For a channel a driver declares as identity-shaped, assert an ambiguous create
       resolves by reading the named resource rather than by searching a listing, and that absence is
       interpreted through `PRV-36`'s window. A driver that declares the identity and still searches
-      is carrying `OPS-33`'s listing horizon for no reason. (`PRV-42`, `PRV-36`, `OPS-27`)
+      is carrying `OPS-33`'s listing horizon for no reason — slower resolution, not a wrong one.
+      (`PRV-42`, `PRV-36`, `OPS-27`)
 - [ ] **CNF-286** **BLOCKING** — **A landed order is not attached without confirming the resource
       exists.** Resolve a create whose order record reports success and whose resource has since been
       destroyed, and assert the outcome is **not** resolved-observed: no `machines` row, no
       commitment, no meter. Without it the system bills a customer for a machine that is gone, which
       is the defect `OPS-32` was amended to close reached through the resolution path instead of
       through drift. (`PRV-43`, `OPS-27`, `PRV-36`)
-- [ ] **CNF-287** **The rescue path can reach a machine as ordered.** Assert the driver either
-      orders an address the deployment can route to, with its cost carried into the offer price, or
-      declares its rescue path IPv6-capable — and that a create is refused rather than placed where
-      neither holds. A machine bought and unreachable bills and drains runway with delete as the only
-      remedy. (`RSC-45`, `PRV-13b`)
+- [ ] **CNF-287** **BLOCKING** — **The rescue path can reach a machine as ordered.** Assert the
+      driver either orders an address the deployment can route to, with its cost carried into the
+      offer price, or declares `rescue_address_family` IPv6-capable in its descriptor (`PRV-44`) —
+      and that a create is refused rather than placed where neither holds. A machine bought and
+      unreachable bills and drains runway with delete as the only remedy: an autonomous caller
+      reaches a provider mutation whose product it cannot use, which is question (3). (`RSC-45`,
+      `PRV-44`, `PRV-13b`)
 - [ ] **CNF-184** A rate outage bills the customer **nothing** for the window: no deferred
       satoshi debit is posted when the rate returns, the native accrual appears as an operator
       deficiency, and machines are cancelled at the stated maximum outage if no rate comes back.
@@ -1030,9 +1073,11 @@ rather than acquiring a default.
 - [ ] **CNF-196** Enrolment ignores an `Idempotency-Key`: two signups presenting the same key
       receive **different** handles and different credentials. The withdrawn rule returned the
       same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
-- [ ] **CNF-197** A resolution transition out of `needs_reconciliation` succeeds with **no worker
-      and no lease** — by sweep and by operator verb — while a lease-less *worker* write is still
-      refused. Both halves. (`OPS-3`, `STO-19`, `STO-3`)
+- [ ] **CNF-197** A resolution transition out of `needs_reconciliation` succeeds with **no worker**
+      — by sweep and by operator verb, guarded on `(id, status = needs_reconciliation)` alone —
+      while a *worker* write whose epoch is not the current one affects no row. Both halves: the
+      two guards are different predicates (`STO-3`), and a build that applies the worker's to
+      resolution can never resolve anything. (`OPS-3`, `OPS-47`, `STO-19`, `STO-3`)
 - [ ] **CNF-198** Metering a period at a cadence that subdivides it posts every increment: no
       posting is deduplicated away by the idempotency key, and two billable attachments on one
       machine do not collide. (`LDG-8`, `LDG-38`)
@@ -1081,11 +1126,12 @@ rather than acquiring a default.
       same resolution transaction, available balance does not move, and a wind-down commitment
       `OPS-36` opened on the same machine is **not** decremented. Both halves, and the second is the
       one three requirements disagreed about. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-66`, `OPS-33`)
-- [ ] **CNF-212** Two consecutive exhaustion sweeps over the same machine enqueue **one**
-      cancellation: the second reuses the episode's trigger id and conflicts. Minting a fresh id
-      per sweep is the failure. Run the second sweep again **after retention has deleted the first
-      sweep's operation row** (`STO-14`) and assert it still enqueues nothing — the machine's
-      retained `system_trigger_ids` entry, not the operation, is what holds. (`OPS-39`, `STO-14`)
+- [ ] **CNF-212** **AMENDED 2026-09-08 (`ADR-0017`) — the dedup is a row, not a JSON entry.** Two
+      consecutive exhaustion sweeps over the same machine open **one** episode and enqueue **one**
+      cancellation: the second finds the open `(machine_id, delete)` episode and enqueues nothing.
+      Opening a second episode per sweep is the failure, and `STO-52`'s index is what refuses it —
+      assert the refusal is the store's, by attempting the second insert directly. `CNF-291` carries
+      the retention half. (`OPS-39`, `OPS-48`, `STO-52`)
 - [ ] **CNF-213** Attributing an orphaned deposit posts **one `correction` pair per settled
       payment** — never a second `topup`, which would mint satoshis the original settlement already
       credited — and `operator_ref` holds no name, address or contact string. A deposit paid on
@@ -1166,15 +1212,9 @@ rather than acquiring a default.
       and `CNF-21` cannot reach. Both failures end in a duplicate purchase. (`API-38`, `API-11`,
       `ADR-0005`)
 - [ ] **CNF-260** **A machine never has two open commitments.** Attempt every path that opens one
-      against a machine that already has one — create, requeue reuse, `LDG-62`'s extend on a machine
-      with none, `OPS-36`'s wind-down — and assert the store refuses. `OPS-20`'s reuse rule and
-      `LDG-31`'s "that machine's commitment" both rest on this and it was stated only as a storage
-      constraint. (`LDG-30`, `STO-23`)
-- [ ] **CNF-261** **Two workers race the machine lock and one loses.** Concurrent claims against one
-      machine: exactly one holds it, the other defers to `queued`; a lock whose lease expired is
-      taken over; a lock held live is not. Asserted under load against the storage primitive, not
-      the API. `CNF-26` races the operation claim; nothing raced this. (`STO-2`, `OPS-9`,
-      `machine_locks`)
+      against a machine that already has one — create, `LDG-62`'s extend on a machine with none,
+      `OPS-36`'s wind-down — and assert the store refuses. `LDG-31`'s "that machine's commitment"
+      rests on this and it was stated only as a storage constraint. (`LDG-30`, `STO-23`)
 - [ ] **CNF-262** **Two re-derivations of one machine do not both apply.** Concurrent commitment
       adjustments against the same row: one succeeds, the other's conditional write on `version`
       affects no row and is retried or refused. This is the primitive `LDG-34` exists for and it had
@@ -1196,9 +1236,11 @@ rather than acquiring a default.
       named here until 2026-09-02 and this path's body cannot carry one: its source is `raw_disk`,
       which has `url`, `sha256` and `compression` (`WIR-20`).* (`RSC-39`,
       `RSC-40`, `SEC-21`, `WIR-20`)
-- [ ] **CNF-266** **The import runs outside the machine lock and is bounded.** During the import the
-      machine's lock is free — a concurrent exposure-reducing cancellation acquires it and runs —
-      and the lock is taken only for the switch-over, which re-validates first (`OPS-23`, `OPS-8`).
+- [ ] **CNF-266** **The import runs with the machine yielded, and is bounded.** During the import
+      the operation's `yielded_at` is set and the machine is free — a concurrent exposure-reducing
+      cancellation takes it and runs — and the machine is re-acquired only for the switch-over,
+      which re-validates first; while the cancellation holds the machine the re-acquire is refused
+      by `STO-51`'s index and deferred, not failed (`OPS-23`, `OPS-8`).
       An import exceeding the stated maximum wait
       aborts the operation and deletes the imported image. **And the driver exposes `PRV-37`'s three
       calls separately** — import, build, delete — with the delete safe to call twice and an
@@ -1221,8 +1263,8 @@ rather than acquiring a default.
 - [ ] **CNF-269** **`last_install` outlives the operation that wrote it.** Install a machine, let
       retention delete the settled operation (`STO-14`), and assert the machine still reports the
       strategy, the verification flag and the instant. A machine that outlives the record of how it
-      came to be is the defect `OPS-39`'s trigger id and `STO-43`'s ages were both moved onto this
-      row to avoid. (`DOM-29`, `STO-14`)
+      came to be is the defect `STO-43`'s ages were moved onto this row to avoid, and the one
+      `ADR-0017` gave the episode a row of its own to avoid. (`DOM-29`, `STO-14`)
 - [ ] **CNF-270** **An imported image is not reachable by another tenant, and does not outlive its
       install.** No caller-supplied input reaches the provider's image identifier — a caller can
       name a URL and nothing else — so no tenant can build from another's image through this system.
@@ -1232,52 +1274,55 @@ rather than acquiring a default.
 
 ### Added 2026-09-02 (the two-reviewer pass that returned NOT BUILDABLE)
 
-- [ ] **CNF-271** **A failed cancellation is retryable, and the fence does not eat its own retry.**
-      Drive an exposure-reducing cancellation whose provider call fails after the fence is written —
-      once with a 5xx (`needs_reconciliation`) and once with a deterministic `authentication`
-      (`failed`) — and assert for each: the episode entry stays open, `destroy_committed` stays set,
-      `LDG-62` is still refused `conflict`, and an operator requeue of that same operation **runs
-      the provider call again** rather than aborting into a false `succeeded`. Then the other half
-      of `OPS-44`'s table: a cancellation that succeeded **with the resource gone** removes the
-      entry and clears the fence in the
-      terminal transaction, an operator `abandoned` clears it so a later sweep can fence afresh, and
-      a `failed` one appears in the operator listing `OPS-26` requires. **Then the row a reader will
-      get wrong**: a cancellation the provider merely *scheduled* (`DOM-19`) settles `succeeded` and
-      the entry and fence both **stay** until the effective date passes and the machine is
-      tombstoned — resolving there lets the next exhaustion sweep mint a fresh episode and place a
-      second cancellation against a machine already scheduled, which `OPS-39` warns can alter or
-      repeat the first's mutation. **The failure this catches
-      is a sweep loop that settles `succeeded` forever while the machine bills forever.**
-      (`OPS-44`, `OPS-42`, `OPS-39`, `OPS-41`, `LDG-62`)
+- [ ] **CNF-271** **AMENDED 2026-09-08 (`ADR-0017`) — the episode is the unit, and `failed` is a
+      fact about an attempt.** Walk `OPS-48`'s transitions against a real row. Drive an
+      exposure-reducing cancellation whose provider call fails after the fence is written — once
+      with a 5xx and once with a deterministic `authentication` — and assert: the attempt settles
+      `needs_reconciliation` and the episode is `uncertain`, or the attempt settles `failed` and the
+      episode is `stalled`; in both, the episode stays open, `destroy_committed` still holds its id,
+      `LDG-62` is still refused `conflict`, and the `stalled` episode appears in the operator
+      listing `OPS-26` requires. `retry` on the `stalled` one enqueues a fresh attempt that **runs
+      the provider call again** rather than aborting into a false `succeeded`, and the episode is
+      `attempting` with `current_operation_id` naming the new attempt. Then the closing rows: an
+      attempt that succeeded **with the resource gone** closes the episode `resource_gone` and clears
+      the fence in the same transaction; an operator `abandoned` closes it `abandoned` and clears the
+      fence so a later sweep may open a fresh one; and **no timer ever moves a `stalled` episode** —
+      run the clock out and assert it is still `stalled` with one attempt. **Then the row a reader
+      will get wrong**: a cancellation the provider merely *scheduled* (`DOM-19`) settles
+      `succeeded`, the episode is `scheduled`, and it and the fence both **stay** until the effective
+      date passes and the machine is tombstoned — closing there lets the next exhaustion sweep open
+      a fresh episode and place a second cancellation against a machine already scheduled, which
+      `OPS-39` warns can alter or repeat the first's mutation. **The failure this catches is a
+      sweep loop that settles `succeeded` forever while the machine bills forever.** (`OPS-48`,
+      `DOM-31`, `OPS-42`, `OPS-39`, `OPS-26`, `API-64`, `LDG-62`)
 - [ ] **CNF-272** **A suspension terminates even when a child cannot delete.** Suspend a tenant
       while the provider account's credential is rejected, so every child cancellation fails
       `authentication` — deterministic, and `OPS-11` sends it to `failed` rather than to
       `needs_reconciliation`. Assert the fan-out **terminates** — a later pass enqueues nothing for
-      those machines, because an episode entry exists for each — the parent settles `succeeded` with
-      that child named in `WIR-39`'s `cancellations`, `WIR-41`'s resume becomes available, the
-      failed child is listed for the operator, and an operator requeue of it is admitted although the
-      tenant is suspended (`API-7` step 5b). **Then run the clock out and assert that nothing
-      automatic cancels the machine**: it stays in the operator listing and the exhaustion sweep
-      enqueues nothing, because the episode entry it would need to mint one is
-      the same entry that made the fan-out terminate. **Then suspend a tenant one of whose machines
-      already has an open exhaustion episode**, and assert the fan-out terminates: the pass appends
-      `tenant_suspended` to that entry's `reasons`, names the existing delete in `cancellations`, and
-      enqueues nothing new — and that `OPS-41`'s re-check treats that delete as a suspension cancel
-      even though the operation itself carries `exhausted`. **Then resume that tenant (`WIR-41`),
-      fund the machine, requeue the delete, and assert the machine survives**: the exemption reads
-      the tenant's *current* state, and a build keyed on the episode's `reasons` history destroys a
-      machine its live tenant has paid for. *Added 2026-09-05: with a pre-existing episode the pass
-      could neither enqueue nor name the machine, so the parent never settled; the resume case is
-      the third rewrite of the exemption in one day.*
-      The operator listing is the entire remedy,
-      which is why `OPS-44` makes it a MUST and calls this "the one settled state in this set that
-      nothing automatic will look at again". *Corrected 2026-09-04: this item said "the machine keeps
-      draining runway so `LDG-13` reaches it unaided", one clause after asserting that a later pass
-      enqueues nothing for exactly these machines. Both cannot hold, `OPS-44` is the half that is
-      true, and a build could satisfy the item by implementing either.* Three wrong answers fail
-      this item: a fan-out that never settles, one that settles while nothing at all accounts for
-      the machine, and one that quietly re-enqueues a delete the credential cannot perform.
-      (`API-58`, `OPS-44`, `OPS-39`, `API-7`, `LDG-13`)
+      those machines, because an open episode exists for each — the parent settles `succeeded` with
+      that child named in `WIR-39`'s `cancellations`, `WIR-41`'s resume becomes available, each
+      machine's episode is `stalled` and listed for the operator, and `retry` on it (`API-64`) is
+      admitted although the tenant is suspended — `API-7` step 5b applies to `adopt` only. **Then
+      run the clock out and assert that nothing automatic cancels the machine**: it stays in the
+      operator listing and the exhaustion sweep enqueues nothing, because the open episode it would
+      need is the same one that made the fan-out terminate. **Then suspend a tenant one of whose
+      machines already has an open exhaustion episode**, and assert the fan-out terminates: the pass
+      appends `tenant_suspended` to that episode's `reasons`, names its current attempt in
+      `cancellations`, and enqueues nothing new — and that `OPS-41`'s re-check treats that delete as
+      a suspension cancel even though the operation itself carries `exhausted`. **Then resume that
+      tenant (`WIR-41`), fund the machine, retry the episode, and assert the machine survives**: the
+      exemption reads the tenant's *current* state, and a build keyed on the episode's `reasons`
+      history destroys a machine its live tenant has paid for. *Added 2026-09-05: with a
+      pre-existing episode the pass could neither enqueue nor name the machine, so the parent never
+      settled; the resume case is the third rewrite of the exemption in one day.*
+      The operator listing is the entire remedy, which is why `OPS-48` never retries a `stalled`
+      episode by timer. *Corrected 2026-09-04: this item said "the machine keeps draining runway so
+      `LDG-13` reaches it unaided", one clause after asserting that a later pass enqueues nothing
+      for exactly these machines. Both cannot hold, and a build could satisfy the item by
+      implementing either.* Three wrong answers fail this item: a fan-out that never settles, one
+      that settles while nothing at all accounts for the machine, and one that quietly re-enqueues
+      a delete the credential cannot perform. (`API-58`, `OPS-48`, `OPS-39`, `API-7`, `API-64`,
+      `LDG-13`)
 - [ ] **CNF-273** **A settled payment is findable afterwards, by the only handle anyone kept.**
       Settle a deposit on both rails, reap its tenant at `API-34`'s time-to-live, and then attribute
       the deposit to a fresh tenant: the two payments are enumerated from `payments` by
@@ -1324,7 +1369,7 @@ rather than acquiring a default.
       still puts a cancellation date a week out on the **exception** branch. Assert the last one
       against a machine whose `earliest_cancellation_date` is days away, since a monthly interval
       swallows it into the ordinary path and silently deletes the `DOM-19`/`LDG-63` branch.
-      (`PRV-13e`, `LDG-68`, `LDG-16`, `PRV-13c`, `LDG-42`)
+      (`PRV-13e`, `LDG-68`, `LDG-16`, `PRV-13c`, `OVR-19`)
 - [ ] **CNF-276** **The catalogue fetch cannot be pointed at the inside.** Drive `RSC-39` with a URL
       resolving to loopback, to `169.254.169.254`, to an RFC 1918 address, and to an IPv4-mapped
       IPv6 wrapper around each: every one is refused before a byte is sent. Then the three that a
@@ -1404,7 +1449,7 @@ rather than acquiring a default.
       further posts**, for any machine in that account or any attachment it left behind. Finally
       assert the exhaustion sweep mints **no** delete for those machines: a build that stops the
       meters and leaves the rows in inventory floods the operator listing with one permanently-open
-      episode per machine (`LDG-13`, `OPS-44`). *Added 2026-09-04: the release was asserted and the
+      episode per machine (`LDG-13`, `OPS-48`). *Added 2026-09-04: the release was asserted and the
       stop was not, so a build that closed the commitments and went on metering into the tenant's
       free balance passed this item.* **Then assert the account stops being sellable**: `GET
       /v1/providers` omits it for an assigned tenant, and a create naming it is `409` `state` —
@@ -1465,11 +1510,9 @@ rather than acquiring a default.
       assertion across **every** dispatch-marked row of `OPS-45`'s table**: `provider_native` install,
       `provider_catalogue` install, power, reverse DNS and delete. The marker is set on all five and
       `not_applied` is `200`, not `409` — there the marker records a dispatch, not a written disk
-      (`OPS-45`), and the operator has read the provider. **Then, on each of those five, dispatch
-      an attempt, resolve it `not_applied`, requeue, and fail the second attempt before dispatch:
-      it settles `failed` deterministically with the marker cleared, while the same sequence on a
-      `raw_disk` install keeps the first attempt's marker and reaches `needs_reconciliation`**
-      (2026-09-05; the per-attempt clear was untested and a sticky column passed). *Added 2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind
+      (`OPS-45`), and the operator has read the provider. **The markers are per operation and
+      nothing clears them** (`OPS-45`): a `retry` (`API-64`) enqueues a fresh attempt whose markers
+      start unset, and the resolved attempt's markers are unchanged afterwards. *Added 2026-09-04: the refusal was unscoped, so `not_applied` was rejected on every kind
       whose marker is set at dispatch, which is every such operation that ever reaches an operator —
       and this item asserted only the raw-disk half, where the refusal is right. Naming two of the
       five would pass an implementation that special-cased them.* Assert the marker survives the payload purge.
@@ -1479,11 +1522,16 @@ rather than acquiring a default.
 - [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
-      edge is asserted too**: `ledger` depends on `core` and nothing else, both `api` and `engine`
-      depend on it, and `OPS-27`'s terminal write executes **in a worker** — one transaction
-      carrying the machine row, the setup-fee debit and the commitment decrement, proved by killing
-      the process between them and finding neither. A build where `ledger` can name a driver, or
-      where the credential-owning type becomes reachable from `api` or `ledger`, fails to compile.
+      edge is asserted too**: `ledger` depends on `core` and `store` and nothing else, both `api`
+      and `engine` depend on it, and `OPS-27`'s terminal write executes **in a worker** — one
+      transaction carrying the machine row, the setup-fee debit and the commitment decrement,
+      proved by killing the process between them and finding neither. **That transaction is
+      `store`'s** (2026-09-08, `OVR-9`): `store` is the only module that opens one, `ledger`'s and
+      `engine`'s write-side functions take it as a parameter, and the trait between `api` and
+      `engine` may name the transaction type and still no credential type — asserted on the
+      signatures. A build where `ledger` can name a driver, where any module but `store` opens a
+      transaction, or where the credential-owning type becomes reachable from `api` or `ledger`,
+      fails to compile.
       **And every component in `OVR-17`'s table lives in the module named there** — asserted against
       the dependency graph, since a sweep in the wrong module is a credential or a rail secret in
       the wrong module. (`OVR-9`, `OVR-10a`, `OVR-17`, `OPS-27`, `ADR-0001`)
@@ -1492,7 +1540,7 @@ rather than acquiring a default.
       ceiling; the rescue-entry ceiling counts the inventory pass and rescue-entering installs
       together. Drive it with a loop that acknowledges everything. (`SEC-39`, `RSC-38`)
 - [ ] **CNF-253** **The operator principal is capped and observed.** An operator principal exceeding
-      its stated requeue, resolution, suspension, re-assignment **or provider-account
+      its stated retry, resolution, suspension, re-assignment **or provider-account
       status-recording** ceiling is refused; the override
       path works and is itself recorded; and every operator verb emits a monitorable event naming
       principal, target and reason. The failure this catches is a looping operator agent buying
@@ -1507,16 +1555,16 @@ rather than acquiring a default.
       Drive **every** operator-only verb (`WIR-34`'s list) end to end with an operator credential and
       assert none is rejected for **the principal's own** tenant state at `API-7` step 2 or 5b — an
       operator has no tenant to be pending or suspended. **Then assert the converse on the same
-      steps**, since it is the half a careless exemption deletes: an operator's **ordering** requeue
-      and an `adopt` against a **suspended target tenant** are both still rejected `suspended` at 5b,
-      and every operator write still takes its `Idempotency-Key` through steps 3 and 5a and its
-      ceiling at 5c. **And assert the two-verb scope is not wider**: `WIR-42`'s attribution to a
-      **`pending`** target is admitted, and every abuse-case verb, restriction recording and deadline
-      revision against a **suspended** target is admitted — *a repair of 2026-09-04 read "wherever a
-      tenant is named" and refused all of those.* *Read literally, the pre-amendment pipeline refused the entire operator surface
-      except the four verbs its carve-out named; a first repair then exempted operators from 5b
-      outright and deleted the two ordering refusals, which live only on operator verbs.*
-      (`SEC-39`, `SEC-32`, `API-62`, `API-63`, `API-7`, `API-58`)
+      steps**, since it is the half a careless exemption deletes: an `adopt` against a **suspended
+      target tenant** is still rejected `suspended` at 5b, and every operator write still takes its
+      `Idempotency-Key` through steps 3 and 5a and its ceiling at 5c. **And assert the scope is not
+      wider than `adopt`**: `WIR-42`'s attribution to a **`pending`** target is admitted, `retry`
+      against a suspended tenant's episode is admitted (`CNF-272`), and every abuse-case verb,
+      restriction recording and deadline revision against a **suspended** target is admitted — *a
+      repair of 2026-09-04 read "wherever a tenant is named" and refused all of those.* *Read
+      literally, the pre-amendment pipeline refused the entire operator surface except the four
+      verbs its carve-out named; a first repair then exempted operators from 5b outright.*
+      (`SEC-39`, `SEC-32`, `API-62`, `API-63`, `API-7`, `API-58`, `API-64`)
 - [ ] **CNF-254** **The credential-holding process cannot move the float.** Its Lightning credential
       permits exactly `SEC-48`'s six operations — create, look up, list, subscribe, **cancel an
       unsettled invoice**, and **read the channel and on-chain wallet balances** — and nothing else:
@@ -1655,18 +1703,18 @@ rather than acquiring a default.
       clause was added 2026-09-05; this item asserted apportioning while `LDG-38` split only at a
       rate change, so a straddling increment had two credits and no rule.* (`LDG-68`, `LDG-38`,
       `STO-37`)
-- [ ] **CNF-217** No transaction holding `LDG-35`'s serialization primitive acquires a
-      `machine_locks` row, waits on an operation lease, waits on a child operation, or makes a
-      provider call — asserted at the storage layer over the whole suite's traffic, in the manner
-      of `CNF-157`, not by code review. **The converse is NOT asserted, and asserting it would fail
-      a conforming build**: `OPS-41`'s funding re-check is a worker that already holds the machine
-      lock entering the primitive for a bounded read and the fence write, which is the one direction
-      `LDG-69` permits and the thing `OPS-42`'s fence is built on. *Noted 2026-09-02, when that path
-      became the first genuine nesting in the set; `LDG-69` had described the lock-free property as
-      an accident the set happened to satisfy.* (`LDG-69`, `LDG-35`, `OPS-8`, `OPS-41`, `OPS-42`)
+- [ ] **CNF-217** No transaction holding `LDG-35`'s serialization primitive acquires a machine
+      (`OPS-8`), waits on a child operation, or makes a provider call — asserted at the storage
+      layer over the whole suite's traffic, in the manner of `CNF-157`, not by code review. **The
+      converse is NOT asserted, and asserting it would fail a conforming build**: `OPS-41`'s
+      funding re-check is a worker that already holds the machine entering the primitive for a
+      bounded read and the fence write, which is the one direction `LDG-69` permits and the thing
+      `OPS-42`'s fence is built on. *Noted 2026-09-02, when that path became the first genuine
+      nesting in the set.* (`LDG-69`, `LDG-35`, `OPS-8`, `OPS-41`, `OPS-42`)
 - [ ] **CNF-218** A machine funded by `extend-runway` **after** its cleanup cancellation was
-      enqueued is **not** deleted: the worker re-reads funding under the machine lock, makes no
-      provider call, settles `succeeded`, and resolves the trigger episode. **Afterwards
+      enqueued is **not** deleted: the worker re-reads funding while holding the machine
+      (`OPS-8`), makes no provider call, settles `succeeded`, and the episode closes (`OPS-48`).
+      **Afterwards
       `machines.destroy_committed` is null, the stored `runway_until` is the re-derived future date,
       a second `extend-runway` succeeds, and — where the episode was `OPS-36`'s late-attach cleanup —
       the wind-down deficiency it booked carries `resolved_at` and no longer feeds the solvency
@@ -1690,20 +1738,10 @@ rather than acquiring a default.
       no write transaction; an audit recomputation of `Σ(ledger entries)` equals it; and a seeded
       mismatch **fails closed** rather than answering from either number. (`LDG-70`, `LDG-9`,
       `CNF-157`)
-- [ ] **CNF-220** The deployment states its worst-case machine-lock hold, and `wind_down_cost`
-      includes it. Asserted by enqueuing an exposure-reducing cancellation against a machine whose
-      lock is held by a long-running operation and confirming the reserve covered the full wait.
-      (`PRV-13b`, `OPS-9`, `LDG-42`)
-- [ ] **CNF-221** A requeue supplying a payload that differs from the retained `request_summary`
-      in kind, machine or provider account is **refused**; one that matches proceeds; and
-      one whose summary cannot establish equivalence is refused with `OPS-31`'s verbs named as the
-      alternative. `OPS-34` had no conformance item at all, on the requirement that made requeue
-      implementable after `ADR-0005`. **Asserted on an admissible kind** — `create_machine` is
-      refused on kind before any payload is compared (`CNF-288`). *Amended 2026-09-05: the fourth
-      field was `target`, which is defined nowhere and which the set spends on two other concepts
-      (`F38`); it is dropped from the assertion rather than tested, because a conformance item
-      cannot test a name with no referent.* (`OPS-34`, `OPS-20`, `API-19`, `OPS-46`)
-
+- [ ] **CNF-220** The deployment states its worst-case operation hold (`OVR-19`), and
+      `wind_down_cost` includes it. Asserted by enqueuing an exposure-reducing cancellation against
+      a machine held by a long-running operation and confirming the reserve covered the full wait.
+      (`PRV-13b`, `OPS-8`, `OVR-19`)
 ### The abuse surface (grill session, 2026-08-16)
 
 - [ ] **CNF-222** **Address resolution answers from history, not from current state.** Machine A
@@ -1800,9 +1838,12 @@ assignment block was headed `CNF-222`–`CNF-232` and stopped there.*
       without attempting a purchase. **A create rejected with `insufficient_balance` is not an
       acceptable way to answer "can I afford this"**, because an autonomous caller responds to it
       by retrying. (`API-47`, `DOM-20`)
-- [ ] **CNF-151** Exactly the endpoints named in `API-48` are synchronous; every other write
+- [ ] **CNF-151** Exactly the endpoints in `API-48`'s list are synchronous; every other write
       returns `202` with an operation. Asserted against the routing table, so that adding an
-      endpoint later cannot quietly extend the exemption. (`API-48`, `API-1`)
+      endpoint later cannot quietly extend the exemption. The list's newest member is the one a
+      reader will misfile: `POST /v1/episodes/{id}/actions/retry` answers `200` with the episode
+      view, and the attempt it enqueues is asynchronous and visible only through
+      `current_operation_id` (`API-64`). (`API-48`, `API-1`, `API-64`)
 
 ## Completion and pacing
 
@@ -1834,7 +1875,7 @@ Added 2026-08-12 with `API-49`–`API-54`.
       `not_found`, and the published observability horizon equals the idempotency horizon.
       (`DOM-21`, `STO-33`)
 - [ ] **CNF-159** Driving a tenant's balance to exhaustion produces a tenant-visible operation
-      with `requested_by: system` and reason `exhausted`, holding the machine lock, and capable
+      with `requested_by: system` and reason `exhausted`, holding the machine (`OPS-8`), and capable
       of ending in `needs_reconciliation` like any cancel. The test is that the customer-facing
       history contains the event **before** the machine record shows it gone. (`OPS-39`,
       `LDG-14`)
@@ -1928,8 +1969,8 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       refused **on a kind whose set does not admit it**, and `abandoned` accepted on both, since it
       is the member common to the two sets; the
       `absent` form releases the
-      commitment, and a customer-authenticated request to that route — and to adopt and requeue —
-      returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`, `OPS-45`)
+      commitment, and a customer-authenticated request to that route — and to adopt and `retry` —
+      returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`, `OPS-45`, `API-64`)
 - [ ] **CNF-173** After startup, enumerating the process environment from inside the
       customer-facing module yields no provider credential — asserted by actually reading the
       environment at runtime, not by reviewing the scrub call, because a runtime that caches the
@@ -1973,8 +2014,9 @@ See **The blocking count** at the end of this document; it is stated in one plac
       (`STO-18`)
 - [ ] **CNF-109** An idempotency key reused after its operation was retained-out either returns
       the original or is refused — it never performs the mutation a second time. (`STO-25`)
-- [ ] **CNF-110** A requeue preserves the previous error and the stated reason, and the next
-      attempt does not overwrite them. (`STO-20`, `OPS-19`)
+- [ ] **CNF-110** A `retry` leaves the failed attempt's row — its error included — byte-identical,
+      and the fresh attempt is a separate operation carrying the retry's stated reason. (`API-64`,
+      `WIR-51`, `DOM-31`)
 
 ## Blast radius
 
@@ -2003,49 +2045,24 @@ See **The blocking count** at the end of this document; it is stated in one plac
 
 ## Before production
 
-Beyond the checklist, the following are judgement calls a deployment must make
-explicitly and record:
-
-1. ~~Which adoption entitlement mechanism is in force~~ — **settled 2026-08-12: adoption is
-   operator-only, and entitlement is the operator-maintained assignment of external machine
-   identifiers to tenants** (`API-18`).
-2. Whether first-use trust is permitted at all, and for which providers (`SEC-24`).
-3. Whether the raw-disk path runs in single-pass or two-pass mode (`RSC-30`).
-4. What the image host allowlist is (`SEC-19`) — and note it is a **MUST** for the one URL
-   provisiond fetches itself (`RSC-39`), where an empty list means no catalogue install rather than
-   any host.
-4a. **The per-source concurrency limit on `POST /v1/enrol/token`** (`API-36`, `WIR-49`). `API-41`'s
-   global pending-tenant ceiling is defensible only because this one exists, so shipping the ceiling
-   without stating this figure re-creates the denial of service `API-33` named. Added 2026-09-02.
-5. Which provider accounts may order, and what the spend ceiling is (`DOM-16`).
-6. Who is on the rota for `needs_reconciliation`, and what the response procedure is
-   (`OPS-26`).
-7. Where persisted recovery keys are inventoried and how they get destroyed (`RSC-21`).
-8. ~~Whether enrolment issues a server-generated token or registers a caller-supplied public
-   key~~ — **settled 2026-08-13: a server-issued bearer token, stored hashed** (`API-39`).
-9. The negative window per provider, and the measurement it was derived from (`OPS-33`).
-10. The margin, per provider account or product class (`LDG-24`).
-11. The tenant-to-provider-account assignment policy, which is simultaneously the authorization
-    rule (`API-17b`) and the blast-radius control (`SEC-43`).
-12. The configured runway floor, and the `wind_down_cost` measurement behind it (`PRV-13d`).
-13. **The re-derivation interval** — separate from `LDG-68`'s billing period, and the bound on how
-    stale `runway_until` may be (`PRV-13e`, `LDG-42`). Added 2026-09-02; it had been read off the
-    billing period, which made it a month.
+Beyond the checklist, a deployment must state every parameter on `OVR-19`'s register — the human
+items (the `needs_reconciliation` rota, the recovery-key inventory) included — and startup must
+refuse to run on a missing or out-of-range startup-validated row. *This section carried its own list
+of thirteen until 2026-09-08; it was a second copy of the register, and it had drifted.*
 
 
-### Assignments for `CNF-214`–`CNF-221` (engineering review, 2026-08-15)
+### Assignments for `CNF-214`–`CNF-220` (engineering review, 2026-08-15)
 
 **BLOCKING** — `CNF-214` (two metered subjects sharing one column under-bill silently and
 permanently); `CNF-215` (a correction either re-charges the customer or refunds them twice, on
 the next tick, in both directions); `CNF-218` (a paid-for machine destroyed anyway — accepted
 payment, lost disk, and the branch `OPS-33`'s early release depends on); `CNF-219` (the number
-that authorizes every purchase, read from an unstated source); `CNF-221` (a requeue that cannot
-establish equivalence is a second physical order under terms nobody checked).
+that authorizes every purchase, read from an unstated source).
 
 **PRE-SCALE** — `CNF-216`, `CNF-217`, `CNF-220`. Each bounds cost or contention rather than losing
 money or data on the first occurrence: a straddling increment mis-apportions a partial period, a
 nesting violation is unreachable while `LDG-25` prices privileged operations at zero, and an
-unpriced lock wait costs one machine's burn for one install.
+unpriced wait for a held machine costs one machine's burn for one install.
 
 ### Assignments for `CNF-235`–`CNF-236` (the meter, 2026-08-31)
 
@@ -2063,17 +2080,16 @@ cadence is set finer than hourly, because that is when the arithmetic stops bein
 **BLOCKING** — `CNF-257` (the install safety gate, which had no conformance item naming it at all —
 destroyed data); `CNF-258` (money out: an adopted machine billing against a balance nobody checked);
 `CNF-259` (both failure modes end in a duplicate purchase, which is what `API-38` was written to
-stop); `CNF-260` (two open commitments double-reserve a balance and break `OPS-20`'s reuse rule
-silently); `CNF-263` (destroyed data — writing a raw image to the wrong kind of device);
+stop); `CNF-260` (two open commitments double-reserve a balance silently); `CNF-263` (destroyed data — writing a raw image to the wrong kind of device);
 `CNF-264` (a PTR set on an address the tenant does not hold crosses a boundary in the operator's own
 account); `CNF-265` (the only integrity check catalogue install has, plus the credential disclosure
 `SEC-21` forbids); `CNF-267` (a customer's operating system left in the operator's account after the
 deployment undertook to destroy it).
 
-**PRE-SCALE** — `CNF-261`, `CNF-262`, `CNF-266`, `CNF-268`, `CNF-269`. Concurrency primitives whose
-failures are contention rather than loss at concierge scale, a lock-hold bound that costs one
-machine's burn, and two disclosure items. **`CNF-261` and `CNF-262` graduate the day concurrent
-installs become routine**, which the tiering rule already names as a PRE-SCALE trigger.
+**PRE-SCALE** — `CNF-262`, `CNF-266`, `CNF-268`, `CNF-269`. A concurrency primitive whose
+failure is contention rather than loss at concierge scale, a hold bound that costs one machine's
+burn, and two disclosure items. **`CNF-262` graduates the day concurrent installs become
+routine**, which the tiering rule already names as a PRE-SCALE trigger.
 
 **`CNF-270`** (added 2026-08-31 with `SEC-55`) is **PRE-SCALE**: the exposure is operator-side and
 bounded by `RSC-42`'s purge to the length of one install, and no caller can reach it. It graduates
@@ -2114,7 +2130,7 @@ graduates when a second provider account exists, because that is when the sweep'
 
 **BLOCKING** — all four, and each lands in a named irreversible family.
 
-- `CNF-237` — a delete resolved as failed is a delete an operator requeues, which is a **repeated
+- `CNF-237` — a delete resolved as failed is a delete an operator retries, which is a **repeated
   destructive provider mutation**; question (3) of the tiering rule answered yes.
 - `CNF-238` — **money out**: the commitment never closes, so a customer's satoshis stay reserved
   against a resource that no longer exists, and nothing raises an error.
@@ -2156,7 +2172,7 @@ machine in rescue rather than losing money or data.
 **BLOCKING** — `CNF-271` (unstoppable billing: a cancellation that can never run again while the
 record claims it succeeded, which the operator would not learn from anything but an invoice);
 `CNF-272` (a suspension that never completes, or one whose deterministically failed child is left
-**unlisted or unrequeueable** — `SEC-45`'s one action is the operator's whole remedy and it must
+**unlisted or unretryable** — `SEC-45`'s one action is the operator's whole remedy and it must
 land, and where a credential is rejected the listing is the only remedy there is, so losing it is
 unbounded billing. *Corrected 2026-09-04: this read "completes with a billing machine on a suspended
 tenant", which the amended item now deliberately permits — that machine is the expected settled

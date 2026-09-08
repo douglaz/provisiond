@@ -27,9 +27,10 @@ accept an operation a provider has not declared support for. See `DOM-10`.
 the control plane activates rescue, pins the SSH host key, waits for the environment,
 verifies the image, writes it, exits rescue, and cleans up credentials.
 
-**OVR-4** Every write operation MUST be asynchronous and durable. Provisioning and
+**OVR-4** Every write that reaches a provider MUST be asynchronous and durable. Provisioning and
 reimaging take minutes and involve billable or destructive provider mutations; they
-MUST NOT be tied to the lifetime of an HTTP connection.
+MUST NOT be tied to the lifetime of an HTTP connection. The closed set of synchronous writes is
+`API-48`'s.
 
 **OVR-5** **AMENDED.** *Uncertainty is a first-class state, not an error.* When the system
 cannot determine whether a provider mutation took effect, the operation MUST enter a distinct
@@ -60,8 +61,8 @@ names the environment variable; the process reads the secret from the environmen
                                   v                                ^
                     +---------------------------+                  |
                     |  Durable operation log    |                  |
-                    |  queue + leases +         |                  |
-                    |  per-machine locks        |                  |
+                    |  queue, one engine,       |                  |
+                    |  epoch-fenced (OPS-47)    |                  |
                     +-------------+-------------+                  |
                                   |                                |
                         restart-safe workers ---------------------->
@@ -106,7 +107,7 @@ sequenceDiagram
     A-->>C: 202 + operation view + poll_after_ms
     Note over C: Every write is 202. The record IS the<br/>completion guarantee, so no webhook<br/>and nothing to miss.
 
-    E->>DB: claim atomically under a lease, OPS-5
+    E->>DB: claim atomically, guarded on the epoch, OPS-5
     E->>E: re-validate, OPS-23
     E->>DB: write provider_account and the<br/>correlator BEFORE the call, OPS-35, PRV-26
     E->>DB: re-check the provider's price, OPS-43
@@ -125,16 +126,17 @@ sequenceDiagram
 commitment must be a single transaction, and `ADR-0001` chose one deployable because two stores
 cannot give you one.
 
-The four layers map to six modules with strictly one-way dependencies:
+The four layers map to the modules below, with strictly one-way dependencies:
 
 | Module | Responsibility | Depends on |
 |---|---|---|
 | `core` | Domain model, capability declarations, error taxonomy, provider interface | nothing |
 | `providers` | Per-provider HTTP adapters implementing the provider interface | `core` |
 | `rescue` | SSH orchestration and image installers, generic across providers | `core` |
-| `ledger` | **The money**: ledger entries, commitments, the meter, rate derivation, solvency, and `LDG-35`'s per-tenant serialization primitive. Holds no provider credential and no payment-rail credential | `core` |
-| `engine` | **The credential-holding lifecycle side**: workers, driver invocation, the durable queue's execution, the exhaustion and account sweeps, and the only code that may reach a provider credential | `core`, `providers`, `rescue`, `ledger` |
-| `api` | **The customer-facing side**: HTTP surface, authentication, tenancy, enrolment, the funding rails and their settlement watcher, abuse | `core`, `ledger`, `engine` — and `engine` **only through a narrow trait that does not expose a credential** |
+| `store` | Migrations, the schema, the connection pool, the transaction handle, and every primitive `05-persistence.md` says the store MUST provide (`STO-1`, `STO-51`, `LDG-35`'s advisory-lock helper). Holds no credential | `core` |
+| `ledger` | **The money**: ledger entries, commitments, the meter, rate derivation, solvency, and `LDG-35`'s per-tenant serialization primitive. Holds no provider credential and no payment-rail credential | `core`, `store` |
+| `engine` | **The credential-holding lifecycle side**: workers, driver invocation, the durable queue's execution, the exhaustion and account sweeps, and the only code that may reach a provider credential | `core`, `store`, `providers`, `rescue`, `ledger` |
+| `api` | **The customer-facing side**: HTTP surface, authentication, tenancy, enrolment, the funding rails and their settlement watcher, abuse | `core`, `store`, `ledger`, `engine` — and `engine` **only through a narrow trait that does not expose a credential** |
 
 **AMENDED 2026-08-31 — `server` is split, because the boundary that matters had no home.**
 `ADR-0001` accepted one deployable on the promise that code structure keeps the public surface away
@@ -172,13 +174,22 @@ trait whose signatures mention no credential type.** `engine` MUST NOT depend on
 edge, and its narrowness, is what `OVR-10a` requires and what `CNF-71`–`CNF-74` prove; the
 credential-owning type is private to `engine` and reachable through nothing else.
 
+**`store` is the only module that opens a transaction** (2026-09-08); `ledger` and `engine`
+write-side functions take one as a parameter. The narrow trait between `api` and `engine` may
+mention the transaction type and still no credential type.
+
+**The partition of responsibilities across modules is the current assignment and may change as the
+implementation discovers better seams. Two things are not tentative: the credential edge
+(`OVR-10a`), and that exactly one module hands out the transaction.**
+
 **`ledger` MUST NOT depend on `providers`, `rescue`, `engine` or `api`** (2026-09-02). Both `api`
 and `engine` depend on it, which is what gives `OPS-27`'s money-bearing terminal transaction a legal
 home and `LDG-11`'s commit-and-enqueue another. The direction buys one real property: **a module
 that cannot name a driver cannot make a provider call from inside `LDG-35`'s serialization** — which
 is one clause of `LDG-69` obtained structurally rather than by discipline. *The rest of `LDG-69` is
 not obtained this way and MUST NOT be claimed to be: it binds a **worker**, which lives in `engine`,
-and `OPS-41`'s funding re-check now genuinely nests the primitive inside a machine lock from there.
+and `OPS-41`'s funding re-check now genuinely nests the primitive inside a running operation's hold
+on its machine (`OPS-8`) from there.
 `CNF-217` asserts the whole boundary at runtime because only part of it is a compile-time fact.*
 
 **`ledger` MUST NOT enqueue
@@ -259,7 +270,9 @@ the assignment.** The table above allocates the request path; the periodic and b
 allocated nowhere, and none of it had a stated home. **Most of the components below write money,
 touch a provider, or both** — and the rest still need an assignment, because a component with no
 module has no dependency rule, which means it has no credential boundary either. That is the reason
-the requirement exists, and it does not depend on what any particular component does.
+the requirement exists, and it does not depend on what any particular component does. Store access
+is assigned like any component: through `store`, which is the only module that opens a transaction
+(`OVR-9`).
 
 *This said "every one of the components below writes money, touches a provider, or both" until
 2026-09-03, and it was already false when written: `API-34`'s time-to-live sweep is "tenancy records,
@@ -279,10 +292,10 @@ count in it now.*
 | `LDG-64`'s outage-bound canceller | `engine` | Same shape: a balance-adjacent condition whose effect is an enqueued provider mutation with `system_reason: rate_outage_bound` (`OPS-39`) |
 | `OPS-27`'s resolution sweep | `engine` | It searches providers by correlator, so it needs a provider credential, and its terminal transaction writes money through `ledger` (`OPS-27`) |
 | `OPS-32`'s account sweep | `engine` | Lists resources at a provider, so it needs a provider credential |
-| `OPS-14`'s lease sweeper and the worker pool | `engine` | Already implied by the table; stated so the list is complete |
+| `OPS-15`'s startup pass and the worker pool | `engine` | Already implied by the table; stated so the list is complete |
 | The settlement watcher (`STO-30`–`STO-32`, `LDG-47`, `LDG-57`) | `api` | It holds the payment-rail material `OVR-10b` keeps away from the lifecycle side, and posts its credits through `ledger` |
 | `API-34`'s time-to-live sweep | `api` | Tenancy records, no provider and no rail |
-| `STO-14`'s retention job | `api` | It deletes settled operations, which is a **request** record; it MUST NOT touch `machines.system_trigger_ids`, which `STO-14` states in terms — retention resetting `OPS-39`'s deduplication is the defect that requirement exists to forbid |
+| `STO-14`'s retention job | `api` | It deletes settled operations, which is a **request** record, and never an episode (`STO-52`): an attempt's row aging out leaves the episode it belonged to open, which is the point of the episode being a row of its own (`ADR-0017`) |
 | `STO-42`/`STO-43`'s abuse and address retention | `api` | Tenancy-adjacent records, no provider and no rail. **It is not the row above**: `STO-43` says `STO-14` "reaches **settled operations** and nothing else", so closed cases, statement bodies and `machine_addresses` run on ages of their own. Added 2026-09-03 |
 
 **Three of these placements are the ones a builder gets wrong**, so the reasoning is recorded rather
@@ -308,6 +321,11 @@ this miss actually took. The `machine_addresses` half is the one with a customer
 consequence: purging it shortens the horizon `SEC-54` can answer an abuse notice over, so an
 unassigned job here silently narrows a control two BLOCKING items depend on.*
 
+**OVR-18** The engine's liveness MUST be alarmed. While the engine is down no exposure-reducing
+mechanism runs (`LDG-14`, `OPS-32`, `SEC-45`'s fan-out), and the restart window is the accepted
+outage (`ADR-0016`); the supervisor's restart guarantee and the alarm threshold are deployment
+parameters (`OVR-19`).
+
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive
 password helper for SSH.
@@ -315,6 +333,50 @@ password helper for SSH.
 **OVR-12** The operation store and the rescue recovery directory MUST be on encrypted
 storage. Both contain material that grants access to customer machines: signed image
 URLs in the former, recovery private keys in the latter.
+
+## Deployment parameters
+
+**OVR-19** **A parameter is on this register or it is not a parameter.** Every value the set
+says a deployment MUST state is listed here, with the requirement that mandates it. Startup MUST
+validate every startup-validated row and refuse to run on a missing or out-of-range value; the rows
+marked human are procedures the deployment records rather than values the process reads.
+
+| Parameter | Mandated by | Type | Startup-validated |
+|---|---|---|---|
+| Rate source set | `LDG-61` | list of sources | yes |
+| Rate quorum | `LDG-59` | integer | yes |
+| Source staleness bound | `LDG-59` | duration | yes |
+| Outlier band | `LDG-60` | basis points | yes |
+| Maximum tolerated rate outage | `LDG-64` | duration | yes |
+| On-chain confirmation depth | `LDG-48` | integer | yes |
+| Per-rail floors | `LDG-52` | satoshis, per rail | yes |
+| Deposit expiry | `LDG-54` | duration | yes |
+| Channel-balance treatment in solvency | `LDG-53` | rule | yes |
+| Billing period | `LDG-68` | calendar month, UTC | yes |
+| Re-derivation interval | `PRV-13e` | duration | yes |
+| Account-sweep interval | `OPS-32`, `LDG-74` | duration | yes |
+| Worst-case operation hold, per product | `PRV-13b` | duration | yes |
+| Margin | `LDG-24` | basis points | yes |
+| Runway floor | `PRV-13d` | duration | yes |
+| Image host allowlist | `SEC-19` | list of host patterns (`SEC-20`) | yes |
+| Raw-disk single- or two-pass mode | `RSC-30` | enum | yes |
+| First-use-trust policy, per provider account | `SEC-22`, `SEC-24` | enum | yes |
+| Autonomous per-principal ceilings and their interval | `SEC-39` | integers, duration | yes |
+| Operator-principal ceilings | `SEC-39` | integers | yes |
+| Lightning ceiling | `SEC-49` | satoshis | yes |
+| Order budget, per ordering account | `PRV-40` | `{limit, per}` — declared by the driver (`PRV-44`); the deployment may lower it | yes |
+| Enrolment per-source concurrency | `API-36` | integer | yes |
+| Pending-tenant ceiling | `API-41` | integer | yes |
+| Rescue timeouts | `RSC-35` | durations | yes |
+| Address canonical form | `STO-41` | normalisation rule | yes |
+| Retention windows | `STO-14`, `STO-43` | durations | yes |
+| `allow_orders`, per ordering account | `DOM-16` | boolean | yes |
+| Negative-resolution window, per provider | `OPS-33` | duration | yes |
+| Tenant-to-account assignment policy | `API-57`, `SEC-43` | policy over assignable accounts | yes |
+| Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
+| Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
+| Reconciliation rota | `OPS-26` | human | no |
+| Recovery-key inventory procedure | `RSC-21` | human | no |
 
 ## Non-goals
 

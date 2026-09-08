@@ -114,7 +114,8 @@ service is not in a development mode.
 itself.** The rule above was written when every image fetch happened on the **rescue host**
 (`RSC-1`), where a hostile URL reaches the customer's own machine at the customer's own request.
 `RSC-39` reversed that for catalogue install: provisiond fetches an anonymous caller's URL from
-inside the credential-holding process. **For that path a host allowlist MUST be configured**, and an
+inside the credential-holding process. **For that path a host allowlist MUST be configured**
+(`OVR-19`), and an
 empty one means **no catalogue install may be requested** rather than "any host" — a fail-open
 default is not a default, it is the absence of the control, and here it is absent inside the
 boundary `OVR-10a` calls the only structural defence left.
@@ -146,14 +147,15 @@ They MUST have short lifetimes, and the store MUST be encrypted (`OVR-12`).
 
 **SEC-22** Host-key pinning MUST be enforced per `RSC-3`. First-use trust MUST be an
 explicit, per-request, opt-in decision by the caller — never a fallback the system takes
-on its own (`RSC-5`).
+on its own (`RSC-5`). Whether a deployment offers the option at all, per provider account, is a
+deployment parameter (`OVR-19`).
 
 **SEC-23** A provider that cannot publish rescue host keys MUST be documented as such, so
 callers know they must supply keys out of band (`08-provider-notes.md`).
 
 **SEC-24** Password-based rescue combined with first-use trust exposes a root password to
 a first-connection adversary. Where a driver has no key-based rescue (`PRV-17`), the
-deployment SHOULD refuse the first-use-trust option for that provider entirely.
+deployment SHOULD refuse the first-use-trust option for that provider entirely (`OVR-19`).
 
 ## Destructive and billable actions
 
@@ -167,9 +169,6 @@ something.*
 
 **SEC-27** Ambiguous mutations MUST NOT be retried automatically (`OPS-12`). Automatic
 retry of a create is how a control plane buys two servers.
-
-**SEC-28** Requeue MUST be operator-only (`API-19`) and MUST make re-purchase explicit
-(`OPS-20`).
 
 ## Availability
 
@@ -210,7 +209,7 @@ and still `true`.
 
 A deployment whose callers are autonomous MUST therefore enforce **server-side ceilings per
 principal** — the interval is a stated deployment parameter, **default one hour**, and each
-ceiling is a stated integer (`F18`) — at minimum machines destroyed per interval, machines
+ceiling is a stated integer (`F18`, `OVR-19`) — at minimum machines destroyed per interval, machines
 created per interval,
 images written per interval, **rescue entries per interval** and **power cycles per interval**,
 plus a spend ceiling where the deployment prices its own resources.
@@ -228,22 +227,23 @@ into another operating system.
 **AMENDED 2026-08-31 — ceilings apply to operator principals too, and this is the larger change.**
 Every dangerous shortcut in this set is justified by "an operator decides": `OPS-27` attempts
 automatic resolution "before asking a human", `PRV-33` resolves to an operator "never to a guess",
-`DOM-23` has an operator read a notice and transcribe it, and `API-19` makes requeue operator-only
-*because* it can re-issue a purchase. **Those all assume the operator is a person who does not
-loop.** Where an operator principal is a program — and this deployment's is — the paragraph above
-applies to it unchanged, and it has strictly more power than any customer: requeue places physical
-orders, resolve-observed attaches a machine to a tenant on the operator's say-so, suspend cancels a
-fleet. A deployment MUST therefore state ceilings for operator principals — at minimum requeues,
-resolutions, suspensions, provider-account re-assignments **and provider-account status recordings**
-(`API-63`, added 2026-09-02: confirming a termination releases every affected tenant's commitments,
-which is the largest single money movement any operator verb performs) — per interval, with a stated
-override
-path for a genuine incident, and MUST record that the override is the uncapped thing.
+`DOM-23` has an operator read a notice and transcribe it, and `API-64` makes an episode retry
+operator-only *because* it re-issues a provider mutation. **Those all assume the operator is a
+person who does not loop.** Where an operator principal is a program — and this deployment's is —
+the paragraph above applies to it unchanged, and it has strictly more power than any customer: a
+retry re-issues a cancellation the provider already rejected once, resolve-observed attaches a
+machine to a tenant on the operator's say-so, suspend cancels a fleet. A deployment MUST therefore
+state ceilings for operator principals (`OVR-19`) — at minimum retries (`API-64`), resolutions,
+suspensions, provider-account re-assignments **and provider-account status recordings** (`API-63`,
+added 2026-09-02: confirming a termination releases every affected tenant's commitments, which is
+the largest single money movement any operator verb performs) — per interval, with a stated
+override path for a genuine incident, and MUST record that the override is the uncapped thing.
 
-**One requeue is exempt, and `API-7` step 5c states it**: a requeue of an *exposure-reducing*
-operation, which `OPS-44` names as the only recovery for a cancellation that failed deterministically
-and which step 5b already admits for a suspended tenant "or its machine bills forever". A ceiling
-that refuses it converts a capped operator into a machine that bills forever.
+*Until 2026-09-08 one requeue was exempt from the ceiling — the requeue of an exposure-reducing
+cancellation, because refusing it left a machine billing forever. Requeue is deleted (`ADR-0017`)
+and a retry is a decision on a `stalled` episode that a timer never makes (`OPS-48`), so the
+exemption has no verb to attach to; a retry counts against its ceiling, and the override path above
+is the route for a fleet-sized incident.*
 
 **Every operator verb MUST emit a monitorable event** naming the principal, the target, and the
 reason. `SEC-32`'s audit record already covers mutating *requests*; this is the operator surface
@@ -409,7 +409,7 @@ What a deployment MUST actually be able to do:
 
 **What this changes downstream:** nothing that depended on the *capability*, everything that
 depended on the *urgency*. `SEC-42`'s unenforceable AUP rules are backed by the operator's ability
-to stop serving a tenant, not by beating a deadline. `OPS-14` and `OPS-27` route around a human in
+to stop serving a tenant, not by beating a deadline. `OPS-27` routes around a human in
 the loop because a suspended tenant's fleet should not bill on indefinitely, which is a money
 argument and stands on its own.
 
@@ -546,8 +546,8 @@ unverified controls generally.*
 **SEC-49** **Lightning is necessarily hot, so it MUST be bounded. AMENDED 2026-08-31 — the bound
 covers two pots, and the sweep is a manual operator action.**
 
-A deployment MUST state a ceiling in satoshis covering **the channel balance *plus* the Lightning
-node's own on-chain wallet**, and sweep the excess to the cold destination `SEC-50` fixes. That
+A deployment MUST state a ceiling in satoshis (`OVR-19`) covering **the channel balance *plus* the
+Lightning node's own on-chain wallet**, and sweep the excess to the cold destination `SEC-50` fixes. That
 figure is the blast radius of a full compromise of the Lightning host, and it MUST be chosen against
 the size of the float rather than against the convenience of not sweeping.
 

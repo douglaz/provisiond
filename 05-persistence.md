@@ -4,38 +4,36 @@
 
 The operation queue is the only part of the system with real transactional demands.
 
-**STO-1** The store MUST provide an atomic claim: select-oldest-eligible and
-mark-running-with-lease in one indivisible step (`OPS-5`). A read followed by a
-conditional write in a separate statement is acceptable only if the write is guarded by
-the row's prior state and the guard is checked by the engine, not by application code.
+**STO-1** **AMENDED 2026-09-08 (`ADR-0016`) — the claim stamps the epoch, not a lease.** The store
+MUST provide an atomic claim: select-oldest-eligible and mark-running-with-epoch in one indivisible
+step (`OPS-5`, `OPS-47`). A read followed by a conditional write in a separate statement is
+acceptable only if the write is guarded by the row's prior state and the guard is checked by the
+engine, not by application code.
 
-**STO-2** The store MUST provide an atomic conditional upsert for the machine lock:
-insert-if-absent, or take-over-if-expired, or no-op-if-held-by-another (`OPS-9`).
+**STO-3** **AMENDED 2026-09-08 (`ADR-0016`) — the guard term is the epoch; the lease sweeper's
+guard is gone with the sweeper.** Four conditional writes move an operation, and each MUST report
+whether it affected a row (`OPS-22`, `OPS-47`):
 
-**STO-3** **AMENDED.** Every settled-state write **made by a worker** MUST be guarded on
-`(id, status = running, claimant = me)` and MUST report whether it affected a row (`OPS-22`).
-**A worker moving its own operation into `needs_reconciliation` carries `STO-3`'s ordinary
-`(id, status = running, claimant = me)` guard. The sweeper does not** — it moves operations whose
-lease has *expired* (`OPS-14`), so it is by definition not the claimant, and its write is guarded
-on `(id, status = running, lease_expires_at < now)` instead. Transitions *out* of the state are
-guarded by `STO-19`'s write-once columns.
-**Resolution transitions out of `needs_reconciliation` are not worker writes** (`OPS-3`): they are
-guarded instead on `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s
-write-once rule expressed as the same kind of conditional write. *Unscoped, this requirement
-forbade every transition `OPS-3` enumerates — the `status = running` guard can never hold for an
-operation sitting in `needs_reconciliation`.*
-**AMENDED 2026-08-14 — a fourth named case: the suspension fan-out's administrative transition.**
-`API-58` step (4) moves an operation that is still `queued` and was never claimed straight to
-`failed`, and that write matches none of the three guards above. It is guarded on
-`(id, status = queued, requested_by = caller, the operation's tenant is suspended, and that
-suspension's fan-out parent is still unsettled)`. *`requested_by = caller` was added 2026-09-05: the
-fan-out now joins a pre-existing exhaustion episode by naming its queued delete rather than
-enqueuing a second one, and without this term step (4) failed the very delete step (3) had just
-named — a system cancellation that `OPS-44` then keeps open for an operator, on a machine the
-suspension had reported as accounted for.* The three guards above are **unchanged** — this is an addition, not a
-relaxation — and the fan-out worker MUST report whether the write affected a row, exactly as the
-others do, because a child claimed by a real worker between the pass and the write must lose this
-race and settle as its own worker's write instead.
+- **A worker's write** — every settled-state write, and a worker moving its own operation into
+  `needs_reconciliation` — is guarded on `(id, status = running, epoch = mine)`. A write that
+  affects no row means the process has been superseded (`OPS-47`).
+- **The startup pass** (`OPS-15`) moves every `running` operation to `needs_reconciliation`,
+  guarded on `(id, status = running)`. It runs before the process makes any claim, so nothing
+  contends with it.
+- **Resolution out of `needs_reconciliation`** is not a worker write (`OPS-3`): it is guarded on
+  `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s write-once rule
+  expressed as the same kind of conditional write. *Unscoped, this requirement forbade every
+  transition `OPS-3` enumerates — a `status = running` guard can never hold for an operation
+  sitting in `needs_reconciliation`.*
+- **The suspension fan-out's administrative transition.** `API-58` step (4) moves an operation
+  that is still `queued` and was never claimed straight to `failed`, guarded on
+  `(id, status = queued, requested_by = caller, the operation's tenant is suspended, and that
+  suspension's fan-out parent is still unsettled)`. A child claimed by a real worker between the
+  pass and the write must lose this race and settle as its own worker's write instead.
+  *`requested_by = caller` was added 2026-09-05: the fan-out joins a pre-existing exhaustion
+  episode by naming its queued delete rather than enqueuing a second one, and without this term
+  step (4) failed the very delete step (3) had just named — an episode `OPS-48` then holds
+  `stalled` for an operator, on a machine the suspension had reported as accounted for.*
 
 **STO-4** The store MUST enforce uniqueness of `(scope_kind, scope_id, key)` on `STO-35`'s
 `idempotency_records` — the tenant or the operator identity as the scope (`API-10`). *"Of
@@ -46,25 +44,31 @@ since `STO-35` was written.*
 **STO-5** The store MUST survive process restart with no loss of queued or running
 operations.
 
+**STO-51** **ADDED 2026-09-08 (`ADR-0016`).** The store MUST hold a single `engine_epoch` row,
+incremented atomically at engine startup (`OPS-47`). It MUST enforce at most one `running` operation
+per machine that is not yielded (`OPS-8`) — a partial unique index over `operations(machine_id)
+WHERE status = 'running' AND yielded_at IS NULL`. The index is what makes per-machine serialization
+a property the store checks rather than a promise the engine keeps: a re-acquire that clears
+`yielded_at` while another `running` operation holds the machine affects no row, and the engine
+defers it (`OPS-8`).
+
 ### Engine choice
 
-**The store is PostgreSQL** (`ADR-0015`, 2026-09-06). An embedded single-writer engine (SQLite and
-similar) satisfies every requirement above for a single-process deployment and was what the
-reference implementation used; `STO-6` is why that is no longer the choice.
+**The store is PostgreSQL** (`ADR-0015`, 2026-09-06; `ADR-0016` keeps it). An embedded
+single-writer engine (SQLite and similar) satisfies every requirement above for a single-process
+deployment and was what the reference implementation used; `STO-6` is why that is no longer the
+choice.
 
-**STO-6** **AMENDED 2026-09-06 — this is now the reason for an accepted decision rather than a
-standing constraint on the deployment.** With an embedded single-writer store, the service is a
-single point of failure and MUST NOT be run as multiple replicas against a shared file. Horizontal
-availability requires replacing the store with a transactional server-based engine, and the claim
-and lock primitives above are what a replacement must reproduce.
-
-**That single point of failure is a money mechanism.** A machine at a provider bills whether or not
-this process is up, and every mechanism that stops it lives inside this process — `LDG-14`'s
-exhaustion cancellation, `SEC-45`'s one-action suspension, `OPS-14`'s lease sweeper and `OPS-32`'s
-account sweep, of whose interval `OPS-32` says it is "the maximum time a customer can be billed for
-a machine that no longer exists". **A deployment MUST NOT run its store on an engine that forbids a
-second replica**, and the primitives a replacement reproduces are `STO-1`'s engine-checked atomic
-claim, `STO-2`'s conditional lock upsert and `LDG-35`'s per-tenant serialization.
+**STO-6** **AMENDED 2026-09-08 (`ADR-0016`) — the engine is one process and that is accepted;
+`api` is what replicates.** `engine` runs as exactly one supervised process (`OPS-47`). That
+process is a single point of failure for every mechanism that stops a machine billing — `LDG-14`'s
+exhaustion cancellation, `SEC-45`'s one-action suspension and `OPS-32`'s account sweep, of whose
+interval `OPS-32` says it is "the maximum time a customer can be billed for a machine that no longer
+exists" — and the supervisor's restart window is the accepted outage, alarmed under `OVR-18`.
+`api` MAY run as any number of replicas against the shared store. **A deployment MUST NOT run its
+store on an engine that forbids a second `api` replica**, and the primitives the store provides for
+that are `STO-1`'s engine-checked atomic claim, `STO-51`'s epoch and per-machine index, `STO-47`'s
+conditional write (`STO-27`) and `LDG-35`'s per-tenant serialization.
 
 **`LDG-35`'s "MUST state which" is discharged in `ADR-0015`**: per-tenant advisory locks held for
 the transaction, acquired in ascending tenant-identifier order where one transaction spans two
@@ -108,10 +112,11 @@ erDiagram
     MACHINES ||--o{ MACHINE_ATTACHMENTS : "leaves billing"
     MACHINES ||--o{ MACHINE_ADDRESSES : "observed holding"
     MACHINES ||--o{ ABUSE_CASES : "complained about"
-    MACHINES ||--o| MACHINE_LOCKS : "locked by one op"
+    MACHINES ||--o{ EPISODES : "at most one OPEN per key"
     MACHINES ||--o| COMMITMENTS : "at most one OPEN"
 
-    OPERATIONS ||--o{ OPERATION_REQUEUES : "audit trail"
+    EPISODES ||--o{ OPERATIONS : "attempts, nullable"
+    OPERATIONS ||--o{ PROVIDER_OBSERVATIONS : "samples"
     OPERATIONS ||--o| COMMITMENTS : "opened, nullable"
 
     ABUSE_CASES ||--o{ ABUSE_STATEMENTS : "append-only replies"
@@ -157,7 +162,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
 | `metadata` | json | redacted (`DOM-6`) |
-| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**, which on a requeued create is the attempt that produced it. Nullable for adopted machines. *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
+| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**. Nullable for adopted machines. *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
@@ -168,8 +173,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `last_install_strategy` | enum | nullable; `DOM-29`. Which strategy last installed this machine — not what is *permitted*, which is `install_strategies` |
 | `last_install_verified` | boolean | nullable; whether provisiond verified the bytes that reached the disk. False on a catalogue install (`DOM-28`), where the provider converts them and exposes no checksum |
 | `last_install_at` | timestamp | nullable; when. **All three survive `STO-14`'s deletion of the operation that knows** — a long-lived machine otherwise outlives the record of how it came to be |
-| `destroy_committed` | UUID | nullable; `OPS-42`'s fence. Set by an exposure-reducing cancellation, to its own operation id, by a conditional write guarded on this column being **null or already equal to that same operation id**, **before any provider mutation**. `LDG-62`'s extend-runway conditional-writes the same row guarded on it being null and fails `conflict` where it affects no row. Both sides contending for one row is what totally orders them; without it the worker reads *unfunded*, releases the money serialization to make its provider call, and destroys a machine the customer paid for in the gap. **Cleared exactly when the episode resolves, per `OPS-44`'s table, and by no other path** — on a cancellation that succeeded with the **resource gone** (including `OPS-41`'s no-mutation abort) and on an operator resolution, in the same transaction; **never** after an attempt that reached the provider and did not end the exposure, and **not** on a cancellation the provider merely *scheduled* (`DOM-19`, `STO-8a`), where the machine is still running and still billing to its effective date. *The own-id clause and the fuller clearing rule are 2026-09-02: guarded on null alone, a requeued cancellation mistook its own fence for a stranger's, aborted, and falsely settled `succeeded` — the retry `OPS-39` requires could never run* |
-| `system_trigger_ids` | json | `OPS-39`'s open episode identifiers and the **enforcing** home of its uniqueness: at most one open entry per key, claimed atomically before a sweep enqueues anything. The key is the **`action`** for an exposure-reducing cancellation and the `system_reason` for every other trigger (`OPS-39`), so two reasons to cancel one machine share a single entry rather than each enqueuing a delete. Each entry therefore carries `{trigger_id, action-or-reason key, reasons: [...]}` — `reasons` being the **set** of `system_reason` values that have contributed to this open episode, appended to by a later sweep that finds the entry already claimed. The `trigger_id` is the same value the episode's operations carry, kept here because `STO-14` deletes those operations and the dedup key would go with them. An entry is written when the episode mints its id and removed only when that episode resolves — **`OPS-44` is the table of what "resolves" means for each of a cancellation's outcomes**, including the one that surprises: a cancellation the provider merely *scheduled* keeps its entry until the machine is tombstoned, because the machine is still running and still billing until its effective date |
+| `destroy_committed` | UUID | nullable; `OPS-42`'s fence, holding the **open `delete` episode's id** (`STO-52`; re-pointed 2026-09-08, `ADR-0017`). Set by an exposure-reducing cancellation's attempt, to its episode's id, by a conditional write guarded on this column being **null or already equal to that same episode id**, **before any provider mutation**. `LDG-62`'s extend-runway conditional-writes the same row guarded on it being null and fails `conflict` where it affects no row. Both sides contending for one row is what totally orders them; without it the worker reads *unfunded*, releases the money serialization to make its provider call, and destroys a machine the customer paid for in the gap. **Cleared exactly when the episode closes, per `OPS-48`, and by no other path** — on an attempt that succeeded with the **resource gone** (including `OPS-41`'s no-mutation abort) and on an operator resolution that closes the episode, in the same transaction; **never** after an attempt that reached the provider and did not end the exposure, and **not** while the episode is `scheduled` (`DOM-19`, `STO-8a`), where the machine is still running and still billing to its effective date. It points at nothing `STO-14` deletes. *The own-id clause is what lets a `retry` attempt (`API-64`) pass its own episode's fence; guarded on null alone, a second attempt mistook its own fence for a stranger's, aborted, and falsely settled `succeeded`* |
 | `state_observed_at` | timestamp | nullable; **when `state` was last established by an authoritative read of the provider** — a refresh (`DOM-8`), a driver read during an operation, `OPS-32`'s sweep concluding an absence **on that requirement's own terms**, which are stricter than a listing — presence is authoritative from the first pass, absence only under the conditions `OPS-32` sets out — or `API-63` confirming the whole provider account terminated. As opposed to `updated_at`, which moves for any write at all. `LDG-74` reads it: the meter stops at this instant, never at the unknown instant the provider acted, because provisiond polls rather than watches (`STO-41`'s distinction). Null where nobody has read the provider since the row was created |
 | `created_at`, `updated_at` | timestamp | |
 
@@ -177,7 +181,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 `LDG-74` stops billing a machine the provider has destroyed at the instant the observation was made,
 and both it and `OPS-32` MUST write that instant here. Two requirements mandated the write and no
 column existed to receive it — which is `STO-38`'s named failure class, on the fifth requirement to
-hit it. It is separate from `updated_at` because that column moves when a lock is taken, a
+hit it. It is separate from `updated_at` because that column moves when the fence is set, a
 restriction is recorded or a runway is re-derived, none of which is evidence about the provider; and
 separate from `network_restriction_observed_at`, which answers a different question about a machine
 that still exists.
@@ -256,15 +260,15 @@ deleted rows.
 | `status` | enum | see `03-operation-lifecycle.md` |
 | `machine_id` | UUID | nullable; set on completion for create |
 | `provider_account` | text | nullable |
-| `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (amended 2026-09-05, `OPS-46`, `ADR-0014`): a create can no longer be requeued, so it has one attempt and one correlator. Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create. *The withdrawn `json` list held one entry per attempt because an `OPS-20` requeue placed a second order carrying its own per-order artifact; `F36` is what that cost where the correlator was the operation UUID and every entry was identical* |
+| `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (`ADR-0014`): a create has one attempt and one correlator. Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create. *`F36` and `ADR-0014` record what the withdrawn per-attempt list cost* |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (amended 2026-09-05, `OPS-46`, `ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** (native minor units, currency, and the satoshi amount authorized at the create, `LDG-67`, `LDG-39`). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and that fee as the amount `LDG-39` settles — debited against a still-open commitment, or absorbed as an operator deficiency where `OPS-33` has released it. *The withdrawn text made this a per-attempt list "aligned one-to-one with `correlator_value`" from which resolution read "the entry of the attempt whose correlator matched"; `F36` is the finding that no such entry could be named wherever the attempts shared a correlator, and `ADR-0014` removed the second attempt rather than repairing the selection* |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** (native minor units, currency, and the satoshi amount authorized at the create, `LDG-67`, `LDG-39`). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and that fee as the amount `LDG-39` settles — debited against a still-open commitment, or absorbed as an operator deficiency where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
 | `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create **or adopt**, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, rescue inventory, power, reverse DNS, delete (`OPS-27`, `OPS-31`, `OPS-45`, `WIR-35`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02. **The store MUST reject a value outside the set its operation's kind admits**, which is `WIR-35`'s rule enforced where `API-24` cannot reach |
-| `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin, and with the column below makes the failure deterministic rather than ambiguous (`OPS-11`) — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean bytes reached the disk, and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once and never cleared by a requeue on `rootfs_via_rescue` and `raw_disk`** — once an attempt has begun altering the disk that stays true however many later attempts stop short — **and per-attempt, cleared by `OPS-20`'s requeue, on the five kinds where it records a dispatch** (`OPS-45`). *One write-once column cannot answer "did **this** attempt dispatch", and reading a stale marker makes a later clean stop ambiguous; the life is keyed on kind exactly as `OPS-45`'s table is.* Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`) |
-| `rescue_exited_cleanly` | boolean | nullable; `OPS-45`'s second marker — true when the driver's end-rescue call returned success, null where no rescue session was opened, false where the exit failed, was never attempted (`on_failure: leave_in_rescue`), or the operation died before reaching it. **Unlike the column above it describes the machine *now*, so each attempt overwrites it** and a requeue that exits cleanly repairs what an earlier one left open. **A null `write_started_at` alone does not make a failure deterministic**: entering rescue reboots the machine into another operating system and `PRV-22` makes a failed exit always ambiguous, so an untouched disk on a machine possibly still sitting in rescue is not "nothing happened". Both are copied into `request_summary` so an operator reading a resolved record still has them after the payload purge (`ADR-0005`); **these columns are authoritative and the copy is a convenience**, in the manner of `system_trigger_id` |
+| `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin, and with the column below makes the failure deterministic rather than ambiguous (`OPS-11`) — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean bytes reached the disk, and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once, and nothing clears it** (`OPS-45`): a marker is a fact about this one operation. Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`) |
+| `rescue_exited_cleanly` | boolean | nullable; `OPS-45`'s second marker — true when the driver's end-rescue call returned success, null where no rescue session was opened, false where the exit failed, was never attempted (`on_failure: leave_in_rescue`), or the operation died before reaching it. **A null `write_started_at` alone does not make a failure deterministic**: entering rescue reboots the machine into another operating system and `PRV-22` makes a failed exit always ambiguous, so an untouched disk on a machine possibly still sitting in rescue is not "nothing happened". Both are copied into `request_summary` so an operator reading a resolved record still has them after the payload purge (`ADR-0005`); **these columns are authoritative and the copy is a convenience** |
 | `privileged_seconds`, `bytes_transferred`, `storage_seconds` | integer, integer, integer | nullable; `LDG-25`'s metering of a privileged operation — rescue occupancy or import-to-switchover, and for a catalogue install the bytes transferred and the storage-seconds of the re-hosted copy (`RSC-39`, `RSC-42`). Free in v1 and counted from the first release, because a price cannot be introduced later for something that was never counted. Metering facts, not caller payload: they survive `ADR-0005`'s purge. *Added 2026-09-05; the MUST had no column* |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
@@ -272,19 +276,20 @@ deleted rows.
 | *`pending_fee_native_minor`, `pending_fee_currency`, `pending_fee_sats`* | — | **Withdrawn 2026-09-05.** *They were "the scalar copy of the latest attempt's fee, kept for reading the outstanding obligation", while `LDG-67` itself said the amount debited on resolution is the matched attempt's entry in `request_summary` — a second representation of a figure the per-attempt entries already hold, the shape `LDG-73` was removed for. The outstanding obligation is the latest attempt's entry (`LDG-67`)* |
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `tenant_suspended` (`API-58`'s per-machine cancellations, never the caller's own queued work that the same fan-out fails: that keeps `requested_by = caller`, a null `system_reason`, and carries the reason in `error`), `rate_outage_bound` (`LDG-64`) |
-| `system_trigger_id` | text | nullable; a **convenience copy** of `OPS-39`'s durable episode identifier, carried for querying and for requeue under an existing id. A constraint here over the episode key and this copy is a redundant guard, never the enforcing one — `STO-14` deletes these rows and takes it with them. The enforcing uniqueness is on `machines.system_trigger_ids` |
+| `episode_id` | UUID | nullable; foreign key to `episodes` (`STO-52`). Set on every attempt an episode enqueues (`OPS-48`), in the same transaction as the enqueue; null on every other operation. Replaces `system_trigger_id` (2026-09-08, `ADR-0017`): the episode is a row, so the operation carries a reference rather than a copy |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
-| `claimed_by` | text | nullable; worker identity |
-| `lease_expires_at` | timestamp | nullable |
+| `epoch` | integer | nullable; the `engine_epoch` value of the process that claimed it (`OPS-47`, `STO-51`), stamped by `STO-1`'s claim and the term every worker write is guarded on (`STO-3`) |
+| `yielded_at` | timestamp | nullable; non-null while a `running` operation has yielded the machine (`OPS-8`) — `RSC-41`'s import phase is expressed here. Cleared by the conditional re-acquire, which `STO-51`'s index refuses while another `running` operation holds the machine |
 | `created_at`, `updated_at` | timestamp | |
 
 Constraints: *no idempotency uniqueness on this table — `STO-35`'s `idempotency_records` is the
 sole owner of that constraint (`STO-4`), since two operator identities may legally reuse one key
 against one tenant and a tenant-keyed constraint here made the second insert collide (removed
-2026-09-05)*; index on
-`(status, available_at, created_at)` for the claim; index on `(tenant_id, created_at
-desc)` for listing.
+2026-09-05)*; `STO-51`'s partial unique index on `(machine_id) WHERE status = 'running' AND
+yielded_at IS NULL`; index on `(status, available_at, created_at)` for the claim; index on
+`(tenant_id, created_at desc)` for listing; index on `(episode_id)` for the episode's attempt
+history.
 
 **STO-9** `request` contains caller secrets — signed image URLs, SSH keys, and up to 1 MiB of
 post-install script. It MUST NOT be returned by the API (`API-21`), the volume MUST be encrypted
@@ -314,10 +319,9 @@ whether or not a given field looks harmless alone. *`PRV-26` already forbids a c
 "a hostname the customer chose", and there is no reason the record beside it should be laxer than
 the value written into the provider.*
 
-*This is what `F38` was really about. `OPS-34` compares "every respect the summary records", and
-that phrase pointed at a list nobody had written — which is how `OPS-46` came to state a test it
-could not run (`F39`). A closed enumeration makes the phrase finite; the fields the comparison
-actually needs are columns, and were never in question.*
+*This is what `F38` was really about: "every respect the summary records" pointed at a list nobody
+had written, which is how a requirement came to state a test it could not run (`F39`). A closed
+enumeration makes the phrase finite.*
 
 **STO-19** `resolution` and its evidence columns MUST be write-once. A `needs_reconciliation`
 record that can be silently re-resolved is an audit trail that can be edited, and these records
@@ -326,34 +330,54 @@ exist precisely for the cases where money moved and nobody is sure.
 **STO-10** An unrecognized `status` value read back from the store MUST be a hard error,
 not a silent default. Corruption or a downgrade MUST NOT be interpreted as `queued`.
 
-### `machine_locks`
+### `episodes`
+
+**STO-52** **ADDED 2026-09-08 (`ADR-0017`).** `DOM-31`'s entity: one system-detected condition on
+one machine, outliving the attempts made against it. `OPS-48` is the lifecycle; this table is only
+where it lives.
 
 | Column | Type | Notes |
 |---|---|---|
-| `machine_id` | UUID | primary key — one lock per machine |
-| `operation_id` | UUID | holder |
-| `worker_id` | text | holder |
-| `lease_expires_at` | timestamp | not null |
+| `id` | UUID | primary key |
+| `machine_id` | UUID | not null; foreign key to `machines` |
+| `key` | text | not null; `delete` for an exposure-reducing cancellation, the `system_reason` for every other trigger (`DOM-31`, `OPS-39`) |
+| `reasons` | json | the **set** of `system_reason` values that have contributed; a later sweep finding the episode open appends to it and enqueues nothing (`OPS-48`) |
+| `opened_at` | timestamp | not null |
+| `current_operation_id` | UUID | nullable; the attempt in flight, where one is. `STO-14` may delete the row it names once that attempt settles |
+| `state` | enum | `attempting` \| `uncertain` \| `stalled` \| `scheduled` \| `closed` (`DOM-31`). **Read back as `STO-10` reads `operations.status`**: an unrecognized value is a hard error |
+| `closed_at` | timestamp | nullable; set with `state = closed` and by nothing else |
+| `close_reason` | text | nullable; set at close, from the values `OPS-48` names |
 
-**STO-11** The primary key MUST be the machine identifier alone. That is what makes the
-lock exclusive.
+Constraints: **partial unique index on `(machine_id, key) WHERE state <> 'closed'`** — `OPS-39`'s
+dedup, enforced here and nowhere else; index on `(state)` for `OPS-26`'s listing of open episodes.
 
-### `operation_requeues`
+**The index is the whole of the dedup, and a sweep MUST rely on it rather than on a read.** A sweep
+opens an episode by inserting the row and enqueuing its first attempt in one transaction; an insert
+the index refuses means the episode is already open, and the sweep appends its reason and enqueues
+nothing. Nothing here is a copy: the operation references the episode by `episode_id`, the machine's
+fence holds its id (`destroy_committed`), and retention (`STO-14`) reaches neither this table nor
+those references.
+
+### `provider_observations`
+
+**STO-53** **ADDED 2026-09-08 (`ADR-0018`).** The observed half of a measured window. `PRV-36`
+and `PRV-13b` declare a window in the descriptor (`PRV-44`); this table holds what the engine has
+actually seen, and the effective window is the larger of the two by `PRV-36`'s rule.
 
 | Column | Type | Notes |
 |---|---|---|
-| `operation_id` | UUID | |
-| `idempotency_key` | text | |
-| `reason` | text | not null; the operator's stated reason (`OPS-19`) |
-| `previous_error` | json | not null; the error being requeued past, preserved before it is overwritten (`OPS-19`) |
-| `created_at` | timestamp | |
+| `provider_account` | text | not null |
+| `kind` | enum | `visibility` \| `billing_stop` |
+| `operation_id` | UUID | not null; the mutation the sample was taken from |
+| `dispatched_at` | timestamp | not null; when the mutation was dispatched to the provider |
+| `observed_at` | timestamp | not null; when the engine first observed its effect |
 
-Primary key `(operation_id, idempotency_key)`, giving requeue its idempotency
-(`OPS-18`).
+Primary key `(operation_id, kind)`; index on `(provider_account, kind)` for the aggregate.
 
-**STO-20** `reason` and `previous_error` are not optional. `OPS-19` requires requeue to preserve
-an audit trail, and a table holding only the operation, the key and a timestamp cannot satisfy
-it — the error it requeued past is overwritten by the next attempt and lost. This was `F9`.
+**Append-only, and written as a by-product.** The engine writes a row when a resolution (`OPS-27`)
+establishes when a resource became visible, and when an ordinary mutation's effect is first read
+back; no path updates or deletes one. Narrowing a window is a human re-declaring it in the
+descriptor and archiving the samples out of this table (`PRV-36`), never an engine write.
 
 ### `tenants`
 
@@ -366,7 +390,7 @@ an environment variable (`API-4` as amended).
 | `credential_digest` | text | not null; the **spending token** hash, never the credential itself (`API-3`). Replaced in place by `WIR-38` |
 | `recovery_digest` | text | not null; the **recovery credential** hash (`API-55`). Minted with the row and never replaced by a spending-token revocation |
 | `credential_generation` | integer | increments on every revocation (`API-56`); a token from an earlier generation never authenticates, so a replayed revocation cannot resurrect one |
-| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger, machine and abuse-case reads, and retains the maintenance actions of `API-7` step 2 as narrowed by step 5b — including the abuse-statement write — which still rejects a requeue of an ordering kind) |
+| `status` | enum | `pending` \| `active` \| `suspended` (`API-58`; a suspended tenant authorizes no *tenant* write, retains ledger, machine and abuse-case reads, and retains the maintenance actions of `API-7` step 2 as narrowed by step 5b — including the abuse-statement write) |
 | `pending_expires_at` | timestamp | nullable; unfunded enrolments are deleted at this time (`API-34`) |
 | `created_at`, `activated_at` | timestamp | `activated_at` null until first funding (`API-35`) |
 
@@ -383,15 +407,17 @@ derived from the network path a request arrived on. Operational state a tenant n
 function — account assignment, meters, cached balance — is permitted and MUST live in
 named tables. `CNF-80` tests the prohibition, not the column count.
 
-**`SEC-39`'s ceiling counters are the one exception, and they are in memory** (amended 2026-09-02).
-This paragraph listed "counters" among the state that must live in named tables, and no `STO-*`
-table ever defined one — while `API-36` requires limiter state to be held in memory and never
-persisted, and `API-54` forbids a `GET` taking a write transaction on the store that also runs the
-money. `ADR-0001`'s single process makes in-memory counters sufficient, and the cost of losing them
-on restart is bounded and stated: **a restart resets every principal's allowance for the current
-interval**, which a deployment MUST accept as the price of not writing a row per destructive request
-to `STO-6`'s single-writer store. *An attacker who can restart the process has already won something
-larger than a destruction ceiling.*
+**`SEC-39`'s ceiling counters live in the store** (amended 2026-09-08, `ADR-0016`). From
+2026-09-02 they were the one in-memory exception, on the argument that `ADR-0001`'s single process
+made a per-process counter sufficient and a row per destructive request too dear. `ADR-0016` makes
+`api` replicable, and a per-process counter then multiplies every principal's ceiling by the
+replica count — a ceiling that is an abuse bound (`SEC-39`) cannot depend on how many replicas
+happen to be running. The counter is therefore one row per `(principal, ceiling, interval)`,
+incremented by a conditional write in the transaction of the write it gates, and refused
+`ceiling_exceeded` where the increment would pass the stated integer. A destructive request is
+rare and the row is small; the cost objection was an objection to the single-writer store this set
+no longer has. `API-36`'s enrolment limiter stays in memory and per replica: it is best-effort
+shedding, and `API-41`'s global pending-tenant ceiling is the control that counts.
 
 `ADR-0005` remains a schema constraint. The place a privacy policy actually fails is still a
 column somebody added because it seemed harmless — but a rule that forbids the whole system from
@@ -533,16 +559,16 @@ key to nothing, and
 Constraints: index on `(tenant_id, state)` for the availability computation; at most one `open`
 commitment per machine.
 
-**STO-23** A commitment and the operation that caused it MUST be written in one transaction
-(`LDG-11`), which is why `operations.commitment_id` exists rather than a lookup by convention.
+**STO-23** A commitment and the operation that caused it MUST be written in one transaction —
+`store`'s, handed to `ledger` and `engine` as a parameter (`OVR-9`, `LDG-11`) — which is why
+`operations.commitment_id` exists rather than a lookup by convention.
 
 **STO-27** Computing available balance and opening a commitment MUST be serialized per tenant
 (`LDG-35`). The store MUST provide a primitive for it — a per-tenant lock row, a serializable
 transaction, or a conditional write against a versioned balance — and the deployment MUST record
-which. **`STO-6` invites replacing the embedded single-writer engine and lists the primitives a
-replacement must reproduce; this one was missing from that list**, so a deployment could move to
-a server engine and silently lose the only thing preventing two creates from spending the same
-balance. **The create's conditional write on `STO-47`'s row (`API-63`) is on that list too** (added
+which. **`STO-6` lists the primitives the store provides; this one was missing from that list**, so a
+deployment could move to a server engine and silently lose the only thing preventing two creates
+from spending the same balance. **The create's conditional write on `STO-47`'s row (`API-63`) is on that list too** (added
 2026-09-05): it is what orders admission against a termination, and a read in its place is not a
 primitive at all under snapshot isolation.
 
@@ -665,8 +691,8 @@ is for; the old token is already dead either way, so the replay cannot be silent
 runway extensions each had their own arrangement or none, and the two synchronous writes had a
 mandated transactional guarantee with nowhere to keep it: `WIR-24` requires the extension and its
 exact response body commit together, which is unimplementable without this row. The record MUST be
-written in the same transaction as the write it guards, and retained for the horizon `STO-33`
-states.
+written in the same transaction as the write it guards — `store`'s transaction, the one the guarded
+write runs in (`OVR-9`) — and retained for the horizon `STO-33` states.
 
 **STO-36** **`tenant_provider_accounts`** — `tenant_id`, `provider_account`, `assigned_at`,
 `policy_version`, unique on `(tenant_id, provider_account)`. Populated in the activation
@@ -861,13 +887,13 @@ alone** — create, adopt, the resolution attach (`OPS-13`), an opportunistic po
 (`DOM-8`) and an explicit refresh operation all record what they saw, and tombstoning closes every
 open window on that machine. *The first draft bound it to "the refresh that already maintains
 `public_ips`", which is the one path a customer need never invoke: nothing in this set refreshes a
-machine on a schedule — `OPS-14`'s sweeper moves expired **operation** leases — so a machine
-created and left alone would have had no history at all, and the resolution would have returned an
+machine on a schedule, so a machine created and left alone would have had no history at all, and the resolution would have returned an
 empty set that `SEC-54` calls correct.* **It never belongs to a read**: `API-54` forbids a `GET`
 bumping a `last_seen`, and this is the column it names.
 
 **`address` MUST be stored and compared in a canonical form**, with a deployment-stated
-normalisation for IPv6 (zero-compression and case) and for IPv4-mapped addresses. Two spellings of
+normalisation for IPv6 (zero-compression and case) and for IPv4-mapped addresses — a parameter on
+`OVR-19`'s register. Two spellings of
 one address that compare unequal produce an empty candidate set, which `SEC-54` reports as "not
 ours" — the same wrong answer this table exists to prevent, arriving through string equality.
 
@@ -913,10 +939,11 @@ runs.
 **STO-43** **`abuse_cases`, `abuse_statements` and `machine_addresses` each need a stated retention
 age, and `STO-14` does not supply one.** `STO-14` reaches **settled operations** and nothing else —
 `STO-24` had to say separately that retention must not reach `ledger_entries` — so a citation to it
-is not a clock. A deployment MUST state: an age for a closed case, measured from `closed_at`, after
-which the case and its statement rows are removed together; and an age for `machine_addresses`,
-measured from `last_seen`, **stated as the lookback horizon `SEC-54` can answer over**, since
-purging that history silently shortens how far back an abuse notice can be resolved. *An earlier
+is not a clock. A deployment MUST state, on `OVR-19`'s register: an age for a closed case, measured
+from `closed_at`, after which the case and its statement rows are removed together; and an age for
+`machine_addresses`, measured from `last_seen`, **stated as the lookback horizon `SEC-54` can
+answer over**, since purging that history silently shortens how far back an abuse notice can be
+resolved. *An earlier
 draft said these survived "on `STO-14`'s clock", which was a citation to a requirement that does
 not mention them — the failure class this document's own scope note exists to catch.*
 
@@ -932,15 +959,10 @@ running instance of the previous version, or startup MUST take an exclusive lock
 
 ## Retention and encryption
 
-**STO-14** A retention job MUST remove **settled** operations older than a configured age;
-`needs_reconciliation` is not settled (`OPS-3`) and is excluded (`OPS-25`).
-
-**Retention MUST NOT be the thing that resets `OPS-39`'s deduplication.** The operation's
-`system_trigger_id` is only a convenience copy and this job deletes it, taking any constraint
-stated over `operations` with it; the enforcing home is `machines.system_trigger_ids`,
-which retention does not reach and which a tombstoned machine keeps (`STO-8`). Without it a
-re-triggered sweep mints a fresh id past the retention horizon and enqueues the same cancellation
-again — repeated provider mutation by retention rather than by timer.
+**STO-14** A retention job MUST remove **settled** operations older than a configured age — a
+parameter on `OVR-19`'s register; `needs_reconciliation` is not settled (`OPS-3`) and is excluded
+(`OPS-25`). It reaches settled operations and nothing else: an `episodes` row (`STO-52`) is not an
+operation and outlives the attempts made under it (`ADR-0017`).
 
 **STO-24** Retention MUST NOT reach `ledger_entries` (`LDG-22`). A financial record outlives the
 request that caused it; it contains no caller secrets to purge only because `LDG-21` kept them

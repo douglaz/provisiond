@@ -183,6 +183,37 @@ prefixes). This is a driver-internal convention; clients treat the identifier as
 A durable record of one requested mutation. This is the central entity of the system;
 see `03-operation-lifecycle.md`.
 
+### Episode
+
+**DOM-31** An episode is one system-detected condition on one machine that provisiond must act on
+until it ends (`ADR-0017`). Fields: `id`, `machine_id`, `key` (`delete` for an exposure-reducing
+cancellation; the `system_reason` for every other trigger), `reasons` (set), `opened_at`,
+`current_operation_id` (nullable), `state`, `closed_at`, `close_reason`. States: `attempting`,
+`uncertain`, `stalled`, `scheduled`, `closed`. Close reasons: `resource_gone`, `funded`,
+`abandoned`. At most one open episode per `(machine_id, key)`
+(`STO-52`). An episode's attempts are ordinary operations; an attempt settling `failed` does not
+close the episode. `OPS-48` is the lifecycle; this is its shape.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> attempting : sweep opens it, first attempt enqueued
+    attempting --> closed : attempt succeeded, resource gone
+    attempting --> closed : no mutation required, funded
+    attempting --> scheduled : attempt succeeded, future date
+    attempting --> stalled : attempt failed
+    attempting --> uncertain : attempt needs_reconciliation
+    uncertain --> closed : resolved applied, gone
+    uncertain --> scheduled : resolved applied, dated
+    uncertain --> stalled : resolved not_applied
+    uncertain --> closed : abandoned
+    stalled --> attempting : operator retry, API-64
+    stalled --> closed : sweep finds it funded
+    stalled --> closed : abandoned
+    scheduled --> closed : machine tombstoned
+    closed --> [*]
+```
+
 ### Rescue session
 
 Ephemeral connection details for a provider's rescue environment: address, port,
@@ -357,9 +388,9 @@ operation, and it lives on the machine row (`05-persistence.md`).
 
 **It has to live there because the operation that knows will be deleted.** `STO-14` removes settled
 operations on a configured age while the machine keeps running, so a long-lived machine would
-outlive the only record of how it came to be. This is the third fact that had to move onto the
-machine row for that reason — `OPS-39`'s trigger id and `STO-43`'s retention ages were the first
-two — and the pattern is recorded rather than rediscovered.
+outlive the only record of how it came to be. This is the third fact that had to outlive the
+operation for that reason — `OPS-39`'s deduplication, now an episode row of its own (`STO-52`), and
+`STO-43`'s retention ages were the first two — and the pattern is recorded rather than rediscovered.
 
 **What it is for:** an agent facing a machine it cannot reach needs to know whether anyone verified
 these bytes and whether there is a rescue path back into this provider at all. Without it the only
@@ -383,10 +414,8 @@ before the send tells the two apart. Three paths, three different reasons:
   nothing binds its read to the accepted snapshot, and nothing reports a drift between the two.
 - **A machine attached by resolution.** It takes the create's retained snapshot (`OPS-13`), and the
   caller never saw that snapshot — the request that produced it was purged on entry to
-  `needs_reconciliation` (`ADR-0005`). *This bullet described a requeued create with several
-  snapshots to choose between, which is `F36`'s question; `ADR-0014` withdrew the requeue and there
-  is now one snapshot. The reason the read is needed survives the simplification — one list the
-  caller cannot see is still a list the caller cannot see.*
+  `needs_reconciliation` (`ADR-0005`). A create has one attempt and one snapshot (`ADR-0014`), and
+  one list the caller cannot see is still a list the caller cannot see.
 - **An adopted machine.** It came from no offer — `offer_id` is null — so there is nothing to have
   retained, and `05-persistence.md` requires adoption to persist an **empty** list wherever it cannot
   establish a safe one, refusing every strategy.
@@ -404,8 +433,8 @@ offer said at create — and `WIR-30` says no such thing: it forbids the **serve
 that overstatement, scoped the claim to "two paths" and was wrong in both directions at once: it
 conceded an ordinary create's caller "could have retained the accepted offer's list, which is the
 same list the machine copied", which `OPS-13`'s **accepted** snapshot does not guarantee; and it
-named every resolution attachment, where only a **requeued** create has more than one snapshot to
-choose between. Narrowing an overstatement is not the same as making it true, and the second attempt
+named every resolution attachment, where only one path — since deleted by `ADR-0014` — ever had more
+than one snapshot to choose between. Narrowing an overstatement is not the same as making it true, and the second attempt
 produced a fresh false claim of its own — caught by the same reviewer, at the same effort, on the
 pass that was verifying the first correction. Overstating a requirement's necessity is how `CNF-224`
 came to fail every conforming implementation; this is what the other direction costs.*
@@ -418,7 +447,9 @@ capabilities when the array is empty** (`DOM-10`): capabilities are per account 
 per product, which is the substitution `05-persistence.md` refuses for the same reason.
 
 **DOM-14** A digest MUST be required for `rootfs_tarball` and `raw_disk`, and MUST be
-exactly 64 hexadecimal characters, compared case-insensitively.
+exactly 64 hexadecimal characters, compared case-insensitively. The inventory fingerprint a rescue
+install binds its target to is a digest of a different thing, and `RSC-46` owns its canonical form
+and the normalisation of the device identifier beside it.
 
 ## Capability model
 
@@ -443,8 +474,9 @@ documents.
 | `list_offers` | Enumerating purchasable offers (`DOM-22`) |
 | `reverse_dns` | Setting PTR records for assigned addresses |
 
-**DOM-10** Every operation MUST be gated on the corresponding capability before the
-driver is called, **including create**. There MUST be no operation whose only gate is
+**DOM-10** Every operation with a capability MUST be gated on it before the
+driver is called, **including create**; the driver methods with no capability entry are the ones
+`PRV-4` names. There MUST be no operation whose only gate is
 a driver-internal check. A capability check failure MUST return an "unsupported" error
 naming the provider account and the capability.
 
@@ -466,6 +498,7 @@ Mapping from operation to required capability:
 | install, `provider_catalogue` | `install_via_provider_catalogue` |
 | reverse DNS | `reverse_dns` |
 | delete | `delete_machine` |
+| release attachment | `delete_machine` — a driver that can delete a machine can release what it left behind (`PRV-45`) |
 
 **DOM-22** Three edits to the capability model on 2026-08-12, closing the rest of `F10`:
 
@@ -547,7 +580,7 @@ purchase.
 **AMENDED 2026-09-02 — a sixth row, `ceiling_exceeded`, because the taxonomy was extended for three
 of those four items and not for the fourth.** `SEC-39` requires server-side ceilings per principal —
 machines destroyed, machines created, images
-written, rescue entries, power cycles, spend, and for an operator principal requeues, resolutions,
+written, rescue entries, power cycles, spend, and for an operator principal retries (`API-64`), resolutions,
 suspensions and re-assignments — and **this taxonomy had nothing that could express refusing one**,
 while `API-24` forbids a handler choosing a status independently. `CNF-69` is the ceiling item named
 in the list above; it has been BLOCKING throughout, against a set of kinds that could not carry its
@@ -568,8 +601,8 @@ carrying one.
 **DOM-17** Every error MUST carry a kind, a human-readable message, a boolean
 `retryable`, and a structured `details` object. `retryable` describes whether repeating
 the *same request* is safe and sensible. **It is normative guidance to callers** (`API-51`) —
-never authorization for an automatic service retry, and no substitute for `API-19`'s operator-only
-requeue. It MUST NOT be
+never authorization for an automatic service retry, and no substitute for an operator's `API-64`
+retry of a stalled episode. It MUST NOT be
 used by the system to retry automatically (`OPS-12`).
 
 **DOM-18** `details` MUST be redacted with the same rules as `DOM-6` before it is stored

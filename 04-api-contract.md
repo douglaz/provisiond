@@ -19,7 +19,9 @@
 | POST | `/v1/machines/{id}/actions/delete` | | Delete the machine |
 | GET | `/v1/operations` | ✓ | List operations, filterable by status |
 | GET | `/v1/operations/{id}` | ✓ | Poll one operation |
-| POST | `/v1/operations/{id}/actions/requeue` | | Operator requeue |
+| GET | `/v1/episodes` | ✓ | Operator: list episodes, filterable by state (`API-64`, `WIR-51`) |
+| GET | `/v1/episodes/{id}` | ✓ | Operator: read one episode (`WIR-51`) |
+| POST | `/v1/episodes/{id}/actions/retry` | ✓ | Operator: enqueue a fresh attempt under a `stalled` episode (`API-64`, `WIR-51`) |
 | POST | `/v1/enrol/token` | ✓ | Unauthenticated: obtain the enrolment admission token, answering only after a stated delay (`API-33`, `WIR-49`) |
 | POST | `/v1/enrol` | ✓ | Create a pending tenant, return a handle; requires an admission token (`API-32`, `API-33`) |
 | GET | `/v1/enrol/{handle}` | ✓ | Enrolment **status only**; never returns a credential (`API-33`, `WIR-13`) |
@@ -135,8 +137,7 @@ The original text applied this to every token, which `ADR-0002` made impossible:
 tenant appears at runtime and cannot have been named in an environment variable at startup.
 This was `F2`, recorded as unbuildable, and the split resolves it. **Customer credentials are
 issued at runtime and governed by `API-32`–`API-37`.** Operator credentials remain static,
-environment-supplied, and outside the tenant model entirely — which is also what keeps `API-19`
-(requeue is a purchase) genuinely operator-only.
+environment-supplied, and outside the tenant model entirely.
 
 **API-5** **AMENDED 2026-09-02.** Each token maps to exactly one **principal** and an admin flag. A
 customer token's principal is exactly one tenant (`STO-21`); **the operator token's principal is the
@@ -163,13 +164,11 @@ own.** Every step still runs for every authenticated write, operator writes incl
 5c are the operator's whole budget. What changes is **whose** tenant steps 2 and 5b read, and what
 step 4 authorizes against:
 
-- **For an operator principal, steps 2 and 5b apply to exactly two verbs — `adopt` and an
-  *ordering* `requeue` — against the tenant they name.** Those are the two that buy: `adopt` opens a
-  commitment against the named tenant, and an ordering requeue places a second physical order. This
-  is what keeps `API-58`'s "an operator may requeue a failed cancellation, though not a create" and
-  the requeue row's "an ordering requeue for a suspended tenant is rejected `suspended`" reachable.
+- **For an operator principal, steps 2 and 5b apply to exactly one verb — `adopt` — against the
+  tenant it names.** It is the one that buys: `adopt` opens a commitment against the named tenant
+  (`ADR-0017`).
 - **Every other operator verb skips 2 and 5b**, whether or not it names a tenant. *Stated as a
-  two-verb list and not as "wherever a tenant is named", because the second reading — a repair of
+  one-verb list and not as "wherever a tenant is named", because the second reading — a repair of
   2026-09-04 — refused the operator surface on its ordinary inputs: `WIR-42`'s attribution target
   "MAY be `pending`, the ordinary case since a returning customer enrols afresh", so the only route
   back for an orphaned balance failed `not_activated`; and opening, closing, transmitting, revising a
@@ -179,14 +178,14 @@ step 4 authorizes against:
 - **Step 4** authorizes the target resource by **existence** rather than by ownership for an
   operator, since cross-tenant reach is the point of the surface.
 
-*Step 2's own amendment already had this idea — revoke, resolve, resume and requeue are "authorized
-by principal rather than by tenant state" — and then expressed it as a four-verb allowlist while the
+*Step 2's own amendment already had this idea — revoke, resolve and resume are "authorized by
+principal rather than by tenant state" — and then expressed it as an allowlist while the
 operator surface grew to suspend, attribute, assign-provider-account, record-status,
 record-network-restriction, revise-deadline, address-resolution and `WIR-44`'s three abuse verbs.
 Read literally, every one of those was rejected at step 2 for a tenant the principal does not have.
 A first repair on 2026-09-04 over-corrected, exempting operators from 5b outright — which deleted
-the two ordering refusals above, since both live on operator-only verbs and no other step performs
-them. The carve-out is about the principal having no tenant **of its own**, and nothing more.*
+the ordering refusal above, since it lives on an operator-only verb and no other step performs
+it. The carve-out is about the principal having no tenant **of its own**, and nothing more.*
 
 **The tail is per endpoint class, because one universal pipeline was wrong for four of
 the five classes.** Steps 1–5 are common to every authenticated write:
@@ -194,7 +193,7 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 1. authenticate, resolve principal;
 2. **reject a tenant that has never been activated** — a `pending` tenant fails `not_activated`
    (`API-35`), **except** the `API-43` allowlist and the **maintenance actions**: revoke
-   (`API-56`), resolve, resume and requeue are authorized by principal rather than by tenant state,
+   (`API-56`), resolve and resume are authorized by principal rather than by tenant state,
    and gating them on an activated tenant would leave a suspended or pending tenant unable to
    replace a stolen credential —
    locking the owner out at exactly the moment the mechanism exists for. **This step is the
@@ -220,12 +219,6 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     silence is what guarantees the silence — and the sentence `STO-40` exists to capture, the late
     one naming the actual cause, is refused at the moment it is most wanted. The write touches no
     provider and moves no money, which is the same ground `WIR-41`'s resume stands on.
-    **Requeue is exempt here only where the operation it requeues reduces exposure** — a cancel or
-    a delete. That much is load-bearing: a suspended tenant's failed cancellation must stay
-    requeueable or its machine bills forever (`OPS-39`, `LDG-20`). A requeue of an **ordering**
-    kind — create or adopt — is rejected `suspended` like any other write, because `OPS-20` places
-    a *second physical order*, and buying a suspended tenant a machine after `API-58`'s fan-out has
-    settled is the same purchase 5b exists to refuse, merely reached through an operator verb.
 5c. **enforce `SEC-39`'s per-principal ceilings** and reject `ceiling_exceeded` (`DOM-17`) with
     `details.ceiling`, `details.limit`, `details.interval_seconds` and `details.retry_after_ms`
     (`WIR-9a`). **Added 2026-09-02**: `SEC-39` is the control that replaces a per-request
@@ -236,16 +229,14 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     it already spent, and a suspended tenant is refused before its budget is consulted. It sits
     **before** the tail, so a ceiling refusal happens before any commitment opens and before
     anything is enqueued.
-    **The exemptions are exactly three.** `OPS-39` exempts exposure-reducing **system**
+    **The exemptions are these, and no others.** `OPS-39` exempts exposure-reducing **system**
     cancellations, because a tenant that hit its destruction limit would otherwise keep machines it
     cannot pay for at the operator's expense — though that sweep enqueues directly and never
-    traverses this pipeline, so the exemption bites here only on the second one. **A requeue of an
-    exposure-reducing operation is exempt** (added 2026-09-02): step 5b already admits it for a
-    suspended tenant "or its machine bills forever" (`OPS-39`, `LDG-20`), and `OPS-44` names that
-    requeue as the *only* recovery for a cancellation that failed deterministically — so capping it
-    at 5c would refuse, one step later, the exact action 5b exists to let through, and against an
-    **operator** principal whose requeue ceiling `SEC-39` now sets. And `SEC-39`'s stated
+    traverses this pipeline, so the exemption bites here only on the other one: `SEC-39`'s stated
     override path for a genuine incident is the operator's, recorded as the uncapped thing.
+    **`API-64`'s retry is not exempt**: it counts against `SEC-39`'s operator retry ceiling, and
+    the operator is a program (`SEC-39`), so a loop retrying a deterministic rejection is exactly
+    what the ceiling is for (`ADR-0017`).
 
 The tail then depends on what the endpoint does:
 
@@ -253,7 +244,7 @@ The tail then depends on what the endpoint does:
 |---|---|
 | **create, adopt** | **refuse `conflict`/`state` where the named provider account is not `healthy`** (`STO-47`, `WIR-29`) — before any gate, since a dead account can take no order; then spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
 | **power, install, reverse-DNS, refresh, rescue inventory** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
-| **requeue** | operator-only; takes the class of the operation it requeues — a requeued create passes the spending gates, then **reuses the original commitment where it is still open** and opens a new one only where it was closed (`OPS-20`, `LDG-30`). It takes that class at **5b** as well: an ordering requeue for a suspended tenant is rejected `suspended`, an exposure-reducing one is not |
+| **retry** | operator-only (`API-64`, `WIR-51`); synchronous, `200` with the episode view; the episode's state change, the enqueue of a fresh `delete_machine` attempt and the idempotency record commit in one transaction (`WIR-24`); **no commitment and no spending gate** — the attempt reduces exposure, on the delete row's reasoning |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
 | **revoke** | operator or recovery-credential principal (`API-56`, `WIR-38`); synchronous, `200`, no provider mutation (`API-48`) |
 | **resume, resolve** | **operator-only** (`WIR-41`, `WIR-35`, `WIR-34`); synchronous, `200`, no provider mutation (`API-48`). The recovery credential reaches **neither** — `API-55` confines it to `API-56`, and a recovered-after-theft credential that could resume its own tenant or resolve an uncertain provider mutation would undo the suspension that answered the theft |
@@ -462,8 +453,8 @@ a MUST rather than a preference.** The delay already paces one caller to one tok
 from a shared address while costing a distributed attacker nothing; what is scarce there is held
 connections, and bounding those is the control (`WIR-49`). It is in memory and unpersisted like
 every other limiter here, so `ADR-0005` is untouched, and **the per-source concurrency limit is a
-deployment parameter that MUST be stated** — `API-41`'s global ceiling is defensible only because
-this one exists.
+deployment parameter on the register (`OVR-19`)** — `API-41`'s global ceiling is defensible only
+because this one exists.
 
 **API-37** **AMENDED — there is no *identity* recovery, but there is a recovery *credential*
 (`API-55`).** No identity is collected, so nothing an operator could verify proves ownership; any
@@ -567,8 +558,8 @@ an agent enrolling at 3am has no human to wait for.
 that (1) marks the tenant `suspended` **in the admission transaction, before the `202` is returned**,
 so no further **tenant-authorized** write succeeds —
 the maintenance actions of `API-7` step 2 remain reachable, because a suspended owner must still be
-able to revoke a stolen credential (`API-56`, `CNF-209`), and an operator must still be able to
-requeue a failed cancellation, though not a create (`API-7` step 5b) — then (2)
+able to revoke a stolen credential (`API-56`, `CNF-209`), and an operator may retry a stalled
+episode (`API-64`), which skips step 5b like every operator verb but `adopt` (`API-7`) — then (2)
 **fences work already in flight** — a create claimed before the suspension landed MUST be allowed
 to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
@@ -611,9 +602,10 @@ suspended tenant with a record that never closes.
 the last guard: where such a create later attaches a machine to a still-suspended tenant, `OPS-27`'s
 one-transaction rule enqueues the cancellation in the attach transaction itself, under the same
 `OPS-39` trigger step (3) uses. **A process that dies mid-fan-out MUST NOT strand
-the suspension**: the parent's lease expires and it is re-claimed and resumed like any other
-queued work (`OPS-14`), because the sweep is idempotent by `OPS-39`'s trigger id and mutates no
-provider itself. It MUST NOT go to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger, the machine list **and the tenant's abuse
+the suspension**: the engine's startup pass (`OPS-15`) returns an interrupted `suspend_tenant`
+parent to `queued`, and it is re-claimed and resumed like any other queued work, because the sweep
+is idempotent by the open episode (`STO-52`'s index) and mutates no provider itself. It MUST NOT go
+to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger, the machine list **and the tenant's abuse
 cases** (`API-59`) MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
 it anyway. *The case reads joined this list on 2026-08-16 for the same reason and one more: the
@@ -632,28 +624,29 @@ for it** — the fan-out enqueued a cancellation for it, whatever that cancellat
 that is not already named there, and terminates when a pass finds none. **Where `OPS-39`'s episode
 is already open on a machine under the `delete` key** — an exhaustion episode that predates the
 suspension, or the machine `OPS-27`'s suspended-attach clause enqueued for — the pass MUST NOT
-enqueue, and MUST instead **append `tenant_suspended` to that entry's `reasons` set and name the
-existing operation in `cancellations`**, which is what "accounted for" means for it. *Added
+enqueue, and MUST instead **append `tenant_suspended` to that episode's `reasons` set (`DOM-31`)
+and name its `current_operation_id` in `cancellations`**, which is what "accounted for" means for
+it. *Added
 2026-09-05. Without this the pass could neither enqueue for such a machine — `OPS-39` forbids the
 duplicate — nor name it, so every pass found it un-cancelled, the parent never settled, `WIR-41`'s
 resume was refused forever and a worker slot was pinned for the life of the tenant.* **An operation
 that `OPS-41`'s no-mutation abort settled does NOT account for its machine**, whatever list names
-it: the abort removed the episode entry, so the next pass enqueues afresh — **and replaces the
-aborted operation's id in `cancellations` with the fresh one's**, so the per-machine result always
-names the child currently accounting for the machine rather than one that settled without acting —
-which `OPS-39` permits
-precisely because the entry is gone. *Added 2026-09-05 against the interleaving where the worker's
-re-check reads the entry before the join appends `tenant_suspended`, finds the machine funded after
-a price cut, and aborts — after which a pass that trusted the name would settle the parent over a
-funded fleet on a suspended tenant.*
+it: the abort closed the episode (`OPS-48`), so the next pass opens a fresh one and enqueues afresh
+— **and replaces the aborted operation's id in `cancellations` with the fresh one's**, so the
+per-machine result always names the child currently accounting for the machine rather than one
+that settled without acting — which `STO-52`'s index permits precisely because the episode is
+closed. *Added 2026-09-05 against the interleaving where the worker's re-check reads the episode
+before the join appends `tenant_suspended`, finds the machine funded after a price cut, and aborts
+— after which a pass that trusted the name would settle the parent over a funded fleet on a
+suspended tenant.*
 
-*The test is the parent's own record, not `machines.system_trigger_ids`.* An earlier draft of this
-amendment keyed it on that entry existing "open or already resolved", which fails in both
-directions: `OPS-44` **removes** the entry on resolution, so an operator's `abandoned` made a
-machine read un-cancelled again and the fan-out re-enqueued against it; and an entry opened by an
-*exhaustion* sweep before the suspension would have made a machine read cancelled that this
-suspension never touched. The parent's list is the thing that actually answers "has this fan-out
-dealt with that machine", and it is already returned to the operator.
+*The test is the parent's own record, not the episode row.* An earlier draft of this
+amendment keyed it on an episode existing "open or already resolved", which fails in both
+directions: `OPS-48` **closes** the episode on `abandoned` and clears the fence, so an operator's
+`abandoned` made a machine read un-cancelled again and the fan-out re-enqueued against it; and an
+episode opened by an *exhaustion* sweep before the suspension would have made a machine read
+cancelled that this suspension never touched. The parent's list is the thing that actually answers
+"has this fan-out dealt with that machine", and it is already returned to the operator.
 
 *Why the entry and not the outcome.* Keyed on the outcome, a child that fails deterministically —
 `authentication` after a credential rotation, `unsupported` on an account that never declared
@@ -666,15 +659,15 @@ which is what the parent's job actually is.
 **What that costs, stated rather than hidden: the parent settles `succeeded` while a machine of a
 suspended tenant may still be running.** Three things bound it and all three are required. The
 child's failure is a record of its own, named in the parent's result (`WIR-39`'s `cancellations`)
-and readable through `GET /v1/operations`. `OPS-44` requires a `failed` exposure-reducing
-cancellation to be **surfaced to the operator** in the same listing as `needs_reconciliation`, and
-keeps it requeueable under its existing trigger id — which `API-7` step 5b already exempts from the
-suspension refusal for exactly this reason. *Until 2026-09-05 this sentence continued "and the
+and readable through `GET /v1/operations`. A `failed` attempt moves its episode to `stalled`
+(`OPS-48`), which `OPS-26`'s listing **surfaces to the operator** beside `uncertain`, and the
+recovery is `API-64`'s retry on the same episode — which `API-7` skips step 5b for, so a suspended
+tenant's stalled episode stays retryable. *Until 2026-09-05 this sentence continued "and the
 machine keeps consuming its commitment, so `LDG-13`'s exhaustion path reaches it on the ordinary
-schedule whether or not anyone looks" — which `OPS-44` forbids: the failed cancellation keeps its
-episode, the sweep enqueues nothing against an open episode, and the operator listing and requeue
-are the only recovery. `CNF-272` carried the same false clause and was corrected the day before;
-this copy was not.* **A
+schedule whether or not anyone looks" — which `OPS-48` forbids: the episode stays open, the sweep
+enqueues nothing against an open episode, and the operator listing and retry are the only
+recovery. `CNF-272` carried the same false clause and was corrected the day before; this copy was
+not.* **A
 suspension is not a promise that the fleet is gone; it is a promise that every machine has been
 accounted for and that nothing further can be bought.** The terms and the operator documentation
 MUST say so in those words, because "suspended" reads as "stopped" and on this one branch it is not.
@@ -687,9 +680,9 @@ were admitted — and `OPS-6` claims oldest-first, so its own queued work runs a
 that was meant to stop it. `SEC-45` calls this "one operator action" and sells it as immediate; on a
 busy queue it was not effective on return.
 
-The crash-safety the withdrawn clause was protecting is supplied elsewhere and better: `OPS-14`
-returns a `suspend_tenant` parent whose lease expired to `queued` rather than to
-`needs_reconciliation`, and `OPS-39`'s trigger id makes the re-sweep idempotent, so a crash
+The crash-safety the withdrawn clause was protecting is supplied elsewhere and better: the startup
+pass (`OPS-15`) returns an interrupted `suspend_tenant` parent to `queued` rather than to
+`needs_reconciliation`, and the open episode (`STO-52`) makes the re-sweep idempotent, so a crash
 mid-fan-out strands nothing. **The flag and the enqueue of the parent commit together at admission;
 the fan-out is the worker's.**
 
@@ -792,64 +785,39 @@ retrying purchases to discover whether it can afford one.
 The view MUST also expose what `LDG-15` already requires per machine — remaining runway — in
 aggregate, so a caller can see the whole fleet's exhaustion horizon without walking every machine.
 
-**API-48** **The synchronous endpoints are exactly: every `GET`, plus `POST /v1/enrol` and `POST
-/v1/deposits`.** These are the exemptions from `API-1`'s "every accepted write returns `202` and
-an operation", and they are listed together because each was previously exempted in its own
-paragraph — `API-40` for enrolment, `API-43` implicitly for funding — which is how a general rule
-acquires undocumented exceptions.
+**API-48** **AMENDED 2026-09-08 — one list, no amendment trail.** **The synchronous endpoints are
+exactly these**, and they are the closed set of exemptions from `API-1`'s "every accepted write
+returns `202` and an operation" — the set `OVR-4` names as the closed set of synchronous writes:
 
-Both exemptions have the same justification: **neither causes a provider mutation**, so neither
-needs a durable operation, and `operations.tenant_id` cannot name a tenant that does not exist yet
-(enrolment). Any endpoint added later that *does* touch a provider MUST obey `API-1`; this list is
-closed, not a pattern.
+1. every `GET`;
+2. `POST /v1/enrol/token` (`WIR-49`) — writes nothing; the only member that is deliberately *slow*;
+3. `POST /v1/enrol` (`WIR-12`) — `operations.tenant_id` cannot name a tenant that does not exist yet;
+4. `POST /v1/deposits` (`WIR-14`);
+5. `POST /v1/deposits/{id}/actions/attribute` (`WIR-42`);
+6. `POST /v1/abuse-cases` (`WIR-44`);
+7. `POST /v1/abuse-cases/{id}/actions/close` (`WIR-44`);
+8. `POST /v1/abuse-cases/{id}/actions/record-transmission` (`WIR-44`);
+9. `POST /v1/abuse-cases/{id}/actions/revise-deadline` (`WIR-47`);
+10. `POST /v1/abuse-cases/{id}/statements` (`WIR-43`);
+11. `POST /v1/machines/{id}/actions/record-network-restriction` (`WIR-47`);
+12. `POST /v1/machines/{id}/actions/extend-runway` (`WIR-24`);
+13. `POST /v1/provider-accounts/{account}/actions/record-status` (`WIR-50`) — it moves customer
+    money on a confirmed termination (`SEC-46`) and still mints no operation: the machines are
+    already gone, the commitments table is itself a durable record, `WIR-50` returns the count and
+    the affected tenants, and `SEC-39` requires a monitorable event;
+14. `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` (`WIR-48`);
+15. `POST /v1/tenants/{tenant_id}/actions/resume` (`WIR-41`);
+16. `POST /v1/recovery/revoke` (`WIR-38`);
+17. `POST /v1/operations/{id}/actions/resolve` (`WIR-35`) — minting an operation *about* an
+    operation is a recursion `API-1` never intended;
+18. `POST /v1/episodes/{id}/actions/retry` (`API-64`, `WIR-51`) — it answers `200` with the episode
+    view; the attempt it enqueues is the asynchronous part, visible through `current_operation_id`.
 
-**AMENDED (2026-08-14): `POST /v1/deposits/{id}/actions/attribute` also joins** (`WIR-42`) — it
-posts a ledger entry and touches no provider.
-
-**AMENDED (2026-08-16): `POST /v1/abuse-cases/{id}/statements` also joins**
-(`WIR-43`) — the tenant's reply is read by the operator and transmitted, if at all, by hand
-(`ADR-0012`), so it touches no provider and mints no operation. The operator's own case verbs
-(`API-60`) join on the same ground, as do **`API-61`'s two**: recording a network restriction
-writes an observation the operator already made, and revising a deadline moves a date. *Written here, again, because the list is closed and an
-endpoint that exempts itself is how the first two exemptions went unrecorded.*
-
-**AMENDED (2026-09-02): `POST /v1/enrol/token` also joins** (`API-33`, `WIR-49`) — it mints no
-tenant, writes nothing at all, and answers the caller directly after its stated delay. It is the
-only member of this list that is deliberately *slow*, and that is the point of it.
-
-**AMENDED (2026-09-02): `POST /v1/provider-accounts/{account}/actions/record-status` also joins**
-(`API-63`, `WIR-50`) — it records an observation about a provider account and touches no provider.
-It moves customer money — `SEC-46` closes every affected commitment on a confirmed termination — and
-still mints no operation, because `OPS-39` reserves operations for **provider mutations** and this
-touches none: the machines are already gone, which is what "confirmed termination" means. *`OPS-39`'s
-own words are that a pure balance event "mints no operation; the ledger is already that record",
-which is not quite the justification here, since closing a commitment writes no ledger entry either
-(`LDG-30`). What makes this safe is narrower and worth stating: the commitments table is itself a
-durable, queryable record, `WIR-50` returns the count and the affected tenants in the response, and
-`SEC-39` requires a monitorable event — so the release is not invisible merely because it is not an
-operation.*
-
-**AMENDED (2026-08-31): `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` also joins**
-(`API-62`, `WIR-48`) — it writes an assignment row and touches no provider.
-
-**AMENDED (2026-08-13, second time): `POST /v1/tenants/{tenant_id}/actions/resume` also joins**
-(`WIR-41`) — it clears a flag and touches no provider. Suspension does **not**: it cancels a
-fleet, so it returns `202` with a `suspend_tenant` operation whose children are the per-machine
-cancellations.
-
-**AMENDED (2026-08-13): three more join the list** — `POST /v1/recovery/revoke` (`WIR-38`, a pure
-credential action), `POST /v1/operations/{id}/actions/resolve` (`WIR-35`, an operator decision
-recorded against an existing operation; minting an operation *about* an operation is exactly the
-recursion `API-1` never intended), and `GET`-shaped reads as always. Suspension (`WIR-39`) is
-**not** synchronous: it cancels a fleet, so it returns `202` and its child cancellations are
-ordinary operations.
-
-**AMENDED (2026-08-12, `WIR-24`): `POST /v1/machines/{id}/actions/extend-runway` joins the list**,
-under the same justification — it is a pure ledger action (`LDG-62`), returns the updated machine
-view synchronously, and mints no operation per `OPS-39`'s rule that pure balance events are the
-ledger's to record. The list being closed is why this amendment is written here rather than the
-endpoint quietly exempting itself — which is exactly how the last two exemptions went unlisted
-for a day.
+Every member has the same justification: **none of them is itself a provider mutation**, so none
+needs a durable operation of its own. Any endpoint added later that *does* touch a provider MUST
+obey `API-1`; this list is closed, not a pattern, and an endpoint joins it by being written here.
+**Suspension (`WIR-39`) is not on it**: it cancels a fleet, so it returns `202` with a
+`suspend_tenant` operation whose children are the per-machine cancellations.
 
 **API-46** Funding MUST be rate-limited per tenant. Each request creates an address the operator
 must watch until expiry (`LDG-57`) and a binding it retains afterwards (`STO-29`), so an unlimited
@@ -859,8 +827,8 @@ because `API-34`'s time-to-live deletes a pending tenant while its deposits outl
 
 **API-41** Enrolment MUST be sheddable under load ahead of every other endpoint, and a deployment
 MUST set a **global** ceiling on pending tenants, not only a per-caller rate limit. `API-36`'s
-limiter holds its state in memory, so it resets on every restart of the single process
-(`ADR-0001`) and is trivially defeated by distributed sources. The damage is not row count: the
+limiter holds its state in memory per `api` replica, so it resets on every restart, counts each
+replica separately, and is trivially defeated by distributed sources. The damage is not row count: the
 time-to-live sweep of `API-34` is a large periodic delete against the same single-writer store
 that serves the operation queue's atomic claim (`STO-1`, `STO-6`), and `DEF-11` records that this
 store has already been starved once by a needless periodic write loop. **Enrolment at line rate
@@ -879,7 +847,8 @@ shedding threshold, not a permanent refusal**: at the ceiling, `POST /v1/enrol` 
 told to come back rather than told, indistinguishably, that the product is closed. And **the
 deployment MUST choose the ceiling against `API-34`'s time-to-live**, since the pair is what caps
 the table at *enrolment rate × TTL*; a ceiling below the number of signups a normal day produces
-inside one TTL is a self-inflicted outage, and that arithmetic MUST be stated with the figure.
+inside one TTL is a self-inflicted outage, and that arithmetic MUST be stated with the figure on
+the register (`OVR-19`).
 
 ## Idempotency
 
@@ -1001,22 +970,33 @@ machine there to adopt; adoption's only real use is the operator assigning a pre
 to a tenant. Entitlement is therefore the first of the original mechanisms — an
 operator-maintained assignment of external machine identifiers to tenants, checked before
 adoption — and the caller-facing adopt endpoint MUST reject tenant credentials outright, like
-requeue (`API-19`). *The withdrawn text offered three mechanisms; `F28` observed two required an
+every operator-only route (`WIR-34`). *The withdrawn text offered three mechanisms; `F28` observed two required an
 operator step the self-serve product deleted and the third required access to a machine the
 tenant does not have. All true, and moot: the feature they were defending was never reachable by
 a customer under this product shape. The challenge-token mechanism is deleted from v1 scope and
 returns only with a bring-your-own-machine product, which would need its own ADR.* See `DEF-1`.
 
-**API-19** Requeue MUST be restricted to operators. A tenant token MUST NOT be able to
-requeue an operation, because requeue can re-issue a purchase (`OPS-20`).
+**API-64** **ADDED 2026-09-08 (`ADR-0017`) — a stalled episode is retried by an operator, and by
+nothing else.** `POST /v1/episodes/{id}/actions/retry` (`WIR-51`) is **operator-only** (`WIR-34`)
+and is admissible only on an episode in `stalled` (`DOM-31`): it moves the episode to `attempting`
+and enqueues a fresh `delete_machine` attempt under it, both in one transaction, and answers `200`
+with the episode view. In any other state it is refused `409` `conflict` with `details.reason:
+"state"`. It is idempotent under `WIR-24`'s one-transaction rule — the state change, the enqueue and
+the idempotency record commit together — and it counts against `SEC-39`'s operator retry ceiling
+(`API-7` step 5c). **A `stalled` episode is never retried by a timer** (`OPS-48`): the attempt
+settled `failed` because the provider rejected it and did not act, and repeating a deterministic
+rejection automatically is the loop `OPS-39` exists to prevent. The transient cases never reach
+`stalled` — `OPS-11` defers them instead. The episode, not the `failed` attempt row, is what
+outlives `STO-14`'s retention, which is why the verb is on the episode (`ADR-0017`).
 
 ## Operation views
 
-**API-20** **AMENDED 2026-08-12.** The operation view returned to clients MUST include: id,
-tenant, idempotency key, kind, status, machine id, provider account, result, error, attempt
-count, timestamps, `revision` (`API-53`), `retryable` (`API-51`), and `requested_by` with its
-`system_reason` when system-initiated (`OPS-39`). For a non-terminal operation the view carries
-`poll_after_ms` (`API-49`).
+**API-20** **AMENDED 2026-09-08 (`ADR-0017`) — the view names its episode.** The operation view
+returned to clients MUST include: id, tenant, idempotency key, kind, status, machine id, provider
+account, result, error, attempt count, timestamps, `revision` (`API-53`), `retryable` (`API-51`),
+`requested_by` with its `system_reason` when system-initiated (`OPS-39`), and `episode_id` — the
+episode this operation is an attempt under (`DOM-31`), null otherwise. For a non-terminal
+operation the view carries `poll_after_ms` (`API-49`).
 
 **API-21** The operation view MUST NOT include the stored request payload. It can contain
 signed image URLs and other caller secrets that need not be echoed back.
@@ -1027,9 +1007,9 @@ stored, not merely before they are rendered.
 **API-23** `GET /v1/operations` MUST support filtering by status and MUST support
 pagination. Listing everything in `needs_reconciliation` is an operational necessity
 (`OPS-26`). **AMENDED 2026-09-02: it MUST also filter on `requested_by` and `system_reason`**
-(`WIR-10a`, `WIR-26`), because `OPS-26`'s second listable condition — a *failed exposure-reducing
-cancellation*, the machine still running and still billing with nothing automatic left to try — is
-invisible under a status filter that returns every caller typo alongside it.
+(`WIR-10a`, `WIR-26`), so an episode's attempt history is findable without reading every caller
+typo alongside it. The open episodes `OPS-26` requires listed are `WIR-51`'s `GET /v1/episodes`,
+not a filter here (`ADR-0017`).
 
 ## Errors
 
@@ -1041,15 +1021,16 @@ A single envelope for every failure:
     "kind": "invalid_request",
     "message": "human readable, safe to show an operator",
     "retryable": false,
-    "details": {},
-    "correlation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11"
-  }
+    "details": {}
+  },
+  "correlation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11"
 }
 ```
 
 `correlation_id` is part of the envelope, not an optional extra: `WIR-4` requires it be readable
 from the **body**, because an intermediary can strip the header. `WIR-9` is the authoritative
-shape (`13-wire-contract.md`), and this example omitted the field.
+shape (`13-wire-contract.md`); it sits beside `error`, not inside it, because the inner object is
+what `WIR-10b` embeds in an operation view, which carries its own.
 
 **API-24** `kind` MUST come from the closed set in `DOM-17`, and the HTTP status MUST be
 derived from it by the mapping in that table. Handlers MUST NOT choose statuses
@@ -1070,8 +1051,7 @@ public surface is reachable by customers by definition, so the deployment MUST:
 
 - terminate TLS such that no credential traverses an untrusted hop in clear text;
 - expose *only* the customer-facing routes publicly, keeping operator and reconciliation routes
-  on a separate listener or network (`API-19` requeue in particular is operator-only and is a
-  purchase);
+  on a separate listener or network (`WIR-34` lists them; `adopt` in particular is a purchase);
 - treat `OVR-10a`'s in-code credential boundary as the compensating control, since network
   isolation is no longer providing one.
 
@@ -1143,9 +1123,9 @@ an agent discovers state by mutating).
 **API-51** **`retryable` is normative for callers, not advisory to operators.** An operation in
 `needs_reconciliation` MUST be delivered with `retryable: false`, and the contract MUST state in
 words that re-issuing the request under a fresh idempotency key **is a second purchase**, not a
-retry. `OPS-12` forbids the *system* from retrying an ambiguous mutation and `API-19` makes
-requeue operator-only, but nothing else stops the *customer's* agent from buying the duplicate
-server `OPS-20` exists to prevent — `SEC-39`'s per-principal ceiling is the backstop, and this
+retry. `OPS-12` forbids the *system* from retrying an ambiguous mutation, but nothing else stops
+the *customer's* agent from buying the duplicate server `OPS-27` exists to prevent — `SEC-39`'s
+per-principal ceiling is the backstop, and this
 field is the signal. This is the single most expensive way for "finding out" to go wrong.
 
 **API-52** **A pending tenant MUST be able to observe its own activation without attempting a
@@ -1302,7 +1282,7 @@ recorded with no admission behind it*). **A create
 already dispatched to the provider when the termination commits is not reachable by any lock**, and
 is `OPS-36`'s late attach: the machine appears under a terminated account, `OPS-36` attaches it and
 enqueues the cleanup cancellation, that cancellation fails against the revoked credential, and
-`OPS-44` files it in the operator listing. That is the honest end for it, and it is stated so the
+its episode goes `stalled` (`OPS-48`) into `OPS-26`'s listing. That is the honest end for it, and it is stated so the
 machine is *somewhere* rather than orphaned in silence.
 
 **The transaction MUST hold the `LDG-35` primitive of every tenant in `WIR-50`'s
@@ -1320,8 +1300,8 @@ operator deficiency (`LDG-66`, `STO-37`). *A draft said it posted "straight into
 which `LDG-31` forbids eight lines further down this same requirement. The lock is still required:
 without it the operator absorbs a deficiency for seconds that were already billed before the stop,
 and the meter's rounding credit advances against an increment nobody authorized.*
-It acquires **no machine lock** — `LDG-69` forbids that under the serialization, and these are the
-same columns `OPS-32`'s sweep writes outside any machine lock (`STO-48`).
+It holds **no machine** (`OPS-8`) — `LDG-69` forbids that under the serialization — and these are
+the same columns `OPS-32`'s sweep writes without holding one (`STO-48`).
 
 **The order is the requirement, and each step exists because the one after it destroys the evidence
 it needs.** The closing increment cannot post after the release, because there is no commitment left
@@ -1332,8 +1312,8 @@ tombstoning while a billable attachment has a null `released_at`. And **leaving 
 without a gone state is not a smaller version of this rule but a different failure**: the rows stay
 in inventory at zero usable satoshis, `LDG-13`'s exhaustion sweep reads them off `runway_until`,
 mints an `exhausted` delete against each one, every delete fails deterministically against a
-credential the provider has revoked, and `OPS-44` files each in the operator listing with its episode
-open forever. *Confirming one termination would flood that listing with one permanently-open episode
+credential the provider has revoked, and each episode sits `stalled` (`OPS-48`) in `OPS-26`'s listing
+forever. *Confirming one termination would flood that listing with one permanently-open episode
 per machine — the `CNF-272` scenario, at the scale of a whole account.*
 
 **The meter stop MUST come first, and it MUST cover the attachments as well as the machines.**

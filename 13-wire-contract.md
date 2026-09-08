@@ -51,7 +51,10 @@ always read the correlation id and the pacing value; every pacing value is **als
 because header exposure still depends on the intermediary. A request MAY supply its own
 correlation id as `X-Correlation-Id`; the server adopts it or generates one (`API-28`).
 `Access-Control-Max-Age` SHOULD be at least 3600, because the `Authorization` and `Idempotency-Key`
-headers force a CORS preflight per request shape (`WIR-4a`).
+headers force a CORS preflight per request shape (`WIR-4a`). **Every response on the customer
+listener — not only the preflight — carries `Access-Control-Allow-Origin` "per the deployment's
+stated origin policy" (`WIR-4a`), and `Vary: Origin`** (*added 2026-09-08*): a preflight that passes and an actual
+response that omits the header is a request the browser sent and a reply it refuses to hand over.
 
 **WIR-4a** **The browser preflight MUST pass, and it MUST NOT be authenticated.** `Authorization`
 and `Idempotency-Key` are non-safelisted, so every customer request preflights. On the
@@ -87,7 +90,8 @@ requirement on it beyond that.
 
 ## The error envelope
 
-**WIR-9** Every non-2xx response is exactly:
+**WIR-9** **AMENDED 2026-09-08 — `correlation_id` sits beside `error`, not inside it.** Every
+non-2xx response is exactly:
 
 ```json
 {
@@ -95,13 +99,15 @@ requirement on it beyond that.
     "kind": "insufficient_balance",
     "message": "available 41200 sats, required 72000 sats",
     "retryable": false,
-    "details": {"available_sats": 41200, "required_sats": 72000},
-    "correlation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11"
-  }
+    "details": {"available_sats": 41200, "required_sats": 72000}
+  },
+  "correlation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11"
 }
 ```
 
-`kind` is `DOM-17`'s closed set. `retryable` is normative for callers (`API-51`).
+`kind` is `DOM-17`'s closed set. `retryable` is normative for callers (`API-51`). The inner
+`error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is
+the object `WIR-10b` embeds in an operation view, which carries its own `correlation_id`.
 
 **WIR-9a** **`details` is machine-readable and its keys are defined per kind, not left to prose.**
 The caller is software; routing a value through `message` (which `API-25` constrains) forces an
@@ -123,7 +129,7 @@ agent to parse English. Minimum keys:
 **WIR-9b** **`retryable` precedence.** When an error accompanies an operation view, the operation
 view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 `needs_reconciliation` and `gone` are **always** `retryable: false` — re-issuing either under a
-fresh idempotency key is a second purchase, not a retry (`API-51`, `OPS-20`).
+fresh idempotency key is a second purchase, not a retry (`API-51`).
 
 ## Views
 
@@ -134,10 +140,10 @@ fresh idempotency key is a second purchase, not a retry (`API-51`, `OPS-20`).
   "id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11", "kind": "create_machine",
   "tenant": "agent-7", "status": "running", "terminal": false,
   "revision": 4, "retryable": false,
-  "requested_by": "caller", "system_reason": null,
+  "requested_by": "caller", "system_reason": null, "episode_id": null,
   "machine_id": null, "provider_account": "hetzner-cloud-1",
   "idempotency_key": "agent-7:create:2026-08-12T14",
-  "attempts": 1, "requeues": 0,
+  "attempts": 1,
   "committed_sats": 72000,
   "result": null, "error": null,
   "poll_after_ms": 5000,
@@ -150,11 +156,13 @@ fresh idempotency key is a second purchase, not a retry (`API-51`, `OPS-20`).
 while non-terminal, mirrored by `Retry-After = ceil(poll_after_ms / 1000)` seconds (`WIR-4`,
 `API-49`). `committed_sats` is present on `create`/`adopt` operations — the satoshis the
 commitment reserved, so a caller reads what it spent without diffing `GET /v1/balance`.
-`system_reason` non-null only when `requested_by` is `system` (`OPS-39`).
+`system_reason` non-null only when `requested_by` is `system` (`OPS-39`). `episode_id` (*added
+2026-09-08, `ADR-0017`*) names the episode this operation is an attempt under (`DOM-31`, `WIR-51`)
+and is null on every other operation.
 
 **WIR-10a** **The closed enums**, so two strict parsers agree: `kind` ∈ {`create_machine`,
 `adopt_machine`, `refresh`, `rescue_inventory`, `power`, `install`, `reverse_dns`, `delete_machine`,
-`suspend_tenant`}; `status` ∈ {`queued`,
+`release_attachment`, `suspend_tenant`}; `status` ∈ {`queued`,
 `running`, `succeeded`, `failed`, `needs_reconciliation`} (`OPS-3`); `requested_by` ∈ {`caller`,
 `system`, `operator`} (`OPS-39`); and **`system_reason` ∈ {`exhausted`, `late_attach_cleanup`,
 `tenant_suspended`, `rate_outage_bound`}, null unless `requested_by` is `system`**
@@ -168,7 +176,8 @@ view and its value set was stated in two other documents, but this document wins
 elsewhere — so a strict parser had no enum for a field it receives.*
 
 **WIR-10b** **`result` and `error` shapes.** `error`, when non-null, is exactly `WIR-9`'s inner
-object (`kind`/`message`/`retryable`/`details`), without the envelope. `result`, when non-null, is
+object (`kind`/`message`/`retryable`/`details`), without the envelope and **without a
+`correlation_id`** — the view's own is the one that applies. `result`, when non-null, is
 per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
 `{"machine_id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20"}`;
 `rescue_inventory` and the two **rescue-entering** install strategies →
@@ -365,7 +374,9 @@ no schema, no store and no read endpoint — the `commitments`-table gap for the
 parent operation already has all three.
 
 **WIR-42** `POST /v1/deposits/{id}/actions/attribute` — **operator-only** (`WIR-34`), body
-`{"tenant_id": "t-0198c1f0", "operator_ref": "opref-7d41c9"}`, synchronous `200`. Credits a deposit whose tenant
+`{"tenant_id": "t-0198c1f0", "operator_ref": "opref-7d41c9"}`, synchronous `200` with the
+credited tenant's balance view in `WIR-16`'s default shape (*the response was unstated until
+2026-09-08*). Credits a deposit whose tenant
 was reaped (`API-34`) to a live tenant — **which MAY be `pending`**, the ordinary case since a
 returning customer enrols afresh, and the credit then counts toward `API-35`'s activation minimum
 like any other — **by posting one `correction` pair per settled payment** (`LDG-7`, `LDG-5`) — each a negative
@@ -407,7 +418,8 @@ no terminal-state purge would ever remove it.* Attribution MUST be idempotent pe
 second call naming a different tenant is `409`, never a re-credit.
 
 **WIR-41** `POST /v1/tenants/{tenant_id}/actions/resume` — **operator-only**, body `{}`,
-**synchronous** `200` with the tenant's status: it clears the suspension flag and touches no
+**synchronous** `200` with `{"tenant_id": "t-0198c1f0", "status": "active"}` (*the shape was
+unstated until 2026-09-08*): it clears the suspension flag and touches no
 provider, so it mints no operation and is in `API-48`'s list. It does **not** restore cancelled
 machines; those are gone (`OPS-39`), and the tenant's balance and ledger are untouched throughout.
 
@@ -465,13 +477,16 @@ settled payment, `LDG-55` — plural on purpose), `"credited_sats"` (their sum),
     {"machine_id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20", "operation_id": null, "reserved_sats": 71900, "runway_until": "2026-09-11T14:00:00Z"},
     {"machine_id": null, "operation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11", "reserved_sats": 100, "runway_until": null}
   ],
+  "next_cursor": null,
   "earliest_runway_until": "2026-09-11T14:00:00Z"
 }
 ```
 
 **AMENDED 2026-08-31 — the `commitments` array is opt-in.** `GET /v1/balance` returns the three
 totals and `earliest_runway_until` by default; the per-commitment array appears only with
-`?commitments=true` and is then cursor-paginated like every other collection (`WIR-32`). Every other
+`?commitments=true` and is then cursor-paginated like every other collection (`WIR-32`), with
+**`next_cursor` at the top level** beside the totals, as the fixture shows (*stated 2026-09-08; the
+fixture showed the opt-in form with no cursor, so a strict client had no field to page on*). Every other
 list in this contract is clamped to 200 and this one was unbounded, on the endpoint `API-49`
 deliberately steers agents to poll at the finest advertised cadence — so a five-hundred-machine
 tenant shipped five hundred entries on every poll, forever. The invariant below is checkable on the
@@ -671,42 +686,54 @@ is a query and not a sweep clause.
 MUST be supported; `status` accepts a comma-separated set; **`requested_by` and `system_reason`
 are supported on the same terms**, each accepting a comma-separated set from `WIR-10a`'s enums
 (`API-23`, `OPS-26`); every predicate supplied combines as an
-intersection, and an empty intersection is an empty page, not an error. *Added 2026-09-02: the
-operator query `OPS-26` requires — a failed exposure-reducing cancellation, which is a machine still
-running and still billing with nothing automatic left to try — is not expressible in `status` alone.* The list-level
+intersection, and an empty intersection is an empty page, not an error. *Added 2026-09-02 so an
+episode's attempt history is findable; the open episodes `OPS-26` requires listed are `WIR-51`'s
+`GET /v1/episodes` since 2026-09-08 (`ADR-0017`).* The list-level
 `poll_after_ms` governs the fleet poll; a single-operation poll obeys that operation's own value
 (`WIR-10`).
 
 **WIR-27** `GET /v1/operations/{id}` — one operation view. Past retention: `410` with kind
 `gone`, `details.retained_until` (`DOM-21`).
 
-**WIR-28** **AMENDED** `POST /v1/operations/{id}/actions/requeue` — **operator-only** (`API-19`,
-`WIR-34`), body `{"reason": "order confirmed lost at the provider", "acknowledge_duplicate_purchase": true, "request": {}}`
-(`OPS-34`), where `request` is elided in this example and carries a fresh payload in the original
-endpoint's shape — the create body of `WIR-17`, the install body of `WIR-20`, and so on. The system
-verifies the fresh payload against the stored summary and refuses on any mismatch. `acknowledge_duplicate_purchase` MUST be
-literal `true` when the operation's kind places an order — the fresh payload's own
-`acknowledge_purchase` does **not** satisfy `OPS-20`'s "second, distinct" acknowledgement, because
-requeueing an order is a purchase decision, not a retry.
+**WIR-51** **ADDED 2026-09-08 (`ADR-0017`)** — the episode on the wire. The **episode view**
+(`DOM-31`):
 
-**AMENDED 2026-09-05 — a `create_machine` operation MUST be refused here** (`OPS-46`, `ADR-0014`),
-with `409` `conflict`, `details.reason: "kind"`, and a message naming `WIR-35`'s resolution verbs as
-the road out. The refusal is on the **kind**, not on the payload, so it precedes the equivalence
-check and no create payload is ever compared. *That sentence about requeueing a create being a
-purchase decision is why: the decision is the customer's, and the payload the operator would have to
-supply is not the customer's — `STO-9` purged it and `ADR-0002` leaves nobody to ask.*
+```json
+{
+  "id": "0198d4a0-2c3d-7e4f-8a5b-6c7d8e9f0a12",
+  "machine_id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20",
+  "key": "delete",
+  "reasons": ["exhausted", "tenant_suspended"],
+  "state": "stalled",
+  "opened_at": "2026-09-06T03:10:00Z",
+  "current_operation_id": "0198d4a0-5f6a-7b8c-9d0e-1f2a3b4c5d23",
+  "closed_at": null,
+  "close_reason": null
+}
+```
 
-**AMENDED AGAIN 2026-09-06 (`F39`) — the refusal is every kind but one.** `OPS-46` now admits only
-an exposure-reducing cancellation, so this endpoint accepts `delete_machine` and refuses every other
-kind on the same `409` `conflict` / `details.reason: "kind"`. **`acknowledge_duplicate_purchase` is
-therefore unreachable and MUST NOT be sent**: it was required "when the operation's kind places an
-order", and no requeueable kind places one. *It survived the 2026-09-05 amendment because that
-amendment kept `adopt_machine`, which `F39` found fails `OPS-46`'s own test — `WIR-18` carries
-`runway_seconds` and `LDG-36` makes adopt open a commitment, so an operator requeue would size a
-customer's commitment for them.* The `request` object is `{"acknowledge_destruction": true}`
-(`WIR-22`), which the operation record already determines.
+`key` is `delete` for an exposure-reducing cancellation and the `system_reason` for every other
+trigger (`OPS-39`); `reasons` is the set of `WIR-10a`'s `system_reason` values that contributed;
+`state` ∈ {`attempting`, `uncertain`, `stalled`, `scheduled`, `closed`} and `close_reason` ∈
+{`resource_gone`, `funded`, `abandoned`} are `DOM-31`'s, and `close_reason` is non-null only when `state` is
+`closed`. `current_operation_id` names the latest attempt, which is an ordinary operation read
+through `WIR-27` — until `STO-14` retires it, after which the id is a `410` `gone` there and the
+episode is still here.
 
-**WIR-35** `POST /v1/operations/{id}/actions/resolve` — **operator-only** (`API-19`, `WIR-34`),
+`GET /v1/episodes/{id}` — **operator-only** (`WIR-34`), one episode view. `GET /v1/episodes?state=`
+— **operator-only**, cursor-paginated per `WIR-32`: `{"episodes": [], "next_cursor": null}`, each
+element the view above and elided on `WIR-25`'s terms; `state` accepts a comma-separated set from
+the enum, and an unrecognised value is `invalid_request` on `WIR-43`'s reasoning. Absent, every
+open episode is returned — this is `OPS-26`'s listing of `stalled` and `uncertain`, as one query.
+
+`POST /v1/episodes/{id}/actions/retry` — **operator-only**, body
+`{"reason": "provider ticket 44812 confirms the account is unblocked"}`, carrying `Idempotency-Key`
+under `WIR-24`'s one-transaction rule; **synchronous** `200` with the episode view, in `API-48`'s
+list. `API-64` is the rule: admissible only in `stalled`, otherwise `409` `conflict` with
+`details.reason: "state"`. The fresh attempt is the asynchronous part and is read through
+`current_operation_id`.
+
+**WIR-35** `POST /v1/operations/{id}/actions/resolve` — **operator-only** (`WIR-34`),
 the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the operator half of
 `F19`). Body is a discriminated union: `{"resolution": "observed", "external_id": "2345678",
 "kept_duplicate": "2345679", "operator_ref": "opref-7d41c9"}` attaches a discovered resource
@@ -722,7 +749,7 @@ omission cost nothing here*):
 `delete_machine` MUST carry `"effective_cancellation_date": "2026-09-12T00:00:00Z"`** where the
 operator established that the provider *scheduled* rather than performed it — an `applied` without
 the date asserts the resource is gone, and is the only other thing it can mean — which settles
-`succeeded` as `cancellation_scheduled` and keeps `OPS-44`'s episode and fence until the tombstone
+`succeeded` as `cancellation_scheduled` and moves the episode to `scheduled` (`OPS-48`), keeping the fence until the tombstone
 (*added 2026-09-05; without it an operator confirming a scheduled cancellation had no way to say so,
 and the resolution cleared the fence on a machine still billing*) — and
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
@@ -730,9 +757,9 @@ and the resolution cleared the fence on a machine still billing*) — and
 
 **The union is closed *per operation kind*, and a form outside its kind's set is
 `invalid_request`.** For `create_machine` and `adopt_machine`: `observed`, `absent`, `abandoned`.
-For `install`, `rescue_inventory`, `power`, `reverse_dns` and `delete_machine`: `applied`,
-`not_applied`, `abandoned`. `suspend_tenant` never reaches `needs_reconciliation` (`OPS-11`) and
-accepts none of them. `abandoned` is the one member common to both sets — it says nobody
+For `install`, `rescue_inventory`, `power`, `reverse_dns`, `delete_machine` and
+`release_attachment`: `applied`, `not_applied`, `abandoned`. `suspend_tenant` and `refresh` never reach `needs_reconciliation`
+(`OPS-11`) and accept none of them. `abandoned` is the one member common to both sets — it says nobody
 established what happened, which is a sentence about any kind. *Stated as two sets rather than as
 "refused on a create": that phrasing left `adopt_machine` taking the non-create verbs and
 `rescue_inventory` taking the create ones, and this document's preamble rule that it wins over prose
@@ -763,8 +790,7 @@ provider (`PRV-36`), which is what the operator is doing when they answer.
 outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`). *The
 reviewers flagged the field on `WIR-42`; it was here too, and an operation record is retained
 under `OPS-25` long enough for it to matter.* `external_id` is
-required for `observed`. It is distinct from requeue and is the only road out of the unresolved
-row (`OPS-33`). **Synchronous** — it records an operator decision against an existing operation
+required for `observed`. It is the only road out of the unresolved row (`OPS-33`). **Synchronous** — it records an operator decision against an existing operation
 and mints no provider mutation — returning `200` with the updated operation view, under
 `API-48`'s exemption and `STO-35`'s idempotency record. Minting an operation *about* an operation
 is a recursion `API-1` never intended.
@@ -802,7 +828,9 @@ never true.* **A create or adopt naming an account that is not `healthy` MUST be
 land between the two calls, so omission from the listing is not by itself the control.
 `{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
 "capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
-`DOM-22`).
+`DOM-22`). **This view is a subset of the driver's descriptor (`PRV-44`)**: `kind` and
+`capabilities` are the descriptor's fields, rendered; nothing here is declared anywhere else, and
+the descriptor's other fields do not reach the customer surface (*stated 2026-09-08, `ADR-0018`*).
 
 **AMENDED 2026-09-02 — the fixture declared `allow_orders: true` on an account that could not
 delete.** `WIR-37` makes every example here a test input, and this one described an account
@@ -1036,7 +1064,9 @@ cases from carrying two answers.
 `WIR-24`'s one-transaction rule. Body
 `{"provider_account": "hetzner-cloud-2", "mode": "add", "operator_ref": "opref-7d41d0"}`, where
 `mode` ∈ {`add`, `replace`} and `replace` removes every current assignment. Returns the tenant's
-assignment list as `WIR-29` would render it.
+assignment list in `WIR-29`'s wrapped shape — `{"providers": []}` with one entry per assigned
+account, exactly as the customer form of `WIR-29` renders it for that tenant — elided here on
+`WIR-25`'s terms.
 
 `operator_ref` carries the same constraint as `WIR-42`'s and `WIR-35`'s: an opaque reference to a
 record kept outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`).
@@ -1104,10 +1134,10 @@ because it has already released customer money.
 
 ## Listeners, limits and fixtures
 
-**WIR-34** **Operator-only routes** (`WIR-18` adopt, `WIR-28` requeue, `WIR-35` resolve, `WIR-39`
+**WIR-34** **Operator-only routes** (`WIR-18` adopt, `WIR-35` resolve, `WIR-39`
 suspend, `WIR-41` resume, `WIR-42` attribute, `WIR-44`'s three abuse-case verbs, `WIR-46`
 address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, `WIR-48`
-assign-provider-account, `WIR-50` record-status, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+assign-provider-account, `WIR-50` record-status, `WIR-51`'s three episode routes, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
 
@@ -1125,6 +1155,9 @@ listener's allow-list (`WIR-4a`).
 machines and operations alike: `limit` clamped to **1–200, default 50**. An out-of-range integer
 is clamped; a `limit` that is not a base-10 integer is `invalid_request`. Cursors are opaque and
 principal-scoped (`WIR-36`); a cursor from another tenant is `invalid_request`, never honoured.
+**Every collection is ordered by creation time descending, then by id** (*stated once, here,
+2026-09-08*): a cursor is stable only over a total order, and an unstated one is two implementations
+paging differently over the same rows.
 
 **WIR-36** **Every resource id is principal-scoped.** A machine, operation, deposit or enrolment
 handle that does not belong to the authenticated principal (or the override tenant of `WIR-33`)

@@ -39,7 +39,7 @@ containing zero tests, and a green check beside it.
 | `00-overview.md` | Problem statement, design goals, system context, non-goals |
 | `01-domain-model.md` | Entities, machine states, the capability model |
 | `02-provider-contract.md` | The provider driver interface, operation by operation |
-| `03-operation-lifecycle.md` | Async operation queue, leases, locks, the reconciliation state machine |
+| `03-operation-lifecycle.md` | Async operation queue, claiming, the episode, the reconciliation state machine |
 | `04-api-contract.md` | REST surface, authentication, tenancy, idempotency, error envelope |
 | `05-persistence.md` | Storage requirements and schema specification |
 | `06-rescue-install.md` | Rescue-mode workflow, host-key pinning, image installers |
@@ -47,7 +47,7 @@ containing zero tests, and a green check beside it.
 | `08-provider-notes.md` | Per-provider API facts worth preserving, and their caveats |
 | `09-known-defects.md` | Defects found in the reference implementation, as prohibitions |
 | `10-conformance-checklist.md` | What a reimplementation must demonstrate before it serves traffic |
-| `11-open-findings.md` | **Read this before building.** Findings `F1`–`F39` accumulated over several successive audits, which are fixed and which are open, and the three questions a builder must ask first — all three now answered. `F37` is the first closed by measuring a live provider rather than by reading one; `F36` is the first closed by deleting the mechanism that produced it (`ADR-0014`) |
+| `11-open-findings.md` | **Read this before building.** Findings `F1`–`F45` accumulated over several successive audits, which are fixed and which are open, and the three questions a builder must ask first — all three now answered. `F37` is the first closed by measuring a live provider rather than by reading one; `F36` is the first closed by deleting the mechanism that produced it (`ADR-0014`) |
 | `12-billing-and-ledger.md` | The ledger, commitments, the meter, funding, exhaustion and solvency. Under `ADR-0002` this **is** the authorization system |
 | `CONTEXT.md` | Glossary. Which word means what, and which words are banned |
 | `13-wire-contract.md` | Bodies, headers, bearer auth, the error envelope. Closes `F19`, panel-reviewed |
@@ -81,6 +81,9 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0013` | Catalogue install is a second feature, not a second strategy: DigitalOcean has no rescue API, but imports custom images, so bring-your-own-OS exists on both companies by different means and with different promises. Closes `F32` |
 | `0014` | A create cannot be requeued: the operator cannot re-place the customer's order and `ADR-0002` leaves nobody to ask for it. Closes `F36` by deleting the mechanism that produced it; opens `F38` and `F39` |
 | `0015` | PostgreSQL is the store. The single-writer engine's single point of failure is an outage of every mechanism that stops a machine billing, and `LDG-35`'s "MUST state which" had been met by accident for as long as it stood |
+| `0016` | The engine is one supervised process fenced by a per-lifetime epoch; `api` alone is replicable. The leases, the heartbeat, the sweep cadence and the machine lock are deleted rather than fenced, and the restart window is the accepted outage. Amends `0015` |
+| `0017` | A cancellation episode is an entity with its own states; `failed` is a fact about one attempt, and "known but not done" belongs to the episode. Requeue, reduced to one kind by `0014`, is deleted — that kind's recovery is an operator `retry` on the episode |
+| `0018` | A driver's declarations are one typed, immutable descriptor, and a measured window is the larger of the declared bound and the largest observed sample, held in the store. Attachments get list and release methods under `delete_machine` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
@@ -205,6 +208,27 @@ Deleted from the documents. Never reused. Listed so an older citation still reso
 | `WIR-6` | The Ed25519 signed byte string | Reversed by `API-39`, which carries the argument in full — elaborate authentication guarding a non-extractable asset, at the cost of the most interop-fragile construct in the set |
 | `WIR-7` | Clock-skew tolerance for the signature timestamp | Nothing is signed |
 | `WIR-8` | Ed25519 key rotation | Superseded by `WIR-38`, authorized by the recovery credential |
+| `OPS-7` | Lease renewal on a heartbeat | `ADR-0016`: one engine, one epoch; there is no lease to renew |
+| `OPS-9` | Atomic machine-lock acquisition and takeover | `ADR-0016`: `OPS-8`'s at-most-one-running rule is a store index, and defer-on-refusal moved into `OPS-8` |
+| `OPS-10` | Machine-lock lease renewed with the operation lease | `ADR-0016`: neither lease exists |
+| `OPS-14` | The lease sweeper | `ADR-0016`: with one writer, `OPS-15`'s startup pass is the whole sweep |
+| `OPS-17` | Sweep interval tied to lease duration | `ADR-0016`: no lease, no interval |
+| `OPS-18` | Requeue restricted by kind | `ADR-0017`: requeue is deleted |
+| `OPS-19` | Requeue audit trail | `ADR-0017`: the episode and `WIR-51`'s `reason` carry it |
+| `OPS-20` | Requeue places a second order, reuses and re-prices the commitment | `ADR-0014` withdrew it for creates; `ADR-0017` deleted the verb |
+| `OPS-34` | Requeue equivalence check | `ADR-0017`: nothing is requeued, so nothing is compared. `F38` holds the `target` history |
+| `OPS-46` | The admissible requeue set | `ADR-0017`: reduced to one kind by `F39`, and that kind's recovery is `API-64`'s `retry` on the episode |
+| `STO-2` | Conditional upsert for the machine lock | `ADR-0016`: `machine_locks` is deleted; `STO-51` is the index that replaces it |
+| `STO-11` | `machine_locks` primary key | Same |
+| `STO-20` | `operation_requeues` audit columns | `ADR-0017`: the table is deleted with the verb |
+| `API-19` | Requeue is operator-only | `ADR-0017`: `API-64`'s `retry` carries the operator-only rule |
+| `WIR-28` | `POST /v1/operations/{id}/actions/requeue` | `ADR-0017`: `WIR-51` is the episode surface. Its fixture carried an acknowledgement its own prose forbade — `F43` |
+| `RSC-37` | The operation lease during a long install, renewed by heartbeat | `ADR-0016`: no lease; a long install simply holds the machine (`OPS-8`) |
+| `SEC-28` | Requeue operator-only and re-purchase explicit | Both cited rules are deleted by `ADR-0017`; restating `API-64` here would be the second copy the scope note forbids |
+| `CNF-28` | A worker whose lease is stolen mid-flight abandons its work | `ADR-0016`: `CNF-290`'s stale-epoch clause is the analogue |
+| `CNF-48` | A 90-minute install does not lose its lease | `ADR-0016`: nothing to lose |
+| `CNF-221` | The requeue equivalence test | `ADR-0017`: it tested `OPS-34` by name |
+| `CNF-261` | Two operations racing `machine_locks` | `ADR-0016`: `CNF-290` and `CNF-27` assert `STO-51`'s index instead |
 
 *Swept 2026-08-31. The `machines` table also lost five `reserve_*` columns in the same pass —
 written by nothing, read by nothing, and left over from the `holds` model `LDG-30` replaced on
@@ -221,8 +245,9 @@ implementation used Rust, an async HTTP framework and SQLite, and only the last 
 those reached the requirements. `05-persistence.md` still states what the store must
 provide rather than how, so a reimplementation is free to satisfy `STO-1`–`STO-7`
 another way; what it may not do is satisfy them on an engine that forbids a second
-replica, because `STO-6`'s single point of failure is an outage of every mechanism
-that stops a machine billing.
+`api` replica. `api` is the module that scales; the engine is deliberately one
+supervised process (`ADR-0016`), and its outage window is alarmed rather than
+replicated away (`OVR-18`).
 
 ## Status
 

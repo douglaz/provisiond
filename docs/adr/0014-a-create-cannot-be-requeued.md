@@ -1,6 +1,10 @@
 # A create cannot be requeued; a second purchase is the customer's decision
 
-**Status:** accepted (2026-09-05)
+**Status:** accepted (2026-09-05). **Amended by `ADR-0017` (2026-09-07)**: the scope requeue was
+said to survive with under *Consequences* — "exposure-reducing cancellation, power, reverse DNS,
+end-rescue, and adopt" — was withdrawn by `F39` one day later and the verb itself is now deleted;
+the one kind that remained recovers through an operator `retry` on its episode. The argument here
+for why a create cannot be re-placed stands unchanged.
 
 `OPS-20` let an operator requeue a `create_machine` operation, placing a second physical order
 against the customer's balance. **That verb is withdrawn for creates.** A create that failed, or

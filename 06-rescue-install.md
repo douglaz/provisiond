@@ -170,7 +170,9 @@ filesystem archive.
 **RSC-22** The engine MUST generate the installer's configuration from a structured
 layout: drives, software-RAID flag and level, partitions (mountpoint, filesystem, size),
 hostname, bootloader, image path, authorized-keys source, and an optional post-install
-script.
+script. **AMENDED 2026-09-08 — the image path is engine-chosen**: absolute, under a
+per-operation directory in the rescue environment, carrying `RSC-24`'s extension, and bounded as
+`RSC-27` bounds the target; it is never a caller value.
 
 **RSC-23** Layout validation MUST enforce: at least one drive; at least one partition;
 every drive a **stable identifier** resolving to exactly one device (`RSC-26`) rather than a
@@ -243,11 +245,24 @@ say why, four documents away from the name that caused the confusion. `CONTEXT.m
 *The same word also means the CORS `OPTIONS` request in `WIR-4a` — it was ambiguous inside a single
 document before it was ambiguous about danger.*
 
+**RSC-46** **Identifier normalization and the fingerprint's canonical form.** Before comparison
+an identifier — a caller's `target.identifier`, a `layout.drives[].identifier`, or a value read
+from the inventory — is trimmed of ASCII whitespace, compared case-insensitively, and stripped of
+a leading `0x`. Matching tries the WWN first, then the serial; a WWN match and a serial match
+naming different devices is `RSC-26`'s more-than-one case and aborts `integrity` before any write.
+The `inventory_fingerprint` is SHA-256 over the RFC 8785 canonical JSON of the device list sorted
+by identifier, each device exactly `{wwn, serial, size_bytes}` with `null` where a value is
+absent; device paths are excluded, because they are the unstable part. On the wire it is 64
+lowercase hex characters. `WIR-20` and `WIR-10b` cite this for the `target.identifier` and
+`inventory_fingerprint` constraints.
+
 **RSC-27** The target MUST be validated as a simple path under the device directory, and
 the remote script MUST additionally verify at runtime that it is a block device.
 
 **RSC-28** The stream MUST be digested while it is decompressed and written, so the image
-is read once.
+is read once. **AMENDED 2026-09-08 — what is digested.** The `sha256` is over the bytes as
+fetched from `source.url`, before decompression, for every strategy; `RSC-39` says the same for
+the catalogue import.
 
 **RSC-29** **Digest verification for this strategy completes only after data has begun
 overwriting the target disk.** This is inherent to single-pass streaming and MUST be
@@ -291,15 +306,11 @@ discarded.
 ## Timeouts
 
 **RSC-35** Three timeouts MUST be configurable and MUST be validated at startup: boot
-(waiting for rescue SSH), command (a single remote command), and poll interval. Sensible
-defaults: 10 minutes, 90 minutes, 5 seconds.
+(waiting for rescue SSH), command (a single remote command), and poll interval. They are
+deployment parameters (`OVR-19`). Sensible defaults: 10 minutes, 90 minutes, 5 seconds.
 
 **RSC-36** The command timeout must accommodate a full image write over the provider's
 network. It is normal for it to be an order of magnitude larger than the boot timeout.
-
-**RSC-37** The operation lease (`OPS-7`) is unrelated to these and MUST be renewed by
-heartbeat throughout, so a 90-minute install does not lose its lease at minute three.
-
 
 ## Catalogue installation
 
@@ -310,7 +321,8 @@ what was rejected.
 
 **RSC-39** **The operator re-hosts the image and verifies it in transit.** The provider fetches from
 a URL rather than accepting an upload, so something must serve the bytes. provisiond MUST fetch the
-caller's image, verify its `sha256` **as it streams**, store it in operator-controlled immutable
+caller's image, verify its `sha256` **as it streams** — over the bytes as fetched from
+`source.url`, before any decompression (`RSC-28`) — store it in operator-controlled immutable
 storage (`RSC-30`), and give the provider a URL to that copy. The caller's own URL MUST NOT be
 passed to the provider.
 
@@ -412,26 +424,26 @@ inside the process that holds every provider credential and root on every custom
 a long history of exactly this class of vulnerability. *Written down because the next reviewer will
 propose a cheap magic-byte check, and this is why it was refused.*
 
-**RSC-41** **The import happens outside the machine lock, and is bounded.** The import touches no
-machine; only the switch-over does. So the operation MUST import and poll the provider to a usable
-state while holding **no** machine lock, and acquire it only for the rebuild and the cleanup — the
-one exception `OPS-8` admits, and it is admitted *there* (amended 2026-09-02) rather than asserted
-here. *Naming itself a narrowing did not make it one: `OPS-8` said "for its duration" without
-qualification, so the two requirements were a straight contradiction and the winner was whichever a
-builder read second.* On re-acquiring the lock the operation MUST re-validate before the rebuild
-(`OPS-9`, `OPS-23`): an exposure-reducing cancellation taking the lock during the import is the
-behaviour this narrowing exists to permit, so the machine may be gone by the time the import
-finishes.
+**RSC-41** **The import happens with the operation yielded, and is bounded.** The import touches
+no machine; only the switch-over does. So the operation MUST import and poll the provider to a
+usable state while **yielded** (`OPS-8`'s `yielded_at`), and hold the machine only for the rebuild
+and the cleanup — the one exception `OPS-8` admits, and it is admitted *there* (amended
+2026-09-02) rather than asserted here. *Naming itself a narrowing did not make it one: `OPS-8`
+said "for its duration" without qualification, so the two requirements were a straight
+contradiction and the winner was whichever a builder read second.* On re-acquiring the machine
+the operation MUST re-validate before the rebuild (`OPS-23`): an exposure-reducing cancellation
+holding the machine during the import is the behaviour this narrowing exists to permit, so the
+machine may be gone by the time the import finishes.
 
 **A maximum import wait MUST be stated**, past which the operation aborts and the imported image is
 deleted.
 
 Three things go wrong without this, and the third is the expensive one. The caller's existing
-machine is locked and idle while still billing. An exposure-reducing cancellation queues behind it
-(`OPS-9` defers rather than waits, so it simply does not run). And `PRV-13b` puts the deployment's
-worst-case machine-lock hold inside `wind_down_cost`, which sizes the reserve on **every machine in
-the fleet** — so an unbounded provider queue on one driver would raise the commitment every customer
-must post before buying anything.
+machine is held and idle while still billing. An exposure-reducing cancellation queues behind it
+(`OPS-8` defers with a short delay rather than waits, so it simply does not run). And `PRV-13b`
+puts the deployment's worst-case operation hold inside `wind_down_cost`, which sizes the reserve
+on **every machine in the fleet** — so an unbounded provider queue on one driver would raise the
+commitment every customer must post before buying anything.
 
 **RSC-42** **Both copies of the image are purged when the operation stops being live** — the
 operator's re-hosted copy and the provider's imported one — on entry to any settled state **and on
@@ -439,11 +451,8 @@ entry to `needs_reconciliation`**, exactly as `OPS-2` purges the request payload
 `ADR-0005` applied to a new object rather than a new rule invented for one, which is the move
 `STO-42` made for abuse statements.
 
-**AMENDED 2026-09-06 — an install cannot be requeued** (`OPS-46`, `F39`), so a fresh copy arrives
-only by the caller sending a fresh install. *The withdrawn sentence read "A requeue carries a fresh
-payload (`OPS-34`) and re-uploads", which asked an operator to re-upload image bytes `STO-9` had
-purged and never gave them.* **The provider-side copy is deleted by
-a call that may fail or be lost**, so the import MUST carry the operation's correlator as a
+A fresh copy arrives only by the caller sending a fresh install. **The provider-side copy is
+deleted by a call that may fail or be lost**, so the import MUST carry the operation's correlator as a
 provider-side tag and `OPS-32`'s account sweep MUST delete any image whose operation has settled or
 vanished. An orphan is not merely a storage charge: it is a copy of a customer's operating system
 left in the operator's account after the deployment undertook to destroy it.
@@ -480,5 +489,5 @@ does, for a different reason and with the same remedy.
 
 A driver MUST therefore either order the address addon and carry its cost into the offer's price, or
 declare that its rescue path is IPv6-capable and that the deployment running it must be too. The
-choice is a per-driver fact and belongs in `08-provider-notes.md`; what MUST NOT happen is a machine
-bought before anyone established it could be reached.
+choice is declared in the descriptor's `rescue_address_family` (`PRV-44`); what MUST NOT happen is
+a machine bought before anyone established it could be reached.
