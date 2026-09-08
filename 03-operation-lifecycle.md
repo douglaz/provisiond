@@ -37,7 +37,7 @@ account was only ever determined inside the call that vanished.
 | State | Meaning | Terminal |
 |---|---|---|
 | `queued` | Waiting for a worker | no |
-| `running` | Claimed by the engine, whose writes are guarded on its epoch (`OPS-47`) | no |
+| `running` | Claimed by the engine, whose settled-state writes are guarded on this status (`STO-3`) | no |
 | `succeeded` | Completed; result recorded | yes |
 | `failed` | Completed unsuccessfully; provider state is known | yes |
 | `needs_reconciliation` | Outcome unknown; resolution pending (`OPS-3`) | **no** — settles to `succeeded` or `failed` |
@@ -76,15 +76,15 @@ account was only ever determined inside the call that vanished.
 mutation, no timer, no caller action. `OPS-27`'s evidence sweep is itself automatic and does move
 the state; what the system MUST NOT do automatically is retry (`OVR-5`).
 
-**OPS-3** **AMENDED 2026-09-08 (`ADR-0016`) — the worker's guard is the epoch, not a lease.**
-`needs_reconciliation` is *resolution-pending*, not terminal; `succeeded` and `failed` are the
-terminal states. **A transition made *by a worker* MUST be guarded on the engine's epoch**
-(`OPS-47`, `STO-3`); a worker whose guarded write affects no row has been superseded and MUST NOT
-overwrite the record. **Resolution transitions out of `needs_reconciliation` are made by no
-worker** — by `OPS-27`'s sweep or `OPS-31`/`WIR-35`'s operator verb — and are guarded instead by
-`STO-19`'s write-once resolution columns (the sweep is an engine write and carries the epoch term
-as well, `OPS-47`; the operator verb is `api`'s and carries none). Scoping the worker clause is
-required, not stylistic: read unscoped it forbids the operator verb, which no epoch guards.
+**OPS-3** **AMENDED 2026-09-08 (`ADR-0019`) — the worker's guard is the operation's status; the
+epoch that briefly replaced the lease is deleted.** `needs_reconciliation` is *resolution-pending*,
+not terminal; `succeeded` and `failed` are the terminal states. **A transition made *by a worker*
+MUST be guarded on that operation still being `running`** (`STO-3`); a worker whose guarded write
+affects no row has been overtaken by `OPS-15`'s startup pass and MUST NOT overwrite the record.
+**Resolution transitions out of `needs_reconciliation` are made by no worker** — by `OPS-27`'s
+sweep or `OPS-31`/`WIR-35`'s operator verb — and are guarded instead by `STO-19`'s write-once
+resolution columns. Scoping the worker clause is required, not stylistic: read unscoped it forbids
+the operator verb, which no status guard fits.
 
 *Calling it terminal contradicted every requirement that resolves it.* `OPS-27` transitions it
 automatically on a correlator match, `OPS-31`/`WIR-35` transition it by operator verb, and `OPS-4`
@@ -121,18 +121,29 @@ back to `queued`.
 
 ## Claiming
 
-**OPS-47** **ADDED 2026-09-08 (`ADR-0016`).** The engine MUST run as exactly one process under an
-external supervisor that restarts it and never runs two. At startup it MUST increment
-`engine_epoch` (`STO-51`) and hold the value for its lifetime. Every engine write to `operations`
-and `machines` MUST be guarded on `epoch = mine` and MUST report whether it affected a row; a write
-that affects no row means the process has been superseded and it MUST exit without further writes.
-*The guard is what makes "exactly one" a property the store checks rather than a deployment
-promise: two engines started by accident leave the later one writing and the earlier one exiting.
-The restart window is the accepted outage, and it is alarmed (`OVR-18`).*
+**OPS-47** **AMENDED 2026-09-08 (`ADR-0019`) — the supervisor is the guarantee, and the engine
+checks at boot that it is alone.** The engine MUST run as exactly one process under an external
+supervisor that restarts it and never runs two. **That is a deployment obligation and not a
+property this specification enforces** (`OVR-19`): where two engines run, nothing here refuses the
+second, and both will work the queue. A supervisor guarantees it never *starts* two; it cannot
+guarantee the first is dead, so a node cut off from its supervisor while it still reaches the
+provider is out of scope and is the operator's to notice (`OVR-18`).
 
-**OPS-5** **AMENDED 2026-09-08 (`ADR-0016`).** Claiming MUST be atomic: selecting the next eligible
-operation and marking it `running` with the engine's epoch (`OPS-47`) MUST happen in one
-indivisible step. No claim carries a deadline; a `running` operation stays claimed until it
+Before any claim the engine MUST take `STO-51`'s session-scoped advisory lock on a connection
+outside the pool and hold it for its lifetime. Where the lock is refused it MUST retry for the
+stated bound (`OVR-19`) and then exit non-zero having done no work; where the connection carrying
+it is lost it MUST exit. **The lock is not a fence**: no write is guarded on it, holding it proves
+nothing about the past, and losing it invalidates nothing already written. It answers one question,
+once, at boot — is somebody else already here — and a refusal is a misconfigured deployment, which
+is how two engines actually happen.
+
+*The withdrawn form guarded every engine write on an `engine_epoch` the claiming process had
+stamped itself, so the term held by construction and could not fire; `ADR-0019` has the analysis.
+A supervised restart is caught without it, by `OPS-15`'s startup pass and `STO-3`'s
+`status = running` term. The restart window is the accepted outage, and it is alarmed (`OVR-18`).*
+
+**OPS-5** **AMENDED 2026-09-08 (`ADR-0019`).** Claiming MUST be atomic: selecting the next eligible
+operation and marking it `running` MUST happen in one indivisible step. No claim carries a deadline; a `running` operation stays claimed until it
 settles or the startup pass finds it (`OPS-15`).
 
 **OPS-6** The claim MUST select the oldest `queued` operation whose availability time has
@@ -589,7 +600,7 @@ briefly; nothing may deny it.
 
 **System-initiated provider mutations MUST be operations, and the tenant MUST see them.** Exhaustion cancelling a machine (`LDG-14`), `OPS-36`'s attach-then-cancel, and any other
 mutation the deployment performs on a tenant's machine without a caller request MUST go through
-this queue — the epoch guard (`OPS-47`), per-machine serialization (`OPS-8`), settled states,
+this queue — the atomic claim (`OPS-5`), per-machine serialization (`OPS-8`), settled states,
 `needs_reconciliation` included, because a cancel
 whose outcome cannot be established is ambiguous no matter who requested it — and MUST appear in the
 tenant's operation list marked `requested_by: system` with a stated reason (`exhausted`,
@@ -1000,8 +1011,8 @@ and a later operation that exits rescue cleanly genuinely repairs what a previou
 recorded on its own row.
 
 A worker's write of either is guarded like any other worker write, on
-`(id, status = running, epoch = mine)` (`STO-3`, `OPS-47`), and MUST report whether it affected a
-row — a superseded worker MUST NOT record that it began writing; it exits.
+`(id, status = running)` (`STO-3`), and MUST report whether it affected a
+row — a worker the startup pass has overtaken MUST NOT record that it began writing; it exits.
 
 **OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
 Periodic reconciliation MUST run across each provider account independently of any stuck
@@ -1124,12 +1135,13 @@ the only road, but the commitment was released long before.
 
 ```
 startup:                                          # OPS-47, OPS-15
-    epoch = increment_engine_epoch()              # STO-51
+    if not take_startup_lock(bound):              # STO-51: session-scoped, held for life
+        exit_nonzero()                            # OPS-47: another engine is already here
     n = move_running_to_needs_reconciliation()    # suspend_tenant parents -> queued
     log(n)
 
 loop:
-    op = claim_next_queued_operation(epoch)       # OPS-5: atomic, marks running with epoch
+    op = claim_next_queued_operation()            # OPS-5: atomic, marks running
     if op is none:
         idle_sleep(); continue
     if claim refused by the per-machine index:    # STO-51: another running op holds the machine
@@ -1140,28 +1152,34 @@ loop:
     # write the index may refuse, in which case defer(op, delay)   (OPS-8)
 
     if outcome is success:
-        ok = finish_success(op, epoch, result)    # guarded (id, running, epoch = mine), STO-3
+        ok = finish_success(op, result)           # guarded (id, status = running), STO-3
     else:
         if classify(op, error) is ambiguous:
-            ok = finish_needs_reconciliation(op, epoch, error)
+            ok = finish_needs_reconciliation(op, error)
         else:
-            ok = finish_failed(op, epoch, error)
+            ok = finish_failed(op, error)
 
-    if not ok:                                    # affected no row: superseded
-        exit()                                    # OPS-47, OPS-22
+    if not ok:                                    # affected no row: a restart swept it
+        exit()                                    # OPS-22
 ```
 
-Every guarded write in `execute` — `OPS-45`'s markers, `OPS-42`'s fence — exits the same way.
+A write affecting no row means `OPS-15`'s startup pass has already moved the operation, so a
+process that outlived a restart stops at its next settled-state write. `OPS-45`'s markers and
+`OPS-42`'s fence write machine rows and carry no such guard, which is why `OPS-47` says "where two
+engines run, nothing here refuses the second, and both will work the queue" instead of implying
+otherwise.
 
 **OPS-21** `execute` MUST be cancellable, and cancellation MUST be treated as an
 ambiguous outcome. A provider call abandoned mid-flight is exactly the uncertainty this
 design exists to represent.
 
-**OPS-22** **AMENDED 2026-09-08 (`ADR-0016`).** A **worker** recording a settled state MUST do so
-guarded on the engine's epoch (`OPS-3`, `OPS-47`, `STO-3`); a resolution transition out of
-`needs_reconciliation` is made by no worker and is guarded by `STO-19`'s write-once columns
-instead. Where the guarded write affects no row, the worker MUST log it loudly, leave the record
-alone, and exit (`OPS-47`); the successor's startup pass has already classified it (`OPS-15`).
+**OPS-22** **AMENDED 2026-09-08 (`ADR-0019`) — the guard term is the operation's own status.** A
+**worker** recording a settled state MUST do so guarded on that operation still being `running`
+(`OPS-3`, `STO-3`); a resolution transition out of `needs_reconciliation` is made by no worker and
+is guarded by `STO-19`'s write-once columns instead. Where the guarded write affects no row, the
+worker MUST log it loudly, leave the record alone, and exit; the startup pass has already
+classified it (`OPS-15`). *The epoch term this requirement carried until `ADR-0019` could not fail,
+because the claiming process stamped the value it then compared against.*
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

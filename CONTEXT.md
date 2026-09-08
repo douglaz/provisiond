@@ -311,6 +311,15 @@ and is withdrawn (`OPS-34`, amended 2026-09-06; `F38` holds the reasoning). Neve
 another: an undefined comparison field reads as checkable and is not, which is how that one
 survived three reviews and a conformance item that tested it by name.
 
+**"Epoch" is withdrawn** (2026-09-08, `ADR-0019`), and the trap is worth keeping. It named a
+counter each engine took at startup and stamped onto the operations it claimed, and it was
+described everywhere as a *fence*. It was not one: a worker compared the value against the value
+it had written itself, so the term held by construction and the operation's own status was doing
+all the work. Never reintroduce a guard whose compared value has a single writer that is also the
+thing being guarded — that is not a check, and it reads exactly like one. What replaced it is a
+lock taken once at boot, of which `OPS-47` says "**The lock is not a fence**", in its own text and
+for this reason.
+
 **"Preflight" is banned**, and it is banned for causing the misreading it names. It was the word for
 what is now **rescue inventory**, and it reads as harmless: it is read-only about the *disk* and not
 about the *machine*, which it reboots into another operating system and can strand there.

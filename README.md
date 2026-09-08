@@ -81,9 +81,10 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0013` | Catalogue install is a second feature, not a second strategy: DigitalOcean has no rescue API, but imports custom images, so bring-your-own-OS exists on both companies by different means and with different promises. Closes `F32` |
 | `0014` | A create cannot be requeued: the operator cannot re-place the customer's order and `ADR-0002` leaves nobody to ask for it. Closes `F36` by deleting the mechanism that produced it; opens `F38` and `F39` |
 | `0015` | PostgreSQL is the store. The single-writer engine's single point of failure is an outage of every mechanism that stops a machine billing, and `LDG-35`'s "MUST state which" had been met by accident for as long as it stood |
-| `0016` | The engine is one supervised process fenced by a per-lifetime epoch; `api` alone is replicable. The leases, the heartbeat, the sweep cadence and the machine lock are deleted rather than fenced, and the restart window is the accepted outage. Amends `0015` |
+| `0016` | The engine is one supervised process; `api` alone is replicable. The leases, the heartbeat, the sweep cadence and the machine lock are deleted rather than fenced, and the restart window is the accepted outage. Amends `0015`; its per-lifetime epoch is deleted by `0019` |
 | `0017` | A cancellation episode is an entity with its own states; `failed` is a fact about one attempt, and "known but not done" belongs to the episode. Requeue, reduced to one kind by `0014`, is deleted — that kind's recovery is an operator `retry` on the episode |
 | `0018` | A driver's declarations are one typed, immutable descriptor, and a measured window is the larger of the declared bound and the largest observed sample, held in the store. Attachments get list and release methods under `delete_machine` |
+| `0019` | `0016`'s epoch was not a fence: the claiming process stamped the value it then compared against, so the guard held by construction. It is deleted, a second concurrent engine is stated as out of scope, and the engine takes a session-scoped lock at boot to refuse a second *start*. Amends `0016` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
@@ -208,7 +209,7 @@ Deleted from the documents. Never reused. Listed so an older citation still reso
 | `WIR-6` | The Ed25519 signed byte string | Reversed by `API-39`, which carries the argument in full — elaborate authentication guarding a non-extractable asset, at the cost of the most interop-fragile construct in the set |
 | `WIR-7` | Clock-skew tolerance for the signature timestamp | Nothing is signed |
 | `WIR-8` | Ed25519 key rotation | Superseded by `WIR-38`, authorized by the recovery credential |
-| `OPS-7` | Lease renewal on a heartbeat | `ADR-0016`: one engine, one epoch; there is no lease to renew |
+| `OPS-7` | Lease renewal on a heartbeat | `ADR-0016`: one engine; there is no lease to renew |
 | `OPS-9` | Atomic machine-lock acquisition and takeover | `ADR-0016`: `OPS-8`'s at-most-one-running rule is a store index, and defer-on-refusal moved into `OPS-8` |
 | `OPS-10` | Machine-lock lease renewed with the operation lease | `ADR-0016`: neither lease exists |
 | `OPS-14` | The lease sweeper | `ADR-0016`: with one writer, `OPS-15`'s startup pass is the whole sweep |
@@ -225,7 +226,7 @@ Deleted from the documents. Never reused. Listed so an older citation still reso
 | `WIR-28` | `POST /v1/operations/{id}/actions/requeue` | `ADR-0017`: `WIR-51` is the episode surface. Its fixture carried an acknowledgement its own prose forbade — `F43` |
 | `RSC-37` | The operation lease during a long install, renewed by heartbeat | `ADR-0016`: no lease; a long install simply holds the machine (`OPS-8`) |
 | `SEC-28` | Requeue operator-only and re-purchase explicit | Both cited rules are deleted by `ADR-0017`; restating `API-64` here would be the second copy the scope note forbids |
-| `CNF-28` | A worker whose lease is stolen mid-flight abandons its work | `ADR-0016`: `CNF-290`'s stale-epoch clause is the analogue |
+| `CNF-28` | A worker whose lease is stolen mid-flight abandons its work | `ADR-0016`: `CNF-290`'s restart clause is the analogue, and `ADR-0019` deleted the stale-epoch one |
 | `CNF-48` | A 90-minute install does not lose its lease | `ADR-0016`: nothing to lose |
 | `CNF-221` | The requeue equivalence test | `ADR-0017`: it tested `OPS-34` by name |
 | `CNF-261` | Two operations racing `machine_locks` | `ADR-0016`: `CNF-290` and `CNF-27` assert `STO-51`'s index instead |
@@ -247,7 +248,9 @@ provide rather than how, so a reimplementation is free to satisfy `STO-1`–`STO
 another way; what it may not do is satisfy them on an engine that forbids a second
 `api` replica. `api` is the module that scales; the engine is deliberately one
 supervised process (`ADR-0016`), and its outage window is alarmed rather than
-replicated away (`OVR-18`).
+replicated away (`OVR-18`). That the process is one is, in `OPS-47`'s words, "a
+deployment obligation and not a property this specification enforces"
+(`ADR-0019`).
 
 ## Status
 

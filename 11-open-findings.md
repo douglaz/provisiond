@@ -37,6 +37,52 @@ has been validated against a running system, a real provider response, or a payi
 design is now internally consistent and considerably more opinionated than it was — which raises,
 rather than lowers, the value of the first real transaction.
 
+## The review of the review — 2026-09-08
+
+A read of the text `F40`–`F45` produced, by readers with no memory of writing it, hunting for
+invented behaviour and for stale sentences the sweep missed. The deletion half held: the leases,
+the machine lock, `machines.system_trigger_ids` and requeue survive only in withdrawal records.
+The construction half did not, and the first finding is the one that matters.
+
+**F46. CLOSED — the epoch was not a fence, and it failed the way the leases failed.** `OPS-47`
+said "Every engine write to `operations` and `machines` MUST be guarded on `epoch = mine`", and
+`operations.epoch` was "stamped by `STO-1`'s claim" — by the claiming process, from the value it
+held. A worker checking that the row still carried its own number was checking a value it wrote
+itself, so the term held by construction; `engine_epoch` was read once in the set, at increment,
+and compared to nothing. Of `STO-3`'s four conditional writes only the worker's carried the term,
+and the one doing the work was the startup pass, "guarded on `(id, status = running)`". So the
+guard caught a process whose operations the successor had already swept, and a process that woke
+past a restart and claimed a *fresh* operation passed every check and ran alongside the live
+engine indefinitely. `ADR-0016`'s "the guard is what makes "exactly one" a property the store
+checks rather than a deployment promise" was false as written — the same sentence `F40` records
+against the leases, that "The promise was in prose and absent from the predicate."
+
+Two things compounded it: `machines` carried no such column though `OPS-47` demanded the guard
+there, leaving `OPS-42`'s fence unguarded; and `CNF-290`, BLOCKING, asked for a stale machine write
+"carrying the previous `engine_epoch`" that no table could hold. **Closed by `ADR-0019`**: the
+epoch is deleted, a second concurrent engine is stated as out of scope with the supervisor named as
+the guarantee, and the engine takes a session-scoped lock at boot that refuses a second *start* and
+is not a fence. `OPS-3`, `OPS-5`, `OPS-22`, `OPS-47`, `STO-1`, `STO-3`, `STO-51`, `CNF-197`,
+`CNF-290`, `OVR-19`.
+
+*The lesson is narrower than "check your predicates" and worth keeping in the vocabulary
+(`CONTEXT.md`): a guard whose compared value has one writer, which is the thing being guarded,
+is not a check and reads exactly like one.*
+
+**Open, and not addressed here.** The same read produced findings this session did not act on. They
+are recorded so the next one does not have to find them again: `adopt` classifies "Always `failed`"
+under `OPS-11` while `WIR-35` and `05-persistence.md`'s `resolution` column admit `observed`,
+`absent` and `abandoned` for it and `CNF-179` (BLOCKING) tests them; `PRV-42`'s per-channel
+declaration has no field in `PRV-44`'s descriptor though `CNF-285` tests it; three requirements
+say transient cases "are deferred rather than failed (`OPS-11`)" and `OPS-11` defers nothing, so a
+provider throttle on a delete stalls an episode a human must clear; `DOM-31` draws
+`stalled --> closed : abandoned` and no verb provides it; `PRV-36`'s effective window is a max in
+its own paragraph while `OPS-32` and `LDG-74` still read "declared"; `release_attachment` is absent
+from most enumerations of the kinds and has no operator route; and `LDG-34` still justifies its
+compare-and-swap by "two workers re-deriving the same machine", which `PRV-13e` withdrew. The
+implementation-process review's §6.13, §6.14 and §6.15 were never closed, and the count below
+should read fifteen where it says twelve.
+
 ## The implementation-process review — 2026-09-06, closed 2026-09-07
 
 An implementation-readiness review (`impl-report-01.md`, kept at the root as the record) read the
@@ -53,9 +99,11 @@ not yet reached wrote a terminal state that landed; a second operation could tak
 under `OPS-9` the instant the first's lease expired, while the first's stale write still passed. No
 requirement stated behaviour at equality-at-expiry, and no generation or fencing token existed
 anywhere in the set. **The remedy on the table was a fencing token; the remedy taken was removing
-the second writer** (`ADR-0016`): the engine is one supervised process fenced by a per-lifetime
-epoch, the leases, heartbeat, sweep cadence and machine lock are deleted, and the restart window is
-the accepted outage. `OPS-47`, `STO-51`, `OVR-18`, `CNF-290`.
+the second writer** (`ADR-0016`): the engine is one supervised process, the leases, heartbeat,
+sweep cadence and machine lock are deleted, and the restart window is the accepted outage.
+`OPS-47`, `STO-51`, `OVR-18`, `CNF-290`. **The epoch that `ADR-0016` fenced with reproduced this
+finding's own shape and is deleted by `ADR-0019` — see `F46`.** The closure holds: what the lease
+defect needed was one writer, and there is one.
 
 **F41. CLOSED — the account sweep had no lease and no monotonic guard under replicas.** `OPS-32`
 was thorough about evidence quality and silent about single-flight execution; `STO-48`'s

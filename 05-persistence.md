@@ -4,19 +4,21 @@
 
 The operation queue is the only part of the system with real transactional demands.
 
-**STO-1** **AMENDED 2026-09-08 (`ADR-0016`) — the claim stamps the epoch, not a lease.** The store
-MUST provide an atomic claim: select-oldest-eligible and mark-running-with-epoch in one indivisible
-step (`OPS-5`, `OPS-47`). A read followed by a conditional write in a separate statement is
+**STO-1** **AMENDED 2026-09-08 (`ADR-0019`) — the claim stamps nothing; the lease went with
+`ADR-0016` and the epoch with `ADR-0019`.** The store MUST provide an atomic claim:
+select-oldest-eligible and mark-running in one indivisible step (`OPS-5`). A read followed by a conditional write in a separate statement is
 acceptable only if the write is guarded by the row's prior state and the guard is checked by the
 engine, not by application code.
 
-**STO-3** **AMENDED 2026-09-08 (`ADR-0016`) — the guard term is the epoch; the lease sweeper's
-guard is gone with the sweeper.** Four conditional writes move an operation, and each MUST report
-whether it affected a row (`OPS-22`, `OPS-47`):
+**STO-3** **AMENDED 2026-09-08 (`ADR-0019`) — the guard term is the status; the lease sweeper's
+guard went with the sweeper and the epoch went with `ADR-0019`.** Four conditional writes move an
+operation, and each MUST report whether it affected a row (`OPS-22`):
 
 - **A worker's write** — every settled-state write, and a worker moving its own operation into
-  `needs_reconciliation` — is guarded on `(id, status = running, epoch = mine)`. A write that
-  affects no row means the process has been superseded (`OPS-47`).
+  `needs_reconciliation` — is guarded on `(id, status = running)`. A write that affects no row
+  means the startup pass has already moved it, so the worker outlived a restart and exits
+  (`OPS-22`). *This term did the whole job while an `epoch = mine` term sat beside it: the claiming
+  process stamped that value itself, so it held by construction (`ADR-0019`).*
 - **The startup pass** (`OPS-15`) moves every `running` operation to `needs_reconciliation`,
   guarded on `(id, status = running)`. It runs before the process makes any claim, so nothing
   contends with it.
@@ -44,8 +46,11 @@ since `STO-35` was written.*
 **STO-5** The store MUST survive process restart with no loss of queued or running
 operations.
 
-**STO-51** **ADDED 2026-09-08 (`ADR-0016`).** The store MUST hold a single `engine_epoch` row,
-incremented atomically at engine startup (`OPS-47`). It MUST enforce at most one `running` operation
+**STO-51** **AMENDED 2026-09-08 (`ADR-0019`) — the epoch row is deleted; a startup lock replaces
+it and is not a fence.** The store MUST provide a **session-scoped advisory lock** on a fixed key,
+released when its session ends, which the engine takes before any claim and holds for its lifetime
+(`OPS-47`). It carries no row and guards no write: it fails a second engine's *startup*, and says
+nothing about any write that already happened. It MUST enforce at most one `running` operation
 per machine that is not yielded (`OPS-8`) — a partial unique index over `operations(machine_id)
 WHERE status = 'running' AND yielded_at IS NULL`. The index is what makes per-machine serialization
 a property the store checks rather than a promise the engine keeps: a re-acquire that clears
@@ -67,8 +72,8 @@ interval `OPS-32` says it is "the maximum time a customer can be billed for a ma
 exists" — and the supervisor's restart window is the accepted outage, alarmed under `OVR-18`.
 `api` MAY run as any number of replicas against the shared store. **A deployment MUST NOT run its
 store on an engine that forbids a second `api` replica**, and the primitives the store provides for
-that are `STO-1`'s engine-checked atomic claim, `STO-51`'s epoch and per-machine index, `STO-47`'s
-conditional write (`STO-27`) and `LDG-35`'s per-tenant serialization.
+that are `STO-1`'s engine-checked atomic claim, `STO-51`'s per-machine index and startup lock,
+`STO-47`'s conditional write (`STO-27`) and `LDG-35`'s per-tenant serialization.
 
 **`LDG-35`'s "MUST state which" is discharged in `ADR-0015`**: per-tenant advisory locks held for
 the transaction, acquired in ascending tenant-identifier order where one transaction spans two
@@ -279,7 +284,6 @@ deleted rows.
 | `episode_id` | UUID | nullable; foreign key to `episodes` (`STO-52`). Set on every attempt an episode enqueues (`OPS-48`), in the same transaction as the enqueue; null on every other operation. Replaces `system_trigger_id` (2026-09-08, `ADR-0017`): the episode is a row, so the operation carries a reference rather than a copy |
 | `attempts` | integer | incremented on claim |
 | `available_at` | timestamp | earliest claim time; supports deferral |
-| `epoch` | integer | nullable; the `engine_epoch` value of the process that claimed it (`OPS-47`, `STO-51`), stamped by `STO-1`'s claim and the term every worker write is guarded on (`STO-3`) |
 | `yielded_at` | timestamp | nullable; non-null while a `running` operation has yielded the machine (`OPS-8`) — `RSC-41`'s import phase is expressed here. Cleared by the conditional re-acquire, which `STO-51`'s index refuses while another `running` operation holds the machine |
 | `created_at`, `updated_at` | timestamp | |
 

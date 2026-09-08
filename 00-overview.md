@@ -62,7 +62,7 @@ names the environment variable; the process reads the secret from the environmen
                     +---------------------------+                  |
                     |  Durable operation log    |                  |
                     |  queue, one engine,       |                  |
-                    |  epoch-fenced (OPS-47)    |                  |
+                    |  supervised (OPS-47)      |                  |
                     +-------------+-------------+                  |
                                   |                                |
                         restart-safe workers ---------------------->
@@ -107,7 +107,7 @@ sequenceDiagram
     A-->>C: 202 + operation view + poll_after_ms
     Note over C: Every write is 202. The record IS the<br/>completion guarantee, so no webhook<br/>and nothing to miss.
 
-    E->>DB: claim atomically, guarded on the epoch, OPS-5
+    E->>DB: claim atomically, OPS-5
     E->>E: re-validate, OPS-23
     E->>DB: write provider_account and the<br/>correlator BEFORE the call, OPS-35, PRV-26
     E->>DB: re-check the provider's price, OPS-43
@@ -373,6 +373,8 @@ marked human are procedures the deployment records rather than values the proces
 | `allow_orders`, per ordering account | `DOM-16` | boolean | yes |
 | Negative-resolution window, per provider | `OPS-33` | duration | yes |
 | Tenant-to-account assignment policy | `API-57`, `SEC-43` | policy over assignable accounts | yes |
+| Startup-lock wait bound | `OPS-47` | duration | yes |
+| Startup-lock connection keepalives | `OPS-47` | durations | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
 | Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
 | Reconciliation rota | `OPS-26` | human | no |

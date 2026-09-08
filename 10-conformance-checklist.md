@@ -255,7 +255,7 @@ shared contract.
 
 **BLOCKING** (added with `OPS-39`) — `CNF-159`. It is the destroyed-data event routed through the
 queue's safety machinery: an exhaustion cancel outside the queue has no per-machine
-serialization (`OPS-8`), no epoch guard (`OPS-47`) and no `needs_reconciliation` path, which is a
+serialization (`OPS-8`), no atomic claim (`OPS-5`) and no `needs_reconciliation` path, which is a
 blind mutation against a customer machine — the thing
 `OVR-5` calls the single most important thing this system refuses to do.
 
@@ -916,16 +916,20 @@ rather than acquiring a default.
       summary that quietly retained the payload would pass every surface test. This is `ADR-0005`
       enforced where it is actually enforceable: the purge is only as good as the list of what
       survives it. (`STO-50`, `STO-9`, `ADR-0005`, `OPS-13`)
-- [ ] **CNF-290** **BLOCKING** — **The restart drill, which replaces every takeover drill.** Kill the
-      engine between a dispatch and its reply; restart it; assert the interrupted operation is
-      `needs_reconciliation` (`OPS-15`). Then simulate the old process's late write — a worker
-      write to that operation and to its machine carrying the previous `engine_epoch` — and assert
-      each affects **no row** and that the process issuing it exits without a further write
-      (`OPS-47`). Then, with one non-yielded `running` operation on a machine, attempt a second
-      claim against the same machine directly at the store and assert `STO-51`'s index refuses it.
-      Three halves, and the middle one is the fence: a build that only sweeps at startup passes
-      the first and lets a paused process write a terminal state a minute later. (`OPS-47`,
-      `STO-51`, `OPS-15`, `ADR-0016`)
+- [ ] **CNF-290** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0019`) — the restart drill, and the
+      startup lock in place of a fence that was not one.** Kill the engine between a dispatch and
+      its reply; restart it; assert the interrupted operation is `needs_reconciliation` (`OPS-15`)
+      and that the old process's late settled-state write affects **no row** and exits it
+      (`STO-3`, `OPS-22`). Then start a second engine against the same store while the first holds
+      the lock, and assert it does no work and exits non-zero after the stated bound (`OPS-47`,
+      `OVR-19`); release the first and assert the second then starts. Then, with one non-yielded
+      `running` operation on a machine, attempt a second claim against the same machine directly
+      at the store and assert `STO-51`'s index refuses it. *The withdrawn middle half asserted a
+      stale `engine_epoch` write to a machine row affected no row, against a table that had no
+      such column and a guard that held by construction (`ADR-0019`). What this drill must not be
+      read to prove is that a second engine cannot write: `OPS-47` says "where two engines run,
+      nothing here refuses the second, and both will work the queue".* (`OPS-47`,
+      `STO-51`, `OPS-15`, `STO-3`, `ADR-0019`)
 - [ ] **CNF-291** **BLOCKING** — **The episode outlives its attempts, and there is one of it.**
       Open a `delete` episode on a machine and attempt to insert a second open `(machine_id,
       delete)` episode directly at the store: `STO-52`'s index refuses it. Then let the first
@@ -1075,9 +1079,9 @@ rather than acquiring a default.
       same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
 - [ ] **CNF-197** A resolution transition out of `needs_reconciliation` succeeds with **no worker**
       — by sweep and by operator verb, guarded on `(id, status = needs_reconciliation)` alone —
-      while a *worker* write whose epoch is not the current one affects no row. Both halves: the
-      two guards are different predicates (`STO-3`), and a build that applies the worker's to
-      resolution can never resolve anything. (`OPS-3`, `OPS-47`, `STO-19`, `STO-3`)
+      while a *worker* write against an operation no longer `running` affects no row. Both halves:
+      the two guards are different predicates (`STO-3`), and a build that applies the worker's to
+      resolution can never resolve anything. (`OPS-3`, `STO-19`, `STO-3`)
 - [ ] **CNF-198** Metering a period at a cadence that subdivides it posts every increment: no
       posting is deduplicated away by the idempotency key, and two billable attachments on one
       machine do not collide. (`LDG-8`, `LDG-38`)
