@@ -154,15 +154,16 @@ fresh idempotency key is a second purchase, not a retry (`API-51`).
 
 `tenant` is required (`API-20`) and follows `DOM-1`, not UUID form. `poll_after_ms` present only
 while non-terminal, mirrored by `Retry-After = ceil(poll_after_ms / 1000)` seconds (`WIR-4`,
-`API-49`). `committed_sats` is present on `create`/`adopt` operations — the satoshis the
+`API-49`). `committed_sats` is present on `create` operations — the satoshis the
 commitment reserved, so a caller reads what it spent without diffing `GET /v1/balance`.
 `system_reason` non-null only when `requested_by` is `system` (`OPS-39`). `episode_id` (*added
 2026-09-08, `ADR-0017`*) names the episode this operation is an attempt under (`DOM-31`, `WIR-51`)
 and is null on every other operation.
 
 **WIR-10a** **The closed enums**, so two strict parsers agree: `kind` ∈ {`create_machine`,
-`adopt_machine`, `refresh`, `rescue_inventory`, `power`, `install`, `reverse_dns`, `delete_machine`,
-`release_attachment`, `suspend_tenant`}; `status` ∈ {`queued`,
+`refresh`, `rescue_inventory`, `power`, `install`, `reverse_dns`, `delete_machine`,
+`release_attachment`, `suspend_tenant`} (*`adopt_machine` was a member until `ADR-0020`
+withdrew adopt from v1; removing a value a server never emits breaks no client*); `status` ∈ {`queued`,
 `running`, `succeeded`, `failed`, `needs_reconciliation`} (`OPS-3`); `requested_by` ∈ {`caller`,
 `system`, `operator`} (`OPS-39`); and **`system_reason` ∈ {`exhausted`, `late_attach_cleanup`,
 `tenant_suspended`, `rate_outage_bound`}, null unless `requested_by` is `system`**
@@ -178,7 +179,7 @@ elsewhere — so a strict parser had no enum for a field it receives.*
 **WIR-10b** **`result` and `error` shapes.** `error`, when non-null, is exactly `WIR-9`'s inner
 object (`kind`/`message`/`retryable`/`details`), without the envelope and **without a
 `correlation_id`** — the view's own is the one that applies. `result`, when non-null, is
-per kind and redacted (`API-22`, `DOM-18`): `create_machine`/`adopt_machine` →
+per kind and redacted (`API-22`, `DOM-18`): `create_machine` →
 `{"machine_id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20"}`;
 `rescue_inventory` and the two **rescue-entering** install strategies →
 `{"inventory": {"devices": [{"identifier": "S4EVNF0N123456",
@@ -193,7 +194,7 @@ strategies as permanently malformed. `RSC-33` requires the report "before writin
 is a rescue-engine obligation and does not reach a path where the provider does the writing);
 `suspend_tenant` →
 `{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` (`WIR-39`), one entry per machine;
-`power`/`reverse_dns`/`delete_machine`/`refresh` → `{}`.
+`power`/`reverse_dns`/`delete_machine`/`release_attachment`/`refresh` → `{}`.
 
 **`install` is the one kind whose result shape depends on something other than the kind, and a
 client MUST NOT have to guess which.** The operation view carries `kind` and not `strategy`, and the
@@ -246,8 +247,7 @@ list** (`WIR-30`, `05-persistence.md`). **The key is present on every machine**,
 than a default. The rule exists because the two are trivially conflated on the client side — a reader
 resolving a missing key to "unrestricted" would send an install the gate refuses, and one resolving
 it to "nothing permitted" would refuse installs the machine can take — so the field is mandatory and
-`[]` carries the meaning: **no install is permitted on this machine**, which is the ordinary reading
-for an adopted machine whose eligibility adoption could not establish. **What a client may do with an
+`[]` carries the meaning: **no install is permitted on this machine**. **What a client may do with an
 empty array is `DOM-30`'s, stated there and not here.** *Added 2026-09-03: the gate that authorizes a
 disk-wiping install read a list no response returned; `DOM-30` holds the argument and the three paths
 it applies to. This sentence twice tried to carry the rule as well as the pointer — first as its own
@@ -531,11 +531,8 @@ silently raised — silently reserving more of a caller's money than it asked fo
 fails `invalid_request` (not `insufficient_balance`) **before** any commitment opens, so an agent
 can bound a purchase priced at an attacker-influenceable rate (`LDG-41`).
 
-**WIR-18** `POST /v1/machines/adopt` — **operator-only** (`API-18`, `WIR-34`): bearer auth, body
-`{"tenant_id": "t-0198c1f0", "provider_account": "hetzner-robot-1", "external_id": "2345678",
-"runway_seconds": 2592000,
-"acknowledge_purchase": true}`. A customer-authenticated request to this route returns `404`
-(`WIR-34`), not `authentication` — its existence is not customer-observable.
+*`WIR-18` — `POST /v1/machines/adopt` — is withdrawn with adopt (`ADR-0020`). It returns as a
+synchronous operator route in `API-48`'s list, answering with the machine view.*
 
 **WIR-19** `POST /v1/machines/{id}/actions/power` — `{"action": "on" | "off" | "reboot" |
 "hard_reset"}`. The last requires the `hard_reset` capability (`DOM-10`).
@@ -733,6 +730,19 @@ list. `API-64` is the rule: admissible only in `stalled`, otherwise `409` `confl
 `details.reason: "state"`. The fresh attempt is the asynchronous part and is read through
 `current_operation_id`.
 
+**WIR-52** **ADDED 2026-09-08** — attachments on the wire, the operator half of `PRV-45`
+(`API-65`). `GET /v1/machines/{id}/attachments` — **operator-only** (`WIR-34`), returns
+`{"attachments": []}`, each element `{"id": "0198d4a0-7e8f-7a9b-8c0d-1e2f3a4b5c34", "kind":
+"volume", "external_id": "vol-8f2a1c", "billable": true, "cleanup": "api", "released_at": null}` —
+the `machine_attachments` row (`05-persistence.md`), whole, since it is small and an operator
+deciding whether a release is owed needs every column.
+`POST /v1/machines/{id}/attachments/{attachment_id}/actions/release` — **operator-only**, body
+`{"reason": "volume vol-8f2a1c confirmed detached by hand, ticket 44813"}`, carrying
+`Idempotency-Key`. `API-65` is the rule: on an `api` row, `202` with an operation view of kind
+`release_attachment` (`WIR-10a`), idempotent under `API-11`; on a `manual` row, **synchronous**
+`200` with the attachment element above, `released_at` set, in `API-48`'s list and under `WIR-24`'s
+one-transaction rule; on a row already released, `409` `conflict` with `details.reason: "state"`.
+
 **WIR-35** `POST /v1/operations/{id}/actions/resolve` — **operator-only** (`WIR-34`),
 the reconciliation verbs `OPS-31` mandates and no endpoint carried (this was the operator half of
 `F19`). Body is a discriminated union: `{"resolution": "observed", "external_id": "2345678",
@@ -756,14 +766,14 @@ and the resolution cleared the fence on a machine still billing*) — and
 `external_id` — the machine is already known, which is the whole difference from a create.
 
 **The union is closed *per operation kind*, and a form outside its kind's set is
-`invalid_request`.** For `create_machine` and `adopt_machine`: `observed`, `absent`, `abandoned`.
+`invalid_request`.** For `create_machine`: `observed`, `absent`, `abandoned`.
 For `install`, `rescue_inventory`, `power`, `reverse_dns`, `delete_machine` and
 `release_attachment`: `applied`, `not_applied`, `abandoned`. `suspend_tenant` and `refresh` never reach `needs_reconciliation`
 (`OPS-11`) and accept none of them. `abandoned` is the one member common to both sets — it says nobody
 established what happened, which is a sentence about any kind. *Stated as two sets rather than as
-"refused on a create": that phrasing left `adopt_machine` taking the non-create verbs and
-`rescue_inventory` taking the create ones, and this document's preamble rule that it wins over prose
-elsewhere means a strict server would have admitted both.* *(That clause cited `WIR-1` until
+"refused on a create": that phrasing left `adopt_machine` (a kind until `ADR-0020`) taking the
+non-create verbs and `rescue_inventory` taking the create ones, and this document's preamble rule
+that it wins over prose elsewhere means a strict server would have admitted both.* *(That clause cited `WIR-1` until
 2026-09-03. `WIR-1` carries the JSON, money and timestamp conventions; the precedence rule is in the
 unnumbered opening paragraph. Both instances of the miscitation are corrected — the other was in
 `WIR-20`, and finding the second one is why a corrected claim gets grepped across the set rather
@@ -823,7 +833,7 @@ returns it nothing it can buy from" — and used it to justify the whole re-assi
 implemented it: `STO-47` had exactly one writer and no reader anywhere in the set, so a terminated
 provider account went on advertising its offers, and a create against it reached a driver holding
 credentials the provider has revoked. The claim was load-bearing for `API-62`'s rationale and was
-never true.* **A create or adopt naming an account that is not `healthy` MUST be refused
+never true.* **A create naming an account that is not `healthy` MUST be refused
 `conflict` with `details.reason: "state"`** — the catalogue read is advisory and a termination can
 land between the two calls, so omission from the listing is not by itself the control.
 `{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
@@ -875,11 +885,10 @@ because an offer is a live listing that can change or disappear between the two,
 it either fails an install on a machine that is running and paid for or answers from terms its
 owner never bought. **That copy is returned to the caller on the machine view** (`WIR-11`,
 `DOM-30`), so a caller reasons about the same list the gate does rather than about this one. `offer_id` remains the provenance record of which offer that copy came from.
-An **adopted** machine has no offer to copy from, so **adoption derives and persists a list of its
-own** — empty where it cannot establish one, refusing every strategy. It does **not** fall back to
-the provider account's declared capabilities (`DOM-10`): capabilities are per account and eligibility
-is per product, so the account of an operator who runs one rescue-capable box would authorize a
-disk-wiping install on an adopted machine that cannot take one (`05-persistence.md`).
+A machine with no list is read as permitting nothing, and never falls back to the provider
+account's declared capabilities (`DOM-10`): capabilities are per account and eligibility is per
+product, so the account of an operator who runs one rescue-capable box would authorize a
+disk-wiping install on a machine that cannot take one (`05-persistence.md`).
 
 `max_image_bytes` is `RSC-40`'s enforced ceiling on a caller-supplied image, checked against the
 stream and aborting the transfer when exceeded; it is the only thing about the image provisiond
@@ -1134,10 +1143,10 @@ because it has already released customer money.
 
 ## Listeners, limits and fixtures
 
-**WIR-34** **Operator-only routes** (`WIR-18` adopt, `WIR-35` resolve, `WIR-39`
+**WIR-34** **Operator-only routes** (`WIR-35` resolve, `WIR-39`
 suspend, `WIR-41` resume, `WIR-42` attribute, `WIR-44`'s three abuse-case verbs, `WIR-46`
 address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, `WIR-48`
-assign-provider-account, `WIR-50` record-status, `WIR-51`'s three episode routes, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+assign-provider-account, `WIR-50` record-status, `WIR-51`'s three episode routes, `WIR-52`'s two attachment routes, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
 

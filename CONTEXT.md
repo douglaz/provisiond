@@ -56,7 +56,8 @@ _Avoid_: plan, product, SKU, listing
 
 **Adopt**:
 Bringing a machine that already exists at a provider under provisiond's management, as opposed
-to creating one.
+to creating one. Not a v1 verb (withdrawn 2026-09-08, `ADR-0020`): it returns with a driver
+whose machine read supplies the machine's cost.
 _Avoid_: import, register, claim
 
 ### Work

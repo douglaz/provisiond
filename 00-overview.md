@@ -9,7 +9,7 @@ expects you to bring your own operating system. Any control plane that tries to 
 these by reducing them to a common subset ends up unable to do the one thing bare metal
 is for: putting an arbitrary, operator-controlled image on a machine.
 
-The system specified here unifies the *lifecycle* — create, adopt, refresh, power,
+The system specified here unifies the *lifecycle* — create, refresh, power,
 rescue inventory, install, reverse-DNS, delete — while treating provider-specific capability as
 first-class rather than as an exception. Rescue mode in particular is a workflow the
 control plane orchestrates, not an opaque flag it forwards.

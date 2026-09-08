@@ -416,9 +416,6 @@ before the send tells the two apart. Three paths, three different reasons:
   caller never saw that snapshot — the request that produced it was purged on entry to
   `needs_reconciliation` (`ADR-0005`). A create has one attempt and one snapshot (`ADR-0014`), and
   one list the caller cannot see is still a list the caller cannot see.
-- **An adopted machine.** It came from no offer — `offer_id` is null — so there is nothing to have
-  retained, and `05-persistence.md` requires adoption to persist an **empty** list wherever it cannot
-  establish a safe one, refusing every strategy.
 
 **On those paths this is `API-47`'s argument arriving at a destructive verb.** No endpoint returned a
 balance until 2026-08-12, so a caller could learn its own solvency only by attempting a purchase and
@@ -461,7 +458,7 @@ documents.
 |---|---|
 | `provision_virtual` | Creating virtual machines |
 | `provision_bare_metal` | Creating/ordering dedicated machines |
-| `adopt_existing` | Importing an existing machine under management |
+| ~~`adopt_existing`~~ | **Withdrawn from v1 with its whole surface** (`ADR-0020`) — no launch driver can price a machine it did not buy, so no launch driver declares it |
 | `delete_machine` | Deleting/cancelling a machine |
 | `power_control` | Power on, power off, soft reboot |
 | `hard_reset` | Out-of-band hard reset |
@@ -486,7 +483,6 @@ Mapping from operation to required capability:
 |---|---|
 | create machine, `kind = virtual` | `provision_virtual` |
 | create machine, `kind = bare_metal` | `provision_bare_metal` |
-| adopt | `adopt_existing` |
 | refresh | none — every driver MUST implement machine lookup |
 | power on/off/reboot | `power_control` |
 | hard reset | `hard_reset` |

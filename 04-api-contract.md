@@ -9,7 +9,6 @@
 | GET | `/v1/providers/{account}/offers` | ✓ | Purchasable offers for one account |
 | GET | `/v1/machines` | ✓ | List the caller's machines |
 | POST | `/v1/machines` | | Create a machine |
-| POST | `/v1/machines/adopt` | | Operator: import an existing machine (`API-18`, `WIR-18`) |
 | GET | `/v1/machines/{id}` | ✓ | Read one machine |
 | POST | `/v1/machines/{id}/actions/refresh` | | Re-read from the provider |
 | POST | `/v1/machines/{id}/actions/power` | | Power on/off, reboot, hard reset |
@@ -164,11 +163,10 @@ own.** Every step still runs for every authenticated write, operator writes incl
 5c are the operator's whole budget. What changes is **whose** tenant steps 2 and 5b read, and what
 step 4 authorizes against:
 
-- **For an operator principal, steps 2 and 5b apply to exactly one verb — `adopt` — against the
-  tenant it names.** It is the one that buys: `adopt` opens a commitment against the named tenant
-  (`ADR-0017`).
-- **Every other operator verb skips 2 and 5b**, whether or not it names a tenant. *Stated as a
-  one-verb list and not as "wherever a tenant is named", because the second reading — a repair of
+- **Every operator verb skips 2 and 5b**, whether or not it names a tenant. *Until 2026-09-08 one
+  verb was excepted — `adopt`, the one that bought against the named tenant — and `ADR-0020`
+  withdrew it; the exception returns with the verb. The list was stated as a one-verb list and not
+  as "wherever a tenant is named", because the second reading — a repair of
   2026-09-04 — refused the operator surface on its ordinary inputs: `WIR-42`'s attribution target
   "MAY be `pending`, the ordinary case since a returning customer enrols afresh", so the only route
   back for an orphaned balance failed `not_activated`; and opening, closing, transmitting, revising a
@@ -242,10 +240,11 @@ The tail then depends on what the endpoint does:
 
 | Class | Tail |
 |---|---|
-| **create, adopt** | **refuse `conflict`/`state` where the named provider account is not `healthy`** (`STO-47`, `WIR-29`) — before any gate, since a dead account can take no order; then spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
+| **create** | **refuse `conflict`/`state` where the named provider account is not `healthy`** (`STO-47`, `WIR-29`) — before any gate, since a dead account can take no order; then spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
 | **power, install, reverse-DNS, refresh, rescue inventory** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
 | **retry** | operator-only (`API-64`, `WIR-51`); synchronous, `200` with the episode view; the episode's state change, the enqueue of a fresh `delete_machine` attempt and the idempotency record commit in one transaction (`WIR-24`); **no commitment and no spending gate** — the attempt reduces exposure, on the delete row's reasoning |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
+| **release attachment** | operator-only (`API-65`, `WIR-52`); on an `api` row enqueue one `release_attachment`, then `202`; on a `manual` row synchronous `200`, writing `released_at` (`API-48`); **no commitment and no spending gate** — it reduces exposure, on the delete row's reasoning |
 | **revoke** | operator or recovery-credential principal (`API-56`, `WIR-38`); synchronous, `200`, no provider mutation (`API-48`) |
 | **resume, resolve** | **operator-only** (`WIR-41`, `WIR-35`, `WIR-34`); synchronous, `200`, no provider mutation (`API-48`). The recovery credential reaches **neither** — `API-55` confines it to `API-56`, and a recovered-after-theft credential that could resume its own tenant or resolve an uncertain provider mutation would undo the suspension that answered the theft |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
@@ -559,7 +558,7 @@ that (1) marks the tenant `suspended` **in the admission transaction, before the
 so no further **tenant-authorized** write succeeds —
 the maintenance actions of `API-7` step 2 remain reachable, because a suspended owner must still be
 able to revoke a stolen credential (`API-56`, `CNF-209`), and an operator may retry a stalled
-episode (`API-64`), which skips step 5b like every operator verb but `adopt` (`API-7`) — then (2)
+episode (`API-64`), which skips step 5b like every operator verb (`API-7`) — then (2)
 **fences work already in flight** — a create claimed before the suspension landed MUST be allowed
 to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
 because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
@@ -811,7 +810,11 @@ returns `202` and an operation" — the set `OVR-4` names as the closed set of s
 17. `POST /v1/operations/{id}/actions/resolve` (`WIR-35`) — minting an operation *about* an
     operation is a recursion `API-1` never intended;
 18. `POST /v1/episodes/{id}/actions/retry` (`API-64`, `WIR-51`) — it answers `200` with the episode
-    view; the attempt it enqueues is the asynchronous part, visible through `current_operation_id`.
+    view; the attempt it enqueues is the asynchronous part, visible through `current_operation_id`;
+19. `POST /v1/machines/{id}/attachments/{attachment_id}/actions/release` on a row whose `cleanup`
+    is `manual` (`API-65`, `WIR-52`) — it records that an operator did by hand what no driver can
+    do, and there is no provider write to be asynchronous about; on an `api` row the same route
+    is an ordinary `202`.
 
 Every member has the same justification: **none of them is itself a provider mutation**, so none
 needs a durable operation of its own. Any endpoint added later that *does* touch a provider MUST
@@ -897,7 +900,6 @@ Validation happens at the boundary *and* again in the worker (`OPS-23`).
 |---|---|
 | hostname | 1–253 characters, no CR or LF |
 | offer identifier | 1–256 characters |
-| `external_id` (adopt) | 1–256 characters, and a provider-appropriate character set (`PRV-6`) |
 | SSH public keys | at most 64, each ≤16 KiB, each recognizably an OpenSSH public key |
 | expected rescue host keys | at most 16, each a complete OpenSSH public host key |
 | catalog image | 1–256 characters |
@@ -964,17 +966,13 @@ behind a settled option list. `SEC-39`'s per-principal ceilings still exist and 
 they bound what a looping agent can **destroy**, which is a different question from what it may
 **buy**, and conflating the two is what let this sentence survive.*
 
-**API-18** **AMENDED 2026-08-12 — adoption is an operator-only verb.** Under self-serve
-enrolment every machine lives in the operator's provider accounts, so a customer cannot have a
-machine there to adopt; adoption's only real use is the operator assigning a pre-existing machine
-to a tenant. Entitlement is therefore the first of the original mechanisms — an
-operator-maintained assignment of external machine identifiers to tenants, checked before
-adoption — and the caller-facing adopt endpoint MUST reject tenant credentials outright, like
-every operator-only route (`WIR-34`). *The withdrawn text offered three mechanisms; `F28` observed two required an
-operator step the self-serve product deleted and the third required access to a machine the
-tenant does not have. All true, and moot: the feature they were defending was never reachable by
-a customer under this product shape. The challenge-token mechanism is deleted from v1 scope and
-returns only with a bring-your-own-machine product, which would need its own ADR.* See `DEF-1`.
+*`API-18` — adoption as an operator-only verb with entitlement by an operator-maintained assignment
+— is withdrawn with adopt (`ADR-0020`). Its history is kept because the trap is real: the first
+form let any tenant adopt any machine it could name (`DEF-1`), the 2026-08-12 amendment made the
+verb operator-only after `F28` found two of three entitlement mechanisms required an operator step
+the self-serve product had deleted, and on 2026-09-08 the verb went because no launch driver can
+price a machine it did not buy. When adopt returns it returns operator-only, with entitlement by
+assignment, and synchronous.*
 
 **API-64** **ADDED 2026-09-08 (`ADR-0017`) — a stalled episode is retried by an operator, and by
 nothing else.** `POST /v1/episodes/{id}/actions/retry` (`WIR-51`) is **operator-only** (`WIR-34`)
@@ -988,6 +986,21 @@ settled `failed` because the provider rejected it and did not act, and repeating
 rejection automatically is the loop `OPS-39` exists to prevent. The transient cases never reach
 `stalled` — `OPS-11` defers them instead. The episode, not the `failed` attempt row, is what
 outlives `STO-14`'s retention, which is why the verb is on the episode (`ADR-0017`).
+
+**API-65** **ADDED 2026-09-08 — the operator's half of `PRV-45`, which had no route.**
+`GET /v1/machines/{id}/attachments` (`WIR-52`) is **operator-only** (`WIR-34`) and lists the
+machine's `machine_attachments` rows. `POST /v1/machines/{id}/attachments/{attachment_id}/actions/release`
+(`WIR-52`) is **operator-only** and admissible only on a row whose `released_at` is null; otherwise
+it is refused `409` `conflict` with `details.reason: "state"`. On a row whose `cleanup` is `api` it
+enqueues one `release_attachment` operation with `requested_by: operator` and answers `202` with
+the operation view — the same kind, and the same driver call, the delete's terminal transaction
+enqueues on its own. On a row whose `cleanup` is `manual` there is no driver call to make: it
+writes `released_at` and answers `200` with the row, minting no operation, and is in `API-48`'s
+list for that reason. A release the delete's terminal transaction enqueues carries the delete's own
+`requested_by` and `system_reason`, so `WIR-10a`'s set gains no member for it. The `202` form is
+idempotent as any operation is (`API-11`); the `200` form, returning no operation, commits the
+`released_at` write and its idempotency record together under `WIR-24`'s one-transaction rule.
+Either is what opens `STO-18`'s tombstone gate, and `LDG-74` is where the tombstone then happens.
 
 ## Operation views
 
@@ -1051,7 +1064,7 @@ public surface is reachable by customers by definition, so the deployment MUST:
 
 - terminate TLS such that no credential traverses an untrusted hop in clear text;
 - expose *only* the customer-facing routes publicly, keeping operator and reconciliation routes
-  on a separate listener or network (`WIR-34` lists them; `adopt` in particular is a purchase);
+  on a separate listener or network (`WIR-34` lists them);
 - treat `OVR-10a`'s in-code credential boundary as the compensating control, since network
   isolation is no longer providing one.
 
@@ -1233,7 +1246,7 @@ second record),
 and advance the meter's state without a satoshi debit** (*added 2026-09-05: `LDG-64`
 forbids a deferred satoshi debit at a later rate, and a closing increment with no rate to price it
 at had either to break that rule or to leave the meter unclosable*); **close and release in full
-every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create or adopt naming that
+every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create naming that
 account straight to `failed`** — `conflict`, `details.reason: "account_terminated"` — **and close
 and release its commitment**, exactly as `API-58` step 4 does for a suspension and for the same
 reason, that it has touched no provider (*added 2026-09-05: a create's commitment has a null
@@ -1252,7 +1265,7 @@ had already re-assigned its tenants off a failing account — the responsible th
 named none of the tenants it was in the act of stranding.*
 
 **It MUST also contend with admission on the account row itself, and that ordering comes first.**
-The create and adopt health check MUST **conditional-write** `STO-47`'s row, guarded on
+The create's health check MUST **conditional-write** `STO-47`'s row, guarded on
 `status = healthy`, **in the transaction that opens the commitment**, and fail `conflict` with
 `details.reason: "state"` where that write affects no row — so a create admitted after a
 termination is impossible rather than merely unlikely, because the two contend on one row and one

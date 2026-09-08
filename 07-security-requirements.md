@@ -47,10 +47,9 @@ zero on drop (`DOM-11`).
 **SEC-6** A tenant's authority MUST derive from machine records, never from the ability to
 name a provider account. Naming a configured account MUST grant nothing (`DOM-3`).
 
-**SEC-7** Adoption MUST require entitlement proof (`API-18`). This is the single most
-important tenancy requirement: without it, "per-tenant isolation" holds only for machines
-the system itself created, and any tenant can take over any machine in any configured
-account.
+*`SEC-7` — adoption requires entitlement proof — is withdrawn with adopt (`ADR-0020`). `DEF-1`
+keeps the defect it came from, and the obligation returns with the verb: without entitlement,
+per-tenant isolation holds only for machines the system itself created.*
 
 **SEC-8** Machine lookup MUST be tenant-scoped, and a machine outside the tenant MUST be
 indistinguishable from one that does not exist (`API-17`).
@@ -58,9 +57,9 @@ indistinguishable from one that does not exist (`API-17`).
 **SEC-9** The admin tenant-override header MUST be honoured only for admin identities and
 MUST be validated (`API-5`, `API-6`).
 
-**SEC-10** Two tenants MUST NOT be able to hold records for the same external machine. If
-adoption entitlement (`SEC-7`) is enforced by an operator-maintained assignment, that
-assignment MUST be unique per external machine.
+**SEC-10** Two tenants MUST NOT be able to hold records for the same external machine
+(`STO-17`). *Its second sentence bound an adoption entitlement assignment to the same uniqueness;
+adopt is withdrawn (`ADR-0020`) and the sentence returns with it.*
 
 ## Injection
 

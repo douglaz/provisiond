@@ -21,7 +21,7 @@ The problem it solves is that providers expose incompatible surfaces. A cloud VP
 create/rebuild/delete against an image catalogue. A dedicated-server API offers an *ordering
 system*, a rescue environment and an out-of-band reset, and expects you to bring your own operating
 system. Unify those by intersection and you throw away the thing bare metal is for. So the set
-unifies the **lifecycle** — create, adopt, refresh, power, rescue inventory, install, reverse-DNS,
+unifies the **lifecycle** — create, refresh, power, rescue inventory, install, reverse-DNS,
 delete — while
 treating provider capability as first-class and discoverable at runtime.
 

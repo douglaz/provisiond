@@ -1,7 +1,7 @@
 # provisiond — specification set
 
 A language-neutral specification for a multi-provider control plane that provisions,
-adopts, rebuilds, reimages, powers, and deletes VPS and dedicated (bare-metal) machines.
+rebuilds, reimages, powers, and deletes VPS and dedicated (bare-metal) machines.
 
 This directory contains **specifications only**, with one carve-out: `tools/` holds the
 gates that check the specifications, and `.github/workflows/` runs them. Nothing that
@@ -121,8 +121,9 @@ to read — not this paragraph.
 
 **A green conformance checklist certifies the requirements that are written down.** It says
 nothing about what is missing. The three inventions this paragraph used to list — a wire format,
-an adopt operation, the resolution path out of `needs_reconciliation` — now exist
-(`13-wire-contract.md`, `PRV-28`, `OPS-27`–`OPS-38`), which does not retire the warning: what is
+an adopt operation, the resolution path out of `needs_reconciliation` — were each written
+(`13-wire-contract.md`, `OPS-27`–`OPS-38`; adopt was, and `ADR-0020` then withdrew it from v1 as
+a verb no launch driver could serve), which does not retire the warning: what is
 missing is, by construction, whatever nobody has noticed yet, and `F24` records how that went
 last time.
 
@@ -213,6 +214,13 @@ Deleted from the documents. Never reused. Listed so an older citation still reso
 | `OPS-9` | Atomic machine-lock acquisition and takeover | `ADR-0016`: `OPS-8`'s at-most-one-running rule is a store index, and defer-on-refusal moved into `OPS-8` |
 | `OPS-10` | Machine-lock lease renewed with the operation lease | `ADR-0016`: neither lease exists |
 | `OPS-14` | The lease sweeper | `ADR-0016`: with one writer, `OPS-15`'s startup pass is the whole sweep |
+| `PRV-28` | Adoption as get-machine plus a local row | `ADR-0020`: adopt is withdrawn from v1; no launch driver can price a machine it did not buy |
+| `API-18` | Adoption as an operator-only verb with entitlement by assignment | `ADR-0020`; the history stays in place because `DEF-1` is why it was operator-only |
+| `WIR-18` | `POST /v1/machines/adopt` | `ADR-0020`; returns synchronous, in `API-48`'s list |
+| `LDG-36` | Adopt places a commitment and gets a runway | `ADR-0020`; its reason is why the return is read-first |
+| `SEC-7` | Adoption requires entitlement proof | `ADR-0020`; `DEF-1` keeps the defect |
+| `CNF-5` | Operator adopt refused outside the entitlement assignment | `ADR-0020` |
+| `CNF-258` | Adopt places a commitment and gets a runway | `ADR-0020` |
 | `OPS-17` | Sweep interval tied to lease duration | `ADR-0016`: no lease, no interval |
 | `OPS-18` | Requeue restricted by kind | `ADR-0017`: requeue is deleted |
 | `OPS-19` | Requeue audit trail | `ADR-0017`: the episode and `WIR-51`'s `reason` carry it |

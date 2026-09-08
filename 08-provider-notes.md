@@ -30,7 +30,7 @@ table is not read by anything.
 |---|:--:|:--:|:--:|
 | List offers | yes | yes | yes |
 | Create | yes | opt-in ordering | opt-in ordering |
-| Adopt | yes | yes | yes |
+| ~~Adopt~~ | — | — | — |
 | Delete | yes | yes (usually immediate) | yes |
 | Power control | yes | yes | yes |
 | Hard reset | yes | yes | **no** |
@@ -139,9 +139,9 @@ products were listed with an **empty `prices[]`** — visible in the feed and no
 driver therefore emits one offer per priced location and omits the empty ones** (`DOM-9`, added
 2026-09-05).
 
-**The exception branch is real and adoption is its main road.** Hetzner states cancellation
-periods depend on the individual contract, so a machine you *adopted* carries whatever terms it
-came with. Two things remain **[verify]**: the universal worst case across legacy and custom
+**The exception branch is real.** Hetzner states cancellation periods depend on the individual
+contract, so a machine carries whatever terms its contract has — which is why adoption, withdrawn
+from v1 by `ADR-0020`, was this branch's main road while it stood. Two things remain **[verify]**: the universal worst case across legacy and custom
 contracts, and what `cancellation_date=now` does against a server whose earliest date is in the
 future — rejection, or automatic scheduling. **A driver MUST handle both**: on rejection, fall
 back to scheduling at the earliest permitted date; on auto-scheduling, `DOM-19` already models

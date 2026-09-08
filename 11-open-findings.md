@@ -70,24 +70,59 @@ is not a fence. `OPS-3`, `OPS-5`, `OPS-22`, `OPS-47`, `STO-1`, `STO-3`, `STO-51`
 is not a check and reads exactly like one.*
 
 **Open, and not addressed here.** The same read produced findings this session did not act on. They
-are recorded so the next one does not have to find them again: `adopt` classifies "Always `failed`"
-under `OPS-11` while `WIR-35` and `05-persistence.md`'s `resolution` column admit `observed`,
-`absent` and `abandoned` for it and `CNF-179` (BLOCKING) tests them; `PRV-42`'s per-channel
-declaration has no field in `PRV-44`'s descriptor though `CNF-285` tests it; three requirements
-say transient cases "are deferred rather than failed (`OPS-11`)" and `OPS-11` defers nothing, so a
-provider throttle on a delete stalls an episode a human must clear; `DOM-31` draws
-`stalled --> closed : abandoned` and no verb provides it; `PRV-36`'s effective window is a max in
-its own paragraph while `OPS-32` and `LDG-74` still read "declared"; `release_attachment` is absent
-from most enumerations of the kinds and has no operator route; and `LDG-34` still justifies its
-compare-and-swap by "two workers re-deriving the same machine", which `PRV-13e` withdrew. The
-implementation-process review's §6.13, §6.14 and §6.15 were never closed, and the count below
-should read fifteen where it says twelve.
+are recorded so the next one does not have to find them again. Three were decisions. One is
+closed: `adopt` classified "Always `failed`" under `OPS-11` while `WIR-35` and `05-persistence.md`'s
+`resolution` column admitted `observed`, `absent` and `abandoned` for it and `CNF-179` (BLOCKING)
+tested them — **`F47`, closed by `ADR-0020`**. Two are still open: three requirements say
+transient cases "are deferred rather than failed (`OPS-11`)" and `OPS-11` defers nothing, so a
+provider throttle on a delete stalls an episode a human must clear; and `DOM-31` draws
+`stalled --> closed : abandoned` and no verb provides it. The rest were
+mechanical and were closed on 2026-09-08 without an ADR: `PRV-42`'s per-channel declaration now
+lives in `PRV-44`'s `ordering_channels[].offer_is_resource`; `PRV-36`'s headline, `OPS-32`,
+`LDG-74`, `PRV-42`, `CNF-277` and `CNF-237` read "effective" where they read "declared";
+`release_attachment` is in `WIR-10b`'s result shapes, `OPS-45`'s scope and marker table and the
+store's `resolution` set, and `API-65`/`WIR-52` give it the operator route `PRV-45` presupposed;
+and `LDG-34` names the writers it actually serializes. The implementation-process review's §6.14
+and §6.15 were never closed and remain open; §6.13 is `F47`.
+
+**F47. CLOSED — adopt was specified two ways, could not size its own commitment, and had no v1
+scenario.** Found by the `F46` read; taken up 2026-09-08 with two independent reviews of one
+brief, by Codex and by a fresh Claude reader, before anything was decided. Both confirmed the
+provider half of adopt is a read (`PRV-28` "get-machine (`PRV-12`) followed by writing a local
+row") and found no scenario in which the provider's state after an adopt is unknowable. Both found
+the same things the brief had missed: `OPS-15` sent an interrupted adopt — and an interrupted
+refresh — to `needs_reconciliation`, so the union's verbs were reachable by restart and by
+`OPS-21`'s cancellation, uncertainty manufactured by classification rather than by anything the
+provider did; `LDG-32` named no failed adopt, so an adopt the provider refused froze its
+commitment with no verb to release it; `PRV-31` said the adopted machine's date "is read before
+its commitment opens" while `LDG-11` and `API-7`'s tail opened it at enqueue; and the commitment
+could not be sized at enqueue at all, because `PRV-13b` needs a rate and a date that an adopted
+machine, having no offer, could only get from the read. Both recommended a synchronous operator
+adopt that reads first. The decision went one step further: checked against the providers' own
+API documents, an adopted machine's cost is readable on Hetzner Cloud and DigitalOcean, is a list
+price at best on Robot, and does not exist anywhere in Robot's API for an auction server — and the
+three scenarios that wanted adopt were each something else (a hand-bought machine, dismissed; a
+re-rent, which is `ADR-0006`'s inventory; a home lab, which is a driver of its own). `ADR-0020`
+withdraws adopt from v1 with its whole surface and records the synchronous shape as what it returns
+in. `OPS-15` gains the refresh exception the same review exposed.
+
+*The reviews' change inventories, kept for the return:* the asynchronous repair would have touched
+`OPS-1`, `OPS-15`, `OPS-21`, `OPS-31`, `OPS-35`, `OPS-45`, `API-7`, `STO-3`, `LDG-12`, `LDG-32`,
+`LDG-36`, `WIR-35`, `CNF-29`, `CNF-179`, `CNF-253`, `CNF-258`, `CNF-288`; the synchronous one
+`API-7`, `API-11`, `API-13`, `API-28`, `API-48`, `API-58`, `API-63`, `STO-23`, `SEC-32`, `SEC-39`
+(no adopt ceiling was ever named), `LDG-11`, `LDG-12`, `LDG-32`, `LDG-36`, `WIR-10`, `WIR-10a`,
+`WIR-10b`, `WIR-18`, `WIR-35`, `CNF-61`, `CNF-179`, `CNF-258`, `CNF-288`, plus `OVR-9`'s
+credential-free trait for the read and `LDG-69`, which says "While it is held, an implementation
+MUST NOT wait on" anything outside the transaction, the provider read included.
 
 ## The implementation-process review — 2026-09-06, closed 2026-09-07
 
 An implementation-readiness review (`impl-report-01.md`, kept at the root as the record) read the
-whole set as a builder would and named twelve blockers. Each was checked against the current text
-before anything was decided; ten held, one was false, and one was misdescribed. Six decisions
+whole set as a builder would and named fifteen blockers. Twelve were checked against the current
+text before anything was decided; ten held, one was false, and one was misdescribed. §6.13, §6.14
+and §6.15 were not taken up (the count here read twelve until 2026-09-08); §6.13 is the `adopt`
+classification, `F47`, closed the same day by `ADR-0020`, and §6.14's per-item tier and status
+metadata and §6.15's production-operability decisions are open with no finding number. Six decisions
 followed, three of them ADRs. The findings below are numbered in the order the review listed them,
 not in the order they were resolved, because two of them turned out to be the same defect.
 
@@ -479,9 +514,10 @@ the per-machine constraint is learned after ordering; `LDG-12` forbids the provi
 the commitment exists. But `08-provider-notes.md` records that current Robot dedicated servers
 carry **no minimum term** and that a newly ordered machine's `earliest_cancellation_date` is
 normally *today*, so a create rarely lands on the exception branch at all; and `PRV-13c` names
-**adoption** as that branch's main road, where the machine already exists and `PRV-28` makes
-adopt a get-machine plus a local write — so the constraint is read *before* the commitment is
-opened. What remains is a create at a provider whose offer does not disclose its term. That wants
+**adoption** as that branch's main road, where the machine already exists and `PRV-28` made
+adopt a get-machine plus a local write — the note said the constraint was therefore read *before*
+the commitment was opened, which `F47` found false as written, and `ADR-0020` has since withdrawn
+adopt. What remains is a create at a provider whose offer does not disclose its term. That wants
 a driver-declared pre-create bound per offer, with *no declared bound MUST NOT be sold on prepaid
 terms*; it is a bounded edit, not a structural one. **Recorded so the next reader does not
 re-derive the alarm from the finding's original wording.**

@@ -58,7 +58,7 @@ check and on every `GET /v1/providers`.
 
 **PRV-44** The descriptor is a typed, immutable value: `account`, `kind`, `capabilities`,
 `ordering_channels` (each with `correlator: operation_id | per_order_key | none`, `PRV-32`,
-`PRV-33`, `PRV-38`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
+`PRV-33`, `PRV-38`, and `offer_is_resource: true | false`, `PRV-42`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
 `billing_stop_window` of the same shape (`PRV-13b`), `order_budget` `{limit, per}` (`PRV-40`),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
@@ -117,20 +117,11 @@ details carry the transaction identifier.
 **PRV-12** Get machine MUST be read-only and free of side effects. It is called
 opportunistically after other actions and during reconciliation.
 
-**PRV-28** **Adoption is not a driver operation, and this resolves `F10`'s complaint that
-`adopt_existing` is declared as a capability and exposed by the API while no driver operation
-implements it.** Adopting is get-machine (`PRV-12`) followed by writing a local row; every driver
-already implements the only provider call it needs. The `adopt_existing` capability therefore
-gates *the control plane's willingness to adopt against that provider*, not a distinct driver
-method — which is worth stating, because a reader looking for the missing operation will not find
-one and may add a redundant method to the trait.
-
-`OPS-27`'s resolved-observed outcome takes exactly this path: a machine discovered by its
-correlator is attached by reading it and writing the row. Two consequences follow. Attachment
-inherits `PRV-12`'s side-effect-free guarantee, so reconciliation cannot mutate anything
-(`OPS-28`) even by accident. And an adopted machine has **no correlator**, because nothing wrote
-one at its creation — so `STO-17`'s cross-tenant uniqueness, not the correlator, is what stops
-two tenants adopting the same machine.
+*`PRV-28` — adoption as get-machine plus a local row — is withdrawn with adopt (`ADR-0020`). What
+it said about attachment survives here because it is about resolution, not adoption:*
+`OPS-27`'s resolved-observed outcome attaches a machine discovered by its correlator by reading it
+(`PRV-12`) and writing the row, so attachment inherits `PRV-12`'s side-effect-free guarantee and
+reconciliation cannot mutate anything (`OPS-28`) even by accident.
 
 ### Delete machine
 
@@ -369,15 +360,16 @@ returning satoshis, which is the same money reaching the customer through the me
 `ADR-0011` sanctions instead of through an automatic resize it forbids. The bound is declared in
 the descriptor's `cancellation_bound` (`PRV-44`), or reported on the offer. In practice the bound is trivial for the launch set — current Robot
 dedicated servers have no minimum term and a new machine's date is normally today
-(`08-provider-notes.md`) — and adoption never needs it, because an adopted machine's date is read
-before its commitment opens (`PRV-28`, `LDG-36`).
+(`08-provider-notes.md`). *A clause here said adoption never needs the bound because an adopted
+machine's date is read before its commitment opens; adopt is withdrawn (`ADR-0020`), and the
+clause was false while it stood, since the commitment opened at enqueue.*
 
 **PRV-13c** **A deployment MUST NOT encode any provider's current commercial terms as
 constants.** Minimum term, notice period, cancellation immediacy and billing granularity are
 per-contract facts that change, differ between a provider's own product lines, and differ
-between a machine you ordered and a machine you adopted.
+between one contract and the next.
 
-The required shape is read-and-branch: order or adopt, **read** the provider's per-machine
+The required shape is read-and-branch: order, then **read** the provider's per-machine
 cancellation constraint, and branch to the exception path when it is **materially in the
 future** — defined (`F18`) as later than now plus one re-derivation period plus the product's
 wind-down bound; anything nearer is indistinguishable from the ordinary exhaustion path and
@@ -390,8 +382,9 @@ the satoshis covering it are never advertised as runtime.
 *This requirement exists because a specification, a reviewing model, and a researching model
 each asserted a different set of terms for the same provider, and two of the three were wrong.
 Assumptions about commercial terms do not survive review, and they do not survive the provider
-changing them. Adoption is the main road onto the exception branch, not a legacy curiosity: an
-adopted machine carries whatever contract it came with.*
+changing them. Until 2026-09-08 this paragraph called adoption the main road onto the exception
+branch; adopt is withdrawn from v1 (`ADR-0020`), and the branch stays specified because the
+read-and-branch shape is what makes a machine with an inherited contract safe when it returns.*
 
 ### List attachments / Release attachment
 
@@ -753,7 +746,7 @@ check found that Hetzner Cloud and Robot both do. The `DOM-7` exclusion survived
 the reason written for it did not.*
 
 **PRV-36** **Read-after-write. A read of provider state is not authoritative about a mutation the
-driver issued until that provider's declared visibility window has elapsed.**
+driver issued until that provider's effective visibility window has elapsed.**
 
 `OPS-33` already states half of this and states it for creates: absence within the negative window
 is **not evidence** that nothing was created. This is the mirror, and it is the half that was
@@ -777,7 +770,7 @@ descending strength** — the descriptor's `evidence_sources` (`PRV-44`):
    object. This is not a correlator and MUST NOT be described as one: `PRV-26` scopes correlators to
    create, where the identifier is *unknown*. Here it is known, and what is needed is a stronger
    place to read it from.
-3. **A read of the resource**, interpreted only through the declared window below.
+3. **A read of the resource**, interpreted only through the effective window below.
 
 A stronger source, when consulted, overrides a weaker one. A weaker source never overrides a
 stronger one.
@@ -895,7 +888,7 @@ Where the identity holds, an ambiguous create resolves by reading the resource d
 | Response | Outcome |
 |---|---|
 | the account owns it | `OPS-27`'s first row, "Exactly one resource across all of this operation's correlators", reached without a search and naming the machine exactly |
-| absent, past `PRV-36`'s declared visibility window | `OPS-27`'s resolved-absent |
+| absent, past `PRV-36`'s effective visibility window | `OPS-27`'s resolved-absent |
 
 This is stronger than a correlator search on four counts: it is an identity lookup, so `OPS-29`'s
 "A correlator match MUST be exact" is satisfied by construction; it is not bounded by a transaction
@@ -905,7 +898,9 @@ per-attempt discrimination for free**, because a create has exactly one attempt 
 its identity is known before the order is sent.
 
 A driver MUST declare, per ordering channel, whether the offer identifier is the resource
-identifier, and MUST prefer the identity read where it is. **This does not reach a catalogue
+identifier — the descriptor's `ordering_channels[].offer_is_resource` (`PRV-44`; the declaration
+had no field to live in until 2026-09-08, while `CNF-285` already tested it) — and MUST prefer the
+identity read where it is. **This does not reach a catalogue
 channel**, where the offer is a product and `PRV-32`'s correlator remains the only road.
 
 *The absence answer is `PRV-39`'s case: `404 SERVER_NOT_FOUND` is an answer, not an error. And the

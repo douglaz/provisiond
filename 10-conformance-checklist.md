@@ -56,7 +56,7 @@ item for `OVR-10a`, which had none — that is `CNF-71`–`CNF-74` below.
 ### Assignments
 
 **BLOCKING** (count superseded — see **The blocking count**) — `CNF-1`, `CNF-3` (the epistemic pair: every other checkmark is testimony from
-this witness); `CNF-4`, `CNF-5`, `CNF-7`–`CNF-9` (tenancy — three internal tenants exist from day
+this witness); `CNF-4`, `CNF-7`–`CNF-9` (tenancy — three internal tenants exist from day
 one, so cross-tenant control is takeover plus destruction before any external customer arrives;
 *written out rather than as `CNF-4`–`CNF-9`, because that range swallowed `CNF-6` and kept assigning
 a tier to a merge marker after it stopped being an item*);
@@ -309,7 +309,7 @@ one, applied to the requirement sort instead of to the item sort.*
 - **`OVR-5`, `OVR-9`, `OVR-10`, `OVR-10a`, `OVR-10b`, `OVR-12`.**
 - **`DOM-6`, `DOM-10`, `DOM-13`, `DOM-14`, `DOM-17`–`DOM-19`.** Redaction, capability gating,
   strategy/image pairing, digest requirement, error taxonomy, cancellation honesty.
-- **`API-7`–`API-18`, `API-22`, `API-24`, `API-25`.** Auth ordering, idempotency,
+- **`API-7`–`API-17b`, `API-22`, `API-24`, `API-25`.** Auth ordering, idempotency,
   validation, acknowledgements, authorization, redaction before storage, error mapping, message
   hygiene.
 - **`STO-1`–`STO-5`, `STO-8`, `STO-8a`, `STO-9`, `STO-15`.** The transactional primitives the
@@ -376,24 +376,16 @@ not optional hardening — they are the only structural defence there is.
       *Withdrawn text:* the lifecycle layer holds no customer credential **or payment material** —
       which, read against the module table, made the product's terminal money write illegal in every
       module that could perform it. (`OVR-10b`, `OVR-9`, `OPS-27`)
-- [ ] **CNF-74** Operator-only routes — `WIR-34`'s list; adopt and `retry` above all, since one
-      sizes a customer's commitment and the other re-dispatches a delete (`API-18`, `API-64`) — are
-      not served on the customer-facing listener. (`API-27`)
+- [ ] **CNF-74** Operator-only routes — `WIR-34`'s list; `retry` above all, since it re-dispatches
+      a delete (`API-64`) — are not served on the customer-facing listener. (`API-27`)
 ## Tenancy and authorization
 
 - [ ] **CNF-4** Tenant A cannot read, refresh, power, install on, or delete tenant B's
       machine; every attempt returns `404`, never `403`. (`API-17`, `SEC-8`)
-- [ ] **CNF-5** **REWRITTEN 2026-09-02 — it tested a tenant-facing adopt that `API-18` abolished.**
-      Adoption is operator-only, so the entitlement question is no longer "may this tenant claim
-      this machine" but "does the operator's own assignment name it": (a) a **customer**-authenticated
-      request to `POST /v1/machines/adopt` returns `404`, never `authentication` — the route's
-      existence is not customer-observable (`WIR-34`); and (b) an **operator** adopt naming an
-      external identifier absent from the operator-maintained assignment of external machine
-      identifiers to tenants is refused, and that assignment is unique per external machine
-      (`SEC-10`, `STO-17`). *Withdrawn text:* a tenant naming a valid provider account and a valid
-      external identifier it is not entitled to gets an error, not a machine — which no conforming
-      build can reach, since the tenant gets `404` at the door. (`API-18`, `SEC-7`, `WIR-34`,
-      `DEF-1`)
+- **CNF-5** — **WITHDRAWN 2026-09-08 (`ADR-0020`)** with adopt. It tested the operator adopt
+      against the entitlement assignment, after a 2026-09-02 rewrite retired its tenant-facing
+      form. Identifier retained rather than reused; `DEF-1` keeps the defect, and the item returns
+      with the verb. (`DEF-1`, `STO-17`)
 - **CNF-6** — **MERGED INTO `CNF-107` 2026-09-02.** It read "two tenants cannot both hold a record
       for the same external machine"; `CNF-107` reads "two tenants cannot both hold the same
       `(provider_account, external_id)`, enforced by the store, not by application code" — the same
@@ -479,7 +471,9 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-29** **AMENDED 2026-09-08 (`ADR-0016`) — the sweep has no deadline; the startup pass
       is the sweep.** Every operation found `running` when the engine starts is moved to
       `needs_reconciliation` — never back to `queued` — and the count is logged. Kill the engine
-      with an operation of each dispatching kind `running`, restart, and assert each one. (`OPS-15`)
+      with an operation of each dispatching kind `running`, restart, and assert each one — **except
+      a `refresh`, which settles `failed`** (`ADR-0020`): assert its row is `failed` with an
+      `internal` error and that `WIR-35`'s resolve refuses it by kind. (`OPS-15`)
 - [ ] **CNF-30** The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
       different stakes: rows where a misclassification causes a repeated provider mutation, and
@@ -879,9 +873,9 @@ rather than acquiring a default.
       case for a newly ordered current-generation server, per `08-provider-notes.md` — cancellation
       is immediate and billing stops; where it is materially in the future, the machine goes to
       `cancellation_scheduled` with its effective date and billing continues until it arrives
-      (`DOM-19`, `STO-8a`). **Both branches must be covered, and adoption is the road to the second
-      one** — an adopted machine carries whatever contract it came with, which is why `PRV-13c`
-      calls it the main road onto the exception branch. *Withdrawn clause:* "a cancellation that
+      (`DOM-19`, `STO-8a`). **Both branches must be covered**: seed a provider whose per-machine
+      date is materially in the future, since no launch product reaches the branch by default and
+      adoption, the road that did, is withdrawn (`ADR-0020`). *Withdrawn clause:* "a cancellation that
       schedules rather than deletes, and billing that continues until the effective date", asserted
       unconditionally — which `08-provider-notes.md` records as not existing on current Robot
       servers, so the item was unpassable on the product it was written for and would have been
@@ -950,6 +944,20 @@ rather than acquiring a default.
       `billing_stop_window` (`PRV-13b`). A build that reads the window from driver source
       resolves the second create `absent`, releases the commitment, and the machine arrives with
       nobody paying. (`PRV-36`, `PRV-44`, `STO-53`, `ADR-0018`)
+- [ ] **CNF-293** **BLOCKING** — **An attachment is released by an operator through a route, and
+      the route is what opens the tombstone gate.** Delete a machine on a driver whose descriptor
+      declares a surviving attachment kind and whose *list attachments* returns one `billable: true`,
+      and assert one `machine_attachments` row per returned attachment (`PRV-45`). For an `api` row: assert the delete's terminal transaction
+      enqueued a `release_attachment` carrying the delete's own `requested_by` and `system_reason`;
+      settle it `failed`, then call `POST .../attachments/{id}/actions/release` as an operator and
+      assert a `202` with a fresh `release_attachment` operation, `requested_by: operator`, whose
+      success writes `released_at`, after which `STO-18` no longer forbids the tombstone and
+      `LDG-74`'s "the row is tombstoned when `STO-18` allows" is what performs it. For a `manual`
+      row: assert the same route answers `200` synchronously with `released_at` set and no operation
+      minted (`API-48`). Assert a second release of either row is `409` `state`, and that
+      `GET .../attachments` shows every row with its `cleanup` and `released_at`. A build without
+      the route leaves every machine with a `manual` attachment un-tombstoned forever. (`API-65`,
+      `WIR-52`, `PRV-45`, `STO-18`, `LDG-74`)
 - [ ] **CNF-288** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0017`) — the verb it tested is deleted,
       so the item asserts its absence.** **No settled operation of any kind re-enters `queued`.**
       For every operation kind, drive an operation to `failed` and to `needs_reconciliation` and
@@ -957,12 +965,12 @@ rather than acquiring a default.
       moves it back to `queued` (`OPS-4`). **Then assert the recovery that replaced it is scoped to the episode**: `retry` (`API-64`) on a
       `stalled` episode enqueues a **fresh** `delete_machine` attempt under the same episode id and
       leaves the failed attempt's row untouched; `retry` on an episode in any other state is `409`
-      `state`; and no episode ever carries a `create_machine`, `install`, `adopt_machine`, `power`
+      `state`; and no episode ever carries a `create_machine`, `install`, `power`
       or `reverse_dns` attempt, so none of those kinds has a second attempt by any path. A build
       that re-runs a settled create buys a machine the customer holds no credential on with the
       customer's satoshis (`ADR-0014`); one that re-runs an install lets an operator choose the
-      bytes written to a customer's disk and the host-key decision `SEC-22` reserves for the caller;
-      one that re-runs an adopt lets an operator size a customer's commitment (`F39`). (`OPS-4`,
+      bytes written to a customer's disk and the host-key decision `SEC-22` reserves for the caller.
+      (`OPS-4`,
       `OPS-48`, `API-64`, `ADR-0014`, `ADR-0017`)
 - [ ] **CNF-281** **BLOCKING** — **Resolution searches every ordering channel.** Order on one channel, resolve with
       a driver configured to query only the other, and assert the outcome is **not** resolved-absent.
@@ -988,11 +996,11 @@ rather than acquiring a default.
       failures the retry loop takes every tenant's operations offline with it — an outage the
       operator sees and the provider's support desk undoes. (`PRV-41`, `OPS-26`)
 - [ ] **CNF-285** **PRE-SCALE** — **Where the offer identifier is the resource identifier, resolution reads the
-      resource.** For a channel a driver declares as identity-shaped, assert an ambiguous create
-      resolves by reading the named resource rather than by searching a listing, and that absence is
-      interpreted through `PRV-36`'s window. A driver that declares the identity and still searches
-      is carrying `OPS-33`'s listing horizon for no reason — slower resolution, not a wrong one.
-      (`PRV-42`, `PRV-36`, `OPS-27`)
+      resource.** For a channel whose descriptor entry carries `offer_is_resource: true` (`PRV-44`),
+      assert an ambiguous create resolves by reading the named resource rather than by searching a
+      listing, and that absence is interpreted through `PRV-36`'s window. A driver that declares
+      the identity and still searches is carrying `OPS-33`'s listing horizon for no reason — slower
+      resolution, not a wrong one. (`PRV-42`, `PRV-44`, `PRV-36`, `OPS-27`)
 - [ ] **CNF-286** **BLOCKING** — **A landed order is not attached without confirming the resource
       exists.** Resolve a create whose order record reports success and whose resource has since been
       destroyed, and assert the outcome is **not** resolved-observed: no `machines` row, no
@@ -1197,18 +1205,12 @@ rather than acquiring a default.
       `install_strategies` before this one**, and `05-persistence.md` calls it a safety gate: get it
       wrong and a disk-wiping install is authorized on a machine that cannot take one.
       **AMENDED 2026-09-03 — the caller must be able to read the gate's input** (`DOM-30`): the
-      machine view returns that same copy, the key is present on **every** machine, and an
-      **adopted** machine whose eligibility could not be established renders `[]` rather than
+      machine view returns that same copy, the key is present on **every** machine, and a
+      machine whose stored list is null renders `[]` rather than
       omitting the key or echoing the account's capabilities. Assert an agent can tell a permitted
       strategy from a refused one **without sending an install** — the gate authorizes wiping a disk,
       so discovering it by attempting it is `CNF-150`'s probe-by-purchase with a destructive verb.
       (`OPS-13`, `WIR-30`, `DOM-13`, `DOM-30`, `WIR-11`)
-- [ ] **CNF-258** **Adopt places a commitment and gets a runway.** An adopt with insufficient
-      available balance is refused with no provider call; a successful one opens a commitment, sets
-      `runway_until`, and the machine enters the exhaustion sweep. Without it an adopted machine
-      consumes unstoppable billable compute against a balance nobody checked, and `PRV-13c` names
-      adoption as the main road onto the branch where cost cannot be stopped quickly. (`LDG-36`,
-      `LDG-12`, `PRV-13c`)
 - [ ] **CNF-259** **Idempotency still works after the payload is purged.** Re-send a key whose
       operation has settled and whose `request` is gone: a byte-equivalent body returns the stored
       result, a different one is `409`. Asserted against the canonical digest, since the payload it
@@ -1306,7 +1308,7 @@ rather than acquiring a default.
       those machines, because an open episode exists for each — the parent settles `succeeded` with
       that child named in `WIR-39`'s `cancellations`, `WIR-41`'s resume becomes available, each
       machine's episode is `stalled` and listed for the operator, and `retry` on it (`API-64`) is
-      admitted although the tenant is suspended — `API-7` step 5b applies to `adopt` only. **Then
+      admitted although the tenant is suspended — every operator verb skips `API-7` step 5b. **Then
       run the clock out and assert that nothing automatic cancels the machine**: it stays in the
       operator listing and the exhaustion sweep enqueues nothing, because the open episode it would
       need is the same one that made the fan-out terminate. **Then suspend a tenant one of whose
@@ -1414,13 +1416,13 @@ rather than acquiring a default.
       attachment stops its **own** meter and is **not** tombstoned (`STO-18`), while the attachment
       keeps being metered on its own subject. And a sweep pass that **yields to `rate_limited` part
       way records no absence at all** — the half-listing must not close a whole account's
-      commitments. **A machine created inside `PRV-36`'s declared visibility window and not yet in
+      commitments. **A machine created inside `PRV-36`'s effective visibility window and not yet in
       the provider's listing records no absence either**, and its meter keeps running: seed a listing
       that omits a machine created seconds ago, assert the sweep writes nothing, then re-run past
       the window with the machine present and assert it is still metered and still committed.
       Assert the window used is `PRV-36`'s and **not** `OPS-33`'s negative window — a build wired to
-      the longer one passes this seeding and bills a terminated machine for hours. Assert too that an
-      **adopted** machine (`PRV-28`) records an absence on the first pass, having no create to
+      the longer one passes this seeding and bills a terminated machine for hours. Assert too that a
+      **late-attached** machine (`OPS-36`) records an absence on the first pass, having no create to
       measure from. **And assert no absence is recorded without a direct re-read**: seed a listing
       that is *complete* and still omits a live machine — page churn, an offset listing where a
       deletion ahead of it slides it onto a page already fetched — and assert the sweep re-reads
@@ -1459,8 +1461,8 @@ rather than acquiring a default.
       /v1/providers` omits it for an assigned tenant, and a create naming it is `409` `state` —
       including a create issued against a catalogue read taken **before** the termination, since the
       listing is advisory. Assert the refusal on **all three** unhealthy statuses and on **both**
-      catalogue routes — the collection and `/providers/{account}/offers` (`WIR-30`) — and on adopt
-      as well as create. **Barrier case, and it is the one a lock alone fails**: hold a meter tick
+      catalogue routes — the collection and `/providers/{account}/offers` (`WIR-30`).
+      **Barrier case, and it is the one a lock alone fails**: hold a meter tick
       that has already read the machine as billable, commit the termination, then release the tick —
       it must post nothing, because `LDG-38` re-reads billability inside the serialization rather
       than trusting what it read before. **Second barrier**: admit a create that passes the health
@@ -1558,11 +1560,12 @@ rather than acquiring a default.
       **AMENDED 2026-09-04 — assert the operator principal traverses the write pipeline at all.**
       Drive **every** operator-only verb (`WIR-34`'s list) end to end with an operator credential and
       assert none is rejected for **the principal's own** tenant state at `API-7` step 2 or 5b — an
-      operator has no tenant to be pending or suspended. **Then assert the converse on the same
-      steps**, since it is the half a careless exemption deletes: an `adopt` against a **suspended
-      target tenant** is still rejected `suspended` at 5b, and every operator write still takes its
-      `Idempotency-Key` through steps 3 and 5a and its ceiling at 5c. **And assert the scope is not
-      wider than `adopt`**: `WIR-42`'s attribution to a **`pending`** target is admitted, `retry`
+      operator has no tenant to be pending or suspended. **Then assert the steps still run**: every
+      operator write still takes its `Idempotency-Key` through steps 3 and 5a and its ceiling at 5c.
+      *Until `ADR-0020` withdrew adopt, this item also asserted the one converse — an `adopt`
+      against a suspended target tenant rejected at 5b — and it returns with the verb.* **And
+      assert no operator verb is refused on its target's state**: `WIR-42`'s attribution to a
+      **`pending`** target is admitted, `retry`
       against a suspended tenant's episode is admitted (`CNF-272`), and every abuse-case verb,
       restriction recording and deadline revision against a **suspended** target is admitted — *a
       repair of 2026-09-04 read "wherever a tenant is named" and refused all of those.* *Read
@@ -1655,7 +1658,7 @@ rather than acquiring a default.
       `WIR-10a`, `WIR-47`)
 - [ ] **CNF-237** **A delete is not resolved as failed while the provider is still catching up.**
       With a provider whose resource read lags its write, an ambiguous delete resolves correctly:
-      resolution takes no read before the declared visibility window elapses, a pre-mutation reading
+      resolution takes no read before the effective visibility window elapses, a pre-mutation reading
       inside the window leaves the operation pending rather than concluding, a post-mutation reading
       is never reverted by a later contrary read, and a pre-mutation reading beyond the window
       resolves *not applied*. Assert with an injected read lag; a sample exceeding the declared
@@ -1968,12 +1971,12 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       integer above 2^53, is rejected. (`WIR-3`, `WIR-1a`)
 - [ ] **CNF-179** An operator resolves a `needs_reconciliation` operation through
       `POST /.../actions/resolve` in each of its **five** forms — `observed`, `absent` and
-      `abandoned` on a create or adopt, `applied`, `not_applied` and `abandoned` on a kind that acts
+      `abandoned` on a create, `applied`, `not_applied` and `abandoned` on a kind that acts
       on a machine that already exists (`OPS-31`, `WIR-35`, added 2026-09-02) — with each form
       refused **on a kind whose set does not admit it**, and `abandoned` accepted on both, since it
       is the member common to the two sets; the
       `absent` form releases the
-      commitment, and a customer-authenticated request to that route — and to adopt and `retry` —
+      commitment, and a customer-authenticated request to that route — and to `retry` —
       returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`, `OPS-45`, `API-64`)
 - [ ] **CNF-173** After startup, enumerating the process environment from inside the
       customer-facing module yields no provider credential — asserted by actually reading the
@@ -2082,7 +2085,7 @@ cadence is set finer than hourly, because that is when the arithmetic stops bein
 ### Assignments for `CNF-257`–`CNF-269` (coverage gaps and catalogue install, 2026-08-31)
 
 **BLOCKING** — `CNF-257` (the install safety gate, which had no conformance item naming it at all —
-destroyed data); `CNF-258` (money out: an adopted machine billing against a balance nobody checked);
+destroyed data); ~~`CNF-258`~~ (withdrawn with adopt, `ADR-0020`);
 `CNF-259` (both failure modes end in a duplicate purchase, which is what `API-38` was written to
 stop); `CNF-260` (two open commitments double-reserve a balance silently); `CNF-263` (destroyed data — writing a raw image to the wrong kind of device);
 `CNF-264` (a PTR set on an address the tenant does not hold crosses a boundary in the operator's own

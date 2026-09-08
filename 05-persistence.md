@@ -19,8 +19,9 @@ operation, and each MUST report whether it affected a row (`OPS-22`):
   means the startup pass has already moved it, so the worker outlived a restart and exits
   (`OPS-22`). *This term did the whole job while an `epoch = mine` term sat beside it: the claiming
   process stamped that value itself, so it held by construction (`ADR-0019`).*
-- **The startup pass** (`OPS-15`) moves every `running` operation to `needs_reconciliation`,
-  guarded on `(id, status = running)`. It runs before the process makes any claim, so nothing
+- **The startup pass** (`OPS-15`) moves every `running` operation to its startup state —
+  `needs_reconciliation`, or `failed` for a `refresh` (`ADR-0020`) — guarded on
+  `(id, status = running)`. It runs before the process makes any claim, so nothing
   contends with it.
 - **Resolution out of `needs_reconciliation`** is not a worker write (`OPS-3`): it is guarded on
   `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s write-once rule
@@ -161,13 +162,13 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `external_id` | text | not null |
 | `name` | text | not null |
 | `kind` | enum | `virtual` \| `bare_metal` |
-| `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null for adopted machines, which came from no offer |
-| `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means **no install is permitted on this machine** — the offer allowed none, or adoption could not establish a list. **Adoption writes its own list here** rather than leaving it null, empty where nothing better can be derived; a null value MUST be read as empty, never as a fall-back to `DOM-10`'s account capabilities |
+| `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null only for a machine that came from no offer, which no v1 machine is (`ADR-0020`) |
+| `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means **no install is permitted on this machine** — the offer allowed none. A null value MUST be read as empty, never as a fall-back to `DOM-10`'s account capabilities |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
 | `metadata` | json | redacted (`DOM-6`) |
-| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**. Nullable for adopted machines. *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
+| `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**. Nullable, for a machine that bore none when adopt returns (`ADR-0020`). *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
@@ -208,21 +209,22 @@ and MUST NOT re-resolve the offer at install time.** An offer is a live provider
 so resolving eligibility through `offer_id` then either fails for a machine that is running and
 paid for, or silently answers from terms the customer never bought. Eligibility was decided when
 the machine was created; the copy is what makes that decision durable. `offer_id` is kept for
-provenance and MUST NOT be repurposed as the gate's input. An **adopted** machine came from no
-offer: its `offer_id` stays null, but **adoption MUST derive and persist a machine-specific
-`install_strategies` list all the same**, and where adoption cannot establish one from what it can
-see, that list is **empty** — every strategy refused — never the provider account's declared
-capabilities (`DOM-10`). Falling back to the account would re-admit the very case the machine-level
-copy exists to close: the products within one account differ, so an account that offers a
-rescue-based install on one product would authorize it on an adopted box that cannot take it, and a
-rescue install wipes the disk (`06-rescue-install.md`). An adopted machine whose empty list refuses
-an install the operator knows is safe is a recoverable inconvenience; the reverse is not.
+provenance and MUST NOT be repurposed as the gate's input. **A null list MUST be read as empty —
+every strategy refused — never as the provider account's declared capabilities** (`DOM-10`).
+Falling back to the account would re-admit the very case the machine-level copy exists to close:
+the products within one account differ, so an account that offers a rescue-based install on one
+product would authorize it on a box that cannot take it, and a rescue install wipes the disk
+(`06-rescue-install.md`). *Until 2026-09-08 this paragraph made adoption derive its own list and
+persist an empty one where it could not; adopt is withdrawn (`ADR-0020`) and the null rule is what
+remains of it, kept because the fall-back it forbids is the obvious implementation.*
 
 **STO-17** `(provider_account, external_id)` MUST additionally be unique **across all tenants**,
 not merely within one. `SEC-10` and `CNF-107` require that a provider machine belong to at most one
 tenant, and the constraint written above — which includes `tenant_id` — permits exactly the
-duplicate it was meant to prevent. Two tenants adopting the same machine would each be authorized
-to destroy the other's server. This was `F15`.
+duplicate it was meant to prevent. Two tenants holding rows for the same machine — a resolution
+attach (`OPS-13`) against a machine another tenant's create already produced, or two adopts when
+adopt returns (`ADR-0020`) — would each be authorized to destroy the other's server. This was
+`F15`.
 
 ### `machine_attachments`
 
@@ -271,7 +273,7 @@ deleted rows.
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
-| `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create **or adopt**, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, rescue inventory, power, reverse DNS, delete (`OPS-27`, `OPS-31`, `OPS-45`, `WIR-35`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02. **The store MUST reject a value outside the set its operation's kind admits**, which is `WIR-35`'s rule enforced where `API-24` cannot reach |
+| `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, rescue inventory, power, reverse DNS, delete, release attachment (`OPS-27`, `OPS-31`, `OPS-45`, `WIR-35`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02. **The store MUST reject a value outside the set its operation's kind admits**, which is `WIR-35`'s rule enforced where `API-24` cannot reach |
 | `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin, and with the column below makes the failure deterministic rather than ambiguous (`OPS-11`) — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean bytes reached the disk, and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once, and nothing clears it** (`OPS-45`): a marker is a fact about this one operation. Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`) |
 | `rescue_exited_cleanly` | boolean | nullable; `OPS-45`'s second marker — true when the driver's end-rescue call returned success, null where no rescue session was opened, false where the exit failed, was never attempted (`on_failure: leave_in_rescue`), or the operation died before reaching it. **A null `write_started_at` alone does not make a failure deterministic**: entering rescue reboots the machine into another operating system and `PRV-22` makes a failed exit always ambiguous, so an untouched disk on a machine possibly still sitting in rescue is not "nothing happened". Both are copied into `request_summary` so an operator reading a resolved record still has them after the payload purge (`ADR-0005`); **these columns are authoritative and the copy is a convenience** |
 | `privileged_seconds`, `bytes_transferred`, `storage_seconds` | integer, integer, integer | nullable; `LDG-25`'s metering of a privileged operation — rescue occupancy or import-to-switchover, and for a catalogue install the bytes transferred and the storage-seconds of the re-hosted copy (`RSC-39`, `RSC-42`). Free in v1 and counted from the first release, because a price cannot be introduced later for something that was never counted. Metering facts, not caller payload: they survive `ADR-0005`'s purge. *Added 2026-09-05; the MUST had no column* |
@@ -749,7 +751,7 @@ extension that funded it, and `LDG-20`'s solvency check carried a phantom liabil
 the machine.*
 
 **STO-47** **This table has readers, and until 2026-09-04 it had none.** `WIR-29` filters the
-customer catalogue on it, the create and adopt paths refuse anything but `healthy`, and `STO-36`
+customer catalogue on it, the create path refuses anything but `healthy`, and `STO-36`
 refuses to record an assignment to one — which is the sharper of the three, since `WIR-48` refused
 only `terminated` and `API-57` consulted nothing. `API-63` is the writer. *A one-writer, zero-reader
 table is not a control, and this one was cited by `API-62` as the reason its re-assignment verb
@@ -887,7 +889,7 @@ it was observed in: `machine_id`, `address` (canonical form), `first_seen`, `las
 `(address, first_seen)`.
 
 **The write belongs to every transaction that writes `machines.public_ips`, not to the refresh
-alone** — create, adopt, the resolution attach (`OPS-13`), an opportunistic post-action update
+alone** — create, the resolution attach (`OPS-13`), an opportunistic post-action update
 (`DOM-8`) and an explicit refresh operation all record what they saw, and tombstoning closes every
 open window on that machine. *The first draft bound it to "the refresh that already maintains
 `public_ips`", which is the one path a customer need never invoke: nothing in this set refreshes a

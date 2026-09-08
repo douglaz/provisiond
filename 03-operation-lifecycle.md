@@ -183,7 +183,7 @@ This is `OVR-5` made concrete.
 
 | Operation | Classification rule |
 |---|---|
-| adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing. |
+| refresh | Always `failed`. It is read-only; a failure changed nothing. *The row read "adopt, refresh" until `ADR-0020` withdrew adopt from v1.* |
 | suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. It is a parent whose per-machine children carry their own outcomes (`WIR-39`), and it settles `succeeded` once every child has either settled or **reached `needs_reconciliation`** — a child that reached that state counts as complete for the parent. `needs_reconciliation` is not itself settled (`OPS-3`); it is a state only evidence or an operator moves, so an unresolved child is a child-level fact, and blocking the parent on it would leave every suspended tenant's record permanently open. |
 | rescue inventory | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited`, **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. |
@@ -277,7 +277,14 @@ writer, any `running` row at startup is interrupted — guarded on `(id, status 
 worker is exactly the case where the provider may have acted and nobody recorded it. No periodic
 pass is needed; nothing but a restart can leave a `running` row with no worker behind it.
 
-**`suspend_tenant` is the single exception, and it MUST NOT require an operator.** A
+**A `refresh` found `running` at startup MUST be settled `failed`** — the same guarded write as
+above (`STO-3`), with an `internal` error naming the restart, the nearest of `DOM-17`'s kinds —
+and not moved to `needs_reconciliation`: it is read-only (`OPS-11`), so there is
+nothing the provider may have done that nobody recorded, and `WIR-35`'s resolve verbs refuse it
+by kind. *Added 2026-09-08 (`ADR-0020`): until then this pass sent an interrupted refresh to a
+state whose only exits refused it.*
+
+**`suspend_tenant` is the other exception, and it MUST NOT require an operator.** A
 `suspend_tenant` parent (`API-58`) found `running` at startup MUST be returned to `queued` and
 re-claimed like any other queued work, resuming its fan-out from wherever it stopped. It mutates no
 provider itself — its per-machine children do, and each child is an ordinary operation the rules
@@ -878,7 +885,7 @@ episode's `retry` (`API-64`) is a different verb on a different record (`OPS-48`
 observed resource by its external identifier, record that nothing was created, or
 abandon the operation and accept the loss. Each MUST record who resolved it and on what
 evidence, and abandonment MUST close the commitment and release it in full (`LDG-32`) **where the
-operation opened one** — a create or an adopt (`LDG-11`, `LDG-36`). An install, a rescue inventory,
+operation opened one** — a create (`LDG-11`). An install, a rescue inventory,
 a power action, a
 reverse-DNS change and a delete open none (`API-7`'s tail), and the only commitment within reach of one is the
 machine's **running** commitment, which abandonment MUST NOT touch: the machine is still there and
@@ -920,8 +927,9 @@ machine in rescue, so it reaches `needs_reconciliation` and `CNF-201` tests that
 which a builder following this list would find `applied` and `not_applied` unavailable for it and
 resolve it the one way this amendment exists to abolish, as `abandoned`. **The defect was removed for
 four kinds and left standing for the fifth.** The commitment sentence had the mirror gap: rescue
-inventory fell between "a create or an adopt", which opens a commitment, and an enumeration that did
-not name it, so the requirement gave no rule for the one case it did not mention.*
+inventory fell between "a create or an adopt" (as the sentence then read), which opens a commitment,
+and an enumeration that did not name it, so the requirement gave no rule for the one case it did
+not mention.*
 
 **OPS-45** **The engine knows whether it started writing, and that knowledge MUST be recorded and
 used before anyone asks a human.** `OPS-11` sends an install's `integrity` failure to
@@ -932,10 +940,12 @@ success case (a pinned key that did not match, aborting exactly as designed) end
 operator-resolved loss.
 
 **This requirement governs the kinds that act on a machine that already exists — install, rescue
-inventory, power, reverse DNS and delete — and nothing else.** It does **not** reach `create` or
-`adopt`: there is no machine yet, the question is whether a *resource was produced*, and the answer
+inventory, power, reverse DNS, delete and release attachment (`PRV-45`) — and nothing else.** It does **not** reach `create`:
+there is no machine yet, the question is whether a *resource was produced*, and the answer
 comes from `OPS-27`'s correlator search rather than from anything the engine can record about
-itself. Nor does it reach `suspend_tenant`, which mutates no provider (`OPS-11`). **Scoping this is
+itself. Nor does it reach `suspend_tenant`, which mutates no provider (`OPS-11`). *Until
+2026-09-08 this sentence excluded `adopt` on the same grounds, which were false for a machine that
+already exists; adopt is withdrawn (`ADR-0020`).* **Scoping this is
 not a formality**: read unscoped, "the marker is unset, so settle `failed`" would settle every
 ambiguous create as a deterministic failure, which deletes `OPS-27`'s resolution, `OPS-33`'s
 negative window, `OPS-36`'s late attach and `LDG-39`'s whole fee table in one sentence — the
@@ -949,7 +959,7 @@ that could have altered the machine, and before that phase runs:
 | install, `rootfs_via_rescue` | the provider's OS installer is started (`RSC-25` verifies the digest first, so nothing before that point has touched the disk) |
 | install, `raw_disk` | the first byte is written to the target device (`RSC-28`) |
 | install, `provider_native` / `provider_catalogue` | the provider's rebuild call is dispatched |
-| power, reverse DNS, delete | the provider call is dispatched |
+| power, reverse DNS, delete, release attachment | the provider call is dispatched |
 | rescue inventory (`RSC-38`) | **never** — it writes nothing to a disk by construction, so its whole classification turns on the second marker below |
 
 **Entering rescue is itself a mutation, so a second marker is required and the two are read
@@ -971,7 +981,8 @@ proceeds by `PRV-29`/`PRV-36`'s provider evidence where the driver can produce i
 **The marker means two different things across the table above, and only one of them can foreclose
 anything.** On `rootfs_via_rescue` and `raw_disk` it means **bytes have reached the disk** — the
 installer is running, or a byte is written — and there the machine's old contents are gone whatever
-the outcome. On `provider_native`, `provider_catalogue`, power, reverse DNS and delete it means only
+the outcome. On `provider_native`, `provider_catalogue`, power, reverse DNS, delete and release
+attachment it means only
 that **a request was dispatched**, which is a fact about this process and not about the machine: a
 rebuild the provider never began, a power call it dropped, a delete whose response was lost, all set
 the marker and all may have changed nothing. *Recorded 2026-09-04 because a single column carrying
@@ -1029,11 +1040,12 @@ the account would record every unlisted machine as gone — stopping their meter
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
 
-**And it may record an absence only about a machine past `PRV-36`'s declared visibility window for
-that provider**, measured from the dispatch of the create that produced its `external_id`. *Added
-2026-09-04. The sweep's listing is a read of provider state, and `PRV-36` reads "a read of provider
-state is not authoritative about a mutation the driver issued until that provider's declared
-visibility window has elapsed". Nothing drew the line to here, so a machine created seconds before
+**And it may record an absence only about a machine past `PRV-36`'s effective visibility window for
+that provider** — `max(declared, max(observed))`, not the declaration alone (`ADR-0018`; this
+sentence read "declared" until 2026-09-08) — measured from the dispatch of the create that produced
+its `external_id`. *Added 2026-09-04. The sweep's listing is a read of provider state, and `PRV-36`
+reads "a read of provider state is not authoritative about a mutation the driver issued until that
+provider's effective visibility window has elapsed". Nothing drew the line to here, so a machine created seconds before
 the sweep, whose create the provider's listing had not yet caught up with, was recorded gone:
 `LDG-74` stopped its meter, `LDG-32` closed and released its commitment, and the machine went on
 running and billing the operator with no funding behind it and nothing scheduled to look again.* A
@@ -1059,9 +1071,9 @@ provider's allocation behaviour, and on Hetzner Robot bounded by how quickly a h
 hours go on billing its customer for that whole window, while `LDG-74` makes the **sweep interval**
 "this rule's error bound, the maximum time a customer can be billed for a machine that is gone". `PRV-36`'s window is
 listing lag — eight seconds against live DigitalOcean — which is the quantity actually in play here.
-**A machine with no create of its own has no window at all**: an adopted machine (`PRV-28`) and a
-late-attached one (`OPS-36`) were both observed present at the provider before they became records
-here, so an absence is evidence about them from the first pass. `LDG-74` is why the write exists at all: the
+**A machine with no create of its own has no window at all**: a late-attached machine (`OPS-36`)
+was observed present at the provider before it became a record here, so an absence is evidence
+about it from the first pass. `LDG-74` is why the write exists at all: the
 meter reads the machine record, `DOM-8` refreshes that record only on an explicit caller operation,
 and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
 draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not
@@ -1072,7 +1084,7 @@ machine that no longer exists.
 **A machine is unclaimed when it is absent from the `machines` table by
 `(provider_account, external_id)`** — *not* when it bears no correlator. The previous wording
 would have reported as unclaimed, on every sweep forever, **every Hetzner Robot machine** (whose
-correlator lives on the order, never on the server) and **every adopted machine** (`PRV-28`) —
+correlator lives on the order, never on the server) —
 a 100% false-positive rate on the dedicated product line this specification exists for. An
 unclaimed machine MUST NOT be auto-attached to any tenant (`OPS-29`); it is reported to the
 operator.

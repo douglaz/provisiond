@@ -9,8 +9,9 @@ script. Nothing that implements the specified system belongs here.
 pipe reports the pipeline's status, not the gate's, which is why `check-all.sh` captures each exit
 code directly.
 
-Green is evidence only because the workflow breaks a document on every run and asserts two gates
-reject it. `DEF-16` is why.
+Green is evidence only because the workflow breaks a document on every run and asserts the gates
+reject it — one negative-control step per gate that has one, and `.github/workflows/ci.yml` holds
+the list rather than this sentence. `DEF-16` is why.
 
 ## Writing a requirement
 

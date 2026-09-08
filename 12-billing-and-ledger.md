@@ -169,7 +169,7 @@ defect in this document has lived.
 ```mermaid
 stateDiagram-v2
     direction TB
-    [*] --> Open : create or adopt authorized<br/>LDG-11 opens it in the same<br/>transaction as the enqueue
+    [*] --> Open : create authorized<br/>LDG-11 opens it in the same<br/>transaction as the enqueue
 
     Open --> Open : usage_debit posted<br/>LDG-31 decrements by the same<br/>amount, same transaction
     Open --> Open : extend-runway<br/>LDG-62, caller action, fenced by OPS-42
@@ -178,7 +178,7 @@ stateDiagram-v2
     Open --> Closed : machine and every billable<br/>attachment stopped billing<br/>LDG-32, STO-18
     Open --> Closed : create failed deterministically
     Open --> Closed : resolved absent<br/>OPS-27
-    Open --> Closed : abandoned by an operator<br/>OPS-31, create or adopt only
+    Open --> Closed : abandoned by an operator<br/>OPS-31, create only
     Open --> Closed : provider account recorded<br/>terminated, SEC-46, API-63
     Open --> ReleasedEarly : negative window elapsed<br/>OPS-33 releases in full while<br/>the operation stays open
 
@@ -214,7 +214,7 @@ available = Σ(ledger entries) − Σ(reserved amount of open commitments)
 ```
 
 The spending authority check is `available ≥ required_commitment`, and it is the only
-authorization a create or an adopt receives (`ADR-0002`, `API-17b`).
+authorization a create receives (`ADR-0002`, `API-17b`).
 
 **LDG-70** **`Σ(ledger entries)` is a definition, not a read strategy, and the read is
 `balance_after` on the tenant's latest entry.** `LDG-5` says "**Balance is the sum of entries** and
@@ -283,7 +283,7 @@ because spending what you already committed neither frees nor freezes anything:
 **LDG-32** **AMENDED.** A commitment MUST be closed, and its remaining amount released in full,
 on **every** terminal outcome: the machine stops billing **and every billable attachment it left
 behind has stopped billing** (`PRV-13a`, `STO-18`); the create fails deterministically; the create
-is resolved absent (`OPS-27`); the create or adopt is abandoned (`OPS-31`); **or the machine's
+is resolved absent (`OPS-27`); the create is abandoned (`OPS-31`); **or the machine's
 provider account is recorded `terminated`** (`SEC-46`, `API-63`), which stops every meter in that
 account (`LDG-74`) and closes every open commitment on its machines in the transaction that records
 it — *the stop is named here because the first row above makes stopped billing the precondition for
@@ -344,8 +344,13 @@ debits at spot, so a price move belongs to the runway date — the customer's pu
 not to an automatic grab of their available balance.*
 
 **LDG-34** A commitment adjustment MUST be a conditional write on the commitment's current
-amount — a compare-and-swap or equivalent — so two workers re-deriving the same machine in the
-same period cannot both apply the delta.
+amount — a compare-and-swap or equivalent — so an adjustment computed from a read that another
+transaction has since changed is refused rather than applied. The row has three writers: the
+meter's decrement (`STO-28`), re-derivation's top-up on the scheduled-cancellation branch
+(`LDG-63`), and a caller's runway extension (`LDG-62`), and no requirement serializes them against
+each other. *Until 2026-09-08 the stated reason was two workers re-deriving the same machine in
+the same period. `PRV-13e` says what re-derivation recomputes is "`runway_until`, not the
+commitment", so that pair of writers does not exist.*
 
 **LDG-10** A balance MUST NOT go negative, and `available` MUST NOT go negative. Any operation
 that would do either MUST fail rather than proceed, including a runway extension (`LDG-62`) or
@@ -440,14 +445,14 @@ the only module that opens one (`OVR-9`). A
 commitment without an operation silently freezes a customer's money; an operation without a
 commitment spends the operator's. This is the requirement `ADR-0001` was decided on.
 
-**LDG-12** No provider mutation that can incur cost may begin before its commitment is committed
-— and this includes **adopt** (`LDG-36`), not only create.
+**LDG-12** No provider mutation that can incur cost may begin before its commitment is committed.
+*A clause here said "and this includes adopt"; adopt mutates nothing and is withdrawn (`ADR-0020`).*
 
-**LDG-36** **Adopt MUST place a commitment and pass the same authorization check as create.**
-Adoption brings an already-billing machine under management, and `PRV-13c` names it as the main
-road onto the branch where cost *cannot* be stopped quickly. An adopted machine MUST also be
-given a runway and a `runway_until`, or it never enters the exhaustion sweep and consumes
-unstoppable billable compute against a balance nobody checked.
+*`LDG-36` — adopt places a commitment, passes create's authorization, and gets a runway — is
+withdrawn with adopt (`ADR-0020`). Its reason survives as the shape adopt returns in: a machine
+brought under management with no commitment and no `runway_until` never enters the exhaustion
+sweep and bills against a balance nobody checked, and the commitment cannot be sized until the
+machine's cost has been read, which is why the return is read-first and synchronous.*
 
 ## The meter
 
@@ -482,7 +487,8 @@ nothing in the system raises anything.
 - **The trigger is that the resource is *gone*, not that it is broken.** An authoritative
   observation that the machine no longer exists at the provider — a refresh (`DOM-8`), a driver read
   during any operation, or `OPS-32`'s sweep concluding it absent **on that requirement's terms** —
-  a complete pass, past `PRV-36`'s declared visibility window for that provider, and confirmed by a
+  a complete pass, past `PRV-36`'s effective visibility window for that provider (the max, not the
+  declaration — `ADR-0018`; this read "declared" until 2026-09-08), and confirmed by a
   direct re-read, since a listing narrows candidates and never establishes one — stops the meter for
   that machine. Inside that
   window a read is not evidence of absence at all, which is the same rule everywhere else in this set
