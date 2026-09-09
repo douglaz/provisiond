@@ -85,6 +85,8 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0017` | A cancellation episode is an entity with its own states; `failed` is a fact about one attempt, and "known but not done" belongs to the episode. Requeue, reduced to one kind by `0014`, is deleted — that kind's recovery is an operator `retry` on the episode |
 | `0018` | A driver's declarations are one typed, immutable descriptor, and a measured window is the larger of the declared bound and the largest observed sample, held in the store. Attachments get list and release methods under `delete_machine` |
 | `0019` | `0016`'s epoch was not a fence: the claiming process stamped the value it then compared against, so the guard held by construction. It is deleted, a second concurrent engine is stated as out of scope, and the engine takes a session-scoped lock at boot to refuse a second *start*. Amends `0016` |
+| `0020` | Adopt is withdrawn from v1 with its whole surface: no launch driver can price a machine it did not buy. Returns operator-only, synchronous and read-first, with a driver that can. Closes `F47` |
+| `0021` | A machine recorded gone — by termination or by evidence — closes its open episode `resource_gone` in that write, and a close is permanent. The `abandoned` exit `DOM-31` drew from `stalled` is deleted rather than supplied; `retry` is already the withdrawal verb. Completes `0017`; closes `F49` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:

@@ -179,7 +179,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `last_install_strategy` | enum | nullable; `DOM-29`. Which strategy last installed this machine — not what is *permitted*, which is `install_strategies` |
 | `last_install_verified` | boolean | nullable; whether provisiond verified the bytes that reached the disk. False on a catalogue install (`DOM-28`), where the provider converts them and exposes no checksum |
 | `last_install_at` | timestamp | nullable; when. **All three survive `STO-14`'s deletion of the operation that knows** — a long-lived machine otherwise outlives the record of how it came to be |
-| `destroy_committed` | UUID | nullable; `OPS-42`'s fence, holding the **open `delete` episode's id** (`STO-52`; re-pointed 2026-09-08, `ADR-0017`). Set by an exposure-reducing cancellation's attempt, to its episode's id, by a conditional write guarded on this column being **null or already equal to that same episode id**, **before any provider mutation**. `LDG-62`'s extend-runway conditional-writes the same row guarded on it being null and fails `conflict` where it affects no row. Both sides contending for one row is what totally orders them; without it the worker reads *unfunded*, releases the money serialization to make its provider call, and destroys a machine the customer paid for in the gap. **Cleared exactly when the episode closes, per `OPS-48`, and by no other path** — on an attempt that succeeded with the **resource gone** (including `OPS-41`'s no-mutation abort) and on an operator resolution that closes the episode, in the same transaction; **never** after an attempt that reached the provider and did not end the exposure, and **not** while the episode is `scheduled` (`DOM-19`, `STO-8a`), where the machine is still running and still billing to its effective date. It points at nothing `STO-14` deletes. *The own-id clause is what lets a `retry` attempt (`API-64`) pass its own episode's fence; guarded on null alone, a second attempt mistook its own fence for a stranger's, aborted, and falsely settled `succeeded`* |
+| `destroy_committed` | UUID | nullable; `OPS-42`'s fence, holding the **open `delete` episode's id** (`STO-52`; re-pointed 2026-09-08, `ADR-0017`). Set by an exposure-reducing cancellation's attempt, to its episode's id, by a conditional write guarded on this column being **null or already equal to that same episode id**, **before any provider mutation**. `LDG-62`'s extend-runway conditional-writes the same row guarded on it being null and fails `conflict` where it affects no row. Both sides contending for one row is what totally orders them; without it the worker reads *unfunded*, releases the money serialization to make its provider call, and destroys a machine the customer paid for in the gap. **Cleared exactly when the episode closes, per `OPS-48`, and by no other path** — on an attempt that succeeded with the **resource gone** (including `OPS-41`'s no-mutation abort), on an operator resolution that closes the episode, and on the machine's own gone-write (`LDG-74`, `API-63`; `ADR-0021`), in the same transaction; **never** after an attempt that reached the provider and did not end the exposure, and **not** while the episode is `scheduled` and the machine still running (`DOM-19`, `STO-8a`) — a gone-write before the effective date closes it and clears this like any other. It points at nothing `STO-14` deletes. *The own-id clause is what lets a `retry` attempt (`API-64`) pass its own episode's fence; guarded on null alone, a second attempt mistook its own fence for a stranger's, aborted, and falsely settled `succeeded`* |
 | `state_observed_at` | timestamp | nullable; **when `state` was last established by an authoritative read of the provider** — a refresh (`DOM-8`), a driver read during an operation, `OPS-32`'s sweep concluding an absence **on that requirement's own terms**, which are stricter than a listing — presence is authoritative from the first pass, absence only under the conditions `OPS-32` sets out — or `API-63` confirming the whole provider account terminated. As opposed to `updated_at`, which moves for any write at all. `LDG-74` reads it: the meter stops at this instant, never at the unknown instant the provider acted, because provisiond polls rather than watches (`STO-41`'s distinction). Null where nobody has read the provider since the row was created |
 | `created_at`, `updated_at` | timestamp | |
 
@@ -252,9 +252,10 @@ Operation records reference them, and an operator investigating a
 
 **STO-8a** "Succeeds" means the resource is gone. Where the provider only accepted a
 *scheduled* cancellation, the machine MUST be recorded `cancellation_scheduled` with its
-effective date (`DOM-19`) and MUST NOT be tombstoned until that date passes. Tombstoning at
-acceptance hides a running, billing machine from every inventory query that filters out
-deleted rows.
+effective date (`DOM-19`) and MUST NOT be tombstoned until that date passes — or until the
+resource is independently recorded gone (`LDG-74`, `API-63`), which is the earlier end `DOM-19`
+admits. Tombstoning at acceptance hides a running, billing machine from every inventory query that
+filters out deleted rows.
 
 ### `operations`
 
@@ -351,8 +352,8 @@ where it lives.
 | `opened_at` | timestamp | not null |
 | `current_operation_id` | UUID | nullable; the attempt in flight, where one is. `STO-14` may delete the row it names once that attempt settles |
 | `state` | enum | `attempting` \| `uncertain` \| `stalled` \| `scheduled` \| `closed` (`DOM-31`). **Read back as `STO-10` reads `operations.status`**: an unrecognized value is a hard error |
-| `closed_at` | timestamp | nullable; set with `state = closed` and by nothing else |
-| `close_reason` | text | nullable; set at close, from the values `OPS-48` names |
+| `closed_at` | timestamp | nullable; set with `state = closed` and by nothing else, **once**: a closed episode is never reopened and never re-closed (`OPS-48`, `ADR-0021`) |
+| `close_reason` | text | nullable; set at close, from the values `OPS-48` names; write-once with `closed_at` |
 
 Constraints: **partial unique index on `(machine_id, key) WHERE state <> 'closed'`** — `OPS-39`'s
 dedup, enforced here and nowhere else; index on `(state)` for `OPS-26`'s listing of open episodes.

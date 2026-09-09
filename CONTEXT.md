@@ -79,7 +79,8 @@ _Avoid_: terminal (withdrawn 2026-08-13), stuck, errored, retryable
 **Episode**:
 One system-detected condition on one machine that provisiond must act on until it ends — this
 machine's exhaustion, its tenant's suspension, its account's loss (`DOM-31`). Opened by a sweep,
-closed when the exposure ends, and the unit an operator attends to. An episode has **attempts**,
+closed when the exposure ends — the machine gone or funded — or when nobody can establish what an
+attempt did; never closed by declaring the condition over. The unit an operator attends to. An episode has **attempts**,
 each an ordinary **operation**; an attempt can settle `failed` while the episode stays open, because
 *the provider refused* is a fact about the attempt and *still billing* is a fact about the episode.
 At most one open episode per machine and key.

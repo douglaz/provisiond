@@ -73,10 +73,12 @@ is not a check and reads exactly like one.*
 are recorded so the next one does not have to find them again. Three were decisions. One is
 closed: `adopt` classified "Always `failed`" under `OPS-11` while `WIR-35` and `05-persistence.md`'s
 `resolution` column admitted `observed`, `absent` and `abandoned` for it and `CNF-179` (BLOCKING)
-tested them — **`F47`, closed by `ADR-0020`**. Two are still open: three requirements say
-transient cases "are deferred rather than failed (`OPS-11`)" and `OPS-11` defers nothing, so a
-provider throttle on a delete stalls an episode a human must clear; and `DOM-31` draws
-`stalled --> closed : abandoned` and no verb provides it. The rest were
+tested them — **`F47`, closed by `ADR-0020`**. Another is closed: three places said transient
+cases "are deferred rather than failed (`OPS-11`)" and `OPS-11` defers nothing, so a provider
+throttle on a delete stalls an episode a human must clear — **`F48`, closed by retraction on
+2026-09-09**. The third was `DOM-31` drawing
+`stalled --> closed : abandoned` with no verb providing it — **`F49`, closed by `ADR-0021`** the
+same day. The rest were
 mechanical and were closed on 2026-09-08 without an ADR: `PRV-42`'s per-channel declaration now
 lives in `PRV-44`'s `ordering_channels[].offer_is_resource`; `PRV-36`'s headline, `OPS-32`,
 `LDG-74`, `PRV-42`, `CNF-277` and `CNF-237` read "effective" where they read "declared";
@@ -114,6 +116,127 @@ in. `OPS-15` gains the refresh exception the same review exposed.
 `WIR-10b`, `WIR-18`, `WIR-35`, `CNF-61`, `CNF-179`, `CNF-258`, `CNF-288`, plus `OVR-9`'s
 credential-free trait for the read and `LDG-69`, which says "While it is held, an implementation
 MUST NOT wait on" anything outside the transaction, the provider read included.
+
+**F48. CLOSED by retraction — "the transient cases are deferred rather than failed (`OPS-11`)" was
+false in three places, and the deferral it named is not specified.** Found by the `F46` read; taken
+up 2026-09-09. `OPS-48`, `API-64` and `ADR-0017`'s retry bullet each said a transient provider
+failure on a cancellation attempt is deferred, citing `OPS-11`. `OPS-11` sorts a failure into
+`failed` or `needs_reconciliation`, or `succeeded` where a rejection reports the goal state; it
+defers nothing. `rate_limited` is on neither of its ambiguity
+lists, so a throttled delete settles `failed`, `OPS-48` moves the episode to `stalled`, and an
+operator's `retry` is the only way out. The only deferral in the set is `OPS-8`'s return-to-`queued`
+on an index refusal, and nothing routes a throttle there.
+
+The first decision was to specify the mechanism: one rule at the worker returning any
+`rate_limited` outcome to `queued` with `available_at` set, on every operation kind, bounded by the
+`attempts` counter. It was put to two independent reviews of one brief — Codex and a fresh Claude
+reader — before anything was written, and both rejected it as decided, for the same reasons:
+
+- **A 429 says one request was not processed; every operation is several requests.** A Robot create
+  is an order then a poll (`PRV-11`), so a throttled poll after an accepted order would re-run and
+  place a second order — `DEF-17` reopened, one day after `ADR-0014` and `ADR-0017`. A Robot delete
+  reads the cancellation first and `PRV-45` lists attachments after success, so even the
+  single-mutation kinds are not single-request. Rescue kinds are worse: a throttle after activation
+  re-activates, mints a second per-operation key (`RSC-10`), and orphans a session whose cleanup
+  token lives only in memory — `DOM-11`: "A rescue session carries a live credential. It MUST NOT
+  be persisted". The eligibility that would make deferral safe is "no
+  mutating request of this operation has been sent", which is a fact only the driver has (`PRV-5`),
+  and no requirement obliges a driver to report it.
+- **The bound was shaped for the wrong throttle.** `DOM-20`'s "clears in milliseconds under the
+  deployment's own control" describes this deployment's limits on its callers. Robot's are 20 orders
+  a day and 200 cancellations an hour (`PRV-40`); a handful of short waits expires inside one quota
+  window and stalls anyway, and capping a provider's retry-after downwards sends a request before the
+  provider said to. The bound would have to be wall-clock, added to `PRV-13b`'s reserve term — which
+  prices machine *hold*, and a queued wait releases the machine while billing continues.
+- **The counter does not mean what the brief assumed.** `OPS-6` increments `attempts` on a claim;
+  nothing says an index-refused claim is one. Nothing else reads the column.
+- **The text forbids a re-run record.** `OPS-45`: "a record is no longer re-run (`ADR-0017`)"; the
+  markers are write-once; `STO-3` names four guarded writes and running→queued is not one;
+  `CNF-288`'s tail says of create, install, power and reverse DNS that "none of those kinds has a
+  second attempt by any path", and `CNF-31a` and `CNF-201` assert `failed` where a deferral would
+  intervene; `API-58` and
+  `API-63` speak of work "queued, never claimed", which a deferred operation is not.
+- **The sentences stay false under any bounded rule**, because an exhausted throttle reaches
+  `stalled` regardless.
+
+Two things one reviewer alone found are kept: Robot's documented rate-limit response may be a
+`403` rather than a `429` (unverified against the API, and `08-provider-notes.md` pins no throttle
+code for any provider), in which case a status-mapped driver never emits `rate_limited` on the one
+provider the mechanism was written for; and `OPS-26`'s "nothing automatic will look at it again"
+was itself overbroad, since `OPS-48`'s third row lets the exhaustion sweep close a `stalled` episode
+it finds funded. The second is corrected alongside, with `CNF-271`'s "no timer ever moves a
+`stalled` episode" narrowed to an unfunded machine.
+
+**Decision: retract.** The three sentences now say the opposite, truthfully: a throttled attempt
+stalls its episode like any other `failed` one. No deferral is specified, under the set's own rule
+that a mechanism depending on provider behaviour is "derived from measurement rather than assumed"
+(`OPS-33`'s window) — nobody has measured what a throttle looks like on Robot or Hetzner Cloud down
+to the status code. The operational cost is accepted and bounded: a fleet-sized throttle is a
+mass-cancellation event, `SEC-39` already gives operator retries an incident override, and `OPS-26`
+lists the stalled episodes.
+
+*The shape both reviewers converged on, kept for when it is measured:* a **driver** obligation in
+`PRV-5` to emit `rate_limited` only where no mutating request of the operation has been sent, with a
+throttle after one mapped as `PRV-11`'s shape with identifiers; a **worker** rule returning that kind
+alone to `queued`, as a fifth `STO-3` guarded write on `(id, status = running)`; a **wall-clock**
+deadline per operation on `OVR-19`, honoured over any retry-after that fits inside it, counted into
+`wind_down_cost`; the throttle codes **pinned per provider** in `08-provider-notes.md`; and
+`retryable: false` on the caller's view while the operation waits. *The change inventory the reviews
+produced:* `OPS-3`'s diagram edge, `OPS-5`, `OPS-6`, `OPS-8`, `OPS-11` (the install row's
+`rate_limited` entry and refresh's "Always `failed`"), `OPS-12`'s "no backoff loop", `OPS-45`'s
+"no longer re-run", `OPS-48`'s table (a non-settling row), `STO-3`, `05-persistence.md` (`attempts`,
+`available_at`, `write_started_at`), `PRV-5`, `PRV-11`, `PRV-13b`, `PRV-40` (requests, not
+admissions, spend the budget), `PRV-44` (a cancellation limit beside `order_budget`), `OVR-19`,
+`DOM-20`, `API-51`, `API-53`, `API-58`/`API-63`'s "never claimed", `SEC-39`'s per-entry ceiling
+under a re-run, `DEF-17`, `ADR-0014`, the glossary's Operation/Attempt/Retry, and `CNF-27`,
+`CNF-31a`/`b`, `CNF-32`, `CNF-201`, `CNF-220`, `CNF-271`, `CNF-283`, `CNF-288`.
+
+**F49. CLOSED by `ADR-0021` — `DOM-31` drew an exit from `stalled` that nothing provided, and
+behind it a terminated account's episodes stayed open forever.** Found by the `F46` read; taken up
+2026-09-09 with the same two-review shape as `F47` and `F48`. The diagram's
+`stalled --> closed : abandoned` had no verb: `abandoned` is `OPS-31`'s resolution of an attempt in
+`needs_reconciliation`, the exit from `uncertain`, and a `stalled` episode's attempt is `failed`.
+Both reviewers confirmed deleting the edge orphans nothing — every other `abandoned` in the set is
+the resolution row, which stays — and both rejected the brief's claim that "funding the machine is
+the other honest exit": `LDG-62` refuses an extension while the fence is set, so a customer cannot
+fund a fenced machine at all, and `CNF-272`'s "resume the tenant, fund the machine, retry the
+episode, and assert the machine survives" could not be executed as written. That was the strongest
+case for an `abandon` verb, and it dissolved on `OPS-41`: a suspension cancels regardless of
+funding, the re-check under a fresh attempt reads the tenant's *current* state, so `retry` after a
+resume finds a machine that still has runway, aborts without a provider call, and closes the episode
+`funded`. The word "fund" is removed from that step of `CNF-272`. The fresh read of the diff found
+that `OPS-41`'s scope sentence still listed three reasons while its 2026-09-05 paragraph keyed the
+exemption on the tenant's current state "not on the reason the operation was enqueued under" — the
+two could not both hold, `CNF-272` already asserted the later one, and the scope is amended to every
+exposure-reducing cancellation. The residual — a provider
+that refuses indefinitely, a machine out of runway, a customer who wants to pay — is stated in
+`OPS-42` as accepted, with no verb.
+
+Both reviewers found the same second thing. `API-63` records every machine of a terminated account
+gone, and `OPS-39` said "A tombstoned machine keeps any episode that is still open", so an episode
+open at the recording sat `stalled` in `OPS-26`'s listing forever — the outcome `API-63`'s own text
+called "a different failure", reached for the pre-existing episodes rather than the new ones. The
+same hole sat behind `LDG-74`'s evidence write. `ADR-0021` keys the close on the machine's
+gone-write, in any open state, with the guards the reviews named: the close is permanent, so a later
+`OPS-31` resolution of a retained attempt changes the attempt and not the episode; the trigger is
+never the account's status, so `OPS-36`'s late attach under a terminated account still goes
+`stalled` — `API-63`: "That is the honest end for it"; `API-63` fails queued, never-claimed system cancellations as it fails creates; and `DOM-19` and
+`STO-8a`, which held a scheduled machine until its date passed, admit the earlier, evidenced end.
+
+*Kept from the reviews:* "retry finds it already gone" is a real path (`OPS-11`'s goal-state rule,
+`OPS-48`'s first row) but is pinned to no provider's code for a machine delete in
+`08-provider-notes.md` — only DigitalOcean's image delete is — and never returns that answer on a
+dead account; `OPS-41`'s outage branch, which settles a machine whose meter stopped "as the
+no-mutation case", no longer closes the episode `funded` by accident, because the meter stop *is*
+the gone-write and the permanence rule makes the later settlement an attempt-only change; and
+`STO-3` lists four guarded writes while `API-63`'s administrative `failed` on a queued create — and
+now on a queued system cancellation, guarded on `status = queued` and `requested_by = system` —
+are guarded writes `STO-3` does not list. The same read found `retry`'s state change and `OPS-42`'s
+fence write unguarded against a gone-write committing between read and write; both now are. A
+second narrow read of the `OPS-41` scope change found that `OPS-48`'s sweep-close row applied the
+funding predicate with no suspension exemption, so a rate rise could un-fence a suspended tenant's
+stalled machine and leave it running with nothing accounting for it; the row now carries the
+exemption.
 
 ## The implementation-process review — 2026-09-06, closed 2026-09-07
 

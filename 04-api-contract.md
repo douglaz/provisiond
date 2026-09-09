@@ -977,14 +977,18 @@ assignment, and synchronous.*
 **API-64** **ADDED 2026-09-08 (`ADR-0017`) — a stalled episode is retried by an operator, and by
 nothing else.** `POST /v1/episodes/{id}/actions/retry` (`WIR-51`) is **operator-only** (`WIR-34`)
 and is admissible only on an episode in `stalled` (`DOM-31`): it moves the episode to `attempting`
-and enqueues a fresh `delete_machine` attempt under it, both in one transaction, and answers `200`
-with the episode view. In any other state it is refused `409` `conflict` with `details.reason:
-"state"`. It is idempotent under `WIR-24`'s one-transaction rule — the state change, the enqueue and
+**by a conditional write guarded on `(id, state = stalled)`** and enqueues a fresh `delete_machine`
+attempt under it, both in one transaction, and answers `200`
+with the episode view. In any other state — including where that write affects no row because a
+gone-write closed the episode after the operator read it (`OPS-48`, `ADR-0021`) — it is refused
+`409` `conflict` with `details.reason: "state"`. It is idempotent under `WIR-24`'s one-transaction rule — the state change, the enqueue and
 the idempotency record commit together — and it counts against `SEC-39`'s operator retry ceiling
 (`API-7` step 5c). **A `stalled` episode is never retried by a timer** (`OPS-48`): the attempt
 settled `failed` because the provider rejected it and did not act, and repeating a deterministic
-rejection automatically is the loop `OPS-39` exists to prevent. The transient cases never reach
-`stalled` — `OPS-11` defers them instead. The episode, not the `failed` attempt row, is what
+rejection automatically is the loop `OPS-39` exists to prevent. A throttled attempt reaches
+`stalled` too, for a different reason: `rate_limited` is on neither of `OPS-11`'s ambiguity lists,
+so a throttled delete is `failed`, and nothing in this set returns it to `queued` (`F48`). The
+episode, not the `failed` attempt row, is what
 outlives `STO-14`'s retention, which is why the verb is on the episode (`ADR-0017`).
 
 **API-65** **ADDED 2026-09-08 — the operator's half of `PRV-45`, which had no route.**
@@ -1252,7 +1256,15 @@ and release its commitment**, exactly as `API-58` step 4 does for a suspension a
 reason, that it has touched no provider (*added 2026-09-05: a create's commitment has a null
 `machine_id`, so "every open commitment on machines in that account" left it standing; a worker then
 dispatched against revoked credentials, the reply was ambiguous, and the customer's money sat frozen
-for `OPS-33`'s window — days on Robot*); tombstone what `STO-18`
+for `OPS-33`'s window — days on Robot*); **close every open episode on those machines
+`resource_gone` and clear their fences** (`OPS-48`'s gone-write row, `ADR-0021`), **and transition
+every `queued`, never-claimed system cancellation naming those machines straight to `failed`** —
+`conflict`, `details.reason: "account_terminated"` — on the create's reasoning, that it has touched
+no provider, by a conditional write guarded on `(id, status = queued, requested_by = system, the
+machine in that account)` in the manner of `STO-3`; a claimed one loses that race and settles as
+its own worker's write under an episode that is already closed (*added 2026-09-09: without the close, every episode open at the recording sat `stalled` in
+`OPS-26`'s listing forever — the outcome the paragraph below calls a failure, reached for the
+pre-existing episodes rather than the new ones*); tombstone what `STO-18`
 now permits; and **return two tenant lists** (`WIR-50`) — `affected_tenants`, "the distinct owners of any metered subject or open commitment in
 that account at the recording instant", and `assigned_tenants`, the account's `STO-36` assignment
 set (*quoted rather than paraphrased since 2026-09-05: a paraphrase here read "the tenants whose

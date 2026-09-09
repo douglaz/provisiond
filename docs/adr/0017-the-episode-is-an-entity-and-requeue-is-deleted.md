@@ -34,7 +34,8 @@ in for an entity the model lacked.
 - **Five states**: `attempting` (an operation is queued or running under it), `uncertain` (the
   attempt is `needs_reconciliation`, and `OPS-31`'s verbs on that operation resolve it), `stalled`
   (the attempt settled `failed` — the provider did not act, and a decision is owed), `scheduled`
-  (the provider accepted a future date; ends when the machine is tombstoned, `DOM-19`), and
+  (the provider accepted a future date; ends when the machine is tombstoned, `DOM-19` — *or is
+  recorded gone before its date, `ADR-0021`*), and
   `closed`, carrying why. `OPS-48` is the lifecycle; `OPS-44`'s table becomes its transitions.
 - **The fence holds the episode.** `machines.destroy_committed` keeps its name, its conditional
   write and its contention with `LDG-62`'s extend-runway, and now holds the **open episode's id**.
@@ -42,7 +43,9 @@ in for an entity the model lacked.
 - **Recovery is an operator verb on the episode** — `retry` (`API-64`, `WIR-51`) — which enqueues a
   fresh `delete_machine` under the same episode. **A `stalled` episode is never retried by a
   timer.** A deterministic rejection repeated automatically is the loop `OPS-39` exists to prevent;
-  the transient cases are already deferred rather than failed (`OPS-11`).
+  the transient cases are already deferred rather than failed (`OPS-11`). *That last clause was
+  false when written and is retracted (2026-09-09, `F48`): `OPS-11` defers nothing, and a throttled
+  attempt stalls its episode like any other `failed` one. The decision above stands without it.*
 - **Operation states are untouched.** `failed` stays terminal *for the attempt*; `needs_reconciliation`
   keeps meaning "unknown". What the episode carries is the third thing the operation could not:
   *known, and not done*.

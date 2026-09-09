@@ -574,7 +574,9 @@ not optional hardening — they are the only structural defence there is.
       carries the effective cancellation date, and it is not assumed to be "now." (`PRV-13`)
 - [ ] **CNF-64** A machine with a future cancellation date is recorded
       `cancellation_scheduled`, not `deleted`, and is **not** tombstoned until that date
-      passes. Assert it still appears in inventory queries that exclude deleted rows.
+      passes. Assert it still appears in inventory queries that exclude deleted rows. Then record
+      it gone before the date by `OPS-32`'s complete pass, and assert the earlier end is taken: the
+      meter stops, and its `scheduled` episode closes `resource_gone` (`OPS-48`, `ADR-0021`).
       (`DOM-19`, `STO-8a`)
 - [ ] **CNF-65** **AMENDED 2026-09-08 (`ADR-0018`) — the cleanup path now has a method.** After
       every delete that succeeds with the resource gone, the engine calls *list attachments*
@@ -1283,7 +1285,8 @@ rather than acquiring a default.
 - [ ] **CNF-271** **AMENDED 2026-09-08 (`ADR-0017`) — the episode is the unit, and `failed` is a
       fact about an attempt.** Walk `OPS-48`'s transitions against a real row. Drive an
       exposure-reducing cancellation whose provider call fails after the fence is written — once
-      with a 5xx and once with a deterministic `authentication` — and assert: the attempt settles
+      with a 5xx, once with a deterministic `authentication`, and once with `rate_limited` — and
+      assert: the attempt settles
       `needs_reconciliation` and the episode is `uncertain`, or the attempt settles `failed` and the
       episode is `stalled`; in both, the episode stays open, `destroy_committed` still holds its id,
       `LDG-62` is still refused `conflict`, and the `stalled` episode appears in the operator
@@ -1291,9 +1294,14 @@ rather than acquiring a default.
       the provider call again** rather than aborting into a false `succeeded`, and the episode is
       `attempting` with `current_operation_id` naming the new attempt. Then the closing rows: an
       attempt that succeeded **with the resource gone** closes the episode `resource_gone` and clears
-      the fence in the same transaction; an operator `abandoned` closes it `abandoned` and clears the
-      fence so a later sweep may open a fresh one; and **no timer ever moves a `stalled` episode** —
-      run the clock out and assert it is still `stalled` with one attempt. **Then the row a reader
+      the fence in the same transaction; an operator `abandoned` on an **`uncertain`** episode's
+      attempt (`OPS-31`) closes it `abandoned` and clears the fence so a later sweep may open a
+      fresh one — there is no such verb on a `stalled` one; a machine **recorded gone** (`API-63`,
+      `LDG-74`) closes an episode in any open state `resource_gone` and clears the fence in that
+      write, and a later `OPS-31` resolution of its retained attempt leaves the closed episode
+      closed; and **no timer ever moves a `stalled` episode whose
+      machine is still unfunded** — run the clock out and assert it is still `stalled` with one
+      attempt, including where that attempt failed `rate_limited` (`F48`: a throttle is not deferred). **Then the row a reader
       will get wrong**: a cancellation the provider merely *scheduled* (`DOM-19`) settles
       `succeeded`, the episode is `scheduled`, and it and the fence both **stay** until the effective
       date passes and the machine is tombstoned — closing there lets the next exhaustion sweep open
@@ -1316,7 +1324,10 @@ rather than acquiring a default.
       appends `tenant_suspended` to that episode's `reasons`, names its current attempt in
       `cancellations`, and enqueues nothing new — and that `OPS-41`'s re-check treats that delete as
       a suspension cancel even though the operation itself carries `exhausted`. **Then resume that
-      tenant (`WIR-41`), fund the machine, retry the episode, and assert the machine survives**: the
+      tenant (`WIR-41`), retry the episode, and assert the machine survives** — give the fixture
+      months of runway, since a suspension cancels regardless of funding, the fence forbids
+      extending it (`LDG-62`), and a `stalled` machine's date keeps moving while it bills (*this
+      step said "fund the machine" until 2026-09-09, which the fence refuses*): the
       exemption reads the tenant's *current* state, and a build keyed on the episode's `reasons`
       history destroys a machine its live tenant has paid for. *Added 2026-09-05: with a
       pre-existing episode the pass could neither enqueue nor name the machine, so the parent never
@@ -1455,7 +1466,12 @@ rather than acquiring a default.
       further posts**, for any machine in that account or any attachment it left behind. Finally
       assert the exhaustion sweep mints **no** delete for those machines: a build that stops the
       meters and leaves the rows in inventory floods the operator listing with one permanently-open
-      episode per machine (`LDG-13`, `OPS-48`). *Added 2026-09-04: the release was asserted and the
+      episode per machine (`LDG-13`, `OPS-48`). **Seed one episode in each open state before the
+      termination** — `attempting` with a queued attempt, `uncertain` with a retained
+      `needs_reconciliation` attempt, `stalled`, `scheduled` — and assert every one is `closed`
+      `resource_gone` with its fence cleared in the recording transaction, the queued attempt is
+      `failed` `account_terminated`, the `needs_reconciliation` attempt is still retained, and an
+      operator's later `not_applied` on it leaves the episode closed (`OPS-48`, `ADR-0021`). *Added 2026-09-04: the release was asserted and the
       stop was not, so a build that closed the commitments and went on metering into the tenant's
       free balance passed this item.* **Then assert the account stops being sellable**: `GET
       /v1/providers` omits it for an assigned tenant, and a create naming it is `409` `state` —

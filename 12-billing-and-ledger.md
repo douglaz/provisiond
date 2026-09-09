@@ -501,7 +501,10 @@ nothing in the system raises anything.
 - **`OPS-32` MUST record what it saw on the machine row, not merely report it** — the state and the
   observation instant, in `machines.state` and `machines.state_observed_at` (`STO-48`) — so the
   meter stops without a caller. That is the one change that makes this
-  rule self-executing rather than another thing waiting on a human.
+  rule self-executing rather than another thing waiting on a human. **The same write closes any
+  open episode on the machine `resource_gone` and clears its fence** (`OPS-48`, `ADR-0021`): a
+  machine established gone has nothing left to cancel, and an episode left open on it would sit in
+  `OPS-26`'s listing until an operator retried a delete for the bookkeeping.
 - **Billing stops at the observation instant, not at the unknown instant the provider acted** —
   except for a `cancellation_scheduled` machine, whose stop is the earlier of its
   `effective_cancellation_date` and the observation (`LDG-38`), because that is the one end the

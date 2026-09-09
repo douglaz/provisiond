@@ -115,8 +115,9 @@ guessing. `unknown` is a legitimate outcome and MUST NOT block an operation that
 not depend on state.
 
 **DOM-19** A machine whose deletion was accepted for a future date (`PRV-13`'s second shape)
-MUST be `cancellation_scheduled`, never `deleted`, until that date passes. Marking it
-`deleted` at accept time records a falsehood: the machine is still running, the customer can
+MUST be `cancellation_scheduled`, never `deleted`, until that date passes — unless the resource is
+independently recorded gone before it (`LDG-74`, `API-63`), which is evidence, not the acceptance.
+Marking it `deleted` at accept time records a falsehood: the machine is still running, the customer can
 still reach it, and the operator is still paying for it. The effective cancellation date MUST
 be stored alongside the state, and any system reselling the machine MUST treat the window
 between acceptance and that date as continuing cost.
@@ -192,7 +193,8 @@ cancellation; the `system_reason` for every other trigger), `reasons` (set), `op
 `uncertain`, `stalled`, `scheduled`, `closed`. Close reasons: `resource_gone`, `funded`,
 `abandoned`. At most one open episode per `(machine_id, key)`
 (`STO-52`). An episode's attempts are ordinary operations; an attempt settling `failed` does not
-close the episode. `OPS-48` is the lifecycle; this is its shape.
+close the episode. A machine recorded gone closes its open episode in the same transaction, and a
+close is permanent (`ADR-0021`). `OPS-48` is the lifecycle; this is its shape.
 
 ```mermaid
 stateDiagram-v2
@@ -209,8 +211,10 @@ stateDiagram-v2
     uncertain --> closed : abandoned
     stalled --> attempting : operator retry, API-64
     stalled --> closed : sweep finds it funded
-    stalled --> closed : abandoned
-    scheduled --> closed : machine tombstoned
+    attempting --> closed : machine recorded gone
+    uncertain --> closed : machine recorded gone
+    stalled --> closed : machine recorded gone
+    scheduled --> closed : machine tombstoned, or recorded gone before its date
     closed --> [*]
 ```
 
