@@ -29,6 +29,11 @@ Two namespaces are excluded from the ratchet and reported separately:
 
 Both are still printed, because "usually" is not "always".
 
+A `- **CNF-n**` marker bullet (withdrawn, merged, split) resets attribution the
+way a heading does: its citations are not live coverage (`DEF-1` was covered
+only by `CNF-5`'s withdrawal marker until 2026-09-09), and dropping the prefix
+instead would hand them to the preceding live item.
+
 Exit status 0 = at or above baseline, 1 = regression.
 """
 
@@ -52,6 +57,7 @@ DEF_RE = re.compile(
 )
 CITE_RE = re.compile(r"`((?:%s)-\d+[a-z]?)`" % NS)
 CNF_ITEM_RE = re.compile(r"\*\*(CNF-\d+[a-z]?)\*\*")
+MARKER_RE = re.compile(r"^- \*\*CNF-\d+[a-z]?\*\*")
 
 
 def measure():
@@ -73,13 +79,14 @@ def measure():
     # only in prose counts as demonstrated. That bug shipped on 2026-08-31 and
     # inflated the reported figure by eight points; found by a cross-model review
     # the same day. A gate that overstates coverage is worse than no gate,
-    # because the ratchet then guards a number nobody earned.
+    # because the ratchet then guards a number nobody earned. A marker bullet
+    # clears it for the same reason (see the docstring).
     covered, current = set(), None
     for line in open("10-conformance-checklist.md"):
-        if line.startswith("#"):
+        if line.startswith("#") or MARKER_RE.match(line):
             current = None
         m = CNF_ITEM_RE.search(line)
-        if m and (line.lstrip().startswith(("- [ ]", "- [x]", "- **"))):
+        if m and (line.lstrip().startswith(("- [ ]", "- [x]"))):
             current = m.group(1)
         if current:
             covered.update(c.group(1) for c in CITE_RE.finditer(line))

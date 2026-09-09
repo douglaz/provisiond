@@ -43,6 +43,24 @@ jobs:
           fi
           echo "identifier gate correctly rejected a dangling citation"
 
+      # The same gate refuses a conformance item with no inline tier. The control
+      # strips one item's tag rather than appending a `CNF-9999` line: 9999 is an
+      # outlier id and would be refused for that reason whether or not the tier
+      # check existed, which is a control that cannot fail for the reason it tests.
+      - name: Prove the identifier gate refuses an untiered conformance item
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/^- \[ \] \*\*CNF-1\*\* \*\*BLOCKING\*\* — /- [ ] **CNF-1** /' \
+            10-conformance-checklist.md
+          if python3 tools/check_ids.py; then
+            echo "::error::identifier gate passed a conformance item with no tier"
+            exit 1
+          fi
+          echo "identifier gate correctly rejected an untiered conformance item"
+
       # The obligation gate has a real historical positive -- the 2026-09-02 fence
       # bug, where OPS-42 stated LDG-62's half of a contention that LDG-62 never
       # mentioned -- but `--selftest` reads that commit from history, and a shallow

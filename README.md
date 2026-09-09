@@ -21,7 +21,7 @@ not to repeat it.
 
 | Gate | What it refuses |
 |---|---|
-| `tools/check_ids.py` | A duplicate identifier, a citation to an id nothing defines, a gap in a namespace's sequence, an id far above its neighbours, a reference to an ADR that does not exist |
+| `tools/check_ids.py` | A duplicate identifier, a citation to an id nothing defines, a gap in a namespace's sequence, an id far above its neighbours, a reference to an ADR that does not exist, a conformance item with no inline tier, a checkbox on a withdrawn, merged or split `CNF` id. It also prints the checklist's count per tier, which is the only place that count is kept |
 | `tools/check_fixtures.py` | A JSON example that does not parse, carries a `...` placeholder, repeats an object member, exceeds `WIR-1a`'s integer bound, spells a timestamp `+00:00`, or carries a malformed digest. Also structurally checks every Mermaid diagram, since one that is broken looks fine in source and fails in the browser |
 | `tools/check_obligations.py` | A duty assigned to another requirement's subject — "`LDG-62` MUST write `destroy_committed`" — where that requirement's own text names none of the machinery. *`OPS-42` did exactly this to `LDG-62` and the fence protecting a paying customer's machine silently did not exist. Two full-set cross-model reviews read past it; the other gates all passed, because the citation resolved and both requirements had conformance items. Only the relationship was broken.* Run `--selftest` in a full clone to watch it catch that commit |
 | `tools/check_coverage.py` | A fall in the number of requirements exercised by at least one conformance item, against a recorded baseline. *It overstated coverage by eight points on its first day — it attributed prose in the tier-assignment sections to whichever item preceded it. Fixed 2026-09-01; a gate that overstates is worse than no gate, because the ratchet then guards a number nobody earned.* |
@@ -150,6 +150,10 @@ tests, and issue trackers:
 | `WIR-n` | Wire contract |
 | `CNF-n` | Conformance checklist items |
 
+A conformance item also carries its launch tier inline — `- [ ] **CNF-1** **BLOCKING** — …` — one of
+**BLOCKING**, **PRE-SCALE** or **DEFERRED**. `10-conformance-checklist.md`, *Tiering — which of these
+gate what*, defines the three and holds the rule that sorts an item; `tools/check_ids.py` refuses an item without one.
+
 ### Identifiers are append-only. Text is not.
 
 **AMENDED 2026-08-31.** The rule was doing two jobs and only one was paying for itself.
@@ -221,7 +225,6 @@ Deleted from the documents. Never reused. Listed so an older citation still reso
 | `WIR-18` | `POST /v1/machines/adopt` | `ADR-0020`; returns synchronous, in `API-48`'s list |
 | `LDG-36` | Adopt places a commitment and gets a runway | `ADR-0020`; its reason is why the return is read-first |
 | `SEC-7` | Adoption requires entitlement proof | `ADR-0020`; `DEF-1` keeps the defect |
-| `CNF-5` | Operator adopt refused outside the entitlement assignment | `ADR-0020` |
 | `CNF-258` | Adopt places a commitment and gets a runway | `ADR-0020` |
 | `OPS-17` | Sweep interval tied to lease duration | `ADR-0016`: no lease, no interval |
 | `OPS-18` | Requeue restricted by kind | `ADR-0017`: requeue is deleted |
@@ -243,7 +246,9 @@ Deleted from the documents. Never reused. Listed so an older citation still reso
 
 *Swept 2026-08-31. The `machines` table also lost five `reserve_*` columns in the same pass —
 written by nothing, read by nothing, and left over from the `holds` model `LDG-30` replaced on
-2026-08-12. Columns carry no identifier, so they are recorded here rather than listed above.*
+2026-08-12. Columns carry no identifier, so they are recorded here rather than listed above.
+`CNF-5` left this table 2026-09-09: it survives in the checklist as a marker bullet, which is the
+retained-trap case above, not a deletion.*
 
 ## Language and runtime
 

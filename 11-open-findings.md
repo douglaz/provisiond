@@ -84,8 +84,11 @@ lives in `PRV-44`'s `ordering_channels[].offer_is_resource`; `PRV-36`'s headline
 `LDG-74`, `PRV-42`, `CNF-277` and `CNF-237` read "effective" where they read "declared";
 `release_attachment` is in `WIR-10b`'s result shapes, `OPS-45`'s scope and marker table and the
 store's `resolution` set, and `API-65`/`WIR-52` give it the operator route `PRV-45` presupposed;
-and `LDG-34` names the writers it actually serializes. The implementation-process review's §6.14
-and §6.15 were never closed and remain open; §6.13 is `F47`.
+and `LDG-34` names the writers it actually serializes. Of the implementation-process review's three
+untaken sections, §6.13 is `F47`; §6.14's first three resolutions closed 2026-09-09 when every
+conformance item received its tier inline, and its last two — mutually exclusive launch items, and
+a historical heading read as authoritative — are `F50`'s first and seventh items; §6.15 remains
+open.
 
 **F47. CLOSED — adopt was specified two ways, could not size its own commitment, and had no v1
 scenario.** Found by the `F46` read; taken up 2026-09-08 with two independent reviews of one
@@ -238,14 +241,65 @@ funding predicate with no suspension exemption, so a rate rise could un-fence a 
 stalled machine and leave it running with nothing accounting for it; the row now carries the
 exemption.
 
+**F50. OPEN — the tier tags are a faithful copy of prose that was wrong in places.** On 2026-09-09
+every checkbox item in `10-conformance-checklist.md` received its tier inline, copied from the
+assignment paragraphs as they stood; `tools/check_ids.py` prints the count and refuses an untiered
+item, and that closed the first three of the implementation-process review's §6.14 resolutions; its
+fourth and fifth are items 1 and 7 below. The one departure from the prose
+is `CNF-180`, which line 220 called "**before production** rather than blocking" — not a tier — and
+which is tagged BLOCKING. Two independent readers built the mapping from the text and agreed on
+every item; each also raised tier judgments, and the copy acted on none of them. They are recorded
+here and nowhere else. Re-tiering an item is an edit to its tag with the reason added to its
+assignment paragraph, not a second copy of the tier. Line numbers are the checklist's unless named.
+
+1. **`CNF-187` and `CNF-238` demand opposite commitment states, and both are BLOCKING.** `CNF-187`
+   (line 1047): "A machine deleted while a billable attachment survives keeps its commitment open
+   and keeps metering that attachment; the commitment closes only when the last billable resource
+   stops". `CNF-238` (line 1686): a delete against an already-deleted resource "classifies
+   `succeeded` and its commitment closes (`LDG-32`)". `LDG-32` settles it — "Attachments keep the
+   commitment open, and metering follows them" (`12-billing-and-ledger.md` line 298) — so `CNF-238`
+   needs the last-billable-resource qualifier `CNF-187` already carries.
+2. **Three graduation triggers are already true by the set's own text**, and each item is tagged
+   PRE-SCALE because that is what the prose says. `CNF-34` "becomes blocking the moment anything but
+   the API writes the store" (line 81–82), and the meter sits in `ledger` and "Posts debits and
+   decrements commitments" (`00-overview.md` line 288). `CNF-193` "graduates the moment on-chain
+   funding is enabled in production" (line 209), and `LDG-46` says a funding request "MUST return
+   *both* a Lightning destination and an on-chain destination" (`12-billing-and-ledger.md` line
+   1162). `CNF-245` "graduates when a second provider account exists" (line 2152), and `CNF-111`,
+   BLOCKING, requires that "Tenants are distributed across more than one provider account" (line
+   2050).
+3. **PRE-SCALE items both readers read as BLOCKING under the rule at lines 31–55.** `CNF-174`
+   (line 1973: "the raw token appears in no log line, URL, or operation record" — an escaped
+   secret) and `CNF-189` (line 1056: the enrolment secrets "are stored hashed only" — the same
+   family). Named by one reader each: `CNF-210`, `CNF-102`, `CNF-122`, `CNF-127`, `CNF-130` — whose
+   own paragraph at lines 166–169 says "It is recorded here so that whoever re-tiers `CNF-99`
+   re-examines this one in the same pass", written the same day `F30` promoted `CNF-99`, and no
+   later pass has re-examined it — `CNF-235`, `CNF-252` and `CNF-270`.
+4. **`CNF-288` asks for a state two kinds cannot reach.** Line 969: "For every operation kind,
+   drive an operation to `failed` and to `needs_reconciliation`". `OPS-11`'s table
+   (`03-operation-lifecycle.md` lines 186–187) has refresh "Always `failed`" and `suspend_tenant`
+   "Never `needs_reconciliation`, and never `failed` as a whole".
+5. **`PRV-34` names a withdrawn item as placing orders.** `02-provider-contract.md` line 678:
+   "`CNF-180` and `CNF-280` place real orders"; `CNF-280` is a withdrawal marker (line 904).
+6. **Two rationale paragraphs sit against the wrong item.** The assignment prose at lines 2006–2031
+   follows `CNF-173` (line 2001) with no heading between them, so `tools/check_coverage.py` credits
+   every citation in it to `CNF-173`. And the rationale for `CNF-236` at line 2097 — "a running
+   total that has silently drifted from the entries" — describes a reconstruction test that the
+   item at line 1707, "checked by range, not by reconstruction", no longer runs.
+7. **`F17`'s "still open" on `CNF-58` and `CNF-65` was stale.** The promotion at line 86 applied on
+   2026-08-13 and both tags read BLOCKING; that part of `F17` is closed in place below.
+
 ## The implementation-process review — 2026-09-06, closed 2026-09-07
 
 An implementation-readiness review (`impl-report-01.md`, kept at the root as the record) read the
 whole set as a builder would and named fifteen blockers. Twelve were checked against the current
 text before anything was decided; ten held, one was false, and one was misdescribed. §6.13, §6.14
 and §6.15 were not taken up (the count here read twelve until 2026-09-08); §6.13 is the `adopt`
-classification, `F47`, closed the same day by `ADR-0020`, and §6.14's per-item tier and status
-metadata and §6.15's production-operability decisions are open with no finding number. Six decisions
+classification, `F47`, closed the same day by `ADR-0020`; §6.14's per-item tier metadata landed
+2026-09-09 — every checkbox item carries its tier inline, `tools/check_ids.py` refuses one that does
+not, and `F50` holds what the faithful copy preserved and the two of its five resolutions still
+open; §6.15's production-operability decisions
+remain open with no finding number. Six decisions
 followed, three of them ADRs. The findings below are numbered in the order the review listed them,
 not in the order they were resolved, because two of them turned out to be the same defect.
 
@@ -1346,7 +1400,9 @@ implementation proof, which is where a specification finding is supposed to end.
 not; that blocker is resolved. **Still open:** `CNF-65` is BLOCKING because autonomous deletion
 can leave unbounded billable attachments, and `CNF-58` is BLOCKING if an unknown stored state can
 become `queued` and repeat a mutation. Neither has been re-tiered, and `F22` means the new
-requirements have no tier at all.
+requirements have no tier at all. *Closed 2026-09-09: both were promoted on 2026-08-13 — the
+checklist's "PROMOTED TO BLOCKING 2026-08-13" paragraph — and the tags on the items read BLOCKING;
+this sentence was stale for four weeks, which is `F50` (7).*
 
 ## High — fixed 2026-08-09
 

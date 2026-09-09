@@ -378,11 +378,11 @@ Known open items, in the set's own terms:
 - Deployment parameters are required to be stated and are not. `OVR-19` is the one register of
   them, and startup refuses to run on a missing value; what no deployment has yet done is fill it
   in.
-- The launch-gating conformance set stands at approximately 182 BLOCKING items of 271, the
-  approximation deliberate because the count was wrong more than once and the tiers still live in
-  prose. None has been executed. *This bullet said 135 until 2026-09-02, two reviews after the
-  figure moved; the checklist's own blocking-count section is the only place the number is
-  maintained.*
+- The launch-gating conformance set is counted by `tools/check_ids.py` on every run — the
+  `conformance items:` line `bash tools/check-all.sh` prints — and since 2026-09-09 each item's tier
+  is the tag on its own line. None has been executed. *This bullet said 135 until 2026-09-02 and
+  "approximately 182 of 271" until 2026-09-09, each stale within a week of being written; no figure
+  is kept here now.*
 - Two questions are explicitly for a lawyer, not an engineer: the satoshi-custody characterisation
   that `ADR-0003`'s dissent raises, and the no-refund posture the whole perimeter rests on.
 

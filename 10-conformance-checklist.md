@@ -9,11 +9,11 @@ check.
 
 ## Build and gate
 
-- [ ] **CNF-1** CI builds the project from a clean checkout, with no network-dependent
+- [ ] **CNF-1** **BLOCKING** — CI builds the project from a clean checkout, with no network-dependent
       manual steps. (`DEF-14`)
-- [ ] **CNF-2** The declared lint gate passes on the declared source at the declared
+- [ ] **CNF-2** **PRE-SCALE** — The declared lint gate passes on the declared source at the declared
       strictness. If the gate is warnings-as-errors, there are no warnings. (`DEF-15`)
-- [ ] **CNF-3** The test suite fails when a test is deliberately broken — verified once,
+- [ ] **CNF-3** **BLOCKING** — The test suite fails when a test is deliberately broken — verified once,
       by hand, so that "tests passed" means something. (`DEF-16`)
 
 ## Tiering — which of these gate what
@@ -21,6 +21,10 @@ check.
 An untiered checklist is an unbounded commitment. These tiers gate *launch*; they do not forbid
 doing a cheap item early. Several PRE-SCALE items are hour-sized — do them when convenient, just
 don't let them block.
+
+**The tier of record is the tag on the item line** — `- [ ] **CNF-n** **BLOCKING** — …` — which
+`tools/check_ids.py` requires on every item and counts; the assignment paragraphs below are the
+reasons and the graduation triggers, not where a tier is read from.
 
 ### The rule
 
@@ -353,7 +357,7 @@ blocking fraction to be far lower.
 network isolation the withdrawn separate-service form would have provided, which is why they are
 not optional hardening — they are the only structural defence there is.
 
-- [ ] **CNF-71** A provider credential cannot be read from `api` or from `ledger`, and the
+- [ ] **CNF-71** **BLOCKING** — A provider credential cannot be read from `api` or from `ledger`, and the
       guarantee is enforced by the code rather than by convention. Prove it the way the
       language allows: in Rust, the credential-owning type is private to `engine` and
       reachable only through a trait that does not expose it, demonstrated by a **compile-fail
@@ -361,11 +365,11 @@ not optional hardening — they are the only structural defence there is.
       saying "do not use this here" is not a proof. *`ledger` joined this item on 2026-09-02: it is
       a module `engine` depends on, so a credential reachable from it is a credential reachable from
       the money code.* (`OVR-10a`, `OVR-9`)
-- [ ] **CNF-72** A static tripwire fails CI when a new import, re-export, or `pub` visibility
+- [ ] **CNF-72** **BLOCKING** — A static tripwire fails CI when a new import, re-export, or `pub` visibility
       change makes the credential type reachable from `api` or `ledger`. The boundary
       must fail closed as the code grows; the compile-fail test of `CNF-71` proves today's
       state, this proves tomorrow's. (`OVR-10a`)
-- [ ] **CNF-73** **REWRITTEN 2026-09-02 — it asserted the thing `OPS-27` requires.** `api` holds no
+- [ ] **CNF-73** **BLOCKING** — **REWRITTEN 2026-09-02 — it asserted the thing `OPS-27` requires.** `api` holds no
       provider credential, and `engine` holds no customer credential and no **payment-rail**
       material — no Lightning or on-chain credential, no destination derivation, no settlement
       subscription (`STO-30`–`STO-32`, `SEC-48`). It **does** write ledger entries and commitments,
@@ -376,11 +380,11 @@ not optional hardening — they are the only structural defence there is.
       *Withdrawn text:* the lifecycle layer holds no customer credential **or payment material** —
       which, read against the module table, made the product's terminal money write illegal in every
       module that could perform it. (`OVR-10b`, `OVR-9`, `OPS-27`)
-- [ ] **CNF-74** Operator-only routes — `WIR-34`'s list; `retry` above all, since it re-dispatches
+- [ ] **CNF-74** **BLOCKING** — Operator-only routes — `WIR-34`'s list; `retry` above all, since it re-dispatches
       a delete (`API-64`) — are not served on the customer-facing listener. (`API-27`)
 ## Tenancy and authorization
 
-- [ ] **CNF-4** Tenant A cannot read, refresh, power, install on, or delete tenant B's
+- [ ] **CNF-4** **BLOCKING** — Tenant A cannot read, refresh, power, install on, or delete tenant B's
       machine; every attempt returns `404`, never `403`. (`API-17`, `SEC-8`)
 - **CNF-5** — **WITHDRAWN 2026-09-08 (`ADR-0020`)** with adopt. It tested the operator adopt
       against the entitlement assignment, after a 2026-09-02 rewrite retired its tenant-facing
@@ -392,43 +396,43 @@ not optional hardening — they are the only structural defence there is.
       control, tested twice and counted twice in the BLOCKING total. `CNF-107` is the survivor
       because it names the constraint that enforces it. Identifier retained rather than reused, and
       not a checkbox: like `CNF-31`, it is a marker rather than an item.
-- [ ] **CNF-7** A non-admin token's tenant-override header is ignored, not honoured.
+- [ ] **CNF-7** **BLOCKING** — A non-admin token's tenant-override header is ignored, not honoured.
       (`API-5`, `SEC-9`)
-- [ ] **CNF-8** An unauthenticated request to every write endpoint is rejected before any
+- [ ] **CNF-8** **BLOCKING** — An unauthenticated request to every write endpoint is rejected before any
       body validation error can be observed. (`API-7`, `DEF-4`)
-- [ ] **CNF-9** `POST /v1/episodes/{id}/actions/retry` and both episode reads are refused for a
+- [ ] **CNF-9** **BLOCKING** — `POST /v1/episodes/{id}/actions/retry` and both episode reads are refused for a
       tenant token — `404`, never `authentication`. (`API-64`, `WIR-51`, `WIR-34`)
 
 ## Injection
 
-- [ ] **CNF-10** An `external_id` of `1/../../other/endpoint` produces a request to the
+- [ ] **CNF-10** **BLOCKING** — An `external_id` of `1/../../other/endpoint` produces a request to the
       intended endpoint path, or is rejected outright. Assert on the constructed URL, not
       on the response. (`PRV-6`, `DEF-2`)
-- [ ] **CNF-11** An `external_id` containing `?` or `#` does not inject a query string or
+- [ ] **CNF-11** **BLOCKING** — An `external_id` containing `?` or `#` does not inject a query string or
       truncate the path. (`PRV-6`)
-- [ ] **CNF-12** Hostname, device path, digest, image URL, key material, and post-install
+- [ ] **CNF-12** **BLOCKING** — Hostname, device path, digest, image URL, key material, and post-install
       script each containing shell metacharacters produce a remote script in which those
       values appear only base64-encoded. Assert on the generated script text. (`RSC-15`,
       `SEC-12`)
-- [ ] **CNF-13** Installer-config fields containing CR, LF, NUL, or whitespace are
+- [ ] **CNF-13** **BLOCKING** — Installer-config fields containing CR, LF, NUL, or whitespace are
       rejected. (`RSC-23`, `SEC-13`)
 
 ## Redaction
 
-- [ ] **CNF-14** A provider payload containing keys named `password`, `secret`,
+- [ ] **CNF-14** **BLOCKING** — A provider payload containing keys named `password`, `secret`,
       `private_key`, `token`, `api_key`, `authorization`, and `credential` — nested inside
       objects and arrays — is redacted before storage. (`DOM-6`)
-- [ ] **CNF-15** A **successful** provider response that the driver cannot interpret is
+- [ ] **CNF-15** **BLOCKING** — A **successful** provider response that the driver cannot interpret is
       redacted before it reaches the operation error. (`DOM-18`, `SEC-4`, `DEF-3`)
-- [ ] **CNF-16** No log line, operation result, or operation error in the whole test suite
+- [ ] **CNF-16** **BLOCKING** — No log line, operation result, or operation error in the whole test suite
       contains a rescue password or a private key. Assert by scanning captured output.
       (`SEC-3`)
-- [ ] **CNF-17** Debug formatting of the rescue session type does not reveal the
+- [ ] **CNF-17** **BLOCKING** — Debug formatting of the rescue session type does not reveal the
       credential. (`DOM-11`)
 
 ## Capability model
 
-- [ ] **CNF-18** **AMENDED 2026-09-08 (`ADR-0018`) — the table is `DOM-10`'s, and the descriptor's
+- [ ] **CNF-18** **PRE-SCALE** — **AMENDED 2026-09-08 (`ADR-0018`) — the table is `DOM-10`'s, and the descriptor's
       fields are rows too.** For every driver, every declared capability has a working code path,
       and every implemented operation with a capability entry in `DOM-10`'s table has its
       capability declared. Table-driven over that table, one case per (driver, capability) pair;
@@ -437,10 +441,10 @@ not optional hardening — they are the only structural defence there is.
       path behind it — a declared ordering channel is searched, a declared evidence source is read,
       a declared surviving attachment kind is listed — and a field with nothing to declare says so
       explicitly rather than being absent. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
-- [ ] **CNF-19** Create is refused when the provider has not declared the matching
+- [ ] **CNF-19** **BLOCKING** — Create is refused when the provider has not declared the matching
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
-- [ ] **CNF-20** Every operation on a driver that declares nothing returns `unsupported`,
+- [ ] **CNF-20** **BLOCKING** — Every operation on a driver that declares nothing returns `unsupported`,
       not a panic and not a wrong default — except `PRV-2`'s three named exceptions, each
       asserted for its own stated behaviour instead: describe capabilities and get machine are
       implemented (`PRV-3`), and refresh rescue session returns the session unchanged (`PRV-19`).
@@ -448,39 +452,39 @@ not optional hardening — they are the only structural defence there is.
 
 ## Idempotency
 
-- [ ] **CNF-21** Same key, byte-equivalent body, twice: one operation, both responses
+- [ ] **CNF-21** **BLOCKING** — Same key, byte-equivalent body, twice: one operation, both responses
       identical. (`API-11`)
-- [ ] **CNF-22** Same key, different body: `409`, and no second operation exists.
+- [ ] **CNF-22** **BLOCKING** — Same key, different body: `409`, and no second operation exists.
       (`API-11`)
-- [ ] **CNF-23** Same key, different tenants: two independent operations, neither
+- [ ] **CNF-23** **BLOCKING** — Same key, different tenants: two independent operations, neither
       observable by the other, and no internal error. **Same key, a tenant and an operator; and
       same key, two operator identities: the same three assertions** (2026-09-05 — operator
       writes carry the key and had no scope). (`API-10`, `STO-4`, `STO-35`)
-- [ ] **CNF-24** Semantically identical bodies differing only in JSON key order do not
+- [ ] **CNF-24** **BLOCKING** — Semantically identical bodies differing only in JSON key order do not
       produce a spurious conflict. (`API-12`)
-- [ ] **CNF-25** `retry` with the same key twice enqueues one attempt and returns the same
+- [ ] **CNF-25** **BLOCKING** — `retry` with the same key twice enqueues one attempt and returns the same
       episode view. (`API-64`, `WIR-24`)
 
 ## Operation lifecycle
 
-- [ ] **CNF-26** Two workers racing to claim one queued operation: exactly one wins.
+- [ ] **CNF-26** **BLOCKING** — Two workers racing to claim one queued operation: exactly one wins.
       (`OPS-5`)
-- [ ] **CNF-27** Two operations on one machine: the second is deferred back to `queued`,
+- [ ] **CNF-27** **BLOCKING** — Two operations on one machine: the second is deferred back to `queued`,
       not failed, and runs after the first releases — and the deferral is the store's refusal
       (`STO-51`'s index), not an application-level check. (`OPS-8`, `STO-51`)
-- [ ] **CNF-29** **AMENDED 2026-09-08 (`ADR-0016`) — the sweep has no deadline; the startup pass
+- [ ] **CNF-29** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0016`) — the sweep has no deadline; the startup pass
       is the sweep.** Every operation found `running` when the engine starts is moved to
       `needs_reconciliation` — never back to `queued` — and the count is logged. Kill the engine
       with an operation of each dispatching kind `running`, restart, and assert each one — **except
       a `refresh`, which settles `failed`** (`ADR-0020`): assert its row is `failed` with an
       `internal` error and that `WIR-35`'s resolve refuses it by kind. (`OPS-15`)
-- [ ] **CNF-30** The startup pass does not overwrite an error already recorded. (`OPS-16`)
+- [ ] **CNF-30** **PRE-SCALE** — The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
       different stakes: rows where a misclassification causes a repeated provider mutation, and
       rows that only need covering for exhaustiveness. They belong in different tiers, and the
       undivided item was consequently listed in two of them. Identifier retained rather than
       reused, per the append-only convention in the README.
-- [ ] **CNF-31a** The rows of `OPS-11` where a misclassification causes a repeated provider
+- [ ] **CNF-31a** **BLOCKING** — The rows of `OPS-11` where a misclassification causes a repeated provider
       mutation. A create failing with a provider 4xx is `failed`; a create failing with a
       provider 5xx, a network error, or a timeout is `needs_reconciliation`; every install
       failure that is not a deterministic caller error **and that `OPS-45`'s markers do not clear**
@@ -491,39 +495,39 @@ not optional hardening — they are the only structural defence there is.
       is the defect that made `RSC-3`'s host-key abort an operator-resolved loss. The clause matters
       in both directions, so assert both: an install past the write marker is never `failed`, and
       one short of it with a clean exit is never `needs_reconciliation`.
-- [ ] **CNF-31b** The remaining rows of `OPS-11`, for exhaustiveness — including that the table
+- [ ] **CNF-31b** **PRE-SCALE** — The remaining rows of `OPS-11`, for exhaustiveness — including that the table
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
       kind, with no implicit default.
-- [ ] **CNF-32** Nothing in the system retries an ambiguous mutation. Assert by counting
+- [ ] **CNF-32** **BLOCKING** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
-- [ ] **CNF-33** An operation is executed correctly after a full process restart between
+- [ ] **CNF-33** **PRE-SCALE** — An operation is executed correctly after a full process restart between
       enqueue and claim. (`OPS-2`, `STO-5`)
-- [ ] **CNF-34** Validation is enforced in the worker even when the stored request bypasses
+- [ ] **CNF-34** **PRE-SCALE** — Validation is enforced in the worker even when the stored request bypasses
       the API layer. (`OPS-23`)
-- [ ] **CNF-35** `GET /v1/operations?status=needs_reconciliation` returns them, paginated.
+- [ ] **CNF-35** **PRE-SCALE** — `GET /v1/operations?status=needs_reconciliation` returns them, paginated.
       (`API-23`, `DEF-8`)
 
 ## Rescue and installation
 
-- [ ] **CNF-36** Every row of the host-key decision table in `RSC-3` is covered, including
+- [ ] **CNF-36** **BLOCKING** — Every row of the host-key decision table in `RSC-3` is covered, including
       the two abort cases: no keys and no opt-in; and caller keys that do not overlap
       driver keys.
-- [ ] **CNF-37** A pinned connection is never downgraded to first-use trust, including
+- [ ] **CNF-37** **BLOCKING** — A pinned connection is never downgraded to first-use trust, including
       when the driver returns an empty key set on a later refresh. (`RSC-5`, `PRV-20`)
-- [ ] **CNF-38** Host-key comparison is canonical: the same key with a different comment,
+- [ ] **CNF-38** **BLOCKING** — Host-key comparison is canonical: the same key with a different comment,
       a leading host pattern, or extra whitespace compares equal; a different key does
       not. (`RSC-6`)
-- [ ] **CNF-39** The host-key wait deadline scales with the configured boot timeout.
+- [ ] **CNF-39** **PRE-SCALE** — The host-key wait deadline scales with the configured boot timeout.
       (`RSC-9`, `DEF-5`)
-- [ ] **CNF-40** A rescue password never appears in a command line. Assert on the spawned
+- [ ] **CNF-40** **BLOCKING** — A rescue password never appears in a command line. Assert on the spawned
       process's argument vector. (`RSC-11`)
-- [ ] **CNF-41** The generated installer config disables copying rescue authorized keys
+- [ ] **CNF-41** **BLOCKING** — The generated installer config disables copying rescue authorized keys
       into the installed system. (`RSC-12`)
-- [ ] **CNF-42** A rootfs install with no authorized keys is rejected; a raw-disk install
+- [ ] **CNF-42** **PRE-SCALE** — A rootfs install with no authorized keys is rejected; a raw-disk install
       *with* authorized keys is rejected. (`RSC-13`, `RSC-14`)
-- [ ] **CNF-43** A digest mismatch on the rootfs path aborts before the installer runs.
+- [ ] **CNF-43** **BLOCKING** — A digest mismatch on the rootfs path aborts before the installer runs.
       (`RSC-25`)
-- [ ] **CNF-44** A digest mismatch on the raw-disk path produces an `integrity` error and
+- [ ] **CNF-44** **BLOCKING** — A digest mismatch on the raw-disk path produces an `integrity` error and
       routes to `needs_reconciliation` **in single-pass mode, where verification completes only
       after the overwrite has begun** (`RSC-29`) — which is what sets `OPS-45`'s write marker. **In
       `RSC-30`'s two-pass mode the same mismatch is caught in scratch with nothing written, so the
@@ -531,54 +535,54 @@ not optional hardening — they are the only structural defence there is.
       the two modes make different claims about the disk and must not report the same outcome.
       *Amended 2026-09-02; stated unconditionally it failed the mode `RSC-30` says SHOULD be the
       default.* (`RSC-29`, `RSC-30`, `OPS-11`, `OPS-45`)
-- [ ] **CNF-45** On uncertain rescue exit, the recovery key is persisted and its path,
+- [ ] **CNF-45** **PRE-SCALE** — On uncertain rescue exit, the recovery key is persisted and its path,
       with the rescue address and port, appears in the operation error. (`RSC-19`)
-- [ ] **CNF-46** The recovery directory is created owner-only. (`RSC-20`)
-- [ ] **CNF-47** The inventory report is attached to the operation result **for every operation that
+- [ ] **CNF-46** **BLOCKING** — The recovery directory is created owner-only. (`RSC-20`)
+- [ ] **CNF-47** **PRE-SCALE** — The inventory report is attached to the operation result **for every operation that
       enters rescue, and only for those** — the two rescue-entering install strategies and
       `RSC-38`'s inventory pass; a `provider_native` or `provider_catalogue` install returns `{}`,
       since neither boots anything and neither can read a disk (`RSC-33`, `WIR-10b`). An
       unparseable report is captured raw rather than dropped. (`RSC-33`, `RSC-34`, `WIR-10b`)
 ## Image policy
 
-- [ ] **CNF-49** A non-HTTPS URL is rejected unless insecure HTTP is explicitly enabled.
+- [ ] **CNF-49** **BLOCKING** — A non-HTTPS URL is rejected unless insecure HTTP is explicitly enabled.
       (`API-13`, `SEC-18`)
-- [ ] **CNF-50** URLs with embedded credentials or a fragment are rejected. (`SEC-18`)
-- [ ] **CNF-51** `*.example.com` matches `a.example.com` but not `example.com`, and
+- [ ] **CNF-50** **BLOCKING** — URLs with embedded credentials or a fragment are rejected. (`SEC-18`)
+- [ ] **CNF-51** **BLOCKING** — `*.example.com` matches `a.example.com` but not `example.com`, and
       matching is case-insensitive. (`SEC-20`)
-- [ ] **CNF-52** An empty allowlist logs a loud startup warning. (`SEC-19`)
-- [ ] **CNF-53** A redirect from `https` to `http` is refused by the remote fetch itself.
+- [ ] **CNF-52** **PRE-SCALE** — An empty allowlist logs a loud startup warning. (`SEC-19`)
+- [ ] **CNF-53** **BLOCKING** — A redirect from `https` to `http` is refused by the remote fetch itself.
       (`RSC-17`)
 
 ## Acknowledgements
 
-- [ ] **CNF-54** Install without the destructive acknowledgement is rejected; delete
+- [ ] **CNF-54** **BLOCKING** — Install without the destructive acknowledgement is rejected; delete
       without it is rejected. (`API-14`)
-- [ ] **CNF-55** Create against an order-billed provider is rejected without both the
+- [ ] **CNF-55** **BLOCKING** — Create against an order-billed provider is rejected without both the
       per-request purchase acknowledgement and the account-level opt-in. (`API-15`,
       `PRV-10`)
 
 ## Persistence
 
-- [ ] **CNF-56** Connection-scoped settings are asserted on a freshly checked-out pooled
+- [ ] **CNF-56** **PRE-SCALE** — Connection-scoped settings are asserted on a freshly checked-out pooled
       connection, not on the one that ran migrations. (`STO-7`, `DEF-12`)
-- [ ] **CNF-57** Migrations are version-tracked and re-running them is a no-op. (`STO-12`)
-- [ ] **CNF-58** An unrecognized status read from the store is a hard error. (`STO-10`)
-- [ ] **CNF-59** A deleted machine is tombstoned, and operations referencing it still
+- [ ] **CNF-57** **PRE-SCALE** — Migrations are version-tracked and re-running them is a no-op. (`STO-12`)
+- [ ] **CNF-58** **BLOCKING** — An unrecognized status read from the store is a hard error. (`STO-10`)
+- [ ] **CNF-59** **PRE-SCALE** — A deleted machine is tombstoned, and operations referencing it still
       resolve. (`STO-8`)
-- [ ] **CNF-60** The operation view never contains the stored request payload. (`API-21`)
+- [ ] **CNF-60** **PRE-SCALE** — The operation view never contains the stored request payload. (`API-21`)
 
 ## Deletion semantics
 
-- [ ] **CNF-63** For a driver in `PRV-13`'s scheduled-cancellation shape, the action result
+- [ ] **CNF-63** **BLOCKING** — For a driver in `PRV-13`'s scheduled-cancellation shape, the action result
       carries the effective cancellation date, and it is not assumed to be "now." (`PRV-13`)
-- [ ] **CNF-64** A machine with a future cancellation date is recorded
+- [ ] **CNF-64** **BLOCKING** — A machine with a future cancellation date is recorded
       `cancellation_scheduled`, not `deleted`, and is **not** tombstoned until that date
       passes. Assert it still appears in inventory queries that exclude deleted rows. Then record
       it gone before the date by `OPS-32`'s complete pass, and assert the earlier end is taken: the
       meter stops, and its `scheduled` episode closes `resource_gone` (`OPS-48`, `ADR-0021`).
       (`DOM-19`, `STO-8a`)
-- [ ] **CNF-65** **AMENDED 2026-09-08 (`ADR-0018`) — the cleanup path now has a method.** After
+- [ ] **CNF-65** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0018`) — the cleanup path now has a method.** After
       every delete that succeeds with the resource gone, the engine calls *list attachments*
       (`PRV-45`) and writes `machine_attachments`; a release is enqueued for every row whose kind
       the descriptor declares `cleanup: api` and which is billable, and the kinds declared
@@ -587,7 +591,7 @@ not optional hardening — they are the only structural defence there is.
 
 ## Ceilings for autonomous callers
 
-- [ ] **CNF-69** A principal that sets every acknowledgement flag on every request still cannot
+- [ ] **CNF-69** **BLOCKING** — A principal that sets every acknowledgement flag on every request still cannot
       exceed its destruction, creation, imaging or spend ceiling. Drive it with a loop that
       acknowledges everything and assert the ceiling stops it. **AMENDED 2026-09-02 — assert the
       refusal, not only the stop.** The rejection is kind `ceiling_exceeded` (`DOM-17`), never
@@ -600,21 +604,21 @@ not optional hardening — they are the only structural defence there is.
       operator pays for. *Until today this item was BLOCKING against a taxonomy that could not express its
       rejection and a pipeline that never performed its check.* (`SEC-39`, `DOM-17`, `API-7`,
       `WIR-9a`, `OPS-39`)
-- [ ] **CNF-70** The deployment has recorded *where* ceilings are enforced and what each integer
+- [ ] **CNF-70** **PRE-SCALE** — The deployment has recorded *where* ceilings are enforced and what each integer
       is. Under `ADR-0001` that is this control plane — there is no front service to defer to,
       which is why the front-service variant of this rule was swept. (`SEC-39`)
 
 ## Audit
 
-- [ ] **CNF-61** Every mutating request produces an audit record with correlation id,
+- [ ] **CNF-61** **PRE-SCALE** — Every mutating request produces an audit record with correlation id,
       identity, admin-override target if any, operation id and kind, machine, and outcome.
       (`SEC-32`)
-- [ ] **CNF-62** Audit records go to a destination separate from the operation store.
+- [ ] **CNF-62** **PRE-SCALE** — Audit records go to a destination separate from the operation store.
       (`SEC-33`)
 
 ## Enrolment and credentials
 
-- [ ] **CNF-76** **REWRITTEN 2026-09-02** — it tested `issuable_at`, which `API-33` withdrew: the
+- [ ] **CNF-76** **PRE-SCALE** — **REWRITTEN 2026-09-02** — it tested `issuable_at`, which `API-33` withdrew: the
       delay no longer sits after issuance, so "no usable credential before the delay elapses" is
       false of a conforming build. It now tests the gate that replaced it: `POST /v1/enrol` is
       refused `invalid_request` with no admission token, with an expired one, with an unknown one,
@@ -623,9 +627,9 @@ not optional hardening — they are the only structural defence there is.
       returned by a successful enrolment works immediately. *Withdrawn text:* Enrolment returns no
       usable credential before the configured delay elapses, and the not-yet response does not
       disclose the remaining time precisely. (`API-33`, `WIR-49`, `WIR-12`)
-- [ ] **CNF-77** An unfunded pending tenant is deleted at its TTL together with its credential.
+- [ ] **CNF-77** **BLOCKING** — An unfunded pending tenant is deleted at its TTL together with its credential.
       Verified by clock advance, not by reading the code. (`API-34`)
-- [ ] **CNF-78** **REWRITTEN 2026-08-14** — the old item tested a rule two amendments had
+- [ ] **CNF-78** **BLOCKING** — **REWRITTEN 2026-08-14** — the old item tested a rule two amendments had
       replaced, and no implementation could satisfy it and `CNF-125` at once: it predates
       `API-43`'s allowlist, and "until a payment has been credited" is the per-payment trigger
       `API-35` withdrew on 2026-08-13. It now tests: a pending tenant performs **no action outside
@@ -634,9 +638,9 @@ not optional hardening — they are the only structural defence there is.
       so two credited payments that each fall short but together clear the minimum activate it.
       *Withdrawn text:* A pending tenant can perform no authorized action of any kind until a
       payment has been credited. (`API-35`, `API-43`, `DOM-20`)
-- [ ] **CNF-79** Enrolment rate-limiting state is never persisted — no caller address reaches
+- [ ] **CNF-79** **PRE-SCALE** — Enrolment rate-limiting state is never persisted — no caller address reaches
       the store or the logs. (`API-36`, `ADR-0005`)
-- [ ] **CNF-80** **REWRITTEN 2026-08-13** — testing "no column beyond those specified" now fails
+- [ ] **CNF-80** **PRE-SCALE** — **REWRITTEN 2026-08-13** — testing "no column beyond those specified" now fails
       every *conforming* implementation, since `STO-34`'s handle, issuance and assignment state
       must exist. It tests the prohibition instead: **no column in any table holds anything that
       could identify, locate or contact a person, or that derives from the caller's network path**
@@ -651,32 +655,32 @@ not optional hardening — they are the only structural defence there is.
       argued with.* *Withdrawn text:* The `tenants` table holds no column beyond those specified. Asserted by a schema
       test that **fails when a column is added**, because the way a privacy policy dies is one
       harmless-looking column. (`STO-21`)
-- [ ] **CNF-81** Operator credentials still come only from the environment, and no runtime-issued
+- [ ] **CNF-81** **BLOCKING** — Operator credentials still come only from the environment, and no runtime-issued
       customer credential can become one. (`API-4`)
 
 ## Reconciliation and correlators
 
-- [ ] **CNF-82** A create writes its correlator into the provider — the operation id where a free field exists, otherwise the per-operation artifact `PRV-32` defines — and records it against the operation before the order is sent
+- [ ] **CNF-82** **BLOCKING** — A create writes its correlator into the provider — the operation id where a free field exists, otherwise the per-operation artifact `PRV-32` defines — and records it against the operation before the order is sent
       **in the same request that performs the mutation** — verified against a recorded provider
       request, not against a follow-up call. (`PRV-26`)
-- [ ] **CNF-83** The correlator carries no tenant identifier, customer-chosen hostname, or other
+- [ ] **CNF-83** **BLOCKING** — The correlator carries no tenant identifier, customer-chosen hostname, or other
       linkable value. Anyone reading the operator's provider console learns nothing. (`PRV-26`,
       `ADR-0005`)
-- [ ] **CNF-84** Resolution attaches a resource only on an **exact** correlator match. A machine
+- [ ] **CNF-84** **BLOCKING** — Resolution attaches a resource only on an **exact** correlator match. A machine
       matching on hostname, offer and creation window but carrying no correlator is left
       unresolved, not attached. (`OPS-29`)
-- [ ] **CNF-85** Resolution performs no mutation. A driver whose search path mutates fails this
+- [ ] **CNF-85** **BLOCKING** — Resolution performs no mutation. A driver whose search path mutates fails this
       item. (`OPS-28`)
-- [ ] **CNF-86** A sweep does not claim a resource whose operation is still `running` and not
+- [ ] **CNF-86** **BLOCKING** — A sweep does not claim a resource whose operation is still `running` and not
       yielded (`OPS-8`). (`OPS-30`)
-- [ ] **CNF-87** A commitment is closed and its reserved satoshis returned once the negative
+- [ ] **CNF-87** **BLOCKING** — A commitment is closed and its reserved satoshis returned once the negative
       window elapses, even though the operation remains open, and the sweep keeps searching
       afterwards. (`OPS-33`)
-- [ ] **CNF-88** The account-wide sweep reports an unclaimed machine to the operator and attaches
+- [ ] **CNF-88** **PRE-SCALE** — The account-wide sweep reports an unclaimed machine to the operator and attaches
       it to no tenant. (`OPS-32`)
-- [ ] **CNF-89** Resolution columns are write-once; a second resolution of the same record is
+- [ ] **CNF-89** **PRE-SCALE** — Resolution columns are write-once; a second resolution of the same record is
       refused. (`STO-19`)
-- [ ] **CNF-90** **REWRITTEN 2026-08-13** — the old item tested the case `PRV-27` calls
+- [ ] **CNF-90** **PRE-SCALE** — **REWRITTEN 2026-08-13** — the old item tested the case `PRV-27` calls
       impossible (recording a transaction identifier the provider never returned because the reply
       was lost). It now tests: the identifier is recorded **when the provider returned one**, and
       resolution succeeds **without** it via the durable correlator (`PRV-32`, `OPS-27`).
@@ -685,22 +689,22 @@ not optional hardening — they are the only structural defence there is.
 
 ## Ledger and money
 
-- [ ] **CNF-91** No floating-point type appears anywhere in a money path. Asserted at the type
+- [ ] **CNF-91** **BLOCKING** — No floating-point type appears anywhere in a money path. Asserted at the type
       level, not by inspection. (`LDG-1`)
-- [ ] **CNF-92** Adding two amounts with different currency codes is refused — never silently
+- [ ] **CNF-92** **BLOCKING** — Adding two amounts with different currency codes is refused — never silently
       converted. (`LDG-3`)
-- [ ] **CNF-93** The ledger has no update or delete path at the storage layer. Attempting one
+- [ ] **CNF-93** **BLOCKING** — The ledger has no update or delete path at the storage layer. Attempting one
       fails; convention is not the control. (`LDG-5`, `STO-22`)
-- [ ] **CNF-94** A replayed top-up notification carrying the same idempotency key credits exactly
+- [ ] **CNF-94** **BLOCKING** — A replayed top-up notification carrying the same idempotency key credits exactly
       once. (`LDG-8`)
-- [ ] **CNF-95** A create whose available balance is one satoshi short is rejected and **no
+- [ ] **CNF-95** **BLOCKING** — A create whose available balance is one satoshi short is rejected and **no
       provider call is made**. (`LDG-9`, `LDG-12`)
-- [ ] **CNF-96** A commitment and its operation are written in one transaction: killing the
+- [ ] **CNF-96** **BLOCKING** — A commitment and its operation are written in one transaction: killing the
       process between them leaves neither. (`LDG-11`, `STO-23`)
-- [ ] **CNF-97** No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
-- [ ] **CNF-98** Remaining runway is readable from the machine view before exhaustion.
+- [ ] **CNF-97** **BLOCKING** — No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
+- [ ] **CNF-98** **PRE-SCALE** — Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
-- [ ] **CNF-99** A single adverse rate read cannot cancel a machine: the deficiency must persist
+- [ ] **CNF-99** **BLOCKING** — A single adverse rate read cannot cancel a machine: the deficiency must persist
       across derivations. **Asserted through the mechanism, not the outcome** (2026-09-05): feed one
       poisoned rate reading, assert re-derivation writes a past `runway_until` **and** sets
       `machines.exhausted_since`, assert the sweep does **not** route the machine while that column
@@ -715,18 +719,18 @@ not optional hardening — they are the only structural defence there is.
       (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
       no reader behind it, and a build that routed on the date alone passed it by never being fed a
       poisoned reading.* (`PRV-13e`, `LDG-16`, `LDG-58`)
-- [ ] **CNF-100** At end of runway the machine is cancelled and its disk destroyed — and the
+- [ ] **CNF-100** **BLOCKING** — At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
-- [ ] **CNF-101** Under a failing solvency check, every bill-increasing operation is refused
+- [ ] **CNF-101** **BLOCKING** — Under a failing solvency check, every bill-increasing operation is refused
       while cancel and delete continue to work. **The operations that reduce exposure are never
       gated by the check that fires because exposure is too high.** (`LDG-20`)
-- [ ] **CNF-102** The ledger contains no caller address, payment counterparty, preimage or ecash
+- [ ] **CNF-102** **PRE-SCALE** — The ledger contains no caller address, payment counterparty, preimage or ecash
       token. (`LDG-21`)
-- [ ] **CNF-103** Retention never deletes a ledger entry. (`LDG-22`, `STO-24`)
-- [ ] **CNF-104** Customer price is produced by exactly one function; no call site reads a
+- [ ] **CNF-103** **PRE-SCALE** — Retention never deletes a ledger entry. (`LDG-22`, `STO-24`)
+- [ ] **CNF-104** **PRE-SCALE** — Customer price is produced by exactly one function; no call site reads a
       provider price string directly. (`LDG-23`)
-- [ ] **CNF-105** Privileged operations are metered although they are free. (`LDG-25`)
-- [ ] **CNF-106** The reserve commits **customer** price for machine time and the setup fee **at
+- [ ] **CNF-105** **PRE-SCALE** — Privileged operations are metered although they are free. (`LDG-25`)
+- [ ] **CNF-106** **BLOCKING** — The reserve commits **customer** price for machine time and the setup fee **at
       cost** — a reserve computed from provider cost under-commits by exactly the margin.
       (`PRV-13b`)
 
@@ -735,52 +739,52 @@ not optional hardening — they are the only structural defence there is.
 Added 2026-08-12 with `ADR-0008`. Every item here is a way to mint satoshis that do not exist or
 to strand satoshis that do.
 
-- [ ] **CNF-116** A payment settling for less than the requested amount credits the **settled**
+- [ ] **CNF-116** **BLOCKING** — A payment settling for less than the requested amount credits the **settled**
       value. A credit derived from `deposits.requested_sats` is the defect — assert it
       at the call site, not by reading the number back. (`LDG-47`, `STO-29`)
-- [ ] **CNF-117** An overpayment is credited in full and is never refused or truncated. (`LDG-47`)
-- [ ] **CNF-118** No credit is posted for an unconfirmed on-chain transaction at any amount, and
+- [ ] **CNF-117** **BLOCKING** — An overpayment is credited in full and is never refused or truncated. (`LDG-47`)
+- [ ] **CNF-118** **BLOCKING** — No credit is posted for an unconfirmed on-chain transaction at any amount, and
       an RBF replacement that lowers the value before the stated depth results in the lower credit
       or none — never the original. (`LDG-48`)
-- [ ] **CNF-119** An accepted-but-unsettled Lightning HTLC posts no credit. A held invoice that is
+- [ ] **CNF-119** **BLOCKING** — An accepted-but-unsettled Lightning HTLC posts no credit. A held invoice that is
       later cancelled leaves the balance untouched. (`LDG-48`)
-- [ ] **CNF-120** Two funding requests never produce the same destination on either rail, and two
+- [ ] **CNF-120** **BLOCKING** — Two funding requests never produce the same destination on either rail, and two
       tenants never share one. (`LDG-49`)
-- [ ] **CNF-121** Two funding requests from one tenant produce two distinct on-chain addresses;
+- [ ] **CNF-121** **BLOCKING** — Two funding requests from one tenant produce two distinct on-chain addresses;
       the same request retried with the same idempotency key produces **one deposit** — same
       invoice, same address. Both halves must hold — the first is the privacy rule, the second is
       the double-payment rule. (`LDG-50`, `API-45`)
-- [ ] **CNF-122** A payment observed at an expired deposit's address, for a live tenant, is
+- [ ] **CNF-122** **PRE-SCALE** — A payment observed at an expired deposit's address, for a live tenant, is
       credited rather than refused. Expiry ends watching, not resolution. (`LDG-51`, `LDG-54`)
-- [ ] **CNF-123** Deleting a pending tenant at its time-to-live leaves its deposits intact, and a
+- [ ] **CNF-123** **BLOCKING** — Deleting a pending tenant at its time-to-live leaves its deposits intact, and a
       later payment to one of them is recorded as unattributed rather than lost or dropped.
       (`STO-29`, `LDG-43`, `API-42`)
-- [ ] **CNF-124** Killing the process between crediting the ledger and marking the destination
+- [ ] **CNF-124** **BLOCKING** — Killing the process between crediting the ledger and marking the destination
       settled leaves the payment credited exactly once after recovery — not twice, not zero times.
       Replaying the rail's settlement stream produces no second entry. (`STO-30`, `STO-31`)
-- [ ] **CNF-125** A pending tenant can reach exactly `POST /v1/deposits`, `GET /v1/deposits/{id}`
+- [ ] **CNF-125** **BLOCKING** — A pending tenant can reach exactly `POST /v1/deposits`, `GET /v1/deposits/{id}`
       for its own deposit, the unauthenticated enrolment handle, and `POST /v1/recovery/revoke`
       — **unconditionally**, since `API-33` withdrew `issuable_at` and the token is live from the
       enrolment response (`API-43`) — and **nothing else**; every
       other authenticated endpoint answers `not_activated`. The deposit-read half is what lets a
       tenant that paid below the activation minimum see what happened to unrefundable money.
       (`API-43`, `API-52`, `DOM-20`)
-- [ ] **CNF-126** The solvency check counts channel balances and confirmed on-chain outputs, and
+- [ ] **CNF-126** **PRE-SCALE** — The solvency check counts channel balances and confirmed on-chain outputs, and
       the deployment's stated treatment of an encumbered channel balance is the one implemented.
       (`LDG-53`, `LDG-17`)
-- [ ] **CNF-127** An on-chain payment below the floor that covers spending its own output is
+- [ ] **CNF-127** **PRE-SCALE** — An on-chain payment below the floor that covers spending its own output is
       **credited at its received value, not refused** — and the floor was disclosed with the
       destination. A deposit is payable over either rail, so the floor cannot gate the mint.
       (`LDG-52`, `LDG-47`)
-- [ ] **CNF-128** One deposit paid on **both** rails credits **both** payments. Settling the
+- [ ] **CNF-128** **BLOCKING** — One deposit paid on **both** rails credits **both** payments. Settling the
       invoice does not stop the address being watched before expiry. This is the test that catches
       an implementation which closes a deposit on first settlement. (`LDG-55`, `LDG-56`)
-- [ ] **CNF-129** The watch set survives a restart: deposits minted before the process died are
+- [ ] **CNF-129** **BLOCKING** — The watch set survives a restart: deposits minted before the process died are
       still being watched after it comes back, and a payment to one of them is credited. Asserted
       by killing the process, not by reading the start-up code. (`STO-32`)
-- [ ] **CNF-130** The watch set contains no expired deposit. Minting deposits at the rate limit
+- [ ] **CNF-130** **PRE-SCALE** — The watch set contains no expired deposit. Minting deposits at the rate limit
       for longer than the expiry window leaves the set bounded rather than growing. (`LDG-57`)
-- [ ] **CNF-131** The funding response states, in words a customer would understand, that an
+- [ ] **CNF-131** **BLOCKING** — The funding response states, in words a customer would understand, that an
       expired address still accepts payments the operator will not see, and that paying twice
       credits twice with no refund. **The disclosure is the control** — there is no mechanism
       behind it. (`LDG-54`, `LDG-56`, `API-44`)
@@ -790,7 +794,7 @@ to strand satoshis that do.
 Added 2026-08-12 with `ADR-0009`. These are the first items that make `F13`'s "one compromise
 takes the machines *and* the float" partly false.
 
-- [ ] **CNF-132** **AMENDED 2026-09-02 — it asserted the clause `SEC-48` withdrew.** No spending key
+- [ ] **CNF-132** **BLOCKING** — **AMENDED 2026-09-02 — it asserted the clause `SEC-48` withdrew.** No spending key
       or seed is reachable from the process — not in its environment, its configuration or its
       filesystem — and **no service it can call will construct a spend for it**: with the Lightning
       credential in hand, paying an invoice, sending keysend, sending on-chain, opening or closing a
@@ -803,11 +807,11 @@ takes the machines *and* the float" partly false.
       permitted to make it do. Cancelling an unsettled invoice and reading the two balances are
       permitted and MUST succeed; a build where they fail cannot run `LDG-20`'s halt or
       `LDG-53`'s solvency check. (`SEC-48`, `LDG-20`, `LDG-53`, `F13`)
-- [ ] **CNF-133** Address derivation and payment observation both work with watch-only material
+- [ ] **CNF-133** **BLOCKING** — Address derivation and payment observation both work with watch-only material
       only. Removing everything but the extended public key breaks nothing in the funding path.
       (`SEC-48`, `LDG-50`, `LDG-57`)
-- [ ] **CNF-134** The solvency check completes with no spending key present. (`LDG-53`, `LDG-17`)
-- [ ] **CNF-135** **AMENDED 2026-09-02 — it tested an automatic, channel-only sweep, and `SEC-49`
+- [ ] **CNF-134** **BLOCKING** — The solvency check completes with no spending key present. (`LDG-53`, `LDG-17`)
+- [ ] **CNF-135** **BLOCKING** — **AMENDED 2026-09-02 — it tested an automatic, channel-only sweep, and `SEC-49`
       requires neither.** The stated ceiling covers **both pots** — the channel balance *plus* the
       Lightning node's own on-chain wallet — and the sweep is a **manual operator action** whose
       mechanism (a cooperative close, or a swap) the deployment has stated. What is asserted
@@ -818,11 +822,11 @@ takes the machines *and* the float" partly false.
       habit; an item asserting an automatic sweep asserts a control this design does not have.
       *Withdrawn clause:* "Channel balance above the stated ceiling is swept to cold". (`SEC-49`,
       `SEC-50`, `ADR-0009`)
-- [ ] **CNF-136** With inbound capacity fully exhausted, a funding request still succeeds and the
+- [ ] **CNF-136** **BLOCKING** — With inbound capacity fully exhausted, a funding request still succeeds and the
       resulting deposit is payable on-chain. **This is the test that makes `SEC-51`'s manual
       refill survivable** — without it, an operator asleep is an operator not selling. (`SEC-51`,
       `LDG-46`)
-- [ ] **CNF-137** The cold key's recovery procedure has been executed end to end, from backup to a
+- [ ] **CNF-137** **BLOCKING** — The cold key's recovery procedure has been executed end to end, from backup to a
       signed spend, by someone other than whoever wrote it. Before the first customer payment.
       (`SEC-53`)
 
@@ -831,22 +835,22 @@ takes the machines *and* the float" partly false.
 Added 2026-08-12. Past the persistence rule (`LDG-16`), a wrong rate is the only
 external input in this specification that reaches a customer's disk (`LDG-41`, `LDG-14`).
 
-- [ ] **CNF-138** With every rate source unavailable, a create is refused, re-derivation halts
+- [ ] **CNF-138** **BLOCKING** — With every rate source unavailable, a create is refused, re-derivation halts
       **without** cancelling anything, the exhaustion sweep still runs, and the solvency check
       fails closed. All four, from one fault injection. (`LDG-40`, `LDG-59`)
-- [ ] **CNF-139** No code path uses a rate older than the stated bound, and there is no
+- [ ] **CNF-139** **BLOCKING** — No code path uses a rate older than the stated bound, and there is no
       last-known-good fallback anywhere. Asserted by removing every source and confirming the
       system reports *no rate* rather than a number. (`LDG-59`)
-- [ ] **CNF-140** One source returning an extreme price does not move the rate, and that source is
+- [ ] **CNF-140** **PRE-SCALE** — One source returning an extreme price does not move the rate, and that source is
       excluded rather than averaged in. (`LDG-60`)
-- [ ] **CNF-141** Exclusions count against the quorum: with three sources, one stale and one
+- [ ] **CNF-141** **BLOCKING** — Exclusions count against the quorum: with three sources, one stale and one
       outlying, the result is *no rate* — not a rate derived from the single survivor. **This is
       the item that catches an implementation which degrades quietly to one source.** (`LDG-59`,
       `LDG-60`)
-- [ ] **CNF-142** The source set cannot be changed by any API call, tenant input, or database
+- [ ] **CNF-142** **BLOCKING** — The source set cannot be changed by any API call, tenant input, or database
       write. Attempting each fails. (`LDG-61`, and `CNF-135` for the same property applied to the
       sweep destination)
-- [ ] **CNF-143** Two sources that are front-ends onto the same venue are configured, and the
+- [ ] **CNF-143** **PRE-SCALE** — Two sources that are front-ends onto the same venue are configured, and the
       deployment's quorum treats them as one. **Independence is a claim about the world that no
       code can check**, so this is a review item against the configured list, not a runtime test.
       (`LDG-58`)
@@ -856,17 +860,17 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
 Added 2026-08-12 with `ADR-0010`. These test that three drivers made the contract *more* general
 rather than acquiring a default.
 
-- [ ] **CNF-144** No module under `core` names a provider, branches on one, or contains a constant
+- [ ] **CNF-144** **PRE-SCALE** — No module under `core` names a provider, branches on one, or contains a constant
       that is any provider's commercial term. Asserted against the source, not by inspection of
       behaviour. (`OVR-14`, `OVR-15`, `PRV-13c`)
-- [ ] **CNF-145** Removing the DigitalOcean driver from the build leaves the other two compiling
+- [ ] **CNF-145** **PRE-SCALE** — Removing the DigitalOcean driver from the build leaves the other two compiling
       and passing, and removing **both** Hetzner drivers leaves DigitalOcean compiling and
       passing. The second half is the real test — it is where an assumption shared by two drivers
       of one house style shows up as a dependency. (`OVR-15`)
-- [ ] **CNF-146** `GET /v1/providers` reports three distinguishable capability sets, and a caller
+- [ ] **CNF-146** **PRE-SCALE** — `GET /v1/providers` reports three distinguishable capability sets, and a caller
       that acts only on what it reports never invokes an operation a provider does not have.
       (`OVR-16`, `OVR-2`)
-- [ ] **CNF-147** **AMENDED 2026-09-02 — it required a scheduled cancellation on a product that
+- [ ] **CNF-147** **BLOCKING** — **AMENDED 2026-09-02 — it required a scheduled cancellation on a product that
       cancels immediately.** The dedicated path is exercised end to end against a real Hetzner Robot
       machine: a setup fee committed before the order and debited on confirmed acceptance
       (`LDG-39`), and a commitment sized to include cost through the machine's **read**
@@ -884,10 +888,10 @@ rather than acquiring a default.
       "fixed" by encoding a commercial term `PRV-13c` forbids as a constant. **The requirements this
       tests were all written before any of them had run.** (`LDG-39`, `PRV-13b`, `PRV-13c`,
       `DOM-19`, `PRV-31`)
-- [ ] **CNF-148** **The Robot order `comment` field is never populated, by any code path** —
+- [ ] **CNF-148** **BLOCKING** — **The Robot order `comment` field is never populated, by any code path** —
       Hetzner routes commented orders to manual processing (`PRV-30`, confirmed). Asserted against
       the outbound request, not by reading the driver.
-- [ ] **CNF-180** **AMENDED 2026-09-04 — the `test=true` route does not reach this, and the
+- [ ] **CNF-180** **BLOCKING** — **AMENDED 2026-09-04 — the `test=true` route does not reach this, and the
       fall-back clause is now the whole item (`F37`).** `PRV-32`'s correlator round-trip is
       confirmed against the live Robot API before the driver ships: an order carrying a unique SSH
       key is placed, the transaction is fetched from the listing, and the returned
@@ -1016,11 +1020,11 @@ rather than acquiring a default.
       unreachable bills and drains runway with delete as the only remedy: an autonomous caller
       reaches a provider mutation whose product it cannot use, which is question (3). (`RSC-45`,
       `PRV-44`, `PRV-13b`)
-- [ ] **CNF-184** A rate outage bills the customer **nothing** for the window: no deferred
+- [ ] **CNF-184** **BLOCKING** — A rate outage bills the customer **nothing** for the window: no deferred
       satoshi debit is posted when the rate returns, the native accrual appears as an operator
       deficiency, and machines are cancelled at the stated maximum outage if no rate comes back.
       (`LDG-64`, `LDG-65`)
-- [ ] **CNF-185** **AMENDED 2026-09-02 (twice in one day; read the note).** Metering the same period
+- [ ] **CNF-185** **BLOCKING** — **AMENDED 2026-09-02 (twice in one day; read the note).** Metering the same period
       at one-minute and one-hour cadence produces the **identical** total charge — **at a constant
       rate and under a moving one alike**. Rounding is cumulative rather than per tick (`LDG-28`),
       and every increment is priced at a rate that held for the whole of it, because `LDG-38` splits
@@ -1038,41 +1042,41 @@ rather than acquiring a default.
       increments rate-homogeneous and the original unconditional claim becomes both true and
       demanding. When a conformance item has to be weakened to stay true, suspect the requirement.*
       (`LDG-38`, `LDG-28`, `LDG-4`, `PRV-13e`)
-- [ ] **CNF-186** Two credited payments each below the activation minimum, summing above it,
+- [ ] **CNF-186** **BLOCKING** — Two credited payments each below the activation minimum, summing above it,
       activate the tenant atomically. (`LDG-52`, `API-35`)
-- [ ] **CNF-187** A machine deleted while a billable attachment survives keeps its commitment
+- [ ] **CNF-187** **BLOCKING** — A machine deleted while a billable attachment survives keeps its commitment
       open and keeps metering that attachment; the commitment closes only when the last billable
       resource stops. (`LDG-32`, `PRV-13a`, `STO-18`)
-- [ ] **CNF-188** An unreachable provider account or rejected credentials leave commitments
+- [ ] **CNF-188** **BLOCKING** — An unreachable provider account or rejected credentials leave commitments
       **open**, with the carried exposure recorded as an **operator deficiency** (`LDG-66`); only
       confirmed termination closes them and returns their reserved satoshis to available. Run it
       against `07-security-requirements.md` itself, because that amendment was written on
       2026-08-13, failed to apply, and shipped as prose claiming it had. *Absorbed `CNF-114` and
       `CNF-195`, which each tested the same table.* (`SEC-46`, `LDG-66`, `LDG-32`)
-- [ ] **CNF-189** The enrolment response carries both secrets **once**, they are stored hashed
+- [ ] **CNF-189** **PRE-SCALE** — The enrolment response carries both secrets **once**, they are stored hashed
       only, both work from that moment, and neither is ever returned by the handle poll. Losing the
       response loses the credentials — and the tenant is unfunded, so nothing of value is stranded.
       *"Both work from that moment" replaced an `issuable_at` window on 2026-09-02 (`API-33`).*
       (`API-33`, `API-55`, `STO-34`, `WIR-12`)
-- [ ] **CNF-190** The recovery credential revokes the spending token and issues a fresh one; the
+- [ ] **CNF-190** **BLOCKING** — The recovery credential revokes the spending token and issues a fresh one; the
       **spending token cannot revoke or rotate itself**. Both halves — the second is what stops a
       thief locking the owner out. (`API-56`, `WIR-38`)
-- [ ] **CNF-191** A freshly activated tenant has at least one assigned provider account,
+- [ ] **CNF-191** **BLOCKING** — A freshly activated tenant has at least one assigned provider account,
       recorded durably — **where a healthy account exists; where none does, it activates
       unassigned, and kill the process after an account is recorded `healthy` and before the
       assignment lands: on restart the reconciling pass assigns it with no event to prompt it**
       (2026-09-05) — and successive tenants are spread across accounts rather than filling one.
       (`API-57`, `STO-36`, `SEC-43`, `STO-47`)
-- [ ] **CNF-192** An install naming a device identifier absent from a freshly re-read inventory,
+- [ ] **CNF-192** **BLOCKING** — An install naming a device identifier absent from a freshly re-read inventory,
       or carrying a stale `inventory_fingerprint`, aborts `integrity` **with no bytes written**.
       Verified by mutating the inventory between the rescue-inventory pass and the install.
       (`RSC-26`, `RSC-38`)
-- [ ] **CNF-193** A pending tenant's signup time-to-live exceeds the deposit expiry plus the
+- [ ] **CNF-193** **PRE-SCALE** — A pending tenant's signup time-to-live exceeds the deposit expiry plus the
       finality window; a deposit minted at the last moment expires early enough that its own
       finality window still closes before the signup is reaped; and no tenant is deleted while a
       deposit of its own is inside that window.
       (`API-34`, `API-42`, `LDG-54`)
-- [ ] **CNF-194** Suspending a tenant blocks every **tenant-authorized** write while leaving the
+- [ ] **CNF-194** **BLOCKING** — Suspending a tenant blocks every **tenant-authorized** write while leaving the
       maintenance actions reachable (`CNF-209`), enqueues one deduplicated cancellation
       per machine, leaves ledger and machine reads working, and reports per-machine outcomes
       including any `needs_reconciliation`. (`API-58`, `OPS-39`, `SEC-45`)
@@ -1084,42 +1088,42 @@ rather than acquiring a default.
       had. *The checkbox was removed 2026-09-02: the blocking count already described this item as
       "correctly absent — a split and merge marker, not an item", while it was still a live
       checkbox anyone could tick.*
-- [ ] **CNF-196** Enrolment ignores an `Idempotency-Key`: two signups presenting the same key
+- [ ] **CNF-196** **BLOCKING** — Enrolment ignores an `Idempotency-Key`: two signups presenting the same key
       receive **different** handles and different credentials. The withdrawn rule returned the
       same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
-- [ ] **CNF-197** A resolution transition out of `needs_reconciliation` succeeds with **no worker**
+- [ ] **CNF-197** **PRE-SCALE** — A resolution transition out of `needs_reconciliation` succeeds with **no worker**
       — by sweep and by operator verb, guarded on `(id, status = needs_reconciliation)` alone —
       while a *worker* write against an operation no longer `running` affects no row. Both halves:
       the two guards are different predicates (`STO-3`), and a build that applies the worker's to
       resolution can never resolve anything. (`OPS-3`, `STO-19`, `STO-3`)
-- [ ] **CNF-198** Metering a period at a cadence that subdivides it posts every increment: no
+- [ ] **CNF-198** **BLOCKING** — Metering a period at a cadence that subdivides it posts every increment: no
       posting is deduplicated away by the idempotency key, and two billable attachments on one
       machine do not collide. (`LDG-8`, `LDG-38`)
-- [ ] **CNF-199** A late-attach cleanup on a tenant whose balance is **below** the wind-down floor
+- [ ] **CNF-199** **BLOCKING** — A late-attach cleanup on a tenant whose balance is **below** the wind-down floor
       opens **no commitment at all**, carries the **whole** wind-down as an operator deficiency
       rather than a shortfall against a partial one, still executes the cancel, and never drives
       available negative. (`OPS-36`, `LDG-10`, `LDG-66`)
-- [ ] **CNF-200** A rootfs install naming a drive by unstable device path is rejected; the layout
+- [ ] **CNF-200** **BLOCKING** — A rootfs install naming a drive by unstable device path is rejected; the layout
       carries stable identifiers checked against the inventory fingerprint, exactly as raw-disk
       does. (`RSC-26`, `RSC-22`, `WIR-20`)
-- [ ] **CNF-201** A rescue-inventory run carries a trust policy and is capability-gated on
+- [ ] **CNF-201** **PRE-SCALE** — A rescue-inventory run carries a trust policy and is capability-gated on
       `rescue_ssh`; a failure whose rescue exit **also** failed classifies like an install, not like
       a refresh — the machine can be left in rescue — while one whose exit succeeded is `failed`,
       since the pass writes nothing to a disk and `OPS-45`'s first marker is never set for it. Both
       halves; classifying every inventory failure as ambiguous fills an operator's queue with runs
       that ended cleanly. (`WIR-40`, `DOM-10`, `OPS-11`, `OPS-45`)
-- [ ] **CNF-202** Suspending a tenant returns a `suspend_tenant` operation whose children are
+- [ ] **CNF-202** **PRE-SCALE** — Suspending a tenant returns a `suspend_tenant` operation whose children are
       readable through `GET /v1/operations`; resume is synchronous and restores no machines.
       (`WIR-39`, `WIR-41`, `API-58`)
-- [ ] **CNF-203** A replayed revocation returns `409` and no stored bearer token appears anywhere
+- [ ] **CNF-203** **BLOCKING** — A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
-- [ ] **CNF-206** A disk identifier matching **two** devices aborts `integrity` with no write, and
+- [ ] **CNF-206** **BLOCKING** — A disk identifier matching **two** devices aborts `integrity` with no write, and
       an offer whose devices expose no unique identifier is unsellable for rescue installs.
       (`RSC-26`)
-- [ ] **CNF-207** A rootfs install body round-trips `partitions`, `raid.level` and per-drive
+- [ ] **CNF-207** **BLOCKING** — A rootfs install body round-trips `partitions`, `raid.level` and per-drive
       identifiers through the parser. This fixture was silently broken by a fix in the previous
       pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
-- [ ] **CNF-208** **AMENDED 2026-09-02 — one instant, because the other no longer exists.** The
+- [ ] **CNF-208** **PRE-SCALE** — **AMENDED 2026-09-02 — one instant, because the other no longer exists.** The
       enrolment status poll never returns `expires_at`; only the enrolment response does, and the
       poll's status enum is exactly `pending` | `active` | `suspended` — the third added 2026-09-02,
       since `tenants.status` admits it and a suspended tenant's handle had no legal answer without it.
@@ -1127,12 +1131,12 @@ rather than acquiring a default.
       unauthenticated, handle-addressable endpoint yields its creation instant by subtraction from
       `API-34`'s stated time-to-live. *`issuable_at` was the other half of this item and was
       withdrawn with the field (`API-33`).* (`WIR-13`, `API-33`, `API-34`)
-- [ ] **CNF-209** A suspended tenant can still revoke its spending token. Gating maintenance on an
+- [ ] **CNF-209** **BLOCKING** — A suspended tenant can still revoke its spending token. Gating maintenance on an
       active tenant locks the owner out exactly when revocation matters. (`API-7`, `API-56`)
-- [ ] **CNF-210** An orphaned deposit is credited to a named tenant exactly once through the
+- [ ] **CNF-210** **PRE-SCALE** — An orphaned deposit is credited to a named tenant exactly once through the
       operator attribution endpoint; a second call naming a different tenant is `409`. (`WIR-42`,
       `API-34`)
-- [ ] **CNF-211** **REWRITTEN 2026-09-02 — it tested the seizure `LDG-31` forbids.** An ambiguous
+- [ ] **CNF-211** **BLOCKING** — **REWRITTEN 2026-09-02 — it tested the seizure `LDG-31` forbids.** An ambiguous
       create that resolves *observed* **while its commitment is still open** debits the setup fee
       against that commitment and decrements it in the same transaction. Resolving *after* `OPS-33`
       released it debits the customer **nothing**: the fee becomes an operator deficiency
@@ -1140,40 +1144,40 @@ rather than acquiring a default.
       same resolution transaction, available balance does not move, and a wind-down commitment
       `OPS-36` opened on the same machine is **not** decremented. Both halves, and the second is the
       one three requirements disagreed about. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-66`, `OPS-33`)
-- [ ] **CNF-212** **AMENDED 2026-09-08 (`ADR-0017`) — the dedup is a row, not a JSON entry.** Two
+- [ ] **CNF-212** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0017`) — the dedup is a row, not a JSON entry.** Two
       consecutive exhaustion sweeps over the same machine open **one** episode and enqueue **one**
       cancellation: the second finds the open `(machine_id, delete)` episode and enqueues nothing.
       Opening a second episode per sweep is the failure, and `STO-52`'s index is what refuses it —
       assert the refusal is the store's, by attempting the second insert directly. `CNF-291` carries
       the retention half. (`OPS-39`, `OPS-48`, `STO-52`)
-- [ ] **CNF-213** Attributing an orphaned deposit posts **one `correction` pair per settled
+- [ ] **CNF-213** **BLOCKING** — Attributing an orphaned deposit posts **one `correction` pair per settled
       payment** — never a second `topup`, which would mint satoshis the original settlement already
       credited — and `operator_ref` holds no name, address or contact string. A deposit paid on
       both rails produces two pairs. (`WIR-42`, `LDG-5`, `LDG-55`, `ADR-0005`)
-- [ ] **CNF-183** No customer-facing surface — terms, API documentation, error text, marketing —
+- [ ] **CNF-183** **BLOCKING** — No customer-facing surface — terms, API documentation, error text, marketing —
       states or implies that satoshis are held, backed, reserved or segregated against a balance,
       **and** the terms do state that a balance is an unsecured claim. Both halves: silence about
       the ratio, disclaimer about the arrangement. (`LDG-19`, `LDG-19a`, `ADR-0004` §4)
-- [ ] **CNF-182** The Robot driver's order test flag **defaults to test mode**, and a real
+- [ ] **CNF-182** **BLOCKING** — The Robot driver's order test flag **defaults to test mode**, and a real
       purchase requires an explicit spend intent that is set exactly once, where `API-15`'s
       acknowledgement and `PRV-10`'s `allow_orders` both hold. Asserted by placing an order with
       the acknowledgement absent and confirming the API returns a `Cancelled` transaction and no
       server. **A driver defaulting to "real purchase" turns every mistaken conformance run into a
       bought server.** (`PRV-34`, `API-15`, `PRV-10`)
-- [ ] **CNF-181** On a channel with no verified correlator — Robot's **standard** channel — an
+- [ ] **CNF-181** **BLOCKING** — On a channel with no verified correlator — Robot's **standard** channel — an
       ambiguous create ends in `needs_reconciliation` awaiting an operator, the recent-order
       listing is surfaced as evidence, and **no automatic attach occurs on any hostname or timing
       similarity**. The negative window still releases the commitment in full. **And the same
       create on the auction channel of the same account resolves automatically through
       `CNF-180`'s path** — correlation is per channel, and a build that switches it on or off
       provider-wide fails one half (2026-09-05). (`PRV-33`, `OPS-29`, `OPS-33`, `PRV-32`)
-- [ ] **CNF-214** A machine and one of its billable attachments, both metered in the same period,
+- [ ] **CNF-214** **BLOCKING** — A machine and one of its billable attachments, both metered in the same period,
       carry **separate** `meter_totals` rows: charging the attachment does not move the machine's
       rounding credit or high-water mark, and neither does the reverse. Asserted against the stored
       subject, not against `machine_id`. *Said "separate `already_charged` sums" until 2026-09-02;
       the quantity is renamed but the failure is the same one — a shared row bills two subjects as
       one.* (`STO-38`, `LDG-8`, `LDG-38`, `LDG-32`)
-- [ ] **CNF-215** **A correction is never clawed back, and the meter is not involved.** Post a
+- [ ] **CNF-215** **BLOCKING** — **A correction is never clawed back, and the meter is not involved.** Post a
       `correction` naming a `usage_debit`, then meter at least one more increment and assert the
       period's total is **stable**: the next tick posts neither the corrected amount back nor a
       compensating credit. Assert the mechanism, because it is what makes the guarantee cheap —
@@ -1187,7 +1191,7 @@ rather than acquiring a default.
       moved together. Both were true of a meter whose state was what-has-been-charged. Under the
       rounding credit the correction cannot reach the meter at all, `LDG-73` is withdrawn, and the
       seconds it required are gone from the schema.* (`LDG-38`, `LDG-5`, `LDG-7`, `STO-38`)
-- [ ] **CNF-235** The meter's cost per tick does not grow within a period. Meter one subject for a
+- [ ] **CNF-235** **PRE-SCALE** — The meter's cost per tick does not grow within a period. Meter one subject for a
       full period at a cadence that subdivides it, and assert the storage reads per posting are
       constant rather than proportional to the number of prior postings — asserted at the storage
       layer over the suite's traffic in the manner of `CNF-157`, not by reading the code. The
@@ -1197,7 +1201,7 @@ rather than acquiring a default.
       meter row and its `STO-37` deficiency together — kill the process between those two and
       neither survives. A build that cannot write meter state without an entry, or writes it
       without the deficiency, fails one of the two. (`LDG-72`, `STO-45`, `LDG-35`, `LDG-31`)
-- [ ] **CNF-257** **The install gate reads the create's retained copy, and nothing tested it before
+- [ ] **CNF-257** **BLOCKING** — **The install gate reads the create's retained copy, and nothing tested it before
       this item.** Resolve an ambiguous create and assert the attached machine's
       `install_strategies` is the snapshot from its `request_summary` — **not the offer as it stands
       now**. Then assert an install naming a strategy absent from that copy is refused before
@@ -1213,29 +1217,29 @@ rather than acquiring a default.
       strategy from a refused one **without sending an install** — the gate authorizes wiping a disk,
       so discovering it by attempting it is `CNF-150`'s probe-by-purchase with a destructive verb.
       (`OPS-13`, `WIR-30`, `DOM-13`, `DOM-30`, `WIR-11`)
-- [ ] **CNF-259** **Idempotency still works after the payload is purged.** Re-send a key whose
+- [ ] **CNF-259** **BLOCKING** — **Idempotency still works after the payload is purged.** Re-send a key whose
       operation has settled and whose `request` is gone: a byte-equivalent body returns the stored
       result, a different one is `409`. Asserted against the canonical digest, since the payload it
       would otherwise compare against no longer exists — which is the case `API-38` was written for
       and `CNF-21` cannot reach. Both failures end in a duplicate purchase. (`API-38`, `API-11`,
       `ADR-0005`)
-- [ ] **CNF-260** **A machine never has two open commitments.** Attempt every path that opens one
+- [ ] **CNF-260** **BLOCKING** — **A machine never has two open commitments.** Attempt every path that opens one
       against a machine that already has one — create, `LDG-62`'s extend on a machine with none,
       `OPS-36`'s wind-down — and assert the store refuses. `LDG-31`'s "that machine's commitment"
       rests on this and it was stated only as a storage constraint. (`LDG-30`, `STO-23`)
-- [ ] **CNF-262** **Two re-derivations of one machine do not both apply.** Concurrent commitment
+- [ ] **CNF-262** **PRE-SCALE** — **Two re-derivations of one machine do not both apply.** Concurrent commitment
       adjustments against the same row: one succeeds, the other's conditional write on `version`
       affects no row and is retried or refused. This is the primitive `LDG-34` exists for and it had
       no test. (`LDG-34`, `STO-28`)
-- [ ] **CNF-263** **The write target is verified to be a block device at run time.** A resolved
+- [ ] **CNF-263** **BLOCKING** — **The write target is verified to be a block device at run time.** A resolved
       identifier pointing at a regular file, a partition, or anything that is not a whole block
       device aborts before any write. `CNF-192` covers identity; this covers what the identity
       resolves to. (`RSC-27`, `RSC-26`)
-- [ ] **CNF-264** **A PTR may only be set on an address the machine actually holds.** A
+- [ ] **CNF-264** **BLOCKING** — **A PTR may only be set on an address the machine actually holds.** A
       reverse-DNS request naming an address absent from the machine's recorded list is refused
       before the driver is called, including an address belonging to another machine in the same
       provider account. (`API-16`, `PRV-25`)
-- [ ] **CNF-265** **Catalogue install verifies in transit and never interprets.** The caller's image
+- [ ] **CNF-265** **BLOCKING** — **Catalogue install verifies in transit and never interprets.** The caller's image
       is fetched by provisiond, its digest verified as it streams, and a mismatch aborts before
       anything reaches the provider; the caller's own URL is never sent to the provider; an image
       exceeding the offer's `max_image_bytes` aborts the transfer rather than completing it; and the
@@ -1244,7 +1248,7 @@ rather than acquiring a default.
       named here until 2026-09-02 and this path's body cannot carry one: its source is `raw_disk`,
       which has `url`, `sha256` and `compression` (`WIR-20`).* (`RSC-39`,
       `RSC-40`, `SEC-21`, `WIR-20`)
-- [ ] **CNF-266** **The import runs with the machine yielded, and is bounded.** During the import
+- [ ] **CNF-266** **PRE-SCALE** — **The import runs with the machine yielded, and is bounded.** During the import
       the operation's `yielded_at` is set and the machine is free — a concurrent exposure-reducing
       cancellation takes it and runs — and the machine is re-acquired only for the switch-over,
       which re-validates first; while the cancellation holds the machine the re-acquire is refused
@@ -1256,24 +1260,24 @@ rather than acquiring a default.
       imported image MUST NOT declare the capability, which is `DOM-15` applied to the one
       capability that had no driver operation at all until 2026-09-02. (`PRV-37`, `RSC-41`, `OPS-8`,
       `DOM-15`, `PRV-13b`)
-- [ ] **CNF-267** **Both image copies are purged, and an orphan is swept.** On settle and on entry
+- [ ] **CNF-267** **BLOCKING** — **Both image copies are purged, and an orphan is swept.** On settle and on entry
       to `needs_reconciliation`, the operator's re-hosted copy and the provider's imported one are
       both gone. Then the case that matters: lose the provider-side delete's reply and assert the
       account sweep deletes the image on its next pass, treating an "already deleted" rejection as
       success. A copy of a customer's operating system left in the operator's account is the
       failure, not the storage charge. (`RSC-42`, `OPS-32`, `OPS-11`, `ADR-0005`)
-- [ ] **CNF-268** **A catalogue install settles on the provider's word and says so.** With an image
+- [ ] **CNF-268** **PRE-SCALE** — **A catalogue install settles on the provider's word and says so.** With an image
       that boots unreachable, the operation still settles `succeeded`, provisiond makes no
       reachability probe, the machine's `last_install` reports
       `bytes_verified_by_provisiond: false`, and the offer carried non-null `guest_requirements`.
       **The absence of the probe is the assertion** — a caller's image may legitimately ship no SSH
       daemon. (`RSC-43`, `DOM-29`, `WIR-30`, `OVR-1`)
-- [ ] **CNF-269** **`last_install` outlives the operation that wrote it.** Install a machine, let
+- [ ] **CNF-269** **PRE-SCALE** — **`last_install` outlives the operation that wrote it.** Install a machine, let
       retention delete the settled operation (`STO-14`), and assert the machine still reports the
       strategy, the verification flag and the instant. A machine that outlives the record of how it
       came to be is the defect `STO-43`'s ages were moved onto this row to avoid, and the one
       `ADR-0017` gave the episode a row of its own to avoid. (`DOM-29`, `STO-14`)
-- [ ] **CNF-270** **An imported image is not reachable by another tenant, and does not outlive its
+- [ ] **CNF-270** **PRE-SCALE** — **An imported image is not reachable by another tenant, and does not outlive its
       install.** No caller-supplied input reaches the provider's image identifier — a caller can
       name a URL and nothing else — so no tenant can build from another's image through this system.
       The image is gone once the operation settles, and the deployment has stated how many tenants
@@ -1282,7 +1286,7 @@ rather than acquiring a default.
 
 ### Added 2026-09-02 (the two-reviewer pass that returned NOT BUILDABLE)
 
-- [ ] **CNF-271** **AMENDED 2026-09-08 (`ADR-0017`) — the episode is the unit, and `failed` is a
+- [ ] **CNF-271** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0017`) — the episode is the unit, and `failed` is a
       fact about an attempt.** Walk `OPS-48`'s transitions against a real row. Drive an
       exposure-reducing cancellation whose provider call fails after the fence is written — once
       with a 5xx, once with a deterministic `authentication`, and once with `rate_limited` — and
@@ -1309,7 +1313,7 @@ rather than acquiring a default.
       `OPS-39` warns can alter or repeat the first's mutation. **The failure this catches is a
       sweep loop that settles `succeeded` forever while the machine bills forever.** (`OPS-48`,
       `DOM-31`, `OPS-42`, `OPS-39`, `OPS-26`, `API-64`, `LDG-62`)
-- [ ] **CNF-272** **A suspension terminates even when a child cannot delete.** Suspend a tenant
+- [ ] **CNF-272** **BLOCKING** — **A suspension terminates even when a child cannot delete.** Suspend a tenant
       while the provider account's credential is rejected, so every child cancellation fails
       `authentication` — deterministic, and `OPS-11` sends it to `failed` rather than to
       `needs_reconciliation`. Assert the fan-out **terminates** — a later pass enqueues nothing for
@@ -1340,7 +1344,7 @@ rather than acquiring a default.
       that settles while nothing at all accounts for the machine, and one that quietly re-enqueues
       a delete the credential cannot perform. (`API-58`, `OPS-48`, `OPS-39`, `API-7`, `API-64`,
       `LDG-13`)
-- [ ] **CNF-273** **A settled payment is findable afterwards, by the only handle anyone kept.**
+- [ ] **CNF-273** **BLOCKING** — **A settled payment is findable afterwards, by the only handle anyone kept.**
       Settle a deposit on both rails, reap its tenant at `API-34`'s time-to-live, and then attribute
       the deposit to a fresh tenant: the two payments are enumerated from `payments` by
       `deposit_id`, each `correction` pair names that payment's own credit entry, **both entries of
@@ -1356,7 +1360,7 @@ rather than acquiring a default.
       not permit by accident, and until today the deposit binding, the payment record and the
       enumeration it needs were three MUSTs pointing at each other with no column underneath.
       (`STO-46`, `STO-30`, `STO-31`, `LDG-43`, `WIR-42`)
-- [ ] **CNF-274** **A rate move never re-prices time already billed — within an increment or
+- [ ] **CNF-274** **BLOCKING** — **A rate move never re-prices time already billed — within an increment or
       across one.** Meter one subject across a period, move the rate **up** between two increments,
       and assert the second posting charges only the second increment's seconds at the new rate.
       Move it **up mid-increment** and assert the increment **splits** at `rate_observed_at`, so the
@@ -1378,7 +1382,7 @@ rather than acquiring a default.
       that `LDG-38`'s own formula contradicted for a day. The recurrence no longer names the entry,
       so there is nothing left to get wrong in that direction.* (`LDG-38`, `LDG-72`, `STO-45`,
       `LDG-31`, `ADR-0011`)
-- [ ] **CNF-275** **Re-derivation runs on its own clock, not the billing period's.** The deployment
+- [ ] **CNF-275** **PRE-SCALE** — **Re-derivation runs on its own clock, not the billing period's.** The deployment
       states a re-derivation interval separately from `LDG-68`'s period; `runway_until` on a live
       machine is never staler than that interval; `LDG-16`'s "more than one derivation" is measured
       in intervals and a machine at the edge is routed into exhaustion within two of them, not two
@@ -1387,7 +1391,7 @@ rather than acquiring a default.
       against a machine whose `earliest_cancellation_date` is days away, since a monthly interval
       swallows it into the ordinary path and silently deletes the `DOM-19`/`LDG-63` branch.
       (`PRV-13e`, `LDG-68`, `LDG-16`, `PRV-13c`, `OVR-19`)
-- [ ] **CNF-276** **The catalogue fetch cannot be pointed at the inside.** Drive `RSC-39` with a URL
+- [ ] **CNF-276** **BLOCKING** — **The catalogue fetch cannot be pointed at the inside.** Drive `RSC-39` with a URL
       resolving to loopback, to `169.254.169.254`, to an RFC 1918 address, and to an IPv4-mapped
       IPv6 wrapper around each: every one is refused before a byte is sent. Then the three that a
       naive implementation passes — a name whose **second** resolution answers with a private
@@ -1409,7 +1413,7 @@ rather than acquiring a default.
       the process holding every provider credential and root on every customer machine** — `RSC-40`
       put the hostile input there on purpose and bounded only what is done with the bytes.
       (`RSC-44`, `RSC-39`, `SEC-19`, `RSC-17`, `OVR-10a`)
-- [ ] **CNF-277** **A machine the provider destroyed stops being billed without anyone asking.**
+- [ ] **CNF-277** **BLOCKING** — **A machine the provider destroyed stops being billed without anyone asking.**
       Delete a machine at the provider behind the system's back and then run **only** `OPS-32`'s
       sweep — no refresh, no caller request, no operator action. Assert the sweep **writes** the
       observation to the machine row, the meter posts nothing for time after that instant, and the
@@ -1444,7 +1448,7 @@ rather than acquiring a default.
       waits for an absence write — that is the
       ordinary machine, and binding the stop to a caller's refresh leaves it draining forever.
       (`LDG-74`, `OPS-32`, `STO-48`, `LDG-37`, `DOM-7`, `DOM-8`, `STO-18`, `SEC-46`)
-- [ ] **CNF-278** **An account can actually be recorded lost, and the right thing happens.** Drive
+- [ ] **CNF-278** **BLOCKING** — **An account can actually be recorded lost, and the right thing happens.** Drive
       `POST /v1/provider-accounts/{account}/actions/record-status` across all four statuses, **on
       independent account fixtures** — `terminated` is write-once (`API-63`), so a single account
       cannot be walked through the four and any `healthy` assertion made after it on the same account
@@ -1514,7 +1518,7 @@ rather than acquiring a default.
       `CNF-243` each fault-injected a transition nothing could perform — as did `CNF-114`, before it
       was merged into `CNF-188` as the duplicate it was. (`API-63`, `WIR-50`,
       `STO-47`, `SEC-46`, `LDG-32`, `API-62`)
-- [ ] **CNF-279** **An install that wrote nothing and left nothing in rescue is not a mystery.**
+- [ ] **CNF-279** **BLOCKING** — **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
       machine whose pinned host key does not match: `RSC-3` aborts **before connecting**, the
       write-started marker is unset, `on_failure: exit_rescue` closes the session cleanly, and the
@@ -1541,7 +1545,7 @@ rather than acquiring a default.
       **The failure this catches is the differentiator's own safety abort resolving only as
       `abandoned`**, which is what happened when three create-shaped verbs were the only ones there
       were. (`OPS-45`, `OPS-11`, `OPS-31`, `WIR-35`, `RSC-3`)
-- [ ] **CNF-251** **The credential boundary is a module edge, not a comment.** `api` does not depend
+- [ ] **CNF-251** **BLOCKING** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
       edge is asserted too**: `ledger` depends on `core` and `store` and nothing else, both `api`
@@ -1557,11 +1561,11 @@ rather than acquiring a default.
       **And every component in `OVR-17`'s table lives in the module named there** — asserted against
       the dependency graph, since a sweep in the wrong module is a credential or a rail secret in
       the wrong module. (`OVR-9`, `OVR-10a`, `OVR-17`, `OPS-27`, `ADR-0001`)
-- [ ] **CNF-252** **Rescue entries and power cycles are capped.** A principal that sets every
+- [ ] **CNF-252** **PRE-SCALE** — **Rescue entries and power cycles are capped.** A principal that sets every
       acknowledgement flag on every request still cannot exceed its rescue-entry or power-cycle
       ceiling; the rescue-entry ceiling counts the inventory pass and rescue-entering installs
       together. Drive it with a loop that acknowledges everything. (`SEC-39`, `RSC-38`)
-- [ ] **CNF-253** **The operator principal is capped and observed.** An operator principal exceeding
+- [ ] **CNF-253** **BLOCKING** — **The operator principal is capped and observed.** An operator principal exceeding
       its stated retry, resolution, suspension, re-assignment **or provider-account
       status-recording** ceiling is refused; the override
       path works and is itself recorded; and every operator verb emits a monitorable event naming
@@ -1588,7 +1592,7 @@ rather than acquiring a default.
       literally, the pre-amendment pipeline refused the entire operator surface except the four
       verbs its carve-out named; a first repair then exempted operators from 5b outright.*
       (`SEC-39`, `SEC-32`, `API-62`, `API-63`, `API-7`, `API-58`, `API-64`)
-- [ ] **CNF-254** **The credential-holding process cannot move the float.** Its Lightning credential
+- [ ] **CNF-254** **BLOCKING** — **The credential-holding process cannot move the float.** Its Lightning credential
       permits exactly `SEC-48`'s six operations — create, look up, list, subscribe, **cancel an
       unsettled invoice**, and **read the channel and on-chain wallet balances** — and nothing else:
       attempting a payment, a keysend, an on-chain send, a channel open or close, an arbitrary
@@ -1598,13 +1602,13 @@ rather than acquiring a default.
       guaranteed. Asserted by attempting them, not by reading the
       credential's configuration — `CNF-132`'s rule that reachability is the test, not visibility.
       (`SEC-48`, `LDG-20`, `LDG-53`, `ADR-0001`)
-- [ ] **CNF-255** **The stated ceiling covers both pots and the sweep destination is pinned.**
+- [ ] **CNF-255** **BLOCKING** — **The stated ceiling covers both pots and the sweep destination is pinned.**
       Channel balance plus the node's on-chain wallet is what the ceiling measures; a sweep whose
       outputs are not the pinned cold destination is rejected by the signer; and the destination
       cannot be changed by any runtime input. `CNF-135` tests the last clause for the sweep
       destination — this adds the wallet to the arithmetic `ADR-0009` is sold on. (`SEC-49`,
       `SEC-50`, `ADR-0009`)
-- [ ] **CNF-256** **A signup slot costs a held connection.** `POST /v1/enrol` without a valid,
+- [ ] **CNF-256** **PRE-SCALE** — **A signup slot costs a held connection.** `POST /v1/enrol` without a valid,
       unexpired, unused token is refused; a token is obtained only from `POST /v1/enrol/token`,
       which answers after the stated delay; a token is single-use; and issuing one writes nothing to
       the store. **A token request abandoned before the delay elapses leaves nothing collectable
@@ -1614,7 +1618,7 @@ rather than acquiring a default.
       the global ceiling, enrolment sheds with `rate_limited` and a `retry_after_ms` rather than
       failing bare** (`API-41`). (`API-33`, `WIR-49`, `WIR-12`,
       `API-36`, `API-41`, `ADR-0005`)
-- [ ] **CNF-241** **A create is refused rather than bought at a price nobody authorized.** With the
+- [ ] **CNF-241** **BLOCKING** — **A create is refused rather than bought at a price nobody authorized.** With the
       offer's provider price raised between accept and claim so the open commitment no longer covers
       `PRV-13b`'s reserve, the worker fails the operation deterministically **with no provider call
       and no ordering request**, `conflict` with `details.reason: "price_moved"`, and the error
@@ -1625,66 +1629,66 @@ rather than acquiring a default.
       assert the gate still runs**, from the attempt entry's recorded native price — a build that
       keeps it in memory cannot compare anything after a restart. No commitment grows in any case. (`OPS-43`, `PRV-13b`,
       `ADR-0011`, `LDG-2`)
-- [ ] **CNF-242** **A solvency halt stops what it can and says so about what it cannot.** Under a
+- [ ] **CNF-242** **BLOCKING** — **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
       are cancelled and a payment attempted against one fails back with the payer's funds intact; an
       on-chain payment arriving at an already-issued address is still **credited**, not held; and the
       deposit read reports the halt with `gate: "solvency"` before a caller pays. (`LDG-20`,
       `LDG-55`, `LDG-47`, `LDG-51`, `WIR-15`)
-- [ ] **CNF-243** **A tenant is not stranded on a dead provider account.** After `SEC-46` records a
+- [ ] **CNF-243** **BLOCKING** — **A tenant is not stranded on a dead provider account.** After `SEC-46` records a
       confirmed termination, the affected tenants are surfaced to the operator, the re-assignment
       verb gives one of them a live account, `GET /v1/providers` then returns it, and a create
       against it succeeds. Every use of the verb emits a monitorable event naming principal, tenant,
       before and after, and reason. A customer token calling the route gets `404`. (`API-62`,
       `WIR-48`, `SEC-46`, `STO-36`)
-- [ ] **CNF-244** **Suspension is effective when the call returns.** A write issued by the tenant
+- [ ] **CNF-244** **BLOCKING** — **Suspension is effective when the call returns.** A write issued by the tenant
       immediately after `POST .../suspend` returns `202` — and before any worker has claimed the
       parent — is rejected `suspended`. Asserted with the worker pool stopped, which is the state the
       withdrawn wording left permissive. (`API-58`, `API-7`, `WIR-39`)
-- [ ] **CNF-245** **The account sweep has a budget.** It paginates the provider listing rather than
+- [ ] **CNF-245** **PRE-SCALE** — **The account sweep has a budget.** It paginates the provider listing rather than
       assuming one response, yields on `rate_limited` instead of retrying into it, does not delay
       caller-initiated work, and reads by `(provider_account, external_id)` against the index
       `STO-17`'s constraint supplies. An imported image whose operation has settled is **deleted** by
       the same sweep, while an unclaimed machine is only reported. (`OPS-32`, `STO-17`, `ADR-0013`)
-- [ ] **CNF-246** **The balance poll does not grow with the fleet.** `GET /v1/balance` returns the
+- [ ] **CNF-246** **PRE-SCALE** — **The balance poll does not grow with the fleet.** `GET /v1/balance` returns the
       totals and `earliest_runway_until` with no per-commitment array; `?commitments=true` returns it
       cursor-paginated, and on the full listing `committed_sats` equals the sum of `reserved_sats`.
       Asserted against a tenant with more machines than one page holds. (`WIR-16`, `WIR-32`,
       `API-49`, `LDG-9`)
-- [ ] **CNF-247** **A tenant identifier is minted, unique, and never reused.** Identifiers are
+- [ ] **CNF-247** **BLOCKING** — **A tenant identifier is minted, unique, and never reused.** Identifiers are
       server-generated with stated entropy; a caller cannot supply or influence one; and no
       identifier is ever issued twice, including after `API-34` reaps the tenant that held it.
       Asserted against the generator, not by sampling. The failure it prevents is a new caller
       inheriting a reaped tenant's balance and deposits, which survive by identifier alone.
       (`DOM-1`, `STO-26`, `STO-29`, `API-34`)
-- [ ] **CNF-248** **Every mandated `409` carries a defined reason.** Drive each member of
+- [ ] **CNF-248** **PRE-SCALE** — **Every mandated `409` carries a defined reason.** Drive each member of
       `WIR-9a`'s `conflict` union — including `signup_window_closed`, `deposit_already_attributed`
       and `cancellation_committed` — and assert the reason string is present and from the closed set.
       A `409` with no reason, or one outside the union, fails. (`WIR-9a`, `API-34`, `WIR-42`,
       `OPS-42`)
-- [ ] **CNF-249** **`?state=` on the case collection is honoured, and a bad value is refused.**
+- [ ] **CNF-249** **PRE-SCALE** — **`?state=` on the case collection is honoured, and a bad value is refused.**
       `open`, `closed` and `all` each return the right set; the default is `open`; and an
       unrecognised value is `invalid_request` rather than ignored. The last clause is the one that
       matters: `WIR-2` ignores unknown query parameters, so a silently-ignored `state` answers the
       wrong question with a `200`. (`WIR-43`, `DOM-24`, `WIR-2`)
-- [ ] **CNF-250** **`network_restriction.source` is null exactly when nobody has looked**, and
+- [ ] **CNF-250** **PRE-SCALE** — **`network_restriction.source` is null exactly when nobody has looked**, and
       `system_reason` parses against a closed enum. A freshly created machine renders
       `{"status": "unknown", "source": null, "observed_at": null}`; a strict client parsing
       `system_reason` against `WIR-10a`'s set accepts every value the system emits. (`PRV-35`,
       `WIR-10a`, `WIR-47`)
-- [ ] **CNF-237** **A delete is not resolved as failed while the provider is still catching up.**
+- [ ] **CNF-237** **BLOCKING** — **A delete is not resolved as failed while the provider is still catching up.**
       With a provider whose resource read lags its write, an ambiguous delete resolves correctly:
       resolution takes no read before the effective visibility window elapses, a pre-mutation reading
       inside the window leaves the operation pending rather than concluding, a post-mutation reading
       is never reverted by a later contrary read, and a pre-mutation reading beyond the window
       resolves *not applied*. Assert with an injected read lag; a sample exceeding the declared
       window widens it and does **not** authorize a replay. (`PRV-36`, `OPS-33`, `OPS-12`)
-- [ ] **CNF-238** **A goal-state rejection is a success.** A delete against an already-deleted
+- [ ] **CNF-238** **BLOCKING** — **A goal-state rejection is a success.** A delete against an already-deleted
       resource, where the provider answers 4xx meaning "already in the target state", classifies
       `succeeded` and its commitment closes (`LDG-32`). Asserted against the driver's recorded code
       mapping, not its message text. The failure this catches is a customer's satoshis reserved
       forever against a resource that is gone. (`OPS-11`, `PRV-5`, `LDG-32`)
-- [ ] **CNF-239** **A machine funded a moment before its cancellation is not destroyed, and a
+- [ ] **CNF-239** **BLOCKING** — **A machine funded a moment before its cancellation is not destroyed, and a
       machine already fenced cannot be funded.** Drive both orderings against one machine: an
       `extend-runway` committing before the worker's fence write leaves the machine alive with the
       worker making no provider call; a fence written first refuses the extension with `conflict`
@@ -1695,12 +1699,12 @@ rather than acquiring a default.
       serialized transaction. An implementation that reads, then extends, then fences on a still-null
       column passes the two orderings above and destroys a paid-for machine on this one.
       (`OPS-42`, `OPS-41`, `LDG-62`, `LDG-35`, `LDG-69`)
-- [ ] **CNF-240** **Attribution across two tenants deadlocks under no interleaving.** Two concurrent
+- [ ] **CNF-240** **BLOCKING** — **Attribution across two tenants deadlocks under no interleaving.** Two concurrent
       `WIR-42` attributions naming each other's tenants both complete, in one transaction each, with
       the primitives acquired in ascending tenant order; and an attribution whose source tenant row
       was already reaped by `API-34` succeeds, proving the primitive does not require a live tenant
       row. (`LDG-35`, `WIR-42`, `STO-26`, `API-34`)
-- [ ] **CNF-236** **The meter's state is checked by range, not by reconstruction, and the checks
+- [ ] **CNF-236** **BLOCKING** — **The meter's state is checked by range, not by reconstruction, and the checks
       are scoped to one subject.** Assert all four: (a) `0 ≤ r < 1` holds after an arbitrary
       sequence of increments, corrections and clamps; (b) a seeded **out-of-range** `r` is caught
       without consulting any other table; (c) a seeded **in-range but wrong** `r` changes what the
@@ -1717,7 +1721,7 @@ rather than acquiring a default.
       increment boundary, and its amount is a rounded difference of two cumulative figures, so the
       rational was never recoverable. It read as the most rigorous item in the file for a day.
       (`LDG-72`, `STO-45`, `LDG-38`, `LDG-8`)
-- [ ] **CNF-216** The billing period boundary is `00:00:00Z` on the first of the month for every
+- [ ] **CNF-216** **PRE-SCALE** — The billing period boundary is `00:00:00Z` on the first of the month for every
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either — **the increment closes at the boundary,
       the old period's `meter_totals` row posts its part with its own credit, and the new period's
@@ -1726,7 +1730,7 @@ rather than acquiring a default.
       clause was added 2026-09-05; this item asserted apportioning while `LDG-38` split only at a
       rate change, so a straddling increment had two credits and no rule.* (`LDG-68`, `LDG-38`,
       `STO-37`)
-- [ ] **CNF-217** No transaction holding `LDG-35`'s serialization primitive acquires a machine
+- [ ] **CNF-217** **PRE-SCALE** — No transaction holding `LDG-35`'s serialization primitive acquires a machine
       (`OPS-8`), waits on a child operation, or makes a provider call — asserted at the storage
       layer over the whole suite's traffic, in the manner of `CNF-157`, not by code review. **The
       converse is NOT asserted, and asserting it would fail a conforming build**: `OPS-41`'s
@@ -1734,7 +1738,7 @@ rather than acquiring a default.
       bounded read and the fence write, which is the one direction `LDG-69` permits and the thing
       `OPS-42`'s fence is built on. *Noted 2026-09-02, when that path became the first genuine
       nesting in the set.* (`LDG-69`, `LDG-35`, `OPS-8`, `OPS-41`, `OPS-42`)
-- [ ] **CNF-218** A machine funded by `extend-runway` **after** its cleanup cancellation was
+- [ ] **CNF-218** **BLOCKING** — A machine funded by `extend-runway` **after** its cleanup cancellation was
       enqueued is **not** deleted: the worker re-reads funding while holding the machine
       (`OPS-8`), makes no provider call, settles `succeeded`, and the episode closes (`OPS-48`).
       **Afterwards
@@ -1757,17 +1761,17 @@ rather than acquiring a default.
       assertions and the outage case were added 2026-09-05; the outage kind was outside `OPS-41`
       entirely, so a bound reached one second before the rate returned destroyed the fleet.*
       (`OPS-41`, `OPS-36`, `LDG-62`, `LDG-40`, `LDG-64`)
-- [ ] **CNF-219** `GET /v1/balance` is answered from the latest entry's `balance_after` and takes
+- [ ] **CNF-219** **BLOCKING** — `GET /v1/balance` is answered from the latest entry's `balance_after` and takes
       no write transaction; an audit recomputation of `Σ(ledger entries)` equals it; and a seeded
       mismatch **fails closed** rather than answering from either number. (`LDG-70`, `LDG-9`,
       `CNF-157`)
-- [ ] **CNF-220** The deployment states its worst-case operation hold (`OVR-19`), and
+- [ ] **CNF-220** **PRE-SCALE** — The deployment states its worst-case operation hold (`OVR-19`), and
       `wind_down_cost` includes it. Asserted by enqueuing an exposure-reducing cancellation against
       a machine held by a long-running operation and confirming the reserve covered the full wait.
       (`PRV-13b`, `OPS-8`, `OVR-19`)
 ### The abuse surface (grill session, 2026-08-16)
 
-- [ ] **CNF-222** **Address resolution answers from history, not from current state.** Machine A
+- [ ] **CNF-222** **BLOCKING** — **Address resolution answers from history, not from current state.** Machine A
       holds `203.0.113.7` and is deleted; the address is later observed on machine B, owned by a
       different tenant. Resolving `203.0.113.7` at an instant inside A's window returns **A**, and
       at an instant inside B's returns **B**. Asserting only the live case passes against the
@@ -1775,10 +1779,10 @@ rather than acquiring a default.
       and binding the history write to the refresh alone leaves it with none. The operations that
       touched the machine in that window are recoverable alongside it (`SEC-45`), which
       `GET /v1/operations` under `WIR-33`'s override already answers. (`SEC-54`, `STO-41`, `DOM-8`)
-- [ ] **CNF-223** Resolution returns a **candidate set**, and an address never observed at that
+- [ ] **CNF-223** **BLOCKING** — Resolution returns a **candidate set**, and an address never observed at that
       instant returns an empty one rather than a nearest match. An operator acting on a confident
       wrong answer opens a case against an innocent tenant. (`SEC-54`)
-- [ ] **CNF-224** **No part of the notice reaches the customer surface.** With a case open, neither
+- [ ] **CNF-224** **BLOCKING** — **No part of the notice reaches the customer surface.** With a case open, neither
       the machine view, nor the case collection, nor the case detail, nor any error `details` on
       those paths contains the provider's case reference, its statement link, its own wording, or a
       third party the notice named. Run against **all three** read paths — one projection, three
@@ -1786,41 +1790,41 @@ rather than acquiring a default.
       absence of the provider's name**: `provider_account` is already in the machine view
       (`WIR-11`) and `WIR-29` returns the account kind, so a test written that way fails every
       conforming implementation. (`WIR-45`, `API-59`)
-- [ ] **CNF-225** **The deadline has no hands.** A case whose `respond_by` has passed with no
+- [ ] **CNF-225** **BLOCKING** — **The deadline has no hands.** A case whose `respond_by` has passed with no
       statement leaves the tenant unsuspended, the machine uncancelled, the balance untouched, and
       the case still accepting statements. (`DOM-25`, `DOM-24`)
-- [ ] **CNF-226** Statements are append-only and unbounded in count while the case is `open`: a
+- [ ] **CNF-226** **PRE-SCALE** — Statements are append-only and unbounded in count while the case is `open`: a
       second and third submission both succeed and both appear in order; submission after `closed`
       is `409` `case_closed`; no endpoint edits or deletes one. (`STO-40`, `WIR-43`)
-- [ ] **CNF-227** **Closing purges raw statement bodies and keeps what was sent.** After close, the
+- [ ] **CNF-227** **PRE-SCALE** — **Closing purges raw statement bodies and keeps what was sent.** After close, the
       statement rows survive with their timing, their `body` renders as `null`, and
       `sent_statement` — plus `sent_verbatim` and the statement ids it covered — is still readable
       by the operator. The purge commits in the close transaction, not after it. **And a case left
       open past the configured age purges anyway**, which is the only clock that fires without an
       operator. (`STO-42`, `STO-43`, `WIR-44`)
-- [ ] **CNF-231** A retried statement submission carrying the same `Idempotency-Key` appends **one**
+- [ ] **CNF-231** **PRE-SCALE** — A retried statement submission carrying the same `Idempotency-Key` appends **one**
       statement, not two, and returns the same body. Under `STO-40` a duplicate can never be
       deleted, and the caller is an agent with a retry loop. (`WIR-43`, `WIR-24`, `API-8`)
-- [ ] **CNF-232** `GET /v1/address-resolution` returns candidates ordered by `first_seen` with the
+- [ ] **CNF-232** **PRE-SCALE** — `GET /v1/address-resolution` returns candidates ordered by `first_seen` with the
       matched window on each, an empty array where nothing matches, and `out_of_horizon: true` for
       an instant older than the deployment can answer for — distinguishable from "it was nobody's".
       (`WIR-46`, `STO-43`)
-- [ ] **CNF-228** **REWRITTEN 2026-08-16 — it tested English.** A restricted machine keeps billing
+- [ ] **CNF-228** **PRE-SCALE** — **REWRITTEN 2026-08-16 — it tested English.** A restricted machine keeps billing
       and says so *structurally*: `network_restriction.status` reads `disabled` on the machine view
       and in every case rendering, `usage_debit` postings continue, the commitment decays,
       `runway_until` keeps moving, and `delete` on that machine is accepted. **No assertion about
       prose.** *Withdrawn clause:* "the case's `consequence` states the drain" — no conformance run
       can execute a judgement about whether a sentence says a thing. (`LDG-71`, `DOM-27`, `DOM-26`)
-- [ ] **CNF-233** `unknown` is never rendered as `none`. A machine whose driver reports no
+- [ ] **CNF-233** **PRE-SCALE** — `unknown` is never rendered as `none`. A machine whose driver reports no
       restriction signal reads `"status": "unknown"` with a null `observed_at`, and an operator
       recording is refused where the driver *does* report (`409` `state`). A field that is silently
       `none` when nobody looked is worse than no field. (`PRV-35`, `WIR-47`)
-- [ ] **CNF-234** `warned_consequence` has no write path after open, and a deadline revision
+- [ ] **CNF-234** **PRE-SCALE** — `warned_consequence` has no write path after open, and a deadline revision
       appends: after two extensions the case carries both prior dates with their revision times,
       and `respond_by` reads the latest. (`STO-44`, `WIR-47`)
-- [ ] **CNF-229** An open case blocks nothing else — create, install, extend-runway and delete all
+- [ ] **CNF-229** **PRE-SCALE** — An open case blocks nothing else — create, install, extend-runway and delete all
       behave exactly as they do with no case open. (`DOM-26`)
-- [ ] **CNF-230** A case is creatable **only** by an operator, and the statement write mints no
+- [ ] **CNF-230** **PRE-SCALE** — A case is creatable **only** by an operator, and the statement write mints no
       operation: it returns `200` synchronously and `GET /v1/operations` gains no row. (`API-60`,
       `API-48`, `DOM-23`)
 
@@ -1845,7 +1849,7 @@ assignment block was headed `CNF-222`–`CNF-232` and stopped there.*
 
 ## Surface completeness
 
-- [ ] **CNF-149** Every endpoint the requirements mandate appears in the surface table, and every
+- [ ] **CNF-149** **PRE-SCALE** — Every endpoint the requirements mandate appears in the surface table, and every
       row in the surface table has a requirement behind it. Run as a diff, both directions —
       enrolment and funding were each mandated and unlisted for a day, and `API-33`'s admission
       token was mandated and unlisted for two reviews, which made **every enrolment**
@@ -1857,11 +1861,11 @@ assignment block was headed `CNF-222`–`CNF-232` and stopped there.*
       conforms, so that diff fails by construction and would be deleted by whoever ran it first. The catalogue-install variant was missing from `WIR-20` while `DOM-13`
       carried the pairing, and three BLOCKING items tested a path no caller could request — the same
       failure as the missing route, one document over. (`API-48`, `DOM-13`, `WIR-20`, `F19`)
-- [ ] **CNF-150** A caller can read its balance, its available figure and its committed satoshis
+- [ ] **CNF-150** **BLOCKING** — A caller can read its balance, its available figure and its committed satoshis
       without attempting a purchase. **A create rejected with `insufficient_balance` is not an
       acceptable way to answer "can I afford this"**, because an autonomous caller responds to it
       by retrying. (`API-47`, `DOM-20`)
-- [ ] **CNF-151** Exactly the endpoints in `API-48`'s list are synchronous; every other write
+- [ ] **CNF-151** **PRE-SCALE** — Exactly the endpoints in `API-48`'s list are synchronous; every other write
       returns `202` with an operation. Asserted against the routing table, so that adding an
       endpoint later cannot quietly extend the exemption. The list's newest member is the one a
       reader will misfile: `POST /v1/episodes/{id}/actions/retry` answers `200` with the episode
@@ -1872,32 +1876,32 @@ assignment block was headed `CNF-222`–`CNF-232` and stopped there.*
 
 Added 2026-08-12 with `API-49`–`API-54`.
 
-- [ ] **CNF-152** A simulated caller that obeys every `Retry-After` it receives — across a
+- [ ] **CNF-152** **PRE-SCALE** — A simulated caller that obeys every `Retry-After` it receives — across a
       non-terminal list poll, a balance poll and a machines poll at the finest advertised
       cadence — receives zero `429`s over a sustained run. **The invariant is the test**, because
       any fixed rate-limit number stops being tested the day the fleet grows. (`API-50`)
-- [ ] **CNF-153** Every non-terminal operation response carries `Retry-After` and a matching
+- [ ] **CNF-153** **PRE-SCALE** — Every non-terminal operation response carries `Retry-After` and a matching
       `poll_after_ms`, values differ by operation kind and state, and the enrolment poll carries
       no delay-derived value — the one endpoint where the pacing hint is a forbidden oracle.
       (`API-49`, `API-33`)
-- [ ] **CNF-154** An operation in `needs_reconciliation` is delivered with `retryable: false`,
+- [ ] **CNF-154** **BLOCKING** — An operation in `needs_reconciliation` is delivered with `retryable: false`,
       and the client documentation states that re-issuing under a fresh idempotency key is a
       second purchase. The test is the field; the sentence is checked by reading. (`API-51`)
-- [ ] **CNF-155** A pending tenant that has paid can observe `active` on its enrolment handle
+- [ ] **CNF-155** **BLOCKING** — A pending tenant that has paid can observe `active` on its enrolment handle
       without attempting a create. A pending tenant that has not paid can reach only `API-43`'s
       allowlist — funding, its own deposit, that handle, and revocation. *The "at or after
       `issuable_at`" qualifier went with `issuable_at` on 2026-09-02 (`API-33`).*
       (`API-52`, `API-43`)
-- [ ] **CNF-156** Two interleaved polls delivered out of order leave the caller holding the
+- [ ] **CNF-156** **PRE-SCALE** — Two interleaved polls delivered out of order leave the caller holding the
       higher `revision`; the operation's revision strictly increases across every client-visible
       change, verified by killing and restarting the process mid-operation. (`API-53`)
-- [ ] **CNF-157** No `GET` takes a write transaction, asserted at the storage layer over the
+- [ ] **CNF-157** **BLOCKING** — No `GET` takes a write transaction, asserted at the storage layer over the
       whole test suite's traffic, not by code review. A polling customer must be unable to
       trigger what `DEF-11`'s internal loop triggered. (`API-54`)
-- [ ] **CNF-158** Reading an operation past the retention horizon answers `gone`, not
+- [ ] **CNF-158** **PRE-SCALE** — Reading an operation past the retention horizon answers `gone`, not
       `not_found`, and the published observability horizon equals the idempotency horizon.
       (`DOM-21`, `STO-33`)
-- [ ] **CNF-159** Driving a tenant's balance to exhaustion produces a tenant-visible operation
+- [ ] **CNF-159** **BLOCKING** — Driving a tenant's balance to exhaustion produces a tenant-visible operation
       with `requested_by: system` and reason `exhausted`, holding the machine (`OPS-8`), and capable
       of ending in `needs_reconciliation` like any cancel. The test is that the customer-facing
       history contains the event **before** the machine record shows it gone. (`OPS-39`,
@@ -1907,13 +1911,13 @@ Added 2026-08-12 with `API-49`–`API-54`.
 
 Added 2026-08-12 closing `F30`'s list of untested requirements from the commitment rewrite.
 
-- [ ] **CNF-160** Posting the same `(subject, billing period, kind, increment end)` usage debit twice moves the
+- [ ] **CNF-160** **BLOCKING** — Posting the same `(subject, billing period, kind, increment end)` usage debit twice moves the
       balance once, and the debit and its commitment decrement land in one transaction — killing
       the process between them leaves neither. (`LDG-38`, `LDG-31`, `STO-28`)
-- [ ] **CNF-161** A machine powered off for a full billing period is billed for it, and a machine
+- [ ] **CNF-161** **BLOCKING** — A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at
       cancellation *acceptance* is the defect. (`LDG-37`, `DOM-19`)
-- [ ] **CNF-162** **REWRITTEN.** The setup fee follows `LDG-39`'s table: debited **on confirmed
+- [ ] **CNF-162** **BLOCKING** — **REWRITTEN.** The setup fee follows `LDG-39`'s table: debited **on confirmed
       acceptance** and the commitment decremented in the **same transaction** (kill the process
       between them and neither survives); **released in full** on deterministic rejection and on
       resolved-absent — **except a fee the provider's transaction shows was charged for a matched
@@ -1922,13 +1926,13 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       survives); **held** through `needs_reconciliation`. Assert `available` never goes
       negative across the whole sequence — that is the bug this item missed by testing only the
       debit. (`LDG-39`, `LDG-31`, `LDG-10`)
-- [ ] **CNF-163** Two concurrent creates against a balance that can fund exactly one result in
+- [ ] **CNF-163** **BLOCKING** — Two concurrent creates against a balance that can fund exactly one result in
       one commitment and one `insufficient_balance` — under load, not by code review. This is
       the per-tenant serialization primitive `STO-27` exists for. (`LDG-35`, `STO-27`)
-- [ ] **CNF-164** A machine whose correlator arrives after `OPS-33` released the commitment is
+- [ ] **CNF-164** **BLOCKING** — A machine whose correlator arrives after `OPS-33` released the commitment is
       attached to its tenant and then routed through the ordinary exhaustion path — not silently
       adopted free, not destroyed without a record. (`OPS-36`)
-- [ ] **CNF-165** When correlator search returns **many**, no automatic attach occurs, the
+- [ ] **CNF-165** **PRE-SCALE** — When correlator search returns **many**, no automatic attach occurs, the
       operator is shown all candidates, and the recorded choice names which duplicate was kept
       and why the others are believed spurious. (`OPS-38`, `OPS-31`)
 
@@ -1940,52 +1944,52 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
 `CNF-163` (two creates spending one balance is authorization failure, the write-skew case);
 `CNF-164` (a machine running free or destroyed with no record — both irreversible).
 
-- [ ] **CNF-166** A create against an offer with no declared cancellation bound is refused
+- [ ] **CNF-166** **BLOCKING** — A create against an offer with no declared cancellation bound is refused
       before any provider call, and a create against one with a bound opens a commitment sized to
       that bound, which the machine's actual date then **lowers `protected_sats` against rather
       than resizing** (`PRV-31`, `LDG-33`). (`PRV-31`,
       `PRV-13c`, `LDG-12`)
 
-- [ ] **CNF-167** A rate halving increases **no** commitment anywhere in the fleet, except
+- [ ] **CNF-167** **BLOCKING** — A rate halving increases **no** commitment anywhere in the fleet, except
       machines on the scheduled-cancellation branch. What moves is every affected machine's
       `runway_until`. Fault-inject the rate; diff the commitments table. (`LDG-33`, `ADR-0011`)
-- [ ] **CNF-168** `runway_until` moves at re-derivation in **both** directions and the machine
+- [ ] **CNF-168** **PRE-SCALE** — `runway_until` moves at re-derivation in **both** directions and the machine
       view reflects it on the next read. (`LDG-33`, `LDG-15`)
-- [ ] **CNF-169** `runway_until` is derived with `protected_sats` subtracted (`LDG-33`), and a
+- [ ] **CNF-169** **BLOCKING** — `runway_until` is derived with `protected_sats` subtracted (`LDG-33`), and a
       machine is routed into the exhaustion path while its remaining commitment still covers
       wind-down at the current rate — at cancellation time the operator is not out
       of pocket. Drive a machine to exhaustion under a falling rate and assert the invariant at
       the moment of cancellation, not at the end of the test. (`LDG-16`)
-- [ ] **CNF-170** Two concurrent runway extensions against a balance that can fund one result in
+- [ ] **CNF-170** **BLOCKING** — Two concurrent runway extensions against a balance that can fund one result in
       one extension and one `insufficient_balance`, and replaying an extension with its
       idempotency key does not reserve twice. (`LDG-62`, `LDG-35`, `API-8`)
-- [ ] **CNF-171** On the scheduled-cancellation branch, a shortfall that available cannot top is
+- [ ] **CNF-171** **PRE-SCALE** — On the scheduled-cancellation branch, a shortfall that available cannot top is
       surfaced to the operator as a named deficiency — not silently absorbed, not billed to the
       customer twice. (`LDG-63`)
-- [ ] **CNF-172** A create/install carrying a signed URL whose expiry is inside the stated
+- [ ] **CNF-172** **BLOCKING** — A create/install carrying a signed URL whose expiry is inside the stated
       admission-to-start bound is rejected at accept; at claim, a URL that cannot outlive the
       install fails the operation with no provider mutation and no rescue entry. (`OPS-40`,
       `SEC-21`)
-- [ ] **CNF-174** A customer request authenticates by `Authorization: Bearer <token>` compared
+- [ ] **CNF-174** **PRE-SCALE** — A customer request authenticates by `Authorization: Bearer <token>` compared
       to a stored **hash** in constant time; the raw token appears in no log line, URL, or
       operation record; and an unknown or malformed token fails `authentication` before any body
       parsing (`API-7`). *Withdrawn signing-vector test: the Ed25519 scheme this checked
       was withdrawn 2026-08-13; a bearer token has no signing string to interoperate on.* (`WIR-5`, `API-39`, `API-3`)
-- [ ] **CNF-175** A request with an unknown body field is rejected naming the field, and a
+- [ ] **CNF-175** **PRE-SCALE** — A request with an unknown body field is rejected naming the field, and a
       response with an extra field is accepted by the reference client. Both directions of
       `WIR-2`, tested separately. (`WIR-2`)
-- [ ] **CNF-176** Every example body in `13-wire-contract.md` validates against the
+- [ ] **CNF-176** **PRE-SCALE** — Every example body in `13-wire-contract.md` validates against the
       implementation's actual parser — the examples are test fixtures, not illustrations, and
       contain no `...` placeholder inside an object (`WIR-37`). (`F19`)
-- [ ] **CNF-177** A browser-origin preflight (`OPTIONS` with the `Authorization` and
+- [ ] **CNF-177** **BLOCKING** — A browser-origin preflight (`OPTIONS` with the `Authorization` and
       `Idempotency-Key` request headers) succeeds **unauthenticated** and returns the allow-lists
       of `WIR-4a`; a customer request from a wasm client then completes end to end. Run from an
       actual cross-origin fetch, because this is the failure that is invisible in server-only
       tests. (`WIR-4a`, `API-49`)
-- [ ] **CNF-178** A body reusing an idempotency key against a **different** machine or endpoint is
+- [ ] **CNF-178** **BLOCKING** — A body reusing an idempotency key against a **different** machine or endpoint is
       `409`, not a replay of the first result; and a body with a duplicate JSON member, or an
       integer above 2^53, is rejected. (`WIR-3`, `WIR-1a`)
-- [ ] **CNF-179** An operator resolves a `needs_reconciliation` operation through
+- [ ] **CNF-179** **BLOCKING** — An operator resolves a `needs_reconciliation` operation through
       `POST /.../actions/resolve` in each of its **five** forms — `observed`, `absent` and
       `abandoned` on a create, `applied`, `not_applied` and `abandoned` on a kind that acts
       on a machine that already exists (`OPS-31`, `WIR-35`, added 2026-09-02) — with each form
@@ -1994,7 +1998,7 @@ difference); `CNF-161` (under-billing exactly the machines the operator is still
       `absent` form releases the
       commitment, and a customer-authenticated request to that route — and to `retry` —
       returns `404`, not `authentication`. (`WIR-35`, `WIR-34`, `OPS-31`, `OPS-45`, `API-64`)
-- [ ] **CNF-173** After startup, enumerating the process environment from inside the
+- [ ] **CNF-173** **BLOCKING** — After startup, enumerating the process environment from inside the
       customer-facing module yields no provider credential — asserted by actually reading the
       environment at runtime, not by reviewing the scrub call, because a runtime that caches the
       environment makes the scrub a no-op. (`OVR-10c`, `F13`)
@@ -2028,27 +2032,27 @@ See **The blocking count** at the end of this document; it is stated in one plac
 
 ## Ownership, deletion and duplication
 
-- [ ] **CNF-107** Two tenants cannot both hold the same `(provider_account, external_id)`, and
+- [ ] **CNF-107** **BLOCKING** — Two tenants cannot both hold the same `(provider_account, external_id)`, and
       neither can two records for one external machine exist by any other route. The
       constraint is enforced by the store, not by application code. *Absorbed `CNF-6` on 2026-09-02,
       which tested the same control in the words `SEC-10` uses; this item survives because it names
       the constraint that enforces it, and it takes that citation with it.* (`STO-17`, `SEC-10`)
-- [ ] **CNF-108** A machine with an unreleased billable attachment cannot be tombstoned.
+- [ ] **CNF-108** **BLOCKING** — A machine with an unreleased billable attachment cannot be tombstoned.
       (`STO-18`)
-- [ ] **CNF-109** An idempotency key reused after its operation was retained-out either returns
+- [ ] **CNF-109** **BLOCKING** — An idempotency key reused after its operation was retained-out either returns
       the original or is refused — it never performs the mutation a second time. (`STO-25`)
-- [ ] **CNF-110** A `retry` leaves the failed attempt's row — its error included — byte-identical,
+- [ ] **CNF-110** **PRE-SCALE** — A `retry` leaves the failed attempt's row — its error included — byte-identical,
       and the fresh attempt is a separate operation carrying the retry's stated reason. (`API-64`,
       `WIR-51`, `DOM-31`)
 
 ## Blast radius
 
-- [ ] **CNF-111** Tenants are distributed across more than one provider account. An assignment
+- [ ] **CNF-111** **BLOCKING** — Tenants are distributed across more than one provider account. An assignment
       policy that places every tenant in one account fails this item even though it satisfies
       `API-17b`. (`SEC-43`)
-- [ ] **CNF-112** The provider's account-linkage practice has been verified in writing. Until it
+- [ ] **CNF-112** **BLOCKING** — The provider's account-linkage practice has been verified in writing. Until it
       is, `CNF-111` proves nothing. (`SEC-44`)
-- [ ] **CNF-113** **REWRITTEN 2026-08-15** — it tested a deadline `SEC-45` no longer asserts.
+- [ ] **CNF-113** **BLOCKING** — **REWRITTEN 2026-08-15** — it tested a deadline `SEC-45` no longer asserts.
       Two halves, both required. (a) One operator action suspends a tenant and enqueues a
       cancellation for every machine it owns, without the operator enumerating them by hand.
       (b) Given a provider resource, an address and an instant, the system names the owning
@@ -2063,7 +2067,7 @@ See **The blocking count** at the end of this document; it is stated in one plac
       already the marker for, on the same requirement, which is a hint about where this document's
       duplicates come from. `CNF-188` is the survivor and carries this item's operator-deficiency
       clause. Identifier retained rather than reused, and not a checkbox.
-- [ ] **CNF-115** Balances and commitments are answerable with every provider unreachable.
+- [ ] **CNF-115** **BLOCKING** — Balances and commitments are answerable with every provider unreachable.
       (`SEC-47`)
 
 ## Before production
@@ -2221,15 +2225,25 @@ disclosure and delay an exhaustion rather than losing money on the first occurre
 
 ## The blocking count
 
-**Stated here and nowhere else, because it was wrong twice** (`F16`, then again on 2026-08-12 when
-three separate running totals disagreed by one). Every other passage that used to carry a number
-now points here.
+**The count is the line `bash tools/check-all.sh` prints** — `conformance items: N | BLOCKING a |
+PRE-SCALE b | DEFERRED c | markers m`, from `tools/check_ids.py` — **and no figure is written here,
+because a figure written here was wrong twice** (`F16`, then again on 2026-08-12 when three separate
+running totals disagreed by one) and stale twice more after that in this section alone. Every other
+passage that used to carry a number points here, and this section points at the gate.
 
-**Counted mechanically 2026-08-31: 265 conformance items, of which approximately 175 are
-BLOCKING.** The previous figure was "approximately 135" as of 2026-08-13, and the growth is real —
-this review added twenty-nine items, most of them in the destroyed-data and money-out families.
+**The tag on the item is the tier of record.** Since 2026-09-09 every checkbox item carries its tier
+inline — `- [ ] **CNF-1** **BLOCKING** — …` — and `tools/check_ids.py` refuses an untiered item and a
+checkbox on a withdrawn, merged or split id. The assignment paragraphs above are the *reasons* — the
+arguments and the graduation triggers — and are no longer where a tier is read from. The tags are a
+faithful copy of those paragraphs as they stood on 2026-09-09; `F50` in `11-open-findings.md` holds
+what the copy preserved, including the places two readers found the prose wrong.
 
-**Three things the count itself established, which are worth more than the number.**
+**How it was counted before that, and why each count went stale.** Counted mechanically on
+2026-08-31, after a review that added twenty-nine items, most of them in the destroyed-data and
+money-out families, and again on 2026-09-02; each figure was superseded within days, and the earlier
+"approximately 135" of 2026-08-13 had lasted two reviews past the point it was true.
+
+**Three things those counts established, which are worth more than any number.**
 
 *The tiers are consistent.* `F16`'s defect — one item in two tiers — has not recurred. Seven items
 appeared to be double-assigned and every one was a parser artifact: they are *mentioned* in
@@ -2240,8 +2254,7 @@ PRE-SCALE paragraph about re-tiering; it is BLOCKING and has been since `F30`.
 assignment block headed `CNF-222`–`CNF-232`, and fell off the end of it. Now assigned. `CNF-31`,
 `CNF-6`, `CNF-114` and `CNF-195` are correctly absent — they are split and merge markers, not items.
 
-**Re-counted 2026-09-02: 271 conformance items — 275 identifiers less the four markers — of which
-approximately 182 are BLOCKING.** The
+**Re-counted 2026-09-02.** The
 two-reviewer pass of that date added nine items, `CNF-271`–`CNF-279`, eight of them BLOCKING and
 every one in the destroyed-data, money-out or boundary-crossed families. It removed two by merging
 duplicate pairs that had each been counted twice: `CNF-6` into `CNF-107` — **both BLOCKING**, so the
@@ -2253,21 +2266,21 @@ stop, appearing inside the section itself.
 **The durable fix is still the durable fix, and this pass is more evidence for it.** Carrying the
 tier on the item would have caught three of the bookkeeping errors above mechanically: a range
 `CNF-4`–`CNF-9` silently re-tiering a merge marker, a survivor and its duplicate sitting in
-different tiers, and a block of new items whose tier paragraph closed before the last of them. **A
-mechanical edit across 271 items** — the figure this section re-counts, not the 265 the paragraph
-below was written against.
+different tiers, and a block of new items whose tier paragraph closed before the last of them. It
+landed on 2026-09-09 as one mechanical edit across every checkbox item; the gate prints how many
+that was.
 
-*The number is approximate because the assignments are prose, and that is the durable problem.*
-Tiers live in paragraphs scattered across the document, in item order nowhere: `CNF-183`, `CNF-182`
+*The number was approximate because the assignments were prose, and that was the durable problem.*
+Tiers lived in paragraphs scattered across the document, in item order nowhere: `CNF-183`, `CNF-182`
 and `CNF-181` sit after `CNF-213`, `CNF-173` after `CNF-179`. One block read "BLOCKING — all six"
-with no identifiers, which no count can resolve; it has been expanded. **Finding an item's tier
-means scanning thirteen hundred lines, and counting them means writing a parser for English.** The
-durable fix is to carry the tier on the item — `- [ ] **CNF-1** [BLOCKING] …` — after which the
-count is a `grep` and `tools/check_ids.py` could refuse an untiered item outright. That is a
-mechanical edit across 271 items and is recorded as the next obvious one rather than done here.
-*The figure was 265 until 2026-09-02, which is itself the point: a count written into prose in two
-places disagrees with itself the first time either moves.*
+with no identifiers, which no count can resolve; it was expanded. **Finding an item's tier meant
+scanning thirteen hundred lines, and counting them meant writing a parser for English** — the
+2026-09-09 copy was made with exactly such a parser, once, so that nobody writes another. The tier
+is now on the item, the count is a `grep`, and `tools/check_ids.py` refuses an untiered item
+outright. *The figure written here was 265, then 271, and each was stale within a week, which is
+itself the point: a count written into prose disagrees with the document the first time either
+moves.*
 
 A checklist whose own arithmetic is folklore is the failure `CNF-1`/`CNF-3` exist to prevent,
-applied to itself. It is now arithmetic with a stated method and a date, and a stated reason why it
-is still approximate.
+applied to itself. It is now arithmetic a gate performs on every run, with the method in
+`tools/check_ids.py` and no figure in this document left to go stale.
