@@ -116,7 +116,12 @@ buy at v1's volume, and it does not resolve the semantic disagreement that makes
 - `STO-13` is rewritten to carry the decision above: the entry point, the runner's lock and its
   scope, the safety rules against the previous release, the contract-step rule, the `lock_timeout`
   and `CONCURRENTLY` obligations, the directional version check, the rollback story, and the
-  stop-everything class with its named list. `STO-12` gains the runner's serialization.
+  stop-everything class with its named list. `STO-12` gains the runner's serialization. *Corrected
+  2026-09-12: as first landed, `STO-12`'s "one migration per transaction" under a transaction-scoped
+  lock and `STO-13`'s `CONCURRENTLY` obligation contradicted each other, because PostgreSQL refuses
+  `CREATE INDEX CONCURRENTLY` inside a transaction block. `STO-12` now carries a separate rule for
+  such a statement: its own migration, outside a transaction, under a session-scoped lock on the
+  same key, idempotent on repeat, with any `INVALID` leftover dropped first.*
 - `OPS-15` orders itself after the migration check. `OPS-23` states that a field a previous-release
   `api` may not have written is a deterministic failure in the worker, never a passed check.
 - `OVR-9`'s `store` row keeps "Migrations" and names the entry point. `OVR-19` gains the migration

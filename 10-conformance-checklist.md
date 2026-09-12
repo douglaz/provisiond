@@ -259,7 +259,11 @@ not optional hardening — they are the only structural defence there is.
       requires and assert it exits non-zero before its listener opens or, for the engine, before
       the startup lock; and, for a release not declared stop-everything, run an N−1 `api`
       extension against an N engine cancellation and a settlement replay across the pair.
-      (`STO-12`, `STO-13`)
+      **Then the concurrent index step** (added 2026-09-12): kill the runner mid-build of a
+      `CONCURRENTLY` index on `operations` and assert the version is unrecorded and the index is
+      `INVALID`; re-run and assert the invalid index is dropped, rebuilt valid, and the version
+      recorded once — and assert the runner refuses a migration that places that statement inside
+      a transaction with any other. (`STO-12`, `STO-13`)
 - [ ] **CNF-58** — An unrecognized status read from the store is a hard error. (`STO-10`)
 - [ ] **CNF-59** — A deleted machine is tombstoned, and operations referencing it still
       resolve. (`STO-8`)
@@ -536,7 +540,10 @@ takes the machines *and* the float" partly false.
       order. Assert: no worker makes a provider mutation and nothing writes a disk before the first
       claim (`OPS-32`'s deletion of an orphaned imported image is the one provider call the freeze
       does not stop); the extended machine is not routed into exhaustion during `LDG-16`'s interval
-      and its re-extension clears `exhausted_since`; the old token authenticates nothing and the
+      and its re-extension clears `exhausted_since` — and a second machine extended in the lost
+      interval and **not** re-extended is routed once the interval ends, with the extension's
+      satoshis back in its tenant's balance and its `runway_until` reading the restored date
+      throughout (added 2026-09-12: the grace is one interval, not a repair); the old token authenticates nothing and the
       recovery credential issues a new one (`API-56`); the create and the install are
       `needs_reconciliation`, never claimed, and `OPS-27` resolves the create `observed` where its
       correlator was written before the backup and otherwise leaves it to the operator; the

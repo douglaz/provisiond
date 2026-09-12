@@ -1059,6 +1059,21 @@ recorded version never runs ahead of the DDL and two runners cannot interleave. 
 lock is not this lock: it is held on a connection outside the pool, an advisory lock conflicts only
 with requests for its own key, and a runner asking for that key would block the engine's own boot.*
 
+**A statement PostgreSQL refuses inside a transaction block is its own migration, run outside one,
+and it MUST be resumable.** *Added 2026-09-12: `STO-13` requires the index builds on the large
+tables to be `CONCURRENTLY`, and `CREATE INDEX CONCURRENTLY` cannot run in a transaction block —
+so the one-transaction rule above and that obligation contradicted each other for the exact
+migrations that take longest, and both landed the same day under `ADR-0024`.* Such a migration
+contains that one statement and nothing else; the runner holds a **session-scoped** advisory lock on
+the same key across the build and the recording of completion, so runners still cannot interleave;
+the statement is written so that a repeat after a crash is a no-op (`IF NOT EXISTS`); and before
+running it the runner MUST drop any index of that name left `INVALID` by an earlier failed build,
+since `IF NOT EXISTS` would otherwise skip the rebuild and record a version whose index does not
+work. Completion is recorded only after the build succeeds, so the recorded version still never runs
+ahead of the DDL — a crash between the two leaves a valid index and an unrecorded version, and the
+repeat records it. Such a migration is never a contract step and never in the stop-everything class
+(`STO-13`): an index is an addition.
+
 **STO-13** **AMENDED 2026-09-12 (`ADR-0024`) — both halves, each where it is cheap, and the class
 neither half makes safe.** Migrations MUST be forward-only and MUST be applied by the deployable's
 own `migrate` entry point, run by the deployment **before any component of a release starts and
@@ -1076,7 +1091,9 @@ migration MUST be safe against a running instance of the previous release of bot
 - DDL that takes `ACCESS EXCLUSIVE` MUST run under a stated `lock_timeout` and retry count
   (`OVR-19`), and index builds on `operations`, `ledger_entries` and `machines` MUST be
   `CONCURRENTLY`, so that the time `api` queues behind a migration is bounded — the table lock
-  still queues every later statement on that table behind it while held.
+  still queues every later statement on that table behind it while held. A `CONCURRENTLY` build
+  cannot run inside a transaction, so it is its own migration under `STO-12`'s non-transactional
+  rule, not a statement inside a transactional one.
 
 A removal, rename, tightening or `VALIDATE` is a **contract step** and ships no earlier than the
 release after the one that stopped depending on the thing removed. Every component MUST read the
@@ -1176,7 +1193,15 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   payment, by someone other than whoever wrote it, on `CNF-137`'s model, and the rehearsal drives
   the four destructive witnesses above through it (`CNF-295`).
 
-*What the restore does not repair, stated so it is not assumed: a debit lost in Δ is re-metered
+*What the restore does not repair, stated so it is not assumed: **an extension lost in Δ is not
+rebuilt** — the grace above buys the tenant one re-derivation interval in which to extend again,
+and a machine whose tenant does not is routed at the interval's end and cancelled, one interval
+after a date the tenant was never shown; the extension's satoshis are back in the tenant's balance,
+because the debit that paid for it rolled back with it, and the backward move of `runway_until` is
+visible to the caller on every machine read — the lost window is published to the operator, and
+nothing in this set tells a tenant (*added 2026-09-12; until then this requirement and `ADR-0023`
+described the grace as what "stands between the restore and the destroyed disk", which is true only
+of a tenant that re-extends in time*); a debit lost in Δ is re-metered
 from the rolled-back high-water mark, and the rate boundaries `LDG-38` would have split the span
 at are gone with the `rate_observations` written in Δ; a gone-write lost in Δ extends the
 customer's charge to the next complete pass (`LDG-74`), and the correction is an operator `LDG-5`
