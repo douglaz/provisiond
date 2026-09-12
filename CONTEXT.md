@@ -58,7 +58,7 @@ _Avoid_: plan, product, SKU, listing
 Bringing a machine that already exists at a provider under provisiond's management, as opposed
 to creating one. Not a v1 verb (withdrawn 2026-09-08, `ADR-0020`): it returns with a driver
 whose machine read supplies the machine's cost.
-_Avoid_: import, register, claim
+_Avoid_: import, register, claim (as a synonym for adopting — the word belongs to **Claim**)
 
 ### Work
 
@@ -90,6 +90,15 @@ _Avoid_: trigger, incident, case (taken — see **Abuse case**), retry loop
 One **operation** enqueued under an **episode**. Settles like any operation and is retained or
 deleted like any operation; the episode outlives it.
 _Avoid_: requeue, run, try
+
+**Claim**:
+The engine taking one queued **operation** to run it. Numbered per operation by its **claim
+number**, which every write made by that execution carries: a later claim of the same operation
+— after an `OPS-8` defer — gets the next number, and that is the only thing that tells the two
+executions apart while both rows read `running`. Not an **attempt**: an operation is one attempt
+however many times it is claimed. The number identifies a claim and counts nothing.
+_Avoid_: attempt, attempt count, generation, epoch (withdrawn), lease (withdrawn), claimant
+(withdrawn with the leases), execution (that is what a claim starts, not its name)
 
 **Retry**:
 An operator opening a fresh **attempt** under a `stalled` **episode** (`API-64`). Never automatic:
@@ -127,6 +136,20 @@ A read-only pass that boots a machine into rescue and reports its disks with sta
 a caller can choose a target before a destructive write. Read-only about the **disk** and nothing
 else: it reboots the machine, and an ambiguous exit can leave it in rescue.
 _Avoid_: preflight (banned — see flagged ambiguities)
+
+**Restore**:
+Bringing the store back from a backup, landing at some instant before the failure. A recovery
+incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no committed
+work and the startup pass classifies what was in flight; a restore loses an interval, and the
+engine brought up on it naïvely performs destructive actions on state the restore rewrote.
+_Avoid_: restart, recovery (bare — the rescue recovery directory and the recovery credential
+already own that word), rollback (that is a transaction)
+
+**Recovery point**:
+How much committed work a restore may lose, stated as the greatest age of a write not yet in a
+separate failure domain. A deployment parameter with an alarm, and explicitly not the safety
+argument: the procedure's order is.
+_Avoid_: RPO (say it), Δ (the brief's symbol, not a term), data-loss window
 
 ### Abuse
 
@@ -321,6 +344,17 @@ all the work. Never reintroduce a guard whose compared value has a single writer
 thing being guarded — that is not a check, and it reads exactly like one. What replaced it is a
 lock taken once at boot, of which `OPS-47` says "**The lock is not a fence**", in its own text and
 for this reason.
+
+**"Claim" has one working sense and two it must not take.** Here it is the engine taking a queued
+operation (`OPS-5`), and **claim number** is that claim's per-operation number. It is *not* a
+synonym for **adopt** — "a sweep claims a resource" and "an unclaimed machine" are the adopt sense
+leaking, and they are to be read as *attach* and *unrecorded*. And **Balance** keeps "claim" in its
+legal sense, "a contractual claim on the operator", which is a term of art and does not move. The
+column this replaced was `attempts`, "incremented on claim", which read as a count of the thing the
+glossary calls an **attempt** while `OPS-2` says "the operation is one attempt" — a create deferred
+once read `2` on a kind `CNF-288` says has "no second attempt by any path". Never bound, route or
+display the claim number as a count; the first draft of `F48` did exactly that one day after
+`ADR-0017`.
 
 **"Preflight" is banned**, and it is banned for causing the misreading it names. It was the word for
 what is now **rescue inventory**, and it reads as harmless: it is read-only about the *disk* and not
