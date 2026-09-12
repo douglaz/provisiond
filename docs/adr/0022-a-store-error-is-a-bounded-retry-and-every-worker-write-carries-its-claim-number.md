@@ -1,7 +1,8 @@
 # A store error is a bounded retry, every worker write is idempotent under repeat, and it carries its claim number
 
-**Status:** proposed (2026-09-10); accepted when the amendments under *Consequences* land, under
-`AGENTS.md`'s rule that the rule lands before the record. Answers the first of `impl-report-01.md`
+**Status:** accepted (2026-09-12; proposed 2026-09-10, and the amendments under *Consequences*
+landed the same day the record was accepted, under `AGENTS.md`'s rule that the rule lands before
+the record). The retry requirement is `OPS-49`. Answers the first of `impl-report-01.md`
 §6.15's four production-operability gaps — "the response to a database that is reachable but too
 slow" — which `ADR-0015` recorded as "New operational surface the set does not yet specify" and
 nothing since had taken up. Does not amend `ADR-0016` or `ADR-0019`: the engine is still one

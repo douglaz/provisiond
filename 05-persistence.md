@@ -4,25 +4,41 @@
 
 The operation queue is the only part of the system with real transactional demands.
 
-**STO-1** **AMENDED 2026-09-08 (`ADR-0019`) — the claim stamps nothing; the lease went with
-`ADR-0016` and the epoch with `ADR-0019`.** The store MUST provide an atomic claim:
-select-oldest-eligible and mark-running in one indivisible step (`OPS-5`). A read followed by a conditional write in a separate statement is
+**STO-1** **AMENDED 2026-09-12 (`ADR-0022`) — the claim stamps one thing, the claim number; the
+lease went with `ADR-0016` and the epoch with `ADR-0019`.** The store MUST provide an atomic claim:
+select-oldest-eligible, mark-running and increment-and-return `claim_number` in one indivisible
+step (`OPS-5`, `OPS-6`). A read followed by a conditional write in a separate statement is
 acceptable only if the write is guarded by the row's prior state and the guard is checked by the
-engine, not by application code.
+engine, not by application code. *The number is not the epoch: it is rewritten by a later claim of
+the same row, which is a writer other than the one being guarded (`OPS-6`).*
 
-**STO-3** **AMENDED 2026-09-08 (`ADR-0019`) — the guard term is the status; the lease sweeper's
-guard went with the sweeper and the epoch went with `ADR-0019`.** Four conditional writes move an
+**STO-3** **AMENDED 2026-09-12 (`ADR-0022`) — the worker's guard carries the claim number and
+admits its own repeat; the defer is the fifth guarded write.** Five conditional writes move an
 operation, and each MUST report whether it affected a row (`OPS-22`):
 
 - **A worker's write** — every settled-state write, and a worker moving its own operation into
-  `needs_reconciliation` — is guarded on `(id, status = running)`. A write that affects no row
-  means the startup pass has already moved it, so the worker outlived a restart and exits
-  (`OPS-22`). *This term did the whole job while an `epoch = mine` term sat beside it: the claiming
-  process stamped that value itself, so it held by construction (`ADR-0019`).*
+  `needs_reconciliation` — is guarded on
+  `(id, status = running, claim_number = mine) OR (id, status = target, the written columns are not
+  distinct from what is being written)`, where `mine` is the number `STO-1`'s claim returned
+  (`OPS-6`). The second branch admits the row this same write already produced, so a repeat after
+  a lost reply (`OPS-49`) affects one row and changes nothing; `revision` and `updated_at` advance
+  only on the first branch, which keeps `API-53`'s "strictly increases on each client-visible
+  modification" true. **The guarded status write is the transaction's first statement and
+  short-circuits the rest**, so `OPS-27`'s multi-row settlement repeats as a unit or not at all.
+  A write that affects no row means something other than this execution moved the operation —
+  the startup pass after a restart, or a later claim after a defer — and the worker exits
+  (`OPS-22`). *Until 2026-09-12 the guard was `(id, status = running)` alone; the `epoch = mine`
+  term that once sat beside it held by construction, because the claiming process stamped the
+  value itself (`ADR-0019`). The claim number does not: a later claim rewrites it.*
+- **The defer** (`OPS-8`) — `running` back to `queued` with `available_at` advanced — is guarded
+  on `(id, status = running, claim_number = mine)`. A write that affects no row means the operation
+  was already deferred or already claimed again; the worker moves on and does not exit. *Added
+  2026-09-12: this write was not in the list, and unguarded by the claim number a retried defer
+  landing after a re-claim pulled the second execution's operation back to `queued`.*
 - **The startup pass** (`OPS-15`) moves every `running` operation to its startup state —
   `needs_reconciliation`, or `failed` for a `refresh` (`ADR-0020`) — guarded on
-  `(id, status = running)`. It runs before the process makes any claim, so nothing
-  contends with it.
+  `(id, status = running)` and carrying **no claim term**: it is made by no execution. It runs
+  before the process makes any claim, so nothing contends with it.
 - **Resolution out of `needs_reconciliation`** is not a worker write (`OPS-3`): it is guarded on
   `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s write-once rule
   expressed as the same kind of conditional write. *Unscoped, this requirement forbade every
@@ -99,6 +115,13 @@ migration, and whether the system behaves correctly then depends on the driver's
 write-ahead logging, which are the withdrawn engine's pragmas. On PostgreSQL the surface is
 `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`, the isolation level and
 `search_path` — an entirely different configuration reached by the identical defect (`ADR-0015`).*
+
+**Two rules about the connection follow** (added 2026-09-12, `ADR-0022`). The client-side deadline
+on any store call MUST NOT be shorter than the server-side timeouts above, so that the server
+decides a statement's fate before the client gives up and a lost reply is only ever a dead
+transport (`OPS-49`). And a connection abandoned mid-transaction — by a timeout, a cancelled
+worker or a lost reply — MUST be reset before it returns to the pool, or the next checkout inherits
+an aborted transaction.
 
 ## Schema
 
@@ -285,7 +308,7 @@ filters out deleted rows.
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `tenant_suspended` (`API-58`'s per-machine cancellations, never the caller's own queued work that the same fan-out fails: that keeps `requested_by = caller`, a null `system_reason`, and carries the reason in `error`), `rate_outage_bound` (`LDG-64`) |
 | `episode_id` | UUID | nullable; foreign key to `episodes` (`STO-52`). Set on every attempt an episode enqueues (`OPS-48`), in the same transaction as the enqueue; null on every other operation. Replaces `system_trigger_id` (2026-09-08, `ADR-0017`): the episode is a row, so the operation carries a reference rather than a copy |
-| `attempts` | integer | incremented on claim |
+| `claim_number` | integer | not null, default 0 for never claimed; incremented and returned by `STO-1`'s claim, carried by every worker write (`OPS-6`, `STO-3`). Identifies a claim and counts nothing. *Was `attempts`, "incremented on claim", until 2026-09-12 (`ADR-0022`); the change ships as add-and-backfill in one release and drop in the next, under `ADR-0024`'s rule that a rename is a contract step* |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `yielded_at` | timestamp | nullable; non-null while a `running` operation has yielded the machine (`OPS-8`) — `RSC-41`'s import phase is expressed here. Cleared by the conditional re-acquire, which `STO-51`'s index refuses while another `running` operation holds the machine |
 | `created_at`, `updated_at` | timestamp | |

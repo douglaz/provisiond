@@ -143,7 +143,6 @@ fresh idempotency key is a second purchase, not a retry (`API-51`).
   "requested_by": "caller", "system_reason": null, "episode_id": null,
   "machine_id": null, "provider_account": "hetzner-cloud-1",
   "idempotency_key": "agent-7:create:2026-08-12T14",
-  "attempts": 1,
   "committed_sats": 72000,
   "result": null, "error": null,
   "poll_after_ms": 5000,

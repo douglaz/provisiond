@@ -76,11 +76,16 @@ account was only ever determined inside the call that vanished.
 mutation, no timer, no caller action. `OPS-27`'s evidence sweep is itself automatic and does move
 the state; what the system MUST NOT do automatically is retry (`OVR-5`).
 
-**OPS-3** **AMENDED 2026-09-08 (`ADR-0019`) — the worker's guard is the operation's status; the
-epoch that briefly replaced the lease is deleted.** `needs_reconciliation` is *resolution-pending*,
-not terminal; `succeeded` and `failed` are the terminal states. **A transition made *by a worker*
-MUST be guarded on that operation still being `running`** (`STO-3`); a worker whose guarded write
-affects no row has been overtaken by `OPS-15`'s startup pass and MUST NOT overwrite the record.
+**OPS-3** **AMENDED 2026-09-12 (`ADR-0022`) — the worker's guard is the operation's status and
+its claim number, and a repeat of the worker's own write is admitted.** `needs_reconciliation` is
+*resolution-pending*, not terminal; `succeeded` and `failed` are the terminal states. **A
+transition made *by a worker* MUST be guarded on that operation still being `running` under the
+claim number the worker holds** (`STO-3`, `OPS-6`), and the guard MUST admit the row the same
+write already produced, so that a write repeated under `OPS-49` after a lost reply affects one row
+and changes nothing; a worker whose guarded write affects no row has been overtaken — by
+`OPS-15`'s startup pass after a restart, or by a later claim of the same operation after an
+`OPS-8` defer — and MUST NOT overwrite the record. *Until 2026-09-12 the guard was the status
+alone; the epoch that briefly replaced the lease is deleted (`ADR-0019`).*
 **Resolution transitions out of `needs_reconciliation` are made by no worker** — by `OPS-27`'s
 sweep or `OPS-31`/`WIR-35`'s operator verb — and are guarded instead by `STO-19`'s write-once
 resolution columns. Scoping the worker clause is required, not stylistic: read unscoped it forbids
@@ -143,11 +148,29 @@ A supervised restart is caught without it, by `OPS-15`'s startup pass and `STO-3
 `status = running` term. The restart window is the accepted outage, and it is alarmed (`OVR-18`).*
 
 **OPS-5** **AMENDED 2026-09-08 (`ADR-0019`).** Claiming MUST be atomic: selecting the next eligible
-operation and marking it `running` MUST happen in one indivisible step. No claim carries a deadline; a `running` operation stays claimed until it
-settles or the startup pass finds it (`OPS-15`).
+operation and marking it `running` MUST happen in one indivisible step, which also increments and
+returns the claim number (`OPS-6`). No claim carries a deadline; a `running` operation stays claimed until it
+settles, defers under `OPS-8`, or the startup pass finds it (`OPS-15`).
 
-**OPS-6** The claim MUST select the oldest `queued` operation whose availability time has
-passed. Attempt count MUST be incremented on claim.
+**OPS-6** **AMENDED 2026-09-12 (`ADR-0022`) — the counter is the claim number, and it is what
+tells two executions of one operation apart.** The claim MUST select the oldest `queued` operation
+whose availability time has passed. The claim MUST increment the operation's **claim number**
+(`operations.claim_number`, `05-persistence.md`) in the same indivisible step and return it to the
+worker that claimed it, and every write that worker makes to the operation MUST carry
+`claim_number = mine` (`STO-3`). A claim the per-machine index refuses (`OPS-8`) never left
+`queued` and does not advance the number.
+
+The case the term exists for, stated so it can be checked: execution A defers the operation under
+`OPS-8`, its write commits and the reply is lost; execution B claims the row and the number
+advances; A repeats its defer under `OPS-49`. Both rows read `running`, so the status term passes,
+and the claim term is the only thing that refuses A's write. The value has a second writer that is
+not the write being guarded — the later claim — which is what separates it from the epoch
+`ADR-0019` deleted. **The number identifies a claim and nothing else**: it bounds nothing, routes
+nothing, is not an attempt count — an operation is one attempt (`OPS-2`), however many times it is
+claimed — and is not a fence against a second engine, of which `OPS-47` says "where two engines
+run, nothing here refuses the second". *Until 2026-09-12 the column was `attempts`, "Attempt
+count MUST be incremented on claim", which read as a count of the thing `CONTEXT.md` calls an
+attempt while `CNF-288` says a create has no second one by any path.*
 
 ## Per-machine serialization
 
@@ -168,6 +191,14 @@ operation MUST defer with a short delay, as above. It MUST **re-validate** after
 (`OPS-23`): the machine may have been installed, powered or cancelled in the gap, and an
 exposure-reducing cancellation taking the machine during an import is the *intended* behaviour
 (`CNF-266`). Any such phase MUST be bounded by a stated maximum (`RSC-41` states one).
+
+**A defer is a worker write and a re-claim is a new claim** (added 2026-09-12, `ADR-0022`). The
+defer — `running` back to `queued` with `available_at` advanced — is `STO-3`'s fifth guarded
+write, on `(id, status = running, claim_number = mine)`, and where it affects no row the meaning is
+"already deferred, or already claimed again"; the worker moves on, and does not exit as it would on
+a settled-state write (`OPS-22`). The operation is then claimed again through `OPS-5` with a new
+claim number, by whichever worker takes it. Clearing `yielded_at` after a phase that yielded the
+machine is the *same* execution continuing and carries the same number.
 
 *Why not simply hold it throughout: `PRV-13b` puts the deployment's worst-case operation hold
 inside `wind_down_cost`, which sizes the reserve on **every machine in the fleet**, so an unbounded
@@ -917,7 +948,8 @@ correlator exists, the correct outcome is *unresolved*, not a guess.
 
 **OPS-30** Resolution MUST be idempotent and MUST NOT race a healthy in-flight operation. A
 resource bearing operation X's correlator belongs to operation X and to nothing else; a sweep
-MUST NOT claim a resource whose operation is still `running` and not yielded (`OPS-8`).
+MUST NOT attach a resource whose operation is still `running` and not yielded (`OPS-8`). *"Claim"
+here read "attach" until 2026-09-12; the word now names the queue take (`OPS-5`, `CONTEXT.md`).*
 
 **OPS-31** Operator verbs MUST exist for the unresolved case, and they resolve the attempt — an
 episode's `retry` (`API-64`) is a different verb on a different record (`OPS-48`): record an
@@ -1035,8 +1067,9 @@ answer, and it is answered from the provider (`PRV-36`'s evidence sources), neve
 operation is one attempt; a later attempt on the same machine is a fresh operation with unset
 markers of its own, so "did **this** attempt dispatch" is answered by this row and no other. *Until
 today the dispatch-kind marker was cleared when the same record was re-run, so a second attempt
-stopping short did not inherit the first's ambiguity; a record is no longer re-run (`ADR-0017`),
-and there is nothing to clear.*
+stopping short did not inherit the first's ambiguity; a settled or unresolved record is no longer
+re-run (`ADR-0017`), and there is nothing to clear. A record claimed again after an `OPS-8` defer
+is the same attempt continuing under a new claim number (`OPS-6`), and its markers stay.*
 
 **The pinned-host-key abort is the case this exists for.** `RSC-3` refuses to connect when the trust
 decision cannot be made — the security-critical decision in the whole workflow, working exactly as
@@ -1060,9 +1093,12 @@ as any settled row. `rescue_exited_cleanly` describes **the machine as that oper
 and a later operation that exits rescue cleanly genuinely repairs what a previous one left open,
 recorded on its own row.
 
-A worker's write of either is guarded like any other worker write, on
-`(id, status = running)` (`STO-3`), and MUST report whether it affected a
-row — a worker the startup pass has overtaken MUST NOT record that it began writing; it exits.
+A worker's write of either is guarded like any other worker write (`STO-3`), and MUST report
+whether it affected a row — a worker that has been overtaken MUST NOT record that it began writing;
+it exits. **The write sets the marker only where it is null** — `COALESCE(marker, now)` under the
+worker guard, never a guard on the marker being null (amended 2026-09-12, `ADR-0022`): a repeat
+after a lost reply then affects a row and moves nothing, where a null-guarded write would affect
+no row and read as overtaken.
 
 **OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
 Periodic reconciliation MUST run across each provider account independently of any stuck
@@ -1120,13 +1156,14 @@ enough, because the cost accrues while the report sits unread. **This sweep's st
 therefore a money parameter** (`OVR-19`): it is the maximum time a customer can be billed for a
 machine that no longer exists.
 
-**A machine is unclaimed when it is absent from the `machines` table by
+**A machine is unrecorded when it is absent from the `machines` table by
 `(provider_account, external_id)`** — *not* when it bears no correlator. The previous wording
-would have reported as unclaimed, on every sweep forever, **every Hetzner Robot machine** (whose
+would have reported as unrecorded, on every sweep forever, **every Hetzner Robot machine** (whose
 correlator lives on the order, never on the server) —
 a 100% false-positive rate on the dedicated product line this specification exists for. An
-unclaimed machine MUST NOT be auto-attached to any tenant (`OPS-29`); it is reported to the
-operator.
+unrecorded machine MUST NOT be auto-attached to any tenant (`OPS-29`); it is reported to the
+operator. *The word was "unclaimed" until 2026-09-12; "claim" now names the queue take (`OPS-5`),
+and this is the adopt sense `CONTEXT.md` flags.*
 
 It was raised from SHOULD because `OPS-33` releases a customer's commitment on the promise that a
 late-appearing machine will be *detected as the operator's own problem*. A MUST that gives money
@@ -1144,7 +1181,7 @@ with `tenant_id` and the sweep does not have one.
 
 **The sweep also covers imported images** (`ADR-0013`): an image tagged with an operation's
 correlator whose operation has settled or vanished is caller data the deployment promised to purge,
-so it is **deleted** rather than reported. That is the opposite remedy from an unclaimed machine, and
+so it is **deleted** rather than reported. That is the opposite remedy from an unrecorded machine, and
 the asymmetry is the point — one is a customer's running server, the other is a copy of a customer's
 operating system sitting in the operator's account. *A delete may answer that it already happened;
 `OPS-11`'s goal-state rule makes that a success.*
@@ -1171,7 +1208,7 @@ wrong in the direction that costs the operator a setup fee plus a period cap.**
 
 The reasoning is about **who carries the residual risk**, not about confidence in the search.
 Releasing early moves the risk from the customer to the operator: a machine that appears late
-appears as an *unclaimed machine in the operator's own account*, which the sweep detects and
+appears as an *unrecorded machine in the operator's own account*, which the sweep detects and
 which immediate cancellation bounds to a setup fee. That is a cost the operator can see, price
 and absorb. A frozen balance is a cost the customer can neither see nor escape, and for an agent
 buying compute it is indistinguishable from theft. Where the two are in tension, the operator
@@ -1192,45 +1229,85 @@ startup:                                          # OPS-47, OPS-15
     log(n)
 
 loop:
-    op = claim_next_queued_operation()            # OPS-5: atomic, marks running
-    if op is none:
-        idle_sleep(); continue
+    op, mine = claim_next_queued_operation()      # OPS-5: atomic, marks running,
+    if op is none:                                # OPS-6: increments and returns claim_number
+        idle_sleep(); continue                    # a lost reply here is fatal: exit (OPS-49)
     if claim refused by the per-machine index:    # STO-51: another running op holds the machine
-        defer(op, delay); continue                # OPS-8
+        defer(op, delay); continue                # OPS-8: never left queued, number unchanged
 
     outcome = execute(op)                         # OPS-21: cancellable
     # a phase RSC-41 names runs with yielded_at set; clearing it is a conditional
-    # write the index may refuse, in which case defer(op, delay)   (OPS-8)
+    # write the index may refuse, in which case defer(op, mine, delay)   (OPS-8)
+    # every store write below is retried as a whole transaction under OPS-49
 
     if outcome is success:
-        ok = finish_success(op, result)           # guarded (id, status = running), STO-3
-    else:
+        ok = finish_success(op, mine, result)     # guarded (id, running, claim_number = mine)
+    else:                                         #   or (already this outcome), STO-3
         if classify(op, error) is ambiguous:
-            ok = finish_needs_reconciliation(op, error)
+            ok = finish_needs_reconciliation(op, mine, error)
         else:
-            ok = finish_failed(op, error)
+            ok = finish_failed(op, mine, error)
 
-    if not ok:                                    # affected no row: a restart swept it
-        exit()                                    # OPS-22
+    if not ok:                                    # affected no row: something else moved it —
+        exit()                                    # a restart, or a later claim (OPS-22)
 ```
 
-A write affecting no row means `OPS-15`'s startup pass has already moved the operation, so a
-process that outlived a restart stops at its next settled-state write. `OPS-45`'s markers and
-`OPS-42`'s fence write machine rows and carry no such guard, which is why `OPS-47` says "where two
-engines run, nothing here refuses the second, and both will work the queue" instead of implying
-otherwise.
+A settled-state write affecting no row means something that was not this execution moved the
+operation — `OPS-15`'s startup pass after a restart, or a later claim after a defer — so the worker
+stops there. A repeat of its own write, after a lost reply, affects one row and is success
+(`STO-3`). `OPS-45`'s markers and `OPS-42`'s fence write machine rows and carry no such guard,
+which is why `OPS-47` says "where two engines run, nothing here refuses the second, and both will
+work the queue" instead of implying otherwise.
 
 **OPS-21** `execute` MUST be cancellable, and cancellation MUST be treated as an
 ambiguous outcome. A provider call abandoned mid-flight is exactly the uncertainty this
 design exists to represent.
 
-**OPS-22** **AMENDED 2026-09-08 (`ADR-0019`) — the guard term is the operation's own status.** A
-**worker** recording a settled state MUST do so guarded on that operation still being `running`
-(`OPS-3`, `STO-3`); a resolution transition out of `needs_reconciliation` is made by no worker and
-is guarded by `STO-19`'s write-once columns instead. Where the guarded write affects no row, the
-worker MUST log it loudly, leave the record alone, and exit; the startup pass has already
-classified it (`OPS-15`). *The epoch term this requirement carried until `ADR-0019` could not fail,
-because the claiming process stamped the value it then compared against.*
+**OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
+repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do
+so guarded on that operation still being `running` under the worker's claim number, with `STO-3`'s
+repeat-admitting branch (`OPS-3`, `OPS-6`); a resolution transition out of `needs_reconciliation`
+is made by no worker and is guarded by `STO-19`'s write-once columns instead. A repeated write
+after a lost reply (`OPS-49`) affects one row and changes nothing, and is success. Where the
+guarded write affects no row, **something that was not this execution moved the operation** — the
+startup pass after a restart (`OPS-15`), or a later claim after an `OPS-8` defer — and the worker
+MUST log it loudly, saying what it observed rather than asserting a restart, leave the record
+alone, and exit. *Until 2026-09-12 the clause read "the startup pass has already classified it",
+which a retried write after a lost reply made false without a restart. The epoch term this
+requirement carried until `ADR-0019` could not fail, because the claiming process stamped the
+value it then compared against.*
+
+**OPS-49** **ADDED 2026-09-12 (`ADR-0022`) — a store error is a bounded whole-transaction retry,
+then the engine exits.** Where a store call by a worker or a periodic component errors or times
+out, the component MUST repeat the **whole transaction** — never the last failed statement, and
+never the provider call (`OPS-12`) — with the provider's outcome retained in memory, for a stated
+bound (`OVR-19`), and on exhausting the bound MUST log loudly and the engine MUST exit non-zero
+into its supervisor, where `OVR-18`'s alarm is watching. The bound covers connection, execution,
+commit, read-back and backoff together, and it is a money parameter: on exhaustion the outcome in
+hand is thrown away and `OPS-15` classifies the row as interrupted.
+
+- **"Too slow" is `statement_timeout`.** The client-side deadline on a store call MUST NOT be
+  shorter than `STO-7`'s server-side timeouts, so the server decides every statement's fate before
+  the client does and the only lost reply is a dead transport. A server-side timeout is a refused
+  write, and the repeat finds the row unchanged; a lost reply after a durable commit is the case
+  `STO-3`'s repeat-admitting guards exist for.
+- **Constraint violations, serialization failures and lock timeouts are not store errors** and do
+  not consume the bound. A unique violation on a repeat is the repeat landing on its own earlier
+  commit, and the guarded status write being the transaction's first statement short-circuits the
+  rest (`STO-3`). A serialization failure is repeated at once. A `lock_timeout` on `LDG-35`'s
+  primitive or on `STO-52`'s index rolls back, releases the connection before any backoff, and
+  repeats the whole transaction with the provider outcome retained, against this same bound — the
+  symptom of a genuinely stuck store is indistinguishable at the client.
+- **A lost reply on the claim itself is fatal, not retried blind.** The claim's returned row is the
+  only way the engine learns what it claimed; a claim repeated after a lost reply strands a
+  `running` row with no worker, which `OPS-15` says "nothing but a restart can" do. The engine
+  exits and the startup pass classifies it.
+- **A worker cancelled during the retry loop stops retrying and exits.** `OPS-15` gives the same
+  answer either way once the process is gone.
+- **A suspension parent waiting on its children is deferred, not held.** A `suspend_tenant`
+  parent (`API-58`) whose children are still queued MUST be returned to `queued` with a short delay
+  under `OPS-8`'s defer rather than occupy a worker while it waits; N parents waiting in N workers
+  would leave no worker for the children they wait on.
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

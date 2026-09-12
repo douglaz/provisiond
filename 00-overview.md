@@ -375,6 +375,7 @@ marked human are procedures the deployment records rather than values the proces
 | Tenant-to-account assignment policy | `API-57`, `SEC-43` | policy over assignable accounts | yes |
 | Startup-lock wait bound | `OPS-47` | duration | yes |
 | Startup-lock connection keepalives | `OPS-47` | durations | yes |
+| Store-retry bound | `OPS-49` | duration | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
 | Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
 | Reconciliation rota | `OPS-26` | human | no |

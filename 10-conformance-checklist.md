@@ -471,7 +471,12 @@ not optional hardening — they are the only structural defence there is.
       (`OPS-5`)
 - [ ] **CNF-27** **BLOCKING** — Two operations on one machine: the second is deferred back to `queued`,
       not failed, and runs after the first releases — and the deferral is the store's refusal
-      (`STO-51`'s index), not an application-level check. (`OPS-8`, `STO-51`)
+      (`STO-51`'s index), not an application-level check. **Then the claim-number case** (added
+      2026-09-12, `ADR-0022`): with an operation deferred by its first execution, let a second
+      execution claim it, then replay the first execution's defer write carrying its old
+      `claim_number`, and assert it affects **no row** and the second execution's operation is
+      still `running`; assert that the same write with only the claim term removed *does* affect
+      the row, which is the evidence the term is doing work. (`OPS-8`, `OPS-6`, `STO-51`, `STO-3`)
 - [ ] **CNF-29** **BLOCKING** — **AMENDED 2026-09-08 (`ADR-0016`) — the sweep has no deadline; the startup pass
       is the sweep.** Every operation found `running` when the engine starts is moved to
       `needs_reconciliation` — never back to `queued` — and the count is logged. Kill the engine
@@ -671,12 +676,12 @@ not optional hardening — they are the only structural defence there is.
       unresolved, not attached. (`OPS-29`)
 - [ ] **CNF-85** **BLOCKING** — Resolution performs no mutation. A driver whose search path mutates fails this
       item. (`OPS-28`)
-- [ ] **CNF-86** **BLOCKING** — A sweep does not claim a resource whose operation is still `running` and not
+- [ ] **CNF-86** **BLOCKING** — A sweep does not attach a resource whose operation is still `running` and not
       yielded (`OPS-8`). (`OPS-30`)
 - [ ] **CNF-87** **BLOCKING** — A commitment is closed and its reserved satoshis returned once the negative
       window elapses, even though the operation remains open, and the sweep keeps searching
       afterwards. (`OPS-33`)
-- [ ] **CNF-88** **PRE-SCALE** — The account-wide sweep reports an unclaimed machine to the operator and attaches
+- [ ] **CNF-88** **PRE-SCALE** — The account-wide sweep reports an unrecorded machine to the operator and attaches
       it to no tenant. (`OPS-32`)
 - [ ] **CNF-89** **PRE-SCALE** — Resolution columns are write-once; a second resolution of the same record is
       refused. (`STO-19`)
@@ -924,12 +929,27 @@ rather than acquiring a default.
       the lock, and assert it does no work and exits non-zero after the stated bound (`OPS-47`,
       `OVR-19`); release the first and assert the second then starts. Then, with one non-yielded
       `running` operation on a machine, attempt a second claim against the same machine directly
-      at the store and assert `STO-51`'s index refuses it. *The withdrawn middle half asserted a
+      at the store and assert `STO-51`'s index refuses it **and that the refused operation's
+      `claim_number` did not advance** (`OPS-6`, added 2026-09-12). *The withdrawn middle half asserted a
       stale `engine_epoch` write to a machine row affected no row, against a table that had no
       such column and a guard that held by construction (`ADR-0019`). What this drill must not be
       read to prove is that a second engine cannot write: `OPS-47` says "where two engines run,
       nothing here refuses the second, and both will work the queue".* (`OPS-47`,
       `STO-51`, `OPS-15`, `STO-3`, `ADR-0019`)
+- [ ] **CNF-294** **BLOCKING** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
+      settled-state write, an `OPS-45` marker write and an `OPS-8` defer: let the transaction
+      commit and drop the reply before the client sees it, let the worker repeat the whole
+      transaction under `OPS-49`, and assert the repeat affects one row, changes no column,
+      advances `revision` no further, and the worker continues — never exits. Then make the store
+      refuse the write with a server-side `statement_timeout` and assert the repeat finds the row
+      still `running` and lands normally. Then hold the store unavailable past the stated
+      store-retry bound (`OVR-19`) and assert the engine exits non-zero with the provider outcome
+      logged, never re-issuing the provider call (`OPS-12`); on restart `OPS-15` classifies the
+      row. Then hold `LDG-35`'s primitive on a tenant past `lock_timeout` and assert the meter's
+      write repeats as a whole transaction against the same bound rather than looping outside it.
+      Then drop the reply to a *claim* and assert the engine exits rather than claiming again.
+      Asserted with `STO-7`'s client deadline set no shorter than the server timeouts, and with an
+      abandoned connection reset before reuse. (`OPS-49`, `OPS-22`, `STO-3`, `STO-7`, `OPS-6`)
 - [ ] **CNF-291** **BLOCKING** — **The episode outlives its attempts, and there is one of it.**
       Open a `delete` episode on a machine and attempt to insert a second open `(machine_id,
       delete)` episode directly at the store: `STO-52`'s index refuses it. Then let the first
@@ -982,7 +1002,7 @@ rather than acquiring a default.
       a driver configured to query only the other, and assert the outcome is **not** resolved-absent.
       A driver that declares more than one channel and searches one fails. Without it a customer's
       balance is released in full while a physical server bought on the unsearched channel runs
-      unclaimed — money out, and the operator learns of it from an invoice. (`PRV-38`, `OPS-27`,
+      unrecorded — money out, and the operator learns of it from an invoice. (`PRV-38`, `OPS-27`,
       `OPS-32`)
 - [ ] **CNF-282** **PRE-SCALE** — **An authoritative-empty search is an empty result, not an error.** Present the
       driver with the provider's empty-listing response — for Robot a `404` carrying
@@ -1093,9 +1113,13 @@ rather than acquiring a default.
       same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
 - [ ] **CNF-197** **PRE-SCALE** — A resolution transition out of `needs_reconciliation` succeeds with **no worker**
       — by sweep and by operator verb, guarded on `(id, status = needs_reconciliation)` alone —
-      while a *worker* write against an operation no longer `running` affects no row. Both halves:
-      the two guards are different predicates (`STO-3`), and a build that applies the worker's to
-      resolution can never resolve anything. (`OPS-3`, `STO-19`, `STO-3`)
+      while a *worker* write against an operation moved by something else affects no row, **and a
+      worker's repeat of its own settled-state write affects one row and changes nothing**
+      (corrected 2026-09-12, `ADR-0022`: the item read "against an operation no longer `running`",
+      which the repeat-admitting branch makes false for the worker's own outcome). Three halves:
+      the guards are different predicates (`STO-3`), a build that applies the worker's to
+      resolution can never resolve anything, and a build without the repeat branch exits on every
+      lost reply. (`OPS-3`, `STO-19`, `STO-3`, `OPS-22`)
 - [ ] **CNF-198** **BLOCKING** — Metering a period at a cadence that subdivides it posts every increment: no
       posting is deduplicated away by the idempotency key, and two billable attachments on one
       machine do not collide. (`LDG-8`, `LDG-38`)

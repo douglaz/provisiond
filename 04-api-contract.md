@@ -1010,10 +1010,12 @@ Either is what opens `STO-18`'s tombstone gate, and `LDG-74` is where the tombst
 
 **API-20** **AMENDED 2026-09-08 (`ADR-0017`) — the view names its episode.** The operation view
 returned to clients MUST include: id, tenant, idempotency key, kind, status, machine id, provider
-account, result, error, attempt count, timestamps, `revision` (`API-53`), `retryable` (`API-51`),
+account, result, error, timestamps, `revision` (`API-53`), `retryable` (`API-51`),
 `requested_by` with its `system_reason` when system-initiated (`OPS-39`), and `episode_id` — the
 episode this operation is an attempt under (`DOM-31`), null otherwise. For a non-terminal
-operation the view carries `poll_after_ms` (`API-49`).
+operation the view carries `poll_after_ms` (`API-49`). *An "attempt count" left the list on
+2026-09-12 (`ADR-0022`): the column counted claims, not attempts, and a deferral count is nothing
+a caller can act on — `revision` arbitrates polls and `retryable` says what to do.*
 
 **API-21** The operation view MUST NOT include the stored request payload. It can contain
 signed image URLs and other caller secrets that need not be echoed back.
