@@ -132,6 +132,52 @@ nothing else, which is a degraded money-in path alarmed under `OVR-18`, and they
 `STO-31`'s replay is built for a credit that did not land, and `API-45` returns the locally
 committed deposit to a caller that re-sends its key.
 
+**STO-55** **ADDED 2026-09-12 (`F51`) — each pool is sized by construction, and a component holds
+at most one transaction at a time.** The engine's pool holds one connection per worker plus one
+per periodic component that runs in the engine process (`OVR-17`); each `api` replica's pool holds
+one per admitted request plus one per periodic component on its rows; `OPS-47`'s lock connection
+is outside both. Every consumer then has a connection when it needs one and nothing starves the
+exposure-reducing components behind the workers. **The rule that makes the arithmetic true:** a
+worker, sweep or watcher MUST NOT hold two transactions at once and MUST NOT hold a transaction
+open across a provider, rail or rescue-host call — a sweep selects a bounded batch by key, commits,
+and writes per row in its own transaction, and a cursor held on one connection while writing on
+another would deadlock a pool sized this way on its first pass. `LDG-69` says "A deployment MUST
+hold `LDG-35`'s primitive for the duration of one database transaction and no longer", which is
+this rule for the tenant primitive alone; it holds for every transaction. `STO-7`'s
+`idle_in_transaction_session_timeout` MUST be shorter than every provider timeout and `RSC-35`'s
+boot timeout, which is what makes the prohibition a property the store enforces.
+
+- **The pool is `api`'s concurrency bound, and a refusal happens before any transaction.** Nothing
+  else bounds authenticated request concurrency — `API-29`'s per-tenant limit is a SHOULD and is
+  about rate, and `WIR-49`'s held token requests cost no pool slot. A request that obtains no
+  connection within a stated checkout bound (`OVR-19`) is refused `overloaded` (`DOM-17`, HTTP 503,
+  `retryable: true`, `retry_after_ms`) before any transaction begins, so `STO-35` writes no receipt
+  and the same key re-sent later is a first send under `API-11`. It is not `rate_limited`: `API-50`
+  promises an obedient caller is never throttled for rate, and a full pool is not the caller's rate.
+  Read and write checkouts are budgeted separately (`API-50`), so a poller cannot crowd out an
+  extension.
+- **Synchronous-commit transactions are capped per replica** (`OVR-19`), so a stalled standby
+  (`STO-7`) occupies at most that many connections and the rest of the pool keeps serving reads,
+  suspension and every other write.
+- **The sum fits, and the engine checks its share.** The deployment states that the engine pool,
+  every replica's pool at the rollout's maximum overlap, the lock connection, the migrator and its
+  waiting runners, and an operator reserve together fit inside `max_connections` less the server's
+  reserved slots — a human row on `OVR-19`, since only the deployment sees the whole — and the
+  engine reads `max_connections` at startup and refuses to run where its own pool plus the lock
+  connection does not fit.
+- **A pooler in transaction mode MAY front the pools only on two conditions.** `STO-7`'s
+  connection-scoped settings are applied to the database role, not by a per-connection `SET`, since
+  a later transaction may run on a different backend; and the startup-lock connection connects to
+  PostgreSQL directly — a session-scoped advisory lock does not survive transaction pooling.
+  `LDG-35`'s transaction-scoped locks, `STO-12`'s migrator lock and `SET LOCAL synchronous_commit`
+  are compatible. `CNF-56`'s fresh-checkout assertion MUST force a backend reassignment where a
+  pooler is present.
+
+*Why no ADR: pool sizes and admission bounds are configuration, so the first of `LDG-65`'s three
+tests fails, and two independent readers said so. What was found beside it — the engine's worker
+count and `LDG-37`'s cadence on no register — is a defect of `OVR-19`'s own rule, and both rows are
+added.*
+
 ## Schema
 
 Described as a specification, not as DDL to copy. Types are logical.

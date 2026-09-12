@@ -220,9 +220,10 @@ This is `OVR-5` made concrete.
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited`, **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. |
 | create, power, reverse-DNS, delete, release attachment | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
 
-**The table MUST be total, and six kinds added later were missing.** `insufficient_balance`,
-`not_activated`, `halted`, `gone`, `suspended` and — added 2026-09-02 — `ceiling_exceeded`
-(`DOM-20`, `DOM-21`, `SEC-39`) are **admission-only**: they are decided
+**The table MUST be total, and seven kinds added later were missing.** `insufficient_balance`,
+`not_activated`, `halted`, `gone`, `suspended`, — added 2026-09-02 — `ceiling_exceeded`
+(`DOM-20`, `DOM-21`, `SEC-39`) and — added 2026-09-12 — `overloaded` (`STO-55`) are
+**admission-only**: they are decided
 before any driver call, they MUST NOT be emitted by a worker or a driver, and any pre-provider
 occurrence classifies deterministically as `failed` for every operation kind. Nothing was
 destroyed and nothing was ordered, so ambiguity cannot arise. Every kind in `DOM-17` MUST have a

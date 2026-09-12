@@ -88,7 +88,7 @@ and `LDG-34` names the writers it actually serializes. Of the implementation-pro
 untaken sections, §6.13 is `F47`; §6.14's first three resolutions closed 2026-09-09 when every
 conformance item received its tier inline, and its last two — mutually exclusive launch items, and
 a historical heading read as authoritative — are `F50`'s first and seventh items; §6.15 is `F51`,
-decided 2026-09-12 and open until its rules land.
+closed 2026-09-12.
 
 **F47. CLOSED — adopt was specified two ways, could not size its own commitment, and had no v1
 scenario.** Found by the `F46` read; taken up 2026-09-08 with two independent reviews of one
@@ -289,7 +289,9 @@ assignment paragraph, not a second copy of the tier. Line numbers are the checkl
 7. **`F17`'s "still open" on `CNF-58` and `CNF-65` was stale.** The promotion at line 86 applied on
    2026-08-13 and both tags read BLOCKING; that part of `F17` is closed in place below.
 
-**F51. OPEN — §6.15's four production-operability gaps are decided; the rules have not landed.**
+**F51. CLOSED 2026-09-12 — §6.15's four production-operability gaps are decided and their rules
+have landed: `OPS-49` and the claim number (`ADR-0022`), `STO-54` (`ADR-0023`), `STO-12`/`STO-13`
+(`ADR-0024`) and `STO-55`, each in its own commit.**
 `ADR-0015` listed "backup and point-in-time recovery, connection pool sizing, migrations against a
 live database, and the failure mode where the store is reachable but slow" as surface the set did
 not specify, and `impl-report-01.md` §6.15 repeated it. Taken up 2026-09-10 to 2026-09-12 in one
@@ -330,7 +332,7 @@ are **proposed** and become accepted when their amendments land; the fourth gap 
    `LDG-33` first, where a skew destroys a paid disk with no schema change — is a stop-everything
    release, named as such. Rollback is the previous binary against the current schema up to a
    contract step.
-4. **Pool sizing — a requirement beside `STO-7`, no ADR** (two of `LDG-65`'s three tests fail,
+4. **Pool sizing — `STO-55`, beside `STO-7`, no ADR** (two of `LDG-65`'s three tests fail,
    and both readers said so). The engine's pool is one connection per worker plus one per periodic
    component; each `api` replica's is one per admitted request plus its periodic rows; the sum with
    the lock connection, the migrator and an operator reserve fits `max_connections` less the
@@ -365,8 +367,8 @@ and §6.15 were not taken up (the count here read twelve until 2026-09-08); §6.
 classification, `F47`, closed the same day by `ADR-0020`; §6.14's per-item tier metadata landed
 2026-09-09 — every checkbox item carries its tier inline, `tools/check_ids.py` refuses one that does
 not, and `F50` holds what the faithful copy preserved and the two of its five resolutions still
-open; §6.15's production-operability decisions are `F51` — three proposed ADRs and one
-requirement, decided 2026-09-12. Six decisions
+open; §6.15's production-operability decisions are `F51` — three ADRs and one requirement,
+decided and landed 2026-09-12. Six decisions
 followed, three of them ADRs. The findings below are numbered in the order the review listed them,
 not in the order they were resolved, because two of them turned out to be the same defect.
 

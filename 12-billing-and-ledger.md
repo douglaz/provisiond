@@ -465,7 +465,12 @@ exist. A deployment MUST define, and record:
   or the provider's usage API where one exists. Where the two disagree the provider wins, because
   the provider is what invoices the operator;
 - **the cadence** at which a `usage_debit` is posted, which is the granularity at which
-  exhaustion can be detected and therefore an input to `wind_down_cost` (`PRV-13b`);
+  exhaustion can be detected and therefore an input to `wind_down_cost` (`PRV-13b`). **It is a
+  row on `OVR-19`, and the stated cadence MUST be the achieved one** (added 2026-09-12, `F51`): the
+  meter posts one transaction per billable subject per interval (`STO-45`), a meter that falls
+  behind its stated cadence under-reserves every machine silently, and lag past one interval is
+  alarmed on `OVR-18`'s model. *The cadence was on no register until 2026-09-12, against `OVR-19`'s
+  own rule;*
 - **which machine states are billable.** `stopped` **is billable** — powering a machine off does
   not stop provider billing on either the cloud or the dedicated products (`LDG-13`). So is
   `cancellation_scheduled`: `DOM-19` states that "the machine is still running, the customer can

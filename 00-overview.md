@@ -311,6 +311,14 @@ queue depends on, and the one table it must **not** reach is on the machine.
 obligation this requirement really carries — an unassigned background job is an unassigned
 credential boundary.*
 
+**A module is not a process, and the three `ledger` rows run in the engine process** (added
+2026-09-12, `F51`). The table assigns a module, which fixes the dependency rule and the credential
+boundary; it did not say which process hosts a periodic component, and `STO-55` sizes the engine's
+pool by counting them. The meter, re-derivation and the solvency check run in the one engine
+process: each writes on a schedule, and `api` replicas each running them would contend on
+`LDG-35`'s primitive for the same subject. The engine calls them through `ledger`'s interface,
+which is the dependency direction `OVR-9` already allows.
+
 *It was extended once already, the day after it was closed, and by exactly the omission it warns
 about: `STO-42` and `STO-43` require a purge of closed cases, statement bodies and address history on
 stated ages of their own, and the table carried only `STO-14`'s operation retention. `STO-43` had
@@ -384,6 +392,12 @@ marked human are procedures the deployment records rather than values the proces
 | Derivation-index gap on restore | `STO-54` | integer | yes |
 | Migration `lock_timeout` and its retry bound | `STO-13` | duration, integer | no — the migrator's, read at `migrate` |
 | Migration-runner advisory key | `STO-12` | integer, distinct from `STO-51`'s key | yes |
+| Engine worker count | `STO-55` | integer | yes |
+| `api` request concurrency per replica, read and write | `STO-55` | integers | yes |
+| Pool checkout bound | `STO-55` | duration | yes |
+| Synchronous-commit concurrency cap per replica | `STO-55` | integer | yes |
+| Connection budget against `max_connections` | `STO-55` | human — the sum across every process at maximum rollout overlap | no; the engine checks its own share |
+| Metering cadence | `LDG-37` | duration | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
 | Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
 | Reconciliation rota | `OPS-26` | human | no |

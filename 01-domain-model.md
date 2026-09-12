@@ -555,6 +555,7 @@ One closed set of error kinds, used by drivers, the rescue engine, and the API a
 | `gone` | Resource existed and was removed by retention (`STO-14`, `STO-33`) | 410 |
 | `suspended` | Tenant is suspended; only the maintenance actions remain (`API-58`) | 403 |
 | `ceiling_exceeded` | A per-principal ceiling for the current interval is exhausted (`SEC-39`) | 429 |
+| `overloaded` | The replica obtained no store connection within the checkout bound; refused before any transaction (`STO-55`). Retryable, and the same key re-sent is a first send | 503 |
 
 **DOM-21** The `gone` row was added 2026-08-12, by the append-only rule rather than by a handler
 inventing a status. A caller polling an operation id past the retention horizon would otherwise
@@ -597,6 +598,14 @@ and "you are out of allowance" are different actions in the same way "top up" an
 are. The HTTP status is shared with `rate_limited` because 429 is what both mean to an
 intermediary; the **kind** is what the agent branches on, which is the whole point of `DOM-17`
 carrying one.
+
+**ADDED 2026-09-12 — a seventh row, `overloaded`, and it is not `rate_limited` either.** `STO-55`
+makes the connection pool the bound on `api` concurrency and refuses a request that obtains no
+connection within the checkout bound. That refusal is about the *replica's* capacity, not the
+caller's rate, so `API-50`'s promise that an obedient caller "MUST never be throttled for rate"
+forbids `429`; and it is not `halted`, which `WIR-9a` reserves for the solvency and rate gates. It
+is admission-only (`OPS-11`): nothing was written, `STO-35` holds no receipt, and re-sending the
+same key is a first send.
 
 **DOM-17** Every error MUST carry a kind, a human-readable message, a boolean
 `retryable`, and a structured `details` object. `retryable` describes whether repeating

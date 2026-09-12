@@ -1128,7 +1128,10 @@ no `Retry-After` has ever been issued and the promise cannot even be evaluated.*
 The contract therefore splits, and both halves are testable. **A caller obeying every `Retry-After`
 MUST never be throttled for rate** — that is `CNF-152`, unchanged. **A `429` that is not about rate
 MUST say so in its `kind`**: `ceiling_exceeded` for an exhausted allowance, `rate_limited` for
-everything else, and the agent's recovery differs (`DOM-20`'s argument). *An unconditional promise
+everything else, and the agent's recovery differs (`DOM-20`'s argument). A replica that cannot
+obtain a store connection is not a `429` at all: it refuses `overloaded`, 503, before any
+transaction (`STO-55`, added 2026-09-12), because a full pool is the replica's capacity and not the
+caller's rate. *An unconditional promise
 that three shipped controls break is worse than a narrower one that holds: a caller written against
 it treats any `429` as a bug in the server, and the natural response to a bug in the server is to
 retry harder.* Read limits MUST be budgeted separately from write limits and MUST

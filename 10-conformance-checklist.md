@@ -870,6 +870,24 @@ takes the machines *and* the float" partly false.
       `ADR-0023`). Mint deposits, take a backup, mint more, restore, run `STO-54`'s skip-forward,
       and assert the next index allocated exceeds every index a rolled-back row held, and that no
       address is ever handed to two deposits (`LDG-49`). (`STO-54`, `LDG-49`)
+- [ ] **CNF-298** **BLOCKING** — **One transaction at a time, and never across the network** (added
+      2026-09-12, `F51`). With the engine's pool sized exactly to `STO-55`'s count, run every
+      periodic component and a full worker set against a fleet larger than one sweep batch and
+      assert no component ever waits for a second connection; instrument every provider, rail and
+      rescue-host call and assert none is made while that component holds an open transaction;
+      set `idle_in_transaction_session_timeout` to `STO-55`'s bound and assert a transaction
+      deliberately held across a provider call is killed by the server, not by the client. Then,
+      with the three `ledger` components running in the engine process (`OVR-17`), assert an `api`
+      replica runs none of them. (`STO-55`, `STO-7`, `OVR-17`)
+- [ ] **CNF-299** **BLOCKING** — **`overloaded` is refused before any transaction, and the pool
+      keeps serving under a stalled standby** (added 2026-09-12, `F51`). Saturate one replica's
+      write checkouts and assert the next write is refused `overloaded`, 503, with
+      `retry_after_ms`, that `STO-35` holds no receipt for its key, that the same key re-sent after
+      capacity returns succeeds as a first send, and that a read still succeeds under the separate
+      read budget. Then stall the standby (`CNF-296`'s method) with more funding requests than the
+      synchronous-commit cap and assert no more than the cap's connections are occupied and a
+      suspension request (`API-58`) is admitted. Then let the meter fall behind its cadence by more
+      than one interval and assert the alarm fires. (`STO-55`, `DOM-17`, `API-50`, `LDG-37`)
 
 ## The rate
 
