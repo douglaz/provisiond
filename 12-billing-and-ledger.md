@@ -613,8 +613,13 @@ deployment knew before the provider did.* The sweep's tombstone on that path rel
 entry and clears the fence, which is stated there.
 
 **An increment also closes at every period boundary** (`LDG-68`), and the new period's
-`meter_totals` row starts with `r = 0`: the credit is at most one satoshi and it is forfeited in the
-customer's favour, once a month. *Added 2026-09-05 — `CNF-216` asserted that a straddling increment
+`meter_totals` row starts with `r = 0`: the credit is less than one satoshi and it is forfeited in the
+**operator's** favour, once a month. *This sentence said "the customer's favour" until 2026-09-12,
+and that was backwards: `r` is never negative, so `ceil(exact − r) ≤ ceil(exact)` on every input and
+starting a period at zero can only charge more, never less — by less than one satoshi per subject per
+period, which is why the policy stands and only its stated direction changed. Witness in exact
+fractions: 0.4 sat consumed in each of two periods posts 1 then 0 carrying `r`, and 1 then 1 resetting
+it.* *Added 2026-09-05 — `CNF-216` asserted that a straddling increment
 is apportioned across the two periods while this requirement split only at `rate_observed_at`, and
 the row is keyed per period, so a straddling increment had two credits to read and no rule for
 either.*
