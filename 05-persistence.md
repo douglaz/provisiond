@@ -988,13 +988,51 @@ not mention them — the failure class this document's own scope note exists to 
 
 ## Migrations
 
-**STO-12** Migrations MUST be applied by a real migration runner that tracks applied
-versions. Splitting a schema file on statement separators in application code is fragile
-— it breaks on the first trigger body, string literal, or `BEGIN…END` block — and it
-provides no versioning. See `DEF-13`.
+**STO-12** **AMENDED 2026-09-12 (`ADR-0024`) — the runner serializes itself.** Migrations MUST
+be applied by a real migration runner that tracks applied versions. Splitting a schema file on
+statement separators in application code is fragile — it breaks on the first trigger body, string
+literal, or `BEGIN…END` block — and it provides no versioning. See `DEF-13`. The runner MUST hold
+a **transaction-scoped advisory lock on a fixed key distinct from `STO-51`'s** across inspecting the
+history, applying a migration and recording its completion, one migration per transaction, so the
+recorded version never runs ahead of the DDL and two runners cannot interleave. *`STO-51`'s startup
+lock is not this lock: it is held on a connection outside the pool, an advisory lock conflicts only
+with requests for its own key, and a runner asking for that key would block the engine's own boot.*
 
-**STO-13** Migrations MUST be forward-only and MUST be safe to run concurrently with a
-running instance of the previous version, or startup MUST take an exclusive lock.
+**STO-13** **AMENDED 2026-09-12 (`ADR-0024`) — both halves, each where it is cheap, and the class
+neither half makes safe.** Migrations MUST be forward-only and MUST be applied by the deployable's
+own `migrate` entry point, run by the deployment **before any component of a release starts and
+while the previous release's engine and `api` keep running** — never by `api`, and never by the
+engine at boot, whose restart window `ADR-0016` priced at seconds and `OVR-18` alarms. Every
+migration MUST be safe against a running instance of the previous release of both components:
+
+- it MUST NOT drop, rename or narrow a column, table or type;
+- it MUST NOT add a `NOT NULL` column a previous-release writer does not populate — such a column
+  is nullable in the release that adds it and tightened after a backfill in a later one;
+- it MUST NOT add a constraint a previous-release write can violate;
+- it MUST NOT write a value of an enumerated column the previous release does not recognize —
+  `STO-10` makes that "a hard error, not a silent default" on every old reader — so **the release
+  that adds a value does not write it, and the release after may**;
+- DDL that takes `ACCESS EXCLUSIVE` MUST run under a `lock_timeout` with a bounded retry
+  (`OVR-19`), and index builds on `operations`, `ledger_entries` and `machines` MUST be
+  `CONCURRENTLY`, so a migration never queues `api` behind it.
+
+A removal, rename, tightening or `VALIDATE` is a **contract step** and ships no earlier than the
+release after the one that stopped depending on the thing removed. Every component MUST read the
+recorded schema version at startup and exit non-zero where it is *older* than the version it
+requires, and MUST serve a *newer* one — a component refusing a newer schema would refuse the
+normal state of every roll. **Rollback is the previous binary against the current schema**,
+admissible up to and not past a contract step; past one there is no down-migration, and recovery
+is `STO-54`'s restore. **A change to a predicate or derivation both components evaluate on shared
+rows is made safe by none of the above** — `LDG-33`, `STO-3`'s guards, `OPS-42`/`LDG-62`'s fence
+guard, `STO-47`'s conditional write, `SEC-39`'s counter key, `LDG-35`'s serialization key, and
+every idempotency-key and `payment_ref` derivation — and such a release MUST stop every component
+of the previous release before the first component of the new one starts, and MUST say so in its
+migration. *The witness: an `api` at N−1 sizes an extension by the old `LDG-33` and writes a
+future date; an engine at N re-derives by the new one, gets a past date, sets the fence and
+`LDG-14` destroys the disk, with the row valid under both formulas and `OPS-23` unable to see it.*
+
+*Until 2026-09-12 this read "MUST be safe to run concurrently with a running instance of the
+previous version, or startup MUST take an exclusive lock", and nobody chose a half.*
 
 ## Retention and encryption
 

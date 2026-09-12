@@ -1324,7 +1324,10 @@ hand is thrown away and `OPS-15` classifies the row as interrupted.
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version
-of the service, or edited in the store. Validation is cheap; a wrong install is not.
+of the service, or edited in the store. Validation is cheap; a wrong install is not. **A field a
+previous-release `api` may not have written is a deterministic failure in the worker, never a
+passed check** (added 2026-09-12, `ADR-0024`): a create admitted without `OPS-43`'s accepted-price
+fields fails before dispatch rather than dispatching at whatever the offer says now.
 
 ## Fairness and retention
 

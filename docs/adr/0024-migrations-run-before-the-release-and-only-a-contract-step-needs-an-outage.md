@@ -1,6 +1,7 @@
 # Migrations run before the release, under their own lock, and only a contract step or a shared-predicate change needs an outage
 
-**Status:** proposed (2026-09-12); accepted when the amendments under *Consequences* land. Answers
+**Status:** accepted (2026-09-12; amendments landed the same day). The rules are `STO-12` and
+`STO-13`. Answers
 the third of `impl-report-01.md` §6.15's four gaps — "live-migration policy" — which `ADR-0015`
 recorded as "migrations against a live database" among the surface the set did not yet specify.
 

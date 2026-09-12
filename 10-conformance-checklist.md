@@ -571,7 +571,15 @@ not optional hardening — they are the only structural defence there is.
 
 - [ ] **CNF-56** **PRE-SCALE** — Connection-scoped settings are asserted on a freshly checked-out pooled
       connection, not on the one that ran migrations. (`STO-7`, `DEF-12`)
-- [ ] **CNF-57** **PRE-SCALE** — Migrations are version-tracked and re-running them is a no-op. (`STO-12`)
+- [ ] **CNF-57** **PRE-SCALE** — Migrations are version-tracked and re-running them is a no-op. **Then the
+      release drill** (added 2026-09-12, `ADR-0024`): with release N−1's engine and `api` running,
+      apply release N's migrations through the `migrate` entry point and assert no `api` write is
+      refused and no engine write exits; start two runners at once and assert one waits on
+      `STO-12`'s key while the engine's startup lock is untouched; start N−1 binaries against the N
+      schema and assert they serve, then start an N binary against the N−1 schema and assert it
+      exits non-zero; run an N−1 `api` extension against an N engine cancellation and a settlement
+      replay across the pair; and put a contract step in the same release as its expansion and
+      assert the migration is refused. (`STO-12`, `STO-13`)
 - [ ] **CNF-58** **BLOCKING** — An unrecognized status read from the store is a hard error. (`STO-10`)
 - [ ] **CNF-59** **PRE-SCALE** — A deleted machine is tombstoned, and operations referencing it still
       resolve. (`STO-8`)

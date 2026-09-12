@@ -133,7 +133,7 @@ The four layers map to the modules below, with strictly one-way dependencies:
 | `core` | Domain model, capability declarations, error taxonomy, provider interface | nothing |
 | `providers` | Per-provider HTTP adapters implementing the provider interface | `core` |
 | `rescue` | SSH orchestration and image installers, generic across providers | `core` |
-| `store` | Migrations, the schema, the connection pool, the transaction handle, and every primitive `05-persistence.md` says the store MUST provide (`STO-1`, `STO-51`, `LDG-35`'s advisory-lock helper). Holds no credential | `core` |
+| `store` | Migrations — applied through the deployable's `migrate` entry point, run before a release's components start (`STO-13`) — the schema, the connection pool, the transaction handle, and every primitive `05-persistence.md` says the store MUST provide (`STO-1`, `STO-51`, `LDG-35`'s advisory-lock helper). Holds no credential | `core` |
 | `ledger` | **The money**: ledger entries, commitments, the meter, rate derivation, solvency, and `LDG-35`'s per-tenant serialization primitive. Holds no provider credential and no payment-rail credential | `core`, `store` |
 | `engine` | **The credential-holding lifecycle side**: workers, driver invocation, the durable queue's execution, the exhaustion and account sweeps, and the only code that may reach a provider credential | `core`, `store`, `providers`, `rescue`, `ledger` |
 | `api` | **The customer-facing side**: HTTP surface, authentication, tenancy, enrolment, the funding rails and their settlement watcher, abuse | `core`, `store`, `ledger`, `engine` — and `engine` **only through a narrow trait that does not expose a credential** |
@@ -382,6 +382,8 @@ marked human are procedures the deployment records rather than values the proces
 | Recovery-point alarm threshold | `STO-54` | duration | yes |
 | Synchronous standby name | `STO-7`, `STO-54` | identifier | yes |
 | Derivation-index gap on restore | `STO-54` | integer | yes |
+| Migration `lock_timeout` and its retry bound | `STO-13` | duration, integer | no — the migrator's, read at `migrate` |
+| Migration-runner advisory key | `STO-12` | integer, distinct from `STO-51`'s key | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
 | Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
 | Reconciliation rota | `OPS-26` | human | no |
