@@ -61,7 +61,8 @@ operation, and each MUST report whether it affected a row (`OPS-22`):
 since `STO-35` was written.*
 
 **STO-5** The store MUST survive process restart with no loss of queued or running
-operations.
+operations. *A restore from backup is not a restart and is not covered by this sentence: it loses
+an interval, and `STO-54` is what governs bringing the engine up on it (`ADR-0023`).*
 
 **STO-51** **AMENDED 2026-09-08 (`ADR-0019`) — the epoch row is deleted; a startup lock replaces
 it and is not a fence.** The store MUST provide a **session-scoped advisory lock** on a fixed key,
@@ -122,6 +123,14 @@ decides a statement's fate before the client gives up and a lost reply is only e
 transport (`OPS-49`). And a connection abandoned mid-transaction — by a timeout, a cancelled
 worker or a lost reply — MUST be reset before it returns to the pool, or the next checkout inherits
 an aborted transaction.
+
+**`synchronous_commit` is `local` on every connection and `on` inside exactly two transactions**
+(added 2026-09-12, `ADR-0023`): the deposit mint and `STO-30`'s payment credit, both on `api`, each
+setting it with `SET LOCAL` so the setting has the transaction's lifetime, against the standby
+`OVR-19` names. Those two are the writes with no second truth; a stalled standby hangs them and
+nothing else, which is a degraded money-in path alarmed under `OVR-18`, and they fail safe —
+`STO-31`'s replay is built for a credit that did not land, and `API-45` returns the locally
+committed deposit to a caller that re-sends its key.
 
 ## Schema
 
@@ -617,7 +626,7 @@ makes attribution possible without recording a payer (`LDG-49`, `ADR-0008`).
 | `requested_sats` | integer | the caller's stated intent (`API-44`) — **never** the credit (`LDG-47`) |
 | `payment_hash` | text | the Lightning destination |
 | `address` | text | the on-chain destination |
-| `derivation_index` | integer | so the address is re-derivable from the operator's own key material rather than stored as the sole copy |
+| `derivation_index` | integer | so the address is re-derivable from the operator's own key material rather than stored as the sole copy. **Allocated strictly increasing and never re-issued**: the next index is one past the greatest ever allocated, and after a restore it is first skipped forward by the derivation-index gap, a deployment parameter on the register, because a rollback of this table would otherwise hand a customer an address already given to another (`STO-54`, `LDG-49`) — the unique constraint on `address` cannot catch it, since the conflicting row is the one the restore deleted. *Added 2026-09-12; the column had no allocation rule* |
 | `idempotency_key` | text | not null; re-sending a funding request returns this row (`API-45`) |
 | `expires_at` | timestamp | not null. Enforced on Lightning, **disclosed** on-chain (`LDG-54`) |
 | `attributed_tenant_id` | text | nullable; the tenant an operator attributed this orphaned deposit to (`WIR-42`). Set once: it is what makes a second call naming a different tenant a `409`, and it is what a payment settling **after** the attribution is credited to — directly, as an ordinary `topup`, since that payment has no earlier credit to correct |
@@ -1011,3 +1020,60 @@ rest (`OVR-12`), and the recovery directory MUST be restricted to the service ac
 
 **STO-16** Backups of the operation store contain live signed image URLs and must be
 treated as credential material.
+
+## Backup and restore
+
+**STO-54** **ADDED 2026-09-12 (`ADR-0023`) — a restore is a recovery incident with a stated
+procedure, never a restart.** A store restored from backup lands at some instant `T − Δ` before
+the failure, and an engine brought up on it as if nothing happened *performs* destructive actions
+on state the restore rewrote: an extension lost in Δ routes a paid machine into `LDG-14`, a token
+revoked in Δ is live again (`API-56`), a `queued` create that already ordered in Δ orders again
+(`OPS-15` inspects `running` rows only), and a `suspend_tenant` parent restored to `running`
+re-runs a fan-out the operator may have reversed. So:
+
+- **Durability posture.** The deployment runs asynchronous streaming replication and continuous
+  WAL archiving, and states a **recovery point** — the greatest age of a committed write not yet in
+  a separate failure domain — as a human row on `OVR-19`, with its alarm threshold a
+  startup-validated value alarmed on `OVR-18`'s model. The number is not the safety argument: a
+  create dispatches in one second, a deposit mints in one, an extension lands in one. The
+  procedure's order below is.
+- **Synchronous commit is bought for the two writes with no second truth.** `STO-7` requires
+  `SET LOCAL synchronous_commit = on` inside the deposit mint and `STO-30`'s payment-credit
+  transaction, against a named standby, and `local` everywhere else. Synchronous commit on every
+  write was rejected because PostgreSQL has no server-side timeout for the standby wait, which
+  would make `OPS-49`'s lost reply the steady state on every write (`ADR-0023`).
+- **The procedure, in this order.** (1) *Before the startup lock:* the public listener is down;
+  the lost window `T − Δ` is stated as a number and published to the operator; the exhaustion
+  sweep, `LDG-64`'s canceller, `API-34`'s time-to-live sweep, `STO-14`'s and `STO-43`'s retention
+  and `OPS-15`'s `suspend_tenant` exception — the periodic rows of `OVR-17`'s table, cited rather
+  than restated — are frozen, because starting either component to reconcile starts all of them;
+  `provider_account_status` and the rate quorum are re-established, since `LDG-16` and `STO-36`
+  route on them; every machine whose stored `runway_until` has passed has `exhausted_since` set to
+  the restore instant, which is `LDG-16`'s own grace for a date moved backward by something other
+  than consumption. (2) *Before the first claim:* every `queued` create, install and rescue
+  inventory is moved to `needs_reconciliation` — a repeat is a second order, a second disk write, a
+  second boot into rescue — and `OPS-27` establishes what happened rather than doing it again; the
+  goal-state kinds (delete, power, end-rescue, release attachment, reverse DNS) re-run, since
+  `OPS-11` classifies "already in the target state" as `succeeded`; a `suspend_tenant` parent
+  found `running` waits for operator confirmation instead of resuming. (3) *Before the first `api`
+  request:* the watch set is re-derived (`STO-32`), both rails are replayed (`STO-31`), `SEC-39`'s
+  counters are re-seeded, every tenant's credential generation is bumped — the restored store
+  cannot know which tenants revoked inside Δ, so every spending token dies and each customer
+  re-issues through the recovery credential (`API-56`) — and `deposits.derivation_index` is skipped
+  forward by the stated gap (`OVR-19`) before any deposit is minted.
+- **`OPS-32`'s complete pass is a step, not a gate, and runs twice.** The first pass may record
+  nothing about absence: `provider_observations` written in Δ are gone, so `PRV-36`'s effective
+  window has been narrowed by the restore, a narrowing `STO-53` says is "never an engine write". A
+  second pass separated by the effective window is what may record absence. A machine the sweep
+  finds unrecorded is reported and never attached (`OPS-32`); the restored engine cannot tell a
+  machine created in Δ from one created by hand, and the report says so per account.
+- **Rehearsed.** The procedure MUST have been executed end to end before the first customer
+  payment, by someone other than whoever wrote it, on `CNF-137`'s model, and the rehearsal drives
+  the four destructive witnesses above through it (`CNF-295`).
+
+*What the restore does not repair, stated so it is not assumed: a debit lost in Δ is re-metered
+from the rolled-back high-water mark and re-priced at one rate across the span (`LDG-38`'s split
+is lost with `rate_observations`); a gone-write lost in Δ extends the customer's charge to the next
+complete pass (`LDG-74`), and the correction is an operator `LDG-5` entry; a commitment is "not a
+ledger entry" (`LDG-30`) and is not rebuilt from payments; `LDG-72`'s checks pass on a consistent
+restore and prove nothing about it.*

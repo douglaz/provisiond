@@ -308,6 +308,19 @@ writer, any `running` row at startup is interrupted — guarded on `(id, status 
 worker is exactly the case where the provider may have acted and nobody recorded it. No periodic
 pass is needed; nothing but a restart can leave a `running` row with no worker behind it.
 
+**After a restore the premise fails, and `queued` rows are the danger** (added 2026-09-12,
+`ADR-0023`). "Any `running` row at startup is interrupted" is true after a crash and false after a
+restore, where the row may have settled at the provider inside the lost interval — and a `queued`
+row, which this pass never inspects, may already have run. So on a restore (`STO-54`) the pass
+additionally moves every `queued` create, install and rescue inventory to `needs_reconciliation`,
+guarded on `(id, status = queued)`, with an `internal` error naming the restore: a repeat is a
+second order, a second disk write or a second boot into rescue, and `OPS-27` establishes what
+happened rather than doing it again. The goal-state kinds — delete, power, end-rescue, release
+attachment, reverse DNS — stay `queued` and re-run, because `OPS-11` classifies "already in the
+target state" as `succeeded`. And the `suspend_tenant` exception below does not fire on a restore:
+a parent found `running` waits for operator confirmation, since the fan-out it would resume may
+have been reversed inside the interval.
+
 **A `refresh` found `running` at startup MUST be settled `failed`** — the same guarded write as
 above (`STO-3`), with an `internal` error naming the restart, the nearest of `DOM-17`'s kinds —
 and not moved to `needs_reconciliation`: it is read-only (`OPS-11`), so there is

@@ -1,6 +1,7 @@
 # A restore is a recovery incident, not a restart, and durability is bought only where there is no second truth
 
-**Status:** proposed (2026-09-10); accepted when the amendments under *Consequences* land. Answers
+**Status:** accepted (2026-09-12; proposed 2026-09-10, amendments landed 2026-09-12). The restore
+procedure is `STO-54`. Answers
 the second of `impl-report-01.md` §6.15's four gaps — "backup/PITR procedures" — which `ADR-0015`
 recorded as "New operational surface the set does not yet specify". Builds on `ADR-0022`: the
 engine's write path is what that ADR made safe under a lost acknowledgement, and this ADR is shaped

@@ -513,7 +513,11 @@ nothing in the system raises anything.
   `cancellation_scheduled` whose date has passed (`WIR-25`) — a query over columns that exist,
   not a sweep clause: `OPS-26` lists *operations*, the scheduled delete settled `succeeded`, and a
   caller's own delete can be scheduled too, with no episode and no fence behind it (*added
-  2026-09-05; a first form put this on `OPS-32` and `OPS-26`, where it had no verb*).
+  2026-09-05; a first form put this on `OPS-32` and `OPS-26`, where it had no verb*). *A
+  gone-write lost to a restore (`STO-54`) moves that instant to the next complete pass, so the
+  customer is charged for a machine everyone already knew was gone for the lost interval plus one
+  sweep; the correction is an operator `LDG-5` entry, and nothing triggers it (added 2026-09-12,
+  `ADR-0023`).*
   provisiond polls rather than watches, so the earlier instant is not knowable; `STO-41` already
   draws that distinction for addresses and it is the same one. Guessing backwards would credit time
   nobody can evidence, on a ledger whose entries are the authorization system.
@@ -900,7 +904,10 @@ that, and they were found together:
 - **Trigger.** The deployment MUST run both **before serving a subject after a restore, import or
   migration**, and MAY run them at period close or on operator request. It MUST NOT run them on the
   posting path: a per-tick audit is the quadratic scan this requirement exists to remove, and would
-  reintroduce it in the name of checking it.
+  reintroduce it in the name of checking it. *A transactionally consistent restore passes both
+  checks and proves nothing about the interval it lost — the mark and the entries roll back
+  together, and the high-water check is one-sided by design — so this is not the restore gate;
+  `STO-54` is (added 2026-09-12, `ADR-0023`).*
 - **Fail closed means the SUBJECT, not the deployment.** On a failed check the deployment MUST
   quarantine further usage debits, commitment decrements and exhaustion decisions for that subject,
   MUST alert, and MUST continue to admit cancellation and deletion — a machine nobody can bill is
@@ -1081,7 +1088,9 @@ usage cannot be converted to satoshis. A deployment MUST:
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
   a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
   and quietly extend the exposure past the bound. The deficiency record (`STO-37`) is where they
-  live;
+  live — and a restore that loses the row is the reset this sentence forbids, reached through the
+  backup; `STO-54` re-establishes the rate quorum before the startup lock so the deadline is
+  recomputed from the restore instant, not silently extended (*added 2026-09-12, `ADR-0023`*);
 - **keep the outage deficiency native-only: it is never converted, at any later rate.** Its
   `rate_num`/`rate_den` stay null for good (`LDG-66`), because there was no rate while it accrued
   and stamping it with the first one to return would price those hours at a number that did not
@@ -1503,7 +1512,11 @@ poisoned reading move a date from thirty minutes out to one minute past with the
 null;*
 **any write of a future `runway_until` clears it**, including `LDG-62`'s and `OPS-41`'s abort's —
 the horizon qualifies only the *set*, never the clear, since a second derivation writing inside the
-horizon still precedes any routing. **And while no rate exists for the machine's currency, the
+horizon still precedes any routing. **A restore sets it too** (added 2026-09-12, `ADR-0023`):
+`STO-54` sets the column to the restore instant on every machine whose stored date has passed,
+because a restore moves the fleet's dates backward by something other than consumption, and a date
+it moved into the past was not one the customer was shown — the glitch case, not the natural-expiry
+case below. **And while no rate exists for the machine's currency, the
 sweep MUST NOT route a machine whose `exhausted_since` is set at all**, however old: the second
 derivation this rule requires has not happened, and `LDG-64`'s bound already caps the exposure of
 waiting. *The trigger was "from the future into the past" for a few hours on 2026-09-05, which left

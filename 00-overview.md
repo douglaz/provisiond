@@ -324,7 +324,9 @@ unassigned job here silently narrows a control two BLOCKING items depend on.*
 **OVR-18** The engine's liveness MUST be alarmed. While the engine is down no exposure-reducing
 mechanism runs (`LDG-14`, `OPS-32`, `SEC-45`'s fan-out), and the restart window is the accepted
 outage (`ADR-0016`); the supervisor's restart guarantee and the alarm threshold are deployment
-parameters (`OVR-19`).
+parameters (`OVR-19`). **Two more conditions are alarmed on the same model** (added 2026-09-12,
+`ADR-0023`): the recovery point exceeding its threshold, and a stalled synchronous standby, which
+hangs the two money-in transactions `STO-7` commits synchronously and nothing else.
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive
@@ -376,6 +378,10 @@ marked human are procedures the deployment records rather than values the proces
 | Startup-lock wait bound | `OPS-47` | duration | yes |
 | Startup-lock connection keepalives | `OPS-47` | durations | yes |
 | Store-retry bound | `OPS-49` | duration | yes |
+| Recovery point | `STO-54` | greatest age of a committed write not yet in a separate failure domain | no — outside the process |
+| Recovery-point alarm threshold | `STO-54` | duration | yes |
+| Synchronous standby name | `STO-7`, `STO-54` | identifier | yes |
+| Derivation-index gap on restore | `STO-54` | integer | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
 | Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
 | Reconciliation rota | `OPS-26` | human | no |

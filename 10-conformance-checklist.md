@@ -720,7 +720,11 @@ not optional hardening — they are the only structural defence there is.
       forty. **Then let a runway expire with no rate movement at all and assert the machine is
       routed on the very next pass, the column still null** — a build that gates every past date on the
       interval runs each ordinary exhaustion one interval into the wind-down reserve.
-      Then hold the bad rate across two intervals and assert the machine **is** routed. *The per-tick cap clause is withdrawn with the construct it tested
+      Then hold the bad rate across two intervals and assert the machine **is** routed. **Then the
+      restore edge** (added 2026-09-12, `ADR-0023`): restore a store in which a machine's stored
+      `runway_until` is past and `exhausted_since` null, run `STO-54`'s procedure, and assert the
+      column is set to the restore instant and the sweep waits one interval; extend the machine
+      inside that interval and assert the column clears and it is never routed. *The per-tick cap clause is withdrawn with the construct it tested
       (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
       no reader behind it, and a build that routed on the date alone passed it by never being fed a
       poisoned reading.* (`PRV-13e`, `LDG-16`, `LDG-58`)
@@ -834,6 +838,30 @@ takes the machines *and* the float" partly false.
 - [ ] **CNF-137** **BLOCKING** — The cold key's recovery procedure has been executed end to end, from backup to a
       signed spend, by someone other than whoever wrote it. Before the first customer payment.
       (`SEC-53`)
+- [ ] **CNF-295** **BLOCKING** — **The restore rehearsal** (added 2026-09-12, `ADR-0023`). Before the
+      first customer payment, by someone other than whoever wrote the procedure: take a backup,
+      then in the lost interval extend a machine's runway from balance, revoke a spending token,
+      let a `queued` create order and a `queued` raw-disk install write, and suspend then resume
+      a tenant; restore, and run `STO-54`'s procedure in its stated order. Assert: no provider
+      mutation and no disk write occurs before the first claim; the extended machine is not routed
+      into exhaustion during `LDG-16`'s interval and its re-extension clears `exhausted_since`; the
+      old token authenticates nothing and the recovery credential issues a new one (`API-56`); the
+      create and the install are `needs_reconciliation`, never claimed, and `OPS-27` resolves the
+      create `observed` against the machine the lost interval bought; the `suspend_tenant` parent
+      does not resume without operator confirmation; the sweep's first pass records no absence and
+      its second may; and the operator report names `T − Δ` and every unrecorded machine per
+      account. (`STO-54`, `OPS-15`, `LDG-16`, `API-56`, `OPS-27`, `OPS-32`)
+- [ ] **CNF-296** **BLOCKING** — **The two synchronous writes hang alone** (added 2026-09-12,
+      `ADR-0023`). Stall the named standby. Assert a deposit mint and a payment credit block, every
+      engine write and every other `api` write proceeds, and `OVR-18`'s alarm fires. Release the
+      standby and assert the caller's re-sent funding request returns the same deposit (`API-45`)
+      and the rail's replayed settlement credits once (`STO-31`). Then assert `synchronous_commit`
+      reads `local` on a freshly checked-out connection (`CNF-56`'s method) and `on` only inside
+      those two transactions. (`STO-7`, `STO-54`, `OVR-18`)
+- [ ] **CNF-297** **BLOCKING** — **The derivation index never goes backwards** (added 2026-09-12,
+      `ADR-0023`). Mint deposits, take a backup, mint more, restore, run `STO-54`'s skip-forward,
+      and assert the next index allocated exceeds every index a rolled-back row held, and that no
+      address is ever handed to two deposits (`LDG-49`). (`STO-54`, `LDG-49`)
 
 ## The rate
 
@@ -988,7 +1016,9 @@ rather than acquiring a default.
       so the item asserts its absence.** **No settled operation of any kind re-enters `queued`.**
       For every operation kind, drive an operation to `failed` and to `needs_reconciliation` and
       assert there is no route — no endpoint on either listener, no operator verb, no sweep — that
-      moves it back to `queued` (`OPS-4`). **Then assert the recovery that replaced it is scoped to the episode**: `retry` (`API-64`) on a
+      moves it back to `queued` (`OPS-4`). **A restore is the route this item did not enumerate**
+      (added 2026-09-12, `ADR-0023`): it returns a settled row to `queued` by rewriting the store,
+      and `STO-54` is what stands in its way — `CNF-295` asserts it. **Then assert the recovery that replaced it is scoped to the episode**: `retry` (`API-64`) on a
       `stalled` episode enqueues a **fresh** `delete_machine` attempt under the same episode id and
       leaves the failed attempt's row untouched; `retry` on an episode in any other state is `409`
       `state`; and no episode ever carries a `create_machine`, `install`, `power`
