@@ -87,8 +87,8 @@ store's `resolution` set, and `API-65`/`WIR-52` give it the operator route `PRV-
 and `LDG-34` names the writers it actually serializes. Of the implementation-process review's three
 untaken sections, §6.13 is `F47`; §6.14's first three resolutions closed 2026-09-09 when every
 conformance item received its tier inline, and its last two — mutually exclusive launch items, and
-a historical heading read as authoritative — are `F50`'s first and seventh items; §6.15 is `F51`,
-closed 2026-09-12.
+a historical heading read as authoritative — are `F50`'s first and seventh items, closed 2026-09-12
+along with the tiers themselves, which were withdrawn that day; §6.15 is `F51`, closed 2026-09-12.
 
 **F47. CLOSED — adopt was specified two ways, could not size its own commitment, and had no v1
 scenario.** Found by the `F46` read; taken up 2026-09-08 with two independent reviews of one
@@ -245,7 +245,17 @@ funding predicate with no suspension exemption, so a rate rise could un-fence a 
 stalled machine and leave it running with nothing accounting for it; the row now carries the
 exemption.
 
-**F50. OPEN — the tier tags are a faithful copy of prose that was wrong in places.** On 2026-09-09
+**F50. CLOSED 2026-09-12 — the tiers are withdrawn whole, and the question the finding asked no
+longer exists.** The four mechanical items below (1, 4, 5, 6) were fixed in the morning. The two
+judgment items (2, 3) were put to Codex (`gpt-6-astra`, xhigh) and a fresh Claude reader on one
+brief, who agreed on eight of thirteen items and split on five — and on the fifth, `CNF-252`, split
+on what the rule's own third question means. The record's answer was not a verdict: an item is a
+property the system has or does not have, and *when* to demonstrate which is a launch plan's
+question, not this set's. Every inline tag, every assignment paragraph, the tiering rule, the
+blocking-count section and the gate's untiered check were removed in one commit; the gate now
+refuses a tag; nothing any item asserts changed. The panel's per-item reasoning is kept in the
+session's scratch, not here: it argued tiers, and there are none. *The finding as it stood follows,
+for the record of what the tags preserved.* On 2026-09-09
 every checkbox item in `10-conformance-checklist.md` received its tier inline, copied from the
 assignment paragraphs as they stood; `tools/check_ids.py` prints the count and refuses an untiered
 item, and that closed the first three of the implementation-process review's §6.14 resolutions; its
@@ -377,9 +387,9 @@ whole set as a builder would and named fifteen blockers. Twelve were checked aga
 text before anything was decided; ten held, one was false, and one was misdescribed. §6.13, §6.14
 and §6.15 were not taken up (the count here read twelve until 2026-09-08); §6.13 is the `adopt`
 classification, `F47`, closed the same day by `ADR-0020`; §6.14's per-item tier metadata landed
-2026-09-09 — every checkbox item carries its tier inline, `tools/check_ids.py` refuses one that does
-not, and `F50` holds what the faithful copy preserved and the two of its five resolutions still
-open; §6.15's production-operability decisions are `F51` — three ADRs and one requirement,
+2026-09-09 and was withdrawn with the tiers on 2026-09-12 — `F50` holds both, and the review's
+"untiered live item" gate is now the opposite check, a gate that refuses a tier; §6.15's
+production-operability decisions are `F51` — three ADRs and one requirement,
 decided and landed 2026-09-12. Six decisions
 followed, three of them ADRs. The findings below are numbered in the order the review listed them,
 not in the order they were resolved, because two of them turned out to be the same defect.

@@ -327,7 +327,7 @@ list still read as though it were. **The obligation is not merely to add a row w
 invented; it is to add one when a requirement elsewhere mandates periodic work**, which is the form
 this miss actually took. The `machine_addresses` half is the one with a customer-visible
 consequence: purging it shortens the horizon `SEC-54` can answer an abuse notice over, so an
-unassigned job here silently narrows a control two BLOCKING items depend on.*
+unassigned job here silently narrows a control two conformance items depend on.*
 
 **OVR-18** The engine's liveness MUST be alarmed. While the engine is down no exposure-reducing
 mechanism runs (`LDG-14`, `OPS-32`, `SEC-45`'s fan-out), and the restart window is the accepted

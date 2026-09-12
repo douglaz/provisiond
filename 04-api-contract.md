@@ -220,7 +220,7 @@ the five classes.** Steps 1–5 are common to every authenticated write:
 5c. **enforce `SEC-39`'s per-principal ceilings** and reject `ceiling_exceeded` (`DOM-17`) with
     `details.ceiling`, `details.limit`, `details.interval_seconds` and `details.retry_after_ms`
     (`WIR-9a`). **Added 2026-09-02**: `SEC-39` is the control that replaces a per-request
-    acknowledgement when the caller is a program, `CNF-69` is BLOCKING, and **no step of this
+    acknowledgement when the caller is a program, `CNF-69` tests it, and **no step of this
     pipeline checked it** — so a builder following these steps literally shipped no ceilings at all
     while the requirement and its test both existed. It sits **after** 5a and 5b for the same
     reasons those sit where they do: a replay must return its stored result rather than spend a slot
@@ -881,7 +881,7 @@ produce spurious conflicts.
 
 **API-38** **Equivalence after the payload is purged.** `ADR-0005` purges the stored request once the
 operation stops being live, so for a completed operation there is nothing left to compare against and
-`API-11`/`API-12` become unexecutable — `CNF-21` is BLOCKING and tests a comparison that cannot
+`API-11`/`API-12` become unexecutable — `CNF-21` tests a comparison that cannot
 be performed. The resolution is to persist, alongside the summary, a **canonical digest of the
 request** computed at submission time. It survives the purge, carries no caller secret, and makes
 equivalence a hash comparison rather than a field-by-field one.

@@ -675,8 +675,10 @@ only auction was bought, and standard is where the setup fees are (`08-provider-
 the listing window is still `[verify]`.
 
 **PRV-34** **Robot orders have a test mode, and the driver MUST use it for the order-request half
-of conformance testing — `CNF-180` and `CNF-280` place real orders, because test mode cannot reach
-the listing.** *The headline said "MUST use it in conformance testing" until 2026-09-05, unqualified,
+of conformance testing — `CNF-180`, `CNF-147` and `CNF-281` place real orders, because test mode
+cannot reach the listing.** *`CNF-280` was named here until 2026-09-12; it was withdrawn on
+2026-09-05 and the items that still order for real are the Robot gate, the dedicated money path
+and the every-channel search (`F50`).* *The headline said "MUST use it in conformance testing" until 2026-09-05, unqualified,
 directly above its own amendment explaining why that is impossible for the half that matters.*
 The order request carries a `test` parameter; with `test=true` the API **simulates** the purchase
 and returns a `Cancelled` transaction instead of buying anything. This is a genuinely valuable

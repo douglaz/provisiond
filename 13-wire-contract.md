@@ -616,7 +616,7 @@ error.*
 **The fourth variant was missing and its absence made a shipped feature unrequestable.** `WIR-20`
 promised "one variant per `DOM-13` pairing" and defined three while `DOM-13` had four — so under
 `WIR-2` a `strategy` of `provider_catalogue` was `invalid_request`, and `ADR-0013`, `RSC-39`–`RSC-43`,
-`SEC-55`, the `install_via_provider_catalogue` capability and three BLOCKING conformance items
+`SEC-55`, the `install_via_provider_catalogue` capability and three conformance items
 (`CNF-265`, `CNF-267`, `CNF-268`) all described a path no caller could ask for. *The union and the
 pairing table are two statements of one closed set, and this is the second time in this set that a
 list has been extended in one document and not the other; the rule that prevents the third is

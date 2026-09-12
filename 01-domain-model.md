@@ -423,7 +423,7 @@ before the send tells the two apart. Three paths, three different reasons:
 
 **On those paths this is `API-47`'s argument arriving at a destructive verb.** No endpoint returned a
 balance until 2026-08-12, so a caller could learn its own solvency only by attempting a purchase and
-reading the rejection; `CNF-150` is BLOCKING because making an ordinary check into a failed write
+reading the rejection; `CNF-150` exists because making an ordinary check into a failed write
 pushes an autonomous caller toward retrying purchases. The same shape pushes it toward issuing an
 acknowledged install to find out whether installs are allowed.
 
@@ -567,7 +567,7 @@ list and balance, never to re-issue.
 **DOM-20** Five rows in the table above were added after the original taxonomy was written:
 `insufficient_balance`, `not_activated` and `halted` by this requirement, `gone` by `DOM-21`, and
 `suspended` by `API-58`. `DOM-17`'s set is closed and `API-24`
-forbids a handler choosing a status independently, so before the first three existed **four BLOCKING
+forbids a handler choosing a status independently, so before the first three existed **four
 conformance items asserted a rejection this taxonomy could not express** — `CNF-95` (insufficient
 balance), `CNF-78` (tenant still pending), `CNF-69` (ceiling), `CNF-101` (solvency halt) — and
 every one of them would have arrived at the caller as `invalid_request` / 400.
@@ -584,7 +584,7 @@ machines destroyed, machines created, images
 written, rescue entries, power cycles, spend, and for an operator principal retries (`API-64`), resolutions,
 suspensions and re-assignments — and **this taxonomy had nothing that could express refusing one**,
 while `API-24` forbids a handler choosing a status independently. `CNF-69` is the ceiling item named
-in the list above; it has been BLOCKING throughout, against a set of kinds that could not carry its
+in the list above; it has stood throughout, against a set of kinds that could not carry its
 rejection.
 
 **It is not `rate_limited`, and the difference is exactly the argument this requirement already

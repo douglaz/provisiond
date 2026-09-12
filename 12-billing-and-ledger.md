@@ -1538,7 +1538,7 @@ immediately, and that is the point: natural expiry of a runway the
 customer was shown is not a glitch, and delaying it an interval would run every ordinary exhaustion
 one interval into the wind-down reserve this requirement exists to keep whole. `LDG-58`'s median
 remains the primary control; this column is the second derivation the sentence above asks for,
-made durable.* *Without it the sentence above was a BLOCKING conformance item (`CNF-99`)
+made durable.* *Without it the sentence above was a conformance item (`CNF-99`)
 with no mechanism: the sweep routed on the date alone, `OPS-41` re-derived at the same rate that
 produced it, and one poisoned rate reading — the case `LDG-58`'s median exists to survive — moved
 the date into the past and destroyed the disk within one sweep interval.*

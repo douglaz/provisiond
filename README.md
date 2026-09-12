@@ -150,9 +150,10 @@ tests, and issue trackers:
 | `WIR-n` | Wire contract |
 | `CNF-n` | Conformance checklist items |
 
-A conformance item also carries its launch tier inline — `- [ ] **CNF-1** **BLOCKING** — …` — one of
-**BLOCKING**, **PRE-SCALE** or **DEFERRED**. `10-conformance-checklist.md`, *Tiering — which of these
-gate what*, defines the three and holds the rule that sorts an item; `tools/check_ids.py` refuses an item without one.
+A conformance item carries no launch tier. From 2026-08-11 to 2026-09-12 each carried one of
+**BLOCKING**, **PRE-SCALE** or **DEFERRED** inline; the tiers were withdrawn whole on 2026-09-12
+(`F50`) because an item is a property the system has or does not have, and when to demonstrate
+which is a launch plan's question, not this set's. `tools/check_ids.py` refuses a tag on an item.
 
 ### Identifiers are append-only. Text is not.
 

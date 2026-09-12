@@ -266,7 +266,7 @@ anything is enqueued. *Neither existed. `DOM-17`'s closed set had nothing that c
 refusal and `API-24` forbids a handler inventing a status, so a builder picked `rate_limited` or
 `halted` and the agent's recovery differed by deployment; `API-7`'s steps contained no ceiling check
 at all, so a builder following the pipeline literally shipped none of this while `CNF-69` sat
-BLOCKING. A control with a test and no mechanism is the failure mode this document's own scope note
+on the checklist. A control with a test and no mechanism is the failure mode this document's own scope note
 exists to catch.*
 
 **SEC-29** Request bodies MUST be size-capped globally, and individual fields MUST be
