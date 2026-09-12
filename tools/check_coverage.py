@@ -74,7 +74,8 @@ def measure():
     #
     # `current` MUST be cleared at every heading. Without that reset it stays
     # set after the final item in a section, so every subsequent line — the tier
-    # assignments, "Before production", the blocking-count discussion — is
+    # assignments and blocking-count discussion that existed until 2026-09-12,
+    # "Before production" — is
     # credited to whichever item happened to precede it, and a requirement named
     # only in prose counts as demonstrated. That bug shipped on 2026-08-31 and
     # inflated the reported figure by eight points; found by a cross-model review

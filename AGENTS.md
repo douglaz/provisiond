@@ -30,8 +30,8 @@ said the opposite. **Arguments have owners too** — re-explaining a rule in a s
 a second normative copy gets written, because you cannot explain a rule without restating it.
 
 **Cite the list; let it hold the number.** A count written into prose is wrong the first time either
-end moves. `ADR-0003`'s footnote, `ADR-0011` and the checklist's blocking-count section each record
-their own version of this. The same applies to a universal: one counterexample retires it, and
+end moves. `ADR-0003`'s footnote, `ADR-0011` and `F16` in `11-open-findings.md` each record their
+own version of this. The same applies to a universal: one counterexample retires it, and
 `OVR-17` carried a false one for weeks.
 
 **Completion:** every sentence asserting what another requirement says carries its quote, and every

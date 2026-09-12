@@ -378,9 +378,9 @@ Known open items, in the set's own terms:
 - Deployment parameters are required to be stated and are not. `OVR-19` is the one register of
   them, and startup refuses to run on a missing value; what no deployment has yet done is fill it
   in.
-- The launch-gating conformance set is counted by `tools/check_ids.py` on every run — the
-  `conformance items:` line `bash tools/check-all.sh` prints — and since 2026-09-09 each item's tier
-  is the tag on its own line. None has been executed. *This bullet said 135 until 2026-09-02 and
+- The conformance set is counted by `tools/check_ids.py` on every run — the
+  `conformance items:` line `bash tools/check-all.sh` prints — and every item gates: the launch
+  tiers were withdrawn on 2026-09-12 (`F50`). None has been executed. *This bullet said 135 until 2026-09-02 and
   "approximately 182 of 271" until 2026-09-09, each stale within a week of being written; no figure
   is kept here now.*
 - Two questions are explicitly for a lawyer, not an engineer: the satoshi-custody characterisation

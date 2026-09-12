@@ -21,7 +21,7 @@ not to repeat it.
 
 | Gate | What it refuses |
 |---|---|
-| `tools/check_ids.py` | A duplicate identifier, a citation to an id nothing defines, a gap in a namespace's sequence, an id far above its neighbours, a reference to an ADR that does not exist, a conformance item with no inline tier, a checkbox on a withdrawn, merged or split `CNF` id. It also prints the checklist's count per tier, which is the only place that count is kept |
+| `tools/check_ids.py` | A duplicate identifier, a citation to an id nothing defines, a gap in a namespace's sequence, an id far above its neighbours, a reference to an ADR that does not exist, a launch tier on a conformance item (withdrawn 2026-09-12, `F50`), a checkbox on a withdrawn, merged or split `CNF` id. It also prints the checklist's item count, which is the only place that count is kept |
 | `tools/check_fixtures.py` | A JSON example that does not parse, carries a `...` placeholder, repeats an object member, exceeds `WIR-1a`'s integer bound, spells a timestamp `+00:00`, or carries a malformed digest. Also structurally checks every Mermaid diagram, since one that is broken looks fine in source and fails in the browser |
 | `tools/check_obligations.py` | A duty assigned to another requirement's subject — "`LDG-62` MUST write `destroy_committed`" — where that requirement's own text names none of the machinery. *`OPS-42` did exactly this to `LDG-62` and the fence protecting a paying customer's machine silently did not exist. Two full-set cross-model reviews read past it; the other gates all passed, because the citation resolved and both requirements had conformance items. Only the relationship was broken.* Run `--selftest` in a full clone to watch it catch that commit |
 | `tools/check_coverage.py` | A fall in the number of requirements exercised by at least one conformance item, against a recorded baseline. *It overstated coverage by eight points on its first day — it attributed prose in the tier-assignment sections to whichever item preceded it. Fixed 2026-09-01; a gate that overstates is worse than no gate, because the ratchet then guards a number nobody earned.* |
@@ -150,8 +150,9 @@ tests, and issue trackers:
 | `WIR-n` | Wire contract |
 | `CNF-n` | Conformance checklist items |
 
-A conformance item carries no launch tier. From 2026-08-11 to 2026-09-12 each carried one of
-**BLOCKING**, **PRE-SCALE** or **DEFERRED** inline; the tiers were withdrawn whole on 2026-09-12
+A conformance item carries no launch tier. From 2026-08-09 to 2026-09-12 each carried one of
+**BLOCKING**, **PRE-SCALE** or **DEFERRED** — in prose, and from 2026-09-09 as a tag on the item
+line; the tiers were withdrawn whole on 2026-09-12
 (`F50`) because an item is a property the system has or does not have, and when to demonstrate
 which is a launch plan's question, not this set's. `tools/check_ids.py` refuses a tag on an item.
 

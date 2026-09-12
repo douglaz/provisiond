@@ -7,16 +7,18 @@ The reference implementation shipped with a CI job that ran a test suite contain
 tests, and a green check next to it. Treat any unchecked box below as that same green
 check.
 
-**Every item gates, and there are no tiers** (2026-09-12, `F50`). From 2026-08-11 to 2026-09-12
-each item carried a launch tier — BLOCKING, PRE-SCALE or DEFERRED — chosen by a three-question rule
-about whether the operator could undo, would notice, or a bot could trigger the failure, with
-paragraphs of reasons and graduation triggers beside the items and a gate that refused an untiered
-one. It was withdrawn whole. An item is a property the system has or does not have; *when* to
+**Every item gates, and there are no tiers** (2026-09-12, `F50`). From the first commit on
+2026-08-09 to 2026-09-12 each item carried a launch tier — BLOCKING, PRE-SCALE or DEFERRED — chosen
+by a three-question rule about whether the operator could undo, would notice, or a bot could
+trigger the failure, with paragraphs of reasons and graduation triggers beside the items; from
+2026-09-09 the tier was a tag on the item line and a gate refused an untiered one. It was withdrawn
+whole. An item is a property the system has or does not have; *when* to
 demonstrate which is a question for whoever plans a launch, and answering it here produced a second
 document inside this one — the reasons drifted from the items (`F16`, `F30`, `F50`), the count went
 stale four times, and the last review found two readers disagreeing on what the rule's own third
-question meant. `11-open-findings.md`'s `F50` holds the withdrawal and the last panel's verdicts.
-`tools/check_ids.py` now refuses a tag on an item. Nothing an item asserts was changed by the cut.
+question meant. `11-open-findings.md`'s `F50` holds the withdrawal; the panel's per-item verdicts
+argued tiers and are not kept. `tools/check_ids.py` now refuses a tag on an item. Nothing an item
+asserts was changed by the cut.
 
 ## Build and gate
 
@@ -162,8 +164,9 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-30** — The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
       different stakes: rows where a misclassification causes a repeated provider mutation, and
-      rows that only need covering for exhaustiveness. They belong in different tiers, and the
-      undivided item was consequently listed in two of them. Identifier retained rather than
+      rows that only need covering for exhaustiveness. They belonged in different launch tiers
+      under the classification then in force (withdrawn 2026-09-12), and the undivided item was
+      consequently listed in two of them; the split stands on the two stakes. Identifier retained rather than
       reused, per the append-only convention in the README.
 - [ ] **CNF-31a** — The rows of `OPS-11` where a misclassification causes a repeated provider
       mutation. A create failing with a provider 4xx is `failed`; a create failing with a
@@ -291,8 +294,8 @@ not optional hardening — they are the only structural defence there is.
       than spending a slot twice, and **before** any commitment opens or anything is enqueued.
       Assert the exemption. An exposure-reducing system cancellation is not refused by a
       principal's destruction ceiling (`OPS-39`), or a tenant that hit its limit keeps machines the
-      operator pays for. *Until today this item was BLOCKING against a taxonomy that could not express its
-      rejection and a pipeline that never performed its check.* (`SEC-39`, `DOM-17`, `API-7`,
+      operator pays for. *Until 2026-09-02 this item sat on the checklist against a taxonomy that
+      could not express its rejection and a pipeline that never performed its check.* (`SEC-39`, `DOM-17`, `API-7`,
       `WIR-9a`, `OPS-39`)
 - [ ] **CNF-70** — The deployment has recorded *where* ceilings are enforced and what each integer
       is. Under `ADR-0001` that is this control plane — there is no front service to defer to,
@@ -318,7 +321,8 @@ not optional hardening — they are the only structural defence there is.
       usable credential before the configured delay elapses, and the not-yet response does not
       disclose the remaining time precisely. (`API-33`, `WIR-49`, `WIR-12`)
 - [ ] **CNF-77** — An unfunded pending tenant is deleted at its TTL together with its credential.
-      Verified by clock advance, not by reading the code. (`API-34`)
+      Verified by clock advance, not by reading the code. It is the storage bound that makes
+      unauthenticated enrolment safe at all, and `CNF-123` exercises its second half. (`API-34`)
 - [ ] **CNF-78** — **REWRITTEN 2026-08-14** — the old item tested a rule two amendments had
       replaced, and no implementation could satisfy it and `CNF-125` at once: it predates
       `API-43`'s allowlist, and "until a payment has been credited" is the per-payment trigger
@@ -726,11 +730,13 @@ rather than acquiring a default.
       `WIR-52`, `PRV-45`, `STO-18`, `LDG-74`)
 - [ ] **CNF-288** — **AMENDED 2026-09-08 (`ADR-0017`) — the verb it tested is deleted,
       so the item asserts its absence.** **No settled operation of any kind re-enters `queued`.**
-      For every operation kind, drive an operation to each settled state `OPS-11`'s table admits
-      for it — `failed` and `needs_reconciliation` for the dispatching kinds, `failed` alone for
-      `refresh`, which is "Always `failed`", and `succeeded` alone for `suspend_tenant`, which is
-      "Never `needs_reconciliation`, and never `failed` as a whole" (*scoped 2026-09-12, `F50`;
-      until then the item asked for two states two kinds cannot reach*) — and
+      For every operation kind, drive an operation to each failure outcome `OPS-11`'s table can
+      produce for it — `failed` and `needs_reconciliation` for the dispatching kinds, `failed`
+      alone for `refresh`, which is "Always `failed`", and neither for `suspend_tenant`, which is
+      "Never `needs_reconciliation`, and never `failed` as a whole" and settles `succeeded` once its
+      children have — (*scoped 2026-09-12, `F50`; until then the item asked for two states two
+      kinds cannot reach, and `OPS-11` classifies failures, so a kind's success is not in its
+      table*) — and
       assert there is no route — no endpoint on either listener, no operator verb, no sweep — that
       moves it back to `queued` (`OPS-4`). **A restore is the route this item did not enumerate**
       (added 2026-09-12, `ADR-0023`): it returns a settled row to `queued` by rewriting the store.
@@ -788,7 +794,7 @@ rather than acquiring a default.
       offer price, or declares `rescue_address_family` IPv6-capable in its descriptor (`PRV-44`) —
       and that a create is refused rather than placed where neither holds. A machine bought and
       unreachable bills and drains runway with delete as the only remedy: an autonomous caller
-      reaches a provider mutation whose product it cannot use, which is question (3). (`RSC-45`,
+      reaches a provider mutation whose product it cannot use, with no human in the loop. (`RSC-45`,
       `PRV-44`, `PRV-13b`)
 - [ ] **CNF-184** — A rate outage bills the customer **nothing** for the window: no deferred
       satoshi debit is posted when the rate returns, the native accrual appears as an operator
@@ -1619,7 +1625,7 @@ rather than acquiring a default.
       operation kinds that can reach `needs_reconciliation`. **Not `DOM-17` against `WIR-9a`**,
       which is a *minimum*-keys table by its own words — a kind whose `details` are genuinely empty
       conforms, so that diff fails by construction and would be deleted by whoever ran it first. The catalogue-install variant was missing from `WIR-20` while `DOM-13`
-      carried the pairing, and three BLOCKING items tested a path no caller could request — the same
+      carried the pairing, and three items tested a path no caller could request — the same
       failure as the missing route, one document over. (`API-48`, `DOM-13`, `WIR-20`, `F19`)
 - [ ] **CNF-150** — A caller can read its balance, its available figure and its committed satoshis
       without attempting a purchase. **A create rejected with `insufficient_balance` is not an
@@ -1755,9 +1761,6 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       environment at runtime, not by reviewing the scrub call, because a runtime that caches the
       environment makes the scrub a no-op. (`OVR-10c`, `F13`)
 
-*Heading added 2026-09-12 (`F50`): the paragraphs below followed `CNF-173` with no heading between,
-so `tools/check_coverage.py` credited every citation in them to that item.*
-
 ## Ownership, deletion and duplication
 
 - [ ] **CNF-107** — Two tenants cannot both hold the same `(provider_account, external_id)`, and
@@ -1791,7 +1794,8 @@ so `tools/check_coverage.py` credited every citation in them to that item.*
       ignoring the instant — which is precisely the defect. Assert it against `STO-41`'s history
       with a reissued address, or not at all. (`SEC-45`, `SEC-54`, `API-58`)
 - **CNF-114** — **MERGED INTO `CNF-188` 2026-09-02.** Both tested `SEC-46`'s three-state table and
-      both were counted BLOCKING, double-counting one control — the same defect `CNF-195` was
+      both were counted, the duplicate a launch tier below its survivor, double-counting one
+      control — the same defect `CNF-195` was
       already the marker for, on the same requirement, which is a hint about where this document's
       duplicates come from. `CNF-188` is the survivor and carries this item's operator-deficiency
       clause. Identifier retained rather than reused, and not a checkbox.
@@ -1804,13 +1808,3 @@ Beyond the checklist, a deployment must state every parameter on `OVR-19`'s regi
 items (the `needs_reconciliation` rota, the recovery-key inventory) included — and startup must
 refuse to run on a missing or out-of-range startup-validated row. *This section carried its own list
 of thirteen until 2026-09-08; it was a second copy of the register, and it had drifted.*
-
-- `CNF-237` — a delete resolved as failed is a delete an operator retries, which is a **repeated
-  destructive provider mutation**; question (3) of the tiering rule answered yes.
-- `CNF-238` — **money out**: the commitment never closes, so a customer's satoshis stay reserved
-  against a resource that no longer exists, and nothing raises an error.
-- `CNF-239` — **destroyed data**, and the one where the customer has already paid to prevent it.
-  `OPS-36` calls `OPS-41` "what makes `OPS-33`'s early release safe", so this is the test that makes
-  that release honest rather than believed.
-- `CNF-240` — a hung operator endpoint on the money path, and a primitive that cannot be acquired at
-  all on this endpoint's ordinary input.

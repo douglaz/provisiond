@@ -1,5 +1,5 @@
 {
-  "max_uncovered_ratcheted": 99,
-  "recorded": "2026-09-05",
-  "note": "Lower is better. Raise only deliberately, with a reason. 102 -> 101 (2026-09-04) when CNF-277 gained its adopted-machine assertion, giving PRV-28 its first checklist citation. 101 -> 100 (2026-09-05, commit 84acad2) when CNF-241 gained the native-price case, giving LDG-2 its first. 100 -> 99 (2026-09-05) when CNF-23 gained the operator-scope assertions, giving STO-4 its first. Each verified by counting citations at the commit and its parent, not by reasoning about which edit felt responsible -- a first note here credited the wrong requirement."
+  "max_uncovered_ratcheted": 94,
+  "recorded": "2026-09-12",
+  "note": "Lower is better. Raise only deliberately, with a reason. 102 -> 101 (2026-09-04) when CNF-277 gained its adopted-machine assertion, giving PRV-28 its first checklist citation. 101 -> 100 (2026-09-05, commit 84acad2) when CNF-241 gained the native-price case, giving LDG-2 its first. 100 -> 99 (2026-09-05) when CNF-23 gained the operator-scope assertions, giving STO-4 its first. 99 -> 94 (2026-09-12): the measured figure had sat at 94 since the F51 landing (CNF-294..299 gave OPS-49, STO-54, STO-55 and OVR-18 their first citations) and the baseline was ratcheted down to it so the five points of headroom cannot be spent silently. Each verified by counting citations at the commit and its parent, not by reasoning about which edit felt responsible -- a first note here credited the wrong requirement."
 }

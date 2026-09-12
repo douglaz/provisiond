@@ -246,15 +246,22 @@ stalled machine and leave it running with nothing accounting for it; the row now
 exemption.
 
 **F50. CLOSED 2026-09-12 — the tiers are withdrawn whole, and the question the finding asked no
-longer exists.** The four mechanical items below (1, 4, 5, 6) were fixed in the morning. The two
+longer exists.** The four mechanical items below (1, 4, 5, 6) were fixed first — `CNF-238`'s
+qualifier, `CNF-288`'s scope, `PRV-34`'s items; for item 6 the misattributed paragraphs and the
+stale `CNF-236` rationale were then deleted with the tiers rather than re-homed or rewritten, since
+both were tier prose. The two
 judgment items (2, 3) were put to Codex (`gpt-6-astra`, xhigh) and a fresh Claude reader on one
 brief, who agreed on eight of thirteen items and split on five — and on the fifth, `CNF-252`, split
 on what the rule's own third question means. The record's answer was not a verdict: an item is a
 property the system has or does not have, and *when* to demonstrate which is a launch plan's
 question, not this set's. Every inline tag, every assignment paragraph, the tiering rule, the
-blocking-count section and the gate's untiered check were removed in one commit; the gate now
-refuses a tag; nothing any item asserts changed. The panel's per-item reasoning is kept in the
-session's scratch, not here: it argued tiers, and there are none. *The finding as it stood follows,
+blocking-count section and the gate's untiered check were removed — in one commit, and the four
+rationale bullets that commit's script missed under *Before production* in the next; the gate now
+refuses a tag; the cut changed nothing any item asserts, and the two items whose assertions did
+change that day are the fixes above. The panel's per-item reasoning is not kept: it argued tiers,
+and there are none. *Two readers then hunted the withdrawal and found the stragglers, the
+misdated origin (the tiers are in the first commit, 2026-08-09, not 2026-08-11), and three
+documents still describing the old gate as current; all fixed.* *The finding as it stood follows,
 for the record of what the tags preserved.* On 2026-09-09
 every checkbox item in `10-conformance-checklist.md` received its tier inline, copied from the
 assignment paragraphs as they stood; `tools/check_ids.py` prints the count and refuses an untiered
@@ -889,7 +896,7 @@ missing tests exist (`CNF-160`–`CNF-165`: the meter's idempotent debit-plus-de
 `stopped` and `cancellation_scheduled`, the setup-fee debit, per-tenant serialization under load,
 `OPS-36`'s late arrival, `OPS-38`'s many-case), and the five mis-tiered items are promoted with
 the reasoning recorded in the checklist's tier-corrections note (`CNF-99`, `CNF-77`, `CNF-24`,
-`CNF-113`, `CNF-115`). Blocking set 113.
+`CNF-113`, `CNF-115`; *the note went with the tiers on 2026-09-12, `F50`*). Blocking set 113.
 
 ## The funding decision — 2026-08-12
 
@@ -1492,8 +1499,9 @@ not; that blocker is resolved. **Still open:** `CNF-65` is BLOCKING because auto
 can leave unbounded billable attachments, and `CNF-58` is BLOCKING if an unknown stored state can
 become `queued` and repeat a mutation. Neither has been re-tiered, and `F22` means the new
 requirements have no tier at all. *Closed 2026-09-09: both were promoted on 2026-08-13 — the
-checklist's "PROMOTED TO BLOCKING 2026-08-13" paragraph — and the tags on the items read BLOCKING;
-this sentence was stale for four weeks, which is `F50` (7).*
+checklist's "PROMOTED TO BLOCKING 2026-08-13" paragraph, deleted with the tiers on 2026-09-12 — and
+the tags on the items read BLOCKING until the tiers went; this sentence was stale for four weeks,
+which is `F50` (7).*
 
 ## High — fixed 2026-08-09
 

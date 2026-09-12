@@ -27,7 +27,7 @@ TWO RULES, deliberately narrow.
            the standing ones come down as their requirements are next edited.
            The count lives in that file and nowhere else -- a number written
            into prose is wrong the first time either end moves, which this set
-           has now learned in `ADR-0003`, `ADR-0011` and the blocking count.
+           has now learned in `ADR-0003`, `ADR-0011` and `F16`.
 
 Summary verbs are deliberately OUT OF SCOPE. "`OPS-12` forbids automatic retry"
 is a correct, useful paraphrase, and most attributions in the set are of that
