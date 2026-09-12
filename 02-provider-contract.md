@@ -815,7 +815,7 @@ The cost of getting it wrong is not a missed match. A resolution that searched o
 nothing reaches `OPS-27`'s second row — "The provider's search is authoritative and returns nothing
 for any of them, and the negative window has elapsed" — whose effect that table gives as "Closed and
 released in full (`LDG-32`)". So the customer's balance is released and the operation closed while a
-physical server bought on the other channel runs unclaimed at the operator's expense. `OPS-32`'s
+physical server bought on the other channel runs unrecorded at the operator's expense. `OPS-32`'s
 account sweep MUST therefore cover every channel too; it is the only thing that would ever find it,
 and that document states its interval as "the maximum time a customer can be billed for a machine
 that no longer exists" — here it bounds the mirror case, a machine nobody is billed for at all.

@@ -120,8 +120,9 @@ buy at v1's volume, and it does not resolve the semantic disagreement that makes
 - `OPS-15` orders itself after the migration check. `OPS-23` states that a field a previous-release
   `api` may not have written is a deterministic failure in the worker, never a passed check.
 - `OVR-9`'s `store` row keeps "Migrations" and names the entry point. `OVR-19` gains the migration
-  `lock_timeout` and its retry bound, and records the runner's advisory key and `STO-51`'s as
-  distinct.
+  `lock_timeout` and retry count; the runner's advisory key and `STO-51`'s are constants the
+  implementation chooses, distinct by `STO-12`'s rule, and not register rows (*corrected
+  2026-09-12: this consequence first put the key on the register*).
 - `ADR-0022`'s decision bullet on the rename is amended as above.
 - `CNF-57` gains the drill: apply release N's migrations with N−1 `api` and engine running and
   assert no refused write; start N−1 binaries against the N schema and assert they serve; run a

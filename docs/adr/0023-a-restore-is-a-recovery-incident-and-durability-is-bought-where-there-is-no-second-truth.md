@@ -96,12 +96,14 @@ the unique constraint cannot catch it because the conflicting row is the one the
   `needs_reconciliation` and `OPS-27` "establishes what happened rather than doing it again".
   Delete, power, end-rescue and release-attachment are goal-state mutations whose repeat "MUST
   classify `succeeded`", and reverse-DNS sets a value; they re-run. A `suspend_tenant` parent found
-  `running` waits for operator confirmation instead of resuming under `OPS-15`'s exception.
+  `running` — or, since `F51` returned a waiting parent to `queued`, found `queued` and unsettled
+  — waits for operator confirmation instead of resuming under `OPS-15`'s exception (*the `queued`
+  case added 2026-09-12 at the landing's verification*).
 - **`OPS-32`'s complete pass is a step, not a gate, and it runs twice.** The first pass may
   record nothing about absence — `provider_observations` written in Δ are gone, so the effective
   visibility window (`PRV-36`) has been narrowed by the restore, a narrowing the set says is "never
   an engine write" — and a second pass separated by the effective window is what may record absence.
-  What the sweep finds unclaimed is reported, not attached; the restored engine cannot tell a
+  What the sweep finds unrecorded is reported, not attached; the restored engine cannot tell a
   machine created in Δ from one created by hand, and the report says so per account.
 - **Durability posture: asynchronous streaming replication plus continuous WAL archiving, with a
   recovery-point alarm.** The recovery point is stated as the maximum age of WAL not yet in a
@@ -112,7 +114,7 @@ the unique constraint cannot catch it because the conflicting row is the one the
   `SET LOCAL synchronous_commit = on` inside the deposit mint and `STO-30`'s payment-credit
   transaction, both on `api`, against a named standby; `local` everywhere else. Under a stalled
   standby those two hang, which is a degraded money-in path alarmed under `OVR-18`, and they fail
-  safe: `STO-31`'s rail replay is built for a credit that did not land, and `API-11` returns the
+  safe: `STO-31`'s rail replay is built for a credit that did not land, and `API-45` returns the
   locally committed deposit to a caller that re-sends its key. The engine's write path never waits.
 - **Every tenant's credential generation is bumped on restore.** The restored store cannot know
   which tenants revoked inside Δ, so it invalidates every spending token at once; each customer

@@ -312,7 +312,7 @@ obligation this requirement really carries — an unassigned background job is a
 credential boundary.*
 
 **A module is not a process, and the three `ledger` rows run in the engine process** (added
-2026-09-12, `F51`). The table assigns a module, which fixes the dependency rule and the credential
+2026-09-12, decided at `F51`'s landing and recorded there). The table assigns a module, which fixes the dependency rule and the credential
 boundary; it did not say which process hosts a periodic component, and `STO-55` sizes the engine's
 pool by counting them. The meter, re-derivation and the solvency check run in the one engine
 process: each writes on a schedule, and `api` replicas each running them would contend on
@@ -390,8 +390,8 @@ marked human are procedures the deployment records rather than values the proces
 | Recovery-point alarm threshold | `STO-54` | duration | yes |
 | Synchronous standby name | `STO-7`, `STO-54` | identifier | yes |
 | Derivation-index gap on restore | `STO-54` | integer | yes |
-| Migration `lock_timeout` and its retry bound | `STO-13` | duration, integer | no — the migrator's, read at `migrate` |
-| Migration-runner advisory key | `STO-12` | integer, distinct from `STO-51`'s key | yes |
+| Migration `lock_timeout` and retry count | `STO-13` | duration, integer | no — the migrator's, read at `migrate` |
+| Store timeouts: `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout` | `STO-7`, `STO-55` | durations | yes |
 | Engine worker count | `STO-55` | integer | yes |
 | `api` request concurrency per replica, read and write | `STO-55` | integers | yes |
 | Pool checkout bound | `STO-55` | duration | yes |

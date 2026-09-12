@@ -555,7 +555,7 @@ One closed set of error kinds, used by drivers, the rescue engine, and the API a
 | `gone` | Resource existed and was removed by retention (`STO-14`, `STO-33`) | 410 |
 | `suspended` | Tenant is suspended; only the maintenance actions remain (`API-58`) | 403 |
 | `ceiling_exceeded` | A per-principal ceiling for the current interval is exhausted (`SEC-39`) | 429 |
-| `overloaded` | The replica obtained no store connection within the checkout bound; refused before any transaction (`STO-55`). Retryable, and the same key re-sent is a first send | 503 |
+| `overloaded` | The replica obtained no store connection within the checkout bound; refused before any transaction (`STO-55`). Retryable; the refusal leaves no receipt of its own | 503 |
 
 **DOM-21** The `gone` row was added 2026-08-12, by the append-only rule rather than by a handler
 inventing a status. A caller polling an operation id past the retention horizon would otherwise
@@ -602,10 +602,11 @@ carrying one.
 **ADDED 2026-09-12 — a seventh row, `overloaded`, and it is not `rate_limited` either.** `STO-55`
 makes the connection pool the bound on `api` concurrency and refuses a request that obtains no
 connection within the checkout bound. That refusal is about the *replica's* capacity, not the
-caller's rate, so `API-50`'s promise that an obedient caller "MUST never be throttled for rate"
-forbids `429`; and it is not `halted`, which `WIR-9a` reserves for the solvency and rate gates. It
-is admission-only (`OPS-11`): nothing was written, `STO-35` holds no receipt, and re-sending the
-same key is a first send.
+caller's rate. `API-50` allows a non-rate `429` that "MUST say so in its `kind`", and `503` was
+chosen over that because an intermediary reads `429` as the caller's doing and `503` as the
+server's, which is what this is; and it is not `halted`, which `WIR-9a` reserves for the solvency
+and rate gates. It is admission-only (`OPS-11`): nothing was written and the refusal leaves no
+`STO-35` receipt, so a re-send is judged against whatever an earlier send left.
 
 **DOM-17** Every error MUST carry a kind, a human-readable message, a boolean
 `retryable`, and a structured `details` object. `retryable` describes whether repeating

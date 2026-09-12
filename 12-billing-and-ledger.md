@@ -467,8 +467,9 @@ exist. A deployment MUST define, and record:
 - **the cadence** at which a `usage_debit` is posted, which is the granularity at which
   exhaustion can be detected and therefore an input to `wind_down_cost` (`PRV-13b`). **It is a
   row on `OVR-19`, and the stated cadence MUST be the achieved one** (added 2026-09-12, `F51`): the
-  meter posts one transaction per billable subject per interval (`STO-45`), a meter that falls
-  behind its stated cadence under-reserves every machine silently, and lag past one interval is
+  meter writes at least one transaction per billable subject per interval, since `STO-45` says the
+  total row "MUST be written in the same transaction as the increment it closes", a meter that
+  falls behind its stated cadence under-reserves every machine silently, and lag past one interval is
   alarmed on `OVR-18`'s model. *The cadence was on no register until 2026-09-12, against `OVR-19`'s
   own rule;*
 - **which machine states are billable.** `stopped` **is billable** — powering a machine off does
@@ -1094,8 +1095,8 @@ usage cannot be converted to satoshis. A deployment MUST:
   a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
   and quietly extend the exposure past the bound. The deficiency record (`STO-37`) is where they
   live — and a restore that loses the row is the reset this sentence forbids, reached through the
-  backup; `STO-54` re-establishes the rate quorum before the startup lock so the deadline is
-  recomputed from the restore instant, not silently extended (*added 2026-09-12, `ADR-0023`*);
+  backup; `STO-54` lists it among what a restore does not repair, and the report naming the lost
+  window is what tells the operator the clock moved (*added 2026-09-12, `ADR-0023`*);
 - **keep the outage deficiency native-only: it is never converted, at any later rate.** Its
   `rate_num`/`rate_den` stay null for good (`LDG-66`), because there was no rate while it accrued
   and stamping it with the first one to return would price those hours at a number that did not

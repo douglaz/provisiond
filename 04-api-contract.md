@@ -579,7 +579,7 @@ cancellations, which the system really did request (`OPS-39`). This transition i
 worker classification: nothing was claimed and no driver was called, so `OPS-11`'s install row —
 which sends `conflict` to `needs_reconciliation` — does not reach it, and the operation goes
 straight to `failed` as stated. **Not being a classification does not exempt the database write**:
-it is `STO-3`'s fourth named case, guarded on its full predicate — `(id, status = queued,
+it is `STO-3`'s fifth named case (fourth until the defer was listed on 2026-09-12), guarded on its full predicate — `(id, status = queued,
 requested_by = caller, tenant suspended, this suspension's parent still unsettled)`, quoted rather
 than paraphrased since 2026-09-05, when a paraphrase here dropped the `requested_by` term and let
 step (4) fail the system delete step (3) had just named — and reporting whether it affected a row, so a child claimed
@@ -604,7 +604,9 @@ one-transaction rule enqueues the cancellation in the attach transaction itself,
 the suspension**: the engine's startup pass (`OPS-15`) returns an interrupted `suspend_tenant`
 parent to `queued`, and it is re-claimed and resumed like any other queued work, because the sweep
 is idempotent by the open episode (`STO-52`'s index) and mutates no provider itself. It MUST NOT go
-to `needs_reconciliation` and MUST NOT need an operator. Reads of the ledger, the machine list **and the tenant's abuse
+to `needs_reconciliation` and, on a restart, MUST NOT need an operator — *after a restore it waits
+for one (`STO-54`, `OPS-15`), because the fan-out it would resume may have been reversed inside the
+lost interval*. Reads of the ledger, the machine list **and the tenant's abuse
 cases** (`API-59`) MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
 it anyway. *The case reads joined this list on 2026-08-16 for the same reason and one more: the

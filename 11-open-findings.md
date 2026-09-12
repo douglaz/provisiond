@@ -152,7 +152,11 @@ reader — before anything was written, and both rejected it as decided, for the
   provider said to. The bound would have to be wall-clock, added to `PRV-13b`'s reserve term — which
   prices machine *hold*, and a queued wait releases the machine while billing continues.
 - **The counter does not mean what the brief assumed.** `OPS-6` increments `attempts` on a claim;
-  nothing says an index-refused claim is one. Nothing else reads the column.
+  nothing says an index-refused claim is one. Nothing else reads the column. *(As of 2026-09-12
+  the column is `claim_number`, `OPS-6` says a refused claim "does not advance the number",
+  `STO-3` reads it on every worker write, `STO-3` names six guarded writes and the defer is one,
+  and the inventory below for a measured provider-throttle deferral predates all of that —
+  `ADR-0022`, `F51`. The rejection itself stands.)*
 - **The text forbids a re-run record.** `OPS-45`: "a record is no longer re-run (`ADR-0017`)"; the
   markers are write-once; `STO-3` names four guarded writes and running→queued is not one;
   `CNF-288`'s tail says of create, install, power and reverse DNS that "none of those kinds has a
@@ -297,8 +301,12 @@ live database, and the failure mode where the store is reachable but slow" as su
 not specify, and `impl-report-01.md` §6.15 repeated it. Taken up 2026-09-10 to 2026-09-12 in one
 session, each gap put to two independent readers of one brief before anything was decided —
 Codex (`gpt-6-astra`, xhigh) paired with a fresh Claude reader, Fable or Opus. Every pair
-reversed or reshaped the recommendation it was given; the reversals are in the ADRs. Three ADRs
-are **proposed** and become accepted when their amendments land; the fourth gap is a requirement.
+reversed or reshaped the recommendation it was given; the reversals are in the ADRs. Three ADRs,
+accepted when their amendments landed; the fourth gap is a requirement. After the landing, two
+memoryless readers hunted the diff and found a contradiction on lock timeouts, a claim term
+missing from the guard's repeat branch, the retry scope leaking to `api`, a deferred parent the
+restore rule did not hold, and a dozen stale or overstated sentences; all are fixed in the
+landing's last commit, and the ADRs carry the two amendments.
 
 1. **The slow store — `ADR-0022`.** A store error is a bounded whole-transaction retry, then the
    engine exits. "Too slow" is `statement_timeout`; the client deadline is never shorter than
@@ -332,8 +340,8 @@ are **proposed** and become accepted when their amendments land; the fourth gap 
    `LDG-33` first, where a skew destroys a paid disk with no schema change — is a stop-everything
    release, named as such. Rollback is the previous binary against the current schema up to a
    contract step.
-4. **Pool sizing — `STO-55`, beside `STO-7`, no ADR** (two of `LDG-65`'s three tests fail,
-   and both readers said so). The engine's pool is one connection per worker plus one per periodic
+4. **Pool sizing — `STO-55`, beside `STO-7`, no ADR** (a pool size is configuration, so the
+   hard-to-reverse test fails, and both readers said so; `LDG-65` is the precedent). The engine's pool is one connection per worker plus one per periodic
    component; each `api` replica's is one per admitted request plus its periodic rows; the sum with
    the lock connection, the migrator and an operator reserve fits `max_connections` less the
    reserved slots, and the engine checks its own share at startup. The rule that makes the
@@ -347,9 +355,13 @@ are **proposed** and become accepted when their amendments land; the fourth gap 
    synchronous-commit transactions per replica are capped so a stalled standby cannot occupy the
    pool. A `lock_timeout` on `LDG-35`'s primitive or `STO-52`'s index rolls back, releases the
    connection, and repeats the whole transaction with the provider result retained, against the same
-   store-retry bound — `ADR-0022` said what a lock timeout is not and never what the worker does. A
-   `suspend_tenant` parent waiting on children is deferred to `queued` like `OPS-8`'s refused
-   re-acquire, never held in a worker slot. A transaction-mode pooler may front the pools only with
+   store-retry bound — `ADR-0022` first said a lock timeout does "not consume the bound" and never
+   what the worker then does, which read literally is an unbounded loop on a held primitive; the
+   ADR is amended. A `suspend_tenant` parent waiting on children is returned to `queued` with
+   `available_at` advanced, the same write as `OPS-8`'s defer, never held in a worker slot — and
+   `STO-54` therefore holds a `queued` unsettled parent for confirmation on a restore as well as a
+   `running` one. The three `ledger` components of `OVR-17` are placed in the engine process,
+   decided here because the pool is sized by counting them. A transaction-mode pooler may front the pools only with
    `STO-7`'s settings applied to the role, and never carries `OPS-47`'s lock connection. Found
    beside it: **the engine's worker count and `LDG-37`'s metering cadence are on no register**,
    against `OVR-19`'s own rule; both are added, and lag past one cadence interval is alarmed.

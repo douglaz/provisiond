@@ -13,18 +13,22 @@ engine, not by application code. *The number is not the epoch: it is rewritten b
 the same row, which is a writer other than the one being guarded (`OPS-6`).*
 
 **STO-3** **AMENDED 2026-09-12 (`ADR-0022`) — the worker's guard carries the claim number and
-admits its own repeat; the defer is the fifth guarded write.** Five conditional writes move an
-operation, and each MUST report whether it affected a row (`OPS-22`):
+admits its own repeat; the defer is the fifth guarded write and the restore quarantine the
+sixth.** Six conditional writes move an operation, and each MUST report whether it affected a row
+(`OPS-22`):
 
 - **A worker's write** — every settled-state write, and a worker moving its own operation into
   `needs_reconciliation` — is guarded on
-  `(id, status = running, claim_number = mine) OR (id, status = target, the written columns are not
-  distinct from what is being written)`, where `mine` is the number `STO-1`'s claim returned
-  (`OPS-6`). The second branch admits the row this same write already produced, so a repeat after
-  a lost reply (`OPS-49`) affects one row and changes nothing; `revision` and `updated_at` advance
-  only on the first branch, which keeps `API-53`'s "strictly increases on each client-visible
-  modification" true. **The guarded status write is the transaction's first statement and
-  short-circuits the rest**, so `OPS-27`'s multi-row settlement repeats as a unit or not at all.
+  `(id, status = running, claim_number = mine) OR (id, status = target, claim_number = mine, the
+  written columns are not distinct from what is being written)`, where `mine` is the number
+  `STO-1`'s claim returned (`OPS-6`). The second branch admits the row this same execution's write
+  already produced — the claim term is on both branches, since matching columns do not establish
+  matching execution — so a repeat after a lost reply (`OPS-49`) affects one row and changes
+  nothing; `revision` and `updated_at` advance only on the first branch, which keeps `API-53`'s
+  "strictly increases on each client-visible modification" true. **The guarded status write
+  precedes every money write in the transaction and short-circuits the rest** — after `LDG-35`'s
+  primitive is taken where the settlement needs it, since that lock is the transaction's entry —
+  so `OPS-27`'s multi-row settlement repeats as a unit or not at all.
   A write that affects no row means something other than this execution moved the operation —
   the startup pass after a restart, or a later claim after a defer — and the worker exits
   (`OPS-22`). *Until 2026-09-12 the guard was `(id, status = running)` alone; the `epoch = mine`
@@ -53,6 +57,9 @@ operation, and each MUST report whether it affected a row (`OPS-22`):
   episode by naming its queued delete rather than enqueuing a second one, and without this term
   step (4) failed the very delete step (3) had just named — an episode `OPS-48` then holds
   `stalled` for an operator, on a machine the suspension had reported as accounted for.*
+- **The restore quarantine** (`STO-54`, `OPS-15`) moves a `queued` create, install or rescue
+  inventory to `needs_reconciliation`, guarded on `(id, status = queued)`, and carries no claim
+  term: it runs before any claim. *Added 2026-09-12.*
 
 **STO-4** The store MUST enforce uniqueness of `(scope_kind, scope_id, key)` on `STO-35`'s
 `idempotency_records` — the tenant or the operator identity as the scope (`API-10`). *"Of
@@ -141,21 +148,28 @@ exposure-reducing components behind the workers. **The rule that makes the arith
 worker, sweep or watcher MUST NOT hold two transactions at once and MUST NOT hold a transaction
 open across a provider, rail or rescue-host call — a sweep selects a bounded batch by key, commits,
 and writes per row in its own transaction, and a cursor held on one connection while writing on
-another would deadlock a pool sized this way on its first pass. `LDG-69` says "A deployment MUST
-hold `LDG-35`'s primitive for the duration of one database transaction and no longer", which is
-this rule for the tenant primitive alone; it holds for every transaction. `STO-7`'s
-`idle_in_transaction_session_timeout` MUST be shorter than every provider timeout and `RSC-35`'s
-boot timeout, which is what makes the prohibition a property the store enforces.
+another would deadlock a pool sized this way on its first pass; the batch size is the
+implementation's, not a deployment parameter. `LDG-69` says "A deployment MUST hold `LDG-35`'s
+primitive for the duration of one database transaction and no longer", which is this rule for
+the tenant primitive alone; it holds for every transaction. `STO-7`'s
+`idle_in_transaction_session_timeout` — on `OVR-19` with the other store timeouts — is what bounds
+a violation: set shorter than `RSC-35`'s rescue timeouts, the one network wait the set states, it
+kills a transaction held across a long call, though a quick call inside a transaction breaks the
+rule without tripping it, which is why the rule is stated and not only the timeout. **The
+deployment MUST state the engine's worker count and each replica's read and write request
+concurrency** (`OVR-19`); the pools are sized from them.
 
 - **The pool is `api`'s concurrency bound, and a refusal happens before any transaction.** Nothing
   else bounds authenticated request concurrency — `API-29`'s per-tenant limit is a SHOULD and is
   about rate, and `WIR-49`'s held token requests cost no pool slot. A request that obtains no
   connection within a stated checkout bound (`OVR-19`) is refused `overloaded` (`DOM-17`, HTTP 503,
-  `retryable: true`, `retry_after_ms`) before any transaction begins, so `STO-35` writes no receipt
-  and the same key re-sent later is a first send under `API-11`. It is not `rate_limited`: `API-50`
-  promises an obedient caller is never throttled for rate, and a full pool is not the caller's rate.
-  Read and write checkouts are budgeted separately (`API-50`), so a poller cannot crowd out an
-  extension.
+  `retryable: true`, `retry_after_ms`) before any transaction begins, so the refusal writes no
+  `STO-35` receipt of its own, and `API-11` judges the key's re-send against whatever receipt an
+  earlier send left — none, for a key never sent before. It is not `rate_limited`: `API-50` says an
+  obedient caller "MUST never be throttled for rate", and a full pool is the replica's condition,
+  not the caller's rate, so the decision is `503` rather than a non-rate `429`. Read and write
+  checkouts are budgeted separately, on the same reasoning `API-50` applies to rate limits, so a
+  poller cannot crowd out an extension.
 - **Synchronous-commit transactions are capped per replica** (`OVR-19`), so a stalled standby
   (`STO-7`) occupies at most that many connections and the rest of the pool keeps serving reads,
   suspension and every other write.
@@ -173,10 +187,10 @@ boot timeout, which is what makes the prohibition a property the store enforces.
   are compatible. `CNF-56`'s fresh-checkout assertion MUST force a backend reassignment where a
   pooler is present.
 
-*Why no ADR: pool sizes and admission bounds are configuration, so the first of `LDG-65`'s three
-tests fails, and two independent readers said so. What was found beside it — the engine's worker
-count and `LDG-37`'s cadence on no register — is a defect of `OVR-19`'s own rule, and both rows are
-added.*
+*Why no ADR: pool sizes and admission bounds are configuration, so the hard-to-reverse test fails,
+and two independent readers said so; `LDG-65` is the set's precedent for recording a reversible
+decision without one. What was found beside it — the engine's worker count and `LDG-37`'s cadence
+on no register — is a defect of `OVR-19`'s own rule, and both rows are added.*
 
 ## Schema
 
@@ -1038,7 +1052,8 @@ not mention them — the failure class this document's own scope note exists to 
 be applied by a real migration runner that tracks applied versions. Splitting a schema file on
 statement separators in application code is fragile — it breaks on the first trigger body, string
 literal, or `BEGIN…END` block — and it provides no versioning. See `DEF-13`. The runner MUST hold
-a **transaction-scoped advisory lock on a fixed key distinct from `STO-51`'s** across inspecting the
+a **transaction-scoped advisory lock on a fixed key distinct from `STO-51`'s** — both keys are
+constants the implementation chooses, not deployment parameters — across inspecting the
 history, applying a migration and recording its completion, one migration per transaction, so the
 recorded version never runs ahead of the DDL and two runners cannot interleave. *`STO-51`'s startup
 lock is not this lock: it is held on a connection outside the pool, an advisory lock conflicts only
@@ -1058,15 +1073,17 @@ migration MUST be safe against a running instance of the previous release of bot
 - it MUST NOT write a value of an enumerated column the previous release does not recognize —
   `STO-10` makes that "a hard error, not a silent default" on every old reader — so **the release
   that adds a value does not write it, and the release after may**;
-- DDL that takes `ACCESS EXCLUSIVE` MUST run under a `lock_timeout` with a bounded retry
+- DDL that takes `ACCESS EXCLUSIVE` MUST run under a stated `lock_timeout` and retry count
   (`OVR-19`), and index builds on `operations`, `ledger_entries` and `machines` MUST be
-  `CONCURRENTLY`, so a migration never queues `api` behind it.
+  `CONCURRENTLY`, so that the time `api` queues behind a migration is bounded — the table lock
+  still queues every later statement on that table behind it while held.
 
 A removal, rename, tightening or `VALIDATE` is a **contract step** and ships no earlier than the
 release after the one that stopped depending on the thing removed. Every component MUST read the
-recorded schema version at startup and exit non-zero where it is *older* than the version it
-requires, and MUST serve a *newer* one — a component refusing a newer schema would refuse the
-normal state of every roll. **Rollback is the previous binary against the current schema**,
+recorded schema version before it does anything else — `api` before its listener opens, the
+engine before `STO-51`'s startup lock and so before `OPS-15`'s pass — and exit non-zero where it
+is *older* than the version it requires, and MUST serve a *newer* one — a component refusing a
+newer schema would refuse the normal state of every roll. **Rollback is the previous binary against the current schema**,
 admissible up to and not past a contract step; past one there is no down-migration, and recovery
 is `STO-54`'s restore. **A change to a predicate or derivation both components evaluate on shared
 rows is made safe by none of the above** — `LDG-33`, `STO-3`'s guards, `OPS-42`/`LDG-62`'s fence
@@ -1112,8 +1129,8 @@ procedure, never a restart.** A store restored from backup lands at some instant
 the failure, and an engine brought up on it as if nothing happened *performs* destructive actions
 on state the restore rewrote: an extension lost in Δ routes a paid machine into `LDG-14`, a token
 revoked in Δ is live again (`API-56`), a `queued` create that already ordered in Δ orders again
-(`OPS-15` inspects `running` rows only), and a `suspend_tenant` parent restored to `running`
-re-runs a fan-out the operator may have reversed. So:
+(on a restart `OPS-15` inspects `running` rows only), and a `suspend_tenant` parent restored
+unsettled re-runs a fan-out the operator may have reversed. So:
 
 - **Durability posture.** The deployment runs asynchronous streaming replication and continuous
   WAL archiving, and states a **recovery point** — the greatest age of a committed write not yet in
@@ -1127,19 +1144,23 @@ re-runs a fan-out the operator may have reversed. So:
   write was rejected because PostgreSQL has no server-side timeout for the standby wait, which
   would make `OPS-49`'s lost reply the steady state on every write (`ADR-0023`).
 - **The procedure, in this order.** (1) *Before the startup lock:* the public listener is down;
-  the lost window `T − Δ` is stated as a number and published to the operator; the exhaustion
-  sweep, `LDG-64`'s canceller, `API-34`'s time-to-live sweep, `STO-14`'s and `STO-43`'s retention
-  and `OPS-15`'s `suspend_tenant` exception — the periodic rows of `OVR-17`'s table, cited rather
-  than restated — are frozen, because starting either component to reconcile starts all of them;
-  `provider_account_status` and the rate quorum are re-established, since `LDG-16` and `STO-36`
-  route on them; every machine whose stored `runway_until` has passed has `exhausted_since` set to
-  the restore instant, which is `LDG-16`'s own grace for a date moved backward by something other
-  than consumption. (2) *Before the first claim:* every `queued` create, install and rescue
-  inventory is moved to `needs_reconciliation` — a repeat is a second order, a second disk write, a
-  second boot into rescue — and `OPS-27` establishes what happened rather than doing it again; the
-  goal-state kinds (delete, power, end-rescue, release attachment, reverse DNS) re-run, since
-  `OPS-11` classifies "already in the target state" as `succeeded`; a `suspend_tenant` parent
-  found `running` waits for operator confirmation instead of resuming. (3) *Before the first `api`
+  the lost window `T − Δ` is stated as a number and published to the operator; exactly five
+  things are frozen, because starting either component to reconcile starts everything it hosts —
+  the exhaustion sweep, `LDG-64`'s canceller, `API-34`'s time-to-live sweep, `STO-14`'s and
+  `STO-43`'s retention, and `OPS-15`'s `suspend_tenant` exception — and the freeze lifts when step
+  (3) completes, except the exception, which stays off until the operator has confirmed or
+  cancelled every waiting parent; `OPS-27`'s and `OPS-32`'s sweeps, the meter, re-derivation, the
+  solvency check and the settlement watcher are not frozen, and the account sweep's two passes are
+  a step below; `provider_account_status` and the rate quorum are re-established, since `LDG-16`
+  and `STO-36` route on them; every machine whose stored `runway_until` has passed has
+  `exhausted_since` set to the restore instant, which is `LDG-16`'s own grace for a date moved
+  backward by something other than consumption. (2) *Before the first claim:* every `queued`
+  create, install and rescue inventory is moved to `needs_reconciliation` — a repeat is a second
+  order, a second disk write, a second boot into rescue — and `OPS-27` establishes what happened
+  rather than doing it again; the goal-state kinds (delete, power, end-rescue, release attachment,
+  reverse DNS) re-run, since `OPS-11` classifies "already in the target state" as `succeeded`; a
+  `suspend_tenant` parent found `running`, or `queued` and unsettled (`OPS-49`'s waiting parent
+  is `queued`), waits for operator confirmation instead of resuming. (3) *Before the first `api`
   request:* the watch set is re-derived (`STO-32`), both rails are replayed (`STO-31`), `SEC-39`'s
   counters are re-seeded, every tenant's credential generation is bumped — the restored store
   cannot know which tenants revoked inside Δ, so every spending token dies and each customer
@@ -1156,8 +1177,12 @@ re-runs a fan-out the operator may have reversed. So:
   the four destructive witnesses above through it (`CNF-295`).
 
 *What the restore does not repair, stated so it is not assumed: a debit lost in Δ is re-metered
-from the rolled-back high-water mark and re-priced at one rate across the span (`LDG-38`'s split
-is lost with `rate_observations`); a gone-write lost in Δ extends the customer's charge to the next
-complete pass (`LDG-74`), and the correction is an operator `LDG-5` entry; a commitment is "not a
-ledger entry" (`LDG-30`) and is not rebuilt from payments; `LDG-72`'s checks pass on a consistent
-restore and prove nothing about it.*
+from the rolled-back high-water mark, and the rate boundaries `LDG-38` would have split the span
+at are gone with the `rate_observations` written in Δ; a gone-write lost in Δ extends the
+customer's charge to the next complete pass (`LDG-74`), and the correction is an operator `LDG-5`
+entry; a commitment is "not a ledger entry" (`LDG-30`) and is not rebuilt from payments;
+`LDG-64`'s persisted outage start and deadline are lost with their `STO-37` row, and the report
+naming `T − Δ` is what tells the operator the clock moved; a `running` install found after a
+restore goes to `needs_reconciliation` with its `OPS-45` markers as the backup holds them, so a
+null marker there does not mean the disk is untouched and the operator resolves such a row as
+ambiguous; `LDG-72`'s checks pass on a consistent restore and prove nothing about it.*

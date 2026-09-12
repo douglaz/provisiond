@@ -37,7 +37,7 @@ account was only ever determined inside the call that vanished.
 | State | Meaning | Terminal |
 |---|---|---|
 | `queued` | Waiting for a worker | no |
-| `running` | Claimed by the engine, whose settled-state writes are guarded on this status (`STO-3`) | no |
+| `running` | Claimed by the engine, whose settled-state writes are guarded on this status and the claim number, and admit their own repeat (`STO-3`) | no |
 | `succeeded` | Completed; result recorded | yes |
 | `failed` | Completed unsuccessfully; provider state is known | yes |
 | `needs_reconciliation` | Outcome unknown; resolution pending (`OPS-3`) | **no** — settles to `succeeded` or `failed` |
@@ -319,8 +319,9 @@ second order, a second disk write or a second boot into rescue, and `OPS-27` est
 happened rather than doing it again. The goal-state kinds — delete, power, end-rescue, release
 attachment, reverse DNS — stay `queued` and re-run, because `OPS-11` classifies "already in the
 target state" as `succeeded`. And the `suspend_tenant` exception below does not fire on a restore:
-a parent found `running` waits for operator confirmation, since the fan-out it would resume may
-have been reversed inside the interval.
+a parent found `running`, or found `queued` and unsettled — which is where `OPS-49`'s deferred
+parent sits, and the likelier state at any backup instant — waits for operator confirmation and is
+not claimed, since the fan-out it would resume may have been reversed inside the interval.
 
 **A `refresh` found `running` at startup MUST be settled `failed`** — the same guarded write as
 above (`STO-3`), with an `internal` error naming the restart, the nearest of `DOM-17`'s kinds —
@@ -329,9 +330,10 @@ nothing the provider may have done that nobody recorded, and `WIR-35`'s resolve 
 by kind. *Added 2026-09-08 (`ADR-0020`): until then this pass sent an interrupted refresh to a
 state whose only exits refused it.*
 
-**`suspend_tenant` is the other exception, and it MUST NOT require an operator.** A
+**`suspend_tenant` is the other exception, and on a restart it MUST NOT require an operator.** A
 `suspend_tenant` parent (`API-58`) found `running` at startup MUST be returned to `queued` and
-re-claimed like any other queued work, resuming its fan-out from wherever it stopped. It mutates no
+re-claimed like any other queued work, resuming its fan-out from wherever it stopped — *on a
+restart; after a restore it waits, above (`STO-54`)*. It mutates no
 provider itself — its per-machine children do, and each child is an ordinary operation the rules
 above already govern — so a crashed parent leaves nothing ambiguous to establish, and the re-sweep
 is idempotent by `OPS-39`'s dedup: an open episode per machine and key (`STO-52`) makes a repeated
@@ -1236,11 +1238,13 @@ the only road, but the commitment was released long before.
 ## Worker algorithm
 
 ```
-startup:                                          # OPS-47, OPS-15
+startup:                                          # STO-13, OPS-47, OPS-15
+    if schema_version() < required:               # STO-13: older than required -> refuse;
+        exit_nonzero()                            #   newer is served
     if not take_startup_lock(bound):              # STO-51: session-scoped, held for life
         exit_nonzero()                            # OPS-47: another engine is already here
-    n = move_running_to_needs_reconciliation()    # suspend_tenant parents -> queued
-    log(n)
+    n = move_running_to_needs_reconciliation()    # suspend_tenant parents -> queued (restart;
+    log(n)                                        #   after a restore they wait, STO-54)
 
 loop:
     op, mine = claim_next_queued_operation()      # OPS-5: atomic, marks running,
@@ -1269,9 +1273,10 @@ loop:
 A settled-state write affecting no row means something that was not this execution moved the
 operation — `OPS-15`'s startup pass after a restart, or a later claim after a defer — so the worker
 stops there. A repeat of its own write, after a lost reply, affects one row and is success
-(`STO-3`). `OPS-45`'s markers and `OPS-42`'s fence write machine rows and carry no such guard,
-which is why `OPS-47` says "where two engines run, nothing here refuses the second, and both will
-work the queue" instead of implying otherwise.
+(`STO-3`). `OPS-42`'s fence writes a machine row and carries no such guard, which is why `OPS-47`
+says "where two engines run, nothing here refuses the second, and both will work the queue"
+instead of implying otherwise. *This sentence named `OPS-45`'s markers beside the fence until
+2026-09-12; they are `operations` columns and are guarded like any worker write.*
 
 **OPS-21** `execute` MUST be cancellable, and cancellation MUST be treated as an
 ambiguous outcome. A provider call abandoned mid-flight is exactly the uncertainty this
@@ -1292,36 +1297,46 @@ requirement carried until `ADR-0019` could not fail, because the claiming proces
 value it then compared against.*
 
 **OPS-49** **ADDED 2026-09-12 (`ADR-0022`) — a store error is a bounded whole-transaction retry,
-then the engine exits.** Where a store call by a worker or a periodic component errors or times
-out, the component MUST repeat the **whole transaction** — never the last failed statement, and
-never the provider call (`OPS-12`) — with the provider's outcome retained in memory, for a stated
-bound (`OVR-19`), and on exhausting the bound MUST log loudly and the engine MUST exit non-zero
-into its supervisor, where `OVR-18`'s alarm is watching. The bound covers connection, execution,
-commit, read-back and backoff together, and it is a money parameter: on exhaustion the outcome in
-hand is thrown away and `OPS-15` classifies the row as interrupted.
+then the engine exits.** Where a store call by a worker, or by a periodic component running in the
+engine process (`OVR-17`), errors or times out, the component MUST repeat the **whole
+transaction** — never the last failed statement, and never the provider call (`OPS-12`) — with the
+provider's outcome retained in memory, for a stated bound (`OVR-19`), and on exhausting the bound
+MUST log loudly and the engine MUST exit non-zero into its supervisor, where `OVR-18`'s alarm is
+watching. The bound covers connection, execution, commit, read-back and backoff together, and it
+is a money parameter: on exhaustion the outcome in hand is thrown away and `OPS-15` classifies the
+row as interrupted. A periodic component whose repeated write affects no row under a write-once
+guard — `STO-3`'s resolution write, `STO-52`'s episode index — has seen its earlier attempt land,
+and moves on. **`api`'s components do not run this loop**: a failed request transaction is the
+caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 
 - **"Too slow" is `statement_timeout`.** The client-side deadline on a store call MUST NOT be
   shorter than `STO-7`'s server-side timeouts, so the server decides every statement's fate before
   the client does and the only lost reply is a dead transport. A server-side timeout is a refused
   write, and the repeat finds the row unchanged; a lost reply after a durable commit is the case
   `STO-3`'s repeat-admitting guards exist for.
-- **Constraint violations, serialization failures and lock timeouts are not store errors** and do
-  not consume the bound. A unique violation on a repeat is the repeat landing on its own earlier
-  commit, and the guarded status write being the transaction's first statement short-circuits the
-  rest (`STO-3`). A serialization failure is repeated at once. A `lock_timeout` on `LDG-35`'s
-  primitive or on `STO-52`'s index rolls back, releases the connection before any backoff, and
-  repeats the whole transaction with the provider outcome retained, against this same bound — the
-  symptom of a genuinely stuck store is indistinguishable at the client.
+- **Constraint violations and serialization failures are not store errors** and do not consume
+  the bound. A unique violation on a repeat is the repeat landing on its own earlier commit, and
+  the guarded status write preceding the money writes short-circuits the rest (`STO-3`). A
+  serialization failure is repeated at once. **A `lock_timeout` is a store error for this
+  purpose**: on `LDG-35`'s primitive or on `STO-52`'s index it rolls back, releases the connection
+  before any backoff, and repeats the whole transaction with the provider outcome retained,
+  against this same bound — the symptom of a genuinely stuck store is indistinguishable at the
+  client, and a lock timeout outside any bound is an unalarmed loop on a held primitive. *`ADR-0022`
+  first said a lock timeout "do[es] not consume the bound" and said nothing about what the worker
+  then does; `F51` decided this and the ADR carries the amendment.*
 - **A lost reply on the claim itself is fatal, not retried blind.** The claim's returned row is the
   only way the engine learns what it claimed; a claim repeated after a lost reply strands a
   `running` row with no worker, which `OPS-15` says "nothing but a restart can" do. The engine
   exits and the startup pass classifies it.
 - **A worker cancelled during the retry loop stops retrying and exits.** `OPS-15` gives the same
   answer either way once the process is gone.
-- **A suspension parent waiting on its children is deferred, not held.** A `suspend_tenant`
-  parent (`API-58`) whose children are still queued MUST be returned to `queued` with a short delay
-  under `OPS-8`'s defer rather than occupy a worker while it waits; N parents waiting in N workers
-  would leave no worker for the children they wait on.
+- **A suspension parent waiting on its children is deferred, not held** (*this bullet is `F51`'s,
+  not `ADR-0022`'s*). A `suspend_tenant` parent (`API-58`) whose children are still queued MUST be
+  returned to `queued` with `available_at` advanced — the same write as `OPS-8`'s defer, though
+  nothing refused it — rather than occupy a worker while it waits; N parents waiting in N workers
+  would leave no worker for the children they wait on. Its state while waiting is `queued`, which
+  is why `STO-54`'s restore rule holds a `queued` parent for confirmation as well as a `running`
+  one.
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

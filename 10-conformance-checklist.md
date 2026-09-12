@@ -576,10 +576,11 @@ not optional hardening — they are the only structural defence there is.
       apply release N's migrations through the `migrate` entry point and assert no `api` write is
       refused and no engine write exits; start two runners at once and assert one waits on
       `STO-12`'s key while the engine's startup lock is untouched; start N−1 binaries against the N
-      schema and assert they serve, then start an N binary against the N−1 schema and assert it
-      exits non-zero; run an N−1 `api` extension against an N engine cancellation and a settlement
-      replay across the pair; and put a contract step in the same release as its expansion and
-      assert the migration is refused. (`STO-12`, `STO-13`)
+      schema and assert they serve, then start a binary against a schema older than the version it
+      requires and assert it exits non-zero before its listener opens or, for the engine, before
+      the startup lock; and, for a release not declared stop-everything, run an N−1 `api`
+      extension against an N engine cancellation and a settlement replay across the pair.
+      (`STO-12`, `STO-13`)
 - [ ] **CNF-58** **BLOCKING** — An unrecognized status read from the store is a hard error. (`STO-10`)
 - [ ] **CNF-59** **PRE-SCALE** — A deleted machine is tombstoned, and operations referencing it still
       resolve. (`STO-8`)
@@ -847,16 +848,20 @@ takes the machines *and* the float" partly false.
       signed spend, by someone other than whoever wrote it. Before the first customer payment.
       (`SEC-53`)
 - [ ] **CNF-295** **BLOCKING** — **The restore rehearsal** (added 2026-09-12, `ADR-0023`). Before the
-      first customer payment, by someone other than whoever wrote the procedure: take a backup,
-      then in the lost interval extend a machine's runway from balance, revoke a spending token,
-      let a `queued` create order and a `queued` raw-disk install write, and suspend then resume
-      a tenant; restore, and run `STO-54`'s procedure in its stated order. Assert: no provider
-      mutation and no disk write occurs before the first claim; the extended machine is not routed
-      into exhaustion during `LDG-16`'s interval and its re-extension clears `exhausted_since`; the
-      old token authenticates nothing and the recovery credential issues a new one (`API-56`); the
-      create and the install are `needs_reconciliation`, never claimed, and `OPS-27` resolves the
-      create `observed` against the machine the lost interval bought; the `suspend_tenant` parent
-      does not resume without operator confirmation; the sweep's first pass records no absence and
+      first customer payment, by someone other than whoever wrote the procedure: with a
+      `suspend_tenant` parent unsettled — once `running`, once `queued` under `OPS-49`'s defer —
+      take a backup, then in the lost interval extend a machine's runway from balance, revoke a
+      spending token, let a `queued` create order and a `queued` raw-disk install write, and let
+      the parent settle and the tenant resume; restore, and run `STO-54`'s procedure in its stated
+      order. Assert: no worker makes a provider mutation and nothing writes a disk before the first
+      claim (`OPS-32`'s deletion of an orphaned imported image is the one provider call the freeze
+      does not stop); the extended machine is not routed into exhaustion during `LDG-16`'s interval
+      and its re-extension clears `exhausted_since`; the old token authenticates nothing and the
+      recovery credential issues a new one (`API-56`); the create and the install are
+      `needs_reconciliation`, never claimed, and `OPS-27` resolves the create `observed` where its
+      correlator was written before the backup and otherwise leaves it to the operator; the
+      `suspend_tenant` parent, in either state, does not resume without operator confirmation; the
+      sweep's first pass records no absence and
       its second may; and the operator report names `T − Δ` and every unrecorded machine per
       account. (`STO-54`, `OPS-15`, `LDG-16`, `API-56`, `OPS-27`, `OPS-32`)
 - [ ] **CNF-296** **BLOCKING** — **The two synchronous writes hang alone** (added 2026-09-12,
@@ -874,17 +879,20 @@ takes the machines *and* the float" partly false.
       2026-09-12, `F51`). With the engine's pool sized exactly to `STO-55`'s count, run every
       periodic component and a full worker set against a fleet larger than one sweep batch and
       assert no component ever waits for a second connection; instrument every provider, rail and
-      rescue-host call and assert none is made while that component holds an open transaction;
-      set `idle_in_transaction_session_timeout` to `STO-55`'s bound and assert a transaction
-      deliberately held across a provider call is killed by the server, not by the client. Then,
+      rescue-host call and assert none is made while that component holds an open transaction —
+      the instrumentation is the check, since a quick call inside a transaction trips no timeout;
+      then hold a transaction open past `idle_in_transaction_session_timeout` and assert the server
+      kills it, which is the bound on a violation the instrumentation would otherwise catch. Then,
       with the three `ledger` components running in the engine process (`OVR-17`), assert an `api`
       replica runs none of them. (`STO-55`, `STO-7`, `OVR-17`)
 - [ ] **CNF-299** **BLOCKING** — **`overloaded` is refused before any transaction, and the pool
       keeps serving under a stalled standby** (added 2026-09-12, `F51`). Saturate one replica's
-      write checkouts and assert the next write is refused `overloaded`, 503, with
-      `retry_after_ms`, that `STO-35` holds no receipt for its key, that the same key re-sent after
-      capacity returns succeeds as a first send, and that a read still succeeds under the separate
-      read budget. Then stall the standby (`CNF-296`'s method) with more funding requests than the
+      write checkouts and assert the next write, under a key never sent before, is refused
+      `overloaded`, 503, with `retry_after_ms`, that `STO-35` holds no receipt for that key, that
+      the same key re-sent after capacity returns succeeds as a first send, and that a read still
+      succeeds under the separate read budget; then repeat with a key whose first send committed
+      before its reply was lost, and assert the re-send after the refusal returns the existing
+      operation (`API-11`). Then stall the standby (`CNF-296`'s method) with more funding requests than the
       synchronous-commit cap and assert no more than the cap's connections are occupied and a
       suspension request (`API-58`) is admitted. Then let the meter fall behind its cadence by more
       than one interval and assert the alarm fires. (`STO-55`, `DOM-17`, `API-50`, `LDG-37`)
@@ -991,16 +999,18 @@ rather than acquiring a default.
       nothing here refuses the second, and both will work the queue".* (`OPS-47`,
       `STO-51`, `OPS-15`, `STO-3`, `ADR-0019`)
 - [ ] **CNF-294** **BLOCKING** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
-      settled-state write, an `OPS-45` marker write and an `OPS-8` defer: let the transaction
-      commit and drop the reply before the client sees it, let the worker repeat the whole
-      transaction under `OPS-49`, and assert the repeat affects one row, changes no column,
-      advances `revision` no further, and the worker continues — never exits. Then make the store
-      refuse the write with a server-side `statement_timeout` and assert the repeat finds the row
-      still `running` and lands normally. Then hold the store unavailable past the stated
-      store-retry bound (`OVR-19`) and assert the engine exits non-zero with the provider outcome
-      logged, never re-issuing the provider call (`OPS-12`); on restart `OPS-15` classifies the
-      row. Then hold `LDG-35`'s primitive on a tenant past `lock_timeout` and assert the meter's
-      write repeats as a whole transaction against the same bound rather than looping outside it.
+      settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
+      reply before the client sees it, let the worker repeat the whole transaction under `OPS-49`,
+      and assert the repeat affects one row, changes no column, advances `revision` no further,
+      and the worker continues — never exits. For an `OPS-8` defer repeated the same way, assert
+      the repeat affects **no row** and the worker moves on, since the row is already `queued`
+      (`STO-3`). Then make the store refuse the write with a server-side `statement_timeout` and
+      assert the repeat finds the row still `running` and lands normally. Then hold the store
+      unavailable past the stated store-retry bound (`OVR-19`) and assert the engine exits
+      non-zero, logging loudly, never re-issuing the provider call (`OPS-12`); on restart `OPS-15`
+      classifies the row. Then hold `LDG-35`'s primitive on a tenant past `lock_timeout` and
+      assert the meter's write — a periodic component in the engine process — repeats as a whole
+      transaction against the same bound rather than looping outside it.
       Then drop the reply to a *claim* and assert the engine exits rather than claiming again.
       Asserted with `STO-7`'s client deadline set no shorter than the server timeouts, and with an
       abandoned connection reset before reuse. (`OPS-49`, `OPS-22`, `STO-3`, `STO-7`, `OPS-6`)
@@ -1043,8 +1053,12 @@ rather than acquiring a default.
       For every operation kind, drive an operation to `failed` and to `needs_reconciliation` and
       assert there is no route — no endpoint on either listener, no operator verb, no sweep — that
       moves it back to `queued` (`OPS-4`). **A restore is the route this item did not enumerate**
-      (added 2026-09-12, `ADR-0023`): it returns a settled row to `queued` by rewriting the store,
-      and `STO-54` is what stands in its way — `CNF-295` asserts it. **Then assert the recovery that replaced it is scoped to the episode**: `retry` (`API-64`) on a
+      (added 2026-09-12, `ADR-0023`): it returns a settled row to `queued` by rewriting the store.
+      For create, install and rescue inventory `STO-54` stands in its way — `CNF-295` asserts it;
+      for the goal-state kinds the row *does* re-enter `queued` and re-runs, and `OPS-11`'s
+      "already in the target state" rule is what makes that a success rather than a second
+      mutation, so this item's universal holds for the kinds whose repeat is a purchase or a disk
+      write and not for every kind. **Then assert the recovery that replaced it is scoped to the episode**: `retry` (`API-64`) on a
       `stalled` episode enqueues a **fresh** `delete_machine` attempt under the same episode id and
       leaves the failed attempt's row untouched; `retry` on an episode in any other state is `409`
       `state`; and no episode ever carries a `create_machine`, `install`, `power`
@@ -1168,7 +1182,8 @@ rather than acquiring a default.
       receive **different** handles and different credentials. The withdrawn rule returned the
       same handle, and the handle's response carries both secrets. (`API-40`, `WIR-12`)
 - [ ] **CNF-197** **PRE-SCALE** — A resolution transition out of `needs_reconciliation` succeeds with **no worker**
-      — by sweep and by operator verb, guarded on `(id, status = needs_reconciliation)` alone —
+      — by sweep and by operator verb, guarded on `(id, status = needs_reconciliation, resolution
+      IS NULL)` and no claim term —
       while a *worker* write against an operation moved by something else affects no row, **and a
       worker's repeat of its own settled-state write affects one row and changes nothing**
       (corrected 2026-09-12, `ADR-0022`: the item read "against an operation no longer `running`",
@@ -1729,7 +1744,7 @@ rather than acquiring a default.
       assuming one response, yields on `rate_limited` instead of retrying into it, does not delay
       caller-initiated work, and reads by `(provider_account, external_id)` against the index
       `STO-17`'s constraint supplies. An imported image whose operation has settled is **deleted** by
-      the same sweep, while an unclaimed machine is only reported. (`OPS-32`, `STO-17`, `ADR-0013`)
+      the same sweep, while an unrecorded machine is only reported. (`OPS-32`, `STO-17`, `ADR-0013`)
 - [ ] **CNF-246** **PRE-SCALE** — **The balance poll does not grow with the fleet.** `GET /v1/balance` returns the
       totals and `earliest_runway_until` with no per-commitment array; `?commitments=true` returns it
       cursor-paginated, and on the full listing `committed_sats` equals the sum of `reserved_sats`.

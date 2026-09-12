@@ -62,11 +62,15 @@ by any path". A create deferred once read `2`.
   deadline on a store call MUST NOT be shorter than `STO-7`'s server-side timeouts, so the server
   decides every statement's fate before the client does, and the only lost reply is a dead
   transport. A connection abandoned mid-transaction MUST be reset before it returns to the pool.
-- **Constraint violations, serialization failures and lock timeouts are not store errors** in this
-  sense. They do not consume the bound. A unique violation on a repeat is the repeat landing on its
-  own earlier commit and is handled by the next bullet; a serialization failure is retried at once
-  under PostgreSQL's own guidance; a lock timeout is a held `LDG-35` primitive, not an unavailable
-  store.
+- **Constraint violations and serialization failures are not store errors** in this sense. They
+  do not consume the bound. A unique violation on a repeat is the repeat landing on its own earlier
+  commit and is handled by the next bullet; a serialization failure is retried at once under
+  PostgreSQL's own guidance. **Amended 2026-09-12 (`F51`):** this bullet first listed lock timeouts
+  with them, as "a held `LDG-35` primitive, not an unavailable store", and said nothing about what
+  the worker then does — which read literally is an unbounded loop on a held primitive. A
+  `lock_timeout` now rolls back, releases the connection, and repeats the whole transaction against
+  the same bound (`OPS-49`), because a stuck store and a held primitive are indistinguishable at the
+  client.
 - **Every worker write is idempotent under repeat.** The settle guard admits the row it already
   produced: `status = running OR (status = target AND the written columns are not distinct from
   what is being written)`; `revision` and `updated_at` advance only on the `running` branch, so

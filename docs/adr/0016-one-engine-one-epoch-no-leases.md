@@ -52,7 +52,9 @@ that is a property of pausable processes, not of this specification, and per-mac
 only have moved the token from the operation to the machine's ownership. A token per operation
 means a heartbeat cadence, a lease duration, a sweep interval tied to it, an equality-at-expiry rule,
 and a renewal of two rows in one transaction, all of which have to agree and all of which the
-2026-09-07 review found either absent or unstated. A token per process lifetime is one column, one
+2026-09-07 review found either absent or unstated. *(The universal in that sentence is retired:
+`ADR-0022`'s claim number is a per-operation term with no cadence, lease, expiry or renewal, and
+defends nothing about a second process — 2026-09-12. The argument against a lease survives.)* A token per process lifetime is one column, one
 value read at startup, and one `WHERE` term. There is nothing left to disagree.
 
 ## What `ADR-0015` weighed and what it did not
