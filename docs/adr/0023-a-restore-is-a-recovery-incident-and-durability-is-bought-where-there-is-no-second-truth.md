@@ -87,7 +87,11 @@ the unique constraint cannot catch it because the conflicting row is the one the
   a future date, exactly as `LDG-62` already does. This is what stands between the restore and the
   destroyed disk, and it is an existing mechanism applied to a case it was written for. A machine
   that genuinely lapsed inside Δ is cancelled one interval late, the price the set already pays for
-  a poisoned reading. *A "funding quiet period" — a new pause of stated length during which the
+  a poisoned reading. *Corrected 2026-09-12: "stands between" overstated it. The grace does not
+  rebuild the lost extension; it gives the tenant one interval to extend again, and a tenant that
+  does not is cancelled at its end, with the extension's satoshis back in its balance. `STO-54`
+  now states that as unrepaired, beside the other losses it lists. Telling tenants — the operator
+  is told, tenants are not — would be new machinery and is not decided here.* *A "funding quiet period" — a new pause of stated length during which the
   sweep would list and not route — was on the table and is withdrawn: it was a guard for a
   precondition the column removes, with a parameter of its own.*
 - **The irreversible `queued` kinds are escalated to `needs_reconciliation`; the goal-state kinds

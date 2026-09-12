@@ -310,6 +310,30 @@ assignment paragraph, not a second copy of the tier. Line numbers are the checkl
 7. **`F17`'s "still open" on `CNF-58` and `CNF-65` was stale.** The promotion at line 86 applied on
    2026-08-13 and both tags read BLOCKING; that part of `F17` is closed in place below.
 
+**F52. CLOSED 2026-09-12 — three defects in the 2026-09-12 landing, found by a review proposing a
+Lean formalization of the set (`lean-01.md`), each fixed in the requirement that owns it.**
+The review's aim was to argue that requirements should be checked for their *consequences* rather
+than their citations, and it made the case by finding three the gates and two readers had passed:
+
+1. **`LDG-38`'s period reset was described backwards.** "Forfeited in the customer's favour" —
+   but `r` is never negative, so resetting it to zero can only charge more, by under one satoshi per
+   subject per period. The policy stands; the sentence now says whose favour, with a witness in
+   exact fractions. *Not caught by `tools/check_arithmetic.py`, which tests the recurrence within
+   a period and never crosses a boundary.*
+2. **`STO-12` and `STO-13` contradicted PostgreSQL.** One migration per transaction under a
+   transaction-scoped lock, and index builds on the large tables `CONCURRENTLY` — which cannot run
+   inside a transaction block. Both landed under `ADR-0024` the same day. `STO-12` gains the rule
+   for a non-transactional, resumable step; `CNF-57` gains its drill; `ADR-0024` carries the
+   correction.
+3. **`STO-54` and `ADR-0023` overstated the grace.** "What stands between the restore and the
+   destroyed disk" is one re-derivation interval in which the tenant may extend again; a tenant that
+   does not is cancelled at its end, and nothing tells tenants the interval is running. `STO-54`
+   now lists the lost extension among what the restore does not repair, `CNF-295` asserts the
+   not-re-extended case, and whether to tell tenants is left open as new machinery.
+
+The review's proposal itself — a proved arithmetic core under `tools/formal/`, then models of the
+cancellation fence and `ADR-0022`'s claim retry — is not decided by this finding.
+
 **F51. CLOSED 2026-09-12 — §6.15's four production-operability gaps are decided and their rules
 have landed: `OPS-49` and the claim number (`ADR-0022`), `STO-54` (`ADR-0023`), `STO-12`/`STO-13`
 (`ADR-0024`) and `STO-55`, each in its own commit.**
