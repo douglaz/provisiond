@@ -23,8 +23,12 @@ jobs:
         with:
           python-version: '3.12'
 
+      # The formal layer (ADR-0025) needs Lean; flake.nix is the one place the
+      # toolchain is pinned, so CI enters the same shell a developer does.
+      - uses: cachix/install-nix-action@v31
+
       - name: Run all gates
-        run: bash tools/check-all.sh
+        run: nix develop --command bash tools/check-all.sh
 
       # Proving the gates can fail is the point of CNF-3 ("The test suite fails
       # when a test is deliberately broken -- verified once, by hand, so that
@@ -116,3 +120,55 @@ jobs:
             exit 1
           fi
           echo "arithmetic gate correctly rejected the non-terminating predicate"
+
+      # The formal layer's controls (ADR-0025). Each breaks the specific thing its
+      # check guards, and each asserts the failure came from that check and not
+      # from a syntax error or a missing toolchain -- a red build for the wrong
+      # reason is not evidence the gate works.
+      - name: Prove the Lean build rejects the withdrawn OPS-41 predicate
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^def abortDate (reserved prot rate : Nat) : Bool := runwaySeconds reserved prot rate > 0$/def abortDate (reserved prot _rate : Nat) : Bool := usableSats reserved prot > 0/' \
+            Provisiond/Runway.lean
+          grep -q 'def abortDate (reserved prot _rate : Nat) : Bool := usableSats' Provisiond/Runway.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the withdrawn predicate in abortDate"
+            exit 1
+          fi
+          # Lean names the line, not the theorem: the unsolved goal is in Runway.lean,
+          # and nothing else in that file can fail on this mutation.
+          grep -q 'error: Provisiond/Runway.lean:.*unsolved goals' build.log
+          echo "lake build correctly failed on abortDate_never_on_routed"
+
+      - name: Prove the axiom gate rejects a sorry the build accepts
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^    grind$/    sorry/' Provisiond/Meter.lean
+          grep -q '^    sorry$' Provisiond/Meter.lean
+          nix develop --command lake build
+          if nix develop --command lake exe gate > index.jsonl 2> gate.err; then
+            echo "::error::axiom gate passed a proof that uses sorry"
+            exit 1
+          fi
+          grep -q 'sorryAx' gate.err
+          echo "axiom gate correctly rejected sorryAx while lake build stayed green"
+
+      - name: Prove the formal gate rejects a module the build never reads
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i '/^import Provisiond.Witnesses$/d' tools/formal/Provisiond.lean
+          if nix develop --command bash tools/check_formal.sh > formal.log 2>&1; then
+            echo "::error::formal gate passed with Witnesses.lean unimported"
+            exit 1
+          fi
+          grep -q 'does not import Provisiond.Witnesses' formal.log
+          echo "formal gate correctly rejected the orphaned module"

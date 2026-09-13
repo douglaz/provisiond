@@ -17,7 +17,8 @@ not to repeat it.
 
 ## Gates
 
-`bash tools/check-all.sh` runs all six, and CI runs the same script on every push:
+`bash tools/check-all.sh` runs every gate below — under `nix develop`, since the last one needs
+Lean — and CI runs the same script on every push:
 
 | Gate | What it refuses |
 |---|---|
@@ -26,6 +27,7 @@ not to repeat it.
 | `tools/check_obligations.py` | A duty assigned to another requirement's subject — "`LDG-62` MUST write `destroy_committed`" — where that requirement's own text names none of the machinery. *`OPS-42` did exactly this to `LDG-62` and the fence protecting a paying customer's machine silently did not exist. Two full-set cross-model reviews read past it; the other gates all passed, because the citation resolved and both requirements had conformance items. Only the relationship was broken.* Run `--selftest` in a full clone to watch it catch that commit |
 | `tools/check_coverage.py` | A fall in the number of requirements exercised by at least one conformance item, against a recorded baseline. *It overstated coverage by eight points on its first day — it attributed prose in the tier-assignment sections to whichever item preceded it. Fixed 2026-09-01; a gate that overstates is worse than no gate, because the ratchet then guards a number nobody earned.* |
 | `tools/check_citations.py` | A quoted phrase attributed to a requirement whose body does not contain it, and any new unquoted "`X` says …" sentence above the recorded baseline. *A wrong summary — "`WIR-30` forbids" what `WIR-30` mandates — carries no lexical signal and stays a review problem; the gate's docstring says so* |
+| `tools/check_formal.sh` | A formalized clause whose proof does not hold. `tools/formal/` carries `LDG-33`, `LDG-38` and `OPS-41` as Lean definitions tagged `@[req]` with the identifier each formalizes, their properties as theorems over every rational input, and the historical defects as executable witnesses (`ADR-0025`). `lake build` refuses a theorem that no longer proves; `lake exe gate` refuses a proof resting on any axiom beyond `propext`, `Classical.choice` and `Quot.sound` — so a `sorry`, a project `axiom` and `native_decide` are each red — and refuses an empty index; the wrapper refuses a module the build never imports. *`sorry` is why the second check exists: `lake build` stays green over one, which is `DEF-16`'s green check with a `.lean` suffix.* Both are strictly stronger than the arithmetic gate beside them, which is kept as an independent cross-check until this one is required in CI, then deleted |
 | `tools/check_arithmetic.py` | A numeric claim the documents make that their own formulas do not support. It **executes** `LDG-33`'s runway derivation and `LDG-38`'s rounding-credit recurrence rather than reading them, and asserts the properties each requirement claims — that `OPS-41`'s abort predicate reaches a terminal state on every machine the sweep routes, that the rounding credit stays in `[0,1)`, that it posts identically to the withdrawn cumulative form, and that corrupting it in range costs at most one satoshi. *`OPS-41`'s predicate flipped twice across three cross-model reviews before a ten-line evaluation exhibited the counterexample: one usable satoshi at two satoshis per second. Reading could not settle it; running it did in seconds. Its own first draft derived both sides of that comparison from one variable and was a tautology that could never fail, which is why CI swaps the withdrawn predicate back in and requires the gate to reject it.* |
 
 The workflow also breaks a document deliberately on every run and asserts the identifier
@@ -88,6 +90,10 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0019` | `0016`'s epoch was not a fence: the claiming process stamped the value it then compared against, so the guard held by construction. It is deleted, a second concurrent engine is stated as out of scope, and the engine takes a session-scoped lock at boot to refuse a second *start*. Amends `0016` |
 | `0020` | Adopt is withdrawn from v1 with its whole surface: no launch driver can price a machine it did not buy. Returns operator-only, synchronous and read-first, with a driver that can. Closes `F47` |
 | `0021` | A machine recorded gone — by termination or by evidence — closes its open episode `resource_gone` in that write, and a close is permanent. The `abandoned` exit `DOM-31` drew from `stalled` is deleted rather than supplied; `retry` is already the withdrawal verb. Completes `0017`; closes `F49` |
+| `0022` | A store error is a bounded whole-transaction retry, then the engine exits; every worker write is idempotent under repeat and carries its claim number, because one `running` row can belong to two executions of one process |
+| `0023` | A restore is a recovery incident with a stated procedure, never a restart; durability is bought with synchronous commit only on the two writes with no second truth |
+| `0024` | Migrations run before the release under their own lock while the previous release serves; only a contract step or a shared-predicate change needs an outage |
+| `0025` | A formalized clause lives in Lean under `tools/formal/`, the Markdown requirement renders it, and a proof is never conformance. No Mathlib; standard axioms only; every guard a dated amendment added is a model parameter with a theorem for its absence |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:

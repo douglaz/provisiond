@@ -1,0 +1,13 @@
+# The formal layer of the specification set (ADR-0025). No dependencies: every theorem so far
+# closed on core Lean, and Mathlib is added only in a commit naming the theorem that needs it.
+name = "provisiond-formal"
+defaultTargets = ["Provisiond", "gate"]
+
+[[lean_lib]]
+name = "Provisiond"
+
+# `lake exe gate`: the axiom policy and the requirement index, emitted from the @[req] attributes.
+[[lean_exe]]
+name = "gate"
+root = "Gate"
+supportInterpreter = true

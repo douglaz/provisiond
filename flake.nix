@@ -30,9 +30,12 @@
         };
       });
 
-      # `nix flake check` runs the same gates CI does.
+      # `nix flake check` runs the same gates CI does, the Lean build included.
       checks = forAll (pkgs: {
-        gates = pkgs.runCommand "provisiond-spec-gates" { nativeBuildInputs = [ pkgs.python3 pkgs.bash ]; } ''
+        # runCommandCC, not runCommand: lake compiles the gate executable's C output.
+        gates = pkgs.runCommandCC "provisiond-spec-gates"
+          { nativeBuildInputs = [ pkgs.python3 pkgs.bash pkgs.lean4 ]; } ''
+          export HOME="$TMPDIR"
           cp -r ${self} src && chmod -R u+w src && cd src
           bash tools/check-all.sh
           touch $out
