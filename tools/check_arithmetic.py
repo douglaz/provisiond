@@ -19,6 +19,7 @@ requirement claims. A failure means the documents disagree with themselves.
 import math
 import random
 import sys
+from fractions import Fraction
 
 FAILURES = []
 
@@ -124,20 +125,22 @@ def ldg38(trials=3000, seed=20260904):
     """
     rng = random.Random(seed)
     out_of_range = same = 0
-    worst_r = 0.0
+    worst_r = Fraction(0)
     for _ in range(trials):
-        r = 0.0
-        exact_total = 0.0
+        r = Fraction(0)
+        exact_total = Fraction(0)
         charged = 0
         agreed = True
         for _ in range(rng.randint(1, 60)):
             seconds = rng.randint(0, 3600)
-            rate = rng.uniform(0.0001, 5.0)
+            # exact rationals (LDG-4): this ran in floating point with a 1e-9
+            # tolerance until 2026-09-13, which is a different formula
+            rate = Fraction(rng.randint(1, 50_000), 10_000)
             exact = seconds * rate
 
             posted = math.ceil(exact - r)
             r = r + posted - exact
-            if not (-1e-9 <= r < 1.0 + 1e-9):
+            if not (0 <= r < 1):
                 out_of_range += 1
             worst_r = max(worst_r, r)
 
@@ -158,12 +161,37 @@ def ldg38(trials=3000, seed=20260904):
     # costs at most one satoshi, where a corrupt cumulative total is unbounded.
     worst = 0
     for _ in range(trials):
-        exact = rng.uniform(0, 10_000)
-        honest = math.ceil(exact - 0.0)
-        for bad in (0.0, 0.5, 0.999999):
+        exact = Fraction(rng.randint(0, 10_000_000), 1000)
+        honest = math.ceil(exact - 0)
+        for bad in (Fraction(0), Fraction(1, 2), Fraction(999_999, 1_000_000)):
             worst = max(worst, abs(math.ceil(exact - bad) - honest))
     check("LDG-38: any in-range corruption of `r` misprices by at most 1 satoshi",
           worst <= 1, f"worst mispricing {worst} sats")
+
+    # F52 (2026-09-12): the period reset. LDG-38 starts each period at r = 0 and
+    # says whose favour that is. r >= 0 always, so ceil(x - r) <= ceil(x): the
+    # reset never charges LESS than carrying, and by under one satoshi per
+    # period. This check crosses the boundary the checks above never did.
+    reset_less = 0
+    excess_over_bound = 0
+    for _ in range(trials):
+        periods = rng.randint(2, 12)
+        xs = [Fraction(rng.randint(0, 500), 100) for _ in range(periods)]
+        r = Fraction(0)
+        carry_total = 0
+        for x in xs:
+            d = math.ceil(x - r)
+            r = r + d - x
+            carry_total += d
+        reset_total = sum(math.ceil(x) for x in xs)
+        if reset_total < carry_total:
+            reset_less += 1
+        if reset_total - carry_total > periods:
+            excess_over_bound += 1
+    check("LDG-38: the period reset never charges less than carrying `r` (F52)",
+          reset_less == 0, f"{reset_less}/{trials} streams charged less on reset")
+    check("LDG-38: the reset costs under one satoshi per period",
+          excess_over_bound == 0, f"{excess_over_bound}/{trials} streams exceeded")
 
 
 if __name__ == "__main__":
