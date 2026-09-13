@@ -1199,9 +1199,12 @@ and a machine whose tenant does not is routed at the interval's end and cancelle
 after a date the tenant was never shown; the extension's satoshis are back in the tenant's balance,
 because the debit that paid for it rolled back with it, and the backward move of `runway_until` is
 visible to the caller on every machine read — the lost window is published to the operator, and
-nothing in this set tells a tenant (*added 2026-09-12; until then this requirement and `ADR-0023`
-described the grace as what "stands between the restore and the destroyed disk", which is true only
-of a tenant that re-extends in time*); a debit lost in Δ is re-metered
+**no notice reaches a tenant, by decision** (*2026-09-13: the caller is a program that already
+polls `runway_until`, the satoshis are back in its balance, and the harm is bounded to one interval,
+so a per-tenant channel this set has not built under `ADR-0005` is not built for this. Added
+2026-09-12; until then this requirement and `ADR-0023` described the grace as what "stands between
+the restore and the destroyed disk", which is true only of a tenant that re-extends in time*); a
+debit lost in Δ is re-metered
 from the rolled-back high-water mark, and the rate boundaries `LDG-38` would have split the span
 at are gone with the `rate_observations` written in Δ; a gone-write lost in Δ extends the
 customer's charge to the next complete pass (`LDG-74`), and the correction is an operator `LDG-5`

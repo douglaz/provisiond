@@ -58,6 +58,28 @@ theorem reset_never_charges_less (exact r : Rat) (hr : 0 ≤ r) :
   have h1 : exact - r ≤ exact - 0 := by grind
   exact le_trans h1 Rat.le_ceil
 
+/-- One direction of the corruption bound: two credits at most one apart post debits at most one
+apart. Needs `0 ≤ r` and `r' < 1`, nothing else. -/
+theorem postedDebit_le_succ (exact r r' : Rat) (hr : 0 ≤ r) (hr1' : r' < 1) :
+    postedDebit exact r ≤ postedDebit exact r' + 1 := by
+  unfold postedDebit
+  have h1 := @Rat.le_ceil (exact - r')
+  have h2 : (((exact - r').ceil + 1 : Int) : Rat) = ((exact - r').ceil : Rat) + 1 := by
+    simp [Rat.intCast_add]
+  apply Rat.ceil_le_iff.mpr
+  rw [h2]
+  grind
+
+/-- `LDG-38`'s reason for the redesign: a corrupt-but-in-range credit changes what one increment
+posts by at most one satoshi — where a corrupt running total under the withdrawn form mis-billed
+the rest of the period without bound. One corruption; repeated corruption compounds. -/
+@[req "LDG-38"]
+theorem single_corruption_bound (exact r r' : Rat)
+    (hr : 0 ≤ r) (hr1 : r < 1) (hr' : 0 ≤ r') (hr1' : r' < 1) :
+    postedDebit exact r ≤ postedDebit exact r' + 1 ∧
+    postedDebit exact r' ≤ postedDebit exact r + 1 :=
+  ⟨postedDebit_le_succ exact r r' hr hr1', postedDebit_le_succ exact r' r hr' hr1⟩
+
 /-- The recurrence over a stream of exact charges, from a starting credit: the list of posted
 debits. -/
 @[req "LDG-38"]

@@ -19,15 +19,28 @@ def axiomsOf (env : Environment) (n : Name) : IO (Array Name) := do
   let (axioms, _) ← (collectAxioms n : CoreM (Array Name)).toIO ctx { env := env }
   pure axioms
 
+/-- Lean 4.30.0 names the axiom it mints for `native_decide` `<decl>._native.native_decide.ax_…`. -/
+def usesNativeDecide (a : Name) : Bool :=
+  (a.toString.splitOn "native_decide").length > 1
+
 unsafe def main : IO UInt32 := do
   enableInitializersExecution
   -- `lake exe` sets no LEAN_PATH for the program it runs; run from `tools/formal`.
   initSearchPath (← findSysroot) [".lake/build/lib/lean"]
   withImportModules #[{ module := `Provisiond }] {} (trustLevel := 0) fun env => do
     let mut found : Array (Name × String) := #[]
+    let mut nativeOutsideExplore : Array Name := #[]
     for (n, _) in env.constants.toList do
       if let some req := Provisiond.reqAttr.getParam? env n then
         found := found.push (n, req)
+      -- `native_decide` is refused everywhere under `Provisiond.*` except `Provisiond.Explore`,
+      -- tagged or not. Its axiom is minted per declaration with `native_decide` in its name.
+      if (`Provisiond).isPrefixOf n && !((`Provisiond.Explore).isPrefixOf n) then
+        let ax ← axiomsOf env n
+        if ax.any usesNativeDecide then
+          nativeOutsideExplore := nativeOutsideExplore.push n
+    for n in nativeOutsideExplore do
+      IO.eprintln s!"FAIL  {n} uses native_decide outside Provisiond.Explore"
     let tagged := found.qsort (fun a b => a.1.toString < b.1.toString)
     if tagged.isEmpty then
       IO.eprintln "FAIL: no @[req] declarations found; a gate over nothing is not a gate"
@@ -44,5 +57,6 @@ unsafe def main : IO UInt32 := do
       if !bad.isEmpty then
         failures := failures + 1
         IO.eprintln s!"FAIL  {n} ({req}) depends on {bad.toList}"
+    failures := failures + nativeOutsideExplore.size
     IO.eprintln s!"{tagged.size} tagged declarations, {failures} outside the axiom policy"
     return (if failures == 0 then 0 else 1)

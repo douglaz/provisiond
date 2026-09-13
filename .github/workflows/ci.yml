@@ -102,29 +102,13 @@ jobs:
           fi
           echo "citation gate correctly rejected an unverifiable quoted attribution"
 
-      # The arithmetic gate executes LDG-33 and LDG-38 rather than reading them,
-      # so its negative control is a predicate swap rather than a text edit. The
-      # first draft of its OPS-41 check derived both sides of the comparison from
-      # one variable and was therefore a tautology that could never fail; this
-      # step exists so that can never ship again.
-      - name: Prove the arithmetic gate can fail
-        run: |
-          set -euo pipefail
-          tmp="$(mktemp -d)"
-          cp -r . "$tmp/repo"
-          cd "$tmp/repo"
-          sed -i 's/if cycles(abort_date, reserved/if cycles(abort_sats, reserved/' \
-            tools/check_arithmetic.py
-          if python3 tools/check_arithmetic.py; then
-            echo "::error::arithmetic gate passed the withdrawn OPS-41 predicate"
-            exit 1
-          fi
-          echo "arithmetic gate correctly rejected the non-terminating predicate"
-
       # The formal layer's controls (ADR-0025). Each breaks the specific thing its
       # check guards, and each asserts the failure came from that check and not
       # from a syntax error or a missing toolchain -- a red build for the wrong
-      # reason is not evidence the gate works.
+      # reason is not evidence the gate works. The first is the predicate swap the
+      # Python arithmetic gate carried until 2026-09-13: its first draft derived
+      # both sides of the comparison from one variable and was a tautology that
+      # could never fail, which is why a control exists for this at all.
       - name: Prove the Lean build rejects the withdrawn OPS-41 predicate
         run: |
           set -euo pipefail
@@ -158,6 +142,35 @@ jobs:
           fi
           grep -q 'sorryAx' gate.err
           echo "axiom gate correctly rejected sorryAx while lake build stayed green"
+
+      - name: Prove the axiom gate rejects native_decide outside Provisiond.Explore
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          cat >> Provisiond/Witnesses.lean <<'EOF'
+
+          namespace Provisiond.Explore
+          theorem allowed_here : Provisiond.Meter.postedDebit (2/5) 0 = 1 := by native_decide
+          end Provisiond.Explore
+          namespace Provisiond.Witnesses
+          theorem not_allowed_here : Provisiond.Meter.postedDebit (2/5) 0 = 1 := by native_decide
+          end Provisiond.Witnesses
+          EOF
+          nix develop --command lake build
+          if nix develop --command lake exe gate > index.jsonl 2> gate.err; then
+            echo "::error::axiom gate passed native_decide outside Provisiond.Explore"
+            exit 1
+          fi
+          grep -q 'not_allowed_here uses native_decide' gate.err
+          # Every refusal line must be about not_allowed_here (its minted axiom carries the
+          # same name); a line about Explore.allowed_here would mean the exemption is broken.
+          if grep 'uses native_decide' gate.err | grep -v not_allowed_here | grep -q .; then
+            echo "::error::axiom gate refused native_decide inside Provisiond.Explore"
+            exit 1
+          fi
+          echo "axiom gate correctly refused native_decide outside Explore and allowed it inside"
 
       - name: Prove the formal gate rejects a module the build never reads
         run: |

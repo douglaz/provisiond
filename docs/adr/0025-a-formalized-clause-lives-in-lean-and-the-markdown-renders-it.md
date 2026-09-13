@@ -17,19 +17,20 @@ refuses inside a transaction block; `STO-54` and `ADR-0023` called a one-interva
 between the restore and the destroyed disk". `F52` records them. `lean-01.md` found them by asking
 what each rule *implied* rather than what it *cited*, and proposed that a checker do that.
 
-The arithmetic gate is narrower than its labels: floating point with a `1e-9` tolerance, an
-11×40×40 box for the runway predicate, 3,000 random trials for the recurrence, a one-step corruption
-check, and no increment that crosses a billing-period boundary — the boundary `F52`'s first defect
-was about.
+The arithmetic gate, as it stood that day, was narrower than its labels: floating point with a
+`1e-9` tolerance, an 11×40×40 box for the runway predicate, 3,000 random trials for the recurrence,
+a one-step corruption check, and no increment that crossed a billing-period boundary — the boundary
+`F52`'s first defect was about.
 
 Two readers put to one brief, "use Lean for pretty much everything we can", converged on what that
-is. Both proved `LDG-38`'s four core theorems — `0 ≤ r`, `r < 1`, a nonnegative posted debit, and
-`F52`'s reset direction — on core Lean's `Std.Rat` with no Mathlib, under the standard axioms.
-Both proved `ADR-0022`'s stale-defer trace refused with the claim term and admitted without it, by
-`decide`, with no axioms. Both found the withdrawn `usable_sats > 0` predicate as an executable
-witness. One found that `decide` alone gets stuck on rational equalities and reached for
-`native_decide`; the other closed the same witness with `decide +kernel` under the standard axioms,
-which settles the trust question below by evidence.
+is, and each ran exploratory Lean before answering. Both proved `LDG-38`'s four core theorems —
+`0 ≤ r`, `r < 1`, a nonnegative posted debit, and `F52`'s reset direction — on core Lean's
+`Std.Rat` with no Mathlib, under the standard axioms; those are landed in `tools/formal/`. Both
+also proved, in scratch files that are not landed, `ADR-0022`'s stale-defer trace refused with the
+claim term and admitted without it; that model is the inventory's second item. Both found the
+withdrawn `usable_sats > 0` predicate as an executable witness. One found that `decide` alone gets
+stuck on rational equalities and reached for `native_decide`; the other closed the same witness with
+`decide +kernel` under the standard axioms, which settles the trust question below by evidence.
 
 ## The decision
 
@@ -43,9 +44,12 @@ which settles the trust question below by evidence.
 - **The rendering is kept honest by a gate, not by discipline.** A region between markers in a
   requirement is either generated from the declaration — pure computation, such as a worked table —
   or diffed against what the declaration emits, where the region carries prose or citations a
-  rewrite would erase. Drift is a red gate. The index the gate reads is emitted from the `@[req]`
-  attributes by `lake exe gate`; there is no hand-kept manifest, because a manifest is a third copy.
-  A backticked `Provisiond.*` name in the documents must resolve to a declaration in that index.
+  rewrite would erase. Drift is a red gate. The index that gate will read is already emitted from
+  the `@[req]` attributes by `lake exe gate`; there is no hand-kept manifest, because a manifest is
+  a third copy. **The rendering gate and the resolver for backticked `Provisiond.*` names are owed
+  with the inventory's fourth item, the closed tables, and until they land no requirement carries
+  a marked region or cites a declaration by name** — the transitional rule above holds for every
+  clause.
 - **A theorem is never conformance.** `tools/check_coverage.py` counts conformance items and
   nothing from the formal layer; a `CNF` identifier does not appear in `tools/formal/`. A proof is
   about the model under its stated hypotheses; a conformance item is about a running implementation.
@@ -57,18 +61,22 @@ which settles the trust question below by evidence.
   a signature shows the dependence. A model that omits a second engine says so in its docstring.
 - **Trust policy, enforced by the gate.** Every `@[req]` declaration may depend on `propext`,
   `Classical.choice` and `Quot.sound` and on nothing else; `sorryAx` is refused transitively;
-  the project declares no `axiom`; `native_decide` is refused under `@[req]`, since Lean 4.30.0
-  mints a fresh per-declaration axiom for it that an old-name blacklist would miss, and is permitted
-  only in an `Explore` namespace nothing cites. Witnesses over rationals close by `decide +kernel`.
+  the project declares no `axiom`; `native_decide` is refused everywhere under `Provisiond.*`
+  except the `Provisiond.Explore` namespace, which may hold nothing tagged — Lean 4.30.0 mints a
+  fresh per-declaration axiom for it that an old-name blacklist would miss, so the gate matches the
+  axiom's shape, not a name. An untagged declaration outside `Explore` is otherwise unconstrained.
+  Witnesses over rationals close by `decide +kernel`.
 - **No Mathlib.** Every theorem proved so far closed on core Lean. Mathlib is added only in a
   commit that names the theorem that cannot be closed without it.
 - **The gate runs with the others, on every push.** `lake build` and `lake exe gate` join
-  `tools/check-all.sh` under `nix develop --command`; `nix flake check` builds them too. Each has a
-  negative control in `ci.yml` on `DEF-16`'s model: the withdrawn predicate swapped in, the claim
-  term deleted, a `sorry` injected, a rendered region edited, a registered module removed.
-- **`check_arithmetic.py` moves to exact `Fraction` arithmetic now and is deleted when the Lean gate
-  is required in CI.** Two encodings of one formula are the second copy `AGENTS.md` forbids, and the
-  Python one is the weaker.
+  `tools/check-all.sh` under `nix develop --command`; `nix flake check` builds them too. Each check
+  has a negative control in `ci.yml` on `DEF-16`'s model, and `ci.yml` holds the list. Two more
+  are owed with the modules they exercise: the claim term deleted (the claim model) and a rendered
+  region edited (the rendering gate).
+- **`check_arithmetic.py` is deleted.** The Lean gate is required in CI from its first commit, so
+  the condition was met the day it was written. Two encodings of one formula are the second copy
+  `AGENTS.md` forbids, and the Python one was the weaker; its last property without a theorem, the
+  single-corruption bound, landed as one before the deletion.
 - **Scope is the full inventory, in this order.** Arithmetic and historical witnesses (`LDG-33`,
   `LDG-38`, `OPS-41`); the claim model (`ADR-0022`); the cancellation fence composed on it
   (`OPS-41`, `OPS-42`, `LDG-62`, `OPS-48`); the closed tables with the rendering gate (`OPS-11`,
@@ -106,7 +114,7 @@ costs a multi-gigabyte cache, minutes of CI and an exact-tag coupling to the Lea
 the same witnesses under the standard axioms.
 
 **A model checker instead of a proof assistant for the lifecycle models.** Considered, since every
-contested question here was settled by executing a counterexample. Not adopted as a second tool:
+contested question here was settled by executing a negative witness. Not adopted as a second tool:
 bounded traces are enumerated by `decide` in the same files the invariant proofs live in, so the
 witness and the theorem share one set of definitions and cannot drift from each other.
 
@@ -116,12 +124,13 @@ witness and the theorem share one set of definitions and cannot drift from each 
   `Provisiond/Runway.lean`, `Provisiond/Meter.lean`, `Provisiond/Witnesses.lean`, and `Gate.lean`
   (the axiom check and the index). `tools/check-all.sh` runs the build and the gate; `ci.yml` gains
   the negative controls; `flake.nix`'s check builds them.
-- `CONTEXT.md` gains **specification gate**, **witness**, **model**, **assumption**, **property** and
-  **reference model**; *oracle* stays on **Rate**'s avoid list.
-- `README.md`'s gates table gains the Lean rows and its ADR table this row; `AGENTS.md` names the
+- `CONTEXT.md` gains **specification gate**, **witness**, **model**, **assumption** and
+  **property**; *oracle* stays on **Rate**'s avoid list, and **reference model** is added when the
+  first lifecycle model exists to name.
+- `README.md`'s gates table gains the Lean row and its ADR table this row; `AGENTS.md` names the
   shell the gates need.
-- `tools/check_arithmetic.py` uses `fractions.Fraction` and crosses a period boundary.
+- `tools/check_arithmetic.py` is deleted with its `check-all.sh` row, its `ci.yml` control and its
+  README row.
 - `11-open-findings.md`: `F52`'s open sub-decision — whether tenants are told a restore interval is
-  running — closes as *no notice*, `STO-54`'s unrepaired list being the whole answer: the caller
-  polls `runway_until`, the satoshis are back in the balance, and the harm is bounded to one
-  interval.
+  running — closes as *no notice*, a dated clause on `STO-54`'s unrepaired list, which carries the
+  reasons.

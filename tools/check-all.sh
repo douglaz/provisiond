@@ -39,7 +39,6 @@ run "fixtures     (WIR-37 JSON, WIR-1a, mermaid structure)" python3 tools/check_
 run "obligations  (a duty assigned to another requirement)" python3 tools/check_obligations.py
 run "coverage     (requirements exercised by CNF items)"   python3 tools/check_coverage.py
 run "citations    (a claim about what another requirement says)" python3 tools/check_citations.py
-run "arithmetic   (the spec's own formulas, executed)"     python3 tools/check_arithmetic.py
 run "formal       (Lean build, axiom policy, @[req] index)" bash tools/check_formal.sh
 
 echo

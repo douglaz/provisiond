@@ -318,8 +318,9 @@ than their citations, and it made the case by finding three the gates and two re
 1. **`LDG-38`'s period reset was described backwards.** "Forfeited in the customer's favour" —
    but `r` is never negative, so resetting it to zero can only charge more, by under one satoshi per
    subject per period. The policy stands; the sentence now says whose favour, with a witness in
-   exact fractions. *Not caught by `tools/check_arithmetic.py`, which tests the recurrence within
-   a period and never crosses a boundary.*
+   exact fractions. *Not caught by `tools/check_arithmetic.py` as it then stood: floating point,
+   and no check crossed a period boundary. It gained the boundary check the next day and was
+   deleted the day after that, its properties proved in `tools/formal/` (`ADR-0025`).*
 2. **`STO-12` and `STO-13` contradicted PostgreSQL.** One migration per transaction under a
    transaction-scoped lock, and index builds on the large tables `CONCURRENTLY` — which cannot run
    inside a transaction block. Both landed under `ADR-0024` the same day. `STO-12` gains the rule
@@ -330,13 +331,14 @@ than their citations, and it made the case by finding three the gates and two re
    does not is cancelled at its end, and nothing tells tenants the interval is running. `STO-54`
    now lists the lost extension among what the restore does not repair, `CNF-295` asserts the
    not-re-extended case, and whether to tell tenants is left open as new machinery. *Closed
-   2026-09-13 (`ADR-0025`): no notice; `STO-54`'s unrepaired list is the whole answer — the caller
-   polls `runway_until`, the satoshis are back in the balance, and the harm is bounded to one
-   interval.*
+   2026-09-13: no notice, as a dated clause on `STO-54`'s unrepaired list, which carries the
+   reasons.*
 
 The review's proposal itself — a proved arithmetic core under `tools/formal/`, then models of the
 cancellation fence and `ADR-0022`'s claim retry — was put to two independent readers and decided
-as `ADR-0025` on 2026-09-13; the first three defects above are its first executable witnesses.
+as `ADR-0025` on 2026-09-13; the first of the three defects above is its first executable witness
+(`Provisiond.Witnesses.period_reset_witness`). The other two are prose rules with no formal home
+yet — the migration type is on `ADR-0025`'s inventory, the restore model after it.
 
 **F51. CLOSED 2026-09-12 — §6.15's four production-operability gaps are decided and their rules
 have landed: `OPS-49` and the claim number (`ADR-0022`), `STO-54` (`ADR-0023`), `STO-12`/`STO-13`

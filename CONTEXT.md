@@ -290,17 +290,17 @@ _Avoid_: reserve ratio, backing, proof of reserves, "fully reserved" (all four a
 
 **Specification gate**:
 A command in `tools/` that refuses an inconsistent or invalid specification artifact and is run by
-`tools/check-all.sh`. Always qualified: the set already uses *gate* for a runtime refusal — the
-solvency gate, the rate gate — and those are requirements, not checks.
-_Avoid_: check (bare), test (that is a conformance item's word), linter
+`tools/check-all.sh`. Bare *gate* means this in `README.md`, `AGENTS.md` and `tools/`; in a
+requirement it is qualified, because the set also uses *gate* for a runtime refusal — the solvency
+gate, the rate gate — and those are requirements, not checks.
+_Avoid_: test (that is a conformance item's word), linter
 
 **Witness**:
 A concrete input or trace, checked by the formal layer, that exhibits a property or its failure —
-one usable satoshi at two satoshis per second, the stale defer under a missing claim term. A
-negative witness is a retained trap made executable. Not a provider observation, which is
-**evidence**, and not `OPS-45`'s **marker**.
-_Avoid_: example (a witness is checked; an example is illustrated), counterexample (bare — say
-negative witness), sample
+one usable satoshi at two satoshis per second. A negative witness, or counterexample, is a retained
+trap made executable. Not a provider observation, which is **evidence**, and not `OPS-45`'s
+**marker**.
+_Avoid_: example (a witness is checked; an example is illustrated), sample
 
 **Model**:
 The formal layer's explicit state, inputs and transition rules, about which a theorem is proved.
@@ -322,12 +322,6 @@ its stated assumptions; a **decided** property is one closed by finite evaluatio
 bounds. Neither is evidence about a running implementation.
 _Avoid_: claim (taken — see **Claim**), guarantee, requirement (a property is what a requirement's
 formalized clause must satisfy)
-
-**Reference model**:
-The formal layer's executable definitions taken together, which compute permitted outcomes for a
-sequence of commands and faults. What a future implementation is compared against; a comparison is
-a test, never a refinement proof.
-_Avoid_: oracle (on **Rate**'s avoid list, and this is why), executable oracle, golden
 
 ## Flagged ambiguities
 
