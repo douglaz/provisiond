@@ -286,6 +286,49 @@ drifts into the custody words `ADR-0004` §4 bans. The terms still state that a 
 unsecured claim (`LDG-19a`) — silence about the ratio, not about the arrangement.
 _Avoid_: reserve ratio, backing, proof of reserves, "fully reserved" (all four are the phrasings that cause the problem)
 
+### Checking the set
+
+**Specification gate**:
+A command in `tools/` that refuses an inconsistent or invalid specification artifact and is run by
+`tools/check-all.sh`. Always qualified: the set already uses *gate* for a runtime refusal — the
+solvency gate, the rate gate — and those are requirements, not checks.
+_Avoid_: check (bare), test (that is a conformance item's word), linter
+
+**Witness**:
+A concrete input or trace, checked by the formal layer, that exhibits a property or its failure —
+one usable satoshi at two satoshis per second, the stale defer under a missing claim term. A
+negative witness is a retained trap made executable. Not a provider observation, which is
+**evidence**, and not `OPS-45`'s **marker**.
+_Avoid_: example (a witness is checked; an example is illustrated), counterexample (bare — say
+negative witness), sample
+
+**Model**:
+The formal layer's explicit state, inputs and transition rules, about which a theorem is proved.
+Say *model state* and *model invariant*; a bare *state* is a machine's or an operation's, and a bare
+*invariant* is the **solvency invariant**. The model is not the domain model in this glossary and
+not a disk's hardware `model` field.
+_Avoid_: simulation, spec (the specification is the documents), implementation
+
+**Assumption**:
+A named hypothesis a theorem takes as a parameter because its truth is not the theorem's to
+establish — a provider's visibility window, a platform's transaction semantics, `OPS-47`'s single
+engine. A theorem's signature shows what it assumes; a model that omits something says so.
+_Avoid_: axiom (the project declares none), precondition (that is a requirement's word for a
+caller's obligation), `[verify]` (that marks an unverified provider fact, not a hypothesis)
+
+**Property**:
+A proposition about a definition or a trace. A **theorem** is a property with a checked proof under
+its stated assumptions; a **decided** property is one closed by finite evaluation within stated
+bounds. Neither is evidence about a running implementation.
+_Avoid_: claim (taken — see **Claim**), guarantee, requirement (a property is what a requirement's
+formalized clause must satisfy)
+
+**Reference model**:
+The formal layer's executable definitions taken together, which compute permitted outcomes for a
+sequence of commands and faults. What a future implementation is compared against; a comparison is
+a test, never a refinement proof.
+_Avoid_: oracle (on **Rate**'s avoid list, and this is why), executable oracle, golden
+
 ## Flagged ambiguities
 
 **"Account"** is overloaded and MUST be qualified. **Provider account** is the operator's

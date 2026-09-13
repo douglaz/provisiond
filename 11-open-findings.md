@@ -329,10 +329,14 @@ than their citations, and it made the case by finding three the gates and two re
    destroyed disk" is one re-derivation interval in which the tenant may extend again; a tenant that
    does not is cancelled at its end, and nothing tells tenants the interval is running. `STO-54`
    now lists the lost extension among what the restore does not repair, `CNF-295` asserts the
-   not-re-extended case, and whether to tell tenants is left open as new machinery.
+   not-re-extended case, and whether to tell tenants is left open as new machinery. *Closed
+   2026-09-13 (`ADR-0025`): no notice; `STO-54`'s unrepaired list is the whole answer — the caller
+   polls `runway_until`, the satoshis are back in the balance, and the harm is bounded to one
+   interval.*
 
 The review's proposal itself — a proved arithmetic core under `tools/formal/`, then models of the
-cancellation fence and `ADR-0022`'s claim retry — is not decided by this finding.
+cancellation fence and `ADR-0022`'s claim retry — was put to two independent readers and decided
+as `ADR-0025` on 2026-09-13; the first three defects above are its first executable witnesses.
 
 **F51. CLOSED 2026-09-12 — §6.15's four production-operability gaps are decided and their rules
 have landed: `OPS-49` and the claim number (`ADR-0022`), `STO-54` (`ADR-0023`), `STO-12`/`STO-13`
