@@ -44,6 +44,20 @@ own version of this. The same applies to a universal: one counterexample retires
 **Completion:** every sentence asserting what another requirement says carries its quote, and every
 list or count names its source instead of restating it.
 
+## Agent skills
+
+### Issue tracker
+
+Beads (`br`), local-first in `.beads/`, committed with the specs. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles as `br` labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the root. See `docs/agents/domain.md`.
+
 ## Conventions with a home already
 
 - Identifiers, retention, withdrawn ids → `README.md`, *Requirement conventions*.
