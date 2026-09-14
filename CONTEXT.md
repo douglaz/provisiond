@@ -309,6 +309,16 @@ Say *model state* and *model invariant*; a bare *state* is a machine's or an ope
 not a disk's hardware `model` field.
 _Avoid_: simulation, spec (the specification is the documents), implementation
 
+**Reference model**:
+A **model** of a lifecycle — rows, executions, transactions, the faults dealt to them — whose
+definitions compute the outcomes the set permits for a sequence of commands and faults, so that an
+implementation can later be compared against it in a test. The comparison is a test and nothing
+stronger; the model proves nothing about a running implementation. The claim model
+(`ADR-0022`'s guards, under `tools/formal/`) is the first.
+_Avoid_: oracle (on **Rate**'s avoid list for the same reason), reference implementation (nothing
+here implements), golden model,
+executable specification (the specification is the documents)
+
 **Assumption**:
 A named hypothesis a theorem takes as a parameter because its truth is not the theorem's to
 establish — a provider's visibility window, a platform's transaction semantics, `OPS-47`'s single

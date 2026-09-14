@@ -1304,7 +1304,9 @@ provider's outcome retained in memory, for a stated bound (`OVR-19`), and on exh
 MUST log loudly and the engine MUST exit non-zero into its supervisor, where `OVR-18`'s alarm is
 watching. The bound covers connection, execution, commit, read-back and backoff together, and it
 is a money parameter: on exhaustion the outcome in hand is thrown away and `OPS-15` classifies the
-row as interrupted. A periodic component whose repeated write affects no row under a write-once
+row as interrupted — unless the bound's last repeat committed and its reply was lost, in which case
+the row is already written, the money already posted once, and the startup pass finds nothing
+`running` to classify (*the formal layer's claim model exhibits this trace, 2026-09-14*). A periodic component whose repeated write affects no row under a write-once
 guard — `STO-3`'s resolution write, `STO-52`'s episode index — has seen its earlier attempt land,
 and moves on. **`api`'s components do not run this loop**: a failed request transaction is the
 caller's `internal` error, and a failed credit is `STO-31`'s next replay.

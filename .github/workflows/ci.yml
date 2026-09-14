@@ -185,3 +185,29 @@ jobs:
           fi
           grep -q 'does not import Provisiond.Witnesses' formal.log
           echo "formal gate correctly rejected the orphaned module"
+
+      # The claim model's guard terms are parameters (ADR-0025): dropping ADR-0022's
+      # claim term is a one-token change to `Provisiond.Claim.current`, and the
+      # stale-defer witness must go red on exactly that. Claim.lean's own theorems
+      # take the term as a hypothesis, so the module stays green and Witnesses.lean
+      # is built; the red must come from the refused witness and nowhere else.
+      - name: Prove the Lean build rejects the claim guard without its claim term
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^def current : Guards := { claimTerm := true, repeatBranch := true }$/def current : Guards := { claimTerm := false, repeatBranch := true }/' \
+            Provisiond/Claim.lean
+          grep -q 'claimTerm := false, repeatBranch := true' Provisiond/Claim.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the claim term removed from the guard"
+            exit 1
+          fi
+          # One red, and it is `decide` refuting the refused witness's own proposition:
+          # a second error line would mean the mutation broke something other than
+          # the property it targets.
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A1 'proved that the proposition' build.log | grep -q 'staleDeferTrace current ='
+          echo "lake build correctly failed on stale_defer_refused"
