@@ -177,8 +177,11 @@ not optional hardening — they are the only structural defence there is.
       the install clause was unconditional and `OPS-45` narrowed it**: a failure with the disk
       untouched and the rescue session closed cleanly is deterministic, and classifying it ambiguous
       is the defect that made `RSC-3`'s host-key abort an operator-resolved loss. The clause matters
-      in both directions, so assert both: an install past the write marker is never `failed`, and
-      one short of it with a clean exit is never `needs_reconciliation`.
+      in both directions, so assert both: an install past the write marker, with a kind on the
+      row's `needs_reconciliation` list, is never `failed`, and one short of it with a clean exit
+      is never `needs_reconciliation`. *Scoped 2026-09-14: unscoped, the first assertion read
+      wider than the row it tests, which sends a deterministic caller error to `failed` past the
+      marker.*
 - [ ] **CNF-31b** — The remaining rows of `OPS-11`, for exhaustiveness — including that the table
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
       kind, with no implicit default.
