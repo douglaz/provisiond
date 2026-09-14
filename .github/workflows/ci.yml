@@ -211,3 +211,74 @@ jobs:
           grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
           grep -A1 'proved that the proposition' build.log | grep -q 'staleDeferTrace current ='
           echo "lake build correctly failed on stale_defer_refused"
+
+      # The closed tables (pv-vwe.2): a kind added to DOM-17 without a row is a red
+      # build, because every match over ErrorKind carries no wildcard and the
+      # enumeration's completeness theorem is by `cases`. The red must be Tables.lean's
+      # own: a missing case, not a syntax error elsewhere.
+      - name: Prove the Lean build rejects an error kind without a classification row
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^  | insufficientBalance | notActivated | halted | gone | suspended | ceilingExceeded | overloaded$/&\n  | unclassifiedKind/' \
+            Provisiond/Tables.lean
+          grep -q '^  | unclassifiedKind$' Provisiond/Tables.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with an error kind no table row classifies"
+            exit 1
+          fi
+          grep -q 'error: Provisiond/Tables.lean:.*[Mm]issing cases' build.log
+          if grep '^error: Provisiond/' build.log | grep -v 'Provisiond/Tables.lean' | grep -q .; then
+            echo "::error::the mutation broke something outside Tables.lean"
+            exit 1
+          fi
+          echo "lake build correctly failed on the wildcard-free matches over ErrorKind"
+
+      # OPS-11's goal-state row is a parameter (ADR-0025): dropping it is a one-token
+      # change to `Provisiond.Tables.currentRules`, and the already-deleted witness must
+      # go red on exactly that, with Tables.lean's own theorems staying green.
+      - name: Prove the Lean build rejects the classification without its goal-state row
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true }/' \
+            Provisiond/Tables.lean
+          grep -q 'goalStateRow := false, markerRule := true' Provisiond/Tables.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the goal-state row removed from the classification"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A6 'proved that the proposition' build.log | grep -q 'deleteMachine'
+          echo "lake build correctly failed on already_deleted_witness"
+
+      # The migration-plan type (STO-12): a CONCURRENTLY build inside a transactional
+      # migration is not a value of the type. The control writes one, in the Explore
+      # namespace so nothing tagged is touched, and requires the type to refuse it.
+      - name: Prove the migration type refuses a CONCURRENTLY build inside a transaction
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          cat >> Provisiond/Witnesses.lean <<'EOF2'
+
+          namespace Provisiond.Explore
+          def concurrent_inside_a_transaction :
+              Provisiond.Migration.Migration Provisiond.Migration.postgres true :=
+            .transactional [.createIndex true true] (by decide)
+          end Provisiond.Explore
+          EOF2
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build accepted a CONCURRENTLY build inside a transactional migration"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A6 'proved that the proposition' build.log | grep -q 'postgres'
+          echo "the migration type correctly refused the transactional CONCURRENTLY build"

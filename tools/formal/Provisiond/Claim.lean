@@ -6,7 +6,7 @@ whole-transaction retry, and the engine's claim step. The first **reference mode
 
 What the model omits: `OPS-15`'s startup pass and `OPS-27`'s resolution writes (made by no
 execution; `pv-vwe.5`), `API-58`'s fan-out transition (`pv-vwe.6`), `OPS-11`'s classification of a
-provider outcome into the state the worker writes (a closed table, `pv-vwe.2`), `available_at`,
+provider outcome into the state the worker writes (`Provisiond.Tables`), `available_at`,
 the error classes `OPS-49` says "are not store errors and do not consume the bound" (a
 `StoreOutcome.refused` here is always a store error in that sense), the bound on repeating a
 refused claim (`engineClaim` claims again from `idle` without counting), and a second engine —

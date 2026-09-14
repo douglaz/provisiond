@@ -3,4 +3,6 @@ import Provisiond.Types
 import Provisiond.Claim
 import Provisiond.Runway
 import Provisiond.Meter
+import Provisiond.Tables
+import Provisiond.Migration
 import Provisiond.Witnesses
