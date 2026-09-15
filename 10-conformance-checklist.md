@@ -222,8 +222,13 @@ not optional hardening — they are the only structural defence there is.
       the two modes make different claims about the disk and must not report the same outcome.
       *Amended 2026-09-02; stated unconditionally it failed the mode `RSC-30` says SHOULD be the
       default.* (`RSC-29`, `RSC-30`, `OPS-11`, `OPS-45`)
-- [ ] **CNF-45** — On uncertain rescue exit, the recovery key is persisted and its path,
-      with the rescue address and port, appears in the operation error. (`RSC-19`)
+- [ ] **CNF-45** — **AMENDED 2026-09-15.** On a failed rescue exit the recovery key is persisted at
+      `<recovery directory>/<operation id>`, and the error carries `rescue_exit: "unknown"` with
+      `rescue_address` and `rescue_port`; **the directory's configured value appears nowhere in the
+      operation view, the listing or `request_summary`** — grep all three for it. Then a clean exit:
+      `rescue_exit: "clean"` and no file. *It read "its path, with the rescue address and port,
+      appears in the operation error" — a path under a key no document named.* (`RSC-19`, `RSC-20`,
+      `WIR-9a`, `STO-50`)
 - [ ] **CNF-46** — The recovery directory is created owner-only. (`RSC-20`)
 - [ ] **CNF-47** — The inventory report is attached to the operation result **for every operation that
       enters rescue, and only for those** — the two rescue-entering install strategies and
@@ -1312,7 +1317,7 @@ rather than acquiring a default.
 - [ ] **CNF-279** — **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
       machine whose pinned host key does not match: `RSC-3` aborts **before connecting**, the
-      write-started marker is unset, `on_failure: exit_rescue` closes the session cleanly, and the
+      write-started marker is unset, the rescue exit closes the session cleanly, and the
       operation settles **`failed`** — not
       `needs_reconciliation`, and not an operator's problem. **Then the same abort with the rescue
       exit failing: `needs_reconciliation`**, because the machine may be sitting in rescue with a
@@ -1338,7 +1343,7 @@ rather than acquiring a default.
       were. (`OPS-45`, `OPS-11`, `OPS-31`, `WIR-35`, `RSC-3`)
 - [ ] **CNF-300** — **A `failed` install says what it did to the disk, and the state never carries
       it** (added 2026-09-15, `pv-x8r`). Drive a `rootfs_via_rescue` install whose installer starts
-      and then rejects the layout, with `on_failure: exit_rescue` succeeding and the engine reporting
+      and then rejects the layout, with the rescue exit succeeding and the engine reporting
       `invalid_request`: assert the operation settles `failed`, `terminal: true`, `retryable` is
       what `DOM-17` gives that kind, and the error carries `details.disk_effect:
       "destructive_boundary_crossed"`. Then `CNF-279`'s pinned-key abort: `failed` with
@@ -1349,6 +1354,14 @@ rather than acquiring a default.
       the key, and that the two `failed` rescue installs differ on nothing but it — or the item
       passes an implementation whose callers cannot tell an untouched disk from a partitioned one.
       (`OPS-3`, `OPS-11`, `OPS-45`, `API-51`, `WIR-9a`)
+- [ ] **CNF-301** — **`on_failure` is gone from both rescue-entering bodies** (added 2026-09-15,
+      `RSC-18`). An install or rescue-inventory body carrying it is rejected `invalid_request`
+      naming the field (`WIR-2`, `WIR-20`, `WIR-40`). A `rootfs_via_rescue` install whose digest
+      mismatches before the installer runs exits rescue and settles `failed` with `disk_effect:
+      "none"` and `rescue_exit: "clean"`; the same with the exit failing is `needs_reconciliation`
+      with `rescue_exit: "unknown"`, the address and port, and a key file named by the operation id.
+      Every install and rescue-inventory error carries `rescue_exit`. (`RSC-18`, `RSC-19`, `RSC-25`,
+      `OPS-11`, `OPS-45`, `WIR-9a`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money

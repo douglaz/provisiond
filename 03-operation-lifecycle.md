@@ -241,10 +241,10 @@ One case needs stating because two requirements appear to disagree. `PRV-22` say
 rescue is *always* ambiguous". That does not conflict with the install row: an install whose
 *rescue exit* fails has already done its work and reached the provider, so it is never a
 deterministic caller error, and the install row classifies it `needs_reconciliation` regardless
-of which error kind the driver reports. *Amended 2026-09-14: the same holds where the exit was
-never attempted or the operation died before reaching it. `OPS-45`'s second marker is one column,
-unset for all three, so the classification cannot tell them apart, and the machine may be sitting
-in rescue either way — which is the fact the marker records.*
+of which error kind the driver reports. *Amended 2026-09-14: the same holds where the operation died
+before reaching it. `OPS-45`'s second marker is one column, unset for both, so the classification
+cannot tell them apart, and the machine may be sitting in rescue either way — which is the fact the
+marker records. The never-attempted exit was a third case until `RSC-18` was withdrawn, 2026-09-15.*
 
 A failure is **ambiguous** when:
 
@@ -278,8 +278,9 @@ prohibited is the *system* retrying on its own.
 
 **OPS-13** When a mutation's outcome is unknown, the surviving evidence MUST be preserved
 and pointed at: the error details MUST record what was attempted, any provider-side
-identifiers that were created (transaction ids, key fingerprints, action ids), and the
-location of any retained recovery credential (`RSC-19`).
+identifiers that were created (transaction ids, key fingerprints, action ids), and — where a
+recovery credential was retained — that it was (`RSC-19`; the file is named by the operation id, so
+no location is recorded, and `STO-50`'s closed summary needs no row for one).
 
 **For a create, what survives MUST include the offer snapshot** — the `offer_id` and the offer's
 `install_strategies` as they stood when the request was accepted — carried in `request_summary`
@@ -1072,8 +1073,8 @@ together.** Activating rescue reboots the machine into another operating system 
 `PRV-22` makes *failure* of the exit always ambiguous — so "nothing was written" is not on its own
 "nothing happened". The engine MUST therefore also record **whether the rescue session it opened
 was closed without error**: set when the driver's end-rescue call returns success, left unset when
-it fails, when it is never attempted (`on_failure: leave_in_rescue`), or when the operation dies
-before reaching it.
+it fails or when the operation dies before reaching it (*a never-attempted exit was the third case
+until `RSC-18` was withdrawn, 2026-09-15*).
 
 **An operation settles `failed` — deterministically, with no operator and no reconciliation — when
 the write-started marker is unset *and* either no rescue session was opened or the one that was
@@ -1110,7 +1111,7 @@ is the same attempt continuing under a new claim number (`OPS-6`), and its marke
 
 **The pinned-host-key abort is the case this exists for.** `RSC-3` refuses to connect when the trust
 decision cannot be made — the security-critical decision in the whole workflow, working exactly as
-designed — and with `on_failure: exit_rescue` succeeding, the machine is back in its installed
+designed — and with the rescue exit succeeding, the machine is back in its installed
 system with nothing written. That is a clean, deterministic refusal, and it was reaching
 `needs_reconciliation` and then an operator's `abandoned`. **Where the same abort is followed by a
 failed rescue exit it stays ambiguous**, because the machine may be sitting in rescue with a

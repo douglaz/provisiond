@@ -243,11 +243,12 @@ prohibition remains readable as a prohibition:
 - **Only the engine-generated single-use private key** (`RSC-10`), never a provider-supplied rescue
   password (`PRV-17`) and never any other field of the session. A password is the provider's to
   reset and ours to forget; the keypair is ours and is the only thing that can get back in.
-- **Only when rescue exit is uncertain** — an ambiguous activation, a failed cleanup, or a caller
-  that asked to be left in rescue (`RSC-18`).
+- **Only when rescue exit is uncertain** — an ambiguous activation or a failed exit. *A caller
+  that asked to be left in rescue was the third case until `RSC-18` was withdrawn, 2026-09-15.*
 - **Only under `RSC-20`'s recovery directory**: absolute, owner-only, on encrypted storage
   (`STO-15`, `OVR-12`), inventoried and removable by a documented procedure (`RSC-21`).
-- **The operation record gets the *path*, not the key** (`RSC-19`, `OPS-13`). That is what keeps the
+- **The operation record gets neither the key nor its path** (`RSC-19`, `OPS-13`): the file is
+  named by the operation id, so the location is derivable from what every operator surface shows. That is what keeps the
   rest of this requirement true: nothing reaches a log line, an operation result or an error.
 
 *This is the shape `ADR-0005` uses everywhere else — the sensitive thing lives exactly as long as

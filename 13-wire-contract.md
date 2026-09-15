@@ -141,6 +141,14 @@ this key they are identical on the wire. `retryable` is `DOM-17`'s question abou
 not this one — a rejected layout re-sent unchanged is refused again, and `disk_effect` does not make
 it sensible.
 
+**On an `install` or `rescue_inventory` operation's error, `details.rescue_exit` is required whatever
+the kind** (*added 2026-09-15*): `none` where no rescue session was opened, `clean` where the
+driver's end-rescue call returned success, `unknown` where it failed or the operation died before
+reaching it — `OPS-45`'s second marker, rendered as `disk_effect` renders the first. With `unknown`
+the error also carries `rescue_address` and `rescue_port` (`RSC-19`): the machine is the tenant's own
+and its address is already on `WIR-11`. It never carries a recovery-key path; the file is named by
+the operation id and the directory is the operator's (`RSC-20`).
+
 **WIR-9b** **`retryable` precedence.** When an error accompanies an operation view, the operation
 view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 `needs_reconciliation` and `gone` are **always** `retryable: false` — re-issuing either under a
@@ -223,7 +231,7 @@ from the object it is holding.*
 
 **An ambiguous outcome records provider identifiers in the operation's `error` details, not in
 `result`** (`OPS-13`, `DOM-17`). *Amended 2026-09-02: this sentence said `result`, and `OPS-13` puts
-the surviving evidence — provider-side identifiers, the location of any retained recovery credential
+the surviving evidence — provider-side identifiers, whether a recovery credential was retained
 — in the error details, which is also where `CNF-45` looks for it. A `needs_reconciliation`
 operation has an `error`; whether it has a `result` at all is exactly what nobody knows.*
 
@@ -559,8 +567,9 @@ showed only `rootfs_via_rescue` and omitted the raw-disk target device (`RSC-26`
 trust decision (`RSC-3`/`RSC-4`), the layout (`RSC-22`) and the installed keys (`RSC-13`) — so
 three of four strategies were unsendable and the security-critical trust choice had no field.
 
-Common to every variant: `acknowledge_destruction: true` (`API-14`) and `on_failure` ∈
-{`exit_rescue` (**default**), `leave_in_rescue`}. **The two rescue-entering variants —
+Common to every variant: `acknowledge_destruction: true` (`API-14`). *`on_failure` ∈ {`exit_rescue`,
+`leave_in_rescue`} was common to every variant until 2026-09-15 (`RSC-18`, withdrawn); a body
+carrying it is `WIR-2`'s unknown field, `invalid_request`.* **The two rescue-entering variants —
 `rootfs_via_rescue` and `raw_disk` — additionally carry a required `trust` object**, exactly one of
 three, not two. `provider_native` enters no rescue and has no host key to pin, so it carries none —
 and a `provider_native` body that supplies one is an unknown field for that variant, rejected
@@ -585,7 +594,6 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
   "layout": { "drives": [{"identifier": "S4EVNF0N123456"}], "inventory_fingerprint": "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1", "raid": {"enabled": false, "level": null}, "partitions": [{"mount": "/boot", "size": "1G", "fs": "ext3"}, {"mount": "/", "size": "all", "fs": "ext4"}], "bootloader": "grub" },
   "post_install_script": null,
   "trust": {"use_provider_keys": true},
-  "on_failure": "exit_rescue",
   "acknowledge_destruction": true }
 ```
 
@@ -616,17 +624,8 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 ```json
 { "strategy": "provider_catalogue",
   "source": {"type": "raw_disk", "url": "https://images.example.net/alpine-3.20-amd64.img.zst", "sha256": "9c4d2e1f3a5b708294c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4e6f809", "compression": "zstd"},
-  "on_failure": "exit_rescue",
   "acknowledge_destruction": true }
 ```
-
-**`on_failure` is accepted and inert on the two variants that enter no rescue** — `provider_native`
-and `provider_catalogue` — because it is declared common to every variant and `WIR-2` would
-otherwise reject a caller that sets it uniformly. A server MUST NOT infer anything from its value on
-those two. *Stated rather than left to inference: a field that is meaningful on half a union and
-silently ignored on the other half is exactly what `WIR-2` exists to stop, and the honest fix is to
-say so in the contract rather than to let two implementations disagree about whether it is an
-error.*
 
 **The fourth variant was missing and its absence made a shipped feature unrequestable.** `WIR-20`
 promised "one variant per `DOM-13` pairing" and defined three while `DOM-13` had four — so under
@@ -822,15 +821,14 @@ is a recursion `API-1` never intended.
 
 **WIR-40** **RENAMED 2026-08-31** `POST /v1/machines/{id}/actions/rescue-inventory` — `RSC-38`'s
 inventory pass. Body
-carries the same **`trust`** object as an install (`WIR-20`), plus the same `on_failure` ∈
-{`exit_rescue` (**default**), `leave_in_rescue`}, and nothing else. It enters rescue over
+carries the same **`trust`** object as an install (`WIR-20`), and nothing else. It enters rescue over
 SSH, so it faces the identical host-key decision — an empty body could express neither a pinned
 key nor the explicit unpinned opt-in `SEC-22` requires, making it unusable on a strict driver or a
-silent trust downgrade on a lax one — and it faces the identical *exit* decision: a run that
-fails partway has left the machine in rescue, and without this field the machine's state after a
-failed run is unspecified. `PRV-22` makes the rescue exit itself always ambiguous, so
-`exit_rescue` is the default and `leave_in_rescue` is the caller keeping the session for
-investigation.
+silent trust downgrade on a lax one — and on failure it attempts the exit as an install does
+(`RSC-18`). `PRV-22` makes the rescue exit itself always ambiguous, and `WIR-9a`'s `rescue_exit`
+tells the caller how it ended. *Until 2026-09-15 the body also carried `on_failure`, and this
+paragraph called `leave_in_rescue` "the caller keeping the session for investigation" — a session
+the caller had no credential for; `RSC-18` carries the withdrawal.*
 
 It returns `202` and an operation whose result carries the device inventory with **stable
 identifiers** and the `inventory_fingerprint` an install must echo back (`WIR-20`, `RSC-26`). It

@@ -141,18 +141,43 @@ prior URL validation.
 
 ## Failure handling
 
-**RSC-18** The caller MUST be able to choose between exiting rescue on failure and being
-left in rescue for debugging. The default MUST be to exit.
+**RSC-18** **WITHDRAWN 2026-09-15.** On failure the engine MUST attempt `PRV-21`'s exit, on an
+install and on `RSC-38`'s inventory pass alike. *It read: "The caller MUST be able to choose between
+exiting rescue on failure and being left in rescue for debugging. The default MUST be to exit."
+Nothing in the set gave the caller a way into the session it asked to keep — the only credential is
+`RSC-10`'s keypair, and `RSC-13`'s keys go into the installed system — and the branch settled a
+known, requested outcome as `needs_reconciliation`, whose verbs have no member for it, with a root
+credential on disk and no event to end it (`RSC-21`). Two readers put to the question agreed the
+flag served nobody; the route back into a machine is to activate rescue again, `RSC-19`. A tenant
+rescue shell, if wanted, is its own operation with its own key, ceiling and exit, not a flag on an
+install's failure path.*
 
-**RSC-19** Whenever rescue exit is uncertain — activation failed ambiguously, cleanup
-failed, or the caller asked to be left in rescue — the private key MUST be persisted
-under a configured recovery directory, and its path MUST be reported in the operation's
-error details along with the rescue address and port. **The key is the only part of the session
+**RSC-19** Whenever rescue exit is uncertain — activation failed ambiguously, or the exit failed —
+the private key MUST be persisted under the configured recovery directory (`RSC-20`, `OVR-19`) **in
+a file named by the operation id**, and the operation's error details MUST carry
+`rescue_exit: "unknown"` with the rescue address and port (`WIR-9a`). The record carries neither the
+key nor its path: the location is the directory joined to an id every operator surface already
+shows. *Until 2026-09-15 the branch also fired when "the caller asked to be left in rescue"
+(`RSC-18`, withdrawn) and reported the path in the error details — an operator-internal path on a
+tenant-visible field, under a key no document named.* **The key is the only part of the session
 that may be written**, and the exception is owned by `DOM-11` (amended 2026-09-02) rather than
 claimed here: that requirement forbids persisting a rescue session at all, so until it named this
 case the two were a contradiction a builder had to resolve by guessing. A provider-supplied rescue
 password is **never** persisted — it is the provider's to reset — and the record carries the path,
 never the key.
+
+**An engine crash persists nothing, and that is not a gap** (*added 2026-09-15, `pv-x8r`'s panel*).
+Neither branch runs when the process dies mid-session: `OPS-15` moves the operation to
+`needs_reconciliation`, the key dies with the process, and the machine sits in rescue with an
+authorized key nobody holds. The route back is to activate rescue again — `RSC-38`'s inventory pass,
+with a fresh keypair — which reboots into a fresh rescue and leaves the disk as the crash left it,
+since rescue lives in memory; whatever the remote command did after the connection dropped is on
+the disk either way, and a fresh inventory pass reads it. Nothing in
+the dead session is worth a root credential on disk for the whole of every install, which is what
+persisting the key from activation would cost `DOM-11`'s exception. Two things a crash does leave:
+the provider-side credential `PRV-21` would have removed stays registered, a public key whose
+private half no longer exists; and the error's `rescue_exit` is `unknown` with the address and port `OPS-15`'s pass can still
+render, since the machine row holds them.
 
 **RSC-20** The recovery directory MUST be absolute, MUST be created with owner-only
 permissions, and MUST live on encrypted storage (`STO-15`). Its contents are root

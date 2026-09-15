@@ -401,6 +401,7 @@ marked human are procedures the deployment records rather than values the proces
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
 | Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
 | Reconciliation rota | `OPS-26` | human | no |
+| Recovery directory | `RSC-20` | absolute path | yes |
 | Recovery-key inventory procedure | `RSC-21` | human | no |
 
 ## Non-goals
