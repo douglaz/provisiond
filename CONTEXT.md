@@ -137,6 +137,32 @@ a caller can choose a target before a destructive write. Read-only about the **d
 else: it reboots the machine, and an ambiguous exit can leave it in rescue.
 _Avoid_: preflight (banned — see flagged ambiguities)
 
+**Marker**:
+The engine's record of its own execution on one operation — `OPS-45`'s two columns: whether a
+phase began that could have altered the machine, and whether the rescue session it opened was
+closed without error. A fact about *this process*, written before the phase runs and read by the
+classifier before anyone asks a human. On a **rescue install** the first marker means the
+destructive phase was allowed to begin and the old contents can no longer be represented as
+preserved; on every other kind it means a request was dispatched and says nothing about the
+machine. Never cleared.
+_Avoid_: flag, evidence, witness
+
+**Evidence**:
+What settles an unknown outcome — a provider observation (`OPS-27`'s correlator match, `PRV-36`'s
+sources) or the basis an operator records with a resolution verb (`STO-19`). Not a **marker**,
+which the engine wrote about itself, and not a **witness**, which the formal layer checks.
+_Avoid_: proof, marker
+
+**Disk effect**:
+What one install operation is known to have done to the machine's prior disk contents,
+independent of whether the install completed and of the operation's state: `none`, this operation
+is established to have written nothing to the target disk; `destructive_boundary_crossed`, a
+**rescue install** whose first **marker** is set, so the prior contents may be gone; `unknown`, a
+**catalogue install** or native rebuild dispatched with no evidence of whether the provider began
+writing. Rendered to the caller on an install's error (`WIR-9a`). A `failed` operation does not
+carry this fact in its state.
+_Avoid_: rollback, preserved (say `disk_effect: none`), data loss (which is a consequence, not the fact)
+
 **Restore**:
 Bringing the store back from a backup, landing at some instant before the failure. A recovery
 incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no committed

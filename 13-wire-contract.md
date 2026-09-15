@@ -127,10 +127,25 @@ agent to parse English. Minimum keys:
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
 
+**On an `install` operation's error, `details.disk_effect` is required whatever the kind** (*added
+2026-09-15, `pv-x8r`*): `none` where this operation is established to have written nothing to the
+target disk — `OPS-45`'s write-started marker unset on `rootfs_via_rescue` or `raw_disk`, or a
+`provider_native`/`provider_catalogue` rejection the provider did not act on;
+`destructive_boundary_crossed` on `rootfs_via_rescue` or `raw_disk` once that marker is set, which
+tells the caller not to assume its prior contents survived and does not assert that the install
+completed; `unknown` after a `provider_native`/`provider_catalogue` dispatch whose effect nothing
+established. It is rendered from the operation's marker columns and outlives the payload purge with
+them (`OPS-45`). `status` alone never says which: `RSC-3`'s abort with the disk untouched and an
+installer's rejection of a layout it had begun partitioning for both settle `failed`, and without
+this key they are identical on the wire. `retryable` is `DOM-17`'s question about the same request,
+not this one — a rejected layout re-sent unchanged is refused again, and `disk_effect` does not make
+it sensible.
+
 **WIR-9b** **`retryable` precedence.** When an error accompanies an operation view, the operation
 view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 `needs_reconciliation` and `gone` are **always** `retryable: false` — re-issuing either under a
-fresh idempotency key is a second purchase, not a retry (`API-51`).
+fresh idempotency key is a fresh operation, not a retry: a second purchase on a create, a second
+destructive write on an install (`API-51`).
 
 ## Views
 

@@ -212,6 +212,15 @@ theorem install_marker_directions :
       classify currentRules .install ⟨e, c, u, g⟩ ⟨false, true⟩ ≠ some .needsReconciliation := by
   decide
 
+/-- `pv-x8r`'s decision (2026-09-15): past the write-started marker with a clean rescue exit, the
+deterministic caller kinds stay `failed` — "the engine knows what it did", and `failed` "asserts
+that the install did not complete and nothing about the disk". The arm is pinned so that a later
+amendment sending them to `needs_reconciliation` is a red build naming this theorem. -/
+@[req "OPS-11"]
+theorem deterministic_after_write_failed :
+    ∀ e, installKindRow e = .failed → e.admissionOnly = false →
+      installRow currentRules ⟨true, true⟩ e = .failed := by decide
+
 /-! ## `OPS-3`, the resolution transitions -/
 
 /-- The resolution verbs, as `OPS-31` gives them: "`observed` names an `external_id` that a create

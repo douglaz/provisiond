@@ -39,7 +39,7 @@ account was only ever determined inside the call that vanished.
 | `queued` | Waiting for a worker | no |
 | `running` | Claimed by the engine, whose settled-state writes are guarded on this status and the claim number, and admit their own repeat (`STO-3`) | no |
 | `succeeded` | Completed; result recorded | yes |
-| `failed` | Completed unsuccessfully; provider state is known | yes |
+| `failed` | Completed unsuccessfully — deterministically, or resolved so under `OPS-31`. Asserts that the requested mutation did not complete, and nothing about its side effects (`OPS-3`, *2026-09-15*) | yes |
 | `needs_reconciliation` | Outcome unknown; resolution pending (`OPS-3`) | **no** — settles to `succeeded` or `failed` |
 
 ```
@@ -78,7 +78,13 @@ the state; what the system MUST NOT do automatically is retry (`OVR-5`).
 
 **OPS-3** **AMENDED 2026-09-12 (`ADR-0022`) — the worker's guard is the operation's status and
 its claim number, and a repeat of the worker's own write is admitted.** `needs_reconciliation` is
-*resolution-pending*, not terminal; `succeeded` and `failed` are the terminal states. **A
+*resolution-pending*, not terminal; `succeeded` and `failed` are the terminal states. **`failed`
+asserts that the operation did not complete, and nothing about its side effects** (*added
+2026-09-15, `pv-x8r`*): a `failed` install may have partitioned its disk, a `failed` delete may have
+been dispatched. The one positive record that nothing took effect is `OPS-31`'s `not_applied`, in
+the resolution column, and `abandoned` reaches `failed` having established nothing — so the state
+alone never carries either claim. What an install did to its disk is `OPS-45`'s marker's fact, and
+`WIR-9a`'s `disk_effect` renders it to the caller, who sees neither the marker nor a verb. **A
 transition made *by a worker* MUST be guarded on that operation still being `running` under the
 claim number the worker holds** (`STO-3`, `OPS-6`), and the guard MUST admit the row the same
 write already produced, so that a write repeated under `OPS-49` after a lost reply affects one row
@@ -217,7 +223,7 @@ This is `OVR-5` made concrete.
 | refresh | Always `failed`. It is read-only; a failure changed nothing. *The row read "adopt, refresh" until `ADR-0020` withdrew adopt from v1.* |
 | suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. It is a parent whose per-machine children carry their own outcomes (`WIR-39`), and it settles `succeeded` once every child has either settled or **reached `needs_reconciliation`** — a child that reached that state counts as complete for the parent. `needs_reconciliation` is not itself settled (`OPS-3`); it is a state only evidence or an operator moves, so an unresolved child is a child-level fact, and blocking the parent on it would leave every suspended tenant's record permanently open. |
 | rescue inventory | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
-| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` **where no rescue session was left open** (the paragraph below), **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. |
+| install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` **where no rescue session was left open** (the paragraph below), **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. **`failed` past the write-started marker, where rescue exited cleanly, asserts that the install did not complete and nothing about the disk** (*2026-09-15, `pv-x8r`*): the deterministic caller kinds stay `failed` there because the engine knows what it did — an installer that rejected the layout it had begun partitioning for is a known outcome — and `needs_reconciliation` is the state for an outcome nobody knows (`CONTEXT.md`), whose only truthful verb here would be `abandoned`, which settles `failed` after a human looked. It does not mean `not_applied`, which `OPS-31` refuses there. What the disk holds is `OPS-45`'s marker's fact, rendered to the caller as `WIR-9a`'s `disk_effect`; the state does not carry it. |
 | create, power, reverse-DNS, delete, release attachment | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
 
 **The table MUST be total, and seven kinds added later were missing.** `insufficient_balance`,
@@ -1004,7 +1010,10 @@ episode hangs on (`OPS-44`). **Two further verbs therefore exist, `applied` and
 took effect, so the operation settles `succeeded`; or it did not, so it settles `failed`. `abandoned`
 remains for the case nobody can establish. **`not_applied` MUST be refused, on a `rootfs_via_rescue`
 or `raw_disk` install only, where `OPS-45`'s write-started marker is set** — a partially written disk
-is not "nothing happened", and recording it as such tells a caller its data survived. There the
+is not "nothing happened", and the verb would record on `STO-19`'s evidence trail that the mutation
+did not take effect, which is false. *It read "tells a caller its data survived" until 2026-09-15;
+the caller sees no resolution verb (`API-20`) and reads the disk from `WIR-9a`'s `disk_effect`
+instead.* There the
 honest verbs are `applied` or `abandoned`. *The scope was absent until 2026-09-04, and it is the
 difference between a rule and its opposite: on every other kind `OPS-45` sets that marker when the
 provider call is **dispatched**, so the refusal covered every operation an operator could ever be
@@ -1075,9 +1084,12 @@ proceeds by `PRV-29`/`PRV-36`'s provider evidence where the driver can produce i
 `OPS-31`'s `applied`/`not_applied`/`abandoned` where it cannot.
 
 **The marker means two different things across the table above, and only one of them can foreclose
-anything.** On `rootfs_via_rescue` and `raw_disk` it means **bytes have reached the disk** — the
-installer is running, or a byte is written — and there the machine's old contents are gone whatever
-the outcome. On `provider_native`, `provider_catalogue`, power, reverse DNS, delete and release
+anything.** On `rootfs_via_rescue` and `raw_disk` it means **the destructive phase was allowed to begin** — the
+installer invoked, or the first write issued — and from then on the machine's old contents MUST NOT
+be represented as preserved, whatever the outcome. The marker is written before the phase runs, so
+it establishes that preservation is no longer proven, not that a byte landed: a process that dies
+between the write and the phase leaves a set marker over an untouched disk, and nothing later can
+tell the two apart (*reworded 2026-09-15; it read "bytes have reached the disk"*). On `provider_native`, `provider_catalogue`, power, reverse DNS, delete and release
 attachment it means only
 that **a request was dispatched**, which is a fact about this process and not about the machine: a
 rebuild the provider never began, a power call it dropped, a delete whose response was lost, all set
@@ -1112,8 +1124,8 @@ columns are authoritative. *Stated because one fact with two homes and no author
 `SEC-46`'s amendment came to ship claiming it had applied.*
 
 **What outlives the operation is the disk, not the marker.** A `rootfs_via_rescue` or `raw_disk`
-install whose marker is set has altered the disk, and that stays true however many later
-operations on the machine stop short; it is read from that operation's row, which `STO-14` retains
+install whose marker is set may have altered the disk, and no later operation that stops short
+re-establishes that it did not; it is read from that operation's row, which `STO-14` retains
 as any settled row. `rescue_exited_cleanly` describes **the machine as that operation left it**,
 and a later operation that exits rescue cleanly genuinely repairs what a previous one left open,
 recorded on its own row.

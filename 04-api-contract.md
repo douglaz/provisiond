@@ -1146,8 +1146,10 @@ an agent discovers state by mutating).
 
 **API-51** **`retryable` is normative for callers, not advisory to operators.** An operation in
 `needs_reconciliation` MUST be delivered with `retryable: false`, and the contract MUST state in
-words that re-issuing the request under a fresh idempotency key **is a second purchase**, not a
-retry. `OPS-12` forbids the *system* from retrying an ambiguous mutation, but nothing else stops
+words that re-issuing the request under a fresh idempotency key **is a fresh operation**, not a
+retry — on a create, **a second purchase**; on an install, a second destructive write while the
+first's outcome is unresolved (*scoped 2026-09-15, `pv-x8r`; it read as if every kind bought
+something*). `OPS-12` forbids the *system* from retrying an ambiguous mutation, but nothing else stops
 the *customer's* agent from buying the duplicate server `OPS-27` exists to prevent — `SEC-39`'s
 per-principal ceiling is the backstop, and this
 field is the signal. This is the single most expensive way for "finding out" to go wrong.

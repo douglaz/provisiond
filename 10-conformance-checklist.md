@@ -1336,6 +1336,19 @@ rather than acquiring a default.
       **The failure this catches is the differentiator's own safety abort resolving only as
       `abandoned`**, which is what happened when three create-shaped verbs were the only ones there
       were. (`OPS-45`, `OPS-11`, `OPS-31`, `WIR-35`, `RSC-3`)
+- [ ] **CNF-300** — **A `failed` install says what it did to the disk, and the state never carries
+      it** (added 2026-09-15, `pv-x8r`). Drive a `rootfs_via_rescue` install whose installer starts
+      and then rejects the layout, with `on_failure: exit_rescue` succeeding and the engine reporting
+      `invalid_request`: assert the operation settles `failed`, `terminal: true`, `retryable` is
+      what `DOM-17` gives that kind, and the error carries `details.disk_effect:
+      "destructive_boundary_crossed"`. Then `CNF-279`'s pinned-key abort: `failed` with
+      `disk_effect: "none"`. Then a `provider_native` rebuild the provider rejects `not_found`
+      before acting: `failed` with `disk_effect: "none"`. Then `CNF-279`'s failed rescue exit and an
+      ambiguous `provider_native` dispatch: `needs_reconciliation`, `retryable: false`, with
+      `destructive_boundary_crossed` and `unknown` respectively. Assert every install error carries
+      the key, and that the two `failed` rescue installs differ on nothing but it — or the item
+      passes an implementation whose callers cannot tell an untouched disk from a partitioned one.
+      (`OPS-3`, `OPS-11`, `OPS-45`, `API-51`, `WIR-9a`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
