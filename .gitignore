@@ -1,3 +1,6 @@
 tools/formal/.lake/
 .beads/beads.db
 .beads/*.db-*
+.context/
+.gstack/
+tools/__pycache__/
