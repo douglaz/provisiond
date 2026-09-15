@@ -295,6 +295,15 @@ requirement it is qualified, because the set also uses *gate* for a runtime refu
 gate, the rate gate — and those are requirements, not checks.
 _Avoid_: test (that is a conformance item's word), linter
 
+**Marked region**:
+The lines between `<!-- formal: Provisiond.Render.… -->` and `<!-- /formal -->` in a requirement:
+a table, diagram or worked example that `tools/check_regions.py` holds to what the named
+declaration emits (`ADR-0025`). Inside one, the declaration is authoritative and the Markdown is
+its rendering; outside one, the transitional rule holds and the Markdown is. A worked example
+inside one is computed by the declaration and illustrates it; it is not a **witness**, which is
+retained to refuse a trap.
+_Avoid_: generated section (a `match` region is diffed, not generated), snippet
+
 **Witness**:
 A concrete input or trace, checked by the formal layer, that exhibits a property or its failure —
 one usable satoshi at two satoshis per second. A negative witness, or counterexample, is a retained

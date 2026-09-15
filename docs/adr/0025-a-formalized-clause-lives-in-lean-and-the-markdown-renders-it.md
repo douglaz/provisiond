@@ -46,10 +46,14 @@ stuck on rational equalities and reached for `native_decide`; the other closed t
   or diffed against what the declaration emits, where the region carries prose or citations a
   rewrite would erase. Drift is a red gate. The index that gate will read is already emitted from
   the `@[req]` attributes by `lake exe gate`; there is no hand-kept manifest, because a manifest is
-  a third copy. **The rendering gate and the resolver for backticked `Provisiond.*` names are owed
-  with the inventory's fourth item, the closed tables, and until they land no requirement carries
-  a marked region or cites a declaration by name** — the transitional rule above holds for every
-  clause.
+  a third copy. **The rendering gate (`tools/check_regions.py`) and the resolver for backticked
+  `Provisiond.*` names (in `tools/check_citations.py`) landed 2026-09-15 with the closed tables**;
+  `OPS-48`'s table, `DOM-31`'s diagram, `LDG-38`'s worked examples and `LDG-31`'s worked table are
+  the first marked regions (`lake exe render` prints the list), and inside each the declaration is authoritative and the Markdown
+  renders it. Every other formalized clause is still under the transitional rule above until its
+  region is marked. A `match` region — a table whose rows carry prose — is diffed on the tokens the
+  declaration determines; the prose beside them stays the document's, where the citation gates read
+  it.
 - **A theorem is never conformance.** `tools/check_coverage.py` counts conformance items and
   nothing from the formal layer; a `CNF` identifier does not appear in `tools/formal/`. A proof is
   about the model under its stated hypotheses; a conformance item is about a running implementation.
@@ -71,8 +75,8 @@ stuck on rational equalities and reached for `native_decide`; the other closed t
 - **The gate runs with the others, on every push.** `lake build` and `lake exe gate` join
   `tools/check-all.sh` under `nix develop --command`; `nix flake check` builds them too. Each check
   has a negative control in `ci.yml` on `DEF-16`'s model, and `ci.yml` holds the list. The
-  claim-term control landed with the claim model on 2026-09-14; the rendered-region control is
-  owed with the rendering gate.
+  claim-term control landed with the claim model on 2026-09-14; the rendered-region and
+  dangling-name controls landed with the rendering gate on 2026-09-15.
 - **`check_arithmetic.py` is deleted.** The Lean gate is required in CI from its first commit, so
   the condition was met the day it was written. Two encodings of one formula are the second copy
   `AGENTS.md` forbids, and the Python one was the weaker; its last property without a theorem, the
@@ -122,7 +126,10 @@ witness and the theorem share one set of definitions and cannot drift from each 
 
 - `tools/formal/` with `lean-toolchain`, `lakefile.toml`, `Provisiond/Req.lean` (the attribute),
   one module per model under `Provisiond/` — `Provisiond.lean`'s imports are the list, and the
-  wrapper refuses a module missing from it — and `Gate.lean` (the axiom check and the index). `tools/check-all.sh` runs the build and the gate; `ci.yml` gains
+  wrapper refuses a module missing from it — `Gate.lean` (the axiom check and the index) and
+  `Render.lean` (the marked regions, from `Provisiond/Render.lean`). `tools/check-all.sh` runs
+  the build and the gate first, then the document gates that read the index;
+  `ci.yml` gains
   the negative controls; `flake.nix`'s check builds them.
 - `CONTEXT.md` gains **specification gate**, **witness**, **model**, **assumption** and
   **property**; *oracle* stays on **Rate**'s avoid list, and **reference model** was added on

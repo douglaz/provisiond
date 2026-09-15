@@ -41,7 +41,20 @@ that way" reverses `WIR-30`'s meaning, uses a summary verb, and carries no
 quote -- no lexical signal separates it from a correct summary. That one was the
 worst defect of 2026-09-03 and it stays a review problem.
 
-Exit 0 = clean, 1 = an unverifiable quote or a rise above the baseline.
+A third rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
+
+  NAMES    A backticked `Provisiond.*` name is a citation of a Lean declaration
+           and must resolve against the index `lake exe gate` writes: a tagged
+           declaration, a namespace or module holding one, or the `Explore`
+           namespace `Gate.lean` exempts. A renamed declaration leaves a
+           dangling name, and this is the gate that sees it. Hard failure. Not
+           caught: a declaration renamed with a new one tagged under the old
+           name, which resolves. The
+           index is written by `tools/check_formal.sh`, which `check-all.sh`
+           runs first; a missing index is a red gate, not a skipped rule.
+
+Exit 0 = clean, 1 = an unverifiable quote, an unresolved name or a rise above
+the baseline, 2 = the index is missing.
 """
 
 import glob
@@ -87,6 +100,9 @@ SPLIT = re.compile(r"(?<=[.!?])\s+|\n\s*[-*]\s+|\n\s*\n|\n(?=\|)")
 # quotes as a failed one.
 QUOTE = re.compile(r'“([^”]{8,400})”|"((?:[^"\n]|\n(?!\s*\n)){8,400})"')
 DOC = re.compile(r"`(\d\d-[a-z-]+\.md|README\.md|CONTEXT\.md|AGENTS\.md)`")
+LEAN = re.compile(r"`(Provisiond\.[A-Za-z0-9_.]+)`(?<!\.lean`)")  # `Provisiond.lean` is a file
+INDEX = os.path.join(ROOT, "tools", "formal", ".lake", "index.jsonl")
+MODULES = os.path.join(ROOT, "tools", "formal", "Provisiond.lean")
 
 # A quotation of wording that was deliberately removed cannot be found in the
 # body, and this set retains such quotations on purpose (README, "Identifiers
@@ -168,8 +184,40 @@ def find(docs, adr, reqs):
     return bad, unquoted
 
 
+def read_index():
+    """The index `lake exe gate` writes, as {declaration: requirement id}. Shared with
+    check_regions.py -- one reader, not two. Missing = exit 2, never a skip."""
+    if not os.path.exists(INDEX):
+        print(f"FAIL: {INDEX} missing -- run tools/check_formal.sh first "
+              f"(check-all.sh orders it before this gate)")
+        sys.exit(2)
+    rows = [json.loads(l) for l in open(INDEX) if l.strip()]
+    return {r["decl"]: r["req"] for r in rows}
+
+
+def lean_names():
+    """Every name a document may cite: tagged declarations, their namespaces, the
+    modules the build imports, and the one namespace the gate exempts by policy.
+    Not caught: a declaration renamed and a new one tagged under the old name."""
+    names = {"Provisiond.Explore"}
+    for decl in read_index():
+        parts = decl.split(".")
+        names.update(".".join(parts[:k]) for k in range(1, len(parts) + 1))
+    for line in open(MODULES):
+        if line.startswith("import "):
+            names.add(line.split()[1])
+    return names
+
+
+def unresolved(docs, adr):
+    names = lean_names()
+    texts = list(docs.items()) + [("docs/adr/*.md", adr)]
+    return [(f, n) for f, t in texts for n in LEAN.findall(t) if n not in names]
+
+
 def main():
-    bad, unquoted = find(*load())
+    docs, adr, reqs = load()
+    bad, unquoted = find(docs, adr, reqs)
     for f, rid, q in bad:
         print(f"  {f} attributes to {rid} a phrase {rid} does not contain:")
         print(f'      "{q}"')
@@ -178,6 +226,15 @@ def main():
               f"requirement's own words, or cite it without quoting.")
         return 1
     print(f"quoted attributions verified: clean")
+
+    dangling = unresolved(docs, adr)
+    for f, n in dangling:
+        print(f"  {f} cites `{n}`, which the index does not carry")
+    if dangling:
+        print(f"\nFAIL: {len(dangling)} Provisiond.* name(s) do not resolve against "
+              f"tools/formal/.lake/index.jsonl. Cite the tagged declaration by its current name.")
+        return 1
+    print(f"Provisiond.* names resolved: {len(LEAN.findall(adr)) + sum(len(LEAN.findall(t)) for t in docs.values())}")
 
     sigs = sorted({f"{f}:{rid}" for f, rid, _ in unquoted})
     try:

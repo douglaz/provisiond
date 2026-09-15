@@ -282,3 +282,65 @@ jobs:
           grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
           grep -A6 'proved that the proposition' build.log | grep -q 'postgres'
           echo "the migration type correctly refused the transactional CONCURRENTLY build"
+
+      # The rendering gate (pv-vwe.8, ADR-0025): a hand edit inside a marked region is
+      # red for that region, and the same edit one line outside it is not. The scratch
+      # copy carries tools/formal/.lake from the "Run all gates" step above, which is
+      # what the gate reads; a missing index would be exit 2, not the red we assert.
+      - name: Prove the rendering gate rejects a hand edit inside a rendered region
+        run: |
+          set -euo pipefail
+          src="$PWD"
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/^| machine deleted, commitment closed | 71,900 | 0 | 71,900 |$/| machine deleted, commitment closed | 71,900 | 0 | 71,901 |/' \
+            12-billing-and-ledger.md
+          grep -q '| 0 | 71,901 |' 12-billing-and-ledger.md
+          if python3 tools/check_regions.py > regions.log 2>&1; then
+            echo "::error::rendering gate passed a hand-edited worked table"
+            exit 1
+          fi
+          grep -q 'Provisiond.Render.ldg31Table drifted' regions.log
+          test "$(grep -c ' drifted\| declaration says' regions.log)" -eq 1
+          cd "$src" && rm -rf "$tmp/repo" && cp -r . "$tmp/repo" && cd "$tmp/repo"
+          printf '\n\n**LDG-9999** is a sentence outside every marked region.\n' >> 12-billing-and-ledger.md
+          python3 tools/check_regions.py
+          echo "rendering gate correctly rejected the edit inside the region and passed the one outside"
+
+      # A `match` region is diffed on its outcome tokens: flipping one row's fence verdict
+      # is red for that row and column, while the prose beside it is free.
+      - name: Prove the rendering gate rejects a flipped outcome in a diffed table
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/^| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | \*\*Cleared\*\*, same transaction/| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Stays set**, same transaction/' \
+            03-operation-lifecycle.md
+          grep -q 'in the resolution transaction | \*\*Stays set\*\*, same transaction' 03-operation-lifecycle.md
+          if python3 tools/check_regions.py > regions.log 2>&1; then
+            echo "::error::rendering gate passed a table row whose fence verdict contradicts its declaration"
+            exit 1
+          fi
+          grep -q 'Provisiond.Render.ops48Table: row 10, column 3' regions.log
+          test "$(grep -c ' drifted\| declaration says' regions.log)" -eq 1
+          echo "rendering gate correctly rejected the flipped fence verdict"
+
+      # The name resolver: a declaration renamed under a document that cites it is a
+      # dangling citation, and the citations gate is where it goes red.
+      - name: Prove the citation gate rejects a declaration name the index does not carry
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/`Provisiond.Witnesses.period_reset_witness`/`Provisiond.Witnesses.period_reset_witnes`/' \
+            11-open-findings.md
+          grep -q 'period_reset_witnes`' 11-open-findings.md
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a Provisiond.* name the index does not carry"
+            exit 1
+          fi
+          grep -q 'cites `Provisiond.Witnesses.period_reset_witnes`, which the index does not carry' citations.log
+          echo "citation gate correctly rejected the dangling declaration name"

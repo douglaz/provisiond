@@ -273,12 +273,14 @@ re-derivation.
 Its effect on the ordinary path is unchanged — consumption leaves `available` **unchanged**,
 because spending what you already committed neither frees nor freezes anything:
 
+<!-- formal: Provisiond.Render.ldg31Table -->
 | event | Σ entries | reserved | available |
 |---|---:|---:|---:|
 | `topup` +72,000 | 72,000 | 0 | 72,000 |
 | commitment opened, 72,000 | 72,000 | 72,000 | 0 |
 | one hour consumed: `usage_debit` −100, commitment → 71,900 | 71,900 | 71,900 | 0 |
 | machine deleted, commitment closed | 71,900 | 0 | 71,900 |
+<!-- /formal -->
 
 **LDG-32** **AMENDED.** A commitment MUST be closed, and its remaining amount released in full,
 on **every** terminal outcome: the machine stops billing **and every billable attachment it left
@@ -646,6 +648,17 @@ For each metered increment i of this SUBJECT, closing at increment_end_i:
 
   r'             = r + posted_debit_i − exact_i        # INVARIANT: 0 ≤ r < 1, always
 ```
+
+The recurrence worked, rendered from its declaration (`Provisiond.Meter.debits`):
+
+<!-- formal: Provisiond.Render.ldg38Examples -->
+| | exact charges, in order (∣ is a period boundary, where `r` restarts at 0) | posted debits | Σ posted | `r` after |
+|---|---|---|---:|---:|
+| carrying the credit | 2/5, 2/5 | 1, 0 | 1 | 1/5 |
+| resetting it at the period boundary | 2/5 ∣ 2/5 | 1 ∣ 1 | 2 | 3/5 |
+| 7 sat/h rising to 14 at the half hour, the hour split there | 7/2, 7 | 4, 7 | 11 | 1/2 |
+| the same hour unsplit, at the rate in force at its end | 14 | 14 | 14 | 0 |
+<!-- /formal -->
 
 `r` and the high-water mark are the whole of the meter's state. Both are read from and written to
 `LDG-72`'s running total for this `(subject, billing period)`, never recomputed by query.

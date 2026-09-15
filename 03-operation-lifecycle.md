@@ -902,20 +902,26 @@ still open, still billing, and waiting on a decision. The transitions are exactl
 how the current attempt settled — by the worker, by `OPS-27`'s evidence, or by `OPS-31`/`OPS-45`'s
 operator verb — and on the one operator verb the episode has:
 
+<!-- formal: Provisiond.Render.ops48Table -->
 | The attempt settled | The episode | `machines.destroy_committed` (the fence, `OPS-42`; exposure-reducing cancellations only) |
 |---|---|---|
 | `succeeded`, resource gone — including `OPS-11`'s goal-state row | `closed`, `close_reason: resource_gone`, in the terminal transaction | **Cleared**, same transaction |
 | `succeeded` recording that no mutation was required (`OPS-41`'s abort) | `closed`, `close_reason: funded`, in the terminal transaction: the condition has ended, and a later lapse opens a fresh episode | **Cleared**, same transaction |
 | No attempt settled — the exhaustion sweep finds the machine of a `stalled` episode funded under `OPS-41`'s predicate (a rate rise can do this with no caller action, and the fence forbids the caller's own) **and its tenant not suspended** at that read — `OPS-41`'s exemption governs this row as it governs the worker's re-check, since a suspended tenant's machine is not kept by being funded (*added 2026-09-09, `ADR-0021`*) | `closed`, `close_reason: funded`, in the sweep's transaction; no provider call is made, so `OPS-39`'s loop concern does not apply | **Cleared**, same transaction |
-| `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | `scheduled`; `closed`, `close_reason: resource_gone`, in the transaction that tombstones the machine at the effective date — that tombstone is the gone-write of the last row, and nothing tombstones by timer: `LDG-74` allows "A machine still present after its date" (*reason stated 2026-09-14; the row named none while every other close did*) | **Stays set**; the tombstone clears it, same transaction |
+| `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | `scheduled`; `closed`, `close_reason: resource_gone`, in the transaction that tombstones the machine at the effective date — that tombstone is the gone-write of the last row, and nothing tombstones by timer: `LDG-74` allows "A machine still present after its date" (*reason stated 2026-09-14; the row named none while every other close did*) | **Stays set**; **Cleared** by the tombstone, same transaction |
 | `failed` — deterministic; the provider did not act | `stalled` | **Stays set** |
 | `needs_reconciliation` | `uncertain`, until the attempt is resolved (`OPS-27`, `OPS-31`) and one of the rows below applies | **Stays set** |
 | Resolved `applied`, the resource gone (`OPS-45`) | `closed`, `close_reason: resource_gone`, in the resolution transaction | **Cleared**, same transaction |
 | Resolved `applied` **with an `effective_cancellation_date`** (`WIR-35`) — the operator established the provider *scheduled* it | `scheduled`, as the third row | **Stays set** |
 | Resolved `not_applied` — the machine is still there | `stalled` | **Stays set** |
 | Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Cleared**, same transaction, so a later sweep may open a fresh episode and fence again |
-| `retry` (`API-64`) on a `stalled` episode | `attempting`, with a fresh attempt enqueued in the same transaction as the state change; admissible in no other state | Unchanged: the new attempt contends on the same episode id |
+| `retry` (`API-64`) on a `stalled` episode | `attempting`, with a fresh attempt enqueued in the same transaction as the state change; admissible in no other state | **Stays set**, unchanged: the new attempt contends on the same episode id |
 | No attempt settled — **the machine is recorded gone** (`ADR-0021`): the write of `machines.state` to gone with `machines.state_observed_at` (`STO-48`), by any of `LDG-74`'s triggers — a refresh, a driver read during any operation, `OPS-32`'s complete pass — or by `API-63`'s termination; in any open state, `scheduled` included. Where that write and an attempt's terminal write are one transaction, as a delete's own "already gone" answer is, they are one close under the first row | `closed`, `close_reason: resource_gone`, in the transaction that records the gone state | **Cleared**, same transaction |
+<!-- /formal -->
+
+*The table is a marked region since 2026-09-15 (`ADR-0025`): its outcome tokens render `OPS-48`'s
+declaration, and the retry and scheduled rows' fence cells were reworded that day to carry the
+verdict token, with no row's meaning changed.*
 
 **A close is permanent, and the rows above apply to an open episode only** (`ADR-0021`). An
 attempt under a closed episode that later settles, or is resolved under `OPS-31`, changes the

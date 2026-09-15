@@ -196,6 +196,7 @@ cancellation; the `system_reason` for every other trigger), `reasons` (set), `op
 close the episode. A machine recorded gone closes its open episode in the same transaction, and a
 close is permanent (`ADR-0021`). `OPS-48` is the lifecycle; this is its shape.
 
+<!-- formal: Provisiond.Render.dom31Diagram -->
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -205,18 +206,20 @@ stateDiagram-v2
     attempting --> scheduled : attempt succeeded, future date
     attempting --> stalled : attempt failed
     attempting --> uncertain : attempt needs_reconciliation
-    uncertain --> closed : resolved applied, gone
-    uncertain --> scheduled : resolved applied, dated
-    uncertain --> stalled : resolved not_applied
-    uncertain --> closed : abandoned
-    stalled --> attempting : operator retry, API-64
-    stalled --> closed : sweep finds it funded
     attempting --> closed : machine recorded gone
+    uncertain --> scheduled : resolved applied, dated
+    uncertain --> closed : resolved applied, gone
+    uncertain --> stalled : resolved not_applied
+    uncertain --> closed : resolved abandoned
     uncertain --> closed : machine recorded gone
+    stalled --> attempting : operator retry, API-64
+    stalled --> closed : sweep finds it funded, tenant not suspended
     stalled --> closed : machine recorded gone
-    scheduled --> closed : machine tombstoned, or recorded gone before its date
+    scheduled --> closed : machine recorded gone
+    scheduled --> closed : tombstoned at its effective date
     closed --> [*]
 ```
+<!-- /formal -->
 
 ### Rescue session
 

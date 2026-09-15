@@ -34,12 +34,15 @@ run() {
   return 0
 }
 
+# The formal gate runs first: the citations and regions gates read the index and
+# the regions it writes, and a stale index is a gate reading last week's truth.
+run "formal       (Lean build, axiom policy, @[req] index, regions)" bash tools/check_formal.sh
 run "identifiers  (append-only, dangling, gaps, ADR refs)" python3 tools/check_ids.py
 run "fixtures     (WIR-37 JSON, WIR-1a, mermaid structure)" python3 tools/check_fixtures.py
 run "obligations  (a duty assigned to another requirement)" python3 tools/check_obligations.py
 run "coverage     (requirements exercised by CNF items)"   python3 tools/check_coverage.py
-run "citations    (a claim about what another requirement says)" python3 tools/check_citations.py
-run "formal       (Lean build, axiom policy, @[req] index)" bash tools/check_formal.sh
+run "citations    (a claim about what another requirement says; Provisiond.* names)" python3 tools/check_citations.py
+run "regions      (a marked region is what its declaration emits)" python3 tools/check_regions.py
 
 echo
 echo "=============================================================="
