@@ -144,7 +144,8 @@ closed without error. A fact about *this process*, written before the phase runs
 classifier before anyone asks a human. On a **rescue install** the first marker means the
 destructive phase was allowed to begin and the old contents can no longer be represented as
 preserved; on every other kind it means a request was dispatched and says nothing about the
-machine. Never cleared.
+machine. Never cleared: the first is write-once, the second is armed `false` before the session and
+moves to `true` on a clean exit, never back.
 _Avoid_: flag, evidence, witness
 
 **Evidence**:

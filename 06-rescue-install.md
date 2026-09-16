@@ -163,8 +163,7 @@ tenant-visible field, under a key no document named.* **The key is the only part
 that may be written**, and the exception is owned by `DOM-11` (amended 2026-09-02) rather than
 claimed here: that requirement forbids persisting a rescue session at all, so until it named this
 case the two were a contradiction a builder had to resolve by guessing. A provider-supplied rescue
-password is **never** persisted — it is the provider's to reset — and the record carries the path,
-never the key.
+password is **never** persisted — it is the provider's to reset.
 
 **An engine crash persists nothing, and that is not a gap** (*added 2026-09-15, `pv-x8r`'s panel*).
 Neither branch runs when the process dies mid-session: `OPS-15` moves the operation to

@@ -97,7 +97,10 @@ structure Failure where
   deriving DecidableEq, Repr
 
 /-- `OPS-45`'s two markers: `write_started_at` set, and "no rescue session was opened or the one
-that was opened was closed without error". -/
+that was opened was closed without error". `rescueClean` is the classifier's two-way reading of a
+three-valued column — `true` for `rescue_exited_cleanly` null and `true`, `false` for its `false` —
+which is why every kind that enters no rescue carries `true` in the witnesses. `WIR-9a`'s
+`none`/`clean`/`unknown` is rendered from the column, not from this field. -/
 structure Markers where
   writeStarted : Bool
   rescueClean  : Bool
@@ -144,9 +147,9 @@ def installKindRow : ErrorKind → Written
 /-- The install row, which `rescue inventory` shares: under `markerRule`, `failed` for any kind
 while the markers clear the machine, and — `OPS-11`'s `PRV-22` case — `needs_reconciliation`
 "regardless of which error kind the driver reports" where the rescue exit failed; otherwise the
-kind column. `OPS-11`'s paragraph on that case: "the same holds where the exit was never
-attempted or the operation died before reaching it" — the marker "is one column, unset for all
-three". Without the rule, the row as it stood before `OPS-45`: the kind column alone. -/
+kind column. `OPS-11`'s paragraph on that case: "the same holds where the operation died before
+reaching it" — the marker "is one column, `false` for both". Without the rule, the row as it stood
+before `OPS-45`: the kind column alone. -/
 @[req "OPS-11"]
 def installRow (r : Rules) (m : Markers) (e : ErrorKind) : Written :=
   if r.markerRule && !m.writeStarted && m.rescueClean then .failed

@@ -39,7 +39,9 @@ WHAT THIS DOES NOT CATCH, stated plainly because a gate's limits are part of its
 contract: a wrong SUMMARY. "`WIR-30` forbids the server resolving eligibility
 that way" reverses `WIR-30`'s meaning, uses a summary verb, and carries no
 quote -- no lexical signal separates it from a correct summary. That one was the
-worst defect of 2026-09-03 and it stays a review problem.
+worst defect of 2026-09-03 and it stays a review problem. Nor a quote inside a Lean
+docstring under tools/formal/: this gate reads *.md only, and a docstring quoting
+withdrawn wording stayed green for a day on 2026-09-15.
 
 A third rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
 

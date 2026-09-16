@@ -76,7 +76,10 @@ by any path". A create deferred once read `2`.
   what is being written)`; `revision` and `updated_at` advance only on the `running` branch, so
   `API-53`'s "strictly increases on each client-visible modification" holds. Write-once markers
   (`OPS-45`) are written `COALESCE(marker, now)` guarded on `status = running`, never guarded on
-  the marker being null. The guarded status write is the transaction's first statement and
+  the marker being null. *Amended 2026-09-16: only `write_started_at` is write-once and of that
+  shape; `rescue_exited_cleanly` has the two writes `OPS-45` states, `COALESCE(…, false)` before the
+  begin-rescue dispatch and `true` on the end-rescue success, idempotent by value, both guarded the
+  same way.* The guarded status write is the transaction's first statement and
   short-circuits the rest, so `OPS-27`'s multi-row create settlement and the meter's
   debit-plus-decrement-plus-total (`STO-28`, `STO-45`) repeat as a unit or not at all. `OPS-22`'s
   zero-row clause keeps its single meaning: someone else moved it.

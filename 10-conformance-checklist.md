@@ -1330,7 +1330,8 @@ rather than acquiring a default.
       is set, and that both are refused on a create. **Then the same verb on a `delete_machine`
       whose provider call was dispatched and whose response was lost — and table-drive the same
       assertion across **every** dispatch-marked row of `OPS-45`'s table**: `provider_native` install,
-      `provider_catalogue` install, power, reverse DNS and delete. The marker is set on all five and
+      `provider_catalogue` install, power, reverse DNS, delete and release attachment (*the last added
+      2026-09-16; the row had five names for a six-member row*). The marker is set on all of them and
       `not_applied` is `200`, not `409` — there the marker records a dispatch, not a written disk
       (`OPS-45`), and the operator has read the provider. **The markers are per operation and
       nothing clears them** (`OPS-45`): a `retry` (`API-64`) enqueues a fresh attempt whose markers
@@ -1348,9 +1349,11 @@ rather than acquiring a default.
       what `DOM-17` gives that kind, and the error carries `details.disk_effect:
       "destructive_boundary_crossed"`. Then `CNF-279`'s pinned-key abort: `failed` with
       `disk_effect: "none"`. Then a `provider_native` rebuild the provider rejects `not_found`
-      before acting: `failed` with `disk_effect: "none"`. Then `CNF-279`'s failed rescue exit and an
-      ambiguous `provider_native` dispatch: `needs_reconciliation`, `retryable: false`, with
-      `destructive_boundary_crossed` and `unknown` respectively. Assert every install error carries
+      before acting: `failed` with `disk_effect: "none"`. Then `CNF-279`'s failed rescue exit: `needs_reconciliation`,
+      `retryable: false`, `disk_effect: "none"` (it aborted before writing) and `rescue_exit:
+      "unknown"`; and an ambiguous `provider_native` dispatch: `disk_effect: "unknown"`,
+      `rescue_exit: "none"` (*corrected 2026-09-16; the first draft paired the abort with
+      `destructive_boundary_crossed`*). Assert every install error carries
       the key, and that the two `failed` rescue installs differ on nothing but it — or the item
       passes an implementation whose callers cannot tell an untouched disk from a partitioned one.
       (`OPS-3`, `OPS-11`, `OPS-45`, `API-51`, `WIR-9a`)
@@ -1362,6 +1365,21 @@ rather than acquiring a default.
       with `rescue_exit: "unknown"`, the address and port, and a key file named by the operation id.
       Every install and rescue-inventory error carries `rescue_exit`. (`RSC-18`, `RSC-19`, `RSC-25`,
       `OPS-11`, `OPS-45`, `WIR-9a`)
+- [ ] **CNF-302** — **`rescue_exit: "none"` is a fact, and the column is written before the session,
+      not after the exit** (added 2026-09-16). Drive an install refused before begin rescue —
+      `OPS-40`'s claim-time URL gate, or a `rescue_ssh` capability refusal (`DOM-10`) — and assert
+      `failed`, `rescue_exit: "none"`, no `rescue_address`, and `rescue_exited_cleanly` **null** in
+      the row and in `request_summary`. Then kill the engine between the begin-rescue dispatch and
+      the end-rescue call: `OPS-15` moves the operation to `needs_reconciliation`, the error carries
+      `rescue_exit: "unknown"` with `rescue_address` and `rescue_port`, the column is **false**, and
+      no key file exists (`RSC-19`: a crash persists nothing, and `unknown` never implies a file).
+      Then `CNF-301`'s clean exit: **true**. Then repeat the pre-dispatch write after a simulated lost
+      reply and assert it affects one row and changes nothing (`ADR-0022`, `STO-3`). Then restore
+      from a backup taken before the dispatch and assert the quarantined row renders both keys
+      `unknown` whatever the restored columns hold (`WIR-9a`). Three distinct column values, or the
+      item passes an implementation that writes the marker only at the exit — which renders a
+      crashed session as `none`, the one lie the column exists to prevent. (`OPS-45`, `OPS-15`,
+      `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money

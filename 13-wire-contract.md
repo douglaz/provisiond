@@ -149,6 +149,12 @@ the error also carries `rescue_address` and `rescue_port` (`RSC-19`): the machin
 and its address is already on `WIR-11`. It never carries a recovery-key path; the file is named by
 the operation id and the directory is the operator's (`RSC-20`).
 
+**Neither key is rendered from markers a restore may have rolled back** (*added 2026-09-16*). On an
+operation the restore quarantine or the post-restore startup pass moved (`STO-54`, `OPS-15`),
+`disk_effect` and `rescue_exit` are both `unknown` whatever the columns hold: `STO-54` says of
+exactly those rows that "a null marker there does not mean the disk is untouched", and `none` on
+either key would tell the caller the opposite of what the operator is told about the same row.
+
 **WIR-9b** **`retryable` precedence.** When an error accompanies an operation view, the operation
 view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 `needs_reconciliation` and `gone` are **always** `retryable: false` — re-issuing either under a

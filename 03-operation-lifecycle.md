@@ -242,7 +242,7 @@ rescue is *always* ambiguous". That does not conflict with the install row: an i
 *rescue exit* fails has already done its work and reached the provider, so it is never a
 deterministic caller error, and the install row classifies it `needs_reconciliation` regardless
 of which error kind the driver reports. *Amended 2026-09-14: the same holds where the operation died
-before reaching it. `OPS-45`'s second marker is one column, unset for both, so the classification
+before reaching it. `OPS-45`'s second marker is one column, `false` for both, so the classification
 cannot tell them apart, and the machine may be sitting in rescue either way — which is the fact the
 marker records. The never-attempted exit was a third case until `RSC-18` was withdrawn, 2026-09-15.*
 
@@ -352,7 +352,9 @@ pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead
 until a human noticed — which is exactly what `SEC-45`'s one-action termination MUST NOT depend on.
 
 **OPS-16** The sweeper MUST NOT overwrite an error already recorded on the operation; it
-fills in a marker only where none exists.
+fills in an error only where none exists. It writes neither of `OPS-45`'s markers, which are facts
+about an execution the pass is not (*"marker" here read as that word until 2026-09-16; `OPS-45`
+minted it as a term after this sentence was written*).
 
 ## Resolving `needs_reconciliation`
 
@@ -996,9 +998,11 @@ still consuming it. *Scoped 2026-09-02; unscoped, abandoning a failed install re
 of a machine that is still running, which is `LDG-13`'s unfunded machine created by an operator
 verb.*
 
-**AMENDED 2026-09-02 — those three verbs are create-shaped, and five operation kinds cannot use
-them.** `observed` names an `external_id` that a create produced; `absent` says nothing was created.
-An install, a **rescue inventory**, a power action, a reverse-DNS change and a **delete** all act on
+**AMENDED 2026-09-02 — those three verbs are create-shaped, and the kinds `OPS-45` governs cannot
+use them** (*"five" until 2026-09-16; `PRV-45`'s release attachment made six*). `observed` names an
+`external_id` that a create produced; `absent` says nothing was created.
+An install, a **rescue inventory**, a power action, a reverse-DNS change, a **delete** and a release
+attachment all act on
 a machine that
 **already exists**, so
 neither verb has a meaning there and the only reachable one is `abandoned` — which is why every
@@ -1072,14 +1076,28 @@ that could have altered the machine, and before that phase runs:
 together.** Activating rescue reboots the machine into another operating system (`PRV-15`) and
 `PRV-22` makes *failure* of the exit always ambiguous — so "nothing was written" is not on its own
 "nothing happened". The engine MUST therefore also record **whether the rescue session it opened
-was closed without error**: set when the driver's end-rescue call returns success, left unset when
-it fails or when the operation dies before reaching it (*a never-attempted exit was the third case
-until `RSC-18` was withdrawn, 2026-09-15*).
+was closed without error** — `rescue_exited_cleanly` (`05-persistence.md`), three-valued: **null**
+where begin rescue was never dispatched; **false, written before begin rescue (`PRV-15`) is
+dispatched**, as the write-started marker is written before its phase, and standing while the
+session is open, where the exit fails and where the operation dies before reaching it; **true** when
+the driver's end-rescue call returns success. A dead process writes nothing, which is why `false`
+precedes the session and not the exit: it is what lets `OPS-15`'s pass render `rescue_exit:
+"unknown"` (`RSC-19`, `WIR-9a`). Null is the only value that means no session was opened, and
+`false` moves to `true` and never back. **A driver's report that it cleaned up after a partial
+activation (`PRV-18`) does not move this marker**: the engine did not open the session and did not
+close it, and `PRV-18`'s own output for that case is "the identifiers of the leaked resources", an
+operator's fact and not the engine's record of its own execution. *Until 2026-09-16 this read "set
+when the driver's end-rescue call returns success, left unset when it fails or when the operation
+dies" — the classifier's two-way question standing where the column's three values belonged, and
+no sentence said when the column was written; a never-attempted exit was a third case until
+`RSC-18` was withdrawn, 2026-09-15. Four readers converged on the pre-dispatch write.*
 
 **An operation settles `failed` — deterministically, with no operator and no reconciliation — when
 the write-started marker is unset *and* either no rescue session was opened or the one that was
 opened was closed without error.** In that state the engine has positive evidence from its own
-execution that the disk is untouched and the machine is back where it started. Everything else
+execution that the disk is untouched and the machine is back where it started. This rule classifies a failure a
+worker recorded; an operation interrupted rather than classified is `OPS-15`'s, whatever the markers
+hold, and after a restore `STO-54` quarantines it on the same footing (*scoped 2026-09-16*). Everything else
 follows `OPS-11`'s classification, and resolution then
 proceeds by `PRV-29`/`PRV-36`'s provider evidence where the driver can produce it, falling back to
 `OPS-31`'s `applied`/`not_applied`/`abandoned` where it cannot.
@@ -1133,10 +1151,13 @@ recorded on its own row.
 
 A worker's write of either is guarded like any other worker write (`STO-3`), and MUST report
 whether it affected a row — a worker that has been overtaken MUST NOT record that it began writing;
-it exits. **The write sets the marker only where it is null** — `COALESCE(marker, now)` under the
+it exits. **The write sets the marker only where it is null** — `COALESCE(write_started_at, now)` under the
 worker guard, never a guard on the marker being null (amended 2026-09-12, `ADR-0022`): a repeat
 after a lost reply then affects a row and moves nothing, where a null-guarded write would affect
-no row and read as overtaken.
+no row and read as overtaken. The second marker has two writes of the same shape (*2026-09-16*):
+`COALESCE(rescue_exited_cleanly, false)` before the begin-rescue dispatch, and `true` on the
+end-rescue success, idempotent by value; both under the worker guard, and each acknowledged by the
+store before the provider call it precedes is made.
 
 **OPS-32** **AMENDED 2026-08-12 — it is now a MUST, and it keys on the wrong thing no longer.**
 Periodic reconciliation MUST run across each provider account independently of any stuck
