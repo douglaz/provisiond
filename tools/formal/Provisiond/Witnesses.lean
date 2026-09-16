@@ -3,6 +3,7 @@ import Provisiond.Runway
 import Provisiond.Claim
 import Provisiond.Tables
 import Provisiond.Migration
+import Provisiond.Fence
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -108,6 +109,113 @@ theorem clamp_leaves_credit_witness :
 theorem sub_second_runway_witness :
     runwaySeconds 1 0 2 = 0 ∧ abortSats 1 0 2 = true ∧ abortDate 1 0 2 = false := by
   decide
+
+/-! ## The cancellation fence
+
+Every trace puts `fenceWrite` after `fenceTxn`. Under `current` the transaction already wrote and
+the step is inert; under the split variant it is the write. The one schedule runs both designs,
+so a witness pair differs on the property and not on the events offered. -/
+
+section Fence
+open Provisiond.Fence
+
+/-- A machine at the end of its runway on a tenant with balance to extend it: one satoshi per
+second, nothing protected, nothing reserved, the stored date already reached. -/
+def fenceWorld : World :=
+  { m := { commitment := 0, runwayUntil := 0, fence := none, destroyed := false },
+    balance := 1000, now := 0, rate := 1, prot := 0,
+    episode := none, attempt := none, phase := .idle, nextId := 1 }
+
+/-- The sweep routes, the worker claims, the fence transaction reads unfunded and wins, the
+provider deletes, the attempt settles. -/
+def cancellationTrace : List Fence.Event :=
+  [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- The cancellation, with `LDG-62` committing between the fence transaction's read and its
+write. -/
+def paidMachineTrace : List Fence.Event :=
+  [.sweep, .claim, .fenceTxn, .extend 100, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- The extension lands before the worker's fence transaction. -/
+def extensionFirstTrace : List Fence.Event :=
+  [.sweep, .claim, .extend 100, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- A first attempt sets the fence, calls the provider and is refused; the attempt settles
+`failed` and the episode stalls with the fence kept (`OPS-48`); `retry` issues a fresh attempt on
+the same episode, which contends for the fence and executes. -/
+def retryTrace : List Fence.Event :=
+  [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete false (some false), .settle,
+   .retry, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- A successful cancellation: the machine destroyed, the episode closed `resource_gone`, the
+fence cleared in that transaction, the row settled `succeeded` under the number the claim
+returned. -/
+@[req "OPS-42"]
+theorem successful_cancellation_witness :
+    let w := run Fence.current fenceWorld cancellationTrace
+    w.m = { commitment := 0, runwayUntil := 0, fence := none, destroyed := true } ∧
+    w.episode = some (⟨1⟩, .closed .resourceGone) ∧
+    w.attempt = some { op := ⟨2⟩, ep := ⟨1⟩,
+                       row := { status := .succeeded, claim := ⟨1⟩, record := 0, revision := 2 } } ∧
+    w.phase = .idle := by decide
+
+/-- A successful extension: the commitment grown from available and the re-derived date written,
+so the next sweep pass does not route the machine. -/
+@[req "LDG-62"]
+theorem successful_extension_witness :
+    let w := run Fence.current fenceWorld [.extend 100]
+    w.m = { commitment := 100, runwayUntil := 100, fence := none, destroyed := false } ∧
+    w.balance = 900 ∧ sweep w = w := by decide
+
+/-- `OPS-42`'s "Extension first": the worker's read sees the grown commitment, aborts, makes no
+provider call, settles `succeeded` closing the episode `funded`, and the customer has what it
+paid for. -/
+@[req "OPS-42"]
+theorem extension_first_witness :
+    let w := run Fence.current fenceWorld extensionFirstTrace
+    w.m = { commitment := 100, runwayUntil := 100, fence := none, destroyed := false } ∧
+    w.balance = 900 ∧ w.episode = some (⟨1⟩, .closed .funded) := by decide
+
+/-- `OPS-42`'s "Fence first", on the paid-machine trace under `current`: the read and the write are
+one transaction, the extension after it is refused — no commitment, no balance moved — and the
+unfunded machine is destroyed. -/
+@[req "OPS-42"]
+theorem fence_first_witness :
+    let w := run Fence.current fenceWorld paidMachineTrace
+    w.m = { commitment := 0, runwayUntil := 0, fence := none, destroyed := true } ∧
+    w.balance = 1000 := by decide
+
+/-- The 2026-09-02 amendment's trace, "the worker reads *unfunded*, the extension commits and grows
+the commitment, the worker's `IS NULL` write then succeeds because nothing has touched that
+column, and the machine the customer has just paid for is destroyed": with the re-check outside
+the fence transaction it is reachable. The customer paid 100 and the disk is gone. -/
+@[req "OPS-42"]
+theorem paid_machine_deleted_without_recheck_inside_fence :
+    let w := run { Fence.current with recheckInsideFence := false } fenceWorld paidMachineTrace
+    w.m = { commitment := 100, runwayUntil := 100, fence := none, destroyed := true } ∧
+    w.balance = 900 := by decide
+
+/-- With the fence holding the episode, the retry's attempt "contends on the same id and
+executes": the machine is destroyed on the second attempt. -/
+@[req "OPS-42"]
+theorem retry_executes_witness :
+    let w := run Fence.current fenceWorld retryTrace
+    w.m.destroyed = true ∧ w.episode = some (⟨1⟩, .closed .resourceGone) ∧
+    w.attempt = some { op := ⟨3⟩, ep := ⟨1⟩,
+                       row := { status := .succeeded, claim := ⟨1⟩, record := 0, revision := 2 } } := by
+  decide
+
+/-- The 2026-09-08 amendment's trace, with the column holding the attempt's id: the retry's
+write "affected no row, read that as "another actor won", and settled `succeeded` recording that
+no mutation was required — resolving the episode on a machine still running and still billing".
+The episode closes `funded` on a machine whose stored date is still today. -/
+@[req "OPS-42"]
+theorem retry_refused_with_attempt_id :
+    let w := run { Fence.current with fenceHolds := .attemptId } fenceWorld retryTrace
+    w.m = { commitment := 0, runwayUntil := 0, fence := none, destroyed := false } ∧
+    w.episode = some (⟨1⟩, .closed .funded) := by decide
+
+end Fence
 
 /-! ## The closed tables -/
 

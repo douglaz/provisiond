@@ -5,6 +5,7 @@ import Provisiond.Runway
 import Provisiond.Meter
 import Provisiond.Tables
 import Provisiond.Migration
+import Provisiond.Fence
 import Provisiond.Ledger
 import Provisiond.Render
 import Provisiond.Witnesses

@@ -283,6 +283,53 @@ jobs:
           grep -A6 'proved that the proposition' build.log | grep -q 'postgres'
           echo "the migration type correctly refused the transactional CONCURRENTLY build"
 
+      # The cancellation fence (pv-vwe.4): OPS-42's 2026-09-02 amendment — the re-check
+      # and the fence write are one transaction — is `Provisiond.Fence.current`'s
+      # recheckInsideFence. Dropping it must turn exactly one witness red: the
+      # fence-first witness on the paid-machine trace, where the extension now commits
+      # in the gap. Fence.lean's own theorems take the term as a hypothesis and stay
+      # green; every trace carries the split variant's second step, so no other
+      # witness fails for want of it.
+      - name: Prove the Lean build rejects the fence without the re-check inside it
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^def current : Params := { recheckInsideFence := true, fenceHolds := .episodeId }$/def current : Params := { recheckInsideFence := false, fenceHolds := .episodeId }/' \
+            Provisiond/Fence.lean
+          grep -q 'recheckInsideFence := false, fenceHolds := .episodeId' Provisiond/Fence.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the re-check outside the fence transaction"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A1 'proved that the proposition' build.log | grep -q 'run Fence.current fenceWorld paidMachineTrace'
+          echo "lake build correctly failed on fence_first_witness"
+
+      # OPS-42's 2026-09-08 amendment — the fence holds the episode, not the attempt —
+      # is `fenceHolds`. With the attempt's id in the column, the retry's write affects
+      # no row and the second attempt settles as if another actor had won: exactly one
+      # red, the retry witness.
+      - name: Prove the Lean build rejects the fence holding the attempt id
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^def current : Params := { recheckInsideFence := true, fenceHolds := .episodeId }$/def current : Params := { recheckInsideFence := true, fenceHolds := .attemptId }/' \
+            Provisiond/Fence.lean
+          grep -q 'recheckInsideFence := true, fenceHolds := .attemptId' Provisiond/Fence.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the fence holding the attempt id"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A1 'proved that the proposition' build.log | grep -q 'run Fence.current fenceWorld retryTrace'
+          echo "lake build correctly failed on retry_executes_witness"
+
       # The rendering gate (pv-vwe.8, ADR-0025): a hand edit inside a marked region is
       # red for that region, and the same edit one line outside it is not. The scratch
       # copy carries tools/formal/.lake from the "Run all gates" step above, which is
