@@ -98,7 +98,13 @@ the key material. For a synchronous create that copies key material at creation 
 cleanup immediately after the create call returns is correct. For an *asynchronous*
 deploy that reads the key registration later, immediate cleanup produces a machine
 nobody can log into. The driver MUST know which of the two its provider is, and the
-adapter notes MUST record the answer. See `DEF-6`.
+adapter notes MUST record the answer. See `DEF-6`. **Every temporary key resource a driver
+registers — for a create or for rescue — MUST carry the operation id as its provider-side name or
+tag** (*added 2026-09-16, `pv-lld`*), so that `OPS-32`'s sweep can find one the engine did not
+remove: a crash between registration and cleanup leaks the resource, the session's cleanup token
+dies with the process (`DOM-11`), and `PRV-18`'s leaked-resource ids are attached only where the
+driver itself saw the failure. The image import carries the correlator for the same reason
+(`RSC-42`).
 
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request's provider options carry an explicit purchase acknowledgement, *and* the account
@@ -444,7 +450,8 @@ accept the ephemeral key and then ignore it. See `DEF-7`.
 environment is activated but the reboot fails, the driver MUST attempt to deactivate
 rescue and remove any temporary key it registered. If that cleanup itself fails, the
 driver MUST attach the identifiers of the leaked resources to the error's details so an
-operator can find them.
+operator can find them. Where the engine dies instead, nothing attaches anything, and the
+tagged key resource is `OPS-32`'s to remove (`PRV-9`).
 
 ### Refresh rescue session
 
@@ -467,7 +474,8 @@ key set, and MUST NOT replace key material with an empty value.
 
 **PRV-21** End rescue MUST deactivate the rescue environment, reset or reboot into the
 installed system, and remove any temporary credential it registered, using the session's
-opaque cleanup token to find it.
+opaque cleanup token to find it. A credential this call never reached — the engine died first,
+or the call was lost — is found by its operation-id tag and removed by `OPS-32`'s sweep (`PRV-9`).
 
 **PRV-22** Failure of end rescue is *always* ambiguous — the machine may be in rescue, may
 be rebooting into the new system, and a temporary credential may still be registered. The

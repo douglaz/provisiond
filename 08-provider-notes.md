@@ -55,7 +55,8 @@ load-bearing rather than decorative.
 referenced by id at create. The key material is copied into the new server during
 creation, so the temporary key resource can be deleted immediately after the create call
 returns. **[verify]** — this is the assumption that makes immediate cleanup safe
-(`PRV-9`); confirm it before relying on it.
+(`PRV-9`); confirm it before relying on it. Whether a key resource carries a name or label the engine
+chooses is **[verify]** — `OPS-32`'s sweep finds a leaked temporary key by it.
 
 **Rescue host keys** — not exposed through the API. **[observed]** Consequence: callers
 MUST supply `expected_rescue_host_keys` out of band or explicitly accept first-use trust
@@ -96,7 +97,9 @@ namespaced so the create path can route (`DOM-9` note). Orders are transactions 
 
 **Key material** — SSH keys are account-level resources identified by fingerprint;
 temporary keys are created, attached to the order or the rescue activation, and deleted
-afterwards. **[observed]**
+afterwards. **[observed]** Whether a key resource carries a name the engine chooses, and whether
+the order transaction still lists the fingerprint after the resource is deleted, is **[verify]** —
+the sweep may not remove a leaked per-order key until the second holds (`OPS-32`, `PRV-32`).
 
 **Rescue host keys** — published in the rescue activation response and in a
 "last rescue" lookup. **[observed]** This is the only provider in the reference set that
@@ -426,7 +429,11 @@ Answer these before writing code. Where an answer is a value the engine reads, i
 descriptor (`PRV-44`) and the reasoning goes here; the rest is recorded here:
 
 1. **Does key material get copied at create/rebuild time, or read asynchronously later?**
-   Determines whether temporary key cleanup is safe immediately (`PRV-9`).
+   Determines whether temporary key cleanup is safe immediately (`PRV-9`). **And can a temporary
+   key resource carry the operation id as its name or tag, and does deleting it after the operation
+   settles leave every reference the set later reads — a Robot order transaction's fingerprint
+   (`PRV-32`) above all — intact?** Determines whether `OPS-32`'s sweep may remove a key the engine
+   leaked (`PRV-9`, `PRV-21`).
 2. **Does the provider publish rescue SSH host keys, and if so, when — at activation, or
    only after the rescue system boots?** Determines whether pinning works without
    out-of-band material, and how long the refresh loop must wait (`PRV-16`, `RSC-9`).

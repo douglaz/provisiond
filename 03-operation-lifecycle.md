@@ -1243,7 +1243,16 @@ correlator whose operation has settled or vanished is caller data the deployment
 so it is **deleted** rather than reported. That is the opposite remedy from an unrecorded machine, and
 the asymmetry is the point — one is a customer's running server, the other is a copy of a customer's
 operating system sitting in the operator's account. *A delete may answer that it already happened;
-`OPS-11`'s goal-state rule makes that a success.*
+`OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*added
+2026-09-16, `pv-lld`*): a key resource carrying an operation id as its name or tag (`PRV-9`) whose
+operation is not `running` is one the engine registered and could not remove — a crash before
+`PRV-21`, or before a create's cleanup — and is **deleted**, on the same footing as an image. Its
+private half died with the process, so it is clutter and not a credential; it is swept because
+clutter that accumulates one entry per crash forever is `RSC-21`'s "slow leak" at the provider.
+A key whose operation is still `running` is in use and MUST NOT be touched. On Robot the fingerprint
+of a per-order key is the order's correlator (`PRV-32`); the sweep may delete the resource only
+where the transaction listing carries the fingerprint independently, which `08-provider-notes.md`
+records as `[verify]`.
 
 **OPS-33** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
 negative window has elapsed, the commitment MUST be closed and released in full even though the

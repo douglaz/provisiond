@@ -1380,6 +1380,16 @@ rather than acquiring a default.
       item passes an implementation that writes the marker only at the exit — which renders a
       crashed session as `none`, the one lie the column exists to prevent. (`OPS-45`, `OPS-15`,
       `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
+- [ ] **CNF-303** — **A temporary key the engine could not remove is swept, and one in use is not**
+      (added 2026-09-16, `pv-lld`). Kill the engine between begin-rescue's key registration and
+      `PRV-21`, and again between a create's key registration and `PRV-9`'s cleanup: assert each
+      key resource at the provider carries the operation id as its name or tag, that `OPS-32`'s next
+      complete pass deletes both, and that a key whose operation is still `running` on the same
+      account is untouched by that pass. Then let begin rescue fail partway with cleanup succeeding
+      and with it failing: the first leaves no resource, the second attaches the leaked ids to the
+      error's details (`PRV-18`) and the sweep removes the resource afterwards. On Robot, assert
+      the order transaction still lists the fingerprint after the resource is gone, or the item
+      must not delete it. (`PRV-9`, `PRV-18`, `PRV-21`, `OPS-32`, `PRV-32`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
