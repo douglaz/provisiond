@@ -114,22 +114,47 @@ theorem sub_second_runway_witness :
 
 Every trace puts `fenceWrite` after `fenceTxn`. Under `current` the transaction already wrote and
 the step is inert; under the split variant it is the write. The one schedule runs both designs,
-so a witness pair differs on the property and not on the events offered. -/
+so a witness pair differs on the property and not on the events offered. Each of `ci.yml`'s
+controls flips one field of `Fence.current` and expects exactly one theorem here red, so a
+witness asserts the fields its own parameter decides and not the ones a neighbour's does. -/
 
 section Fence
 open Provisiond.Fence
 
 /-- A machine at the end of its runway on a tenant with balance to extend it: one satoshi per
-second, nothing protected, nothing reserved, the stored date already reached. -/
+second, nothing protected, nothing reserved, the stored date already reached, no outage, the
+tenant not suspended. -/
 def fenceWorld : World :=
-  { m := { commitment := 0, runwayUntil := 0, fence := none, destroyed := false },
-    balance := 1000, now := 0, rate := 1, prot := 0,
-    episode := none, attempt := none, phase := .idle, nextId := 1 }
+  { m := { commitment := 0, runwayUntil := 0, exhaustedSince := none, fence := none,
+           destroyed := false, gone := false },
+    balance := 1000, now := 0, interval := 60, rate := some 1, prot := 0, suspended := false,
+    outageOpen := false, episode := none, attempt := none, phase := .idle, nextId := 1 }
+
+/-- The same tenant's machine funded for a hundred seconds, its stored date written. -/
+def fundedWorld : World :=
+  { fenceWorld with m := { fenceWorld.m with commitment := 100, runwayUntil := 100 } }
+
+/-- `OPS-41`'s 2026-09-04 input inside the lifecycle: one satoshi at two satoshis per second. -/
+def subSecondWorld : World :=
+  { fenceWorld with m := { fenceWorld.m with commitment := 1 }, rate := some 2 }
+
+/-- A funded machine whose stored date is stale — a price cut the re-derivation has not yet
+written, say — so the sweep routes it and the re-check finds it funded. -/
+def staleDateWorld : World :=
+  { fenceWorld with m := { fenceWorld.m with commitment := 100 } }
+
+/-- The same machine a hundred seconds on, with `exhausted_since` set at the epoch: older than the
+interval, so `LDG-16` routes it. -/
+def agedWorld : World :=
+  { staleDateWorld with now := 100, m := { staleDateWorld.m with exhaustedSince := some 0 } }
 
 /-- The sweep routes, the worker claims, the fence transaction reads unfunded and wins, the
 provider deletes, the attempt settles. -/
 def cancellationTrace : List Fence.Event :=
   [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- The sweep routes, the worker claims, the re-check aborts, the attempt settles. -/
+def abortTrace : List Fence.Event := [.sweep, .claim, .fenceTxn, .fenceWrite, .settle]
 
 /-- The cancellation, with `LDG-62` committing between the fence transaction's read and its
 write. -/
@@ -147,25 +172,62 @@ def retryTrace : List Fence.Event :=
   [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete false (some false), .settle,
    .retry, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
 
-/-- A successful cancellation: the machine destroyed, the episode closed `resource_gone`, the
-fence cleared in that transaction, the row settled `succeeded` under the number the claim
-returned. -/
+/-- `OPS-41`'s 2026-09-05 trace: the tenant is suspended, its fan-out enqueues the delete, the
+tenant is resumed and funds the machine before the worker claims, and the worker re-checks. -/
+def resumedTenantTrace : List Fence.Event :=
+  [.suspend, .resume, .extend 100, .claim, .fenceTxn, .fenceWrite,
+   .providerDelete true (some true), .settle]
+
+/-- A suspension's delete on a funded machine, the tenant still suspended at the re-check. -/
+def suspendedTenantTrace : List Fence.Event :=
+  [.suspend, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- `OPS-41`'s interleaving: the outage reaches its bound and enqueues the delete, the worker
+claims with no rate in its snapshot, the rate returns, and the worker re-checks. -/
+def restoredRateTrace : List Fence.Event :=
+  [.rateLost, .outageBound, .claim, .rateRestored 1, .fenceTxn, .fenceWrite,
+   .providerDelete true (some true), .settle]
+
+/-- The same, with no rate returning: "a bound the outage has not cleared is still the bound". -/
+def outageCancelTrace : List Fence.Event :=
+  [.rateLost, .outageBound, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true),
+   .settle]
+
+/-- `OPS-42`'s 2026-09-09 race: the gone-write lands "between the claim and this write". -/
+def goneRaceTrace : List Fence.Event :=
+  [.sweep, .claim, .goneWrite, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- `ADR-0021`'s first hole in the lifecycle: the episode stalled with the fence set, then the
+machine recorded gone. -/
+def goneAfterStallTrace : List Fence.Event :=
+  [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete false (some false), .settle, .goneWrite]
+
+/-- A successful cancellation: the machine destroyed and recorded gone, the episode closed
+`resource_gone` under its one reason, the fence cleared in that transaction, the row settled
+`succeeded` under the number the claim returned, and the next sweep pass enqueues nothing against
+it. -/
 @[req "OPS-42"]
 theorem successful_cancellation_witness :
     let w := run Fence.current fenceWorld cancellationTrace
-    w.m = { commitment := 0, runwayUntil := 0, fence := none, destroyed := true } ∧
-    w.episode = some (⟨1⟩, .closed .resourceGone) ∧
+    w.m = { commitment := 0, runwayUntil := 0, exhaustedSince := none, fence := none,
+            destroyed := true, gone := true } ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
     w.attempt = some { op := ⟨2⟩, ep := ⟨1⟩,
                        row := { status := .succeeded, claim := ⟨1⟩, record := 0, revision := 2 } } ∧
-    w.phase = .idle := by decide
+    w.phase = .idle ∧ sweep Fence.current w = w := by decide
 
 /-- A successful extension: the commitment grown from available and the re-derived date written,
-so the next sweep pass does not route the machine. -/
+so the next sweep pass does not route the machine. Without `LDG-62`'s 2026-09-05 date write the
+commitment grows and the stored date stays in the past, and the next pass routes the machine the
+customer has just funded. -/
 @[req "LDG-62"]
 theorem successful_extension_witness :
     let w := run Fence.current fenceWorld [.extend 100]
-    w.m = { commitment := 100, runwayUntil := 100, fence := none, destroyed := false } ∧
-    w.balance = 900 ∧ sweep w = w := by decide
+    let w' := run { Fence.current with extendWritesDate := false } fenceWorld [.extend 100]
+    w.m = { commitment := 100, runwayUntil := 100, exhaustedSince := none, fence := none,
+            destroyed := false, gone := false } ∧
+    w.balance = 900 ∧ sweep Fence.current w = w ∧
+    w'.m.commitment = 100 ∧ w'.m.runwayUntil = 0 ∧ sweep Fence.current w' ≠ w' := by decide
 
 /-- `OPS-42`'s "Extension first": the worker's read sees the grown commitment, aborts, makes no
 provider call, settles `succeeded` closing the episode `funded`, and the customer has what it
@@ -173,8 +235,10 @@ paid for. -/
 @[req "OPS-42"]
 theorem extension_first_witness :
     let w := run Fence.current fenceWorld extensionFirstTrace
-    w.m = { commitment := 100, runwayUntil := 100, fence := none, destroyed := false } ∧
-    w.balance = 900 ∧ w.episode = some (⟨1⟩, .closed .funded) := by decide
+    w.m = { commitment := 100, runwayUntil := 100, exhaustedSince := none, fence := none,
+            destroyed := false, gone := false } ∧
+    w.balance = 900 ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by decide
 
 /-- `OPS-42`'s "Fence first", on the paid-machine trace under `current`: the read and the write are
 one transaction, the extension after it is refused — no commitment, no balance moved — and the
@@ -182,7 +246,8 @@ unfunded machine is destroyed. -/
 @[req "OPS-42"]
 theorem fence_first_witness :
     let w := run Fence.current fenceWorld paidMachineTrace
-    w.m = { commitment := 0, runwayUntil := 0, fence := none, destroyed := true } ∧
+    w.m = { commitment := 0, runwayUntil := 0, exhaustedSince := none, fence := none,
+            destroyed := true, gone := true } ∧
     w.balance = 1000 := by decide
 
 /-- The 2026-09-02 amendment's trace, "the worker reads *unfunded*, the extension commits and grows
@@ -192,28 +257,156 @@ the fence transaction it is reachable. The customer paid 100 and the disk is gon
 @[req "OPS-42"]
 theorem paid_machine_deleted_without_recheck_inside_fence :
     let w := run { Fence.current with recheckInsideFence := false } fenceWorld paidMachineTrace
-    w.m = { commitment := 100, runwayUntil := 100, fence := none, destroyed := true } ∧
-    w.balance = 900 := by decide
+    w.m.commitment = 100 ∧ w.m.destroyed = true ∧ w.balance = 900 := by decide
 
-/-- With the fence holding the episode, the retry's attempt "contends on the same id and
-executes": the machine is destroyed on the second attempt. -/
+/-- With the fence holding the episode and the guard's own-id clause, the retry's attempt
+"contends on the same id and executes": the machine is destroyed on the second attempt. -/
 @[req "OPS-42"]
 theorem retry_executes_witness :
     let w := run Fence.current fenceWorld retryTrace
-    w.m.destroyed = true ∧ w.episode = some (⟨1⟩, .closed .resourceGone) ∧
+    w.m.destroyed = true ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
     w.attempt = some { op := ⟨3⟩, ep := ⟨1⟩,
                        row := { status := .succeeded, claim := ⟨1⟩, record := 0, revision := 2 } } := by
   decide
 
-/-- The 2026-09-08 amendment's trace, with the column holding the attempt's id: the retry's
+/-- The 2026-09-08 amendment's trace, with the column holding the attempt's id — and the same
+trace under the guard as it stood until 2026-09-02, "`IS NULL` alone": either way the retry's
 write "affected no row, read that as "another actor won", and settled `succeeded` recording that
 no mutation was required — resolving the episode on a machine still running and still billing".
 The episode closes `funded` on a machine whose stored date is still today. -/
 @[req "OPS-42"]
 theorem retry_refused_with_attempt_id :
     let w := run { Fence.current with fenceHolds := .attemptId } fenceWorld retryTrace
-    w.m = { commitment := 0, runwayUntil := 0, fence := none, destroyed := false } ∧
-    w.episode = some (⟨1⟩, .closed .funded) := by decide
+    let w' := run { Fence.current with ownIdClause := false } fenceWorld retryTrace
+    w.m = { commitment := 0, runwayUntil := 0, exhaustedSince := none, fence := none,
+            destroyed := false, gone := false } ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    w'.m.destroyed = false ∧
+    w'.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by decide
+
+/-- `OPS-41`'s 2026-09-04 defect inside the lifecycle: under the date predicate the sub-second
+machine is routed, read unfunded, and the worker goes to the provider; under the withdrawn
+`usable_sats > 0` it is routed, aborted, settled `succeeded` "saying no mutation was needed",
+the episode closed `funded`, the fence cleared — and the machine row is exactly what it was, so
+the next pass routes it again and the same trace runs again on a fresh episode, "once per sweep,
+each cycle minting a tenant-visible operation that claims to be done". The abort has no fixed
+point. -/
+@[req "OPS-41"]
+theorem withdrawn_predicate_loops_in_lifecycle :
+    let p := { Fence.current with abortPredicate := .sats }
+    let w := run p subSecondWorld abortTrace
+    (run Fence.current subSecondWorld [.sweep, .claim, .fenceTxn, .fenceWrite]).phase =
+      .fenced ⟨1⟩ ∧
+    w.m = subSecondWorld.m ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    (run p w abortTrace).m = subSecondWorld.m ∧
+    (run p w abortTrace).episode =
+      some { id := ⟨3⟩, state := .closed .funded, reasons := [.exhausted] } := by decide
+
+/-- `OPS-41`'s 2026-09-05 date write: the abort re-derives a date a hundred seconds out and
+writes it, and clears `exhausted_since` where it was set, so the sweep does not route the machine
+again. Without the write, "an abort that re-derived a future date and wrote nothing left the
+stored one in the past — so the next pass routed the same machine, the worker aborted again". -/
+@[req "OPS-41"]
+theorem abort_without_date_write_reroutes :
+    let w := run Fence.current staleDateWorld abortTrace
+    let w' := run { Fence.current with abortWritesDate := false } staleDateWorld abortTrace
+    w.m.runwayUntil = 100 ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    sweep Fence.current w = w ∧
+    (run Fence.current agedWorld abortTrace).m.exhaustedSince = none ∧
+    (run Fence.current agedWorld abortTrace).m.runwayUntil = 200 ∧
+    w'.m.runwayUntil = 0 ∧ sweep Fence.current w' ≠ w' := by decide
+
+/-- `LDG-16`'s routing, on the stored date and the column: null routes at once; set and older
+than one interval routes; set and younger does not; set with no rate does not, "however old" —
+and without the 2026-09-05 no-rate clause it does, which is the day's trace: "no derivation ran,
+the column aged past one interval, the sweep routed, and `OPS-41` read 'no rate, the cancel
+proceeds' — a disk destroyed by one reading". -/
+@[req "LDG-16"]
+theorem exhausted_since_routing_witness :
+    let base := { fenceWorld with now := 100 }
+    let aged := { base with m := { base.m with exhaustedSince := some 0 }, rate := none }
+    base.routed Fence.current = true ∧
+    ({ base with m := { base.m with exhaustedSince := some 30 } }).routed Fence.current = true ∧
+    ({ base with m := { base.m with exhaustedSince := some 50 } }).routed Fence.current = false ∧
+    aged.routed Fence.current = false ∧
+    aged.routed { Fence.current with noRateHoldsExhausted := false } = true ∧
+    ({ base with m := { base.m with runwayUntil := 101 } }).routed Fence.current = false := by
+  decide
+
+/-- `OPS-41`'s suspension key. Keyed on the tenant's current state, a suspended tenant's funded
+machine is cancelled regardless of funding, and a resumed tenant's machine, funded before the
+worker claimed, is found funded and kept: the episode closes `funded` under its one reason,
+`tenant_suspended`. Keyed on the episode's `reasons` set — "the reason is history" — the same
+resumed tenant "still had `tenant_suspended` on the episode, and a later attempt skipped the
+funding check and destroyed a machine its live tenant had paid for". -/
+@[req "OPS-41"]
+theorem suspension_keyed_on_current_state_witness :
+    let w := run Fence.current fenceWorld resumedTenantTrace
+    let s := run Fence.current fundedWorld suspendedTenantTrace
+    let w' := run { Fence.current with suspensionKey := .episodeReasons } fenceWorld
+      resumedTenantTrace
+    w.m.destroyed = false ∧ w.m.commitment = 100 ∧ w.balance = 900 ∧ w.m.fence = none ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.tenantSuspended] } ∧
+    s.m.destroyed = true ∧ s.m.commitment = 100 ∧
+    w'.m.destroyed = true ∧ w'.balance = 900 := by decide
+
+/-- `OPS-41`'s outage branch. With no rate the cancellation proceeds and the funded machine is
+destroyed, "because a bound the outage has not cleared is still the bound". With the rate
+restored between the claim and the re-check, the conditional write on this machine's outage
+record affects no row, the worker re-derives at the restored rate, and the fleet funded for
+months is kept. Without the write the stale snapshot is taken at its word: "workers claim at T+2s
+and destroy a fleet that is funded for months". -/
+@[req "OPS-41"]
+theorem no_rate_cancellation_witness :
+    let c := run Fence.current fundedWorld outageCancelTrace
+    let w := run Fence.current fundedWorld restoredRateTrace
+    let w' := run { Fence.current with outageWrite := false } fundedWorld restoredRateTrace
+    c.m.destroyed = true ∧
+    c.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.rateOutageBound] } ∧
+    w.m.destroyed = false ∧ w.m.fence = none ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.rateOutageBound] } ∧
+    w'.m.destroyed = true := by decide
+
+/-- `ADR-0021`'s gone-write in the lifecycle. On a stalled, fenced episode it closes the episode
+`resource_gone` and clears the fence in one step. Racing the fence write, under the 2026-09-09
+open-episode term the write affects no row, the worker aborts, and the attempt settles under a
+closed episode that stays closed with no fence. Without the term the write is admitted on a
+closed episode: the provider is called on a machine already gone, the terminal transaction finds
+the episode closed and clears nothing, and "a fence set under a closed episode would clear
+never" — every extension is refused, and the invariant that a set fence names an open episode is
+false. -/
+@[req "OPS-48"]
+theorem gone_write_witness :
+    let g := run Fence.current fenceWorld goneAfterStallTrace
+    let w := run Fence.current fenceWorld goneRaceTrace
+    let w' := run { Fence.current with fenceOnOpenEpisode := false } fenceWorld goneRaceTrace
+    g.m.fence = none ∧ g.m.gone = true ∧
+    g.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    w.m.fence = none ∧ w.m.destroyed = false ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    w.attempt = some { op := ⟨2⟩, ep := ⟨1⟩,
+                       row := { status := .succeeded, claim := ⟨1⟩, record := 0, revision := 2 } } ∧
+    w'.m.fence.isSome = true ∧ w'.m.destroyed = true ∧
+    w'.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    extend Fence.current w' 100 = w' ∧
+    fenceNamesOpenEpisode w' = false := by decide
+
+/-- `ADR-0021`'s other guard: `retry` as "a conditional write on `(id, state = stalled)`". After
+the gone-write closed the stalled episode, a retry affects no row: the episode stays closed and no
+attempt is enqueued. As a plain write it reopens the closed episode `attempting` with a fresh
+attempt against a machine recorded gone, and "a close is permanent" is false. -/
+@[req "OPS-48"]
+theorem retry_guard_witness :
+    let w := run Fence.current fenceWorld (goneAfterStallTrace ++ [.retry])
+    let w' := run { Fence.current with retryGuard := false } fenceWorld
+      (goneAfterStallTrace ++ [.retry])
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    (w.attempt.map (·.op)) = some ⟨2⟩ ∧
+    w'.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
+    (w'.attempt.map (·.op)) = some ⟨3⟩ ∧ w'.m.gone = true := by decide
 
 end Fence
 
