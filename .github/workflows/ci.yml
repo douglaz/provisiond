@@ -310,21 +310,30 @@ jobs:
       #     exhausted_since_routing_witness;
       #   retryGuard (2026-09-09): a plain retry write reopens a closed episode --
       #     retry_guard_witness.
+      # The restore (pv-vwe.11, ADR-0023), Restore.current, the same shape:
+      #   quarantineOnRestore (OPS-15, 2026-09-12): the executed create is claimed again --
+      #     executed_create_quarantined on [.lock, .startupPass, .claim ⟨0⟩];
+      #   exceptionFrozen (OPS-15, 2026-09-12): the parent is queued and claimed unconfirmed --
+      #     parent_waits_witness, on the claim after confirmParents;
+      #   bumpOnRestore (STO-54, 2026-09-12): the revoked generation 0 is served --
+      #     resurrected_token_refused on [.., .request 0, .completeProcedure, ..];
+      #   twoPassAbsence (STO-54, 2026-09-12): the first complete pass records the absence --
+      #     absence_on_second_pass_only on the two sweeps before the window.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
-      - name: Prove the Lean build rejects each fence guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence and restore guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
           passed=0
-          while IFS='|' read -r field from to token; do
+          while IFS='|' read -r file field from to token; do
             tmp="$(mktemp -d)"
             cp -r . "$tmp/repo"
             pushd "$tmp/repo/tools/formal" > /dev/null
             # One field per line; the last closes the brace instead of taking a comma.
-            sed -i "s/^    ${field} *:= ${from}\(,\| }\)\$/    ${field} := ${to}\1/" Provisiond/Fence.lean
-            if ! grep -q "^    ${field} := ${to}\(,\| }\)\$" Provisiond/Fence.lean; then
+            sed -i "s/^    ${field} *:= ${from}\(,\| }\)\$/    ${field} := ${to}\1/" "Provisiond/${file}.lean"
+            if ! grep -q "^    ${field} := ${to}\(,\| }\)\$" "Provisiond/${file}.lean"; then
               echo "::error::${field}: the mutation did not apply"; fail=1
             elif nix develop --command lake build < /dev/null > build.log 2>&1; then
               echo "::error::lake build passed with ${field} := ${to}"; fail=1
@@ -342,20 +351,24 @@ jobs:
             popd > /dev/null
             rm -rf "$tmp"
           done <<'ROWS'
-          recheckInsideFence|true|false|fenceWorld paidMachineTrace
-          fenceHolds|.episodeId|.attemptId|fenceWorld retryTrace
-          fenceOnOpenEpisode|true|false|goneRaceTrace
-          abortPredicate|.date|.sats|AbortPredicate.sats
-          abortWritesDate|true|false|staleDateWorld abortTrace
-          extendWritesDate|true|false|Event.extend 100
-          suspensionKey|.currentState|.episodeReasons|resumedTenantTrace
-          outageWrite|true|false|restoredRateTrace
-          ownIdClause|true|false|fenceWorld retryTrace
-          noRateHoldsExhausted|true|false|now := 100
-          retryGuard|true|false|goneAfterStallTrace ++
+          Fence|recheckInsideFence|true|false|fenceWorld paidMachineTrace
+          Fence|fenceHolds|.episodeId|.attemptId|fenceWorld retryTrace
+          Fence|fenceOnOpenEpisode|true|false|goneRaceTrace
+          Fence|abortPredicate|.date|.sats|AbortPredicate.sats
+          Fence|abortWritesDate|true|false|staleDateWorld abortTrace
+          Fence|extendWritesDate|true|false|Event.extend 100
+          Fence|suspensionKey|.currentState|.episodeReasons|resumedTenantTrace
+          Fence|outageWrite|true|false|restoredRateTrace
+          Fence|ownIdClause|true|false|fenceWorld retryTrace
+          Fence|noRateHoldsExhausted|true|false|now := 100
+          Fence|retryGuard|true|false|goneAfterStallTrace ++
+          Restore|quarantineOnRestore|true|false|Event.startupPass, Event.claim { n := 0 }
+          Restore|exceptionFrozen|true|false|Event.confirmParents, Event.claim { n := 1 }
+          Restore|bumpOnRestore|true|false|Event.request 0, Event.completeProcedure
+          Restore|twoPassAbsence|true|false|Event.sweep true false, Event.windowElapses
           ROWS
-          if [ "$passed" -ne 11 ]; then
-            echo "::error::expected 11 fence controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 15 ]; then
+            echo "::error::expected 15 fence and restore controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

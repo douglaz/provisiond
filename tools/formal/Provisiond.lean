@@ -7,5 +7,6 @@ import Provisiond.Tables
 import Provisiond.Migration
 import Provisiond.Fence
 import Provisiond.Ledger
+import Provisiond.Restore
 import Provisiond.Render
 import Provisiond.Witnesses

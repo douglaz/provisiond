@@ -4,6 +4,7 @@ import Provisiond.Claim
 import Provisiond.Tables
 import Provisiond.Migration
 import Provisiond.Fence
+import Provisiond.Restore
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -409,6 +410,178 @@ theorem retry_guard_witness :
     (w'.attempt.map (·.op)) = some ⟨3⟩ ∧ w'.m.gone = true := by decide
 
 end Fence
+
+/-! ## Restore
+
+One live history, and the backup predates all of it: the engine claims a create, the provider
+applies it and it settles; a delete is claimed, applied and settled; the tenant extends the
+machine to 100 and revokes its token; the fan-out parent that was running settles. Then the crash.
+Every witness pair here flips one field of `Restore.current`, and each asserts the fields its own
+parameter decides, as the fence's do. -/
+
+section Restore
+open Provisiond.Restore
+
+/-- Row 0 a `queued` create, row 1 a `running` `suspend_tenant` parent, row 2 a `queued` delete,
+every other row a settled refresh the engine never touches. The stored date is already past, and
+`exhausted_since` holds an old value a sweep would route on at once. -/
+def liveStore : Restore.Store :=
+  { ops := fun j =>
+      if j = ⟨0⟩ then { kind := .createMachine, status := .queued, applied := false }
+      else if j = ⟨1⟩ then { kind := .suspendTenant, status := .running, applied := false }
+      else if j = ⟨2⟩ then { kind := .deleteMachine, status := .queued, applied := false }
+      else { kind := .refresh, status := .succeeded, applied := true },
+    machine := { runwayUntil := 0, exhaustedSince := some 0, recordedGone := false },
+    credentialGen := 0 }
+
+/-- The lost interval: nine committed steps, all after the backup. -/
+def lostInterval : History :=
+  { initial := liveStore,
+    steps := [.claim ⟨0⟩, .apply ⟨0⟩, .settle ⟨0⟩ .succeeded, .claim ⟨2⟩, .apply ⟨2⟩,
+              .settle ⟨2⟩ .succeeded, .extend 100, .revoke, .settle ⟨1⟩ .succeeded] }
+
+/-- The restore: `Δ = 9`, landed at 50, after the stored date. -/
+def restoreTrace : RestoreTrace := { history := lostInterval, delta := 9, now := 50 }
+
+/-- The same store crashed before any step: `STO-5`'s restart. -/
+def restartTrace : RestartTrace := { history := { initial := liveStore, steps := [] } }
+
+/-- `STO-54`'s three steps. -/
+def procedure : List Restore.Event := [.lock, .startupPass, .completeProcedure]
+
+/-- `STO-5`'s clause, "A restore from backup is not a restart and is not covered by this
+sentence": the live store is sound, so `restart_never_reorders` covers every restart on it; the
+restored store is not — row 0 is `queued` and the provider applied it — so no restart theorem can
+be cited for it. -/
+@[req "STO-5"]
+theorem restore_breaks_soundness :
+    liveStore.sound ∧
+    restoreTrace.store.ops ⟨0⟩ = { kind := .createMachine, status := .queued, applied := true } ∧
+    ¬ restoreTrace.store.sound := by
+  refine ⟨fun j hj => ?_, by decide, fun h => ?_⟩
+  · simp only [liveStore] at hj ⊢
+    by_cases h0 : j = ⟨0⟩ <;> by_cases h1 : j = ⟨1⟩ <;> by_cases h2 : j = ⟨2⟩ <;> simp_all
+  · exact absurd (h ⟨0⟩ (by decide)) (by decide)
+
+/-- `OPS-15`'s 2026-09-12 quarantine: the executed create is `needs_reconciliation` after the
+pass, the claim finds nothing to order, and `LDG-16`'s grace is set at the restore instant over
+the old value the column held. -/
+@[req "OPS-15"]
+theorem executed_create_quarantined :
+    let w := Restore.run Restore.current (bootRestore restoreTrace)
+      [.lock, .startupPass, .claim ⟨0⟩]
+    (w.store.ops ⟨0⟩).status = .needsReconciliation ∧ w.secondOrder = false ∧
+    w.store.machine.exhaustedSince = some 50 := by decide
+
+/-- Without it — `OPS-15` inspecting `running` rows only — the pass leaves the executed create
+`queued`, the claim takes it, and the provider is ordered twice: `ADR-0023`'s "an executed
+operation runs twice". -/
+@[req "OPS-15"]
+theorem executed_create_reordered_without_quarantine :
+    (Restore.run { Restore.current with quarantineOnRestore := false } (bootRestore restoreTrace)
+      [.lock, .startupPass, .claim ⟨0⟩]).secondOrder = true := by decide
+
+/-- `ADR-0023`'s "a revoked token works again", refused: generation 0 is what the backup holds and
+what the revocation inside Δ replaced. Nothing is served before step (3); after it, 0 is refused
+and the re-issued 1 is served. -/
+@[req "STO-54"]
+theorem resurrected_token_refused :
+    (Restore.run Restore.current (bootRestore restoreTrace)
+      [.lock, .startupPass, .request 0, .completeProcedure, .request 0, .request 1]).servedGens
+      = [1] := by decide
+
+/-- Without the bump the restored generation is live again and the revoked token is served. -/
+@[req "STO-54"]
+theorem resurrected_token_served_without_bump :
+    (Restore.run { Restore.current with bumpOnRestore := false } (bootRestore restoreTrace)
+      (procedure ++ [.request 0])).servedGens = [0] := by decide
+
+/-- Two complete passes that do not list the machine record nothing — the first because it is
+the first, the second because the window has not elapsed since the first — and the pass after
+the window records it gone. -/
+@[req "STO-54"]
+theorem absence_on_second_pass_only :
+    let w := Restore.run Restore.current (bootRestore restoreTrace)
+      (procedure ++ [.sweep true false, .sweep true false, .windowElapses])
+    w.store.machine.recordedGone = false ∧
+    (Restore.step Restore.current w (.sweep true false)).store.machine.recordedGone = true := by
+  decide
+
+/-- Without the rule the first complete pass records the absence, on a window the restore
+narrowed. -/
+@[req "STO-54"]
+theorem absence_on_first_pass_without_rule :
+    (Restore.run { Restore.current with twoPassAbsence := false } (bootRestore restoreTrace)
+      (procedure ++ [.sweep true false])).store.machine.recordedGone = true := by decide
+
+/-- The parent waits: `running` after the pass, refused by the claim; `queued` once the operator
+confirms, and still refused until step (3) completes; claimed after both. -/
+@[req "OPS-15"]
+theorem parent_waits_witness :
+    let w := Restore.run Restore.current (bootRestore restoreTrace)
+      [.lock, .startupPass, .claim ⟨1⟩, .confirmParents, .claim ⟨1⟩]
+    let w' := Restore.run Restore.current w [.completeProcedure, .claim ⟨1⟩]
+    (Restore.run Restore.current (bootRestore restoreTrace)
+      [.lock, .startupPass, .claim ⟨1⟩]).store.ops ⟨1⟩
+      = { kind := .suspendTenant, status := .running, applied := false } ∧
+    (w.store.ops ⟨1⟩).status = .queued ∧ w.parentResumedUnconfirmed = false ∧
+    (w'.store.ops ⟨1⟩).status = .running ∧ w'.parentResumedUnconfirmed = false := by decide
+
+/-- Without the freeze the pass returns the parent to `queued` under the restart exception and
+the claim resumes a fan-out the operator may have reversed inside Δ. -/
+@[req "OPS-15"]
+theorem parent_resumed_without_freeze :
+    (Restore.run { Restore.current with exceptionFrozen := false } (bootRestore restoreTrace)
+      [.lock, .startupPass, .claim ⟨1⟩]).parentResumedUnconfirmed = true := by decide
+
+/-- On a restart the exception fires — "on a restart it MUST NOT require an operator": the parent
+is `queued` after the pass and claimed at once, and the `queued` create is claimed as the
+unexecuted work it is. -/
+@[req "OPS-15"]
+theorem parent_resumes_on_restart :
+    let w := Restore.run Restore.current (bootRestart restartTrace)
+      [.lock, .startupPass, .claim ⟨1⟩, .claim ⟨0⟩]
+    (w.store.ops ⟨1⟩).status = .running ∧ (w.store.ops ⟨0⟩).status = .running ∧
+    w.secondOrder = false ∧ w.parentResumedUnconfirmed = false := by decide
+
+/-- `F52` #3 (`STO-54`, `ADR-0023`, 2026-09-12): "an extension lost in Δ is not rebuilt". The
+tenant extended to 100 inside the interval, the restored date is 0, the grace sets
+`exhausted_since` at the restore instant, and no run of the procedure writes the date back. -/
+@[req "STO-54"]
+theorem lost_extension_not_rebuilt :
+    ∃ t : RestoreTrace, t.history.final.machine.runwayUntil = 100 ∧
+      t.store.machine.runwayUntil = 0 ∧
+      (Restore.step Restore.current (bootRestore t) .lock).store.machine.exhaustedSince
+        = some t.now ∧
+      ∀ evs, (Restore.run Restore.current (bootRestore t) evs).store.machine.runwayUntil = 0 :=
+  ⟨restoreTrace, by decide, by decide, by decide, fun _ => by rw [run_runwayUntil]; decide⟩
+
+/-- The sentence this requirement and `ADR-0023` carried until 2026-09-12 — the grace as what
+"stands between the restore and the destroyed disk" — needs the procedure to give the live date
+back. No run of it does, on this trace. -/
+@[req "STO-54"]
+theorem grace_rebuilds_nothing :
+    ¬ ∀ t : RestoreTrace, ∀ evs,
+      (Restore.run Restore.current (bootRestore t) evs).store.machine.runwayUntil
+        = t.history.final.machine.runwayUntil := by
+  intro h
+  have := h restoreTrace []
+  rw [run_runwayUntil] at this
+  exact absurd this (by decide)
+
+/-- The procedure end to end: the goal-state delete re-runs, a complete pass that lists the
+machine records nothing, the confirmed parent is claimed, the grace stands, and every component
+runs. The model refuses nothing vacuously. -/
+@[req "STO-54"]
+theorem successful_restore_witness :
+    let w := Restore.run Restore.current (bootRestore restoreTrace)
+      (procedure ++ [.claim ⟨2⟩, .sweep true true, .confirmParents, .claim ⟨1⟩])
+    (w.store.ops ⟨2⟩).status = .running ∧ (w.store.ops ⟨1⟩).status = .running ∧
+    w.secondOrder = false ∧ w.parentResumedUnconfirmed = false ∧
+    w.store.machine = { runwayUntil := 0, exhaustedSince := some 50, recordedGone := false } ∧
+    (∀ c, (permits Restore.current w).run c = true) := by decide
+
+end Restore
 
 /-! ## The closed tables -/
 
