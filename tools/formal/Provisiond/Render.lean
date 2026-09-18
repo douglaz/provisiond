@@ -170,7 +170,7 @@ def commas (n : Int) : String :=
 
 /-- One row of `LDG-31`'s table: the balances after the event. -/
 def ledgerRow (b : Ledger.Balances) (label : String) (e : Ledger.Event) : Ledger.Balances × String :=
-  let b' := Ledger.step b e
+  let b' := Ledger.step Ledger.current b e
   (b', s!"| {label} | {commas b'.sum} | {commas b'.reserved} | {commas b'.available} |")
 
 /-- `LDG-31`'s table: a top-up, a commitment, an hour consumed, the machine deleted. -/
@@ -183,7 +183,9 @@ def ldg31Table : Region :=
       ("machine deleted, commitment closed", .closeCommitment) ]
   let (_, lines) := rows.foldl (fun (b, acc) (label, e) =>
     let (b', line) := ledgerRow b label e
-    (b', acc ++ [line])) (({ sum := 0, reserved := 0 } : Ledger.Balances), ([] : List String))
+    (b', acc ++ [line]))
+    (({ sum := 0, reserved := 0, deficiency := 0, snapshot := 0 } : Ledger.Balances),
+     ([] : List String))
   { decl := "Provisiond.Render.ldg31Table", kind := "render",
     text := "\n".intercalate
       (["| event | Σ entries | reserved | available |", "|---|---:|---:|---:|"] ++ lines) }

@@ -332,10 +332,26 @@ jobs:
       #     absence_on_visibility_window on [.advance 20, ..];
       #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
       #     match_is_not_observation, w.orderLanded = some mach.
+      # Funding and the tenant lifecycle (pv-vwe.6), Ledger.current and Funding.current:
+      #   clampAtAuthority (LDG-31's clamp paragraph): the excess is taken from available
+      #     balance, the seizure -- clamp_witness on seizureBalances;
+      #   serializedAuthorization (LDG-35, the primitive of ADR-0015, 2026-09-06): two opens
+      #     commit against one read -- serialized_authorization_witness on skewTrace;
+      #   keyFrom := .observation (LDG-8): with the payments row pinned off, the replayed
+      #     settlement credits twice -- replay_credits_once_by_key on replayTrace;
+      #   keyFrom := .deposit (STO-31): the second rail's payment is suppressed --
+      #     second_rail_credited on bothRailsTrace;
+      #   paymentRecordUnique (STO-46, 2026-09-02): with the key pinned to the observation, the
+      #     replay and the post-attribution re-scan credit again --
+      #     replay_refused_by_record, keyFrom := KeySource.observation;
+      #   correctionPrefix (WIR-42, 2026-09-05): the correction collides with the source
+      #     tenant's topup and nothing moves -- attribution_witness on attributionTrace;
+      #   reapWaitsForWindow (API-34): a tenant with a deposit inside its window is reaped and
+      #     the payment lands unattributed -- reap_waits_for_window_witness on reapTrace.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
-      - name: Prove the Lean build rejects each fence, restore and reconciliation guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore, reconciliation and funding guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -384,9 +400,16 @@ jobs:
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
           Reconcile|absenceWindow|.visibility|.negative|Event.advance 20, Event.sweep true false Answer.notFound
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
+          Ledger|clampAtAuthority|true|false|seizureBalances
+          Ledger|serializedAuthorization|true|false|skewTrace
+          Funding|keyFrom|.payment|.observation|replayTrace
+          Funding|keyFrom|.payment|.deposit|bothRailsTrace
+          Funding|paymentRecordUnique|true|false|KeySource.observation
+          Funding|correctionPrefix|true|false|attributionTrace
+          Funding|reapWaitsForWindow|true|false|reapTrace
           ROWS
-          if [ "$passed" -ne 20 ]; then
-            echo "::error::expected 20 fence, restore and reconciliation controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 27 ]; then
+            echo "::error::expected 27 fence, restore, reconciliation and funding controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 
