@@ -8,6 +8,7 @@ import Provisiond.Restore
 import Provisiond.Reconcile
 import Provisiond.Ledger
 import Provisiond.Funding
+import Provisiond.Wire
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -1037,5 +1038,152 @@ theorem concurrent_build_not_transactional :
   rintro ⟨ok, _⟩
   have h := ok (.createIndex true true) (List.mem_singleton.mpr rfl)
   simp [postgres] at h
+
+/-! ## Wire canonicalization and redaction
+
+Each of `ci.yml`'s controls flips one field of `Wire.current` and expects exactly one theorem here
+red; the admitted-without theorem of each pair sets its field explicitly, so it stays green under
+the flip. -/
+
+section Wire
+open Provisiond.Wire
+
+/-- `WIR-22`'s body, `{"acknowledge_destruction": true}`, sent to two machines' delete endpoints
+under one idempotency key. -/
+def deleteBody : Json := .obj (.cons "acknowledge_destruction" (.bool true) .nil)
+
+def deleteOn (machine : String) : Request :=
+  { method := .post, target := requestTarget ("/v1/machines/" ++ machine ++ "/actions/delete") none,
+    body := deleteBody }
+
+def deleteOnA : Request := deleteOn "a"
+def deleteOnB : Request := deleteOn "b"
+
+/-- `WIR-3`: "the same idempotency key reused against a different machine or endpoint would replay
+the first call's result instead of conflicting — masking or misapplying a destructive action".
+With the endpoint in the preimage, the delete on B conflicts. -/
+@[req "WIR-3"]
+theorem endpoint_in_fingerprint_witness :
+    onKeyReuse Wire.current deleteOnA deleteOnB = .conflict := by decide
+
+/-- Without it — a body-only fingerprint — the delete on B replays the delete on A: B stands, and
+the caller holds a `202` saying it is going. -/
+@[req "WIR-3"]
+theorem endpoint_dropped_replays :
+    onKeyReuse { Wire.current with endpointInPreimage := false } deleteOnA deleteOnB = .replay := by
+  decide
+
+/-- `WIR-5a` on the two shapes it names: "the origin-form path with its query when one is present
+(`/v1/operations?terminal=false&limit=100`), the path alone when none is (`/v1/machines`, never a
+trailing `?`)". -/
+@[req "WIR-5a"]
+theorem request_target_witness :
+    requestTarget "/v1/operations" (some "terminal=false&limit=100") =
+        "/v1/operations?terminal=false&limit=100" ∧
+      requestTarget "/v1/machines" none = "/v1/machines" := by decide
+
+/-- `WIR-17`'s create body with its members in two orders at two depths — `CNF-24`'s shape,
+"differing only in JSON key order". -/
+def createBody : Json :=
+  .obj (.cons "offer_id" (.str "cx22")
+       (.cons "acknowledge_purchase" (.bool true)
+       (.cons "provider_options"
+          (.obj (.cons "location" (.str "fsn1") (.cons "backups" (.bool false) .nil)))
+       .nil)))
+
+def createBodyReordered : Json :=
+  .obj (.cons "provider_options"
+          (.obj (.cons "backups" (.bool false) (.cons "location" (.str "fsn1") .nil)))
+       (.cons "acknowledge_purchase" (.bool true)
+       (.cons "offer_id" (.str "cx22")
+       .nil)))
+
+def createWith (b : Json) : Request :=
+  { method := .post, target := requestTarget "/v1/machines" none, body := b }
+
+/-- `API-12`: two values, one canonical form, and the retry replays — reordered at the top level
+and one level down, `Json.canonical_eq_of_reorder`'s theorem on a concrete pair. -/
+@[req "API-12"]
+theorem reordered_at_two_depths_replays :
+    createBody ≠ createBodyReordered ∧
+      createBody.canonical = createBodyReordered.canonical ∧
+      onKeyReuse Wire.current (createWith createBody) (createWith createBodyReordered) = .replay := by
+  decide
+
+/-- A live create's row: the payload `STO-9` names beside `STO-50`'s enumerated columns. -/
+def secretPayload : Payload :=
+  { hostname := "worker-1", sshKeys := ["ssh-ed25519 AAAAC3Nz"], userData := some "#cloud-config",
+    postInstall := some "#!/bin/sh", imageUrl := some "https://images.example/x?sig=s3cr3t",
+    diskLayout := some "raw", spendingCap := some 100000 }
+
+def secretRow : Wire.Row :=
+  { id := ⟨1⟩, tenant := ⟨7⟩, idempotencyKey := "agent-7:create:1", kind := .createMachine,
+    status := .running, machine := none, providerAccount := some "hetzner-cloud-1",
+    request := some secretPayload, providerIds := [], correlator := some "op-1",
+    offerSnapshot := some "cx22", setupFeeSats := some 0, writeStartedAt := none,
+    rescueExitedCleanly := none, result := .null, error := .null, revision := 1,
+    retryable := false, requestedBy := .caller, systemReason := none, episode := none,
+    committedSats := some 72000, createdAt := 0, updatedAt := 0, correlationId := "c-1" }
+
+/-- `STO-50` with the enumeration closed: the summary of the live row is the summary of the purged
+one, and nothing in it names the hostname, the keys or the script. -/
+@[req "STO-50"]
+theorem closed_summary_witness :
+    summary Wire.current secretRow = summary Wire.current (purge secretRow) := by decide
+
+/-- Without it — "what was attempted" as the open bucket `F38` found — the whole payload sits in
+the record that outlives the purge. -/
+@[req "STO-50"]
+theorem open_summary_leaks :
+    (summary { Wire.current with closedSummary := false } secretRow).attempted =
+      some secretPayload := by decide
+
+/-- `API-21`: one view for the live row and the purged row; `WIR-10`'s `poll_after_ms` present on
+the running one. -/
+@[req "API-21"]
+theorem view_witness :
+    operationView 5000 secretRow = operationView 5000 (purge secretRow) ∧
+      (operationView 5000 secretRow).pollAfterMs = some 5000 ∧
+      (operationView 5000 { secretRow with status := .succeeded }).pollAfterMs = none := by
+  decide
+
+/-- A provider body with `DOM-6`'s cases: a key containing `Password` in mixed case, a key equal to
+`token`, an `api_key` inside an array element, and two keys the rule leaves alone. -/
+def providerBody : Json :=
+  .obj (.cons "db_Password" (.str "hunter2")
+       (.cons "token" (.str "t0k")
+       (.cons "name" (.str "worker-1")
+       (.cons "keys" (.arr (.cons (.obj (.cons "api_key" (.str "k") (.cons "id" (.num 3) .nil))) .nil))
+       .nil))))
+
+def providerBodyRedacted : Json :=
+  .obj (.cons "db_Password" marker
+       (.cons "token" marker
+       (.cons "name" (.str "worker-1")
+       (.cons "keys" (.arr (.cons (.obj (.cons "api_key" marker (.cons "id" (.num 3) .nil))) .nil))
+       .nil))))
+
+/-- `DOM-6`: "replaced with a redaction marker, recursively through objects and arrays". -/
+@[req "DOM-6"]
+theorem redaction_witness :
+    providerBody.redact = providerBodyRedacted ∧ providerBody.clean = false ∧
+      providerBodyRedacted.clean = true := by decide
+
+/-- Tenant 2's machine, with the two provider columns `WIR-11` hides. -/
+def machineOfTenantTwo : Owned MachineRow :=
+  { owner := ⟨2⟩,
+    record := { id := ⟨9⟩, name := "worker-1", externalId := "hz-123456",
+                metadata := .obj (.cons "token" (.str "x") .nil) } }
+
+/-- `SEC-8` on the concrete lookup: tenant 1 asking for tenant 2's machine gets what it gets for
+no machine; tenant 2 gets the view, without the provider columns. -/
+@[req "SEC-8"]
+theorem foreign_machine_witness :
+    machineLookup ⟨1⟩ (some machineOfTenantTwo) = machineLookup ⟨1⟩ none ∧
+      machineLookup ⟨1⟩ (some machineOfTenantTwo) = .notFound ∧
+      machineLookup ⟨2⟩ (some machineOfTenantTwo) = .ok { id := ⟨9⟩, name := "worker-1" } := by
+  decide
+
+end Wire
 
 end Provisiond.Witnesses

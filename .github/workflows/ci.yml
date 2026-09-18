@@ -348,10 +348,15 @@ jobs:
       #     tenant's topup and nothing moves -- attribution_witness on attributionTrace;
       #   reapWaitsForWindow (API-34): a tenant with a deposit inside its window is reaped and
       #     the payment lands unattributed -- reap_waits_for_window_witness on reapTrace.
+      # Wire canonicalization and redaction (pv-vwe.3), Wire.current:
+      #   endpointInPreimage (WIR-3, "Method and target are part of the fingerprint"): the delete
+      #     on machine B replays the delete on A -- endpoint_in_fingerprint_witness on deleteOnA;
+      #   closedSummary (STO-50, 2026-09-06): the live row's payload sits in the summary that
+      #     outlives the purge -- closed_summary_witness on secretRow.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation and funding guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding and wire guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -407,9 +412,11 @@ jobs:
           Funding|paymentRecordUnique|true|false|KeySource.observation
           Funding|correctionPrefix|true|false|attributionTrace
           Funding|reapWaitsForWindow|true|false|reapTrace
+          Wire|endpointInPreimage|true|false|deleteOnA
+          Wire|closedSummary|true|false|secretRow
           ROWS
-          if [ "$passed" -ne 27 ]; then
-            echo "::error::expected 27 fence, restore, reconciliation and funding controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 29 ]; then
+            echo "::error::expected 29 fence, restore, reconciliation, funding and wire controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 
