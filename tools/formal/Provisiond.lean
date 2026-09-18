@@ -8,5 +8,6 @@ import Provisiond.Migration
 import Provisiond.Fence
 import Provisiond.Ledger
 import Provisiond.Restore
+import Provisiond.Reconcile
 import Provisiond.Render
 import Provisiond.Witnesses

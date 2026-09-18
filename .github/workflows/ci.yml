@@ -319,10 +319,23 @@ jobs:
       #     resurrected_token_refused on [.., .request 0, .completeProcedure, ..];
       #   twoPassAbsence (STO-54, 2026-09-12): the first complete pass records the absence --
       #     absence_on_second_pass_only on the two sweeps before the window.
+      # Reconciliation knowledge (pv-vwe.5), Reconcile.current, the same shape:
+      #   completePassOnly (OPS-32, 2026-09-02): the interrupted pass rereads into the throttle,
+      #     the 2026-08-31 "yield to rate_limited" sentence, since PRV-36 leaves this guard no
+      #     live meter to stop (Reconcile.lean's docstring) --
+      #     interrupted_pass_witness, w.retriedIntoThrottle = false;
+      #   pastWindowOnly (OPS-32, 2026-09-04): a reread inside the listing lag stops a live meter --
+      #     inside_window_records_nothing on [.advance 7, ..];
+      #   rereadBeforeAbsence (OPS-32, 2026-09-04): the listing alone stops a live meter --
+      #     unlisted_live_machine_reread on [.advance 2000, .sweep true false .found];
+      #   absenceWindow (OPS-32, 2026-09-04): the gone machine bills until the negative window --
+      #     absence_on_visibility_window on [.advance 20, ..];
+      #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
+      #     match_is_not_observation, w.orderLanded = some mach.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
-      - name: Prove the Lean build rejects each fence and restore guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore and reconciliation guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -366,9 +379,14 @@ jobs:
           Restore|exceptionFrozen|true|false|Event.confirmParents, Event.claim { n := 1 }
           Restore|bumpOnRestore|true|false|Event.request 0, Event.completeProcedure
           Restore|twoPassAbsence|true|false|Event.sweep true false, Event.windowElapses
+          Reconcile|completePassOnly|true|false|w.retriedIntoThrottle = false
+          Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
+          Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
+          Reconcile|absenceWindow|.visibility|.negative|Event.advance 20, Event.sweep true false Answer.notFound
+          Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           ROWS
-          if [ "$passed" -ne 15 ]; then
-            echo "::error::expected 15 fence and restore controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 20 ]; then
+            echo "::error::expected 20 fence, restore and reconciliation controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

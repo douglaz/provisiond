@@ -19,14 +19,14 @@ from the fault the engine came up on and the steps done.
 change a witness theorem exercises (`ADR-0025`). Every model here is one tenant, one machine, one
 engine (`OPS-47`), and time does not advance: `now` is the restore instant.
 
-What the model omits: `pv-vwe.5`'s knowledge type — absence here is the machine's `recordedGone`
-Boolean, and `OPS-32`'s own three conjuncts (a complete pass, `PRV-36`'s window, the direct
-reread) are that ticket's, so on a restart the sweep records an absence on a complete pass alone;
-a crash inside the procedure, which `STO-54` does not address (`pv-5yf`), so no fault is an
-`Event`; `STO-54`'s step (1) beyond the freeze and `LDG-16`'s grace (the published window, the
-account status and the rate quorum) and step (3) beyond the credential bump (the watch set, the
-rails, `SEC-39`'s counters, the derivation index); the operator cancelling a waiting parent, which
-`Event.confirmParents` stands for beside confirming it; the sweep's per-account report; and
+What the model omits: `Provisiond.Reconcile`'s knowledge type — absence here is the machine's
+`recordedGone` Boolean, and `OPS-32`'s own three conjuncts (a complete pass, `PRV-36`'s window,
+the direct reread) are that module's, so on a restart the sweep records an absence on a complete
+pass alone; a crash inside the procedure, which `STO-54` does not address (`pv-5yf`), so no fault
+is an `Event`; `STO-54`'s step (1) beyond the freeze and `LDG-16`'s grace (the published window,
+the account status and the rate quorum) and step (3) beyond the credential bump (the watch set,
+the rails, `SEC-39`'s counters, the derivation index); the operator cancelling a waiting parent,
+which `Event.confirmParents` stands for beside confirming it; the sweep's per-account report; and
 everything after the procedure that touches the stored date — the tenant extending again inside
 the grace (`LDG-62`), the second derivation `LDG-16` waits for and the routing at the interval's
 end (`Provisiond.Fence` has those) — so the grace is stated as the column set, and

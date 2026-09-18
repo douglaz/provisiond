@@ -5,6 +5,7 @@ import Provisiond.Tables
 import Provisiond.Migration
 import Provisiond.Fence
 import Provisiond.Restore
+import Provisiond.Reconcile
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -582,6 +583,160 @@ theorem successful_restore_witness :
     (∀ c, (permits Restore.current w).run c = true) := by decide
 
 end Restore
+
+/-! ## Reconciliation knowledge
+
+One create, dispatched at 0 with its reply lost; `PRV-36`'s visibility window is 8 (the live
+DigitalOcean measurement), `OPS-33`'s negative window 1000. Every witness pair here flips one
+field of `Reconcile.current`, and each asserts the fields its own parameter decides, as the
+fence's and the restore's do. The absence witnesses advance past both windows or neither, so that
+`absenceWindow` decides one witness alone. -/
+
+section Reconcile
+open Provisiond.Reconcile
+
+def acct : ProviderAccount := ⟨1⟩
+def mach : Candidate := { account := acct, externalId := ⟨7⟩ }
+
+/-- The operation with its outcome unknown: nothing known, the commitment open. -/
+def unknownWorld (live : Bool) : Reconcile.World :=
+  { now := 0, dispatchedAt := 0, windows := { visibility := 8, negative := 1000 }, live := live,
+    knowledge := .unknown, commitment := .open, orderLanded := none, throttled := false,
+    retriedIntoThrottle := false, meterStoppedAt := none }
+
+/-- The machine record `OPS-32` sweeps: observed present at attach, its commitment running. -/
+def attachedWorld (live : Bool) : Reconcile.World :=
+  { unknownWorld live with knowledge := .observedPresent mach }
+
+/-- `OPS-33`'s positive witness: the negative window elapses, the commitment is released, and the
+resource is still `unknown` — release is not absence. Then the sweep "MUST continue searching
+for the correlator indefinitely afterwards": the match lands, the read finds the machine, and it
+is attached with the commitment still closed (`OPS-36`). -/
+@[req "OPS-33"]
+theorem released_still_unknown :
+    let w := Reconcile.run Reconcile.current (unknownWorld true) [.advance 1000, .release]
+    let w' := Reconcile.run Reconcile.current w [.search [[mach]], .read .found]
+    w.knowledge = .unknown ∧ w.commitment = .closed ∧
+    w'.knowledge = .observedPresent mach ∧ w'.commitment = .closed := by decide
+
+/-- Before the negative window the release is refused: a search that finds nothing is not yet a
+release either. And past it, an attached machine's running commitment is not "a negative
+search" and is not released. -/
+@[req "OPS-33"]
+theorem release_waits_for_negative_window :
+    (Reconcile.run Reconcile.current (unknownWorld true)
+      [.advance 999, .search [[]], .release]).commitment = .open ∧
+    (Reconcile.run Reconcile.current (attachedWorld true)
+      [.advance 2000, .release]).commitment = .open := by decide
+
+/-- `OPS-27`'s 2026-09-05 sentence: the match on a gone Robot machine — "the listing outlives the
+machine" — records that the order landed and observes nothing; the read is what attaches. -/
+@[req "OPS-27"]
+theorem match_is_not_observation :
+    let w := Reconcile.run Reconcile.current (unknownWorld false) [.search [[mach], [mach]]]
+    w.orderLanded = some mach ∧ w.knowledge = .unknown ∧
+    (Reconcile.step Reconcile.current w (.read .found)).knowledge = .observedPresent mach := by
+  decide
+
+/-- Without it the match attaches: a machine the provider no longer has, "observed present" on
+a listing alone. -/
+@[req "OPS-27"]
+theorem match_attaches_without_read :
+    let w := Reconcile.run { Reconcile.current with readConfirmsMatch := false }
+      (unknownWorld false) [.search [[mach], [mach]]]
+    w.knowledge = .observedPresent mach ∧ w.live = false := by decide
+
+/-- `OPS-27`'s union, keyed as `OPS-32` keys the machine, "by `(provider_account, external_id)`":
+the same key on two channels is one candidate and a match, not a duplicate; the same
+`external_id` in two accounts is two. -/
+@[req "OPS-27"]
+theorem duplicates_keyed_by_account_and_id :
+    let other : Candidate := { account := ⟨2⟩, externalId := ⟨7⟩ }
+    Reconcile.union [[mach], [mach]] = [mach] ∧
+    (Reconcile.step Reconcile.current (unknownWorld true)
+      (.search [[mach], [mach]])).knowledge.isDuplicate = false ∧
+    (Reconcile.step Reconcile.current (unknownWorld true)
+      (.search [[mach], [other, mach]])).knowledge = .multipleCandidates [mach, other] := by decide
+
+/-- `OPS-32`'s positive witness, on a machine the provider terminated: a complete pass past both
+windows does not list it, the reread answers `not_found`, and the same pass records the absence,
+stops the meter at the observation instant and closes the commitment (`LDG-32`). -/
+@[req "OPS-32"]
+theorem absence_recorded_witness :
+    let w := Reconcile.run Reconcile.current (attachedWorld false)
+      [.advance 2000, .sweep true false .notFound]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 2000 ∧
+    w.commitment = .closed := by decide
+
+/-- `OPS-32`'s 2026-09-04 defect, refused: a machine created seconds before the sweep, whose
+create the listing "had not yet caught up with", is unlisted and its reread inside the window
+answers `not_found`. Nothing is recorded; the next pass has evidence. -/
+@[req "OPS-32"]
+theorem inside_window_records_nothing :
+    let w := Reconcile.run Reconcile.current (attachedWorld true)
+      [.advance 7, .sweep true false .notFound]
+    w.knowledge = .observedPresent mach ∧ w.meterStoppedAt = none := by decide
+
+/-- Without the window rule the same pass "was recorded gone: `LDG-74` stopped its meter". -/
+@[req "OPS-32"]
+theorem inside_window_stops_live_meter_without_rule :
+    let w := Reconcile.run { Reconcile.current with pastWindowOnly := false } (attachedWorld true)
+      [.advance 7, .sweep true false .notFound]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 7 ∧ w.live = true := by decide
+
+/-- "Pagination is not a snapshot": a complete pass past the window that a live machine moved off
+— the reread finds it — records nothing. -/
+@[req "OPS-32"]
+theorem unlisted_live_machine_reread :
+    let w := Reconcile.run Reconcile.current (attachedWorld true)
+      [.advance 2000, .sweep true false .found]
+    w.knowledge = .observedPresent mach ∧ w.meterStoppedAt = none := by decide
+
+/-- Without the reread the listing is the evidence, and "a running machine is recorded gone, its
+meter stopped and its commitment released". -/
+@[req "OPS-32"]
+theorem unlisted_live_machine_stopped_without_reread :
+    let w := Reconcile.run { Reconcile.current with rereadBeforeAbsence := false }
+      (attachedWorld true) [.advance 2000, .sweep true false .found]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 2000 ∧ w.live = true := by
+  decide
+
+/-- "An interrupted pass MUST record nothing about absence": the pass yields to `rate_limited`
+with the machine on an unread page, and the engine issues no reread into the throttle. -/
+@[req "OPS-32"]
+theorem interrupted_pass_witness :
+    let w := Reconcile.run Reconcile.current (attachedWorld true)
+      [.advance 2000, .sweep false false .found]
+    w.knowledge = .observedPresent mach ∧ w.throttled = true ∧
+    w.retriedIntoThrottle = false := by decide
+
+/-- Without the completeness guard the subset is the account: every unlisted machine is a
+candidate, and the engine rereads into the throttle that interrupted it — "retrying into it". -/
+@[req "OPS-32"]
+theorem interrupted_pass_rereads_into_throttle :
+    (Reconcile.run { Reconcile.current with completePassOnly := false } (attachedWorld true)
+      [.advance 2000, .sweep false false .found]).retriedIntoThrottle = true := by decide
+
+/-- "It is `PRV-36`'s window and NOT `OPS-33`'s negative window": a machine "the provider
+terminated in its first hours" is recorded gone on the first complete pass past the listing lag,
+at 20. -/
+@[req "OPS-32"]
+theorem absence_on_visibility_window :
+    (Reconcile.run Reconcile.current (attachedWorld false)
+      [.advance 20, .sweep true false .notFound]).meterStoppedAt = some 20 := by decide
+
+/-- Bound to the negative window instead, the same machine goes "on billing its customer for
+that whole window": nothing at 20, the meter stopped at 1000. `pastWindowOnly` is pinned so that
+this witness decides on `absenceWindow` alone. -/
+@[req "OPS-32"]
+theorem negative_window_bills_the_gone_machine :
+    let p := { Reconcile.current with absenceWindow := .negative, pastWindowOnly := true }
+    let w := Reconcile.run p (attachedWorld false) [.advance 20, .sweep true false .notFound]
+    w.meterStoppedAt = none ∧
+    (Reconcile.run p w [.advance 980, .sweep true false .notFound]).meterStoppedAt
+      = some 1000 := by decide
+
+end Reconcile
 
 /-! ## The closed tables -/
 
