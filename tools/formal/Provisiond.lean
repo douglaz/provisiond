@@ -12,4 +12,5 @@ import Provisiond.Restore
 import Provisiond.Reconcile
 import Provisiond.Render
 import Provisiond.Wire
+import Provisiond.Rescue
 import Provisiond.Witnesses

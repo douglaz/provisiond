@@ -9,6 +9,7 @@ import Provisiond.Reconcile
 import Provisiond.Ledger
 import Provisiond.Funding
 import Provisiond.Wire
+import Provisiond.Rescue
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -1185,5 +1186,326 @@ theorem foreign_machine_witness :
   decide
 
 end Wire
+
+/-! ## Rescue and install
+
+`RSC-3`'s trust decision, `RSC-26`'s disk identity, `OPS-45`'s two markers on the claim model and
+`RSC-19`'s recovery key. One install request runs the markers: the caller chose the disk carrying
+stable identifier 2 from an inventory whose fingerprint is 100. `RSC-26`'s duplicate case needs a
+second device set, so `duplicateRequest` is a second request, over fingerprint 102.
+
+Every field of `Rescue.current` has a witness pair that flips it and asserts what that field
+decides, as `ci.yml`'s other rows do. The
+`RSC-5` pair (`Trust.run` against `Trust.runRedecided`) and the `RSC-26` pair (`Disk.resolve`
+against `Disk.resolveFirst`) flip no field: what they refute is an alternative definition, not a
+guard that could be removed, so neither is one of `ci.yml`'s rows. -/
+
+section Rescue
+open Provisiond.Rescue
+
+/-- The caller pinned one key and the driver published two, which overlap: `RSC-3`'s third row. -/
+def pinnedConn : Trust.Conn :=
+  { trust := .pinned, callerKeys := [⟨1⟩], driverKeys := [⟨1⟩, ⟨2⟩], optIn := false }
+
+/-- `RSC-5`'s three paths: "not on retry, not on timeout, not when the driver returns an empty key
+set later". -/
+def downgradePaths : List Trust.Event := [.retry, .timeout, .driverPublishes []]
+
+/-- A request that pins and connects, and stays pinned over every path `RSC-5` names. The model
+refuses nothing vacuously. -/
+@[req "RSC-3"]
+theorem pinned_connection_witness :
+    Trust.decision [⟨1⟩] [⟨1⟩, ⟨2⟩] false = .pinOverlapping ∧
+    Trust.connects (Trust.decision [⟨1⟩] [⟨1⟩, ⟨2⟩] false) = true ∧
+    (Trust.run pinnedConn downgradePaths).trust = .pinned := by decide
+
+/-- The connection `RSC-5`'s refuted alternative downgrades: the caller supplied no keys and opted
+in — admissible under `RSC-4` — the driver published one, so the trust decision pinned the driver's
+key. -/
+def optedInConn : Trust.Conn :=
+  { trust := .pinned, callerKeys := [], driverKeys := [⟨1⟩], optIn := true }
+
+/-- `RSC-5`'s refuted alternative, as `OPS-49`'s last-statement retry is in the claim model:
+re-deciding `RSC-3` on each event from the driver's *current* set. On the trace where the driver
+returns an empty key set later, the state machine stays pinned and the alternative reaches
+accept-new — the silent downgrade to first-use trust. -/
+@[req "RSC-5"]
+theorem redecided_trust_downgrades :
+    Trust.admissible { callerKeys := [], firstUseOptIn := true } = true ∧
+    Trust.decision [] [⟨1⟩] true = .pinDriver ∧
+    (Trust.run optedInConn [.driverPublishes []]).trust = .pinned ∧
+    (Trust.runRedecided optedInConn [.driverPublishes []]).trust = .firstUse := by decide
+
+/-- The inventory the caller chose from: two disks, the second carrying the identifier it chose. -/
+def chosenInventory : Disk.Inventory :=
+  { devices := [{ identifier := some ⟨1⟩, path := "/dev/sda" },
+                { identifier := some ⟨2⟩, path := "/dev/sdb" }],
+    fingerprint := 100 }
+
+/-- The same two disks after a boot re-ordered their names. The fingerprint is "over the whole
+device set", which the re-ordering did not change. -/
+def reorderedInventory : Disk.Inventory :=
+  { devices := [{ identifier := some ⟨2⟩, path := "/dev/sda" },
+                { identifier := some ⟨1⟩, path := "/dev/sdb" }],
+    fingerprint := 100 }
+
+/-- A second disk carrying the same identifier: "duplicate or empty serials are real on consumer
+and virtualised disks". Its own fingerprint, because `RSC-46` computes one over "the device list
+sorted by identifier" and this device list is not `chosenInventory`'s. -/
+def duplicateInventory : Disk.Inventory :=
+  { devices := [{ identifier := some ⟨2⟩, path := "/dev/sda" },
+                { identifier := some ⟨2⟩, path := "/dev/sdb" }],
+    fingerprint := 102 }
+
+/-- What a caller who read that set would send: the same identifier, and the fingerprint it was
+chosen from — so the resolution reaches the more-than-one case rather than aborting on the
+fingerprint first. -/
+def duplicateRequest : Disk.Request := { identifier := ⟨2⟩, fingerprint := 102 }
+
+/-- The device set changed since the caller read it, so the fingerprint is another. -/
+def staleInventory : Disk.Inventory :=
+  { devices := [{ identifier := some ⟨2⟩, path := "/dev/sda" }], fingerprint := 101 }
+
+/-- `RSC-26`'s request: "the chosen device's stable identifier and the `inventory_fingerprint` it
+was chosen from". -/
+def installRequest : Disk.Request := { identifier := ⟨2⟩, fingerprint := 100 }
+
+/-- An identifier that resolves, and what "The identifier is authoritative; the path is derived"
+buys: the caller chose the disk that was `/dev/sdb`, and against the re-ordered inventory the same
+identifier resolves to the same disk under the name `/dev/sda`. A request naming the path would
+have written to the other disk. A changed fingerprint aborts. -/
+@[req "RSC-26"]
+theorem identifier_resolves_across_a_reordering :
+    Disk.resolve installRequest (some chosenInventory)
+      = .resolved { identifier := some ⟨2⟩, path := "/dev/sdb" } ∧
+    (Disk.resolve installRequest (some reorderedInventory)).path = some "/dev/sda" ∧
+    Disk.resolve installRequest (some staleInventory) = .abortIntegrity ∧
+    Disk.resolve installRequest none = .abortIntegrity := by decide
+
+/-- "more than one is the dangerous case", and 'pick the first' there "is the same coin-flip over
+which disk gets destroyed that naming `/dev/sda` was": the identifier names two of this set's
+devices, the resolution aborts, and the refuted alternative writes to whichever the enumeration put
+first — a disk the caller never singled out. -/
+@[req "RSC-26"]
+theorem duplicate_identifier_refused_not_first_taken :
+    Disk.resolve duplicateRequest (some duplicateInventory) = .abortIntegrity ∧
+    (Disk.resolveFirst duplicateRequest (some duplicateInventory)).path = some "/dev/sda" := by
+  decide
+
+/-- A claimed `raw_disk` install, before any of it has run. -/
+def rawInstall : Install.World := Install.begin (.install .rawDisk) installRequest
+
+/-- A claimed `rootfs_via_rescue` install, which enters rescue. -/
+def rescueInstall : Install.World := Install.begin (.install .rootfsViaRescue) installRequest
+
+/-- `RSC-26`'s re-read, "immediately before any disk I/O". -/
+def reread : Install.Event := .resolveTarget (some chosenInventory)
+
+/-- `OPS-49`'s lost reply on the first marker's write, then the repeat: the second write finds the
+column set. -/
+def lostReplyThenRepeat : List Install.Event :=
+  [reread, .markerWrite (.committed false), .markerWrite (.committed true), .phase true]
+
+/-- `OPS-45`, 2026-09-12 (`ADR-0022`): with `COALESCE(write_started_at, now)` under the worker
+guard, "a repeat after a lost reply then affects a row and moves nothing" — the column still holds
+the instant the first write set, and the phase runs. -/
+@[req "OPS-45"]
+theorem coalesced_repeat_moves_nothing :
+    let w := Install.run Rescue.current rawInstall lostReplyThenRepeat
+    w.writeStartedAt = some 1 ∧ w.exited = false ∧ w.diskWritten = true := by decide
+
+/-- Without it — the null-guarded write — the same repeat "would affect no row and read as
+overtaken": the worker exits on its own commit and the phase never runs. -/
+@[req "OPS-45"]
+theorem null_guarded_repeat_reads_as_overtaken :
+    let w := Install.run { Rescue.current with coalesceWrite := false } rawInstall
+      lostReplyThenRepeat
+    w.exited = true ∧ w.diskWritten = false ∧ w.writeStartedAt = some 1 := by decide
+
+/-- The phase the process dies inside, with no marker written first. -/
+def phaseWithoutMarker : List Install.Event := [reread, .phase false]
+
+/-- `OPS-45`: the marker is written "at the moment a phase begins that could have altered the
+machine, and before that phase runs", so the phase is admitted only after that write was
+acknowledged. Here nothing wrote it, the phase is refused, and the disk is untouched — which is
+what the projection says. -/
+@[req "OPS-45"]
+theorem phase_refused_before_the_marker :
+    let w := Install.run Rescue.current rawInstall phaseWithoutMarker
+    w.diskWritten = false ∧ w.writeStartedAt = none ∧
+    Install.classifiedUntouched (Install.markers w) = true := by decide
+
+/-- Without it — the marker written after the phase — a process that dies inside the phase leaves
+the marker unset over a disk that was written, and the projection says untouched while the disk is
+not: `installRow`'s deterministic `failed` branch over a destroyed disk. -/
+@[req "OPS-45"]
+theorem marker_unset_over_a_written_disk_without_the_guard :
+    let w := Install.run { Rescue.current with markerBeforePhase := false } rawInstall
+      phaseWithoutMarker
+    w.diskWritten = true ∧ w.writeStartedAt = none ∧ w.died = true ∧
+    Install.classifiedUntouched (Install.markers w) = true ∧
+    installRow currentRules (Install.markers w) .internal = .failed := by decide
+
+/-- The cost `OPS-45`'s 2026-09-15 rewording states and accepts: the marker "establishes that
+preservation is no longer proven, not that a byte landed", so a process that dies between the write
+and the phase "leaves a set marker over an untouched disk, and nothing later can tell the two
+apart". The classification is conservative there, not wrong. -/
+@[req "OPS-45"]
+theorem marker_set_over_an_untouched_disk :
+    let w := Install.run Rescue.current rawInstall [reread, .markerWrite (.committed true), .crash]
+    w.writeStartedAt = some 1 ∧ w.diskWritten = false ∧ w.died = true ∧
+    Install.classifiedUntouched (Install.markers w) = false := by decide
+
+/-- `PRV-18`'s partial activation: the second marker armed, begin rescue dispatched, and the driver
+reports that it cleaned up after itself. -/
+def partialActivation : List Install.Event := [.armExit (.committed true), .beginRescue]
+
+/-- `OPS-45`: "**A driver's report that it cleaned up after a partial activation (`PRV-18`) does not
+move this marker**" — "the engine did not open the session and did not close it". Whatever the
+arming write left in the column, the report leaves it there. -/
+@[req "OPS-45"]
+theorem partial_cleanup_moves_nothing :
+    let w := Install.run Rescue.current rescueInstall partialActivation
+    (Install.step Rescue.current w .partialCleanupReported).rescueExitedCleanly
+      = w.rescueExitedCleanly := by decide
+
+/-- Without the rule the driver's report closes a session the engine never closed: the column reads
+`true`, the projection reads the machine as clean, and an operation whose machine may be sitting in
+rescue settles deterministically `failed`. -/
+@[req "OPS-45"]
+theorem partial_cleanup_closes_a_session_the_engine_did_not :
+    let w := Install.run { Rescue.current with partialCleanupMovesNothing := false } rescueInstall
+      (partialActivation ++ [.partialCleanupReported])
+    w.rescueExitedCleanly = some true ∧
+    Install.classifiedUntouched (Install.markers w) = true := by decide
+
+/-- An install that runs end to end: the re-read resolves, the marker is written and acknowledged,
+the second marker is armed before the dispatch, the phase runs, and the exit returns success. The
+model refuses nothing vacuously. -/
+@[req "OPS-45"]
+theorem successful_install_witness :
+    let w := Install.run Rescue.current rescueInstall
+      [reread, .markerWrite (.committed true), .armExit (.committed true), .beginRescue,
+       .phase true, .endRescueSuccess (.committed true)]
+    w.target = some "/dev/sdb" ∧ w.writeStartedAt = some 1 ∧
+    w.rescueExitedCleanly = some true ∧ w.diskWritten = true ∧ w.exited = false ∧
+    Install.markers w = { writeStarted := true, rescueClean := true } := by decide
+
+/-- `RSC-38`'s inventory pass, which is `OPS-45`'s `never` row: it arms the second marker, opens
+the session and closes it cleanly, and the first marker stays null throughout, so "its whole
+classification turns on the second marker below". The `never` row refuses nothing vacuously — a
+rescue inventory has no marker-dated phase and does not need one. -/
+@[req "OPS-45"]
+theorem rescue_inventory_turns_on_the_second_marker :
+    let w := Install.run Rescue.current (Install.begin .rescueInventory installRequest)
+      [.armExit (.committed true), .beginRescue, .endRescueSuccess (.committed true)]
+    w.writeStartedAt = none ∧ w.rescueExitedCleanly = some true ∧ w.sessionDispatched = true ∧
+    Install.markers w = { writeStarted := false, rescueClean := true } := by decide
+
+/-- `OPS-45`'s headline case, from both aborts that precede a write: `RSC-3` refuses to connect
+where "Neither, and no explicit opt-in", and `RSC-26` aborts on a fingerprint that differs. Neither
+sets a marker, so the operation settles `failed` deterministically — `OPS-11`'s install row,
+"including `integrity` before the connection, which is `RSC-3`'s host-key abort". -/
+@[req "OPS-11"]
+theorem aborts_before_any_write_settle_deterministically :
+    Trust.connects (Trust.decision [] [] false) = false ∧
+    let w := Install.run Rescue.current rawInstall [.resolveTarget (some staleInventory)]
+    w.aborted = true ∧ w.diskWritten = false ∧
+    Install.classifiedUntouched (Install.markers w) = true ∧
+    installRow currentRules (Install.markers w) .integrity = .failed := by decide
+
+/-- `RSC-26`'s abort followed by everything the rest of an install would do: a second re-read that
+would resolve, the marker write, and the destructive phase. -/
+def abortThenTheRestOfTheInstall : List Install.Event :=
+  [.resolveTarget none, reread, .markerWrite (.committed true), .phase true]
+
+/-- The abort is the end of the operation, not a field a later step may ignore. `RSC-26` aborts
+"with `integrity` — before writing a single byte" and "before any write", so the unparsed inventory
+forecloses the second resolution, the marker write and the phase alike: no target, no byte, and the
+projection still reads the disk untouched. -/
+@[req "RSC-26"]
+theorem abort_is_the_end_of_the_operation :
+    let w := Install.run Rescue.current rawInstall abortThenTheRestOfTheInstall
+    w.aborted = true ∧ w.target = none ∧ w.diskWritten = false ∧ w.writeStartedAt = none ∧
+    Install.classifiedUntouched (Install.markers w) = true := by decide
+
+/-- One operation's session, on a machine at 203.0.113.7:22. -/
+def rescueSession : Session.World := Session.begin ⟨9⟩ "203.0.113.7" 22
+
+/-- The session that exits cleanly. -/
+def cleanSession : List Session.Event :=
+  [.armExit, .beginRescue false, .remoteCommand, .endRescue true]
+
+/-- The session as it stands with a command run over it and the exit not yet attempted. -/
+def openSession : List Session.Event := [.armExit, .beginRescue false, .remoteCommand]
+
+/-- The session the engine dies in the middle of. -/
+def crashedSession : List Session.Event := openSession ++ [.crash]
+
+/-- The exit that failed — `PRV-22`'s "*always* ambiguous". -/
+def failedExitSession : List Session.Event :=
+  [.armExit, .beginRescue false, .remoteCommand, .endRescue false]
+
+/-- A session that exits cleanly with no key on disk: `RSC-19` persists the key on the uncertain
+branch and on no other, `PRV-21`'s exit removed the temporary credential, and the record renders
+`clean`. The model refuses nothing vacuously. -/
+@[req "RSC-19"]
+theorem clean_exit_leaves_no_key :
+    let w := Session.run Rescue.current rescueSession cleanSession
+    w.keyOnDisk = none ∧ w.credentialRegistered = false ∧
+    Session.rescueExit w = .clean := by decide
+
+/-- The design `RSC-19`'s 2026-09-15 paragraph refuses, as what it would cost: persisting the key
+from activation leaves "a root credential on disk for the whole of every install", here on a clean
+successful one. -/
+@[req "RSC-19"]
+theorem persisting_at_activation_leaves_a_root_credential :
+    let w := Session.run { Rescue.current with persistAtActivation := true } rescueSession
+      [.armExit, .beginRescue false]
+    w.keyOnDisk = some { key := { operation := ⟨9⟩ } } ∧
+    (Session.run { Rescue.current with persistAtActivation := true } rescueSession
+      cleanSession).keyOnDisk = some { key := { operation := ⟨9⟩ } } := by decide
+
+/-- `OPS-45`, 2026-09-16: `false` precedes the dispatch, and "A dead process writes nothing, which
+is why `false` precedes the session and not the exit: it is what lets `OPS-15`'s pass render
+`rescue_exit: "unknown"` (`RSC-19`, `WIR-9a`)". With the address and port, and neither the key nor
+its path. "An engine crash persists nothing" (`RSC-19`) is the key equality: what is on disk after
+the crash is what the open session already had, and the crash wrote none. That it is `none` under
+the rules as they stand is `clean_exit_leaves_no_key`'s to say — asserting it here too would make
+this witness a second red on the `persistAtActivation` control, which `ci.yml` gives one each. -/
+@[req "RSC-19"]
+theorem crash_renders_rescue_exit_unknown :
+    let w := Session.run Rescue.current rescueSession crashedSession
+    Session.details w = { rescueExit := .unknown, rescueAddress := some "203.0.113.7",
+                          rescuePort := some 22 } ∧
+    w.keyOnDisk = (Session.run Rescue.current rescueSession openSession).keyOnDisk ∧
+    w.credentialRegistered = true ∧ w.status = .needsReconciliation := by decide
+
+/-- Without the pre-dispatch write — the column written `true` on success only — a crash mid-session
+leaves `null`, "the only value that means no session was opened", and the pass has nothing to render
+the machine's state from. -/
+@[req "RSC-19"]
+theorem crash_renders_nothing_without_the_arming_write :
+    let w := Session.run { Rescue.current with secondMarkerBeforeSession := false } rescueSession
+      crashedSession
+    w.rescueExitedCleanly = none ∧ Session.rescueExit w = .noSession ∧
+    Session.details w = { rescueExit := .noSession, rescueAddress := none,
+                          rescuePort := none } := by decide
+
+/-- `RSC-19`'s uncertain branch: the exit failed, so the private key is persisted "in a file named
+by the operation id", the provider-side credential may still be registered (`PRV-22`), and no event
+the engine runs takes the key away — `OPS-32`'s sweep removes the provider's credential and not
+this file, and `RSC-21`'s removal waits for the operator. -/
+@[req "RSC-19"]
+theorem uncertain_exit_persists_the_key :
+    let w := Session.run Rescue.current rescueSession failedExitSession
+    w.keyOnDisk = some { key := { operation := ⟨9⟩ } } ∧ w.uncertain = true ∧
+    w.credentialRegistered = true ∧
+    (Session.run Rescue.current w [.sweepRemovesCredential, .operatorRemovesKey]).keyOnDisk
+      = some { key := { operation := ⟨9⟩ } } ∧
+    (Session.run Rescue.current w [.recoveryComplete, .operatorRemovesKey]).keyOnDisk = none := by
+  decide
+
+end Rescue
 
 end Provisiond.Witnesses

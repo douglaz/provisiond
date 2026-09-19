@@ -353,10 +353,26 @@ jobs:
       #     on machine B replays the delete on A -- endpoint_in_fingerprint_witness on deleteOnA;
       #   closedSummary (STO-50, 2026-09-06): the live row's payload sits in the summary that
       #     outlives the purge -- closed_summary_witness on secretRow.
+      # Rescue and install (pv-vwe.7), Rescue.current:
+      #   coalesceWrite (OPS-45, 2026-09-12, ADR-0022): the null-guarded repeat after a lost reply
+      #     affects no row, reads as overtaken, and the phase never runs --
+      #     coalesced_repeat_moves_nothing on rawInstall lostReplyThenRepeat;
+      #   markerBeforePhase (OPS-45, reworded 2026-09-15): the marker written after the phase is
+      #     unset over a disk a dying process wrote, and the projection says untouched --
+      #     phase_refused_before_the_marker on rawInstall phaseWithoutMarker;
+      #   secondMarkerBeforeSession (OPS-45, 2026-09-16): a crash mid-session leaves null and
+      #     OPS-15's pass cannot render rescue_exit: "unknown" (RSC-19) --
+      #     crash_renders_rescue_exit_unknown on rescueSession crashedSession;
+      #   partialCleanupMovesNothing (OPS-45, PRV-18): the driver's cleanup report closes a
+      #     session the engine never opened, and the machine reads clean --
+      #     partial_cleanup_moves_nothing on rescueInstall partialActivation;
+      #   persistAtActivation := true (RSC-19, the design its 2026-09-15 paragraph refuses): a
+      #     clean successful install has a root credential on disk for the whole session --
+      #     clean_exit_leaves_no_key on rescueSession cleanSession.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding and wire guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire and rescue guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -414,9 +430,14 @@ jobs:
           Funding|reapWaitsForWindow|true|false|reapTrace
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
+          Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
+          Rescue|markerBeforePhase|true|false|rawInstall phaseWithoutMarker
+          Rescue|secondMarkerBeforeSession|true|false|Rescue.current rescueSession crashedSession
+          Rescue|partialCleanupMovesNothing|true|false|Rescue.current rescueInstall partialActivation
+          Rescue|persistAtActivation|false|true|Rescue.current rescueSession cleanSession
           ROWS
-          if [ "$passed" -ne 29 ]; then
-            echo "::error::expected 29 fence, restore, reconciliation, funding and wire controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 34 ]; then
+            echo "::error::expected 34 fence, restore, reconciliation, funding, wire and rescue controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 
