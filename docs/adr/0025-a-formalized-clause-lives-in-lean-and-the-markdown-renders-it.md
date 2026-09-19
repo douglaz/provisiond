@@ -3,8 +3,9 @@
 **Status:** accepted (2026-09-13; proposed 2026-09-12 by `lean-01.md`, decided after two independent
 readers of one brief — Codex at xhigh and a fresh Fable reader — each ran Lean 4.30.0 from `flake.nix`
 and proved the first theorems before answering). The first modules are `tools/formal/`; the gate that
-runs them joins `tools/check-all.sh`. Does not amend `ADR-0001`: the formal layer describes and
-checks the system and implements none of it.
+runs them joins `tools/check-all.sh`. Amended 2026-09-19 with the wire-fixture decision under
+*Scope*. Does not amend `ADR-0001`: the formal layer describes and checks the system and
+implements none of it.
 
 ## The problem as found
 
@@ -85,10 +86,29 @@ stuck on rational equalities and reached for `native_decide`; the other closed t
   `LDG-38`, `OPS-41`); the claim model (`ADR-0022`); the cancellation fence composed on it
   (`OPS-41`, `OPS-42`, `LDG-62`, `OPS-48`); the closed tables with the rendering gate (`OPS-11`,
   `OPS-48`, `DOM-31`); then reconciliation and restore, funding and the tenant lifecycle, rescue and
-  install, wire canonicalization and redaction. Wire fixtures are decided after the tables prove the
-  rendering mechanism. The fence is not built before the claim model: without the rate-outage
+  install, wire canonicalization and redaction. Wire fixtures were decided after the tables proved
+  the rendering mechanism. The fence is not built before the claim model: without the rate-outage
   branch, the tenant's current suspension state and the episode, a fence model proves a false
-  requirement.
+  requirement. *Amended 2026-09-19: wire fixtures are not generated, and the precedence rule in
+  `13-wire-contract.md`'s opening paragraph stands unamended because no generated shape exists to
+  register. The rendering gate removes a copy because every token it diffs is one the declaration
+  determines — `Provisiond.Render.ldg31Table` is computed whole, and in
+  `Provisiond.Render.ops48Table` the keys and steps are listed by hand while the outcomes beside
+  them are computed and the coverage theorem holds the list complete. A fixture's values are
+  determined by nothing in Lean:
+  `WIR-37` asks for "full UUIDs, `Z`-suffixed timestamps, 64-hex digests", which are chosen, and
+  would enter Lean as the same literals inside a string, a copy relocated rather than removed. The
+  wire module holds `Json` as a value — canonicalized, redacted, never serialized; there is no
+  `Json → String` — and two projections: `Provisiond.Wire.operationView`, with `WIR-10`'s field
+  list but ids and timestamps as naturals and its enumerations unspelled, and
+  `Provisiond.Wire.machineView`, two fields of the many `WIR-11`'s example carries. No other
+  example has a type beyond `Json`.
+  Emitting bytes would therefore need a serializer, formatters for ids and timestamps and a wire
+  spelling for every enumeration, each a second copy of a convention the wire document already
+  states and `tools/check_fixtures.py` already parses; and the projections' independence theorems
+  hold for every row, so a rendered row proves nothing they do not. `lean-01.md` proposed the
+  generation; this is the evidence it waited for. The decision reopens if a serializer lands for a
+  reason of its own.*
 - **Every guard that a dated amendment added is a parameter of the model that carries it**, and the
   module holds two theorems: the bad trace is refused with the guard and admitted without it. A
   successful proof without the second theorem is decoration.
