@@ -1369,17 +1369,25 @@ rather than acquiring a default.
       not after the exit** (added 2026-09-16). Drive an install refused before begin rescue —
       `OPS-40`'s claim-time URL gate, or a `rescue_ssh` capability refusal (`DOM-10`) — and assert
       `failed`, `rescue_exit: "none"`, no `rescue_address`, and `rescue_exited_cleanly` **null** in
-      the row and in `request_summary`. Then kill the engine between the begin-rescue dispatch and
-      the end-rescue call: `OPS-15` moves the operation to `needs_reconciliation`, the error carries
-      `rescue_exit: "unknown"` with `rescue_address` and `rescue_port`, the column is **false**, and
-      no key file exists (`RSC-19`: a crash persists nothing, and `unknown` never implies a file).
-      Then `CNF-301`'s clean exit: **true**. Then repeat the pre-dispatch write after a simulated lost
-      reply and assert it affects one row and changes nothing (`ADR-0022`, `STO-3`). Then restore
-      from a backup taken before the dispatch and assert the quarantined row renders both keys
-      `unknown` whatever the restored columns hold (`WIR-9a`). Three distinct column values, or the
-      item passes an implementation that writes the marker only at the exit — which renders a
-      crashed session as `none`, the one lie the column exists to prevent. (`OPS-45`, `OPS-15`,
-      `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
+      the row and in `request_summary`. Then kill the engine after the pre-dispatch write commits
+      and before the begin-rescue dispatch (*step added 2026-09-20, `pv-v1f`*): no begin-rescue call
+      reaches the provider, `OPS-15` moves the operation to `needs_reconciliation`, the column is
+      **false** over a machine that was never rebooted into rescue, the error carries
+      `rescue_exit: "unknown"` with the `rescue_address` and `rescue_port` that `OPS-15`'s pass
+      renders from the machine row (`RSC-19`), and no key file exists. Then kill the engine between
+      the begin-rescue dispatch and the end-rescue call: `OPS-15` moves the operation to
+      `needs_reconciliation`, the error carries `rescue_exit: "unknown"` with `rescue_address` and
+      `rescue_port`, the column is **false**, and no key file exists (`RSC-19`: a crash persists
+      nothing, and `unknown` never implies a file). Then `CNF-301`'s clean exit: **true**. Then
+      repeat the pre-dispatch write after a simulated lost reply and assert it affects one row and
+      changes nothing (`ADR-0022`, `STO-3`). Then restore from a backup taken before the dispatch
+      and assert the quarantined row renders both keys `unknown` whatever the restored columns hold
+      (`WIR-9a`). Three distinct column values, or the item passes an implementation that writes the
+      marker only at the exit — which renders a crashed session as `none`, the one lie the column
+      exists to prevent. The pre-dispatch kill is the step that separates the required write from
+      one made at the dispatch instead: `OPS-45` states "false, written before begin rescue … is
+      dispatched", and an implementation that waits for the dispatch renders that row `none`.
+      (`OPS-45`, `OPS-15`, `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
 - [ ] **CNF-303** — **A temporary key the engine could not remove is swept, and one in use is not**
       (added 2026-09-16, `pv-lld`). Kill the engine between begin-rescue's key registration and
       `PRV-21`, and again between a create's key registration and `PRV-9`'s cleanup: assert each
