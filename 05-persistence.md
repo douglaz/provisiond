@@ -1046,6 +1046,16 @@ resolved. *An earlier
 draft said these survived "on `STO-14`'s clock", which was a citation to a requirement that does
 not mention them — the failure class this document's own scope note exists to catch.*
 
+### `restore_incidents`
+
+**STO-56** **`restore_incidents`** — `id`, `restore_instant`, `steps_completed` (0 to 3), and
+`closed_at`, nullable. One row per restore (`STO-54`), written into the restored store before either
+component is started and closed by the operator; at most one row may have `closed_at` null, a
+partial unique index over the table. Both components read the open row before anything else they do:
+it is what says a starting process is continuing an incident rather than restarting, and
+`steps_completed` is what says where to resume, so neither fact depends on an operator being at the
+console when a process dies. *Added 2026-09-20 (`ADR-0023`).*
+
 ## Migrations
 
 **STO-12** **AMENDED 2026-09-12 (`ADR-0024`) — the runner serializes itself.** Migrations MUST
@@ -1183,6 +1193,28 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   cannot know which tenants revoked inside Δ, so every spending token dies and each customer
   re-issues through the recovery credential (`API-56`) — and `deposits.derivation_index` is skipped
   forward by the stated gap (`OVR-19`) before any deposit is minted.
+- **The procedure survives its own interruption, because the incident outlives the process.** The
+  restore commits `STO-56`'s **restore record** — the restore instant, and which of the three steps
+  have completed — before either component is started, and **a process that starts while a restore
+  record is open is continuing that incident, not restarting**, whatever ended its predecessor. It
+  resumes at the first step the record does not mark, and every restriction above stands where its
+  step's mark is missing: the freeze, the quarantine and the closed listener follow the record's
+  marks exactly as they follow the steps in a run nothing interrupts. Without the record, a process
+  that died between the restore landing and step (2)'s pass is succeeded by one that comes up under
+  `STO-5`'s restart rule on a restored store — the boot this requirement exists to prevent, on which
+  every destructive case `ADR-0023` lists fires. **A marked step does not run again**: the grace is
+  written once per incident, the credential generation is bumped once, the derivation index is
+  skipped once, and a customer that re-issued after step (3) keeps the token it re-issued. A step
+  interrupted before its mark commits does run again, and that repeat is safe on each of its writes:
+  the instant is read from the record and never re-computed, step (2)'s quarantine is guarded on
+  `(id, status = queued)`, and step (3)'s two forward writes only rise — a second bump can
+  invalidate and never resurrect, and a second skip of `deposits.derivation_index` allocates
+  forward, the only direction that column moves. The operator closes the record once the incident's
+  last obligation is discharged: step (3) marked, the account sweep's second pass done, and every
+  waiting parent confirmed or cancelled — the last two outlive step (3), which is why the record
+  does not close with it — after which a process that starts is an ordinary restart. *Added
+  2026-09-20 (`ADR-0023`): the procedure ordered its steps and said nothing about a crash inside
+  them, so `OPS-15`'s restore branch rested on knowledge no engine held.*
 - **`OPS-32`'s complete pass is a step, not a gate, and runs twice.** The first pass may record
   nothing about absence: `provider_observations` written in Δ are gone, so `PRV-36`'s effective
   window has been narrowed by the restore, a narrowing `STO-53` says is "never an engine write". A

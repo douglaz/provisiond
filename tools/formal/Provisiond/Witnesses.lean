@@ -437,7 +437,8 @@ def liveStore : Restore.Store :=
       else if j = ⟨2⟩ then { kind := .deleteMachine, status := .queued, applied := false }
       else { kind := .refresh, status := .succeeded, applied := true },
     machine := { runwayUntil := 0, exhaustedSince := some 0, recordedGone := false },
-    credentialGen := 0 }
+    credentialGen := 0,
+    record := none }
 
 /-- The lost interval: nine committed steps, all after the backup. -/
 def lostInterval : History :=
@@ -485,6 +486,38 @@ operation runs twice". -/
 theorem executed_create_reordered_without_quarantine :
     (Restore.run { Restore.current with quarantineOnRestore := false } (bootRestore restoreTrace)
       [.lock, .startupPass, .claim ⟨0⟩]).secondOrder = true := by decide
+
+/-- `STO-54`'s record, added 2026-09-20: the process dies after the restore lands and before step
+(2)'s mark. Its successor comes up while the record is open, so it is continuing the incident — the
+mode is the restore's, `api` serves nothing because step (3) is unmarked, and `LDG-16`'s grace
+stands where the first step (1) wrote it. What that mode then does to the executed create is the
+quarantine's, and `executed_create_quarantined` is where it is asserted. -/
+@[req "STO-54"]
+theorem crash_inside_procedure_continues_it :
+    let w := Restore.run Restore.current (bootRestore restoreTrace)
+      [.lock, .crash, .lock, .startupPass]
+    w.fault = .restore ∧ (permits Restore.current w).serve = false ∧
+    w.graceWritten = true ∧ w.store.machine.exhaustedSince = some 50 := by decide
+
+/-- Without it the successor is an ordinary restart on a restored store, which is the reading the
+set permitted by saying nothing: it serves at once, its pass inspects `running` rows only, the
+executed create is still `queued`, and the claim orders it again — `ADR-0023`'s "an executed
+operation runs twice", reached through the crash window the procedure itself opens. -/
+@[req "STO-54"]
+theorem crash_inside_procedure_is_the_naive_boot :
+    (Restore.run { Restore.current with recordDecidesBoot := false } (bootRestore restoreTrace)
+      [.lock, .crash, .lock, .startupPass, .claim ⟨0⟩]).secondOrder = true := by decide
+
+/-- The marks, `STO-54` 2026-09-20: the record carries which steps have completed, so a crash after
+step (3) does not run step (3) again. The mark stands, `api` keeps serving — the listener is not
+closed a second time on a customer already served — and a repeated step (3) leaves the generation
+where the first one put it. -/
+@[req "STO-54"]
+theorem marked_step_does_not_repeat :
+    let w := Restore.run Restore.current (bootRestore restoreTrace) (procedure ++ [.crash, .lock])
+    let w' := Restore.step Restore.current w .completeProcedure
+    w.procedureComplete = true ∧ (permits Restore.current w).serve = true ∧
+    w'.store.credentialGen = w.store.credentialGen := by decide
 
 /-- `ADR-0023`'s "a revoked token works again", refused: generation 0 is what the backup holds and
 what the revocation inside Δ replaced. Nothing is served before step (3); after it, 0 is refused

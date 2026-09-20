@@ -1,6 +1,7 @@
 # A restore is a recovery incident, not a restart, and durability is bought only where there is no second truth
 
-**Status:** accepted (2026-09-12; proposed 2026-09-10, amendments landed 2026-09-12). The restore
+**Status:** accepted (2026-09-12; proposed 2026-09-10, amendments landed 2026-09-12). Amended
+2026-09-20 with the record that decides which boot a process is, under *The decision*. The restore
 procedure is `STO-54`. Answers
 the second of `impl-report-01.md` §6.15's four gaps — "backup/PITR procedures" — which `ADR-0015`
 recorded as "New operational surface the set does not yet specify". Builds on `ADR-0022`: the
@@ -63,6 +64,21 @@ the unique constraint cannot catch it because the conflicting row is the one the
   restored store is not served at `T − Δ` as if nothing happened. The procedure is a numbered
   requirement, rehearsed end to end before the first customer payment on `CNF-137`'s model, and it
   exercises the destructive witnesses above, not merely a successful start.
+- **The incident decides which boot a process is, not the last process event** (*added 2026-09-20;
+  the decision below ordered the procedure's steps and left a crash inside them unaddressed*). The
+  restore commits a durable record before either component starts; a process that starts while it is
+  open is continuing the incident and resumes at the first step the record does not mark; the
+  operator closes it once the obligations that outlive step (3) are discharged. The record carries
+  the marks because the alternative — repeating the whole procedure on every boot — re-runs writes
+  that are not idempotent in the way that matters: step (1)'s grace would backdate an
+  `exhausted_since` a later re-derivation had set, burning the interval `LDG-16` exists to give, and
+  the listener would pause a second time for a customer already served. Two readings stood until now and the text chose neither.
+  One: the latest process event decides, so a crash after the restore lands and before the pass
+  commits leaves an ordinary restart — `STO-5`'s rule applied to the one store it excludes, with
+  the executed create claimable again and the parent resuming with no operator. Two: the unfinished
+  incident decides, which needs a durable distinction the set did not have. Two is adopted. `STO-54`
+  owns the record because it owns the procedure, and `OPS-15` cites it for the branch its pass takes
+  rather than carrying a second copy of the rule.
 - **The order is fixed, and the first boundary is not "before any claim".** `OVR-17` puts the
   exhaustion sweep, `LDG-64`'s outage canceller and `OPS-27`'s resolution sweep on the engine, and
   `API-34`'s TTL sweep, retention and the settlement watcher on `api`. Starting either to reconcile
@@ -177,6 +193,15 @@ platform setting closes at the source.
 **A refund for the unreachable deposit.** Forbidden by `ADR-0004`; the term "refund" is what
 converts a merchant into a custodian.
 
+**The successor of a crash inside the procedure is an ordinary restart** — the reading the text
+permitted by saying nothing (2026-09-20). Rejected: it reaches the naive boot this ADR was written
+to refuse, by a route the procedure itself opens, and it reaches it while the operator believes the
+procedure is running. Its one merit is that it needs no durable state, which is the whole of what
+the record costs. **Deriving the boot mode from the store instead** — a `queued` create older than
+the newest settled row, a sweep that finds the provider ahead of the store — was not pursued: every
+such signal is a heuristic over a store the restore rewrote, and the case it must catch is the one
+where the store looks ordinary.
+
 ## Consequences
 
 - A new requirement in `05-persistence.md` owns the restore procedure and its order, the
@@ -186,7 +211,9 @@ converts a merchant into a custodian.
   gains the per-transaction `synchronous_commit` rule beside its other connection-scoped settings.
 - `OPS-15` gains the restore-time quarantine of create, install and rescue inventory, and the
   operator-confirmation exception for a `suspend_tenant` parent. `CNF-288`'s "no route" assertion
-  names the restore as the route it now guards.
+  names the restore as the route it now guards. *2026-09-20: and it names the record as what puts
+  its pass on that branch, `STO-54` holding the rule; `CNF-295`'s rehearsal kills the engine inside
+  the procedure, and `Provisiond.Restore` carries the crash as an event.*
 - `OVR-19` gains: recovery point (human), its alarm threshold (validated), the derivation-index
   gap (validated), and the synchronous standby name (validated). The grace after a restore is
   `PRV-13e`'s re-derivation interval, already on the register.

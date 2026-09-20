@@ -30,7 +30,8 @@ id and nothing about where it sits; the image fetch and `RSC-25`/`RSC-29`'s dige
 `RSC-22`/`RSC-23`'s layout validation, of which only the `drives[].identifier` resolution is here;
 `OPS-49`'s bounded repeat and the worker guard's own terms (`Claim`); `OPS-11`'s classification
 (`Tables`), which this projects into and does not re-model; the wire row (`Wire`); `RSC-39`–`RSC-44`
-and the catalogue re-host (`pv-vwe.13`); a crash inside `STO-54`'s procedure (`pv-5yf`) and
+and the catalogue re-host (`pv-vwe.13`); a crash inside `STO-54`'s procedure (`Provisiond.Restore`
+carries it) and
 re-activating rescue on a machine already in rescue (`pv-lhj`), so no event here is a second
 activation. One tenant, one machine, one engine (`OPS-47`) throughout.
 

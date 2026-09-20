@@ -169,6 +169,10 @@ Bringing the store back from a backup, landing at some instant before the failur
 incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no committed
 work and the startup pass classifies what was in flight; a restore loses an interval, and the
 engine brought up on it naïvely performs destructive actions on state the restore rewrote.
+The **restore record** is the row that makes the incident recognizable to a process rather than to
+an operator: open from before either component starts until the operator closes it, carrying the
+restore instant and which of the procedure's steps have completed (`STO-56`, `STO-54` owns what it
+means). *Added 2026-09-20.*
 _Avoid_: restart, recovery (bare — the rescue recovery directory and the recovery credential
 already own that word), rollback (that is a transaction)
 

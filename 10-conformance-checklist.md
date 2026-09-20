@@ -545,7 +545,15 @@ takes the machines *and* the float" partly false.
       take a backup, then in the lost interval extend a machine's runway from balance, revoke a
       spending token, let a `queued` create order and a `queued` raw-disk install write, and let
       the parent settle and the tenant resume; restore, and run `STO-54`'s procedure in its stated
-      order. Assert: no worker makes a provider mutation and nothing writes a disk before the first
+      order, killing the engine twice: once after the record is committed and before step (2)'s mark
+      commits, and once after step (3)'s (added 2026-09-20, `ADR-0023`). Assert of the first
+      successor that it continues the incident — it takes the restore branch of the pass and
+      quarantines the executed create, and `api` serves nothing until step (3) is marked; of the
+      second, that it repeats no marked step — the listener is not taken down again, the token a
+      tenant re-issued after step (3) still authenticates, and `exhausted_since` is not rewritten;
+      and that once the operator closes the record a restart is an ordinary one, leaving `queued`
+      rows alone. Assert: no worker makes a
+      provider mutation and nothing writes a disk before the first
       claim (`OPS-32`'s deletion of an orphaned imported image is the one provider call the freeze
       does not stop); the extended machine is not routed into exhaustion during `LDG-16`'s interval
       and its re-extension clears `exhausted_since` — and a second machine extended in the lost
@@ -558,7 +566,7 @@ takes the machines *and* the float" partly false.
       `suspend_tenant` parent, in either state, does not resume without operator confirmation; the
       sweep's first pass records no absence and
       its second may; and the operator report names `T − Δ` and every unrecorded machine per
-      account. (`STO-54`, `OPS-15`, `LDG-16`, `API-56`, `OPS-27`, `OPS-32`)
+      account. (`STO-54`, `STO-56`, `OPS-15`, `LDG-16`, `API-56`, `OPS-27`, `OPS-32`)
 - [ ] **CNF-296** — **The two synchronous writes hang alone** (added 2026-09-12,
       `ADR-0023`). Stall the named standby. Assert a deposit mint and a payment credit block, every
       engine write and every other `api` write proceeds, and `OVR-18`'s alarm fires. Release the

@@ -334,7 +334,12 @@ jobs:
       #   bumpOnRestore (STO-54, 2026-09-12): the revoked generation 0 is served --
       #     resurrected_token_refused on [.., .request 0, .completeProcedure, ..];
       #   twoPassAbsence (STO-54, 2026-09-12): the first complete pass records the absence --
-      #     absence_on_second_pass_only on the two sweeps before the window.
+      #     absence_on_second_pass_only on the two sweeps before the window;
+      #   recordDecidesBoot (STO-54, 2026-09-20): the successor of a crash inside the procedure
+      #     comes up as an ordinary restart and serves at once --
+      #     crash_inside_procedure_continues_it on [.lock, .crash, .lock, .startupPass]; what that
+      #     successor's pass then does to the executed create is the quarantine's row above, which
+      #     is why this witness asserts the mode and the serve and not the row.
       # Reconciliation knowledge (pv-vwe.5), Reconcile.current, the same shape:
       #   completePassOnly (OPS-32, 2026-09-02): the interrupted pass rereads into the throttle,
       #     the 2026-08-31 "yield to rate_limited" sentence, since PRV-36 leaves this guard no
@@ -441,6 +446,7 @@ jobs:
           Restore|exceptionFrozen|true|false|Event.confirmParents, Event.claim { n := 1 }
           Restore|bumpOnRestore|true|false|Event.request 0, Event.completeProcedure
           Restore|twoPassAbsence|true|false|Event.sweep true false, Event.windowElapses
+          Restore|recordDecidesBoot|true|false|Event.crash, Event.lock
           Reconcile|completePassOnly|true|false|w.retriedIntoThrottle = false
           Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
@@ -464,8 +470,8 @@ jobs:
           Rehost|allowlistPerHop|true|false|attackerRedirect
           Rehost|schemePerHop|true|false|schemeDowngrade
           ROWS
-          if [ "$passed" -ne 37 ]; then
-            echo "::error::expected 37 fence, restore, reconciliation, funding, wire, rescue and re-host controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 38 ]; then
+            echo "::error::expected 38 fence, restore, reconciliation, funding, wire, rescue and re-host controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

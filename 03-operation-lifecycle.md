@@ -333,6 +333,13 @@ a parent found `running`, or found `queued` and unsettled — which is where `OP
 parent sits, and the likelier state at any backup instant — waits for operator confirmation and is
 not claimed, since the fan-out it would resume may have been reversed inside the interval.
 
+**What puts the pass on that branch is a record, not an operator's knowledge** (added 2026-09-20,
+`ADR-0023`). `STO-54` says "a process that starts while a restore record is open is continuing that
+incident, not restarting", so the successor of a process that died inside the procedure takes the
+restore branch, with the rest of the procedure it inherits. *Until then the branch had no
+predicate: a crash between the restore landing and this pass left the successor reading the
+paragraph above, which is the naive boot `ADR-0023` is written against.*
+
 **A `refresh` found `running` at startup MUST be settled `failed`** — the same guarded write as
 above (`STO-3`), with an `internal` error naming the restart, the nearest of `DOM-17`'s kinds —
 and not moved to `needs_reconciliation`: it is read-only (`OPS-11`), so there is
@@ -1297,10 +1304,14 @@ the only road, but the commitment was released long before.
 startup:                                          # STO-13, OPS-47, OPS-15
     if schema_version() < required:               # STO-13: older than required -> refuse;
         exit_nonzero()                            #   newer is served
+    incident = open_restore_record()              # STO-56: an open record means this process
+                                                  #   continues that incident, whatever ended
+                                                  #   its predecessor (STO-54)
     if not take_startup_lock(bound):              # STO-51: session-scoped, held for life
         exit_nonzero()                            # OPS-47: another engine is already here
-    n = move_running_to_needs_reconciliation()    # suspend_tenant parents -> queued (restart;
-    log(n)                                        #   after a restore they wait, STO-54)
+    n = move_running_to_needs_reconciliation(     # suspend_tenant parents -> queued (restart;
+            restoring = incident is not None)     #   after a restore they wait, STO-54, and the
+    log(n)                                        #   queued irreversible kinds are quarantined)
 
 loop:
     op, mine = claim_next_queued_operation()      # OPS-5: atomic, marks running,
