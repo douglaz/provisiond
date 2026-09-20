@@ -7,7 +7,8 @@
 # writes, so check-all.sh runs it first.
 #
 # Also refuses a module under Provisiond/ that Provisiond.lean does not import:
-# a proof file the build never reads is DEF-16's green check with a .lean suffix.
+# a proof file the build never reads is DEF-16's green check with a .lean suffix; and a
+# conformance identifier anywhere under tools/formal/, which ADR-0025 forbids.
 #
 # Needs `lake` and `lean` on PATH: run under `nix develop` (flake.nix). A missing
 # toolchain is a failure, not a skip.
@@ -26,6 +27,19 @@ for f in Provisiond/*.lean; do
     exit 1
   fi
 done
+
+# ADR-0025: "a `CNF` identifier does not appear in `tools/formal/`", and AGENTS.md says the same.
+# A proof is about the model under its stated hypotheses; a conformance item is about a running
+# implementation. A conformance citation here is how a green build comes to read as a passed test.
+# Every file under the directory, not just the .lean ones, because that is what both sentences say.
+# AGENTS.md's "Quote the sentence" meets this rule here: where a requirement's own words carry a
+# conformance identifier, elide it in the quote rather than reproducing it.
+hits=$(grep -rn --exclude-dir=.lake -E 'CNF-[0-9]' . || true)
+if [ -n "$hits" ]; then
+  echo "FAIL: a conformance identifier appears in the formal layer (ADR-0025):"
+  echo "$hits"
+  exit 1
+fi
 
 lake build || exit 1
 lake exe gate > .lake/index.jsonl

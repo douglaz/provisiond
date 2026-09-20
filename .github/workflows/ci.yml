@@ -186,6 +186,22 @@ jobs:
           grep -q 'does not import Provisiond.Witnesses' formal.log
           echo "formal gate correctly rejected the orphaned module"
 
+      - name: Prove the formal gate rejects a conformance identifier in the formal layer
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i '0,/^\/-! /s//\/-! CNF-1 is a conformance item and has no business here.\n/' \
+            tools/formal/Provisiond/Wire.lean
+          if nix develop --command bash tools/check_formal.sh > formal.log 2>&1; then
+            echo "::error::formal gate passed with a CNF identifier in Wire.lean"
+            exit 1
+          fi
+          grep -q 'a conformance identifier appears in the formal layer' formal.log
+          grep -q 'Wire.lean' formal.log
+          echo "formal gate correctly rejected the conformance identifier"
+
       # The claim model's guard terms are parameters (ADR-0025): dropping ADR-0022's
       # claim term is a one-token change to `Provisiond.Claim.current`, and the
       # stale-defer witness must go red on exactly that. Claim.lean's own theorems

@@ -1084,8 +1084,8 @@ theorem request_target_witness :
         "/v1/operations?terminal=false&limit=100" ∧
       requestTarget "/v1/machines" none = "/v1/machines" := by decide
 
-/-- `WIR-17`'s create body with its members in two orders at two depths — `CNF-24`'s shape,
-"differing only in JSON key order". -/
+/-- `WIR-17`'s create body, with its members in two orders at two depths: the shape `API-12` is
+about, "so that key ordering and whitespace do not produce spurious conflicts". -/
 def createBody : Json :=
   .obj (.cons "offer_id" (.str "cx22")
        (.cons "acknowledge_purchase" (.bool true)
