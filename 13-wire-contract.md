@@ -142,7 +142,7 @@ not this one — a rejected layout re-sent unchanged is refused again, and `disk
 it sensible.
 
 **On an `install` or `rescue_inventory` operation's error, `details.rescue_exit` is required whatever
-the kind** (*added 2026-09-15*): `none` where no rescue session was opened, `clean` where the
+the kind** (*added 2026-09-15*): `none` only where no rescue session was opened, `clean` where the
 driver's end-rescue call returned success, `unknown` where it failed or the operation died before
 reaching it — `OPS-45`'s second marker, rendered as `disk_effect` renders the first. With `unknown`
 the error also carries `rescue_address` and `rescue_port` (`RSC-19`): the machine is the tenant's own

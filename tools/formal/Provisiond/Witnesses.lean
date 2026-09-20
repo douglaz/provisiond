@@ -1356,6 +1356,22 @@ theorem marker_set_over_an_untouched_disk :
     w.writeStartedAt = some 1 ∧ w.diskWritten = false ∧ w.died = true ∧
     Install.classifiedUntouched (Install.markers w) = false := by decide
 
+/-- The same conservatism on the second marker, which `OPS-45` states beside the first: "`false` is
+the conservative value as much as the open-session one: a process that dies between that write and
+the dispatch leaves `false` over a machine that was never rebooted into rescue". No session was
+opened and the column is not null, so the projection answers no — conservative there, not wrong.
+Either way the row is `OPS-15`'s, which is `OPS-45`'s own sentence: "an operation interrupted
+rather than classified is `OPS-15`'s, whatever the markers hold". `secondMarkerBeforeSession` is
+pinned because this trace is under the rule as it stands and is not that guard's control: with the
+arming write removed the column stays `none` and the witness is refuted too — a second red on a
+control `ci.yml` gives one witness each. -/
+@[req "OPS-45"]
+theorem false_over_a_machine_never_in_rescue :
+    let w := Install.run { Rescue.current with secondMarkerBeforeSession := true } rescueInstall
+      [.armExit (.committed true), .crash]
+    w.rescueExitedCleanly = some false ∧ w.sessionDispatched = false ∧ w.died = true ∧
+    (Install.markers w).rescueClean = false := by decide
+
 /-- `PRV-18`'s partial activation: the second marker armed, begin rescue dispatched, and the driver
 reports that it cleaned up after itself. -/
 def partialActivation : List Install.Event := [.armExit (.committed true), .beginRescue]

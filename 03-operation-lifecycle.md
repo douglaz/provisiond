@@ -1076,21 +1076,25 @@ that could have altered the machine, and before that phase runs:
 together.** Activating rescue reboots the machine into another operating system (`PRV-15`) and
 `PRV-22` makes *failure* of the exit always ambiguous — so "nothing was written" is not on its own
 "nothing happened". The engine MUST therefore also record **whether the rescue session it opened
-was closed without error** — `rescue_exited_cleanly` (`05-persistence.md`), three-valued: **null**
-where begin rescue was never dispatched; **false, written before begin rescue (`PRV-15`) is
+was closed without error** — `rescue_exited_cleanly` (`05-persistence.md`), three-valued: **null**,
+the column before its first write, which says no session was opened (*reworded 2026-09-19; it read
+"where begin rescue was never dispatched"*); **false, written before begin rescue (`PRV-15`) is
 dispatched**, as the write-started marker is written before its phase, and standing while the
-session is open, where the exit fails and where the operation dies before reaching it; **true** when
-the driver's end-rescue call returns success. A dead process writes nothing, which is why `false`
-precedes the session and not the exit: it is what lets `OPS-15`'s pass render `rescue_exit:
-"unknown"` (`RSC-19`, `WIR-9a`). Null is the only value that means no session was opened, and
-`false` moves to `true` and never back. **A driver's report that it cleaned up after a partial
-activation (`PRV-18`) does not move this marker**: the engine did not open the session and did not
-close it, and `PRV-18`'s own output for that case is "the identifiers of the leaked resources", an
-operator's fact and not the engine's record of its own execution. *Until 2026-09-16 this read "set
-when the driver's end-rescue call returns success, left unset when it fails or when the operation
-dies" — the classifier's two-way question standing where the column's three values belonged, and
-no sentence said when the column was written; a never-attempted exit was a third case until
-`RSC-18` was withdrawn, 2026-09-15. Four readers converged on the pre-dispatch write.*
+session is open, where the exit fails and where the operation dies before reaching it; **true**
+when the driver's end-rescue call returns success. A dead process writes nothing, which is why
+`false` precedes the session and not the exit: it is what lets `OPS-15`'s pass render `rescue_exit:
+"unknown"` (`RSC-19`, `WIR-9a`). `false` is the conservative value as much as the open-session one:
+a process that dies between that write and the dispatch leaves `false` over a machine that was
+never rebooted into rescue, and the column does not separate that row from one whose session is
+still open. Null is the only value that means no session was opened, and `false` moves to `true`
+and never back. **A driver's report that it cleaned up after a partial activation (`PRV-18`) does
+not move this marker**: the engine did not open the session and did not close it, and `PRV-18`'s
+own output for that case is "the identifiers of the leaked resources", an operator's fact and not
+the engine's record of its own execution. *Until 2026-09-16 this read "set when the driver's
+end-rescue call returns success, left unset when it fails or when the operation dies" — the
+classifier's two-way question standing where the column's three values belonged, and no sentence
+said when the column was written; a never-attempted exit was a third case until `RSC-18` was
+withdrawn, 2026-09-15. Four readers converged on the pre-dispatch write.*
 
 **An operation settles `failed` — deterministically, with no operator and no reconciliation — when
 the write-started marker is unset *and* either no rescue session was opened or the one that was

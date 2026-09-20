@@ -34,15 +34,14 @@ and the catalogue re-host (`pv-vwe.13`); a crash inside `STO-54`'s procedure (`p
 re-activating rescue on a machine already in rescue (`pv-lhj`), so no event here is a second
 activation. One tenant, one machine, one engine (`OPS-47`) throughout.
 
-Two conservatisms the models make visible rather than hide. `OPS-45` says of the first marker that
-"it establishes that preservation is no longer proven, not that a byte landed": a process that dies
-between the write and the phase leaves a set marker over an untouched disk, which is
-`marker_set_over_an_untouched_disk`. The second marker is written the same way, so the converse of
-`none_means_no_session` is false by the same construction — a process that dies between the arming
-write and the dispatch leaves `false` with no session opened, while the same paragraph opens
-"**null** where begin rescue was never dispatched". Only the direction proved here is claimed at the
-paragraph's end, "Null is the only value that means no session was opened", so that is what the
-model carries and `pv-8po` is the wording. -/
+Two conservatisms the models make visible rather than hide, and `OPS-45` states both. Of the first
+marker: "it establishes that preservation is no longer proven, not that a byte landed" — a process
+that dies between the write and the phase leaves a set marker over an untouched disk, which is
+`marker_set_over_an_untouched_disk`. Of the second, written the same way: "`false` is the
+conservative value as much as the open-session one: a process that dies between that write and the
+dispatch leaves `false` over a machine that was never rebooted into rescue", which is
+`false_over_a_machine_never_in_rescue`. The direction the column does foreclose is the paragraph's
+"Null is the only value that means no session was opened", and that is `none_means_no_session`. -/
 
 namespace Provisiond.Rescue
 open Provisiond.Claim Provisiond.Tables
@@ -696,10 +695,11 @@ theorem clean_exit_never_moves_back (p : Params) (w : World)
     w h evs
 
 /-- `OPS-45`: "Null is the only value that means no session was opened". With the arming write
-before the dispatch, a null second marker over any trace means begin rescue was never dispatched.
-The converse is false by the same construction that makes the first marker conservative — a process
-that dies between the arming write and the dispatch leaves `false` with no session — and `OPS-45`
-claims only this direction. -/
+before the dispatch, a null second marker over any trace means no session was opened. The other
+direction is not a theorem, and `OPS-45` says so rather than leaving it out: "`false` is the
+conservative value as much as the open-session one: a process that dies between that write and the
+dispatch leaves `false` over a machine that was never rebooted into rescue", which is
+`false_over_a_machine_never_in_rescue`. -/
 @[req "OPS-45"]
 theorem none_means_no_session (p : Params) (hp : p.secondMarkerBeforeSession = true) (w : World)
     (h1 : w.sessionDispatched = false) (h2 : w.armAcked = false) (evs : List Event) :
@@ -907,11 +907,11 @@ structure World where
   dead                 : Bool
   deriving DecidableEq, Repr
 
-/-- `WIR-9a`: "`none` where no rescue session was opened, `clean` where the driver's end-rescue call
-returned success, `unknown` where it failed or the operation died before reaching it — `OPS-45`'s
-second marker, rendered as `disk_effect` renders the first." `OPS-15`'s pass renders it from the
-column, which is why `false` precedes the session. `RSC-19` requires `unknown` on its own branch;
-the three values and their conditions are `WIR-9a`'s. -/
+/-- `WIR-9a`: "`none` only where no rescue session was opened, `clean` where the driver's end-rescue
+call returned success, `unknown` where it failed or the operation died before reaching it —
+`OPS-45`'s second marker, rendered as `disk_effect` renders the first." `OPS-15`'s pass renders it
+from the column, which is why `false` precedes the session. `RSC-19` requires `unknown` on its own
+branch; the three values and their conditions are `WIR-9a`'s. -/
 @[req "WIR-9a"]
 def rescueExit (w : World) : RescueExit :=
   match w.rescueExitedCleanly with
