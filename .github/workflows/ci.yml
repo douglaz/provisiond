@@ -369,10 +369,19 @@ jobs:
       #   persistAtActivation := true (RSC-19, the design its 2026-09-15 paragraph refuses): a
       #     clean successful install has a root credential on disk for the whole session --
       #     clean_exit_leaves_no_key on rescueSession cleanSession.
+      # The catalogue re-host (pv-vwe.13), Rehost.current:
+      #   allowlistRequired (SEC-19, 2026-09-02): the empty allowlist goes back to meaning "any
+      #     host", the fail-open default that amendment refuses --
+      #     empty_allowlist_admits_nothing on emptyAllowlist;
+      #   allowlistPerHop (RSC-44, 2026-09-04): the allowlisted name's 302 to a name nobody
+      #     allowed is fetched, because the list was checked once against a URL the attacker
+      #     abandoned -- attacker_redirect_refused on attackerRedirect;
+      #   schemePerHop (RSC-44): the redirect downgrades https to http on a deployment that never
+      #     enabled it -- scheme_downgrade_refused on schemeDowngrade.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire and rescue guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue and re-host guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -435,9 +444,12 @@ jobs:
           Rescue|secondMarkerBeforeSession|true|false|Rescue.current rescueSession crashedSession
           Rescue|partialCleanupMovesNothing|true|false|Rescue.current rescueInstall partialActivation
           Rescue|persistAtActivation|false|true|Rescue.current rescueSession cleanSession
+          Rehost|allowlistRequired|true|false|emptyAllowlist
+          Rehost|allowlistPerHop|true|false|attackerRedirect
+          Rehost|schemePerHop|true|false|schemeDowngrade
           ROWS
-          if [ "$passed" -ne 34 ]; then
-            echo "::error::expected 34 fence, restore, reconciliation, funding, wire and rescue controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 37 ]; then
+            echo "::error::expected 37 fence, restore, reconciliation, funding, wire, rescue and re-host controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

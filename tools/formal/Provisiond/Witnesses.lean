@@ -10,6 +10,7 @@ import Provisiond.Ledger
 import Provisiond.Funding
 import Provisiond.Wire
 import Provisiond.Rescue
+import Provisiond.Rehost
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -1523,5 +1524,199 @@ theorem uncertain_exit_persists_the_key :
   decide
 
 end Rescue
+
+/-! ## The catalogue re-host
+
+`RSC-39`'s fetch and what bounds it. One allowlisted name, `⟨1⟩`, and one the attacker controls,
+`⟨2⟩`; the deployment has not enabled `http` and adds no ranges of its own. Every field of
+`Rehost.current` has a pair that flips it and asserts what that field decides, as `ci.yml`'s other
+rows do. `metadata_redirect_refused_under_every_guard` flips all three at once and is not one of
+those rows: what it shows is that no configuration reaches an address `RSC-44` lists, which is a
+property of the address bullet rather than of a guard. -/
+
+section Rehost
+open Provisiond.Rehost
+
+/-- The name a deployment allowlisted. -/
+def allowedHost : Host := ⟨1⟩
+
+/-- The name `RSC-44`'s worked example redirects to: "an allowlisted `images.example.com`
+answering `302` to `https://images.attacker.example/`". -/
+def attackerHost : Host := ⟨2⟩
+
+/-- A deployment that allowlisted one name, left `http` disabled (`SEC-18`) and added no ranges of
+its own. -/
+def rehostPolicy : Policy :=
+  { allowlist := [allowedHost], httpEnabled := false, extraRefused := fun _ => false,
+    redirectCap := 3 }
+
+/-- `SEC-19`'s empty allowlist, the case its 2026-09-02 amendment is about. -/
+def emptyAllowlist : Policy := { rehostPolicy with allowlist := [] }
+
+/-- The caller's URL: the allowlisted name, `https`, resolving to one ordinary address. -/
+def firstHop : Hop := { host := allowedHost, scheme := .https, addrs := [.plain .routable] }
+
+/-- The fetch that should happen, so the model refuses nothing vacuously. -/
+@[req "RSC-44"]
+theorem a_plain_fetch_succeeds :
+    Rehost.fetch Rehost.current rehostPolicy [firstHop] = .fetched := by decide
+
+/-- `RSC-44`'s worked example: the allowlisted name answers `302` to a name nobody allowed, "at an
+address that is public, routable and entirely ordinary — so every address class passes, the scheme
+is held, and the fetch proceeds". -/
+def attackerRedirect : List Hop :=
+  [firstHop, { host := attackerHost, scheme := .https, addrs := [.plain .routable] }]
+
+/-- `RSC-44`, 2026-09-04: with the allowlist re-checked "on every hop, against the redirect
+target's own name", the redirect is "refused, exactly as the original URL would have been". -/
+@[req "RSC-44"]
+theorem attacker_redirect_refused :
+    Rehost.fetch Rehost.current rehostPolicy attackerRedirect = .refused := by decide
+
+/-- Without it the allowlist "was checked once, at request time, against a URL the attacker was
+free to abandon on the first hop", and provisiond fetches the attacker's. -/
+@[req "RSC-44"]
+theorem attacker_redirect_fetched_without_the_guard :
+    Rehost.fetch { Rehost.current with allowlistPerHop := false } rehostPolicy attackerRedirect
+      = .fetched := by decide
+
+/-- The same name, redirecting itself from `https` to `http` on a deployment that never enabled
+it. -/
+def schemeDowngrade : List Hop :=
+  [firstHop, { host := allowedHost, scheme := .http, addrs := [.plain .routable] }]
+
+/-- `RSC-44`: the scheme is held "across every hop … refused on redirect as well as on the original
+URL". -/
+@[req "RSC-44"]
+theorem scheme_downgrade_refused :
+    Rehost.fetch Rehost.current rehostPolicy schemeDowngrade = .refused := by decide
+
+/-- Without it the rule is the original URL's alone and the downgrade proceeds, which is the state
+this path was in while `RSC-17` was miscited for it. -/
+@[req "RSC-44"]
+theorem scheme_downgrade_fetched_without_the_guard :
+    Rehost.fetch { Rehost.current with schemePerHop := false } rehostPolicy schemeDowngrade
+      = .fetched := by decide
+
+/-- `SEC-19` as amended: an empty allowlist means "**no catalogue install may be requested**". -/
+@[req "SEC-19"]
+theorem empty_allowlist_admits_nothing :
+    Rehost.fetch Rehost.current emptyAllowlist [firstHop] = .refused := by decide
+
+/-- Without it the empty list is the fail-open default — "an empty allowlist means 'any host'" —
+and the same fetch proceeds. -/
+@[req "SEC-19"]
+theorem empty_allowlist_admits_anything_without_the_guard :
+    Rehost.fetch { Rehost.current with allowlistRequired := false } emptyAllowlist [firstHop]
+      = .fetched := by decide
+
+/-- `RSC-44`'s own example of what the redirect bullet exists for: "A redirect to a public host
+that then answers `302` to `http://169.254.169.254/`". -/
+def metadataRedirect : List Hop :=
+  [firstHop, { host := allowedHost, scheme := .http, addrs := [.plain .linkLocal] }]
+
+/-- Refused with every guard set and with all three cleared. Under `Rehost.current` the scheme
+refuses it too; with the guards gone only the address does, which is the point — the address
+bullet is not one of the parameters, so no deployment and no missing guard reaches a link-local
+address. -/
+@[req "RSC-44"]
+theorem metadata_redirect_refused_under_every_guard :
+    Rehost.fetch Rehost.current rehostPolicy metadataRedirect = .refused ∧
+    Rehost.fetch { allowlistRequired := false, allowlistPerHop := false, schemePerHop := false }
+      rehostPolicy metadataRedirect = .refused := by decide
+
+/-- An IPv4-mapped IPv6 address wrapping the same metadata address, which `RSC-44` names
+separately. -/
+@[req "RSC-44"]
+theorem mapping_the_metadata_address_does_not_help :
+    Rehost.fetch Rehost.current rehostPolicy
+      [firstHop, { host := allowedHost, scheme := .https,
+                   addrs := [.mapped (.mapped (.plain .linkLocal))] }] = .refused := by decide
+
+/-- One hop past `redirectCap`, every hop of it otherwise good. -/
+@[req "RSC-44"]
+theorem over_the_cap_refused_though_every_hop_is_good :
+    Rehost.fetch Rehost.current { rehostPolicy with redirectCap := 1 }
+      [firstHop, firstHop, firstHop] = .refused := by decide
+
+/-- `RSC-40`: a stream inside the offer's maximum whose digest is the one the caller declared. -/
+@[req "RSC-40"]
+theorem a_measured_stream_is_accepted :
+    Rehost.measure 100 ⟨7⟩ { bytes := 50, digest := ⟨7⟩, content := ⟨1⟩ } = .accepted := by decide
+
+/-- `RSC-40`: "enforced against the stream, aborting the transfer when exceeded" — and the size is
+read before the digest, so an oversized stream aborts for its size even when it verifies. -/
+@[req "RSC-40"]
+theorem an_oversized_stream_aborts_for_its_size :
+    Rehost.measure 100 ⟨7⟩ { bytes := 101, digest := ⟨7⟩, content := ⟨1⟩ }
+      = .abortedOversize := by decide
+
+/-- `RSC-39`'s verification, failing: a stream within the bound whose bytes hashed to something
+else. Kept apart from the size abort because they are two requirements. -/
+@[req "RSC-39"]
+theorem a_mismatched_digest_fails_verification :
+    Rehost.measure 100 ⟨7⟩ { bytes := 50, digest := ⟨8⟩, content := ⟨1⟩ }
+      = .abortedIntegrity := by decide
+
+/-- The operation mid-import: yielded, both copies present, the provider's tagged with the
+operation's correlator (`RSC-42`). -/
+def importingWorld : World :=
+  { phase := .importing,
+    copies := { operator := true, provider := { present := true, tag := some ⟨9⟩ } },
+    waited := 0, reacquired := false, revalidated := false, status := .running }
+
+/-- The import as `RSC-41` has it: yielded while it runs, then the machine re-acquired and
+re-validated before the rebuild (`OPS-23`). -/
+@[req "RSC-41"]
+theorem an_import_yields_then_reacquires_then_rebuilds :
+    let w := Rehost.run 5 importingWorld [.wait, .reacquire, .revalidate]
+    w.phase = .importing ∧ Rehost.holdsMachine w.phase = false ∧ w.revalidated = true ∧
+    (Rehost.beginRebuild w).phase = .rebuilding := by decide
+
+/-- `OPS-23` is about the machine in hand: a re-validation from before the re-acquisition does not
+admit the rebuild, because "the machine may be gone by the time the import finishes" and what was
+validated was the machine held before it. -/
+@[req "RSC-41"]
+theorem revalidating_before_reacquiring_does_not_admit_the_rebuild :
+    let w := Rehost.run 5 importingWorld [.revalidate, .wait, .reacquire]
+    w.revalidated = false ∧ (Rehost.beginRebuild w).phase = .importing := by decide
+
+/-- `RSC-41`: "A maximum import wait MUST be stated, past which the operation aborts and the
+imported image is deleted." -/
+@[req "RSC-41"]
+theorem past_the_max_wait_the_operation_aborts :
+    let w := Rehost.run 2 importingWorld [.wait, .wait, .wait]
+    w.status = .failed ∧ w.copies.operator = false ∧ w.copies.provider.present = false := by decide
+
+/-- `RSC-42`'s clause for the state `OPS-3` does not call settled. -/
+@[req "RSC-42"]
+theorem needs_reconciliation_purges_both_copies :
+    (Rehost.step 5 importingWorld (.settle .needsReconciliation true)).copies.provider.present
+      = false := by decide
+
+/-- `RSC-42`: the provider-side copy "is deleted by a call that may fail or be lost". The lost
+call leaves the orphan, and `OPS-32`'s sweep takes it by the tag the import carried. -/
+@[req "RSC-42"]
+theorem a_lost_delete_leaves_an_orphan_the_sweep_takes :
+    let settled := Rehost.step 5 importingWorld (.settle .succeeded false)
+    settled.copies.operator = false ∧ settled.copies.provider.present = true ∧
+    (Rehost.step 5 settled (.sweep [⟨9⟩])).copies.provider.present = false := by decide
+
+/-- And the design that sentence refuses: an import that carried no tag leaves an orphan the sweep
+cannot find, however many passes it makes. -/
+@[req "RSC-42"]
+theorem an_untagged_orphan_survives_the_sweep :
+    let untagged := { importingWorld with
+      copies := { operator := true, provider := { present := true, tag := none } } }
+    let settled := Rehost.step 5 untagged (.settle .succeeded false)
+    (Rehost.run 5 settled [.sweep [⟨9⟩], .sweep [⟨9⟩]]).copies.provider.present = true := by decide
+
+/-- `RSC-43`: `succeeded` is the provider's report under a probe that says the machine is neither
+reachable nor booted, because no probe is consulted. -/
+@[req "RSC-43"]
+theorem succeeded_under_a_failing_probe :
+    Rehost.settleOn true { reachable := false, booted := false } = .succeeded := by decide
+
+end Rehost
 
 end Provisiond.Witnesses
