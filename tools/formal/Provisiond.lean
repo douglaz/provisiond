@@ -14,4 +14,5 @@ import Provisiond.Render
 import Provisiond.Wire
 import Provisiond.Rescue
 import Provisiond.Rehost
+import Provisiond.Admission
 import Provisiond.Witnesses

@@ -11,6 +11,7 @@ import Provisiond.Funding
 import Provisiond.Wire
 import Provisiond.Rescue
 import Provisiond.Rehost
+import Provisiond.Admission
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -1751,5 +1752,306 @@ theorem succeeded_under_a_failing_probe :
     Rehost.settleOn true { reachable := false, booted := false } = .succeeded := by decide
 
 end Rehost
+
+/-! ## The admission and halt matrices
+
+`API-7`'s pipeline, `SEC-39`'s ceilings, `LDG-20`'s solvency halt and `LDG-40`'s rate matrix. Every
+field of `Admission.current` has a pair that flips it and asserts what that field decides, as
+`ci.yml`'s other rows do. The requests are named rather than inlined so each refused proposition
+carries a token of its own. -/
+
+section Admission
+open Provisiond.Admission
+
+/-- An ordinary create: an active tenant, its own token, on the public listener, under its
+ceiling. -/
+def freshCreate : Request :=
+  { principal := .customer, listener := .customer, verb := .create, tenant := .active,
+    admin := false, replay := false, atCeiling := false, override := false,
+    acknowledged := true }
+
+/-- The same create with `SEC-39`'s counter already at the limit. -/
+def createAtCeiling : Request := { freshCreate with atCeiling := true }
+
+/-- `API-7` step 5a's replay — "an equal fingerprint under the same `(principal, key)`" — under
+budget. -/
+def replayUnderBudget : Request := { freshCreate with replay := true }
+
+/-- The same replay with the principal's budget already spent. -/
+def replayAtCeiling : Request := { freshCreate with replay := true, atCeiling := true }
+
+/-- `WIR-42`'s attribution to a tenant that "MAY be `pending`, the ordinary case since a
+returning customer enrols afresh", which is `API-7`'s worked case for the operator carve-out. -/
+def pendingAttribution : Request :=
+  { principal := .operator, listener := .operator, verb := .attributeDeposit, tenant := .pending,
+    admin := false, replay := false, atCeiling := false, override := false,
+    acknowledged := true }
+
+/-- An ordinary tenant write after `API-58`'s suspension. -/
+def suspendedInstall : Request :=
+  { freshCreate with verb := .install, tenant := .suspended }
+
+/-- `API-56`'s revocation by the recovery credential, with the tenant suspended: the case step 2's
+carve-out exists for. -/
+def suspendedRevoke : Request :=
+  { principal := .recovery, listener := .customer, verb := .revoke, tenant := .suspended,
+    admin := false, replay := false, atCeiling := false, override := false,
+    acknowledged := true }
+
+/-- `WIR-43`'s statement, written by a tenant `SEC-45` suspended for not answering. -/
+def suspendedStatement : Request :=
+  { freshCreate with verb := .abuseStatement, tenant := .suspended }
+
+/-- A customer-authenticated request to an operator route (`WIR-51`'s retry), on the public
+listener. -/
+def customerHitsAnOperatorRoute : Request := { freshCreate with verb := .retry }
+
+/-- The create the pipeline is supposed to admit, so nothing here is refused vacuously. -/
+@[req "API-7"]
+theorem a_plain_create_is_admitted :
+    (admit Admission.current freshCreate).map Outcome.verdict = some .admitted := by decide
+
+/-- `API-7` step 5c as added 2026-09-02: an ordinary create spends one slot of "machines created
+per interval", and the create at its limit is refused `ceiling_exceeded`. Without the step "a
+builder following these steps literally shipped no ceilings at all while the requirement and its
+test both existed". -/
+@[req "API-7"]
+theorem the_ceiling_refuses_the_create_at_its_limit :
+    (admit Admission.current freshCreate).map Outcome.slotSpent = some true ∧
+      admit Admission.current createAtCeiling =
+        some { verdict := .refused .ceilingExceeded, slotSpent := false } := by decide
+
+/-- Without step 5c the same request is admitted. -/
+@[req "API-7"]
+theorem the_ceiling_admits_it_without_the_step :
+    (admit { Admission.current with ceilingStep := false } createAtCeiling).map Outcome.verdict =
+      some .admitted := by decide
+
+/-- `API-7`: 5c sits after 5a so that "a replay must return its stored result rather than spend a
+slot it already spent". Under budget the replay consumes nothing, and at the limit it is still the
+stored result rather than a refusal — a replay is never charged against a fresh budget. -/
+@[req "API-7"]
+theorem a_replay_is_never_charged :
+    admit Admission.current replayUnderBudget = some { verdict := .replayed, slotSpent := false } ∧
+      admit Admission.current replayAtCeiling = some { verdict := .replayed, slotSpent := false } := by
+  decide
+
+/-- With the policy steps ahead of the fingerprint, the replay spends a second slot out of a fresh
+budget and, at the limit, is refused instead of returning what it already returned. Step 5c is
+pinned on, since without it there is no budget to spend and this pair would say nothing. -/
+@[req "API-7"]
+theorem a_replay_is_charged_without_the_ordering :
+    (admit { Admission.current with replayBeforePolicy := false, ceilingStep := true }
+      replayUnderBudget).map Outcome.slotSpent = some true ∧
+      (admit { Admission.current with replayBeforePolicy := false, ceilingStep := true }
+        replayAtCeiling).map Outcome.verdict = some (.refused .ceilingExceeded) := by decide
+
+/-- `API-7`, 2026-09-04: "**Every operator verb skips 2 and 5b**, whether or not it names a
+tenant", so the attribution to a pending tenant is admitted. -/
+@[req "API-7"]
+theorem the_operator_attributes_to_a_pending_tenant :
+    (admit Admission.current pendingAttribution).map Outcome.verdict = some .admitted := by decide
+
+/-- Without the carve-out the step tests a tenant the operator principal does not have, and "the
+only route back for an orphaned balance failed `not_activated`". -/
+@[req "API-7"]
+theorem the_orphaned_balance_has_no_route_back_without_the_carve_out :
+    (admit { Admission.current with operatorSkipsTenantSteps := false }
+      pendingAttribution).map Outcome.verdict = some (.refused .notActivated) := by decide
+
+/-- `API-7`: step 2 "MUST NOT look at suspension" and "A `suspended` tenant passes it and is
+rejected at 5b instead". -/
+@[req "API-7"]
+theorem the_suspended_tenant_is_refused_at_five_b :
+    stepTwo Admission.current suspendedInstall = none ∧
+      stepFiveB Admission.current suspendedInstall = some .suspended := by decide
+
+/-- The withdrawn wording, "reject unless the tenant is active", refuses at step 2 — which "made 5b
+unreachable and defeated its stated reason for existing: every write retried after its tenant was
+suspended lost the stored idempotent result `API-11` promises it". -/
+@[req "API-7"]
+theorem the_withdrawn_wording_refuses_at_step_two :
+    stepTwo { Admission.current with stepTwoReadsSuspension := true } suspendedInstall =
+      some .suspended := by decide
+
+/-- Step 2's maintenance actions: revoke is "authorized by principal rather than by tenant state",
+so the owner of a suspended tenant can still replace a stolen credential. -/
+@[req "API-7"]
+theorem the_suspended_tenant_can_still_revoke :
+    (admit Admission.current suspendedRevoke).map Outcome.verdict = some .admitted := by decide
+
+/-- Without the carve-out, gating it on tenant state "would leave a suspended or pending tenant
+unable to replace a stolen credential — locking the owner out at exactly the moment the mechanism
+exists for". -/
+@[req "API-7"]
+theorem the_owner_is_locked_out_without_the_carve_out :
+    (admit { Admission.current with maintenanceCarveOut := false } suspendedRevoke).map Outcome.verdict = some (.refused .suspended) := by decide
+
+/-- `API-7`, added 2026-08-16: "**The abuse-statement write (`WIR-43`) is a maintenance action and
+MUST remain reachable while suspended**". 5b is the step that would refuse it, and the assertion is
+made there rather than on the whole pipeline because the withdrawn step-2 wording refuses it too —
+one flip, one witness. -/
+@[req "API-7"]
+theorem the_statement_survives_the_suspension :
+    stepFiveB Admission.current suspendedStatement = none := by decide
+
+/-- Without it, "`SEC-45` names an unanswered notice as a reason to suspend, so without this the
+operator's escalation for silence is what guarantees the silence". -/
+@[req "API-7"]
+theorem silence_is_guaranteed_without_the_statement_rule :
+    stepFiveB { Admission.current with statementWhileSuspended := false } suspendedStatement =
+      some .suspended := by decide
+
+/-- `WIR-34`: the operator route answers `404` to a customer-authenticated request, "so their
+existence is not customer-observable". -/
+@[req "WIR-34"]
+theorem the_operator_route_is_not_customer_observable :
+    admit Admission.current customerHitsAnOperatorRoute =
+      some { verdict := .refused .notFound, slotSpent := false } := by decide
+
+/-- Without the split the same request is answered `authentication`, which is the one answer
+`WIR-34` names and refuses: "MUST return `404` — never `authentication`". -/
+@[req "WIR-34"]
+theorem the_route_announces_itself_without_the_split :
+    (admit { Admission.current with listenerSplit := false } customerHitsAnOperatorRoute).map Outcome.verdict = some (.refused .authentication) := by decide
+
+/-- `API-43`'s allowlist, which exists because "`API-35` will not graduate a tenant until a payment
+is credited, so an enrolment that cannot pay is a dead end": the pending tenant's deposit is
+admitted and its create is not. -/
+@[req "API-43"]
+theorem the_pending_tenant_may_fund_itself_and_buy_nothing :
+    admit Admission.current { freshCreate with verb := .deposit, tenant := .pending } =
+        some { verdict := .admitted, slotSpent := false } ∧
+      (admit Admission.current { freshCreate with tenant := .pending }).map Outcome.verdict = some (.refused .notActivated) := by decide
+
+/-- `API-56`: "The recovery credential MAY revoke the spending token …; the spending token MUST NOT
+be able to do either", and `API-55` confines the recovery credential to that one route. Neither
+credential reaches the other's surface. -/
+@[req "API-56"]
+theorem neither_credential_reaches_the_other :
+    (admit Admission.current { freshCreate with verb := .revoke }).map Outcome.verdict = some (.refused .authentication) ∧
+      (admit Admission.current { freshCreate with principal := .recovery }).map Outcome.verdict = some (.refused .authentication) := by decide
+
+/-- `SEC-39`'s "stated override path for a genuine incident", which `API-7` 5c makes the only
+exemption that reaches this pipeline: the create standing at its limit is admitted while the
+override is in force, and refused the moment it is not. Step 5c is pinned on for the second half,
+which is `the_ceiling_refuses_the_create_at_its_limit`'s subject and not this one's. -/
+@[req "SEC-39"]
+theorem the_incident_override_admits_past_the_limit :
+    (admit Admission.current { createAtCeiling with override := true }).map Outcome.verdict =
+        some .admitted ∧
+      (admit { Admission.current with ceilingStep := true } createAtCeiling).map Outcome.verdict =
+        some (.refused .ceilingExceeded) := by decide
+
+/-- The cell `API-5` does not decide, written out: an operator token without the admin flag on a
+customer route. The header it would need "MUST be ignored rather than honoured for it", so the
+request names no tenant and steps 2 and 5b have nothing to test; with the flag the same request is
+an ordinary one. `the_one_undecided_cell` is the claim that this is the only such cell. -/
+@[req "API-5"]
+theorem a_non_admin_operator_on_a_customer_route_is_undecided :
+    admit Admission.current { freshCreate with principal := .operator } = none ∧
+      (admit Admission.current
+        { freshCreate with principal := .operator, admin := true }).map Outcome.verdict =
+          some .admitted := by decide
+
+/-! ### `LDG-20`'s halt and `LDG-40`'s rate matrix -/
+
+/-- The deposit under a failing solvency check: `API-7`'s row refuses it `halted` because "that
+halt stops top-ups *first*, and minting a destination invites exactly the payment it forbids". -/
+def haltedMint : Action := .caller .deposit
+
+/-- Every action that reduces exposure, under the halt. -/
+def exposureReducingUnderHalt : List (Option Tables.ErrorKind) :=
+  (Action.all.filter Action.reducesExposure).map (underHalt Admission.current)
+
+/-- The same actions under a rate outage. -/
+def exposureReducingWithoutRate : List RateAnswer :=
+  (Action.all.filter Action.reducesExposure).map (underNoRate Admission.current)
+
+/-- An unsettled Lightning invoice on an unexpired deposit, once the halt is declared. -/
+def unsettledUnexpiredInvoice : Bool :=
+  destinationAfterHalt Admission.current .lightning false false
+
+/-- `LDG-20`: "On failure the system MUST halt top-ups first", and the 2026-08-31 amendment reads
+"halt top-ups" halts minting, and only minting. The mint is refused; money that arrives anyway is
+credited on both rails, because "Refusing or holding an arrived payment is `LDG-43`'s forbidden
+outcome" — and an HTLC that settles as the cancel lands is one of those arrivals. -/
+@[req "LDG-20"]
+theorem the_halt_refuses_the_mint_and_credits_the_arrival :
+    underHalt Admission.current haltedMint = some .halted ∧
+      creditArrival Admission.current .lightning = none ∧
+      creditArrival Admission.current .onchain = none ∧
+      arrivalIsCredited Admission.current .lightning true = true := by decide
+
+/-- Without that amendment the halt is the wholesale one it claimed to be, and the stranger's
+satoshis are refused with nothing that can return them. -/
+@[req "LDG-20"]
+theorem the_arrival_is_refused_without_the_amendment :
+    creditArrival { Admission.current with haltMintsOnly := false } .lightning = some .halted := by
+  decide
+
+/-- `LDG-20`: "**Cancel unsettled Lightning invoices on unexpired deposits.**" The settled one is
+not cancelled — "An HTLC that settles concurrently with the cancel **was** received and MUST be
+credited" — the expired one needs nothing, and the on-chain address stays payable, since the
+deployment MUST "**State that the on-chain rail cannot be halted**". -/
+@[req "LDG-20"]
+theorem the_halt_closes_the_unsettled_invoice_and_nothing_else :
+    unsettledUnexpiredInvoice = false ∧
+      destinationAfterHalt Admission.current .lightning true false = true ∧
+      destinationAfterHalt Admission.current .lightning false true = true ∧
+      destinationAfterHalt Admission.current .onchain false false = true := by decide
+
+/-- Without the cancellation "the float keeps growing during a declared insolvency, from
+destinations issued before it, and the requirement claimed a protection it could not deliver". -/
+@[req "LDG-20"]
+theorem the_float_keeps_growing_without_the_cancellation :
+    destinationAfterHalt { Admission.current with cancelUnsettledInvoices := false } .lightning
+      false false = true := by decide
+
+/-- `LDG-20`: "The operations that *reduce* exposure MUST never be gated by the check that fires
+because exposure is too high" — over every such action, while the purchase beside them is refused.
+-/
+@[req "LDG-20"]
+theorem nothing_that_reduces_exposure_is_halted :
+    exposureReducingUnderHalt.all (· == none) = true ∧
+      underHalt Admission.current (.caller .create) = some .halted := by decide
+
+/-- Without the exemption the halt reaches the delete, the release, the retry, the operator's
+suspension and the sweep's own cancellation — "refusing them because exposure is too high is the
+failure `LDG-20` already forbids". -/
+@[req "LDG-20"]
+theorem the_halt_reaches_the_delete_without_the_exemption :
+    underHalt { Admission.current with exposureExemptUnderHalt := false } (.caller .deleteMachine) =
+        some .halted ∧
+      underHalt { Admission.current with exposureExemptUnderHalt := false } .systemCancellation =
+        some .halted := by decide
+
+/-- `LDG-40`'s matrix with no rate: the sweep and every other exposure-reducing action continue,
+the create halts "priced at an unknown rate", the extension halts with it, the solvency check
+"fail[s] closed" and the meter runs native (`LDG-64`). -/
+@[req "LDG-40"]
+theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
+    exposureReducingWithoutRate.all (· == .continues) = true ∧
+      underNoRate Admission.current (.caller .create) = .halts ∧
+      underNoRate Admission.current (.caller .extendRunway) = .halts ∧
+      underNoRate Admission.current .rederivation = .halts ∧
+      underNoRate Admission.current .solvencyCheck = .failsClosed ∧
+      underNoRate Admission.current .metering = .metersNative := by decide
+
+/-- Without the sweep's row the outage stops the one activity that reduces exposure, though
+`LDG-65` leaves it "the last derived `runway_until`" to run on: "what is suspended is *pricing*,
+not *protection*". -/
+@[req "LDG-40"]
+theorem the_outage_stops_the_sweep_without_its_row :
+    underNoRate { Admission.current with sweepContinuesWithoutRate := false } .exhaustionSweep
+      = .halts := by decide
+
+/-- `LDG-59`: "a USD quorum loss halts nothing priced in EUR". -/
+@[req "LDG-59"]
+theorem a_usd_outage_halts_nothing_priced_in_eur :
+    rateAvailableFor (· == .usd) .eur = true ∧ rateAvailableFor (· == .usd) .usd = false := by
+  decide
+
+end Admission
 
 end Provisiond.Witnesses

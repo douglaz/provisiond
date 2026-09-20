@@ -399,10 +399,40 @@ jobs:
       #     abandoned -- attacker_redirect_refused on attackerRedirect;
       #   schemePerHop (RSC-44): the redirect downgrades https to http on a deployment that never
       #     enabled it -- scheme_downgrade_refused on schemeDowngrade.
+      # The admission and halt matrices (pv-vwe.9), Admission.current:
+      #   listenerSplit (WIR-34): the operator route answers `authentication`, which is the one
+      #     answer that requirement names and refuses -- the_operator_route_is_not_customer_observable
+      #     on customerHitsAnOperatorRoute;
+      #   operatorSkipsTenantSteps (API-7, 2026-09-04): the attribution to a `pending` tenant, the
+      #     ordinary case, fails not_activated and the orphaned balance has no route back --
+      #     the_operator_attributes_to_a_pending_tenant on pendingAttribution;
+      #   stepTwoReadsSuspension (API-7, the withdrawn "reject unless the tenant is active"; this
+      #     row turns it back ON): step 2 refuses for suspension, which makes 5b unreachable --
+      #     the_suspended_tenant_is_refused_at_five_b on suspendedInstall;
+      #   maintenanceCarveOut (API-7 step 2): the owner of a suspended tenant cannot replace a
+      #     stolen credential -- the_suspended_tenant_can_still_revoke on suspendedRevoke;
+      #   statementWhileSuspended (API-7 5b, 2026-08-16): the escalation for silence guarantees the
+      #     silence -- the_statement_survives_the_suspension on suspendedStatement;
+      #   ceilingStep (API-7 5c, 2026-09-02): no ceiling is enforced at all and the create at its
+      #     limit proceeds -- the_ceiling_refuses_the_create_at_its_limit on createAtCeiling;
+      #   replayBeforePolicy (API-7, 5b and 5c after 5a): the replay spends a slot it already spent
+      #     and is refused instead of returning its stored result -- a_replay_is_never_charged on
+      #     replayUnderBudget;
+      #   haltMintsOnly (LDG-20, 2026-08-31): the halt refuses an arrived payment, LDG-43's
+      #     forbidden outcome -- the_halt_refuses_the_mint_and_credits_the_arrival on haltedMint;
+      #   cancelUnsettledInvoices (LDG-20, 2026-08-31): the float keeps growing during a declared
+      #     insolvency -- the_halt_closes_the_unsettled_invoice_and_nothing_else on
+      #     unsettledUnexpiredInvoice;
+      #   exposureExemptUnderHalt (LDG-20): the halt reaches the delete, the release, the retry and
+      #     the sweep's own cancellation -- nothing_that_reduces_exposure_is_halted on
+      #     exposureReducingUnderHalt;
+      #   sweepContinuesWithoutRate (LDG-40, LDG-65): the outage stops the one activity that
+      #     reduces exposure -- the_rate_matrix_halts_the_purchase_and_nothing_else on
+      #     exposureReducingWithoutRate.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue and re-host guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host and admission guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -469,9 +499,20 @@ jobs:
           Rehost|allowlistRequired|true|false|emptyAllowlist
           Rehost|allowlistPerHop|true|false|attackerRedirect
           Rehost|schemePerHop|true|false|schemeDowngrade
+          Admission|listenerSplit|true|false|customerHitsAnOperatorRoute
+          Admission|operatorSkipsTenantSteps|true|false|pendingAttribution
+          Admission|stepTwoReadsSuspension|false|true|suspendedInstall
+          Admission|maintenanceCarveOut|true|false|suspendedRevoke
+          Admission|statementWhileSuspended|true|false|suspendedStatement
+          Admission|ceilingStep|true|false|createAtCeiling
+          Admission|replayBeforePolicy|true|false|replayUnderBudget
+          Admission|haltMintsOnly|true|false|haltedMint
+          Admission|cancelUnsettledInvoices|true|false|unsettledUnexpiredInvoice
+          Admission|exposureExemptUnderHalt|true|false|exposureReducingUnderHalt
+          Admission|sweepContinuesWithoutRate|true|false|exposureReducingWithoutRate
           ROWS
-          if [ "$passed" -ne 38 ]; then
-            echo "::error::expected 38 fence, restore, reconciliation, funding, wire, rescue and re-host controls to pass, got $passed"; fail=1
+          if [ "$passed" -ne 49 ]; then
+            echo "::error::expected 49 fence, restore, reconciliation, funding, wire, rescue, re-host and admission controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 
