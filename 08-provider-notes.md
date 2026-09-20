@@ -67,6 +67,9 @@ it. Enable-rescue returns a root password even when SSH keys were supplied; the
 implementation ignores it. **[observed]** Ignoring it is correct — see `PRV-8`, and note
 that capturing it would violate `SEC-3`.
 
+**Rescue activation when rescue is already enabled** — **[verify]** whether the enable-rescue
+action against a server whose rescue is already enabled errors or re-arms it with the new key.
+
 **Rebuild** — the rebuild endpoint takes an image but has no field for SSH keys, so the
 reference adapter injected keys and any post-install payload through first-boot user
 data. **[observed]** This is exactly the case `PRV-23` is about: it silently requires the
@@ -108,6 +111,9 @@ supports pinning without out-of-band material, and it is why `PRV-19` (refresh) 
 **Rescue activation** — enable rescue with an authorized key fingerprint, then an
 out-of-band hard reset to enter it. Exiting is disable-rescue plus another hard reset.
 **[observed]**
+
+**Rescue activation when rescue is already enabled** — **[verify]** whether enabling rescue on a
+server that already has it enabled errors or re-arms it with the new fingerprint.
 
 **OS installer** — the rescue environment ships an installer that consumes a root
 filesystem archive plus a generated config file (drives, RAID, partitions, hostname,
@@ -447,6 +453,12 @@ descriptor (`PRV-44`) and the reasoning goes here; the rest is recorded here:
    release it (`PRV-13a`, `PRV-45`).
 4. **Is rescue key-based or password-based?** Determines whether first-use trust should be
    permitted for this provider at all (`SEC-24`).
+4a. **What does enable-rescue do on a machine already in rescue — error, or re-arm it?** A machine
+   can already be there: after an engine crash `RSC-19` says "The route back is to activate rescue
+   again", and an install dispatched at a machine an earlier operation left in rescue arrives the
+   same way. Determines whether that route exists on this provider, or whether the second operation
+   instead fails at activation, leaving `PRV-18`'s "clean up after itself on partial failure" to
+   remove whatever the driver registered first (`PRV-15`, `RSC-38`).
 5. **Is ordering idempotent?** Determines how a timed-out order is reported (`PRV-11`).
 6. **What is the identifier character set?** Determines the validation in `PRV-6`.
 7. **Which caller-controlled field can carry a correlator at create, per ordering channel, and
