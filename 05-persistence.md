@@ -264,7 +264,8 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
-| `exhausted_since` | timestamp | nullable; **`LDG-16`'s persistence rule, as a column** (added 2026-09-05). Set by re-derivation only when it moves the date backward into the past or backward across `now + one re-derivation interval` — a rate-induced jump the next derivation could not confirm in time — and untouched otherwise, including on natural expiry and on a small backward move inside the horizon; cleared by any write of a future `runway_until` (the horizon qualifies the set, not the clear). Not routed on at all while no rate exists for the machine's currency, since the second derivation has not happened (`LDG-16`). The exhaustion sweep routes where the date has passed and this is null or older than one re-derivation interval; `OPS-41` clears it with the future date it writes and tests nothing else here, its own re-derivation being the second one — so one poisoned rate reading moves a date and destroys nothing, while a runway that simply ran out is routed on the first pass. *A conformance item, `CNF-99`, tested this behaviour for three weeks with no mechanism behind it* |
+| `rate_confirmation_ref` | integer | nullable; **the first of `LDG-16`'s two exhaustion facts**, which owns when it is armed and what discharges it. Holds the `rate_observations.acceptance_order` (`STO-49`) of the accepted observation a backward re-derivation consumed — an **acceptance order, not a row id and not an instant**, so that "later" is a fact about the order rates were accepted in. Written by re-derivation (`PRV-13e`) **in the same transaction as the date it explains**, and cleared by an extension (`LDG-62`) or `OPS-41`'s abort |
+| `destroy_not_before` | timestamp | nullable; **the second** — `ADR-0026`'s destruction deadline, a wall-clock instant the exhaustion sweep's predicate reads (`LDG-16`). Not to be confused with `destroy_committed` below, which is `OPS-42`'s fence and holds an episode id: this column delays a destruction, that one orders two writers against each other. Written only by `STO-54`'s restore, as the restore instant plus one re-derivation interval, preserving any `rate_confirmation_ref` already present; cleared by the same two writes as the reference. **No observation discharges it**, because a restore moved the date backward by something other than consumption. *Both columns replace `exhausted_since` (2026-09-05 to 2026-09-21), which carried the confirmation wait and the restore grace on one clock and whose horizon half could never fire — `ADR-0026`. A conformance item, `CNF-99`, tested the behaviour for three weeks with no mechanism behind it, and then passed over the dead branch for sixteen days more* |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
 | `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
 | `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
@@ -575,17 +576,33 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 
 **STO-49** **`rate_observations`** — `currency` (the provider-native currency this rate converts
 from — there is one rate per billing currency, EUR and USD on the launch set), `rate_num`,
-`rate_den` (`LDG-4`'s exact rational), `source`, `observed_at`, `haircut_bps`, `rounding_version`,
-unique on `(currency, observed_at)`. Readers select on the subject's currency. **One row per rate the
+`rate_den` (`LDG-4`'s exact rational), `source`, `observed_at`, `acceptance_order`, `haircut_bps`,
+`rounding_version`,
+unique on `(currency, observed_at)` and on `(currency, acceptance_order)`. Readers select on the
+subject's currency. **One row per rate the
 deployment accepts** (`LDG-58`'s median), **written before that rate is used for anything**, and
 retained at least until every subject **with an open increment** has closed one past its
-`observed_at` — a stopped subject closes no further increment and must not pin the table forever.
+`observed_at` — a stopped subject closes no further increment and must not pin the table forever —
+**and for as long as any machine's `rate_confirmation_ref` names it** (`LDG-16`), since a
+confirmation compares against a row that has to still be there to compare against.
+
 *Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
 self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
 a rate's acceptance and the next increment's posting there was no durable record of it at all, so a
 rate observed half-way through an increment and a crash before the tick left restart with no
 boundary: `LDG-38`'s split, the rule that no increment is ever re-priced, could not survive a
 restart, and the whole increment posted at whichever rate restart found first.*
+
+**AMENDED 2026-09-21 (`ADR-0026`) — `acceptance_order` is what "later" means here, and
+`observed_at` cannot be.** A **per-currency integer, transactionally increasing and never
+reused**, allocated in the transaction that writes the row. `LDG-16`'s confirmation is the one
+comparison standing between a poisoned price and a destroyed disk, and it asks which observation
+the deployment accepted *after* the armed one — not which instant is larger. The unique constraint
+above refuses a repeated `(currency, observed_at)` and nothing else: no rule in this set makes
+`observed_at` increase across rows, so a source clock that steps back, or a pass that reads early
+and commits late, writes a row whose instant precedes one already stored. Compared on the instant,
+that row discharges nothing and the next real observation may discharge on the reading that
+preceded it.
 
 ### `meter_totals`
 
@@ -1180,8 +1197,17 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   solvency check and the settlement watcher are not frozen, and the account sweep's two passes are
   a step below; `provider_account_status` and the rate quorum are re-established, since `LDG-16`
   and `STO-36` route on them; every machine whose stored `runway_until` has passed has
-  `exhausted_since` set to the restore instant, which is `LDG-16`'s own grace for a date moved
-  backward by something other than consumption. (2) *Before the first claim:* every `queued`
+  `destroy_not_before` set to **the restore instant plus one re-derivation interval** — `LDG-16`'s
+  own grace for a date moved backward by something other than consumption, written as the deadline
+  itself rather than as a start, so that a second run of an unmarked step cannot re-apply it from a
+  fresh clock (`LDG-64` persists its deadline for the same reason) — and **any
+  `rate_confirmation_ref` already present is preserved**, because a restore is not an observation
+  and discharges nothing (*amended 2026-09-21, `ADR-0026`: the withdrawn form set
+  `exhausted_since` to the restore instant, one slot serving both this grace and the confirmation
+  wait, which is why re-running this step could "backdate an `exhausted_since` a later
+  re-derivation had set" — `ADR-0023`'s own reason for the step marks. Two facts cannot collide in
+  one slot, and re-keying that slot to an observation instead was refused because a rate arriving
+  seconds after a restore would then end the grace*). (2) *Before the first claim:* every `queued`
   create, install and rescue inventory is moved to `needs_reconciliation` — a repeat is a second
   order, a second disk write, a second boot into rescue — and `OPS-27` establishes what happened
   rather than doing it again; the goal-state kinds (delete, power, end-rescue, release attachment,

@@ -698,8 +698,9 @@ machine (`OPS-8`) and before any provider mutation**, re-read that machine's com
 the extension it is racing can commit between the read and the write. Where re-deriving `LDG-33`
 from what it read now puts **`runway_until` strictly in the future**, the worker MUST make no
 provider call, settle the operation `succeeded` with a result recording that no mutation was
-required, **write that re-derived `runway_until` to the machine row and clear
-`machines.exhausted_since`** (`LDG-16`), **clear
+required, **write that re-derived `runway_until` to the machine row and clear both of `LDG-16`'s
+exhaustion facts — `machines.rate_confirmation_ref` and `machines.destroy_not_before`** (the abort
+is the second of the two authorized future-date writes, `ADR-0026`), **clear
 `machines.destroy_committed`**, and close the episode where it is still open (`OPS-48`; a
 gone-write may have closed it first, and a close is permanent) so a later lapse can open a
 fresh one. *The date write was added 2026-09-05: the sweep routes on the **stored** date, and an

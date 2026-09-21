@@ -410,25 +410,43 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-97** — No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
 - [ ] **CNF-98** — Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
-- [ ] **CNF-99** — A single adverse rate read cannot cancel a machine: the deficiency must persist
-      across derivations. **Asserted through the mechanism, not the outcome** (2026-09-05): feed one
-      poisoned rate reading, assert re-derivation writes a past `runway_until` **and** sets
-      `machines.exhausted_since`, assert the sweep does **not** route the machine while that column
-      is younger than one re-derivation interval, feed a sane reading, and assert the column clears.
-      **Then the two edges of the set rule**: a poisoned reading that moves a date from thirty
-      minutes out to one minute past sets the column and the sweep waits, and an honest reading
-      that moves a date from forty-five to forty minutes out leaves it null and the machine routes at
-      forty. **Then let a runway expire with no rate movement at all and assert the machine is
-      routed on the very next pass, the column still null** — a build that gates every past date on the
-      interval runs each ordinary exhaustion one interval into the wind-down reserve.
-      Then hold the bad rate across two intervals and assert the machine **is** routed. **Then the
+- [ ] **CNF-99** — A single adverse rate read cannot cancel a machine: a rate-produced exhaustion
+      must be confirmed by a strictly later accepted observation. **Asserted through the mechanism,
+      not the outcome** (2026-09-05; re-written 2026-09-21 for `ADR-0026`'s two facts): feed one
+      poisoned rate reading, assert re-derivation writes a past `runway_until` **and** arms
+      `machines.rate_confirmation_ref` with the observation it consumed, assert the sweep does
+      **not** route the machine while that reference is armed **however long it stands**, feed a
+      sane reading, and assert the reference clears with the future date.
+      **Then the two edges of the arming rule**: a poisoned reading that moves a date from thirty
+      minutes out to one minute past arms the reference and the sweep waits, and **a reading that
+      moves a date backward across `now + one re-derivation interval` and lands in the future arms
+      it too** — the input a set rule qualified by that horizon could never reach, since the same
+      write also cleared. **Then the trace that proves a backward move never confirms itself**:
+      let an ordinary reading move a date from two hours out to one hour fifty, arming the
+      reference, then feed **one** poisoned reading that moves it into the past, and assert the
+      machine is **not** routed — the second reading is strictly later than the armed one and
+      would otherwise discharge an exhaustion no reading before it had derived. **Then let a runway
+      expire with no rate movement at all and assert the
+      machine is routed on the very next pass, the reference still null** — a build that gates every
+      past date on a confirmation runs each ordinary exhaustion one interval into the wind-down
+      reserve.
+      Then feed a second accepted observation that still derives exhaustion and assert the machine
+      **is** routed, and assert that re-deriving twice from the **same** accepted observation
+      discharges nothing. **Then the
       restore edge** (added 2026-09-12, `ADR-0023`): restore a store in which a machine's stored
-      `runway_until` is past and `exhausted_since` null, run `STO-54`'s procedure, and assert the
-      column is set to the restore instant and the sweep waits one interval; extend the machine
-      inside that interval and assert the column clears and it is never routed. *The per-tick cap clause is withdrawn with the construct it tested
+      `runway_until` is past and both facts null, run `STO-54`'s procedure, and assert
+      `destroy_not_before` is the restore instant plus one re-derivation interval, that an
+      observation arriving inside that window does not end it, and that the sweep waits until it
+      passes; extend the machine inside that window and assert both facts clear and it is never
+      routed. *The per-tick cap clause is withdrawn with the construct it tested
       (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
       no reader behind it, and a build that routed on the date alone passed it by never being fed a
-      poisoned reading.* (`PRV-13e`, `LDG-16`, `LDG-58`)
+      poisoned reading. The forty-five-to-forty-minute case is withdrawn 2026-09-21: the wider
+      arming rule sets the reference on that move, which is the change `ADR-0026` made. What was
+      missing is the case now standing in its place — no reading this item fed ever crossed the
+      horizon backward and landed in the future, so the branch written to catch that input did
+      nothing for sixteen days behind a green build.* (`PRV-13e`,
+      `LDG-16`, `LDG-58`, `STO-49`)
 - [ ] **CNF-100** — At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
 - [ ] **CNF-101** — Under a failing solvency check, every bill-increasing operation is refused
@@ -550,13 +568,15 @@ takes the machines *and* the float" partly false.
       successor that it continues the incident — it takes the restore branch of the pass and
       quarantines the executed create, and `api` serves nothing until step (3) is marked; of the
       second, that it repeats no marked step — the listener is not taken down again, the token a
-      tenant re-issued after step (3) still authenticates, and `exhausted_since` is not rewritten;
+      tenant re-issued after step (3) still authenticates, and `destroy_not_before` is not
+      rewritten;
       and that once the operator closes the record a restart is an ordinary one, leaving `queued`
       rows alone. Assert: no worker makes a
       provider mutation and nothing writes a disk before the first
       claim (`OPS-32`'s deletion of an orphaned imported image is the one provider call the freeze
-      does not stop); the extended machine is not routed into exhaustion during `LDG-16`'s interval
-      and its re-extension clears `exhausted_since` — and a second machine extended in the lost
+      does not stop); the extended machine is not routed into exhaustion before
+      `destroy_not_before` passes
+      and its re-extension clears that column — and a second machine extended in the lost
       interval and **not** re-extended is routed once the interval ends, with the extension's
       satoshis back in its tenant's balance and its `runway_until` reading the restored date
       throughout (added 2026-09-12: the grace is one interval, not a repair); the old token authenticates nothing and the

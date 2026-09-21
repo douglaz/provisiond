@@ -175,7 +175,7 @@ claiming to have applied while the requirement said the opposite.
 
 **Text, only where a trap sits behind it.** Withdrawn wording is retained when deleting it would let
 someone re-lay a trap — something that looked correct, was nearly built, and broke. `PRV-30`'s
-`comment` field, `LDG-8`'s posting index, `OPS-36`'s automatic seizure and `PRV-13e`'s three failed
+`comment` field, `LDG-8`'s posting index, `OPS-36`'s automatic seizure and `PRV-13e`'s failed
 versions are all of that kind, and they stay. Withdrawn wording that merely records a fact that
 changed is **deleted outright** — no marker, no tombstone paragraph. Nobody re-adds five reserve
 columns by accident.

@@ -291,17 +291,25 @@ rather than an operator constant matters because the caller is software that kno
 intent: a two-hour scratch box and a machine meant to survive a month should not freeze the same
 amount of a customer's balance.
 
-**PRV-13e** **AMENDED twice the same day, and twice again since — the history is the lesson.**
+**PRV-13e** **AMENDED twice the same day, and repeatedly since — the history is the lesson.**
 Re-derivation MUST run at the deployment's stated **re-derivation interval** at the current rate,
 and what it recomputes is **`runway_until`, not the
-commitment** (`LDG-33`, `ADR-0011`). **It MUST also maintain `machines.exhausted_since`** — set to
-the derivation instant where it moves the date **backward into the past, or backward across
-`now + one re-derivation interval`**, and the column is null; not touched on a backward move that
-stays inside the horizon, or where the date was already past; cleared by any write of a future date, the horizon qualifying only the set — which is
-the column `LDG-16`'s
-"persist across more than one derivation" is measured by (added 2026-09-05; it had no mechanism
-before; a first form set it on any past date, which delayed natural expiry, and a second on
-past-only, which missed a jump landing just short of the next derivation).
+commitment** (`LDG-33`, `ADR-0011`). **It MUST also maintain `machines.rate_confirmation_ref` on
+the terms `LDG-16` sets**, which owns that rule: it arms and discharges on the **accepted
+observation** this pass consumed — `STO-49`'s acceptance order, written in the same transaction as
+the date that observation explains — and never on the instant this pass ran. **It never writes
+`machines.destroy_not_before`**,
+which is `STO-54`'s and runs on wall clock. *Amended 2026-09-21 (`ADR-0026`): the withdrawn form
+maintained one column, `machines.exhausted_since`, set to **the derivation instant**, and an
+instant says when provisiond computed rather than which price it used — two derivations an interval
+apart can consume the same observation (`CONTEXT.md`, **Derivation**). Added 2026-09-05; it had no
+mechanism before, and every form it took before this one is kept here because each is re-layable
+(`README.md`): setting it on **any past date** delayed natural expiry; a **past-only** form missed
+a jump landing just short of the next derivation; a **horizon-only** form let one poisoned reading
+move a date from thirty minutes out to one minute past with the column still null; and the
+disjunction of those two, with the horizon qualifying the set while the clear stayed unqualified,
+left the horizon half unreachable from 2026-09-05 to 2026-09-21. Arming on every backward move of
+a date that stood in the future is what covers all of them at once.*
 
 **AMENDED 2026-09-02 — the interval is this requirement's own parameter, and it is not the billing
 period.** The withdrawn wording was "each billing period", and `LDG-68` later defined that as the

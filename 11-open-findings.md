@@ -370,7 +370,7 @@ landing's last commit, and the ADRs carry the two amendments.
    `suspend_tenant` parent re-runs a reversed fan-out. The procedure freezes the sweeps before the
    startup lock, escalates create, install and rescue inventory to `needs_reconciliation`, bumps
    every credential generation, and classifies the restore as a backward date move so `LDG-16`'s
-   `exhausted_since` grace applies — a "funding quiet period" was proposed and withdrawn for it.
+   grace applies — a "funding quiet period" was proposed and withdrawn for it.
    Asynchronous replication with WAL archiving and a recovery-point alarm; `SET LOCAL
    synchronous_commit = on` only inside the deposit mint and `STO-30`'s credit, the two writes with
    no second truth. Synchronous commit everywhere was rejected because PostgreSQL has no server-side

@@ -1162,9 +1162,15 @@ in this specification converts it: `absorbed_seconds` alone is what the meter ne
 **LDG-65** **The exhaustion sweep continues during an outage on the last derived
 `runway_until`** (`LDG-40` requires it keep running), which remains correct because `LDG-33`
 recomputes the date only when a rate exists. A machine whose runway expires mid-outage is
-cancelled normally — **unless `machines.exhausted_since` is set**, since a rate-induced jump with no
-rate to confirm it is exactly what `LDG-16` withholds until a second derivation (2026-09-05); what
-is suspended is *pricing*, not *protection*.
+cancelled normally — **unless its `rate_confirmation_ref` is armed**, since a rate-induced jump
+with no rate to confirm it is exactly what `LDG-16` withholds until a strictly later observation,
+and while the outage lasts none arrives (2026-09-05; re-keyed to the reference 2026-09-21,
+`ADR-0026`); what is suspended is *pricing*, not *protection*.
+
+**`LDG-64`'s bound is the one cancellation that proceeds anyway** (added 2026-09-21, `ADR-0026`).
+The input that would discharge the reference is the same input whose absence triggers that
+cancellation, so waiting for it would strand exactly the exposure the bound exists to cap.
+`LDG-16` carries the exemption, with the suspended tenant's, and what the bound still respects.
 
 **Why there is no ADR for this.** Two of the three tests fail. The trade-off is real and the
 alternatives were considered — a single named exchange, a published reference index, and
@@ -1490,7 +1496,9 @@ cancellation contend for one row so that one of them provably loses, and a custo
 lands after the fence keeps its satoshis rather than paying for a machine that is going.
 
 **In that same transaction an extension MUST write the re-derived `runway_until` (`LDG-33`) to the
-machine row and clear `machines.exhausted_since` — and, where it opens the commitment on a machine
+machine row and clear both of `LDG-16`'s exhaustion facts — `machines.rate_confirmation_ref` and
+`machines.destroy_not_before`, an extension being the authorized future-date write that ends the
+restore grace as well as the confirmation wait (`ADR-0026`) — and, where it opens the commitment on a machine
 carrying an unresolved `late_attach_cleanup` deficiency (`OPS-36`, `STO-37`), write that record's
 `resolved_at`**, because the commitment it opens is sized with `protected_sats` and is what ends
 the operator's exposure; *the abort that follows only notices it (moved here from `OPS-41` on
@@ -1518,48 +1526,93 @@ customer action to wait for and no faster cancellation to route to — and MUST 
 operator as a named deficiency, bounded per machine by `PRV-31`'s declared worst case. This is
 one of the two exceptions `ADR-0003`'s amended matching claim names.
 
-**LDG-16** **AMENDED (`ADR-0011`).** A rate or price movement MUST NOT have its own cancellation
+**LDG-16** **AMENDED (`ADR-0011`), and again 2026-09-21 (`ADR-0026`).** A rate or price movement
+MUST NOT have its own cancellation
 machinery; it reaches the machine by moving `runway_until` (`LDG-33`) into this same exhaustion
 path. A machine MUST be routed into that path while its remaining commitment still covers
 wind-down **at the current rate** — that invariant, not commitment widening, is what keeps the
-operator whole — and cancellation MUST still require the deficiency to persist across more than
-one derivation, so a single bad rate reading can move a date but can never destroy a disk. *The
-per-tick cap on commitment adjustment is withdrawn with the adjustment itself.*
+operator whole — and a rate-produced exhaustion MUST still be **confirmed by a strictly later
+accepted rate observation** before anything is destroyed, so a **transient** bad reading can move a
+date but cannot destroy a disk. **It promises no more than that.** A plausible price every source
+carries across several observations confirms itself, and no version of this mechanism refuses it:
+`LDG-58`'s median remains the primary control, and this is the second opinion the sentence above
+asks for rather than a replacement for it. *The per-tick cap on commitment adjustment is withdrawn
+with the adjustment itself. So is "persist across more than one derivation", withdrawn 2026-09-21:
+re-derivation runs on an interval and does not imply a new observation (`CONTEXT.md`,
+**Derivation**), so two derivations an interval apart could consume the same poisoned price and the
+wait established nothing.*
 
-**"More than one derivation" is `machines.exhausted_since`, and until 2026-09-05 it was nothing.**
-Re-derivation (`PRV-13e`) sets that column to the derivation instant **only when it moves the date
-backward into the past, or backward across `now + one re-derivation interval`** — either way a
-rate-induced jump that brings expiry within reach before the next derivation can confirm it — and
-**does not touch it** on a backward move that stays inside the horizon, or where the date was
-already past; *the into-the-past case was restored 2026-09-05 after a horizon-only form let one
-poisoned reading move a date from thirty minutes out to one minute past with the column still
-null;*
-**any write of a future `runway_until` clears it**, including `LDG-62`'s and `OPS-41`'s abort's —
-the horizon qualifies only the *set*, never the clear, since a second derivation writing inside the
-horizon still precedes any routing. **A restore sets it too** (added 2026-09-12, `ADR-0023`):
-`STO-54` sets the column to the restore instant on every machine whose stored date has passed,
-because a restore moves the fleet's dates backward by something other than consumption, and a date
-it moved into the past was not one the customer was shown — the glitch case, not the natural-expiry
-case below. **And while no rate exists for the machine's currency, the
-sweep MUST NOT route a machine whose `exhausted_since` is set at all**, however old: the second
-derivation this rule requires has not happened, and `LDG-64`'s bound already caps the exposure of
-waiting. *The trigger was "from the future into the past" for a few hours on 2026-09-05, which left
-a jump landing in the near future unguarded; the horizon closes it. The no-rate clause is from the
-same day: a poisoned median that set the column, followed by the poisoned source's exclusion
-dropping the quorum, meant no derivation ran, the column aged past one interval, the sweep routed,
-and `OPS-41` read "no rate, the cancel proceeds" — a disk destroyed by one reading, which is the
-sentence above's one promise.* **The exhaustion
-sweep MUST route a machine where its stored `runway_until` has passed and `exhausted_since` is
-either null or older than one re-derivation interval**; `OPS-41`'s re-derivation at claim is
-itself the second derivation, so it reads the column only to clear it. *The null case routes
+**"Confirmed" is two durable per-machine facts, and neither one is a derivation instant**
+(`ADR-0026`, 2026-09-21). They replace the single `machines.exhausted_since` column, which carried
+both obligations on one clock from 2026-09-05.
+
+**The rate confirmation reference** — `machines.rate_confirmation_ref`, naming the accepted
+observation a backward re-derivation consumed (`STO-49`'s acceptance order). One rule arms it, one
+discharges it, and both are here:
+
+- **Re-derivation (`PRV-13e`) MUST arm it, with the observation it consumed, on every rate-produced
+  backward move of a `runway_until` that stood in the future** — every one, not only a move
+  crossing `now + one re-derivation interval` — in the same transaction as the date it explains,
+  and **on no other write**. **Where one write would both arm it and clear it, the arm wins.**
+  A move of a date that had **already passed** arms nothing: it says nothing the sweep does not
+  know, and arming there would put a machine already known to be exhausted behind a fresh
+  confirmation once per interval, for as long as the rate kept drifting.
+- **It is discharged by the first strictly later accepted observation for the machine's currency
+  whose own write does not arm it again** — a greater acceptance order, never a later instant and
+  never elapsed time. Where that observation leaves the date in the past it is the
+  **confirmation**: two accepted observations have now each put this machine past its runway, and
+  the sweep routes. Where it writes a date in the future the reference clears with it and there is
+  nothing to route.
+
+**A backward move never confirms itself.** An observation that moves a future date into the past
+arms — it does not discharge the arming before it — so no single adverse reading can both create an
+exhaustion and be the second opinion on it. *Without that the mechanism inverts: an ordinary wobble
+from two hours out to one hour fifty arms the reference, the next reading is the poisoned one, it
+moves the date into the past, and being strictly later it would "confirm" an exhaustion that no
+observation before it had derived. `CNF-99` feeds exactly that trace.* **Natural expiry arms
+nothing**, since no rate moved.
+
+**The destruction deadline** — `machines.destroy_not_before`, `STO-54`'s restore grace, which buys
+"the tenant one re-derivation interval in which to extend again" (added 2026-09-12, `ADR-0023`,
+as a second use of the withdrawn column). It is **wall clock, and no observation discharges it**: a
+restore moves the fleet's dates backward by something other than consumption, and no price speaks
+to that. A restore writing it **preserves any reference already present**.
+
+**An authorized future-date write clears both** — an extension (`LDG-62`) or `OPS-41`'s
+no-mutation abort, the two writes a tenant's money or a worker's re-check stands behind.
+Re-derivation's own write is not one: it discharges the reference on the terms above and never
+touches the deadline.
+
+**The exhaustion sweep MUST route a machine where its stored `runway_until` has passed, its
+`rate_confirmation_ref` is null and its `destroy_not_before` is null or past — and MUST NOT route
+it otherwise.** *The null case routes
 immediately, and that is the point: natural expiry of a runway the
 customer was shown is not a glitch, and delaying it an interval would run every ordinary exhaustion
-one interval into the wind-down reserve this requirement exists to keep whole. `LDG-58`'s median
-remains the primary control; this column is the second derivation the sentence above asks for,
-made durable.* *Without it the sentence above was a conformance item (`CNF-99`)
-with no mechanism: the sweep routed on the date alone, `OPS-41` re-derived at the same rate that
-produced it, and one poisoned rate reading — the case `LDG-58`'s median exists to survive — moved
-the date into the past and destroyed the disk within one sweep interval.*
+one interval into the wind-down reserve this requirement exists to keep whole.* `OPS-41`'s
+re-derivation at claim is the last look before the mutation, so it reads neither fact except to
+clear them. **Two cancellations are never gated on the reference**, because for each of them the
+observation that would discharge it is the one that will not arrive. The first is `LDG-64`'s
+bound: `LDG-64` says the deployment MUST "**cancel machines at that bound** if no rate has
+returned", and `LDG-65` carries the case. The second is a cancellation on a suspended tenant:
+`OPS-41` says "**The funding re-check does not apply where the machine's tenant IS suspended** at
+the moment of the re-check". Neither reaches the predicate above, which is the exhaustion sweep's
+alone. **Both do respect the destruction deadline**, which runs on wall clock, expires on its own
+and is never longer than one re-derivation interval.
+
+*Two traps behind the withdrawn wording, both about the shape of this rule rather than the shape of
+the setter — `PRV-13e` keeps the forms that one took and why each failed. A setter qualified by a
+**horizon** whose clearer is not can never fire: a backward move crossing
+`now + one re-derivation interval` that does not land in the past lands in the future, so the clear
+fires too — dead prose from 2026-09-05 to 2026-09-21, which `CNF-99` never fed. And a mark
+discharged by **age** re-opens the case of 2026-09-05: a poisoned median set it, the poisoned
+source's exclusion dropped the quorum, no derivation ran, the mark aged past one interval, the
+sweep routed, and the funding re-check found no rate and let the cancel proceed — a disk destroyed
+by one reading. Under a discharge keyed to acceptance order, no rate means no discharge and the
+machine waits. `ADR-0026` holds the counterexample that keeps the mechanism and the three
+alternatives it refused.* *And without any of it the sentence above was a conformance item
+(`CNF-99`) with no mechanism: the sweep routed on the date alone, `OPS-41` re-derived at the same
+rate that produced it, and one poisoned rate reading — the case `LDG-58`'s median exists to
+survive — moved the date into the past and destroyed the disk within one sweep interval.*
 
 ## Solvency
 

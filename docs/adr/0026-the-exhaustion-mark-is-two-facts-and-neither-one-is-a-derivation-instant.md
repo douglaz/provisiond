@@ -45,10 +45,19 @@ used. `CONTEXT.md` now separates the two terms.
 clocks.**
 
 - **A rate confirmation reference** — the accepted observation a backward re-derivation used. It is
-  set by **every rate-produced backward move**, not only a horizon crossing; where one write both
-  arms it and lands in the future, **the arm wins**. It is discharged by a *strictly later* accepted
-  observation: one that still derives exhaustion confirms it and permits routing, one that derives a
-  future date writes that date and clears it.
+  set by **every rate-produced backward move of a date that stood in the future**, not only a
+  horizon crossing; where one write both arms it and clears it, **the arm wins**. It is discharged
+  by the first *strictly later* accepted observation whose own write does not arm it again: the one
+  that finds the date already past and leaves it there, so that two accepted observations have each
+  put this machine past its runway before anything is destroyed. **A backward move never confirms
+  itself.** *Amended while `pv-vwe.14` wrote the rules. The accepted text read "one that still
+  derives exhaustion confirms it and permits routing", and its "still" assumed an arming that was
+  itself an exhaustion — which the widened arming rule two sentences earlier had just stopped
+  guaranteeing. Read literally it restores the defect: an ordinary wobble from two hours out to one
+  hour fifty arms the reference, the next reading is the poisoned one, and being strictly later it
+  confirms an exhaustion that no observation before it had derived. Also added: a move of a date
+  that had already passed arms nothing, without which a machine known to be exhausted goes back
+  behind a fresh confirmation once per interval for as long as the rate drifts.*
 - **A destruction deadline** — `STO-54`'s restore grace, which "buys the tenant one re-derivation
   interval in which to extend again". It is wall-clock and nothing else discharges it.
 
@@ -64,7 +73,10 @@ a timestamp, and the machine's reference is written in the same transaction as t
 **Two cancellations bypass confirmation entirely**, because no observation will arrive for them:
 `LDG-64`'s bound, which requires the deployment "**cancel machines at that bound** if no rate has
 returned", and the suspended tenant, where `OPS-41` already says "**The funding re-check does not
-apply where the machine's tenant IS suspended** at the moment of" the claim.
+apply where the machine's tenant IS suspended** at the moment of" the claim. **Neither bypasses the
+destruction deadline**, which is wall clock, expires on its own and is never longer than one
+re-derivation interval, so honouring it costs the bound at most that interval and keeps the restore
+grace a single rule rather than one with exceptions.
 
 ## What was rejected
 
@@ -101,7 +113,8 @@ this is the second derivation it asks for, not a replacement for it.
 
 `CNF-99` loses its "an honest reading that moves a date from forty-five to forty minutes out leaves
 it null" case, which the wider arming rule deliberately changes, and gains one for the reading that
-crosses the horizon and lands in the future — the case that would have caught the dead branch. Its
+crosses the horizon and lands in the future — the case that would have caught the dead branch — and
+one for the wobble-then-poison trace that holds a backward move to never confirming itself. Its
 natural-expiry and restore assertions stand unchanged. `05-persistence.md` carries two columns where
 it carried one. The formal layer owes the setter it has never modelled, and a negative control that
 puts the dead branch back.
