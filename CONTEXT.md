@@ -304,6 +304,20 @@ The fewest live, non-excluded rate sources that still produce a rate. Below it t
 rate** — not a stale one, not the last known good one — and `LDG-40`'s halt matrix applies.
 _Avoid_: threshold, minimum sources
 
+**Rate observation**:
+One accepted **rate**: the median `LDG-58` produced from a pass's surviving sources, recorded by
+`STO-49` before that rate is used for anything. One source's number is not an observation; it is an
+input to one.
+_Avoid_: reading, sample, tick, quote (each is one source's, not the accepted median)
+
+**Derivation**:
+One recomputation of a machine's `runway_until` from its commitment and a **rate observation**
+(`PRV-13e`, `LDG-33`). **A derivation is not an observation, and the difference is what a
+confirmation rule turns on**: a derivation's instant says when provisiond computed, an observation's
+identity says which price it used, and two derivations an interval apart can consume the same
+observation. Re-derivation runs on an interval and does not imply a new observation.
+_Avoid_: re-pricing, recalculation, refresh (that is `DOM-8`'s read of the provider)
+
 **Channel ceiling**:
 The most the operator lets sit in Lightning channels before sweeping the excess beyond the running
 system's reach. Lightning cannot be made cold, so this number *is* the blast radius of a full
