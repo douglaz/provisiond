@@ -438,35 +438,15 @@ jobs:
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
+      # The number it expects comes from the list itself, never from a literal: a literal was
+      # wrong the first time the list moved (pv-vwe.20 added four rows and retired one, leaving
+      # a count of 49 that no green run could satisfy), which is AGENTS.md's "cite the list; let
+      # it hold the number" in a script.
       - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host and admission guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
-          passed=0
-          while IFS='|' read -r file field from to token; do
-            tmp="$(mktemp -d)"
-            cp -r . "$tmp/repo"
-            pushd "$tmp/repo/tools/formal" > /dev/null
-            # One field per line; the last closes the brace instead of taking a comma.
-            sed -i "s/^    ${field} *:= ${from}\(,\| }\)\$/    ${field} := ${to}\1/" "Provisiond/${file}.lean"
-            if ! grep -q "^    ${field} := ${to}\(,\| }\)\$" "Provisiond/${file}.lean"; then
-              echo "::error::${field}: the mutation did not apply"; fail=1
-            elif nix develop --command lake build < /dev/null > build.log 2>&1; then
-              echo "::error::lake build passed with ${field} := ${to}"; fail=1
-            elif [ "$(grep -c '^error: Provisiond/' build.log)" -ne 1 ]; then
-              echo "::error::${field}: more than one red"; grep '^error: Provisiond/' build.log; fail=1
-            elif ! grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log; then
-              echo "::error::${field}: the red is not a refuted witness"; grep '^error' build.log; fail=1
-            elif ! grep -A6 'proved that the proposition' build.log | grep -q "$token"; then
-              echo "::error::${field}: the red witness is not the targeted one ($token)"
-              grep -A6 'proved that the proposition' build.log; fail=1
-            else
-              echo "lake build correctly failed on ${field} := ${to}, on the witness naming $token"
-              passed=$((passed + 1))
-            fi
-            popd > /dev/null
-            rm -rf "$tmp"
-          done <<'ROWS'
+          rows=$(cat <<'ROWS'
           Fence|recheckInsideFence|true|false|fenceWorld paidMachineTrace
           Fence|fenceHolds|.episodeId|.attemptId|fenceWorld retryTrace
           Fence|fenceOnOpenEpisode|true|false|goneRaceTrace
@@ -520,8 +500,35 @@ jobs:
           Admission|exposureExemptUnderHalt|true|false|exposureReducingUnderHalt
           Admission|sweepContinuesWithoutRate|true|false|exposureReducingWithoutRate
           ROWS
-          if [ "$passed" -ne 49 ]; then
-            echo "::error::expected 49 fence, restore, reconciliation, funding, wire, rescue, re-host and admission controls to pass, got $passed"; fail=1
+          )
+          expected=$(printf '%s\n' "$rows" | grep -c '|')
+          passed=0
+          while IFS='|' read -r file field from to token; do
+            tmp="$(mktemp -d)"
+            cp -r . "$tmp/repo"
+            pushd "$tmp/repo/tools/formal" > /dev/null
+            # One field per line; the last closes the brace instead of taking a comma.
+            sed -i "s/^    ${field} *:= ${from}\(,\| }\)\$/    ${field} := ${to}\1/" "Provisiond/${file}.lean"
+            if ! grep -q "^    ${field} := ${to}\(,\| }\)\$" "Provisiond/${file}.lean"; then
+              echo "::error::${field}: the mutation did not apply"; fail=1
+            elif nix develop --command lake build < /dev/null > build.log 2>&1; then
+              echo "::error::lake build passed with ${field} := ${to}"; fail=1
+            elif [ "$(grep -c '^error: Provisiond/' build.log)" -ne 1 ]; then
+              echo "::error::${field}: more than one red"; grep '^error: Provisiond/' build.log; fail=1
+            elif ! grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log; then
+              echo "::error::${field}: the red is not a refuted witness"; grep '^error' build.log; fail=1
+            elif ! grep -A6 'proved that the proposition' build.log | grep -q "$token"; then
+              echo "::error::${field}: the red witness is not the targeted one ($token)"
+              grep -A6 'proved that the proposition' build.log; fail=1
+            else
+              echo "lake build correctly failed on ${field} := ${to}, on the witness naming $token"
+              passed=$((passed + 1))
+            fi
+            popd > /dev/null
+            rm -rf "$tmp"
+          done <<<"$rows"
+          if [ "$passed" -ne "$expected" ]; then
+            echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host and admission controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 
