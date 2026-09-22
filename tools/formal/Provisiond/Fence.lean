@@ -214,7 +214,7 @@ structure World where
   /-- One re-derivation interval (`LDG-16`). -/
   interval   : Nat
   /-- Ghost history for the withdrawn elapsed-time tests in `rederiveFacts` and `World.routed`;
-  inert under `current` as described above, never a durable exhaustion fact. -/
+  inert under `current` as this module's docstring states, never a durable exhaustion fact. -/
   legacyArmedAt : Nat := 0
   /-- `LDG-59`'s rate, whole satoshis per second, and `none` while "there is no rate" (`LDG-64`). -/
   rate       : Option Nat
@@ -241,8 +241,8 @@ def World.deadlinePassed (w : World) : Bool :=
 
 /-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
 passed, its `rate_confirmation_ref` is null and its `destroy_not_before` is null or past".
-The withdrawn age discharge lives here because `sweep` is "routed on
-the **stored** date and `LDG-16`'s facts (`World.routed`) and on nothing else".
+The withdrawn age discharge lives here because `sweep`'s own docstring says the cancellation is
+"routed on the **stored** date and `LDG-16`'s facts (`World.routed`) and on nothing else".
 Putting the off branch in `sweep`, or selecting a second predicate there, would leave the
 carrier named in `Admission.lean:66-69` — "`rederiveFacts` (the no-observation branch) and
 `World.routed`" — intact while the control broke an unnamed extra guard. -/
@@ -370,7 +370,8 @@ theorem confirmation_ignores_age (p : Params) (hc : p.confirmationByOrder = true
 
 /-- `PRV-13e`: "written in the same transaction as the date that observation explains".
 The no-observation case writes nothing. The existing cancellation fence is preserved.
-`legacyArmedAt` records the arming instant solely to execute the withdrawn age control. -/
+`legacyArmedAt` records the arming instant solely for the withdrawn age controls the module
+docstring names, never as a durable fact. -/
 @[req "PRV-13e"]
 def rederive (p : Params) (w : World) (newDate : Nat) (observation : Option Nat) : World :=
   match observation with
