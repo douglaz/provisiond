@@ -33,8 +33,9 @@ the account status and the rate quorum) and step (3) beyond the credential bump 
 the rails, `SEC-39`'s counters, the derivation index); the operator cancelling a waiting parent,
 which `Event.confirmParents` stands for beside confirming it; the sweep's per-account report; and
 everything after the procedure that touches the stored date — the tenant extending again inside
-the grace (`LDG-62`), the second derivation `LDG-16` waits for and the routing at the interval's
-end (`Provisiond.Fence` has those) — so the grace is stated as the column set, and
+the grace (`LDG-62`), the confirmation and routing (`Provisiond.Fence` has those) — so the grace
+is stated as the deadline set. `STO-54`'s "any `rate_confirmation_ref` already present is preserved" is exercised
+in `Provisiond.Fence`, where observations could otherwise discharge it, and
 `lost_extension_not_rebuilt` says the procedure writes no date, not that nothing ever does. -/
 
 namespace Provisiond.Restore
@@ -59,11 +60,12 @@ structure Op where
   applied : Bool
   deriving DecidableEq, Repr
 
-/-- The one machine: its stored date, `LDG-16`'s column, and whether the sweep recorded it gone. -/
+/-- The one machine: its stored date, `STO-54`'s destruction deadline, and whether the sweep
+recorded it gone. -/
 structure Machine where
-  runwayUntil    : Nat
-  exhaustedSince : Option Nat
-  recordedGone   : Bool
+  runwayUntil      : Nat
+  destroyNotBefore : Option Nat
+  recordedGone     : Bool
   deriving DecidableEq, Repr
 
 /-- The store: the operations by id — a total function, so an id nobody wrote holds what the
@@ -119,9 +121,10 @@ structure RestartTrace where
 /-- `STO-54`'s trace: the backup holds the store `delta` steps before the crash, the provider's
 facts are the crash's, and `now` is the restore instant. -/
 structure RestoreTrace where
-  history : History
-  delta   : Nat
-  now     : Nat
+  history  : History
+  delta    : Nat
+  now      : Nat
+  interval : Nat
 
 /-- The restored store: every row as the backup held it, with `applied` as the provider holds it,
 and the record open at the restore instant — committed before the engine is started, so no run of
@@ -259,6 +262,8 @@ structure World where
   store            : Store
   /-- The restore instant. Time does not advance. -/
   now              : Nat
+  /-- The deployment's re-derivation interval (`PRV-13e`). -/
+  interval         : Nat
   /-- `STO-51`'s startup lock taken. Session-scoped, so this is the one field a crash clears. -/
   locked           : Bool
   /-- Step (1)'s work done — `LDG-16`'s grace written — and marked: a mark of `STO-56`'s record,
@@ -328,9 +333,8 @@ def passOp (p : Params) (f : Fault) (o : Op) : Op :=
   | _, _ => o
 
 inductive Event
-  /-- Step (1): the startup lock, with `LDG-16`'s grace — "every machine whose stored
-  `runway_until` has passed has `exhausted_since` set to the restore instant", whatever the
-  column held: an older value is a deficiency the sweep would route at once. -/
+  /-- Step (1): `STO-54`'s startup grace, "every machine whose stored `runway_until` has passed
+  has `destroy_not_before` set to the restore instant plus one re-derivation interval". -/
   | lock
   /-- Step (2): `OPS-15`'s pass. -/
   | startupPass
@@ -377,7 +381,7 @@ def step (p : Params) (w : World) : Event → World
   | .lock =>
     let m := w.store.machine
     let m' := if w.fault.isRestore && !w.graceWritten && decide (m.runwayUntil ≤ w.now)
-              then { m with exhaustedSince := some w.now } else m
+              then { m with destroyNotBefore := some (w.now + w.interval) } else m
     { w with locked := true, graceWritten := w.graceWritten || w.fault.isRestore,
              store := { w.store with machine := m' } }
   | .startupPass =>
@@ -426,19 +430,28 @@ def step (p : Params) (w : World) : Event → World
 
 def run (p : Params) (w : World) (evs : List Event) : World := evs.foldl (step p) w
 
-def boot (f : Fault) (s : Store) (now : Nat) : World :=
-  { fault := f, store := s, now := now, locked := false, graceWritten := false, passDone := false,
+def boot (f : Fault) (s : Store) (now : Nat) (interval : Nat) : World :=
+  { fault := f, store := s, now := now, interval := interval,
+    locked := false, graceWritten := false, passDone := false,
     procedureComplete := false, completePasses := 0, windowElapsed := false,
     parentsConfirmed := false, secondOrder := false, servedGens := [],
     parentResumedUnconfirmed := false }
 
 /-- `STO-5`: the engine comes up on the store the crash left. -/
 @[req "STO-5"]
-def bootRestart (t : RestartTrace) : World := boot .restart t.history.final 0
+def bootRestart (t : RestartTrace) : World := boot .restart t.history.final 0 0
 
 /-- `STO-54`: the engine comes up on the restored store, at the restore instant. -/
 @[req "STO-54"]
-def bootRestore (t : RestoreTrace) : World := boot .restore t.store t.now
+def bootRestore (t : RestoreTrace) : World := boot .restore t.store t.now t.interval
+
+/-- `STO-54`: "the restore instant plus one re-derivation interval", not the restore instant
+alone. This deadline is the incident's even when a successor takes the lock again. -/
+@[req "STO-54"]
+theorem restore_writes_deadline (p : Params) (t : RestoreTrace)
+    (hpast : t.store.machine.runwayUntil ≤ t.now) :
+    (step p (bootRestore t) .lock).store.machine.destroyNotBefore = some (t.now + t.interval) := by
+  simp [step, bootRestore, boot, Fault.isRestore, hpast]
 
 /-! ## Restart: the pass is sound on its premise -/
 
