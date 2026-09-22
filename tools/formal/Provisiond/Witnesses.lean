@@ -335,20 +335,21 @@ theorem abort_without_date_write_reroutes :
 including the no-rate case (`LDG-65`: "unless its `rate_confirmation_ref` is armed"). -/
 @[req "LDG-16"]
 theorem two_fact_routing_witness :
+    let p := { Fence.current with noAgeDischarge := true }
     let base := { fenceWorld with now := 100 }
     let armed := { base with m := { base.m with rateConfirmationRef := some 7 } }
-    base.routed = true ∧ ({ base with rate := none }).routed = true ∧
-    armed.routed = false ∧ ({ armed with rate := none }).routed = false ∧
-    ({ base with m := { base.m with destroyNotBefore := some 101 } }).routed = false ∧
-    ({ base with m := { base.m with destroyNotBefore := some 100 } }).routed = true ∧
-    ({ base with m := { base.m with destroyNotBefore := some 99 } }).routed = true ∧
-    ({ base with m := { base.m with runwayUntil := 101 } }).routed = false := by decide
+    base.routed p = true ∧ ({ base with rate := none }).routed p = true ∧
+    armed.routed p = false ∧ ({ armed with rate := none }).routed p = false ∧
+    ({ base with m := { base.m with destroyNotBefore := some 101 } }).routed p = false ∧
+    ({ base with m := { base.m with destroyNotBefore := some 100 } }).routed p = true ∧
+    ({ base with m := { base.m with destroyNotBefore := some 99 } }).routed p = true ∧
+    ({ base with m := { base.m with runwayUntil := 101 } }).routed p = false := by decide
 
 /-- Each setter control fixes its neighbouring guards so a flip has exactly its own red build.
 The values are the hypotheses of the setter theorems, not an alternative rule. -/
 def setterGuards (p : Params) : Params :=
   { p with armWinsFutureClear := true, confirmationByOrder := true,
-           observationKeepsDeadline := true, backwardCannotConfirm := true }
+           observationKeepsDeadline := true, backwardCannotConfirm := true, noAgeDischarge := true }
 
 def horizonGuards (p : Params) : Params :=
   { setterGuards p with armWinsFutureClear := p.armWinsFutureClear }
@@ -376,9 +377,9 @@ theorem horizon_arm_wins_witness :
     let p := horizonGuards Fence.current
     let good := run p horizonWorld horizonTrace
     let bad := run { p with armWinsFutureClear := false } horizonWorld horizonTrace
-    good.m.rateConfirmationRef = some 7 ∧ good.routed = false ∧
+    good.m.rateConfirmationRef = some 7 ∧ good.routed p = false ∧
     (run p good cancellationTrace).m.destroyed = false ∧
-    bad.m.rateConfirmationRef = none ∧ bad.routed = true ∧
+    bad.m.rateConfirmationRef = none ∧ bad.routed p = true ∧
     (run { p with armWinsFutureClear := false } bad cancellationTrace).m.destroyed = true := by decide
 
 /-- Two derivations consuming acceptance order 7, more than an interval apart. The first
@@ -394,10 +395,29 @@ theorem observation_order_witness :
     let p := orderGuards Fence.current
     let good := run p horizonWorld reusedObservationTrace
     let bad := run { p with confirmationByOrder := false } horizonWorld reusedObservationTrace
-    good.m.rateConfirmationRef = some 7 ∧ good.routed = false ∧
+    good.m.rateConfirmationRef = some 7 ∧ good.routed p = false ∧
     (run p good cancellationTrace).m.destroyed = false ∧
-    bad.m.rateConfirmationRef = none ∧ bad.routed = true ∧
+    bad.m.rateConfirmationRef = none ∧ bad.routed p = true ∧
     (run { p with confirmationByOrder := false } bad cancellationTrace).m.destroyed = true := by decide
+
+/-- A backward observation arms the reference; the rate disappears, then more than an
+interval passes without a derivation before the sweep and worker try to cancel. -/
+def noRateAgeTrace : List Fence.Event :=
+  [.rederive 99 (some 7), .rateLost, .advance 61] ++ cancellationTrace
+
+/-- `LDG-16`: "Under a discharge keyed to acceptance order, no rate means no discharge and the
+machine waits". The withdrawn age discharge destroys the disk without another observation;
+the guarded wait ends when a later accepted observation leaves the date in the past. -/
+@[req "LDG-16"]
+theorem no_rate_age_discharge_witness :
+    let p := Fence.current
+    let good := run p horizonWorld noRateAgeTrace
+    let bad := run { p with noAgeDischarge := false } horizonWorld noRateAgeTrace
+    good.m.rateConfirmationRef = some 7 ∧ good.routed p = false ∧
+    good.m.destroyed = false ∧
+    bad.m.rateConfirmationRef = some 7 ∧ bad.routed { p with noAgeDischarge := false } = true ∧
+    bad.m.destroyed = true ∧
+    (run p good [.rateRestored 1, .rederive 99 (some 8)]).routed p = true := by decide
 
 /-- The restored machine's stored date has already passed. -/
 def restoreGraceWorld : World := { fenceWorld with now := 100 }
@@ -414,10 +434,10 @@ theorem observation_keeps_restore_grace_witness :
     let initial := restoreGraceWorld
     let good := run p initial restoreObservationTrace
     let bad := run { p with observationKeepsDeadline := false } initial restoreObservationTrace
-    good.m.destroyNotBefore = some 160 ∧ good.routed = false ∧
+    good.m.destroyNotBefore = some 160 ∧ good.routed p = false ∧
     (run p good cancellationTrace).m.destroyed = false ∧
-    (run p good [.advance 58]).routed = true ∧
-    bad.m.destroyNotBefore = none ∧ bad.routed = true ∧
+    (run p good [.advance 58]).routed p = true ∧
+    bad.m.destroyNotBefore = none ∧ bad.routed p = true ∧
     (run { p with observationKeepsDeadline := false } bad cancellationTrace).m.destroyed = true := by decide
 
 /-- Ordinary wobble from two hours out to one hour fifty, then a later poisoned observation
@@ -436,9 +456,9 @@ theorem backward_never_confirms_witness :
     let good := run p wobbleWorld wobbleThenPoisonTrace
     let bad := run { p with backwardCannotConfirm := false } wobbleWorld wobbleThenPoisonTrace
     (run p wobbleWorld [.rederive 6700 (some 7)]).m.rateConfirmationRef = some 7 ∧
-    good.m.rateConfirmationRef = some 8 ∧ good.routed = false ∧
+    good.m.rateConfirmationRef = some 8 ∧ good.routed p = false ∧
     (run p good cancellationTrace).m.destroyed = false ∧
-    bad.m.rateConfirmationRef = none ∧ bad.routed = true ∧
+    bad.m.rateConfirmationRef = none ∧ bad.routed p = true ∧
     (run { p with backwardCannotConfirm := false } bad cancellationTrace).m.destroyed = true := by decide
 
 /-- `LDG-16`: "A move of a date that had already passed arms nothing" and "Natural expiry
@@ -449,11 +469,11 @@ theorem rederivation_edges_witness :
     let p := setterGuards Fence.current
     let armed := run p horizonWorld [.rederive 99 (some 7)]
     (run p horizonWorld [.advance 121]).m.rateConfirmationRef = none ∧
-    (run p horizonWorld [.advance 121]).routed = true ∧
+    (run p horizonWorld [.advance 121]).routed p = true ∧
     (run p { horizonWorld with now := 220 } [.rederive 98 (some 8)]).m.rateConfirmationRef = none ∧
     (run p armed [.rederive 98 (some 7)]).m.rateConfirmationRef = some 7 ∧
     (run p armed [.rederive 98 (some 6)]).m.rateConfirmationRef = some 7 ∧
-    (run p armed [.rederive 98 (some 8)]).routed = true ∧
+    (run p armed [.rederive 98 (some 8)]).routed p = true ∧
     (run p armed [.rederive 200 (some 8)]).m.rateConfirmationRef = none ∧
     (run p armed [.rederive 200 (some 7)]).m.rateConfirmationRef = some 7 ∧
     (run p armed [.advance 61, .rederive 0 none]).m = armed.m := by decide
@@ -470,7 +490,7 @@ theorem restore_preserves_reference_and_bypasses_wait :
     armed.m.rateConfirmationRef = some 7 ∧ armed.m.destroyNotBefore = some 160 ∧
     (run p armed [.rederive 99 (some 8)]).m.rateConfirmationRef = none ∧
     (run p armed [.rederive 99 (some 8)]).m.destroyNotBefore = some 160 ∧
-    (run p armed [.rederive 99 (some 8)]).routed = false ∧
+    (run p armed [.rederive 99 (some 8)]).routed p = false ∧
     suspended.m.destroyed = false ∧ outage.m.destroyed = false ∧
     (run p suspended [.advance 60, .providerDelete true (some true)]).m.destroyed = true ∧
     (run p outage [.advance 60, .providerDelete true (some true)]).m.destroyed = true := by decide

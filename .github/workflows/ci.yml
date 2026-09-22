@@ -330,6 +330,8 @@ jobs:
       #     observation_keeps_restore_grace_witness on restoreObservationTrace;
       #   backwardCannotConfirm (2026-09-21): a later poisoned backward move confirms itself --
       #     backward_never_confirms_witness on wobbleThenPoisonTrace;
+      #   noAgeDischarge (2026-09-05, withdrawn 2026-09-21): an armed mark ages out without a rate --
+      #     no_rate_age_discharge_witness on noRateAgeTrace;
       #   retryGuard (2026-09-09): a plain retry write reopens a closed episode --
       #     retry_guard_witness.
       # The restore (pv-vwe.11, ADR-0023), Restore.current, the same shape:
@@ -460,6 +462,7 @@ jobs:
           Fence|confirmationByOrder|true|false|reusedObservationTrace
           Fence|observationKeepsDeadline|true|false|restoreObservationTrace
           Fence|backwardCannotConfirm|true|false|wobbleThenPoisonTrace
+          Fence|noAgeDischarge|true|false|noRateAgeTrace
           Fence|retryGuard|true|false|goneAfterStallTrace ++
           Restore|quarantineOnRestore|true|false|Event.startupPass, Event.claim { n := 0 }
           Restore|exceptionFrozen|true|false|Event.confirmParents, Event.claim { n := 1 }

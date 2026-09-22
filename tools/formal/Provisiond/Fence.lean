@@ -131,8 +131,12 @@ disjunct, "`IS NULL` alone until 2026-09-02". The setter's 2026-09-21 guards (`L
 `armWinsFutureClear`, "Where one write would both arm it and clear it, the arm wins";
 `confirmationByOrder`, "a greater acceptance order, never a later instant and never elapsed time";
 `observationKeepsDeadline`, "wall clock, and no observation discharges it";
-`backwardCannotConfirm`, "A backward move never confirms itself". Their off positions retain
-withdrawn traps, not alternative current rules (`ADR-0026`). `retryGuard`: `OPS-48`, 2026-09-09,
+`backwardCannotConfirm`, "A backward move never confirms itself".
+`noAgeDischarge`: the 2026-09-05 age discharge, withdrawn 2026-09-21 (`LDG-16`:
+"a mark discharged by **age** re-opens the case of 2026-09-05"); its off position routes an
+armed reference once the mark is "older than one re-derivation interval" (`ADR-0026`).
+Their off positions retain withdrawn traps, not alternative current rules (`ADR-0026`).
+`retryGuard`: `OPS-48`, 2026-09-09,
 `retry` as "a conditional write on `(id, state = stalled)`". -/
 structure Params where
   recheckInsideFence   : Bool
@@ -148,6 +152,7 @@ structure Params where
   confirmationByOrder  : Bool
   observationKeepsDeadline : Bool
   backwardCannotConfirm : Bool
+  noAgeDischarge       : Bool
   retryGuard           : Bool
   deriving DecidableEq, Repr
 
@@ -169,6 +174,7 @@ def current : Params := {
     confirmationByOrder  := true,
     observationKeepsDeadline := true,
     backwardCannotConfirm := true,
+    noAgeDischarge       := true,
     retryGuard           := true }
 
 /-- What this attempt writes into the fence column. -/
@@ -232,19 +238,27 @@ def World.deadlinePassed (w : World) : Bool :=
   | some deadline => deadline ≤ w.now
 
 /-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
-passed, its `rate_confirmation_ref` is null and its `destroy_not_before` is null or past". -/
+passed, its `rate_confirmation_ref` is null and its `destroy_not_before` is null or past".
+The withdrawn age discharge lives here because `sweep` routes on this predicate and nothing
+else. Putting the off branch in `sweep`, or selecting a second predicate there, would leave
+the named carrier intact while the control broke an unnamed extra guard. -/
 @[req "LDG-16"]
-def World.routed (w : World) : Bool :=
-  w.m.runwayUntil ≤ w.now && w.m.rateConfirmationRef.isNone && w.deadlinePassed
+def World.routed (w : World) (p : Params) : Bool :=
+  let confirmed := match w.m.rateConfirmationRef with
+    | none => true
+    | some _ => !p.noAgeDischarge && w.legacyArmedAt + w.interval < w.now
+  w.m.runwayUntil ≤ w.now && confirmed && w.deadlinePassed
 
-/-- `LDG-65`: "cancelled normally — unless its `rate_confirmation_ref` is armed". An armed
-reference refuses routing for every rate state, including `none`; rate availability is absent
-from `World.routed`, so this is a property of that predicate, not another guard. -/
+/-- `LDG-65`: "cancelled normally — unless its `rate_confirmation_ref` is armed". With
+`noAgeDischarge` on, an armed reference refuses routing for every rate state, including `none`;
+rate availability is absent from `World.routed`, so this is a property of that predicate,
+not another guard. -/
 @[req "LDG-65"]
-theorem armed_reference_not_routed (w : World) (order : Nat)
+theorem armed_reference_not_routed (p : Params) (ha : p.noAgeDischarge = true)
+    (w : World) (order : Nat)
     (h : w.m.rateConfirmationRef = some order) (rate : Option Nat) :
-    ({ w with rate := rate }).routed = false := by
-  simp [World.routed, h]
+    ({ w with rate := rate }).routed p = false := by
+  simp [World.routed, ha, h]
 
 /-- The result is a state, not a pair of arm/clear commands: a reference cannot be both set and
 cleared by the same write. The deadline is a separate fact on a separate clock (`ADR-0026`). -/
@@ -289,7 +303,8 @@ def rederiveFacts (p : Params) (oldDate newDate : Nat) (observation : Option Nat
           if (if p.confirmationByOrder then prior < order
               else clock.legacyArmedAt + clock.interval < clock.now) then none else some prior
     { rateConfirmationRef := reference,
-      destroyNotBefore := if p.observationKeepsDeadline then facts.destroyNotBefore else none }
+      destroyNotBefore := if p.observationKeepsDeadline || reference.isSome then facts.destroyNotBefore
+                          else none }
 
 /-- `LDG-16`: "Where one write would both arm it and clear it, the arm wins" and
 "A backward move never confirms itself", including a later order and a future new date. -/
@@ -449,8 +464,8 @@ def sweep (p : Params) (w : World) : World :=
     if ep.state == .stalled && w.phase == .idle && w.attempt.all Attempt.done
         && p.abort w.m.commitment w.prot r then
       applyRow w ep (.sweepFunded w.suspended)
-    else if w.routed && !w.m.gone then enqueue w .exhausted else w
-  | _, _ => if w.routed && !w.m.gone then enqueue w .exhausted else w
+    else if w.routed p && !w.m.gone then enqueue w .exhausted else w
+  | _, _ => if w.routed p && !w.m.gone then enqueue w .exhausted else w
 
 /-- `OPS-8`: the claim, through the claim model, taking the rate snapshot the re-check will read.
 A row that is not `queued` is not claimed. -/
