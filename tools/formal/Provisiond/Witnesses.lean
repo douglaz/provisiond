@@ -346,7 +346,8 @@ theorem two_fact_routing_witness :
     ({ base with m := { base.m with runwayUntil := 101 } }).routed p = false := by decide
 
 /-- Each setter control fixes its neighbouring guards so a flip has exactly its own red build.
-The values are the hypotheses of the setter theorems, not an alternative rule. -/
+The values are hypotheses of the setter theorems and `armed_reference_not_routed`, not an
+alternative rule. -/
 def setterGuards (p : Params) : Params :=
   { p with armWinsFutureClear := true, confirmationByOrder := true,
            observationKeepsDeadline := true, backwardCannotConfirm := true, noAgeDischarge := true }

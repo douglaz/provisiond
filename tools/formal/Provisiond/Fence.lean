@@ -32,8 +32,9 @@ scopes by reason.
 Re-derivation consumes an optional per-currency acceptance order (`STO-49`); no observation is
 `LDG-40`'s halt. The caller supplies the date computed by `LDG-33`; source aggregation, currency
 selection and rate arithmetic are outside this transition. `advance` moves wall clock without
-writing either fact. `legacyArmedAt` is ghost history for the withdrawn age control only, not a
-machine column: under `confirmationByOrder` its value cannot affect either fact.
+writing either fact. `legacyArmedAt` is ghost history for the withdrawn age controls in
+`rederiveFacts` and `World.routed`, not a machine column: under `current`, both
+`confirmationByOrder` and `noAgeDischarge` are on, so its value affects neither fact nor routing.
 
 What the model omits: the first 2026-09-05 form of
 the suspension exemption, keyed on the attempt's own reason; a second attempt enqueued while one is
@@ -212,7 +213,8 @@ structure World where
   now        : Nat
   /-- One re-derivation interval (`LDG-16`). -/
   interval   : Nat
-  /-- Ghost history for the withdrawn elapsed-time test; never a durable exhaustion fact. -/
+  /-- Ghost history for the withdrawn elapsed-time tests in `rederiveFacts` and `World.routed`;
+  inert under `current` as described above, never a durable exhaustion fact. -/
   legacyArmedAt : Nat := 0
   /-- `LDG-59`'s rate, whole satoshis per second, and `none` while "there is no rate" (`LDG-64`). -/
   rate       : Option Nat
@@ -239,15 +241,17 @@ def World.deadlinePassed (w : World) : Bool :=
 
 /-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
 passed, its `rate_confirmation_ref` is null and its `destroy_not_before` is null or past".
-The withdrawn age discharge lives here because `sweep` routes on this predicate and nothing
-else. Putting the off branch in `sweep`, or selecting a second predicate there, would leave
-the named carrier intact while the control broke an unnamed extra guard. -/
+The withdrawn age discharge lives here because `sweep` is "routed on
+the **stored** date and `LDG-16`'s facts (`World.routed`) and on nothing else".
+Putting the off branch in `sweep`, or selecting a second predicate there, would leave the
+carrier named in `Admission.lean:66-69` — "`rederiveFacts` (the no-observation branch) and
+`World.routed`" — intact while the control broke an unnamed extra guard. -/
 @[req "LDG-16"]
 def World.routed (w : World) (p : Params) : Bool :=
-  let confirmed := match w.m.rateConfirmationRef with
+  let referenceNull := match w.m.rateConfirmationRef with
     | none => true
     | some _ => !p.noAgeDischarge && w.legacyArmedAt + w.interval < w.now
-  w.m.runwayUntil ≤ w.now && confirmed && w.deadlinePassed
+  w.m.runwayUntil ≤ w.now && referenceNull && w.deadlinePassed
 
 /-- `LDG-65`: "cancelled normally — unless its `rate_confirmation_ref` is armed". With
 `noAgeDischarge` on, an armed reference refuses routing for every rate state, including `none`;
@@ -281,8 +285,9 @@ whose own write does not arm it again". The optional observation is an acceptanc
 currency; `none` is the halted pass. "Re-derivation's own write is not one: it discharges the
 reference on the terms above and never touches the deadline." The branches are exhaustive.
 Off-guard branches retain the traps named in `Params`: clear wins,
-elapsed age substitutes for observation order, an observation ends grace, or a backward move
-confirms itself. No cancellation bypass belongs to this function. -/
+elapsed age substitutes for observation order, an observation whose write leaves the reference
+slot empty ends grace, or a backward move confirms itself. No cancellation bypass belongs to
+this function. -/
 @[req "LDG-16"]
 def rederiveFacts (p : Params) (oldDate newDate : Nat) (observation : Option Nat)
     (clock : DerivationClock) (facts : ExhaustionFacts) : ExhaustionFacts :=
