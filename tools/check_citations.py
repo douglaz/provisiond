@@ -18,7 +18,13 @@ TWO RULES, deliberately narrow.
 
   QUOTED   A quoted phrase attributed to `X` must appear in X's own body.
            Hard failure: the quote either occurs there or it does not, so a
-           finding is provable and needs no judgement.
+           finding is provable and needs no judgement. Reads the Markdown
+           documents and /-- ... -/ and /-! ... -/ docstrings under tools/formal/,
+           excluding .lake/. The Lean residue is ratcheted in
+           citation-baseline.json's quoted_attributions, keyed by file:id:quote
+           with the full normalized quote; its note owns the causes and exits.
+           On 2026-09-15 a Lean docstring quoting withdrawn wording stayed green
+           for a day, motivating the Lean QUOTED pass.
 
   UNQUOTED "`X` says/states/reads ..." with no quote at all is unverifiable by
            construction. Ratcheted against `citation-baseline.json` rather than
@@ -39,9 +45,8 @@ WHAT THIS DOES NOT CATCH, stated plainly because a gate's limits are part of its
 contract: a wrong SUMMARY. "`WIR-30` forbids the server resolving eligibility
 that way" reverses `WIR-30`'s meaning, uses a summary verb, and carries no
 quote -- no lexical signal separates it from a correct summary. That one was the
-worst defect of 2026-09-03 and it stays a review problem. Nor a quote inside a Lean
-docstring under tools/formal/: this gate reads *.md only, and a docstring quoting
-withdrawn wording stayed green for a day on 2026-09-15.
+worst defect of 2026-09-03 and it stays a review problem. Lean docstrings participate
+only in QUOTED: they supply neither requirement bodies nor UNQUOTED or NAMES input.
 
 A third rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
 
@@ -56,7 +61,7 @@ A third rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
            runs first; a missing index is a red gate, not a skipped rule.
 
 Exit 0 = clean, 1 = an unverifiable quote, an unresolved name or a rise above
-the baseline, 2 = the index is missing.
+the baseline or a failed extractor case, 2 = the index is missing.
 """
 
 import glob
@@ -145,6 +150,51 @@ def load(rev=None):
     return docs, adr, reqs
 
 
+def docstrings(text):
+    """Yield Lean doc comments, respecting nested block comments.
+
+    Skip literals and line comments outside blocks so quoted or commented-out
+    delimiters cannot become docstrings. Quotes inside blocks have no effect.
+    Separate blocks stay separate sentences.
+    """
+    string = r'"(?:\\.|[^"\\])*"'
+    raw = r'r(?P<hashes>#*)".*?"(?P=hashes)'
+    char = r"'(?:\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|.)|[^'\\])'"
+    tokens = re.compile(raw + '|' + char + '|' + string + r'|--[^\n]*|/-', re.S)
+    delimiters = re.compile(r'/-|-/')
+    pos = 0
+    while m := tokens.search(text, pos):
+        pos = m.end()
+        if m.group() != '/-':
+            continue
+        is_doc = text[pos:pos + 1] in ('-', '!')
+        start, depth = pos + 1, 1
+        while depth:
+            end = delimiters.search(text, pos)
+            if end is None:
+                raise ValueError('unterminated Lean block comment')
+            if end.group() == '/-':
+                depth += 1
+            elif end.group() == '-/':
+                depth -= 1
+            pos = end.end()
+        if is_doc:
+            yield text[start:end.start()]
+
+
+def load_lean_docstrings():
+    """Keep Lean prose separate from load()'s requirement and name sources."""
+    docs = {}
+    for directory, dirs, files in os.walk(os.path.join(ROOT, 'tools', 'formal')):
+        dirs[:] = sorted(d for d in dirs if d != '.lake')
+        for name in sorted(files):
+            if name.endswith('.lean'):
+                path = os.path.join(directory, name)
+                with open(path) as source:
+                    docs[os.path.relpath(path, ROOT)] = '\n\n'.join(docstrings(source.read()))
+    return docs
+
+
 def find(docs, adr, reqs):
     """Return (unverified_quotes, unquoted_attributions)."""
     bad, unquoted = [], []
@@ -182,8 +232,43 @@ def find(docs, adr, reqs):
                 frags = [x for x in
                          (p.strip() for p in re.split(r"\.\.\.|…", norm(q))) if x]
                 if not any(all(fr in p for fr in frags) for p in pool):
-                    bad.append((f, owner, norm(q)[:95]))
+                    bad.append((f, owner, norm(q)))
     return bad, unquoted
+
+
+def check_docstrings():
+    """Check the extractor before trusting it with the specification artifacts.
+
+    The quoted-closer case is omitted: Lean rejects that source because a quote
+    does not escape a comment delimiter, so check_formal.sh owns it.
+    """
+    good = ' `OPS-41` says "metered through the outage". '
+    cases = [
+        ('module docstring', '/-! Module documentation. -/', [' Module documentation. ']),
+        ('character literal', '''def c : Char := '"' ''', []),
+        ('raw string', 'def s : String := r#"a " quote"#', []),
+        ('string with closer', 'def s : String := "ends -/ here"', []),
+        ('non-doc comment with odd quote', '/- A 5" disk note -/', []),
+        ('docstring with odd quote', '/-- A 5" disk. -/\ndef b : String := "x"',
+         [' A 5" disk. ']),
+        ('nested comment', '/-- Outer /- inner -/ tail. -/\ndef first := 0',
+         [' Outer /- inner -/ tail. ']),
+        ('commented-out opener', '-- /-- a commented-out opener', []),
+    ]
+    for name, prefix, first in cases:
+        text = f'{prefix}\n/--{good}-/\ndef after1 := 0\n/--{good}-/\ndef after2 := 0\n'
+        try:
+            assert list(docstrings(text)) == first + [good, good], name
+            # A misquote after each construct must still reach QUOTED.
+            wrong = text.replace('metered through the outage', 'billed through the blackout')
+            bad, _ = find({'probe.lean': '\n\n'.join(docstrings(wrong))}, '',
+                          {'OPS-41': ('probe.md', 'metered through the outage')})
+            assert len(bad) == 2, (name, bad)
+        except (AssertionError, ValueError) as exc:
+            print(f'FAIL: {name}: {exc}')
+            return 1
+        print(f'PASS: {name}: following docstrings intact; both misquotes detected')
+    return 0
 
 
 def read_index():
@@ -218,8 +303,21 @@ def unresolved(docs, adr):
 
 
 def main():
+    if check_docstrings():
+        return 1
     docs, adr, reqs = load()
     bad, unquoted = find(docs, adr, reqs)
+    lean_bad, _ = find(load_lean_docstrings(), adr, reqs)
+    try:
+        with open(BASELINE) as source:
+            quoted_base = set(json.load(source).get("quoted_attributions", []))
+    except (OSError, ValueError, TypeError, AttributeError):
+        # Without a readable baseline there are no exemptions, so ratcheted residue
+        # surfaces as findings and fails the gate before the unquoted initializer.
+        quoted_base = set()
+    lean_new = [(f, rid, q) for f, rid, q in lean_bad
+                if f"{f}:{rid}:{q}" not in quoted_base]
+    bad += lean_new
     for f, rid, q in bad:
         print(f"  {f} attributes to {rid} a phrase {rid} does not contain:")
         print(f'      "{q}"')
@@ -228,6 +326,7 @@ def main():
               f"requirement's own words, or cite it without quoting.")
         return 1
     print(f"quoted attributions verified: clean")
+    print(f"Lean quoted attributions: {len(lean_bad)}, none new against baseline {len(quoted_base)}")
 
     dangling = unresolved(docs, adr)
     for f, n in dangling:
