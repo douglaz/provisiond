@@ -293,11 +293,20 @@ cost, and the one component entirely lost if a customer vanishes immediately.
 _Avoid_: onboarding fee, installation fee, deposit
 
 **Rate**:
-What a satoshi is worth in a provider's billing currency. The median of several independent
-sources (`LDG-58`), never one venue's price. **The only external input that can reach a customer's
-disk**: understate the satoshi and solvent customers look exhausted, after which `LDG-14` cancels
-and destroys.
+What a satoshi is worth in a provider's billing currency: the lower median of the **rate
+observations** accepted inside the **window** (`ADR-0027`) — a price some pass accepted, chosen by
+the window and set by no single pass, never one venue's price. **The only external input that can
+reach a customer's disk**: understate the satoshi and solvent customers look exhausted, after which
+`LDG-14` cancels and destroys — which is why one observation cannot move it outside what the
+others carry.
 _Avoid_: price (that is what a customer pays), spot, exchange rate, oracle
+
+**Window**:
+The accepted **rate observations** whose `observed_at` lies inside the last window-length before
+now; the **rate** is their median. Its length is stated per deployment and per billing currency, as
+the **quorum** is (`ADR-0027`). A window with no observation inside the staleness bound, or with
+fewer than three observations, is **no rate**.
+_Avoid_: history, buffer, lookback, average (a median is a selection, not a blend)
 
 **Quorum**:
 The fewest live, non-excluded rate sources that still produce a rate. Below it there is **no
@@ -305,17 +314,19 @@ rate** — not a stale one, not the last known good one — and `LDG-40`'s halt 
 _Avoid_: threshold, minimum sources
 
 **Rate observation**:
-One accepted **rate**: the median `LDG-58` produced from a pass's surviving sources, recorded by
-`STO-49` before that rate is used for anything. One source's number is not an observation; it is an
-input to one.
+One pass's accepted price: the median `LDG-58` produces from the pass's surviving sources,
+recorded by `STO-49` before it is used for anything. One source's number is not an observation; it
+is an input to one. One observation is not the **rate**; it is an input to that.
 _Avoid_: reading, sample, tick, quote (each is one source's, not the accepted median)
 
 **Derivation**:
-One recomputation of a machine's `runway_until` from its commitment and a **rate observation**
-(`PRV-13e`, `LDG-33`). **A derivation is not an observation, and the difference is what a
-confirmation rule turns on**: a derivation's instant says when provisiond computed, an observation's
-identity says which price it used, and two derivations an interval apart can consume the same
-observation. Re-derivation runs on an interval and does not imply a new observation.
+One recomputation of a machine's `runway_until` from its commitment and the **rate**
+(`PRV-13e`, `LDG-33`). **A derivation is not an observation**: a derivation's instant says when
+provisiond computed, an observation's identity says which price a pass accepted, and the rate a
+derivation uses is the **window**'s median — so two derivations an interval apart can consume the
+same observation, may use the same rate, and one observation cannot move that rate outside what
+the window's others carry. Re-derivation runs on an interval and does not imply a
+new observation.
 _Avoid_: re-pricing, recalculation, refresh (that is `DOM-8`'s read of the provider)
 
 **Channel ceiling**:
@@ -397,6 +408,13 @@ isolation) — never "account".
 dedicated machine schedules an end date and the machine keeps running and keeps billing until
 it arrives (`DOM-19`, `cancellation_scheduled`). Use **cancel** whenever an end date is
 involved, and reserve **delete** for gone-and-not-billing.
+
+**"Exposure-reducing cancellation" is the set's umbrella for the system's own destruction
+paths**, whichever provider verb one ends in. `OPS-41` says "A worker executing **any**
+exposure-reducing cancellation". `OPS-39` says "For an exposure-reducing cancellation the key is
+the action, `delete`, not the `system_reason`". The rule above governs the provider verbs; this
+term names the class. The thing enqueued under an **episode** is an **attempt**, never "a
+cancellation".
 
 **A balance is not custody, and the wording is load-bearing.** The operator never holds bitcoin
 *for* a customer; title passes on receipt and the customer holds a claim to compute. Never write

@@ -1,6 +1,7 @@
 # The exhaustion mark is two facts — an observation to confirm against, and a deadline — and neither one is a derivation instant
 
-**Status:** accepted (2026-09-21). The rules are `LDG-16`, `PRV-13e`, `LDG-65`, `STO-54` and
+**Status:** superseded in part by `ADR-0027` (2026-09-23) — the rate confirmation reference is
+withdrawn; the destruction deadline stands. Accepted 2026-09-21. The rules are `LDG-16`, `PRV-13e`, `LDG-65`, `STO-54` and
 `STO-49`, with the schema row in `05-persistence.md`. Supersedes the single
 `machines.exhausted_since` column added 2026-09-05 and amended by `ADR-0023` on 2026-09-12. Answers
 the open decision that session recorded and never closed — *should this column exist at all?*
