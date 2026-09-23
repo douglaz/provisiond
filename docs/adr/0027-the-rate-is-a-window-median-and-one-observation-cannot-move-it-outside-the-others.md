@@ -80,7 +80,12 @@ create-time price, the solvency check. One rate, one home.
   nothing** (*amended 2026-09-23, the day of acceptance*): it accepts no observation and recomputes
   nothing, so the rate in force holds; `LDG-59`'s quorum decides whether a pass accepts an
   observation, and **no rate** arises only from the window — nothing inside the staleness bound, or
-  fewer than three observations. *The first draft and `pv-gip.1` kept the per-pass halt beside the
+  fewer than three observations. The two are tested on different clocks (*clarified 2026-09-23,
+  from the review of `pv-gip.3`*): staleness continuously, so a feed that falls silent halts between
+  passes rather than holding its last rate; thinness at the pass that computes the rate, because at
+  the minimum window of three passes the oldest observation ages out just before each new one
+  arrives, and a continuous count would drop the rate between passes in steady state. *The first
+  draft and `pv-gip.1` kept the per-pass halt beside the
   window; the owner withdrew it, since it handed whoever can disrupt one pass a halt they never
   had, and the window exists to absorb exactly that pass.* After an outage shorter than
   the window, the first fresh observation restores a rate whose older half is pre-outage prices —
