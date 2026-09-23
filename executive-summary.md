@@ -298,8 +298,8 @@ money or stop the service — *"This one reaches the customer's data."* Hence a 
 three genuinely independent sources, staleness bounds, outlier exclusion, a source set fixed at
 deployment, and a quorum below which there is **no rate** — never a stale one, never last-known-good.
 The final guard is the window (`LDG-58`): the rate is a median over a window of accepted
-observations, and `LDG-16` promises that a transient bad observation moves it "no further than to a
-neighbouring price some honest pass in the window accepted" — and no more.
+observations, and `LDG-16` says "no single rate observation moves the rate outside the range the
+window's other observations carry" — and "It promises no more than that."
 
 **Losses that cannot be billed have a home.** An **operator deficiency** is a durable
 *non-ledger* record, in native currency, for costs the customer must not pay — a rate outage, a

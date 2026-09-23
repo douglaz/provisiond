@@ -336,9 +336,14 @@ makes `PRV-13c`'s "materially in the future" a few hours plus wind-down, and `ru
 more than an hour stale. The floor is the cost of the pass itself; the ceiling is a machine's
 runway: **the interval MUST stay small against a machine's runway**, since a machine can drain its
 whole commitment inside one interval and nothing would notice. **The interval is not the rate
-window.** The window is `LDG-58`'s, twenty-four hours by default, and is the span the rate is taken
-over; the interval, hourly by default, is how stale `runway_until` may be. They are two different
-spans, the bound above is on the interval alone, and a default window is longer than many runways.
+window** (added 2026-09-23, `ADR-0027`). The window is `LDG-58`'s, which states its default, and is
+the span the rate is taken over; the interval, hourly by default, is how stale `runway_until` may
+be. They are two different spans, the bound above is on the interval alone, and a window may be
+longer than a machine's runway. *Withdrawn 2026-09-23 (`ADR-0027`): the hourly default "makes
+`LDG-16`'s persistence window a couple of hours", and "the ceiling is `LDG-16`'s window, which MUST
+stay small against a machine's runway". Both called the interval `LDG-16`'s window; once the rate
+is taken over `LDG-58`'s window, that name reads as the rate window, and the ceiling binds the wrong
+span.*
 
 **The billing period and the re-derivation interval are different quantities and MUST NOT be
 derived from each other.** The period is a **boundary** for the meter's arithmetic
@@ -353,10 +358,10 @@ bad rate reading grabs every tenant's available balance.* Where the recomputed r
 run out, the machine enters the same
 balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
 MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to
-become insufficient. **No single rate observation moves the rate outside what the window's other
-observations carry, and a rate outside the range of prices honest passes produced needs at least
-half the window's observations to lie at or beyond it** — both consequences of the rate being
-`LDG-58`'s lower median over its window, and `LDG-16` owns the promise they keep.
+become insufficient. `LDG-16` says both that "no single rate observation moves the rate outside the
+range the window's other observations carry" and that "a plausible price carried by half the window
+can move the rate to itself" — both consequences of the rate being `LDG-58`'s lower median over its
+window, and `LDG-16` owns the promise they keep.
 
 *The per-tick increase cap that stood here is **withdrawn** with the resizing it governed
 (`LDG-16`): under `ADR-0011` nothing increases per tick, so capping the increase capped nothing.

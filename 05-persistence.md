@@ -582,9 +582,10 @@ subject's currency. **One row per rate observation
 the deployment accepts** (`LDG-58`'s median of one pass's sources), **written before that rate is
 used for anything**, and retained at least until every subject **with an open increment** has closed
 one past its `observed_at` — a stopped subject closes no further increment and must not pin the
-table forever — **and never less than one window per currency**: no row is pruned while its
-`observed_at` lies inside its currency's window (`LDG-58`), since the rate is taken over exactly
-those rows.
+table forever — **and never less than one window per currency** (added 2026-09-23, `ADR-0027`): no
+row is pruned while its `observed_at` lies inside its currency's window (`LDG-58`), since the rate
+is taken over exactly those rows. *The retention the rate confirmation reference needed went with
+the reference, 2026-09-23 (`ADR-0027`).*
 
 *Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
 self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
@@ -593,8 +594,8 @@ rate observed half-way through an increment and a crash before the tick left res
 boundary: `LDG-38`'s split, the rule that no increment is ever re-priced, could not survive a
 restart, and the whole increment posted at whichever rate restart found first.*
 
-**AMENDED 2026-09-21 (`ADR-0026`) — `acceptance_order` is the order rows were accepted in, and
-`observed_at` is not.** A **per-currency integer, transactionally increasing and never
+**AMENDED 2026-09-21 (`ADR-0026`) — `acceptance_order` is what "later" means here, and
+`observed_at` cannot be.** A **per-currency integer, transactionally increasing and never
 reused**, allocated in the transaction that writes the row. The unique constraint
 above refuses a repeated `(currency, observed_at)` and nothing else: no rule in this set makes
 `observed_at` increase across rows, so a source clock that steps back, or a pass that reads early
@@ -1201,7 +1202,15 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   `destroy_not_before` set to **the restore instant plus one re-derivation interval** — `LDG-16`'s
   own grace for a date moved backward by something other than consumption, written as the deadline
   itself rather than as a start, so that a second run of an unmarked step cannot re-apply it from a
-  fresh clock (`LDG-64` persists its deadline for the same reason). (2) *Before the first claim:*
+  fresh clock (`LDG-64` persists its deadline for the same reason) — *withdrawn 2026-09-23
+  (`ADR-0027`), with the reference: "and **any `rate_confirmation_ref` already present is
+  preserved**, because a restore is not an observation and discharges nothing"* (*amended
+  2026-09-21, `ADR-0026`: the withdrawn form set `exhausted_since` to the restore instant, one slot
+  serving both this grace and the confirmation wait, which is why re-running this step could
+  "backdate an `exhausted_since` a later re-derivation had set" — `ADR-0023`'s own reason for the
+  step marks. Two facts cannot collide in one slot, and re-keying that slot to an observation
+  instead was refused because a rate arriving seconds after a restore would then end the
+  grace*). (2) *Before the first claim:*
   every `queued` create, install and rescue inventory is moved to `needs_reconciliation` — a repeat
   is a second order, a second disk write, a second boot into rescue — and `OPS-27` establishes what
   happened rather than doing it again; the goal-state kinds (delete, power, end-rescue, release

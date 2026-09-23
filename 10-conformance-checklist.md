@@ -410,14 +410,18 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-97** — No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
 - [ ] **CNF-98** — Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
-- [ ] **CNF-99** — One adverse rate observation moves the rate no further than to a neighbouring
-      price an honest pass in the window accepted, and a window that cannot produce a rate halts
-      instead of pricing. **Asserted through the mechanism, not the outcome** (2026-09-05;
-      rewritten 2026-09-21 for `ADR-0026` and 2026-09-23 for `ADR-0027`): assert the rate itself,
-      not only whether a disk survived. **One poisoned pass among honest ones**: fill a window with
-      five honest observations at distinct prices, replace any one with a print far below them all,
-      and assert the rate is the honest rate or the honest price one step below it — never the
-      print. **A print carried by half the window**: fill a window with four observations, two of
+- [ ] **CNF-99** — One adverse rate observation keeps to `LDG-16`'s bound — `LDG-16` says "no
+      single rate observation moves the rate outside the range the window's other observations
+      carry" — and a window that cannot produce a rate halts instead of pricing. **Asserted through
+      the mechanism, not the outcome** (2026-09-05; rewritten 2026-09-21 for `ADR-0026` and
+      2026-09-23 for `ADR-0027`): assert the rate itself, not only whether a disk survived. **One
+      poisoned pass among honest ones**, in three shapes, each asserting that the rate lies inside
+      the range the remaining honest observations carry: fill a window with five honest
+      observations at distinct prices and replace any one with a print far below them all; fill it
+      again and replace any one with a print far above them all; and fill a window with honest
+      observations at 100, 103 and 104, replace the 103 with 101.5, and assert the rate reads
+      101.5 — a price no honest pass accepted, inside the honest range. **A print carried by half
+      the window**: fill a window with four observations, two of
       them at one print below every honest price, and assert the rate is that print. **A window
       with no fresh observation**: let every observation inside the window age past the staleness
       bound and assert there is no rate, observed as `CNF-138` observes it from dead sources. **A

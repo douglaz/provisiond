@@ -264,8 +264,9 @@ setup fee — violating `LDG-10`, which then requires the fee-post itself to fai
 name**, and both independent reviewers found it.*
 
 **The decrement clamps at zero and the excess is the operator's.** Where a debit exceeds the
-commitment's remaining amount — reachable through the wind-down window and a resolved-observed setup
-fee against a still-open commitment (`LDG-39`) — the commitment decrements to zero, the tenant is
+commitment's remaining amount — reachable through the wind-down window, the rate window's lag
+(`LDG-58`; amended 2026-09-23, `ADR-0027`) and a resolved-observed setup fee against a still-open
+commitment (`LDG-39`) — the commitment decrements to zero, the tenant is
 debited only up to the authority it granted, and the remainder is recorded as an **operator
 deficiency** in the manner of `LDG-63`. It MUST NOT be taken from available balance: that would be
 the automatic seizure `ADR-0011` exists to forbid, arriving through the meter instead of through
@@ -787,8 +788,9 @@ directly above. With 100 exact and 30 of commitment left, a clamped posting debi
 as the operator's; advancing by 30 makes the next 50-unit increment post `ceil(150) − 30 = 120`,
 billing the customer for 70 the operator had already absorbed. The error is **positive**, so no
 fail-closed guard could see it: the meter computes a wrong number correctly, forever. The clamped
-remainder is reachable through the wind-down window (`LDG-31`), so this was an ordinary path, not an
-exotic one. There is no longer a term that could be defined two ways.
+remainder is reachable through the wind-down window (`LDG-31`) and the rate window's lag (`LDG-58`;
+amended 2026-09-23, `ADR-0027`), so this was an ordinary path, not an exotic one. There is no longer
+a term that could be defined two ways.
 
 **A `correction` leaves the meter's state untouched.** It moves the balance, and `r` does not change,
 so the next increment posts `ceil(exact − r)` exactly as it would have and the credit stays with the
@@ -1054,12 +1056,15 @@ continue: it reduces exposure), and **the solvency check** (MUST fail closed).
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
 having no rate at all, and its four answers are unchanged.*
 
-**LDG-41** **AMENDED.** A rate MUST be treated as attacker-influenced input. A manipulated or
-erroneous rate mis-prices the entire fleet simultaneously, so `LDG-58`'s **window median** is a
-security control, not a pricing convenience: a rolling median is a filter, and it is there for the
-observation it filters out. *The per-tick cap this requirement used
+**LDG-41** **AMENDED (`ADR-0011`), and again 2026-09-23 (`ADR-0027`).** A rate MUST be treated as
+attacker-influenced input. A manipulated or erroneous rate mis-prices the entire fleet
+simultaneously, so `LDG-58`'s **window median** is a security control, not a pricing convenience
+(`ADR-0027`). *The per-tick cap this requirement used
 to name alongside it is withdrawn with the commitment resizing it governed (`ADR-0011`,
-`PRV-13e`): nothing increases per tick, so capping the increase capped nothing.*
+`PRV-13e`): nothing increases per tick, so capping the increase capped nothing.* *Withdrawn
+2026-09-23 (`ADR-0027`): "`LDG-16`'s **multi-derivation persistence rule** is a security control,
+not smoothing". It is kept because it reads as sound and was not: the rule it named counted
+derivations, which measured the wrong unit, and `LDG-16` keeps that rule's record.*
 
 **And past those controls it is the only external input that destroys customer data.** A rate that
 understates the satoshi makes solvent customers look exhausted; `LDG-14` then cancels the machine
@@ -1193,6 +1198,17 @@ cancelled normally, and so is a machine that reaches `LDG-64`'s bound; each resp
 destruction deadline like every other exposure-reducing cancellation, since `LDG-16` says one "MUST
 NOT make its provider call while its machine's `destroy_not_before` is in the future". What is
 suspended is *pricing*, not *protection*.
+
+*Withdrawn 2026-09-23 (`ADR-0027`), with the reference: the clause that followed "cancelled
+normally", "— **unless its `rate_confirmation_ref` is armed**, since a rate-induced jump with no
+rate to confirm it is exactly what `LDG-16` withholds until a strictly later observation, and while
+the outage lasts none arrives (2026-09-05; re-keyed to the reference 2026-09-21, `ADR-0026`)", and
+the paragraph after it, "**`LDG-64`'s bound is the one cancellation that proceeds anyway** (added
+2026-09-21, `ADR-0026`). The input that would discharge the reference is the same input whose
+absence triggers that cancellation, so waiting for it would strand exactly the exposure the bound
+exists to cap." With no reference left to discharge, no cancellation waits for a rate, so the
+bound's cancellation is no longer an exception: it proceeds, and respects `LDG-16`'s destruction
+deadline, like every other cancellation.*
 
 **Why there is no ADR for this.** Two of the three tests fail. The trade-off is real and the
 alternatives were considered — a single named exchange, a published reference index, and
@@ -1552,10 +1568,10 @@ one of the two exceptions `ADR-0003`'s amended matching claim names.
 machinery; it reaches the machine by moving `runway_until` (`LDG-33`) into this same exhaustion
 path. A machine MUST be routed into that path while its remaining commitment still covers
 wind-down **at the current rate** — that invariant, not commitment widening, is what keeps the
-operator whole. **A transient bad observation moves the rate (`LDG-58`) no further than to a
-neighbouring price some honest pass in the window accepted, and so cannot destroy a disk that no
-such price would destroy.** **It promises no more than that.** A machine within one honest step of
-exhaustion can be pushed over by that step, and a plausible price carried by half the window can
+operator whole. **No single rate observation moves the rate outside the range the window's other
+observations carry** (`LDG-58`), **so a transient bad observation among honest ones cannot destroy
+a disk that no price inside that range would destroy.** **It promises no more than that.** A
+machine within one honest step of exhaustion can be pushed over by that step, and a plausible price carried by half the window can
 move the rate to itself; no median refuses either. *The per-tick cap on
 commitment adjustment is withdrawn with the adjustment itself. So is "persist across more than one
 derivation", withdrawn 2026-09-21: re-derivation runs on an interval and does not imply a new
