@@ -296,10 +296,11 @@ satoshi makes solvent customers look exhausted, after which cancellation destroy
 `LDG-41` draws the line explicitly: every other external dependency can at worst cost the operator
 money or stop the service — *"This one reaches the customer's data."* Hence a median of at least
 three genuinely independent sources, staleness bounds, outlier exclusion, a source set fixed at
-deployment, and a quorum below which there is **no rate** — never a stale one, never last-known-good.
-The final guard is the window (`LDG-58`): the rate is a median over a window of accepted
-observations, and `LDG-16` says "no single rate observation moves the rate outside the range the
-window's other observations carry" — and "It promises no more than that."
+deployment, a quorum a pass needs to accept an observation, and a window that yields **no rate**
+once it holds nothing fresh or too little — never a stale one, never last-known-good. The final
+guard is the window (`LDG-58`): the rate is a median over a window of accepted observations, and
+`LDG-16` says "no single rate observation moves the rate outside the range the window's other
+observations carry" — and of that bound, "It promises no more than that."
 
 **Losses that cannot be billed have a home.** An **operator deficiency** is a durable
 *non-ledger* record, in native currency, for costs the customer must not pay — a rate outage, a

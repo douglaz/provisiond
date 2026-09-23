@@ -266,11 +266,10 @@ name**, and both independent reviewers found it.*
 **The decrement clamps at zero and the excess is the operator's.** Where a debit exceeds the
 commitment's remaining amount — reachable through the wind-down window, the rate window's lag
 (`LDG-58`; amended 2026-09-23, `ADR-0027`) and a resolved-observed setup fee against a still-open
-commitment (`LDG-39`) — the commitment decrements to zero, the tenant is
-debited only up to the authority it granted, and the remainder is recorded as an **operator
-deficiency** in the manner of `LDG-63`. It MUST NOT be taken from available balance: that would be
-the automatic seizure `ADR-0011` exists to forbid, arriving through the meter instead of through
-re-derivation.
+commitment (`LDG-39`) — the commitment decrements to zero, the tenant is debited only up to the
+authority it granted, and the remainder is recorded as an **operator deficiency** in the manner of
+`LDG-63`. It MUST NOT be taken from available balance: that would be the automatic seizure
+`ADR-0011` exists to forbid, arriving through the meter instead of through re-derivation.
 
 Its effect on the ordinary path is unchanged — consumption leaves `available` **unchanged**,
 because spending what you already committed neither frees nor freezes anything:
@@ -1056,15 +1055,14 @@ continue: it reduces exposure), and **the solvency check** (MUST fail closed).
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
 having no rate at all, and its four answers are unchanged.*
 
-**LDG-41** **AMENDED (`ADR-0011`), and again 2026-09-23 (`ADR-0027`).** A rate MUST be treated as
+**LDG-41** **AMENDED, and again 2026-09-23 (`ADR-0027`).** A rate MUST be treated as
 attacker-influenced input. A manipulated or erroneous rate mis-prices the entire fleet
 simultaneously, so `LDG-58`'s **window median** is a security control, not a pricing convenience
-(`ADR-0027`). *The per-tick cap this requirement used
-to name alongside it is withdrawn with the commitment resizing it governed (`ADR-0011`,
-`PRV-13e`): nothing increases per tick, so capping the increase capped nothing.* *Withdrawn
-2026-09-23 (`ADR-0027`): "`LDG-16`'s **multi-derivation persistence rule** is a security control,
-not smoothing". It is kept because it reads as sound and was not: the rule it named counted
-derivations, which measured the wrong unit, and `LDG-16` keeps that rule's record.*
+(`ADR-0027`). *The per-tick cap this requirement used to name alongside it is withdrawn with the
+commitment resizing it governed (`ADR-0011`, `PRV-13e`): nothing increases per tick, so capping the
+increase capped nothing.* *Withdrawn 2026-09-23 (`ADR-0027`): "`LDG-16`'s **multi-derivation
+persistence rule** is a security control, not smoothing". It is kept because it reads as sound and
+was not, and `LDG-16` keeps that rule's record.*
 
 **And past those controls it is the only external input that destroys customer data.** A rate that
 understates the satoshi makes solvent customers look exhausted; `LDG-14` then cancels the machine
@@ -1079,27 +1077,40 @@ count MUST be odd, so the median is an observed price rather than an average of 
 **That is the rule for one pass's rate observation, and the rate is taken over a window of them**
 (amended 2026-09-23, `ADR-0027`). **The rate is the lower median of the rate observations for its
 currency — `STO-49`'s rows, one per pass — whose `observed_at` lies inside the last window-length
-before now**: the middle value of those observations in price order, or the lower of the two middle
-values where their count is even. The window's length is stated per deployment and per billing
-currency, twenty-four hours by default, with the other deployment parameters (`OVR-19`). The
-odd-count rule above is about the pass's sources. The window's count is whatever the passes
-produced, and the same principle picks the lower of two middle values, so the rate is always a
-price some pass accepted. `LDG-59` holds when a window produces no rate at all.
+before the pass that computed the rate**: the middle value of those observations in price order, or
+the lower of the two middle values where their count is even. **Each pass that accepts an
+observation computes the rate over the window as of that pass, and the rate holds until the next
+such pass**: an observation ageing out of the window changes nothing until a pass recomputes, and
+whether there is a rate at all is `LDG-59`'s. (*Amended 2026-09-23, `ADR-0027`: the first form
+measured the window from "now", which would have moved the rate at an observation's expiry, an
+instant with no `STO-49` row to split an increment at.*) The window's length is stated per
+deployment and per billing currency, twenty-four hours by default, with the other deployment
+parameters (`OVR-19`). The odd-count rule above is about the pass's sources. The window's count is
+whatever the passes produced, and the same principle picks the lower of two middle values, so the
+rate is always a price some pass accepted.
 
 **LDG-59** **Each source MUST carry a staleness bound, and a stale source MUST be excluded rather
-than used.** A deployment MUST state a **quorum**: the minimum number of live, non-excluded
-sources below which there is **no rate** — **per billing currency**: there is one rate, one
-quorum, one outage and one bound for each currency the deployment bills in, a subject's rate is
-its offer's currency, and a USD quorum loss halts nothing priced in EUR (*added 2026-09-05, when
-`STO-49` gained a currency dimension that "the rate" upstream did not have*) — at which point
-`LDG-40`'s per-operation behaviour applies — create halts, re-derivation halts without triggering exhaustion, the exhaustion sweep
-continues, the solvency check fails closed. **Falling back to the last known rate MUST NOT
-happen.** `LDG-58`'s window is not a fallback: it is the estimator, and a dead feed still halts. A
-stale rate is not a degraded rate; it is a number that was true once and is now being
-used to price a purchase, which is exactly the condition `LDG-40` makes create halt for.
+than used.** A deployment MUST state a **quorum**: the minimum number of live, non-excluded sources
+a pass needs to accept an observation — **per billing currency**: there is one rate, one quorum, one
+outage and one bound for each currency the deployment bills in, a subject's rate is its offer's
+currency, and a USD quorum loss halts nothing priced in EUR (*added 2026-09-05, when `STO-49` gained
+a currency dimension that "the rate" upstream did not have*). **A pass below the quorum accepts no
+observation and recomputes nothing, and the rate in force holds**: a pass below quorum halts
+nothing, in any currency, and a quorum loss halts even its own currency only through the window
+below, once that yields **no rate**. **Falling back to the last known rate MUST NOT happen.**
+`LDG-58`'s window is not a fallback: it is the estimator, and a dead feed still halts. Nor is the
+rate in force a fallback when a pass below the quorum leaves it standing: no accepting pass has
+replaced it, so it is the current rate, and it holds only while the window below yields one. A stale
+rate is not a degraded rate; it is a number that was true once and is now being used to price a
+purchase, which is exactly the condition `LDG-40` makes create halt for. *Amended 2026-09-23
+(`ADR-0027`), with the withdrawn wording: from 2026-08-12 the quorum was the count "below which
+there is **no rate** … at which point `LDG-40`'s per-operation behaviour applies". It is kept
+because it reads as sound beside `LDG-58`'s window, and `ADR-0027` withdrew exactly that per-pass
+halt: it "handed whoever can disrupt one pass a halt they never had, and the window exists to absorb
+exactly that pass".*
 
-**A window can also produce no rate** (added 2026-09-23, `ADR-0027`). `LDG-40`'s matrix is
-unchanged; these are new inputs to it.
+**A window is the only source of no rate, and one pass never is** (added 2026-09-23, `ADR-0027`).
+`LDG-40`'s matrix is unchanged; these are new inputs to it.
 
 - **The staleness bound also applies to the window's newest observation** — newest by
   `observed_at`, not by acceptance order, which can disagree with it (`STO-49`). Where none lies
@@ -1564,19 +1575,19 @@ operator as a named deficiency, bounded per machine by `PRV-31`'s declared worst
 one of the two exceptions `ADR-0003`'s amended matching claim names.
 
 **LDG-16** **AMENDED (`ADR-0011`), again 2026-09-21 (`ADR-0026`), and again 2026-09-23
-(`ADR-0027`).** A rate or price movement MUST NOT have its own cancellation
-machinery; it reaches the machine by moving `runway_until` (`LDG-33`) into this same exhaustion
-path. A machine MUST be routed into that path while its remaining commitment still covers
-wind-down **at the current rate** — that invariant, not commitment widening, is what keeps the
-operator whole. **No single rate observation moves the rate outside the range the window's other
-observations carry** (`LDG-58`), **so a transient bad observation among honest ones cannot destroy
-a disk that no price inside that range would destroy.** **It promises no more than that.** A
-machine within one honest step of exhaustion can be pushed over by that step, and a plausible price carried by half the window can
-move the rate to itself; no median refuses either. *The per-tick cap on
-commitment adjustment is withdrawn with the adjustment itself. So is "persist across more than one
-derivation", withdrawn 2026-09-21: re-derivation runs on an interval and does not imply a new
-observation (`CONTEXT.md`, **Derivation**), so two derivations an interval apart could consume the
-same poisoned price and the wait established nothing.*
+(`ADR-0027`).** A rate or price movement MUST NOT have its own cancellation machinery; it reaches
+the machine by moving `runway_until` (`LDG-33`) into this same exhaustion path. A machine MUST be
+routed into that path while its remaining commitment still covers wind-down **at the current rate**
+— that invariant, not commitment widening, is what keeps the operator whole. **No single rate
+observation moves the rate outside the range the window's other observations carry** (`LDG-58`),
+**so a transient bad observation among honest ones cannot destroy a disk that no price inside that
+range would destroy.** **It promises no more than that.** A machine within one honest step of
+exhaustion can be pushed over by that step, and a plausible price carried by half the window can
+move the rate to itself; no median refuses either. *The per-tick cap on commitment adjustment is
+withdrawn with the adjustment itself. So is "persist across more than one derivation", withdrawn
+2026-09-21: re-derivation runs on an interval and does not imply a new observation (`CONTEXT.md`,
+**Derivation**), so two derivations an interval apart could consume the same poisoned price and the
+wait established nothing.*
 
 **The destruction deadline** — `machines.destroy_not_before`, `STO-54`'s restore grace, which buys
 "the tenant one re-derivation interval in which to extend again" (added 2026-09-12, `ADR-0023`).

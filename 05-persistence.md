@@ -1202,15 +1202,14 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   `destroy_not_before` set to **the restore instant plus one re-derivation interval** — `LDG-16`'s
   own grace for a date moved backward by something other than consumption, written as the deadline
   itself rather than as a start, so that a second run of an unmarked step cannot re-apply it from a
-  fresh clock (`LDG-64` persists its deadline for the same reason) — *withdrawn 2026-09-23
-  (`ADR-0027`), with the reference: "and **any `rate_confirmation_ref` already present is
-  preserved**, because a restore is not an observation and discharges nothing"* (*amended
-  2026-09-21, `ADR-0026`: the withdrawn form set `exhausted_since` to the restore instant, one slot
-  serving both this grace and the confirmation wait, which is why re-running this step could
-  "backdate an `exhausted_since` a later re-derivation had set" — `ADR-0023`'s own reason for the
-  step marks. Two facts cannot collide in one slot, and re-keying that slot to an observation
-  instead was refused because a rate arriving seconds after a restore would then end the
-  grace*). (2) *Before the first claim:*
+  fresh clock (`LDG-64` persists its deadline for the same reason) (*amended 2026-09-21, `ADR-0026`:
+  the withdrawn form set `exhausted_since` to the restore instant, one slot serving both this grace
+  and the confirmation wait, which is why re-running this step could "backdate an `exhausted_since`
+  a later re-derivation had set" — `ADR-0023`'s own reason for the step marks. Two facts cannot
+  collide in one slot, and re-keying that slot to an observation instead was refused because a rate
+  arriving seconds after a restore would then end the grace*). *Withdrawn 2026-09-23 (`ADR-0027`),
+  with the reference: "and **any `rate_confirmation_ref` already present is preserved**, because a
+  restore is not an observation and discharges nothing".* (2) *Before the first claim:*
   every `queued` create, install and rescue inventory is moved to `needs_reconciliation` — a repeat
   is a second order, a second disk write, a second boot into rescue — and `OPS-27` establishes what
   happened rather than doing it again; the goal-state kinds (delete, power, end-rescue, release

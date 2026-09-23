@@ -1404,8 +1404,8 @@ sets is the first configuration where `OVR-2`'s runtime discovery does real work
 
 `LDG-40` had required that a rate source "MUST be named" and none was, leaving the last
 load-bearing external dependency in the money path unspecified. It is now a **median of at least
-three independent sources** with per-source staleness, outlier exclusion, and a quorum below which
-there is no rate at all (`LDG-58`–`LDG-61`).
+three independent sources** with per-source staleness, outlier exclusion, a quorum a pass needs to
+accept an observation, and a window that can produce no rate at all (`LDG-58`–`LDG-61`).
 
 **Two consequences are worth separating from the choice itself**, because they are the parts that
 are not cheap to change later:

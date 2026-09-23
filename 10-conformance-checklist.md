@@ -410,36 +410,46 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-97** — No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
 - [ ] **CNF-98** — Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
-- [ ] **CNF-99** — One adverse rate observation keeps to `LDG-16`'s bound — `LDG-16` says "no
-      single rate observation moves the rate outside the range the window's other observations
-      carry" — and a window that cannot produce a rate halts instead of pricing. **Asserted through
-      the mechanism, not the outcome** (2026-09-05; rewritten 2026-09-21 for `ADR-0026` and
-      2026-09-23 for `ADR-0027`): assert the rate itself, not only whether a disk survived. **One
-      poisoned pass among honest ones**, in three shapes, each asserting that the rate lies inside
-      the range the remaining honest observations carry: fill a window with five honest
-      observations at distinct prices and replace any one with a print far below them all; fill it
-      again and replace any one with a print far above them all; and fill a window with honest
-      observations at 100, 103 and 104, replace the 103 with 101.5, and assert the rate reads
-      101.5 — a price no honest pass accepted, inside the honest range. **A print carried by half
-      the window**: fill a window with four observations, two of
-      them at one print below every honest price, and assert the rate is that print. **A window
-      with no fresh observation**: let every observation inside the window age past the staleness
-      bound and assert there is no rate, observed as `CNF-138` observes it from dead sources. **A
-      thin window**: leave two fresh observations inside it and assert there is no rate, the same
-      way.
-      **Then let a runway expire with no rate movement at all and assert the
-      machine is routed on the very next pass** — a build that holds every past date for a second
-      look runs each ordinary exhaustion one interval into the wind-down reserve. **Then the
-      restore edge** (added 2026-09-12, `ADR-0023`): restore a store in which a machine's stored
-      `runway_until` is past and `destroy_not_before` null, run `STO-54`'s procedure, and assert
-      `destroy_not_before` is the restore instant plus one re-derivation interval, that an
-      observation arriving inside that grace does not end it, and that the sweep waits until it
-      passes; extend the machine inside that grace and assert the deadline clears and it is never
-      routed. *The per-tick cap clause is withdrawn with the construct it tested
-      (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
-      no reader behind it, and a build that routed on the date alone passed it by never being fed a
-      poisoned reading.* (`PRV-13e`,
-      `LDG-16`, `LDG-58`, `LDG-59`, `STO-49`)
+- [ ] **CNF-99** — One adverse rate observation keeps to `LDG-16`'s bound — `LDG-16` says "no single
+      rate observation moves the rate outside the range the window's other observations carry" — and
+      a window that cannot produce a rate halts instead of pricing. **Asserted through the
+      mechanism, not the outcome** (2026-09-05; rewritten 2026-09-21 for `ADR-0026` and 2026-09-23
+      for `ADR-0027`, with the sub-quorum and ageing-out cases added the same day for its two
+      amendments): assert the rate itself, not only whether a disk survived. **One poisoned pass
+      among honest ones**, in three shapes, each asserting that the rate lies inside the range the
+      remaining honest observations carry: fill a window with five honest observations at distinct
+      prices and replace any one with a print far below them all; fill it again and replace any one
+      with a print far above them all; and fill a window with honest observations at 100, 103 and
+      104, replace the 103 with 101.5, and assert the rate reads 101.5 — a price no honest pass
+      accepted, inside the honest range. **A print carried by half the window**: fill a window with
+      four observations, two of them at one print below every honest price, and assert the rate is
+      that print. **A window with no fresh observation**: let every observation inside the window
+      age past the staleness bound and assert there is no rate, observed as `CNF-138` observes it
+      from dead sources. **A thin window**: leave two fresh observations inside it and assert there
+      is no rate, the same way. **A sub-quorum pass with a fresh window**: with a window that
+      produces a rate, run one pass below `LDG-59`'s quorum and assert that creates and
+      re-derivations proceed at the rate in force, that no `LDG-40` halt fires and no `LDG-64`
+      outage opens, and that the next accepting pass recomputes the rate. **An observation ageing
+      out mid-increment**: fill a window with observations at 104, 100, 102, 106 and 108, oldest
+      first, so the rate is 104; let the oldest age out between two passes inside an open increment
+      — recomputed then, the four left would give 102 — and assert that the rate does not move and
+      the increment is not split before the next accepting pass recomputes; let that pass observe
+      110 inside the same increment and assert that the rate becomes 106 — with the oldest still
+      inside the window it would have stayed 104 — that the change splits the increment at that
+      pass's `STO-49` row, and that the age-out changed nothing charged: the increment the split
+      closes is debited at 104 for all of its time, the stretch after the oldest aged out included,
+      and only the one it opens is priced at 106 (`LDG-38`). **Then let a runway expire with no rate
+      movement at all and assert the machine is routed on the very next sweep** — a build that holds
+      every past date for a second look runs each ordinary exhaustion one interval into the
+      wind-down reserve. **Then the restore edge** (added 2026-09-12, `ADR-0023`): restore a store
+      in which a machine's stored `runway_until` is past and `destroy_not_before` null, run
+      `STO-54`'s procedure, and assert `destroy_not_before` is the restore instant plus one
+      re-derivation interval, that an observation arriving inside that grace does not end it, and
+      that the sweep waits until it passes; extend the machine inside that grace and assert the
+      deadline clears and it is never routed. *The per-tick cap clause is withdrawn with the
+      construct it tested (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no
+      column, no predicate and no reader behind it, and a build that routed on the date alone passed
+      it by never being fed a poisoned reading.* (`PRV-13e`, `LDG-16`, `LDG-58`, `LDG-59`, `STO-49`)
 - [ ] **CNF-100** — At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
 - [ ] **CNF-101** — Under a failing solvency check, every bill-increasing operation is refused
@@ -618,17 +628,21 @@ takes the machines *and* the float" partly false.
 Added 2026-08-12. Past the window median (`LDG-58`), a wrong rate is the only
 external input in this specification that reaches a customer's disk (`LDG-41`, `LDG-14`).
 
-- [ ] **CNF-138** — With every rate source unavailable, a create is refused, re-derivation halts
-      **without** cancelling anything, the exhaustion sweep still runs, and the solvency check
-      fails closed. All four, from one fault injection. (`LDG-40`, `LDG-59`)
+- [ ] **CNF-138** — With every rate source unavailable for longer than the staleness bound, a create
+      is refused, re-derivation halts **without** cancelling anything, the exhaustion sweep still
+      runs, and the solvency check fails closed. All four, from one fault injection. (*Amended
+      2026-09-23, `ADR-0027`: a pass below quorum halts nothing (`LDG-59`), so the fault must
+      outlast the bound; `CNF-99` holds the single pass.*) (`LDG-40`, `LDG-59`)
 - [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no
-      last-known-good fallback anywhere. Asserted by removing every source and confirming the
-      system reports *no rate* rather than a number. (`LDG-59`)
+      last-known-good fallback anywhere. Asserted by removing every source for longer than the
+      staleness bound and confirming the system reports *no rate* rather than a number. (*Amended
+      2026-09-23, `ADR-0027`, as `CNF-138`.*) (`LDG-59`)
 - [ ] **CNF-140** — One source returning an extreme price does not move the rate, and that source is
       excluded rather than averaged in. (`LDG-60`)
 - [ ] **CNF-141** — Exclusions count against the quorum: with three sources, one stale and one
-      outlying, the result is *no rate* — not a rate derived from the single survivor. **This is
-      the item that catches an implementation which degrades quietly to one source.** (`LDG-59`,
+      outlying, the pass accepts no observation — not one derived from the single survivor. **This
+      is the item that catches an implementation which degrades quietly to one source.** (*Amended
+      2026-09-23, `ADR-0027`: a pass below quorum is not **no rate** (`LDG-59`).*) (`LDG-59`,
       `LDG-60`)
 - [ ] **CNF-142** — The source set cannot be changed by any API call, tenant input, or database
       write. Attempting each fails. (`LDG-61`, and `CNF-135` for the same property applied to the

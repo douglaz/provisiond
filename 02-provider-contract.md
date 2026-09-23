@@ -338,12 +338,12 @@ runway: **the interval MUST stay small against a machine's runway**, since a mac
 whole commitment inside one interval and nothing would notice. **The interval is not the rate
 window** (added 2026-09-23, `ADR-0027`). The window is `LDG-58`'s, which states its default, and is
 the span the rate is taken over; the interval, hourly by default, is how stale `runway_until` may
-be. They are two different spans, the bound above is on the interval alone, and a window may be
-longer than a machine's runway. *Withdrawn 2026-09-23 (`ADR-0027`): the hourly default "makes
-`LDG-16`'s persistence window a couple of hours", and "the ceiling is `LDG-16`'s window, which MUST
-stay small against a machine's runway". Both called the interval `LDG-16`'s window; once the rate
-is taken over `LDG-58`'s window, that name reads as the rate window, and the ceiling binds the wrong
-span.*
+be. They are two different spans, the bound above is on the interval alone, and a default window
+(`LDG-58`) is longer than many runways. *Withdrawn 2026-09-23 (`ADR-0027`): the hourly default
+"makes `LDG-16`'s persistence window a couple of hours", and "the ceiling is `LDG-16`'s window,
+which MUST stay small against a machine's runway". Both called the interval `LDG-16`'s window; once
+the rate is taken over `LDG-58`'s window, that name reads as the rate window, and the ceiling binds
+the wrong span.*
 
 **The billing period and the re-derivation interval are different quantities and MUST NOT be
 derived from each other.** The period is a **boundary** for the meter's arithmetic
