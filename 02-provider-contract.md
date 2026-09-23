@@ -294,22 +294,21 @@ amount of a customer's balance.
 **PRV-13e** **AMENDED twice the same day, and repeatedly since — the history is the lesson.**
 Re-derivation MUST run at the deployment's stated **re-derivation interval** at the current rate,
 and what it recomputes is **`runway_until`, not the
-commitment** (`LDG-33`, `ADR-0011`). **It MUST also maintain `machines.rate_confirmation_ref` on
-the terms `LDG-16` sets**, which owns that rule: it arms and discharges on the **accepted
-observation** this pass consumed — `STO-49`'s acceptance order, written in the same transaction as
-the date that observation explains — and never on the instant this pass ran. **It never writes
-`machines.destroy_not_before`**,
-which is `STO-54`'s and runs on wall clock. *Amended 2026-09-21 (`ADR-0026`): the withdrawn form
-maintained one column, `machines.exhausted_since`, set to **the derivation instant**, and an
-instant says when provisiond computed rather than which price it used — two derivations an interval
-apart can consume the same observation (`CONTEXT.md`, **Derivation**). Added 2026-09-05; it had no
-mechanism before, and every form it took before this one is kept here because each is re-layable
-(`README.md`): setting it on **any past date** delayed natural expiry; a **past-only** form missed
-a jump landing just short of the next derivation; a **horizon-only** form let one poisoned reading
-move a date from thirty minutes out to one minute past with the column still null; and the
-disjunction of those two, with the horizon qualifying the set while the clear stayed unqualified,
-left the horizon half unreachable from 2026-09-05 to 2026-09-21. Arming on every backward move of
-a date that stood in the future is what covers all of them at once.*
+commitment** (`LDG-33`, `ADR-0011`). **It never writes `machines.destroy_not_before`**,
+which is `STO-54`'s and runs on wall clock. *Withdrawn 2026-09-23 (`ADR-0027`): the duty to
+maintain `machines.rate_confirmation_ref` — the reference itself is withdrawn, `LDG-16` keeps its
+record, and what follows is the record of the forms its setter took.* *Amended 2026-09-21
+(`ADR-0026`): the withdrawn form maintained one column, `machines.exhausted_since`, set to **the
+derivation instant**, and an instant says when provisiond computed rather than which price it used —
+two derivations an interval apart can consume the same observation (`CONTEXT.md`, **Derivation**).
+Added 2026-09-05; it had no mechanism before, and every form it took before the reference is kept
+here because each is re-layable (`README.md`): setting it on **any past date** delayed natural
+expiry; a **past-only** form missed a jump landing just short of the next derivation; a
+**horizon-only** form let one poisoned reading move a date from thirty minutes out to one minute
+past with the column still null; and the disjunction of those two, with the horizon qualifying the
+set while the clear stayed unqualified, left the horizon half unreachable from 2026-09-05 to
+2026-09-21. Arming on every backward move of a date that stood in the future is what covered all of
+them at once.*
 
 **AMENDED 2026-09-02 — the interval is this requirement's own parameter, and it is not the billing
 period.** The withdrawn wording was "each billing period", and `LDG-68` later defined that as the
@@ -319,22 +318,27 @@ works monthly**, and four things break outright:
 - `runway_until` is "the customer's whole visibility into repricing" (`LDG-15`) and would be up to a
   month stale, on a date the exhaustion sweep reads to decide whether to destroy a disk (`LDG-13`,
   `05-persistence.md`'s `runway_until` index);
-- `LDG-16`'s "a deficiency MUST persist across more than one derivation" — the control that stands
-  between a glitching price feed and a destroyed disk — would mean **two months**, during which an
-  unfunded machine bills;
+- the rule `LDG-16` and this requirement then carried, "a deficiency MUST persist across more than
+  one derivation" — then the control standing between a glitching price feed and a destroyed disk,
+  withdrawn from `LDG-16` 2026-09-21 and retired here 2026-09-23 for `LDG-58`'s window (`ADR-0027`)
+  — would have meant **two months**, during
+  which an unfunded machine billed;
 - `PRV-13c`'s "materially in the future", defined as *now + one re-derivation period + wind-down*,
   would swallow every cancellation date inside about thirty days into the ordinary path, deleting
   the `DOM-19`/`LDG-63` exception branch for exactly the products it was written for;
-- `ADR-0003`'s footnote prices the persistence window at "a few extra hours" and `ADR-0011` speaks
-  of "two derivation periods" inside one night. Both are describing hours; the requirement said a
-  month.
+- `ADR-0003`'s footnote priced the derivation-count wait, retired 2026-09-23 (`ADR-0027`), at "a
+  few extra hours" and `ADR-0011` speaks of "two derivation periods" inside one night. Both are
+  describing hours; the requirement said a month.
 
 **A deployment MUST state the interval with the other deployment parameters (`OVR-19`), and it MUST
-be short enough that all four of those hold.** *Hourly is the sensible default*, which makes
-`LDG-16`'s persistence window a couple of hours, `PRV-13c`'s "materially in the future" a few hours
-plus wind-down, and `runway_until` never more than an hour stale. The floor is the cost of the pass
-itself; the ceiling is `LDG-16`'s window, which MUST stay small against a machine's runway, since a
-machine can drain its whole commitment inside one interval and nothing would notice.
+be short enough that none of those still standing breaks.** *Hourly is the sensible default*, which
+makes `PRV-13c`'s "materially in the future" a few hours plus wind-down, and `runway_until` never
+more than an hour stale. The floor is the cost of the pass itself; the ceiling is a machine's
+runway: **the interval MUST stay small against a machine's runway**, since a machine can drain its
+whole commitment inside one interval and nothing would notice. **The interval is not the rate
+window.** The window is `LDG-58`'s, twenty-four hours by default, and is the span the rate is taken
+over; the interval, hourly by default, is how stale `runway_until` may be. They are two different
+spans, the bound above is on the interval alone, and a default window is longer than many runways.
 
 **The billing period and the re-derivation interval are different quantities and MUST NOT be
 derived from each other.** The period is a **boundary** for the meter's arithmetic
@@ -349,13 +353,16 @@ bad rate reading grabs every tenant's available balance.* Where the recomputed r
 run out, the machine enters the same
 balance-exhaustion path as a customer who simply ran out of money. **A price or rate movement
 MUST NOT be a special case with its own machinery** — it is an ordinary way for a balance to
-become insufficient. **A deficiency MUST persist across more than one derivation** before it can
-trigger cancellation, so that one bad rate read cannot cancel a paying customer's machine.
+become insufficient. **No single rate observation moves the rate outside what the window's other
+observations carry, and a rate outside the range of prices honest passes produced needs at least
+half the window's observations to lie at or beyond it** — both consequences of the rate being
+`LDG-58`'s lower median over its window, and `LDG-16` owns the promise they keep.
 
 *The per-tick increase cap that stood here is **withdrawn** with the resizing it governed
 (`LDG-16`): under `ADR-0011` nothing increases per tick, so capping the increase capped nothing.
-The persistence rule survives on its own merits and is the control that matters — it is what
-stands between a glitching price feed and a destroyed disk.*
+The note that followed, calling the derivation-count persistence rule "the control that matters",
+is retired 2026-09-23 (`ADR-0027`): a count of derivations measured the wrong unit, and `LDG-58`'s
+window median is that control now.*
 
 **Where billing is capped per period, that cap is a catastrophe bound worth having.** If total
 failure to cancel costs at most `setup_fee + one period cap` per machine, record it: the

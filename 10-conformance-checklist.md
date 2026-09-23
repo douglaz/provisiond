@@ -410,43 +410,32 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-97** — No sequence of concurrent operations can drive a balance negative. (`LDG-10`)
 - [ ] **CNF-98** — Remaining runway is readable from the machine view before exhaustion.
       (`LDG-15`)
-- [ ] **CNF-99** — A single adverse rate read cannot cancel a machine: a rate-produced exhaustion
-      must be confirmed by a strictly later accepted observation. **Asserted through the mechanism,
-      not the outcome** (2026-09-05; re-written 2026-09-21 for `ADR-0026`'s two facts): feed one
-      poisoned rate reading, assert re-derivation writes a past `runway_until` **and** arms
-      `machines.rate_confirmation_ref` with the observation it consumed, assert the sweep does
-      **not** route the machine while that reference is armed **however long it stands**, feed a
-      sane reading, and assert the reference clears with the future date.
-      **Then the two edges of the arming rule**: a poisoned reading that moves a date from thirty
-      minutes out to one minute past arms the reference and the sweep waits, and **a reading that
-      moves a date backward across `now + one re-derivation interval` and lands in the future arms
-      it too** — the input a set rule qualified by that horizon could never reach, since the same
-      write also cleared. **Then the trace that proves a backward move never confirms itself**:
-      let an ordinary reading move a date from two hours out to one hour fifty, arming the
-      reference, then feed **one** poisoned reading that moves it into the past, and assert the
-      machine is **not** routed — the second reading is strictly later than the armed one and
-      would otherwise discharge an exhaustion no reading before it had derived. **Then let a runway
-      expire with no rate movement at all and assert the
-      machine is routed on the very next pass, the reference still null** — a build that gates every
-      past date on a confirmation runs each ordinary exhaustion one interval into the wind-down
-      reserve.
-      Then feed a second accepted observation that still derives exhaustion and assert the machine
-      **is** routed, and assert that re-deriving twice from the **same** accepted observation
-      discharges nothing. **Then the
+- [ ] **CNF-99** — One adverse rate observation moves the rate no further than to a neighbouring
+      price an honest pass in the window accepted, and a window that cannot produce a rate halts
+      instead of pricing. **Asserted through the mechanism, not the outcome** (2026-09-05;
+      rewritten 2026-09-21 for `ADR-0026` and 2026-09-23 for `ADR-0027`): assert the rate itself,
+      not only whether a disk survived. **One poisoned pass among honest ones**: fill a window with
+      five honest observations at distinct prices, replace any one with a print far below them all,
+      and assert the rate is the honest rate or the honest price one step below it — never the
+      print. **A print carried by half the window**: fill a window with four observations, two of
+      them at one print below every honest price, and assert the rate is that print. **A window
+      with no fresh observation**: let every observation inside the window age past the staleness
+      bound and assert there is no rate, observed as `CNF-138` observes it from dead sources. **A
+      thin window**: leave two fresh observations inside it and assert there is no rate, the same
+      way.
+      **Then let a runway expire with no rate movement at all and assert the
+      machine is routed on the very next pass** — a build that holds every past date for a second
+      look runs each ordinary exhaustion one interval into the wind-down reserve. **Then the
       restore edge** (added 2026-09-12, `ADR-0023`): restore a store in which a machine's stored
-      `runway_until` is past and both facts null, run `STO-54`'s procedure, and assert
+      `runway_until` is past and `destroy_not_before` null, run `STO-54`'s procedure, and assert
       `destroy_not_before` is the restore instant plus one re-derivation interval, that an
-      observation arriving inside that window does not end it, and that the sweep waits until it
-      passes; extend the machine inside that window and assert both facts clear and it is never
+      observation arriving inside that grace does not end it, and that the sweep waits until it
+      passes; extend the machine inside that grace and assert the deadline clears and it is never
       routed. *The per-tick cap clause is withdrawn with the construct it tested
       (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no column, no predicate and
       no reader behind it, and a build that routed on the date alone passed it by never being fed a
-      poisoned reading. The forty-five-to-forty-minute case is withdrawn 2026-09-21: the wider
-      arming rule sets the reference on that move, which is the change `ADR-0026` made. What was
-      missing is the case now standing in its place — no reading this item fed ever crossed the
-      horizon backward and landed in the future, so the branch written to catch that input did
-      nothing for sixteen days behind a green build.* (`PRV-13e`,
-      `LDG-16`, `LDG-58`, `STO-49`)
+      poisoned reading.* (`PRV-13e`,
+      `LDG-16`, `LDG-58`, `LDG-59`, `STO-49`)
 - [ ] **CNF-100** — At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
 - [ ] **CNF-101** — Under a failing solvency check, every bill-increasing operation is refused
@@ -622,7 +611,7 @@ takes the machines *and* the float" partly false.
 
 ## The rate
 
-Added 2026-08-12. Past the persistence rule (`LDG-16`), a wrong rate is the only
+Added 2026-08-12. Past the window median (`LDG-58`), a wrong rate is the only
 external input in this specification that reaches a customer's disk (`LDG-41`, `LDG-14`).
 
 - [ ] **CNF-138** — With every rate source unavailable, a create is refused, re-derivation halts
@@ -1208,13 +1197,11 @@ rather than acquiring a default.
       `LDG-31`, `ADR-0011`)
 - [ ] **CNF-275** — **Re-derivation runs on its own clock, not the billing period's.** The deployment
       states a re-derivation interval separately from `LDG-68`'s period; `runway_until` on a live
-      machine is never staler than that interval; `LDG-16`'s "more than one derivation" is measured
-      in intervals and a machine at the edge is routed into exhaustion within two of them, not two
-      months; and `PRV-13c`'s "materially in the future" test — *now + one interval + wind-down* —
-      still puts a cancellation date a week out on the **exception** branch. Assert the last one
-      against a machine whose `earliest_cancellation_date` is days away, since a monthly interval
-      swallows it into the ordinary path and silently deletes the `DOM-19`/`LDG-63` branch.
-      (`PRV-13e`, `LDG-68`, `LDG-16`, `PRV-13c`, `OVR-19`)
+      machine is never staler than that interval; and `PRV-13c`'s "materially in the future" test —
+      *now + one interval + wind-down* — still puts a cancellation date a week out on the
+      **exception** branch. Assert the last one against a machine whose `earliest_cancellation_date`
+      is days away, since a monthly interval swallows it into the ordinary path and silently deletes
+      the `DOM-19`/`LDG-63` branch. (`PRV-13e`, `LDG-68`, `PRV-13c`, `OVR-19`)
 - [ ] **CNF-276** — **The catalogue fetch cannot be pointed at the inside.** Drive `RSC-39` with a URL
       resolving to loopback, to `169.254.169.254`, to an RFC 1918 address, and to an IPv4-mapped
       IPv6 wrapper around each: every one is refused before a byte is sent. Then the three that a

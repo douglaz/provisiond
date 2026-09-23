@@ -355,6 +355,8 @@ marked human are procedures the deployment records rather than values the proces
 |---|---|---|---|
 | Rate source set | `LDG-61` | list of sources | yes |
 | Rate quorum | `LDG-59` | integer | yes |
+| Rate window, per billing currency | `LDG-58`, `LDG-59` | duration | yes |
+| Rate pass cadence | `LDG-59` | duration | yes |
 | Source staleness bound | `LDG-59` | duration | yes |
 | Outlier band | `LDG-60` | basis points | yes |
 | Maximum tolerated rate outage | `LDG-64` | duration | yes |

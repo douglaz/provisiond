@@ -294,18 +294,18 @@ _Avoid_: onboarding fee, installation fee, deposit
 
 **Rate**:
 What a satoshi is worth in a provider's billing currency: the lower median of the **rate
-observations** accepted inside the **window** (`ADR-0027`) — a price some pass accepted, chosen by
-the window and set by no single pass, never one venue's price. **The only external input that can
-reach a customer's disk**: understate the satoshi and solvent customers look exhausted, after which
-`LDG-14` cancels and destroys — which is why one observation cannot move it outside what the
-others carry.
+observations** accepted inside the **window** (`LDG-58`, `ADR-0027`) — a price some pass accepted,
+chosen by the window and set by no single pass, never one venue's price. **The only external input
+that can reach a customer's disk**: understate the satoshi and solvent customers look exhausted,
+after which `LDG-14` cancels and destroys — which is why one observation cannot move it outside what
+the others carry.
 _Avoid_: price (that is what a customer pays), spot, exchange rate, oracle
 
 **Window**:
 The accepted **rate observations** whose `observed_at` lies inside the last window-length before
 now; the **rate** is their median. Its length is stated per deployment and per billing currency, as
-the **quorum** is (`ADR-0027`). A window with no observation inside the staleness bound, or with
-fewer than three observations, is **no rate**.
+the **quorum** is (`LDG-58`, `ADR-0027`). A window with no observation inside the staleness bound,
+or with fewer than three observations, is **no rate** (`LDG-59`).
 _Avoid_: history, buffer, lookback, average (a median is a selection, not a blend)
 
 **Quorum**:

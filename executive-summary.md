@@ -297,8 +297,9 @@ satoshi makes solvent customers look exhausted, after which cancellation destroy
 money or stop the service — *"This one reaches the customer's data."* Hence a median of at least
 three genuinely independent sources, staleness bounds, outlier exclusion, a source set fixed at
 deployment, and a quorum below which there is **no rate** — never a stale one, never last-known-good.
-The final guard is that a shortfall must persist across more than one derivation, so a single bad
-rate reading can move a date but can never destroy a disk.
+The final guard is the window (`LDG-58`): the rate is a median over a window of accepted
+observations, and `LDG-16` promises that a transient bad observation moves it "no further than to a
+neighbouring price some honest pass in the window accepted" — and no more.
 
 **Losses that cannot be billed have a home.** An **operator deficiency** is a durable
 *non-ledger* record, in native currency, for costs the customer must not pay — a rate outage, a
