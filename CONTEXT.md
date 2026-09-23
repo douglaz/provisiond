@@ -311,8 +311,11 @@ with fewer than three observations, is **no rate** (`LDG-59`).
 _Avoid_: history, buffer, lookback, average (a median is a selection, not a blend)
 
 **Quorum**:
-The fewest live, non-excluded rate sources that still produce a rate. Below it there is **no
-rate** — not a stale one, not the last known good one — and `LDG-40`'s halt matrix applies.
+The fewest live, non-excluded rate sources a **pass** needs to accept a **rate observation**. Below
+it the pass accepts none and recomputes nothing, and the **rate** in force holds. **No rate** —
+not a stale one, not the last known good one — comes from the **window**, never from one pass:
+nothing inside the staleness bound, or fewer than three observations, and then `LDG-40`'s halt
+matrix applies.
 _Avoid_: threshold, minimum sources
 
 **Rate observation**:

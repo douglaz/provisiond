@@ -75,8 +75,14 @@ create-time price, the solvency check. One rate, one home.
 - **Freshness gains a second use.** `LDG-59` says "Falling back to the last known rate MUST NOT
   happen." and defines its staleness bound per source. The same bound now also applies to the
   window's newest observation — newest by `observed_at`, which `STO-49` keeps unique per currency,
-  not by acceptance order, which can disagree with it: none inside it is **no rate**, and `LDG-40`'s halt matrix applies as
-  it does today. The window is not a fallback; a dead feed still halts. After an outage shorter than
+  not by acceptance order, which can disagree with it: none inside it is **no rate**, and that is what feeds `LDG-40`'s
+  halt matrix. The window is not a fallback; a dead feed still halts. **One pass below quorum halts
+  nothing** (*amended 2026-09-23, the day of acceptance*): it accepts no observation and recomputes
+  nothing, so the rate in force holds; `LDG-59`'s quorum decides whether a pass accepts an
+  observation, and **no rate** arises only from the window — nothing inside the staleness bound, or
+  fewer than three observations. *The first draft and `pv-gip.1` kept the per-pass halt beside the
+  window; the owner withdrew it, since it handed whoever can disrupt one pass a halt they never
+  had, and the window exists to absorb exactly that pass.* After an outage shorter than
   the window, the first fresh observation restores a rate whose older half is pre-outage prices —
   that is the lag accepted below, and `LDG-64`'s outage close is keyed to the window producing a
   rate again, not to one observation arriving.
@@ -182,9 +188,11 @@ bounds the move to that range and no tighter, and that is the whole of what it p
 
 This is the edit list `pv-gip.1` lands, and the record and the ticket name the same edits.
 
-`LDG-58` states the window, its `observed_at` bound, the lower median, and that its odd-count rule
-is the pass's. `LDG-59` states that its staleness bound also applies to the window's newest
-observation, that a thin window is no rate, and that a deployment's window must hold three passes.
+`LDG-58` states the window, its `observed_at` bound measured from the pass, the lower median, that
+the rate is computed at a pass and holds until the next, and that its odd-count rule is the
+pass's. `LDG-59` states that its staleness bound also applies to the window's newest observation,
+that a thin window is no rate, that a deployment's window must hold three passes, and that a pass
+below quorum accepts no observation and halts nothing.
 `LDG-16` loses its reference paragraphs and keeps the deadline, the two bypasses and the wind-down
 argument; its promise is restated to what the window gives, and its three worker sentences are
 rewritten to hold together. `PRV-13e` loses its "It MUST also maintain
