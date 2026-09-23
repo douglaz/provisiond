@@ -88,14 +88,16 @@ check. One rate, one home.
   provider call respects it, which is what its bypass sentence already required.
 - **`PRV-13e`'s persistence rule becomes a consequence**, stated in two halves the theorem below
   supports: no single observation moves the rate outside what the other observations carry, and a
-  rate that no honest pass produced needs at least half the window to carry it. The
+  rate outside what the honest passes carry needs at least half the window to carry it. The
   derivation-count form and its unit-of-measure note are retired.
 
 **The promise `LDG-16` makes is restated to what the window gives.** A transient bad observation
-moves the rate at most to a neighbouring value some honest pass accepted, because it is one value
-in a window whose middle it cannot drag past the others. So it cannot move the rate to a price no
-honest pass in the window accepted, and cannot destroy a disk that no such price would destroy.
-That is narrower than "cannot destroy a disk": a machine within one honest step of exhaustion can
+moves the rate no further than the honest values on either side of it, because it is one value in
+a window whose middle it cannot drag past the others. So it cannot move the rate outside the range
+the honest passes in the window carry, and cannot destroy a disk that no price inside that range
+would destroy. It can land the rate on its own value where that lies between two honest ones —
+honest `100, 103, 104` with the `103` replaced by `101.5` reads `101.5` — which is why the bound
+is a range and not a membership. That is narrower than "cannot destroy a disk": a machine within one honest step of exhaustion can
 be pushed over by that step, and `ADR-0026`'s warning that "near exhaustion the date is a
 difference of two large numbers" is why one step can be enough. It is also the promise any
 estimator can keep, since no rule can tell two honest prices apart, and it is kept by
@@ -153,16 +155,16 @@ one value among many.
 
 ## What this does not promise
 
-A plausible print carried by more than half the window confirms itself, and no median refuses it.
-That is the same exclusion `LDG-16` already carries — "It promises no more than that." — with a
-larger number in it: several intervals become more than half a window.
+A plausible print carried by half the window confirms itself, and no median refuses it. That is
+the same exclusion `LDG-16` already carries — "It promises no more than that." — with a larger
+number in it: several intervals become half a window.
 
-One observation can still move the rate by one step, to the next value another pass in the window
-accepted, and *k* poisoned observations can move it *k* steps while they stay under half the
-window. Each is a move to a price honest passes made, not one the poison invented. A machine
-within that many honest steps of exhaustion can be exhausted by them, and nothing in this set
-sizes a reserve to the window's spread; the theorem bounds the move to honest prices and no
-tighter, and that is the whole of what it promises.
+One observation can still move the rate — to its own value where that lies between two honest
+ones, otherwise to the nearest honest value — and more poisoned observations can move it further
+while they stay under half the window. Every such move stays inside the range honest passes
+made. A machine close enough to exhaustion that a move inside that range crosses it can be
+exhausted by them, and nothing in this set sizes a reserve to the window's spread; the theorem
+bounds the move to that range and no tighter, and that is the whole of what it promises.
 
 ## Consequences
 
@@ -183,8 +185,8 @@ reference clause and the paragraph explaining it. `05-persistence.md`'s machines
 `rate_confirmation_ref` row and the `destroy_not_before` row's mentions of it; `STO-49` gains a
 retention floor of one window and loses its reference clause; `STO-54` loses "any
 `rate_confirmation_ref` already present is preserved" and keeps its grace. `CNF-99` exchanges its
-confirmation cases for four window cases: one poisoned pass moves the rate at most one honest
-step; a print carried by half the window moves it there; a window with no fresh observation is no
+confirmation cases for four window cases: one poisoned pass moves the rate no further than the
+honest values beside it; a print carried by half the window moves it there; a window with no fresh observation is no
 rate; a thin window is no rate. `10-conformance-checklist.md`'s rate section points at the window
 where it points at the persistence rule. The wind-down worked example names the window that
 produced its rate. `CONTEXT.md`'s **Rate** and **Window** entries, which cite this decision, cite
