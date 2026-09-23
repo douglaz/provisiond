@@ -303,9 +303,11 @@ _Avoid_: price (that is what a customer pays), spot, exchange rate, oracle
 
 **Window**:
 The accepted **rate observations** whose `observed_at` lies inside the last window-length before
-now; the **rate** is their median. Its length is stated per deployment and per billing currency, as
-the **quorum** is (`LDG-58`, `ADR-0027`). A window with no observation inside the staleness bound,
-or with fewer than three observations, is **no rate** (`LDG-59`).
+the **pass** that computed the **rate**; the rate is their median, computed only when a pass
+accepts an observation, and it holds until the next pass — an observation ageing out of the window
+changes nothing on its own. Its length is stated per deployment and per billing currency, as the
+**quorum** is (`LDG-58`, `ADR-0027`). A window with no observation inside the staleness bound, or
+with fewer than three observations, is **no rate** (`LDG-59`).
 _Avoid_: history, buffer, lookback, average (a median is a selection, not a blend)
 
 **Quorum**:

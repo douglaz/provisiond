@@ -54,10 +54,19 @@ yield one.
 observation cannot move it outside the range the others carry.** The observations are what
 `LDG-58` already produces — "the median of at least three independent sources", one per pass, one
 row in `STO-49` — and the window is the span of them
-whose `observed_at` lies inside the last window-length before now, stated per deployment and per
-billing currency as `LDG-59`'s quorum is, twenty-four hours by default. The rate is what every
-reader of "the rate" uses: `LDG-33`'s derivation, the meter, the create-time price, the solvency
-check. One rate, one home.
+whose `observed_at` lies inside the last window-length before the pass that computed the rate,
+stated per deployment and per billing currency as `LDG-59`'s quorum is, twenty-four hours by
+default. The rate is what every reader of "the rate" uses: `LDG-33`'s derivation, the meter, the
+create-time price, the solvency check. One rate, one home.
+
+- **The rate is computed at a pass and holds until the next** (*amended 2026-09-23, the day of
+  acceptance — the first draft measured the window from "now"*). Each pass that accepts an
+  observation recomputes the median over the window as of that pass; between passes the rate
+  does not move, so an observation ageing out of the window changes nothing until a pass
+  recomputes. Every change of rate therefore lands on an instant that already has a durable row,
+  and `LDG-38`'s split rule and its "durable before the rate is used" requirement stand exactly as
+  written. *A window measured from "now" would have changed the rate at an observation's expiry
+  with no row to split an increment at; the owner refused that, and this bullet is the refusal.*
 
 - **Lower median, not mean.** `LDG-58` says "The count MUST be odd, so the median is an observed
   price rather than an average of two." That rule is about one pass's sources and stays scoped to
