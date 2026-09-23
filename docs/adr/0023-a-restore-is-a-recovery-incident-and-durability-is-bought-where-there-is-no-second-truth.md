@@ -85,8 +85,10 @@ the unique constraint cannot catch it because the conflicting row is the one the
   starts all of them. So: (1) before the startup lock — the public listener is down, the lost
   window `T − Δ` is stated as a number and published to the operator, the exhaustion sweep, the
   outage canceller, the TTL sweep, retention and `OPS-15`'s `suspend_tenant` exception are frozen,
-  and `provider_account_status` and the rate quorum are re-established, since `LDG-16` and `STO-36`
-  route on them; (2) before the first claim — the irreversible `queued` kinds are quarantined and
+  and `provider_account_status` is re-established, since `STO-36` routes on it (*until 2026-09-23
+  this sentence and `STO-54` also re-established "the rate quorum", for `LDG-16` to route on;
+  `LDG-16` never read a quorum, and `ADR-0027` made the quorum a pass's acceptance test — `pv-gip.10`
+  deleted the clause and this note records it*); (2) before the first claim — the irreversible `queued` kinds are quarantined and
   the reversible ones are not (next bullet); (3) before the first `api` request — the watch set is
   re-derived, both rails are replayed, `SEC-39`'s counters are re-seeded, and every credential
   generation is bumped (below).
