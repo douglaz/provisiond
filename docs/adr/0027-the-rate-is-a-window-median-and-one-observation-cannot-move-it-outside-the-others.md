@@ -210,8 +210,8 @@ reference clause and the paragraph explaining it. `05-persistence.md`'s machines
 `rate_confirmation_ref` row and the `destroy_not_before` row's mentions of it; `STO-49` gains a
 retention floor of one window and loses its reference clause; `STO-54` loses "any
 `rate_confirmation_ref` already present is preserved" and keeps its grace. `CNF-99` exchanges its
-confirmation cases for four window cases: one poisoned pass moves the rate no further than the
-honest values beside it; a print carried by half the window moves it there; a window with no fresh observation is no
+confirmation cases for window cases, of which it holds the list: one poisoned pass moves the rate
+no further than the honest values beside it; a print carried by half the window moves it there; a window with no fresh observation is no
 rate; a thin window is no rate. `10-conformance-checklist.md`'s rate section points at the window
 where it points at the persistence rule. The wind-down worked example names the window that
 produced its rate. `CONTEXT.md`'s **Rate** and **Window** entries, which cite this decision, cite
