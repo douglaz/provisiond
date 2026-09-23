@@ -319,6 +319,13 @@ recorded by `STO-49` before it is used for anything. One source's number is not 
 is an input to one. One observation is not the **rate**; it is an input to that.
 _Avoid_: reading, sample, tick, quote (each is one source's, not the accepted median)
 
+**Pass**:
+One run of the rate pipeline for one currency: every source read, the stale and the deviant
+excluded (`LDG-59`, `LDG-60`), the **quorum** tested, and — where it holds — one **rate
+observation** accepted. Runs on its own cadence, which a deployment states beside the **window**.
+A pass is not a **derivation**, which consumes the **rate** and runs on a different interval.
+_Avoid_: tick, poll, fetch, sample (one source's), observation (the pass's output, not the pass)
+
 **Derivation**:
 One recomputation of a machine's `runway_until` from its commitment and the **rate**
 (`PRV-13e`, `LDG-33`). **A derivation is not an observation**: a derivation's instant says when

@@ -129,11 +129,14 @@ withdrawn rules back go with the rules.
 ## What was rejected
 
 **Binding the worker's path** — reading the reference in `OPS-41`'s re-check, deferring the
-attempt under the fence while the reference is armed, or refusing the provider call. Each is a
-second normative home for a rule the sweep's predicate owns, each needs an outcome for a held
-attempt that `OPS-48`'s table does not have, and each still gates one more action while leaving
-the price that produced the exhaustion untouched. The panel's advisers split on which site was
-least bad and agreed none was good.
+attempt under the fence while the reference is armed, or refusing the provider call while the
+reference is armed. Each is a second normative home for a rule the sweep's predicate owns, each
+needs an outcome for a held attempt that `OPS-48`'s table does not have, and each still gates one
+more action while leaving the price that produced the exhaustion untouched. The panel's advisers
+split on which site was least bad and agreed none was good. The provider call's deadline gate is
+not one of these: it reads the deadline, which `LDG-16`'s bypass sentence already required every
+cancellation to respect, and the decision above admits it; what it still lacks — an `OPS-48`
+outcome for the attempt it holds — is `pv-gip.5`.
 
 **Narrowing the promise a second time**, to cover only a machine the sweep would newly route. It
 is the cheapest correct edit and it leaves `PRV-13e`'s promise on the books and false; a set that
