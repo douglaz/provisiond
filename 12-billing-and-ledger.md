@@ -1114,9 +1114,16 @@ exactly that pass".*
 
 - **The staleness bound also applies to the window's newest observation** — newest by
   `observed_at`, not by acceptance order, which can disagree with it (`STO-49`). Where none lies
-  inside the bound there is **no rate**.
+  inside the bound there is **no rate**. **The window's staleness is tested continuously, and no
+  pass is needed for it to produce no rate**: the instant the newest observation is older than the
+  bound there is no rate, whether or not a pass has run, so a feed that falls silent halts between
+  passes rather than holding its last rate — `LDG-58`'s "the rate holds until the next such pass"
+  holds only while this window yields one (*added 2026-09-23, `ADR-0027`*).
 - **Fewer than three observations inside the window is no rate**, because a median of one is that
-  one.
+  one. **Thinness is tested at the pass that computes the rate**, over the window as of that pass
+  and not between passes, because at the minimum window of three passes the oldest observation
+  ages out just before each new one arrives, and a continuous count would drop the rate between
+  passes in steady state (*added 2026-09-23, `ADR-0027`*).
 
 **A deployment MUST state its window and its pass cadence so that a full window holds at least three
 passes**, so the thin case is always an outage and never a configuration.
@@ -1149,9 +1156,10 @@ usage cannot be converted to satoshis. A deployment MUST:
   first** (`LDG-38`, `LDG-74`, `API-63`), since a machine that died mid-outage absorbed nothing
   after it died — and by no other event (*added 2026-09-05; the column was required by
   `LDG-38`'s apportioning and had no writer, so the meter could neither end the window nor tell
-  where billable time resumed*). The observation that restores `LDG-59`'s quorum is not always
+  where billable time resumed*). The first observation accepted after an outage is not always
   that one: after an outage longer than `LDG-58`'s window it leaves that window too thin to
-  produce a rate (*added 2026-09-23, `ADR-0027`*);
+  produce a rate (`LDG-59`) (*added 2026-09-23, `ADR-0027`, and reworded the same day out of the
+  withdrawn per-pass quorum frame*);
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
   a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
   and quietly extend the exposure past the bound. The deficiency record (`STO-37`) is where they

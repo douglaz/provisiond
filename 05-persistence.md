@@ -1197,30 +1197,30 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   (3) completes, except the exception, which stays off until the operator has confirmed or
   cancelled every waiting parent; `OPS-27`'s and `OPS-32`'s sweeps, the meter, re-derivation, the
   solvency check and the settlement watcher are not frozen, and the account sweep's two passes are
-  a step below; `provider_account_status` and the rate quorum are re-established, since `LDG-16`
-  and `STO-36` route on them; every machine whose stored `runway_until` has passed has
-  `destroy_not_before` set to **the restore instant plus one re-derivation interval** — `LDG-16`'s
-  own grace for a date moved backward by something other than consumption, written as the deadline
-  itself rather than as a start, so that a second run of an unmarked step cannot re-apply it from a
-  fresh clock (`LDG-64` persists its deadline for the same reason) (*amended 2026-09-21, `ADR-0026`:
-  the withdrawn form set `exhausted_since` to the restore instant, one slot serving both this grace
-  and the confirmation wait, which is why re-running this step could "backdate an `exhausted_since`
-  a later re-derivation had set" — `ADR-0023`'s own reason for the step marks. Two facts cannot
-  collide in one slot, and re-keying that slot to an observation instead was refused because a rate
-  arriving seconds after a restore would then end the grace*). *Withdrawn 2026-09-23 (`ADR-0027`),
-  with the reference: "and **any `rate_confirmation_ref` already present is preserved**, because a
-  restore is not an observation and discharges nothing".* (2) *Before the first claim:*
-  every `queued` create, install and rescue inventory is moved to `needs_reconciliation` — a repeat
-  is a second order, a second disk write, a second boot into rescue — and `OPS-27` establishes what
-  happened rather than doing it again; the goal-state kinds (delete, power, end-rescue, release
-  attachment, reverse DNS) re-run, since `OPS-11` classifies "already in the target state" as
-  `succeeded`; a `suspend_tenant` parent found `running`, or `queued` and unsettled (`OPS-49`'s
-  waiting parent is `queued`), waits for operator confirmation instead of resuming. (3) *Before the
-  first `api` request:* the watch set is re-derived (`STO-32`), both rails are replayed (`STO-31`),
-  `SEC-39`'s counters are re-seeded, every tenant's credential generation is bumped — the restored
-  store cannot know which tenants revoked inside Δ, so every spending token dies and each customer
-  re-issues through the recovery credential (`API-56`) — and `deposits.derivation_index` is skipped
-  forward by the stated gap (`OVR-19`) before any deposit is minted.
+  a step below; `provider_account_status` is re-established, since `STO-36` routes on it; every
+  machine whose stored `runway_until` has passed has `destroy_not_before` set to **the restore
+  instant plus one re-derivation interval** — `LDG-16`'s own grace for a date moved backward by
+  something other than consumption, written as the deadline itself rather than as a start, so that a
+  second run of an unmarked step cannot re-apply it from a fresh clock (`LDG-64` persists its
+  deadline for the same reason) (*amended 2026-09-21, `ADR-0026`: the withdrawn form set
+  `exhausted_since` to the restore instant, one slot serving both this grace and the confirmation
+  wait, which is why re-running this step could "backdate an `exhausted_since` a later re-derivation
+  had set" — `ADR-0023`'s own reason for the step marks. Two facts cannot collide in one slot, and
+  re-keying that slot to an observation instead was refused because a rate arriving seconds after a
+  restore would then end the grace*). *Withdrawn 2026-09-23 (`ADR-0027`), with the reference: "and
+  **any `rate_confirmation_ref` already present is preserved**, because a restore is not an
+  observation and discharges nothing".* (2) *Before the first claim:* every `queued` create, install
+  and rescue inventory is moved to `needs_reconciliation` — a repeat is a second order, a second
+  disk write, a second boot into rescue — and `OPS-27` establishes what happened rather than doing
+  it again; the goal-state kinds (delete, power, end-rescue, release attachment, reverse DNS)
+  re-run, since `OPS-11` classifies "already in the target state" as `succeeded`; a `suspend_tenant`
+  parent found `running`, or `queued` and unsettled (`OPS-49`'s waiting parent is `queued`), waits
+  for operator confirmation instead of resuming. (3) *Before the first `api` request:* the watch set
+  is re-derived (`STO-32`), both rails are replayed (`STO-31`), `SEC-39`'s counters are re-seeded,
+  every tenant's credential generation is bumped — the restored store cannot know which tenants
+  revoked inside Δ, so every spending token dies and each customer re-issues through the recovery
+  credential (`API-56`) — and `deposits.derivation_index` is skipped forward by the stated gap
+  (`OVR-19`) before any deposit is minted.
 - **The procedure survives its own interruption, because the incident outlives the process.** The
   restore commits `STO-56`'s **restore record** — the restore instant, and which of the three steps
   have completed — before either component is started, and **a process that starts while a restore

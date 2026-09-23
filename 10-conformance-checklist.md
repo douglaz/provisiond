@@ -415,18 +415,33 @@ not optional hardening — they are the only structural defence there is.
       a window that cannot produce a rate halts instead of pricing. **Asserted through the
       mechanism, not the outcome** (2026-09-05; rewritten 2026-09-21 for `ADR-0026` and 2026-09-23
       for `ADR-0027`, with the sub-quorum and ageing-out cases added the same day for its two
-      amendments): assert the rate itself, not only whether a disk survived. **One poisoned pass
-      among honest ones**, in three shapes, each asserting that the rate lies inside the range the
-      remaining honest observations carry: fill a window with five honest observations at distinct
-      prices and replace any one with a print far below them all; fill it again and replace any one
-      with a print far above them all; and fill a window with honest observations at 100, 103 and
-      104, replace the 103 with 101.5, and assert the rate reads 101.5 — a price no honest pass
-      accepted, inside the honest range. **A print carried by half the window**: fill a window with
-      four observations, two of them at one print below every honest price, and assert the rate is
-      that print. **A window with no fresh observation**: let every observation inside the window
-      age past the staleness bound and assert there is no rate, observed as `CNF-138` observes it
-      from dead sources. **A thin window**: leave two fresh observations inside it and assert there
-      is no rate, the same way. **A sub-quorum pass with a fresh window**: with a window that
+      amendments, and the steady-state and silent-feed cases for `LDG-59`'s two clocks): assert the
+      rate itself, not only whether a disk survived. **One poisoned pass among honest ones**, in
+      three shapes, each asserting that the rate lies inside the range the remaining honest
+      observations carry: fill a window with five honest observations at distinct prices and replace
+      any one with a print far below them all; fill it again and replace any one with a print far
+      above them all; and fill a window with honest observations at 100, 103 and 104, replace the
+      103 with 101.5, and assert the rate reads 101.5 — a price no honest pass accepted, inside the
+      honest range. **A print carried by half the window**: fill a window with four observations,
+      two of them at one print below every honest price, and assert the rate is that print. **A
+      window with no fresh observation**: let every observation inside the window age past the
+      staleness bound and assert there is no rate, observed as `CNF-138` observes it from dead
+      sources. **A thin window**: leave two fresh observations inside it and assert there is no
+      rate, the same way. **Steady state at a window of exactly three passes never drops the rate
+      between passes** (added 2026-09-23, `ADR-0027`, with the next case, for `LDG-59`'s two
+      clocks): configure the window to hold exactly three passes — cadence × 3 = window length —
+      with a staleness bound longer than the cadence, and run in steady state, so the oldest
+      observation ages out just before each new one arrives, each accepting pass running strictly
+      after the oldest has aged out, so that a continuous count would read two in between; assert
+      that at every instant between passes there is a rate and it is the one the last accepting pass
+      computed, and that the count of observations inside the window is not re-tested between
+      passes. **A feed silent for longer than the staleness bound is no rate before any pass runs**:
+      with a window that produces a rate, stop every source, or otherwise ensure no pass accepts an
+      observation, and let the wall clock advance past the staleness bound measured from the newest
+      observation's `observed_at` with no pass having accepted anything since; assert that at that
+      instant there is **no rate** — a create is refused and re-derivation halts without cancelling
+      (`LDG-40`) — before any pass runs, and that the opening of the `LDG-64` outage does not wait
+      for a pass to notice. **A sub-quorum pass with a fresh window**: with a window that
       produces a rate, run one pass below `LDG-59`'s quorum and assert that creates and
       re-derivations proceed at the rate in force, that no `LDG-40` halt fires and no `LDG-64`
       outage opens, and that the next accepting pass recomputes the rate. **An observation ageing
