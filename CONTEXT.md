@@ -132,7 +132,7 @@ it** — the two are separate capabilities.
 _Avoid_: install (bare), rebuild, provider install
 
 **Rescue inventory**:
-A read-only pass that boots a machine into rescue and reports its disks with stable identifiers, so
+A read-only procedure that boots a machine into rescue and reports its disks with stable identifiers, so
 a caller can choose a target before a destructive write. Read-only about the **disk** and nothing
 else: it reboots the machine, and an ambiguous exit can leave it in rescue.
 _Avoid_: preflight (banned — see flagged ambiguities)
@@ -167,7 +167,7 @@ _Avoid_: rollback, preserved (say `disk_effect: none`), data loss (which is a co
 **Restore**:
 Bringing the store back from a backup, landing at some instant before the failure. A recovery
 incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no committed
-work and the startup pass classifies what was in flight; a restore loses an interval, and the
+work and the classifier settles what was in flight at startup; a restore loses an interval, and the
 engine brought up on it naïvely performs destructive actions on state the restore rewrote.
 The **restore record** is the row that makes the incident recognizable to a process rather than to
 an operator: open from before either component starts until the operator closes it, carrying the
