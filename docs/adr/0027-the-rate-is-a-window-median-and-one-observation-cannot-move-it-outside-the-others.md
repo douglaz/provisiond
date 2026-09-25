@@ -92,19 +92,27 @@ create-time price, the solvency check. One rate, one home.
   and `CNF-218`, every one of which makes the rate-outage row a subject's — `OPS-41` even records
   that "a first form named a deployment-wide outage row that `STO-37` does not have" on
   2026-09-05*). `STO-37`'s row carries a machine or attachment, so there is one per subject per
-  outage, and every row of one currency carries the same `absorbed_from`: the instant no rate
-  began for that currency — for staleness, the newest observation's `observed_at` plus the
-  staleness bound; for thinness, the `observed_at` of the pass that found the window thin, since
-  the newest observation is then still fresh and "newest plus bound" would date the start in the
-  future. The meter opens the subject's row at that subject's first posting which computes no rate
-  and finds no open row for it — open meaning `absorbed_until` null — as a conditional insert
-  guarded on that absence, so a reader computing staleness and a pass finding the window thin
-  cannot open two rows for one outage. The worker's `OPS-41` contend does not open one: its
-  affects-no-row branch is what tells it the meter stopped. A create and the solvency check
-  compute no rate for no subject and open nothing. Both consumers of the instant — `LDG-38`'s
-  apportioning and `LDG-64`'s bound — read the persisted `absorbed_from`, so a late opening changes
-  no bill and no deadline. Continuous staleness made an opener necessary: an outage can now begin
-  with no pass running, and the set had named every closer of the row and never its opener. *The first
+  outage, and **every row of one outage carries the same `absorbed_from`: the earliest instant of
+  the maximal interval, ending at the writer's posting, throughout which the window yielded no
+  rate** — computed from `STO-49`'s recorded observations by replaying `LDG-59`'s two clocks over
+  them (*amended 2026-09-25, from the review of `pv-gip.16`: the first form gave each writer the
+  instant its own clock showed at its own posting — "newest plus bound" for staleness, the thin
+  pass's instant for thinness — and the two clocks can cross inside one outage: the newest goes
+  stale, a machine opens its row, a later pass accepts one observation into a still-thin window,
+  and the next machine's posting computes a start hours later than the first's. Two rows, two
+  starts, two deadlines, and a window nobody absorbs — against `LDG-59`'s one outage per currency
+  and `LDG-64`'s "charge the customer nothing for that window". Copying the start from a sibling
+  row was considered and refused: a writer that computed before a thin pass committed and one that
+  read after it can interleave so that neither sees the other. A start that is a function of the
+  history alone is the same for every writer whatever the interleaving, and reads no sibling.*)
+  `STO-49` retains the rows that establish an open outage's start until the outage closes. The
+  meter opens the subject's row at that subject's first posting which computes no rate and finds no
+  open row for it — open meaning `absorbed_until` null — as a conditional insert guarded on that
+  absence, so two postings of one subject open one row. The worker's `OPS-41` contend does not
+  open one; a create and the solvency check have no subject to open one for. Both consumers of the
+  instant — `LDG-38`'s apportioning and `LDG-64`'s bound — read the persisted `absorbed_from`, so a
+  late opening changes no bill and no deadline. `STO-37` owns the rule and carries the argument;
+  this paragraph is the decision and its history. *The first
   draft and `pv-gip.1` kept the per-pass halt beside the
   window; the owner withdrew it, since it handed whoever can disrupt one pass a halt they never
   had, and the window exists to absorb exactly that pass.* After an outage shorter than
