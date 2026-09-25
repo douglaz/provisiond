@@ -105,8 +105,12 @@ create-time price, the solvency check. One rate, one home.
   row was considered and refused: a writer that computed before a thin pass committed and one that
   read after it can interleave so that neither sees the other. A start that is a function of the
   history alone is the same for every writer whatever the interleaving, and reads no sibling.*)
-  `STO-49` retains the rows that establish an open outage's start until the outage closes. The
-  meter opens the subject's row at that subject's first posting which computes no rate and finds no
+  `STO-49` keeps the replay's inputs at all times, not only during an outage: for each currency,
+  the rows inside its window as of the last accepting pass that yielded its rate, and every row of
+  that currency accepted since, are not pruned; a later rate-yielding pass moves that snapshot
+  forward (*the floor as `pv-gip.18` landed it, 2026-09-25 — the first form here said "until the
+  outage closes", which is narrower than the rule needs, since the start is replayed from before the
+  outage began*). The meter opens the subject's row at that subject's first posting which computes no rate and finds no
   open row for it — open meaning `absorbed_until` null — as a conditional insert guarded on that
   absence, so two postings of one subject open one row. The worker's `OPS-41` contend does not
   open one; a create and the solvency check have no subject to open one for. Both consumers of the

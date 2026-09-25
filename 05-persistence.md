@@ -584,8 +584,14 @@ used for anything**, and retained at least until every subject **with an open in
 one past its `observed_at` — a stopped subject closes no further increment and must not pin the
 table forever — **and never less than one window per currency** (added 2026-09-23, `ADR-0027`): no
 row is pruned while its `observed_at` lies inside its currency's window (`LDG-58`), since the rate
-is taken over exactly those rows. *The retention the rate confirmation reference needed went with
-the reference, 2026-09-23 (`ADR-0027`).*
+is taken over exactly those rows. **And never the rows that establish an open outage's start**
+(added 2026-09-25, `ADR-0027`): for each currency, the rows that lay inside its window as of the
+last accepting pass that yielded its rate — that pass's own row and the rows within one window
+length before it — and every row of that currency accepted since are not pruned, at all times. A
+later accepting pass that yields that currency's rate moves that snapshot forward and no longer
+holds the old one; an outage has no such pass, so the snapshot it holds survives to the close and
+`STO-37`'s replay always has its left edge. *The retention the rate confirmation reference needed
+went with the reference, 2026-09-23 (`ADR-0027`).*
 
 *Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
 self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
@@ -864,35 +870,34 @@ the machine.* **The row is the subject's, and the meter opens it.** One `rate_ou
 machine or attachment per outage — the table's own `subject_kind`/`subject_id`, and what `OPS-41`
 contends on, "**this machine's** open `rate_outage` deficiency record" — and nothing
 deployment-wide. Open means what `OPS-41`'s guard says: `absorbed_until IS NULL`; `resolved_at` is
-not that marker and stays null on this cause. The meter
-(`LDG-64`; `LDG-40`'s "fifth row — metering") opens it at a subject's first posting that computes no
-rate and finds no open row for that subject, as a **conditional insert guarded on that absence** — a
-guard on "no open row for this subject", not merely a key — so two postings of one subject — one
-that computes no rate by staleness, one after a pass found the window thin — cannot open two rows
-for one outage. No other row of `LDG-40`'s matrix opens one: the exhaustion sweep "MUST continue:
-it reduces exposure" and asks for no rate; a create and the
-solvency check compute no rate for no subject and open nothing; re-derivation "MUST halt rather than
-under-reserve" and opens nothing. Nor does the worker's `OPS-41` contend, whose reading of an absent
-row is "Where it affects no row, something closed the window first" — an opener there makes that
-branch unreachable. **Its start is the currency's.** Every row of one outage carries the same
-`absorbed_from`, the instant no rate began for that currency — the outage is the currency's, per
-`LDG-59`'s "one rate, one quorum, one outage and one bound for each currency": for staleness, the
-newest
-observation's `observed_at` plus `LDG-59`'s staleness bound — `LDG-59`: "The window's staleness is
-tested continuously, and no pass is needed for it to produce no rate"; for thinness, the
-`observed_at` of the `STO-49` row of the pass that found the window thin, since the newest
-observation is then still fresh and newest plus bound would date the start in the future. Both are
-arithmetic every writer computes identically from `STO-49`'s recorded instants; its
-`outage_deadline` is that instant plus `LDG-64`'s "maximum tolerated outage", also identical for
-every writer and written in the same insert, so the deadline has no second writer. A late opening
-changes no bill and no deadline: both consumers of the instant, `LDG-38`'s apportioning and
-`LDG-64`'s bound, read the persisted `absorbed_from`, not the moment it was written. *Added
-2026-09-25 (`ADR-0027`, corrected the same day): "The outage record is the subject's, its start is
-the currency's, and the meter opens it" — the set named every closer of this row — `LDG-64`'s "close
-the absorbed window at the observation with which `LDG-58`'s window produces a rate again … or with
-the subject's own meter-stop instant where that comes first" — and never an opener, and with the
-window's staleness, in `LDG-59`'s words, "tested continuously, and no pass is needed for it to
-produce no rate", an outage can begin with no pass running.*
+not that marker and stays null on this cause. The meter (`LDG-64`; `LDG-40`'s "fifth row —
+metering") opens it at a subject's first posting that computes no rate and finds no open row for
+that subject, as a **conditional insert guarded on that absence**, so two postings of one subject —
+one that computes no rate by staleness, one after a pass found the window thin — open one row. No
+other row of `LDG-40`'s matrix opens one: the exhaustion sweep "MUST continue: it reduces exposure"
+and asks for no rate; a create and the solvency check have no subject to open one for; re-derivation
+"MUST halt rather than under-reserve" and opens nothing. Nor does the worker's `OPS-41` contend open
+one (`OPS-41` reads an absent row its own way). **Its start is the currency's.** Every row of one
+outage carries the same `absorbed_from` — the outage is the currency's, per `LDG-59`'s "one rate,
+one quorum, one outage and one bound for each currency" — and it is, in `ADR-0027`'s words,
+"the earliest instant of the maximal interval, ending at the writer's posting, throughout which the
+window yielded no rate", computed by replaying `LDG-59`'s two clocks — staleness at every instant,
+thinness at each accepting pass — over `STO-49`'s recorded observations. It is a function of that
+history alone, so it is the same for every writer whatever the interleaving of postings and passes,
+and no writer reads any sibling row for it. When only one clock has fired inside the outage, the
+replay yields that clock's own instant: the newest observation's `observed_at` plus `LDG-59`'s
+staleness bound when only staleness has — `LDG-59`: "The window's staleness is tested continuously,
+and no pass is needed for it to produce no rate" — and the `observed_at` of the `STO-49` row of the
+pass that found the window thin when only thinness has, since the newest observation is then still
+fresh and newest plus bound would date the start in the future. When the clocks cross inside one
+outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
+the replay returns the first instant, which those per-writer formulas did not. Its `outage_deadline`
+is that instant plus `LDG-64`'s "maximum tolerated outage", written in the same insert, so the
+deadline has no second writer. A late opening changes no bill and no deadline: both consumers of the
+instant, `LDG-38`'s apportioning and `LDG-64`'s bound, read the persisted `absorbed_from`, not the
+moment it was written. *Added 2026-09-25 (`ADR-0027`): before that day the set named every closer of
+this row and never an opener; the same day the start was redefined from the withdrawn per-writer
+formulas — "Both are arithmetic every writer computes identically" — to the replayed instant.*
 
 **STO-47** **This table has readers, and until 2026-09-04 it had none.** `WIR-29` filters the
 customer catalogue on it, the create path refuses anything but `healthy`, and `STO-36`
