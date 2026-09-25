@@ -587,7 +587,8 @@ row is pruned while its `observed_at` lies inside its currency's window (`LDG-58
 is taken over exactly those rows. **And never the rows a replay of an outage's start would need**
 (added 2026-09-25, `ADR-0027`): for each currency, the rows that lay inside its window as of the
 last accepting pass that yielded its rate — that pass's own row and the rows within one window
-length before it — and every row of that currency accepted since are not pruned, at all times. A
+length before it — and every row of that currency accepted since or observed later (a pass that
+read early and committed late, `LDG-59`'s newest by `observed_at`) are not pruned, at all times. A
 later accepting pass that yields that currency's rate moves that snapshot forward and no longer
 holds the old one; an outage has no such pass, so the snapshot it holds survives to the close and
 `STO-37`'s replay always has its left edge. *The retention the rate confirmation reference needed
