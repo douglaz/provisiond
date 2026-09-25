@@ -67,11 +67,12 @@ re-derivation interval.** Two rules read it and nothing else does:
   tenant the grace exists for (*found by all four readers of the first draft, 2026-09-25*). When
   the instant is set, the claim returns the operation to `queued` with
   `available_at = grace_ends_at`; when it is not yet written, by `OPS-8`'s ordinary short delay.
-  Either is "the same write as `OPS-8`'s defer, though nothing refused it", in `F51`'s words; `OPS-8`
+  Either is "the same write as `OPS-8`'s defer, though nothing refused it", in `OPS-49`'s words, in the bullet it marks as `F51`'s; `OPS-8`
   itself covers an index refusal and a short delay, so `OPS-41` states this scope and duration
   rather than citing it. The worker reads the restore record **at each such claim** — a new duty,
   since `STO-56`'s "both components read the open row before anything else they do" is the
-  startup read, taken once, before the instant exists. This covers every path that reaches the
+  startup read, taken once per process, so it cannot see an instant written or passed later in the
+  incident. This covers every path that reaches the
   worker: a delete re-run by step (2), an operator's retry, the outage bound, a suspended
   tenant's. No fence is written, so `LDG-62`'s extension is refused by nothing the grace introduced.
   `OPS-41` owns the rule; `OPS-48` gains no row, since a re-queued attempt has not settled.
@@ -157,7 +158,7 @@ This is the edit list `pv-gip.5` lands, and the record and the ticket name the s
 that the record is not closed before it has passed. `STO-54` says the freeze lifts at
 `grace_ends_at` (the exception's later condition standing), loses the step that wrote a deadline on
 every machine, and names the fenced machine in its not-repaired paragraph. `OPS-41` gains the claim
-rule in `F51`'s words — defer while the record is open and the instant is null or future, to the
+rule in `OPS-49`'s words — defer while the record is open and the instant is null or future, to the
 instant when set and by a short delay when not — and the per-claim read of the record. `LDG-16`
 loses its deadline paragraph, the provider-call sentence `pv-gip.1` gave it, and the deadline half
 of its routing predicate; its bypass sentence says the bound's and the suspended tenant's
