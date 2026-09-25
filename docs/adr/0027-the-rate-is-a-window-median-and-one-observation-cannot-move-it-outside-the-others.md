@@ -86,9 +86,13 @@ create-time price, the solvency check. One rate, one home.
   the minimum window of three passes the oldest observation ages out just before each new one
   arrives, and a continuous count would drop the rate between passes in steady state. **The outage
   record is opened by whichever reader first computes no rate and finds it absent** (*added
-  2026-09-25*): its start, `STO-37`'s `absorbed_from`, is the newest observation's `observed_at`
-  plus the staleness bound — a value every writer computes identically — written as a conditional
-  insert keyed on the currency, so two readers racing to open it write one row with one instant.
+  2026-09-25*): its start, `STO-37`'s `absorbed_from`, is the instant no rate began — for
+  staleness, the newest observation's `observed_at` plus the staleness bound; for thinness, the
+  instant of the pass that found the window thin, since the newest observation is then still fresh
+  and "newest plus bound" would date the start in the future (*the second clause added the same
+  day, from the self-consistency pass on `ADR-0028`*). Both are values every writer computes
+  identically from recorded instants, written as a conditional insert keyed on the currency, so
+  two readers racing to open it write one row with one instant.
   Continuous staleness made this necessary: an outage can now begin with no pass running, and the
   set named every closer of that record and never an opener (`pv-gip.16`). *The first
   draft and `pv-gip.1` kept the per-pass halt beside the
