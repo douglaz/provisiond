@@ -600,14 +600,15 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo"
-          sed -i 's/metered through the outage/billed through the blackout/' \
+          # One word, so a docstring reflow cannot split the pattern across lines.
+          sed -i 's/every machine metered through/every machine billed through/' \
             tools/formal/Provisiond/Fence.lean
-          grep -q 'which `OPS-41` says "under `LDG-64` is every machine billed through the blackout"' \
+          grep -q 'which `OPS-41` says "under `LDG-64` is every machine billed through' \
             tools/formal/Provisiond/Fence.lean
           if python3 tools/check_citations.py > citations.log 2>&1; then
             echo "::error::citation gate passed a Lean docstring quote its target does not contain"
             exit 1
           fi
           grep -q 'tools/formal/Provisiond/Fence.lean attributes to OPS-41 a phrase OPS-41 does not contain:' citations.log
-          grep -q '"under ldg-64 is every machine billed through the blackout"' citations.log
+          grep -q '"under ldg-64 is every machine billed through the outage"' citations.log
           echo "citation gate correctly rejected the Lean docstring misquote"
