@@ -479,15 +479,24 @@ not optional hardening — they are the only structural defence there is.
       at 106 (`LDG-38`). **Then let a runway expire with no rate movement at all and assert the
       machine is routed on the very next sweep** — a build that holds every past date for a second
       look runs each ordinary exhaustion one interval into the wind-down reserve. **Then the restore
-      edge** (added 2026-09-12, `ADR-0023`): restore a store in which a machine's stored
-      `runway_until` is past and `destroy_not_before` null, run `STO-54`'s procedure, and assert
-      `destroy_not_before` is the restore instant plus one re-derivation interval, that an
-      observation arriving inside that grace does not end it, and that the sweep waits until it
-      passes; extend the machine inside that grace and assert the deadline clears and it is never
-      routed. *The per-tick cap clause is withdrawn with the construct it tested (`ADR-0011`). Until
+      edge** (added 2026-09-12, `ADR-0023`; rewritten 2026-09-25, `ADR-0028`, to measure from step
+      (3)): restore a store in which a machine's stored `runway_until` is past, run `STO-54`'s
+      procedure, and assert that the record's `grace_ends_at` (`STO-56`) is step (3)'s instant plus
+      one re-derivation interval and that the exhaustion sweep does not route the machine before it
+      — the freeze holds; take a queued delete re-run by step (2) and claimed before step (3), and
+      assert it defers by a short delay, writes no fence (`machines.destroy_committed` stays null)
+      and makes no provider call; take one claimed after step (3), and assert it is returned to
+      `queued` with `available_at = grace_ends_at`, writes no fence and makes no provider call
+      (`OPS-41`); extend the machine inside the grace, and assert the extension is admitted — no
+      fence refuses it — and that at the re-claim after `grace_ends_at` the worker aborts and closes
+      the episode `funded` (`OPS-48`'s no-mutation row), the machine never routed again for that
+      lapse; and take a machine already fenced when the grace begins, and assert an extension is
+      refused `cancellation_committed` throughout the grace and that its retry's claim waits for
+      `grace_ends_at` like every claim. *The per-tick cap clause is withdrawn with the construct it
+      tested (`ADR-0011`). Until
       2026-09-05 this item tested a behaviour with no column, no predicate and no reader behind it,
       and a build that routed on the date alone passed it by never being fed a poisoned reading.*
-      (`PRV-13e`, `LDG-16`, `LDG-58`, `LDG-59`, `STO-37`, `STO-49`)
+      (`PRV-13e`, `LDG-16`, `LDG-58`, `LDG-59`, `STO-37`, `STO-49`, `STO-54`, `STO-56`, `OPS-41`)
 - [ ] **CNF-100** — At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
 - [ ] **CNF-101** — Under a failing solvency check, every bill-increasing operation is refused
@@ -609,15 +618,15 @@ takes the machines *and* the float" partly false.
       successor that it continues the incident — it takes the restore branch of the pass and
       quarantines the executed create, and `api` serves nothing until step (3) is marked; of the
       second, that it repeats no marked step — the listener is not taken down again, the token a
-      tenant re-issued after step (3) still authenticates, and `destroy_not_before` is not
-      rewritten;
+      tenant re-issued after step (3) still authenticates, and the record's `grace_ends_at` is not
+      rewritten (*amended 2026-09-25, `ADR-0028`*);
       and that once the operator closes the record a restart is an ordinary one, leaving `queued`
       rows alone. Assert: no worker makes a
       provider mutation and nothing writes a disk before the first
       claim (`OPS-32`'s deletion of an orphaned imported image is the one provider call the freeze
-      does not stop); the extended machine is not routed into exhaustion before
-      `destroy_not_before` passes
-      and its re-extension clears that column — and a second machine extended in the lost
+      does not stop); the extended machine is not routed into exhaustion before the record's
+      `grace_ends_at` passes, and its re-extension is admitted and leaves `grace_ends_at` as written
+      (`OPS-41`; *amended 2026-09-25, `ADR-0028`*) — and a second machine extended in the lost
       interval and **not** re-extended is routed once the interval ends, with the extension's
       satoshis back in its tenant's balance and its `runway_until` reading the restored date
       throughout (added 2026-09-12: the grace is one interval, not a repair); the old token authenticates nothing and the
@@ -627,7 +636,7 @@ takes the machines *and* the float" partly false.
       `suspend_tenant` parent, in either state, does not resume without operator confirmation; the
       sweep's first pass records no absence and
       its second may; and the operator report names `T − Δ` and every unrecorded machine per
-      account. (`STO-54`, `STO-56`, `OPS-15`, `LDG-16`, `API-56`, `OPS-27`, `OPS-32`)
+      account. (`STO-54`, `STO-56`, `OPS-15`, `OPS-41`, `LDG-16`, `API-56`, `OPS-27`, `OPS-32`)
 - [ ] **CNF-296** — **The two synchronous writes hang alone** (added 2026-09-12,
       `ADR-0023`). Stall the named standby. Assert a deposit mint and a payment credit block, every
       engine write and every other `api` write proceeds, and `OVR-18`'s alarm fires. Release the

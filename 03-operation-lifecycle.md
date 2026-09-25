@@ -698,9 +698,11 @@ machine (`OPS-8`) and before any provider mutation**, re-read that machine's com
 the extension it is racing can commit between the read and the write. Where re-deriving `LDG-33`
 from what it read now puts **`runway_until` strictly in the future**, the worker MUST make no
 provider call, settle the operation `succeeded` with a result recording that no mutation was
-required, **write that re-derived `runway_until` to the machine row and clear the deadline —
-`LDG-16`'s `machines.destroy_not_before`** (the abort is the second of the two authorized
-future-date writes, `ADR-0026`), **clear `machines.destroy_committed`**, and close the episode where
+required, **write that re-derived `runway_until` to the machine row** (*withdrawn 2026-09-25,
+`ADR-0028`: "and clear the deadline — `LDG-16`'s `machines.destroy_not_before` (the abort is the
+second of the two authorized future-date writes, `ADR-0026`)" — no machine carries a deadline; the
+restore grace is `STO-56`'s `grace_ends_at`*), **clear `machines.destroy_committed`**, and close
+the episode where
 it is still open (`OPS-48`; a gone-write may have closed it first, and a close is permanent) so a
 later lapse can open a fresh one. *The date write was added 2026-09-05: the sweep routes on the
 **stored** date, and an abort that re-derived a future date and wrote nothing left the stored one in
@@ -712,6 +714,27 @@ this requirement warns about for the withdrawn predicate, reached through a stal
 order this worker against `LDG-62`, and leaving it set on a machine the worker has just decided not
 to cancel would refuse every future extension on a funded, running machine — permanently, since
 nothing else would clear it.
+
+**A claim made while a restore record is open and its `grace_ends_at` is null or in the future
+defers, and writes no fence** (*added 2026-09-25, `ADR-0028`*). A worker claiming **any**
+exposure-reducing cancellation MUST read the restore record (`STO-56`) at each such claim, before
+the fence transaction above, and while a restore record is open and its `grace_ends_at` is null or
+in the future the claim MUST defer: the operation is returned to `queued` with `available_at =
+grace_ends_at` where the instant is set, and by `OPS-8`'s ordinary short delay where it is not yet
+written. No fence is written and the re-check above does not run on that path, so `LDG-62`'s
+extension is refused by nothing the grace introduced. The null branch is real: claims begin after
+step (2) of `STO-54`'s procedure and the instant is written at step (3), so a delete re-run by step
+(2) and claimed before step (3) would otherwise fence, re-check the restored balance and call the
+provider on the very tenant the grace exists for. The rule applies whichever path enqueued the
+cancellation — a delete re-run by step (2), an operator's retry, `LDG-64`'s bound, a suspended
+tenant's. The deferral is the write `OPS-49` gives a waiting parent — `OPS-49` says it is "the same
+write as `OPS-8`'s defer, though nothing refused it", in a bullet `OPS-49` marks as `F51`'s. `OPS-8`
+itself covers an index refusal and a short delay — `OPS-8` says a refused claim "MUST return the
+operation to `queued` with a short delay" — which is why this paragraph states its own scope and
+duration rather than citing it. The read is a new duty: `STO-56` says "Both components read the open
+row before anything else they do", and that is the startup read, taken once per process, so it
+cannot see an instant written or passed later in the incident. `OPS-48` gains no row — a re-queued
+attempt has not settled.
 
 **AMENDED 2026-09-04 — the abort predicate was the routing predicate, so every correctly routed
 cancellation aborted.** *It read "where the remaining commitment now covers the wind-down floor at

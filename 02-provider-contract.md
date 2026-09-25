@@ -294,8 +294,10 @@ amount of a customer's balance.
 **PRV-13e** **AMENDED twice the same day, and repeatedly since — the history is the lesson.**
 Re-derivation MUST run at the deployment's stated **re-derivation interval** at the current rate,
 and what it recomputes is **`runway_until`, not the
-commitment** (`LDG-33`, `ADR-0011`). **It never writes `machines.destroy_not_before`**,
-which is `STO-54`'s and runs on wall clock. *Withdrawn 2026-09-23 (`ADR-0027`): the duty to
+commitment** (`LDG-33`, `ADR-0011`). *Withdrawn 2026-09-25 (`ADR-0028`): "**It never writes
+`machines.destroy_not_before`**, which is `STO-54`'s and runs on wall clock" — no machine carries a
+deadline; the restore grace is `STO-56`'s `grace_ends_at`.* *Withdrawn 2026-09-23 (`ADR-0027`): the
+duty to
 maintain `machines.rate_confirmation_ref` — the reference itself is withdrawn, `LDG-16` keeps its
 record, and what follows is the record of the forms its setter took.* *Amended 2026-09-21
 (`ADR-0026`): the withdrawn form maintained one column, `machines.exhausted_since`, set to **the
