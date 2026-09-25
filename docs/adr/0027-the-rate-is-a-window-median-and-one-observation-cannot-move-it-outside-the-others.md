@@ -86,16 +86,25 @@ create-time price, the solvency check. One rate, one home.
   passes rather than holding its last rate; thinness at the pass that computes the rate, because at
   the minimum window of three passes the oldest observation ages out just before each new one
   arrives, and a continuous count would drop the rate between passes in steady state. **The outage
-  record is opened by whichever reader first computes no rate and finds it absent** (*added
-  2026-09-25*): its start, `STO-37`'s `absorbed_from`, is the instant no rate began — for
-  staleness, the newest observation's `observed_at` plus the staleness bound; for thinness, the
-  instant of the pass that found the window thin, since the newest observation is then still fresh
-  and "newest plus bound" would date the start in the future (*the second clause added the same
-  day, from the self-consistency pass on `ADR-0028`*). Both are values every writer computes
-  identically from recorded instants, written as a conditional insert keyed on the currency, so
-  two readers racing to open it write one row with one instant.
-  Continuous staleness made this necessary: an outage can now begin with no pass running, and the
-  set named every closer of that record and never an opener (`pv-gip.16`). *The first
+  record is the subject's, its start is the currency's, and the meter opens it** (*added
+  2026-09-25, and corrected the same day: the first form said "one row per currency, keyed on the
+  currency", and `pv-gip.16`'s Run found it contradicted `STO-37`, `LDG-64`, `LDG-66`, `OPS-41`
+  and `CNF-218`, every one of which makes the rate-outage row a subject's — `OPS-41` even records
+  that "a first form named a deployment-wide outage row that `STO-37` does not have" on
+  2026-09-05*). `STO-37`'s row carries a machine or attachment, so there is one per subject per
+  outage, and every row of one currency carries the same `absorbed_from`: the instant no rate
+  began for that currency — for staleness, the newest observation's `observed_at` plus the
+  staleness bound; for thinness, the `observed_at` of the pass that found the window thin, since
+  the newest observation is then still fresh and "newest plus bound" would date the start in the
+  future. The meter opens the subject's row at that subject's first posting which computes no rate
+  and finds no open row for it — open meaning `absorbed_until` null — as a conditional insert
+  guarded on that absence, so a reader computing staleness and a pass finding the window thin
+  cannot open two rows for one outage. The worker's `OPS-41` contend does not open one: its
+  affects-no-row branch is what tells it the meter stopped. A create and the solvency check
+  compute no rate for no subject and open nothing. Both consumers of the instant — `LDG-38`'s
+  apportioning and `LDG-64`'s bound — read the persisted `absorbed_from`, so a late opening changes
+  no bill and no deadline. Continuous staleness made an opener necessary: an outage can now begin
+  with no pass running, and the set had named every closer of the row and never its opener. *The first
   draft and `pv-gip.1` kept the per-pass halt beside the
   window; the owner withdrew it, since it handed whoever can disrupt one pass a halt they never
   had, and the window exists to absorb exactly that pass.* After an outage shorter than
