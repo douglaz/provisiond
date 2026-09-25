@@ -28,14 +28,21 @@ the direct reread) are that module's, so on a restart the sweep records an absen
 pass alone; when the record closes, which `STO-54` gives to the operator once the obligations that
 outlive step (3) are discharged — so the record is open throughout this module and every successor
 here is a continuation, and a boot on a closed record is the restart `bootRestart` already is;
-`STO-54`'s step (1) beyond the freeze and `LDG-16`'s grace (the published window,
-the account status and the rate quorum) and step (3) beyond the credential bump (the watch set,
-the rails, `SEC-39`'s counters, the derivation index); the operator cancelling a waiting parent,
-which `Event.confirmParents` stands for beside confirming it; the sweep's per-account report; and
-everything after the procedure that touches the stored date — the tenant extending again inside
-the grace (`LDG-62`), the confirmation and routing (`Provisiond.Fence` has those) — so the grace
-is stated as the deadline set. `STO-54`'s "any `rate_confirmation_ref` already present is preserved" is exercised
-in `Provisiond.Fence`, where observations could otherwise discharge it, and
+`STO-54`'s step (1) beyond the freeze (the published window,
+the account status and the rate quorum) and step (3) beyond the credential bump and the grace
+(the watch set, the rails, `SEC-39`'s counters, the derivation index); the operator cancelling a
+waiting parent, which `Event.confirmParents` stands for beside confirming it; the sweep's
+per-account report; and everything after the procedure that touches the stored date — the tenant
+extending again inside the grace (`LDG-62`), the claim that defers until the grace and the routing
+(`Provisiond.Fence` has those, reading the instant this module writes) — so the grace is stated
+as the instant written, `STO-56`'s `grace_ends_at`. The freeze's end is not modelled: `STO-54`
+says "the freeze lifts at `grace_ends_at`", and that instant is step (3)'s plus one interval,
+which a model where time does not advance never reaches, so a freeze that lifted there would
+never lift and every theorem over `permits` would hold of frozen components only; the model lifts
+the freeze at step (3)'s mark instead, one interval early, and `frozen_until_step_three` is the
+half it keeps. Step (3)'s instant is the event's own (`Event.completeProcedure`), not `now`: the
+restore instant is what the record holds, and the two differ by however long steps (1) and (2)
+took.
 `lost_extension_not_rebuilt` says the procedure writes no date, not that nothing ever does. -/
 
 namespace Provisiond.Restore
@@ -60,23 +67,27 @@ structure Op where
   applied : Bool
   deriving DecidableEq, Repr
 
-/-- The one machine: its stored date, `STO-54`'s destruction deadline, and whether the sweep
-recorded it gone. -/
+/-- The one machine: its stored date, and whether the sweep recorded it gone. -/
 structure Machine where
-  runwayUntil      : Nat
-  destroyNotBefore : Option Nat
-  recordedGone     : Bool
+  runwayUntil  : Nat
+  recordedGone : Bool
+  deriving DecidableEq, Repr
+
+/-- `STO-56`'s restore record: `restore_instant`, and `grace_ends_at`, which "is null until step
+(3) of `STO-54`'s procedure is marked". The `Provisiond.Claim.RestoreRecord` it extends is the
+view a claim reads. -/
+structure Record extends RestoreRecord where
+  restoreInstant : Nat
   deriving DecidableEq, Repr
 
 /-- The store: the operations by id — a total function, so an id nobody wrote holds what the
-initial store said — the machine, the tenant's credential generation (`API-56`), and `STO-54`'s
-restore record, which holds the restore instant while it is open and which no live step writes and
-no restart clears. -/
+initial store said — the machine, the tenant's credential generation (`API-56`), and `STO-56`'s
+restore record, open while the incident is, which no live step writes and no restart clears. -/
 structure Store where
   ops           : OperationId → Op
   machine       : Machine
   credentialGen : Nat
-  record        : Option Nat
+  record        : Option Record
 
 def Store.modify (s : Store) (i : OperationId) (f : Op → Op) : Store :=
   { s with ops := fun j => if j = i then f (s.ops j) else s.ops j }
@@ -134,7 +145,7 @@ def RestoreTrace.store (t : RestoreTrace) : Store :=
   let old := t.history.at (t.history.steps.length - t.delta)
   let new := t.history.final
   { old with ops := fun j => { old.ops j with applied := (new.ops j).applied },
-             record := some t.now }
+             record := some { graceEndsAt := none, restoreInstant := t.now } }
 
 theorem foldl_record (s : Store) (steps : List Live) :
     (steps.foldl liveStep s).record = s.record := by
@@ -266,12 +277,10 @@ structure World where
   interval         : Nat
   /-- `STO-51`'s startup lock taken. Session-scoped, so this is the one field a crash clears. -/
   locked           : Bool
-  /-- Step (1)'s work done — `LDG-16`'s grace written — and marked: a mark of `STO-56`'s record,
-  so "a marked step does not run again" and the grace is "written once per incident". -/
-  graceWritten     : Bool
   /-- `OPS-15`'s pass run: step (2) done, a mark of the record. -/
   passDone         : Bool
-  /-- Step (3) done, a mark of the record: "the freeze lifts when step (3) completes". -/
+  /-- Step (3) done, a mark of the record, and `grace_ends_at` written in the same transaction
+  (`STO-56`). -/
   procedureComplete : Bool
   /-- Complete `OPS-32` passes since the restore: `provider_observations` the restore did not roll
   back, so a crash does not reset the count. -/
@@ -297,9 +306,11 @@ structure Permissions where
 /-- What the engine and `api` may do, from the fault and the steps done. On a restart everything
 but the claim — which `OPS-15` puts after the pass, and `STO-51` after the lock — is permitted at
 once. On a restore: the claim after step (2), a request after step (3), an absence on a second
-complete pass after the window, a frozen component when step (3) completes — "except the
-exception, which stays off until the operator has confirmed or cancelled every waiting parent",
-read as a second condition beside step (3), not a substitute for it. -/
+complete pass after the window, a frozen component once step (3) is marked — where `STO-54`
+says the freeze lifts "at `grace_ends_at`", one interval later, which this clockless model does not
+reach (the module docstring says why) — "except the exception, whose own later condition stands
+on top: it stays off until the operator has confirmed or cancelled every waiting parent", read as
+a second condition beside step (3), not a substitute for it. -/
 @[req "STO-54"]
 def permits (p : Params) (w : World) : Permissions :=
   match w.fault with
@@ -333,13 +344,18 @@ def passOp (p : Params) (f : Fault) (o : Op) : Op :=
   | _, _ => o
 
 inductive Event
-  /-- Step (1): `STO-54`'s startup grace, "every machine whose stored `runway_until` has passed
-  has `destroy_not_before` set to the restore instant plus one re-derivation interval". -/
+  /-- Step (1): `STO-51`'s startup lock, under `STO-54`'s freeze. It writes nothing of the
+  grace, which is step (3)'s. -/
   | lock
   /-- Step (2): `OPS-15`'s pass. -/
   | startupPass
-  /-- Step (3): the credential bump. -/
-  | completeProcedure
+  /-- Step (3), at `instant`: the credential bump, and `STO-56`'s `grace_ends_at` "written in
+  the same transaction as that mark, as step (3)'s instant plus one re-derivation interval". The
+  event carries its instant as `Provisiond.Fence`'s `rederive` carries its date: step (3) is not
+  the restore instant — `ADR-0028` withdrew a deadline that "ran from the restore instant, but
+  tenants can extend only after step (3); a slow restore consumed it" — and this model has no
+  clock to reach it by, so the instant is given. -/
+  | completeProcedure (instant : Nat)
   /-- The engine claims row `i`. -/
   | claim (i : OperationId)
   /-- `api` receives a request under a token of generation `gen`. -/
@@ -374,26 +390,24 @@ record what has already happened. -/
 @[req "STO-54"]
 def afterCrash (p : Params) (w : World) : World :=
   { w with fault := faultAfterCrash p w.store,
-           now := w.store.record.getD w.now,
+           now := (w.store.record.map (·.restoreInstant)).getD w.now,
            locked := false }
 
 def step (p : Params) (w : World) : Event → World
-  | .lock =>
-    let m := w.store.machine
-    let m' := if w.fault.isRestore && !w.graceWritten && decide (m.runwayUntil ≤ w.now)
-              then { m with destroyNotBefore := some (w.now + w.interval) } else m
-    { w with locked := true, graceWritten := w.graceWritten || w.fault.isRestore,
-             store := { w.store with machine := m' } }
+  | .lock => { w with locked := true }
   | .startupPass =>
     if w.locked && !w.passDone then
       { w with passDone := true,
                store := { w.store with ops := fun j => passOp p w.fault (w.store.ops j) } }
     else w
-  | .completeProcedure =>
+  | .completeProcedure instant =>
     if w.fault.isRestore && w.passDone && !w.procedureComplete then
       { w with procedureComplete := true,
-               store := { w.store with credentialGen :=
-                 if p.bumpOnRestore then w.store.credentialGen + 1 else w.store.credentialGen } }
+               store := { w.store with
+                 credentialGen :=
+                   if p.bumpOnRestore then w.store.credentialGen + 1 else w.store.credentialGen,
+                 record := w.store.record.map fun r =>
+                   { r with graceEndsAt := some (instant + w.interval) } } }
     else w
   | .claim i =>
     let o := w.store.ops i
@@ -432,7 +446,7 @@ def run (p : Params) (w : World) (evs : List Event) : World := evs.foldl (step p
 
 def boot (f : Fault) (s : Store) (now : Nat) (interval : Nat) : World :=
   { fault := f, store := s, now := now, interval := interval,
-    locked := false, graceWritten := false, passDone := false,
+    locked := false, passDone := false,
     procedureComplete := false, completePasses := 0, windowElapsed := false,
     parentsConfirmed := false, secondOrder := false, servedGens := [],
     parentResumedUnconfirmed := false }
@@ -445,13 +459,24 @@ def bootRestart (t : RestartTrace) : World := boot .restart t.history.final 0 0
 @[req "STO-54"]
 def bootRestore (t : RestoreTrace) : World := boot .restore t.store t.now t.interval
 
-/-- `STO-54`: "the restore instant plus one re-derivation interval", not the restore instant
-alone. This deadline is the incident's even when a successor takes the lock again. -/
+/-- `STO-56`: `grace_ends_at` "MUST be written in the same transaction as that mark, as step (3)'s
+instant plus one re-derivation interval" — the mark and the instant are one write, and the instant
+is step (3)'s own, `instant`, whatever the restore instant `w.now` is. -/
+@[req "STO-56"]
+theorem step_three_writes_grace (p : Params) (w : World) (r : Record) (instant : Nat)
+    (hf : w.fault = .restore) (hp : w.passDone = true) (hc : w.procedureComplete = false)
+    (hr : w.store.record = some r) :
+    (step p w (.completeProcedure instant)).procedureComplete = true ∧
+    (step p w (.completeProcedure instant)).store.record =
+      some { r with graceEndsAt := some (instant + w.interval) } := by
+  simp [step, hf, hp, hc, hr, Fault.isRestore]
+
+/-- `STO-54`: "A marked step does not run again: the grace is written once per incident". With
+step (3) marked, a repeat of it at any instant writes nothing — neither the bump nor the grace. -/
 @[req "STO-54"]
-theorem restore_writes_deadline (p : Params) (t : RestoreTrace)
-    (hpast : t.store.machine.runwayUntil ≤ t.now) :
-    (step p (bootRestore t) .lock).store.machine.destroyNotBefore = some (t.now + t.interval) := by
-  simp [step, bootRestore, boot, Fault.isRestore, hpast]
+theorem marked_step_three_writes_nothing (p : Params) (w : World) (instant : Nat)
+    (hc : w.procedureComplete = true) : step p w (.completeProcedure instant) = w := by
+  simp [step, hc]
 
 /-! ## Restart: the pass is sound on its premise -/
 
@@ -460,10 +485,18 @@ def World.safe (w : World) : Prop :=
   ∀ j, (w.store.ops j).status = .queued → irreversible (w.store.ops j).kind = true →
     (w.store.ops j).applied = false
 
-/-- No event of this module writes the record: `STO-54` gives the closing to the operator. -/
+/-- No event of this module opens or closes the record: `STO-54` gives the closing to the
+operator, and step (3) writes the instant on the open record without changing that it is open. -/
 theorem step_record (p : Params) (w : World) (e : Event) :
-    (step p w e).store.record = w.store.record := by
-  cases e <;> simp only [step, afterCrash] <;> (try split) <;> (try split) <;> rfl
+    (step p w e).store.record.isSome = w.store.record.isSome := by
+  cases e <;> simp only [step, afterCrash] <;> (try split) <;> (try split) <;>
+    simp [Store.modify, Option.isSome_map]
+
+theorem step_record_none (p : Params) (w : World) (hi : w.store.record = none) (e : Event) :
+    (step p w e).store.record = none := by
+  have := step_record p w e
+  rw [hi] at this
+  simpa using this
 
 /-- `STO-5`'s mode is kept by every event, the crash included: on a closed record the successor is
 a restart whatever `recordDecidesBoot` holds. The hypothesis is the finding — a restart theorem
@@ -518,7 +551,7 @@ theorem step_safe_restart (p : Params) (w : World) (hf : w.fault = .restart) (hs
       · rw [h] at hq ⊢; exact hs j hq hi
       · simp [h, irreversible] at hi
     · exact ⟨hs, hn⟩
-  | completeProcedure => simp only [step, hf, Fault.isRestore]; exact ⟨hs, hn⟩
+  | completeProcedure _ => simp only [step, hf, Fault.isRestore]; exact ⟨hs, hn⟩
   | claim i =>
     simp only [step]
     split
@@ -564,7 +597,7 @@ theorem restart_never_reorders (p : Params) (t : RestartTrace) (h : t.history.in
   (run_preserves p
     (fun w => w.fault = .restart ∧ w.store.record = none ∧ w.safe ∧ w.secondOrder = false)
     (fun w e ⟨hf, hin, hs, hn⟩ =>
-      ⟨step_fault_restart p w hf hin e, by rw [step_record]; exact hin,
+      ⟨step_fault_restart p w hf hin e, step_record_none p w hin e,
        step_safe_restart p w hf hs hn e⟩)
     (bootRestart t)
     ⟨rfl, by simpa [bootRestart, boot, History.final, foldl_record] using hi,
@@ -597,7 +630,7 @@ theorem step_quarantined_restore (p : Params) (hq : p.quarantineOnRestore = true
       simp only [hf] at hj ⊢
       exact passOp_restore_quarantines p hq _ hj
     · exact ⟨hs, hn⟩
-  | completeProcedure =>
+  | completeProcedure _ =>
     simp only [step]
     split
     · exact ⟨fun hp j => hs (by simpa using hp) j, hn⟩
@@ -665,7 +698,7 @@ theorem step_gen_restore (p : Params) (hb : p.bumpOnRestore = true) (g : Nat) (w
   cases e with
   | lock => exact ⟨hg.1, hg.2, hs⟩
   | startupPass => simp only [step]; split <;> exact ⟨hg.1, hg.2, hs⟩
-  | completeProcedure =>
+  | completeProcedure _ =>
     simp only [step]
     split
     · rename_i hc
@@ -723,12 +756,9 @@ theorem step_absence_restore (p : Params) (ht : p.twoPassAbsence = true) (w : Wo
       2 ≤ (step p w e).completePasses ∧ (step p w e).windowElapsed = true) ∧
     ((step p w e).windowElapsed = true → 1 ≤ (step p w e).completePasses) := by
   cases e with
-  | lock =>
-    refine ⟨fun h => ?_, hw⟩
-    simp only [step] at h
-    split at h <;> exact hi h
+  | lock => exact ⟨hi, hw⟩
   | startupPass => simp only [step]; split <;> exact ⟨hi, hw⟩
-  | completeProcedure => simp only [step]; split <;> exact ⟨hi, hw⟩
+  | completeProcedure _ => simp only [step]; split <;> exact ⟨hi, hw⟩
   | claim i => simp only [step]; split <;> exact ⟨hi, hw⟩
   | request gen => simp only [step]; split <;> exact ⟨hi, hw⟩
   | sweep complete listed =>
@@ -812,16 +842,11 @@ theorem parent_waits_for_confirmation (p : Params) (hx : p.exceptionFrozen = tru
     (fun w e ⟨hf, hn⟩ => ⟨step_continuing p hr w hf e, step_parent_restore p hx w hf.2 hn e⟩)
     (bootRestore t) ⟨⟨by simp [bootRestore, boot, RestoreTrace.store], rfl⟩, rfl⟩ evs).2
 
-/-! ## The freeze and the grace -/
+/-! ## The freeze -/
 
-/-- "the freeze lifts when step (3) completes, except the exception". -/
-@[req "STO-54"]
-theorem freeze_lifts_at_step_three (p : Params) (w : World) (hf : w.fault = .restore)
-    (hr : w.procedureComplete = true) (c : Component) (hc : c ≠ .suspendTenantException) :
-    (permits p w).run c = true := by
-  cases c <;> simp_all [permits, frozenOnRestore]
-
-/-- Before step (3), a component runs on a restore exactly when the table does not freeze it. -/
+/-- Before step (3), a component runs on a restore exactly when the table does not freeze it —
+`STO-54`: "a process that starts after step (3)'s mark and before that instant keeps the five
+actors frozen", and before the mark all the more. -/
 @[req "STO-54"]
 theorem frozen_until_step_three (p : Params) (w : World) (hf : w.fault = .restore)
     (hr : w.procedureComplete = false) (c : Component) (hc : c ≠ .suspendTenantException) :

@@ -1,5 +1,6 @@
 import Provisiond.Claim
 import Provisiond.Runway
+import Provisiond.Rate
 import Provisiond.Tables
 /-! `OPS-42`'s cancellation fence, composed on the claim model (`Provisiond.Claim`), `LDG-33`'s
 derivation (`Provisiond.Runway`) and `OPS-48`'s episode table (`Provisiond.Tables`): one machine,
@@ -31,10 +32,18 @@ scopes by reason.
 
 Re-derivation consumes an optional per-currency acceptance order (`STO-49`); no observation is
 `LDG-40`'s halt. The caller supplies the date computed by `LDG-33`; source aggregation, currency
-selection and rate arithmetic are outside this transition. `advance` moves wall clock without
-writing either fact. `legacyArmedAt` is ghost history for the withdrawn age controls in
-`rederiveFacts` and `World.routed`, not a machine column: under `current`, both
-`confirmationByOrder` and `noAgeDischarge` are on, so its value affects neither fact nor routing.
+selection and rate arithmetic are outside this transition. The rate the worker reads is
+`Provisiond.Rate`'s: a `pass` event carries the prices inside the window as of that pass, as
+`rederive` carries the date, and `LDG-58`'s lower median over them is the rate in force until the
+next pass. `advance` moves wall clock and nothing else.
+
+The restore grace is read here where `OPS-41` puts it, at the claim: `World.restore` is
+`STO-56`'s open record as `Provisiond.Restore` wrote it — the instant is given, never computed
+here — and `claimStep` composes `Provisiond.Claim.graceDefers` on the claim. `OPS-41` says "No
+fence is written and the re-check above does not run on that path", which is what a deferred
+claim leaves: the worker `idle`, the row `queued`, the fence untouched. The worker's re-check and
+its provider call read no fact of the grace, as `LDG-16` says: "The worker's re-check and its
+provider call read no fact the grace wrote".
 
 What the model omits: the first 2026-09-05 form of
 the suspension exemption, keyed on the attempt's own reason; a second attempt enqueued while one is
@@ -63,10 +72,6 @@ structure Machine where
   commitment     : Nat
   /-- The stored date the sweep routes on (`05-persistence.md`'s index). -/
   runwayUntil    : Nat
-  /-- `STO-49`'s per-currency acceptance order, never an instant (`LDG-16`). -/
-  rateConfirmationRef : Option Nat
-  /-- `STO-54`'s wall-clock deadline (`LDG-16`). -/
-  destroyNotBefore : Option Nat
   /-- `machines.destroy_committed`. -/
   fence          : Option Holder
   /-- The provider applied a delete. Monotone: nothing here restores a machine. -/
@@ -128,15 +133,17 @@ the re-derived `runway_until`". `abortWritesDate`: `OPS-41`, 2026-09-05, "write 
 `suspensionKey`: `OPS-41`, 2026-09-05, "keyed on the tenant's current state ... and not on the
 episode's `reasons` set". `outageWrite`: `OPS-41`, 2026-09-05, "'No rate' is established by a
 conditional write, not a read". `ownIdClause`: `OPS-42`, 2026-09-02, the guard's second
-disjunct, "`IS NULL` alone until 2026-09-02". The setter's 2026-09-21 guards (`LDG-16`):
-`armWinsFutureClear`, "Where one write would both arm it and clear it, the arm wins";
-`confirmationByOrder`, "a greater acceptance order, never a later instant and never elapsed time";
-`observationKeepsDeadline`, "wall clock, and no observation discharges it";
-`backwardCannotConfirm`, "A backward move never confirms itself".
-`noAgeDischarge`: the 2026-09-05 age discharge, withdrawn 2026-09-21 (`LDG-16`:
-"a mark discharged by **age** re-opens the case of 2026-09-05"); its off position routes an
-armed reference once the mark is "older than one re-derivation interval" (`ADR-0026`).
-Their off positions retain withdrawn traps, not alternative current rules (`ADR-0026`).
+disjunct, "`IS NULL` alone until 2026-09-02". `rateIsWindowMedian`: `LDG-58`, 2026-09-23
+(`ADR-0027`), "The rate is the lower median of the rate observations for its currency —
+`STO-49`'s rows, one per pass — whose `observed_at` lies inside the last window-length before the
+pass that computed the rate"; its off position is the rule that stood before, one pass's
+observation as the rate, under which one poisoned pass moved the date into the past. `graceAtClaim`:
+`OPS-41`, 2026-09-25 (`ADR-0028`), "A claim made while a restore record is open and its
+`grace_ends_at` is null or in the future defers, and writes no fence"; its off position is the
+withdrawn placement, the grace read on the provider call after the claim has fenced — the trap
+`ADR-0028` names, "A machine already fenced when the grace begins ... refuses `LDG-62`'s
+extension for the whole grace" — reading the record's instant there, since no machine carries a
+deadline. Their off positions retain withdrawn traps, not alternative current rules (`ADR-0026`).
 `retryGuard`: `OPS-48`, 2026-09-09,
 `retry` as "a conditional write on `(id, state = stalled)`". -/
 structure Params where
@@ -149,15 +156,12 @@ structure Params where
   suspensionKey        : SuspensionKey
   outageWrite          : Bool
   ownIdClause          : Bool
-  armWinsFutureClear   : Bool
-  confirmationByOrder  : Bool
-  observationKeepsDeadline : Bool
-  backwardCannotConfirm : Bool
-  noAgeDischarge       : Bool
+  rateIsWindowMedian   : Bool
+  graceAtClaim         : Bool
   retryGuard           : Bool
   deriving DecidableEq, Repr
 
-/-- The fence as it stands, with every guard it composes from `OPS-41`, `LDG-62`, `LDG-16` and
+/-- The fence as it stands, with every guard it composes from `OPS-41`, `LDG-62`, `LDG-58` and
 `OPS-48` present; tagged to the fence's own requirement. One field per line: `ci.yml`'s controls
 flip one each. -/
 @[req "OPS-42"]
@@ -171,11 +175,8 @@ def current : Params := {
     suspensionKey        := .currentState,
     outageWrite          := true,
     ownIdClause          := true,
-    armWinsFutureClear   := true,
-    confirmationByOrder  := true,
-    observationKeepsDeadline := true,
-    backwardCannotConfirm := true,
-    noAgeDischarge       := true,
+    rateIsWindowMedian   := true,
+    graceAtClaim         := true,
     retryGuard           := true }
 
 /-- What this attempt writes into the fence column. -/
@@ -211,13 +212,11 @@ structure World where
   /-- The tenant's available balance. -/
   balance    : Nat
   now        : Nat
-  /-- One re-derivation interval (`LDG-16`). -/
-  interval   : Nat
-  /-- Ghost history for the withdrawn elapsed-time tests in `rederiveFacts` and `World.routed`;
-  inert under `current` as this module's docstring states, never a durable exhaustion fact. -/
-  legacyArmedAt : Nat := 0
   /-- `LDG-59`'s rate, whole satoshis per second, and `none` while "there is no rate" (`LDG-64`). -/
   rate       : Option Nat
+  /-- `STO-56`'s restore record where one is open, with the instant `Provisiond.Restore` wrote,
+  or null before step (3); `none` where no record is open. -/
+  restore    : Option RestoreRecord := none
   /-- `protected_sats`. -/
   prot       : Nat
   /-- The tenant's current suspension state (`API-58`, `WIR-41`). -/
@@ -233,204 +232,41 @@ structure World where
 
 def World.episodeOpen (w : World) : Bool := w.episode.any (·.state.isOpen)
 
-/-- Whether the wall-clock deadline is "null or past" (`LDG-16`). -/
-def World.deadlinePassed (w : World) : Bool :=
-  match w.m.destroyNotBefore with
-  | none => true
-  | some deadline => deadline ≤ w.now
-
 /-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
-passed, its `rate_confirmation_ref` is null and its `destroy_not_before` is null or past".
-The withdrawn age discharge lives here because `sweep`'s own docstring says the cancellation is
-"routed on the **stored** date and `LDG-16`'s facts (`World.routed`) and on nothing else".
-Putting the off branch in `sweep`, or selecting a second predicate there, would leave the
-carrier named in `Admission.lean:66-69` — "`rederiveFacts` (the no-observation branch) and
-`World.routed`" — intact while the control broke an unnamed extra guard. -/
+passed, and MUST NOT route it otherwise." The stored date alone; `LDG-16` says of the grace that
+it "is no clause of this predicate". -/
 @[req "LDG-16"]
-def World.routed (w : World) (p : Params) : Bool :=
-  let referenceNull := match w.m.rateConfirmationRef with
-    | none => true
-    | some _ => !p.noAgeDischarge && w.legacyArmedAt + w.interval < w.now
-  w.m.runwayUntil ≤ w.now && referenceNull && w.deadlinePassed
+def World.routed (w : World) : Bool := w.m.runwayUntil ≤ w.now
 
-/-- `LDG-65`: "cancelled normally — unless its `rate_confirmation_ref` is armed". With
-`noAgeDischarge` on, an armed reference refuses routing for every rate state, including `none`;
-rate availability is absent from `World.routed`, so this is a property of that predicate,
-not another guard. -/
-@[req "LDG-65"]
-theorem armed_reference_not_routed (p : Params) (ha : p.noAgeDischarge = true)
-    (w : World) (order : Nat)
-    (h : w.m.rateConfirmationRef = some order) (rate : Option Nat) :
-    ({ w with rate := rate }).routed p = false := by
-  simp [World.routed, ha, h]
-
-/-- The result is a state, not a pair of arm/clear commands: a reference cannot be both set and
-cleared by the same write. The deadline is a separate fact on a separate clock (`ADR-0026`). -/
-structure ExhaustionFacts where
-  rateConfirmationRef : Option Nat
-  destroyNotBefore : Option Nat
-  deriving DecidableEq, Repr
-
-/-- The clock of a pass, and ghost history only the withdrawn age test uses. -/
-structure DerivationClock where
-  now : Nat
-  interval : Nat
-  legacyArmedAt : Nat
-  deriving DecidableEq, Repr
-
-/-- `LDG-16`: "Re-derivation (`PRV-13e`) MUST arm it, with the observation it consumed, on every
-rate-produced backward move of a `runway_until` that stood in the future"; "on no other write".
-"It is discharged by the first strictly later accepted observation for the machine's currency
-whose own write does not arm it again". The optional observation is an acceptance order in that
-currency; `none` is the halted pass. "Re-derivation's own write is not one: it discharges the
-reference on the terms above and never touches the deadline." The branches are exhaustive.
-Off-guard branches retain the traps named in `Params`: clear wins,
-elapsed age substitutes for observation order, an observation whose write leaves the reference
-slot empty ends grace, or a backward move confirms itself. No cancellation bypass belongs to
-this function. -/
-@[req "LDG-16"]
-def rederiveFacts (p : Params) (oldDate newDate : Nat) (observation : Option Nat)
-    (clock : DerivationClock) (facts : ExhaustionFacts) : ExhaustionFacts :=
-  match observation with
-  | none => facts
-  | some order =>
-    let arms := clock.now < oldDate && newDate < oldDate
-    let later := match facts.rateConfirmationRef with
-      | none => false
-      | some prior => prior < order
-    let reference :=
-      if !p.armWinsFutureClear && clock.now < newDate then none
-      else if !p.backwardCannotConfirm && later then none
-      else if arms then some order
-      else match facts.rateConfirmationRef with
-        | none => none
-        | some prior =>
-          if (if p.confirmationByOrder then prior < order
-              else clock.legacyArmedAt + clock.interval < clock.now) then none else some prior
-    { rateConfirmationRef := reference,
-      destroyNotBefore := if p.observationKeepsDeadline || reference.isSome then facts.destroyNotBefore
-                          else none }
-
-/-- `LDG-16`: "Where one write would both arm it and clear it, the arm wins" and
-"A backward move never confirms itself", including a later order and a future new date. -/
-@[req "LDG-16"]
-theorem backward_arms (p : Params) (ha : p.armWinsFutureClear = true)
-    (hb : p.backwardCannotConfirm = true) (oldDate newDate order : Nat)
-    (clock : DerivationClock) (facts : ExhaustionFacts)
-    (hf : clock.now < oldDate) (hm : newDate < oldDate) :
-    (rederiveFacts p oldDate newDate (some order) clock facts).rateConfirmationRef = some order := by
-  simp [rederiveFacts, ha, hb, hf, hm]
-
-/-- `LDG-16`: "It is discharged by the first strictly later accepted observation for the
-machine's currency whose own write does not arm it again". The result names the new order only
-in `backward_arms`; a non-arming write either clears or retains the old one. -/
-@[req "LDG-16"]
-theorem nonarming_discharges_iff_later (p : Params) (ha : p.armWinsFutureClear = true)
-    (hb : p.backwardCannotConfirm = true) (hc : p.confirmationByOrder = true)
-    (oldDate newDate order prior : Nat) (clock : DerivationClock) (deadline : Option Nat)
-    (hn : ¬ (clock.now < oldDate ∧ newDate < oldDate)) :
-    (rederiveFacts p oldDate newDate (some order) clock ⟨some prior, deadline⟩).rateConfirmationRef
-      = none ↔ prior < order := by
-  simp [rederiveFacts, ha, hb, hc, Bool.and_eq_true, hn]
-
-/-- `LDG-16`: "A move of a date that had already passed arms nothing". With no old reference,
-a backward move cannot put an already-exhausted machine behind another confirmation. -/
-@[req "LDG-16"]
-theorem past_date_does_not_arm (p : Params) (oldDate newDate order : Nat)
-    (clock : DerivationClock) (deadline : Option Nat) (hpast : oldDate ≤ clock.now) :
-    (rederiveFacts p oldDate newDate (some order) clock ⟨none, deadline⟩).rateConfirmationRef
-      = none := by
-  simp [rederiveFacts, Nat.not_lt.mpr hpast]
-
-/-- `PRV-13e`: "It never writes `machines.destroy_not_before`". No accepted observation,
-including one that arms or discharges the reference, changes the deadline. -/
+/-- `PRV-13e`: what re-derivation "recomputes is `runway_until`, not the commitment". The optional
+observation is the acceptance order (`STO-49`) the pass consumed in the machine's currency; `none`
+is the halted pass, which writes nothing — `LDG-40`: "the halt MUST NOT itself trigger
+exhaustion". The existing cancellation fence is preserved. -/
 @[req "PRV-13e"]
-theorem rederivation_keeps_deadline (p : Params) (hd : p.observationKeepsDeadline = true)
-    (oldDate newDate : Nat) (observation : Option Nat) (clock : DerivationClock)
-    (facts : ExhaustionFacts) :
-    (rederiveFacts p oldDate newDate observation clock facts).destroyNotBefore = facts.destroyNotBefore := by
-  cases observation <;> simp [rederiveFacts, hd]
-
-/-- `LDG-40`: "the halt MUST NOT itself trigger exhaustion". Without an observation the
-setter is the identity, regardless of the proposed date or clock. -/
-@[req "LDG-40"]
-theorem no_observation_changes_nothing (p : Params) (oldDate newDate : Nat)
-    (clock : DerivationClock) (facts : ExhaustionFacts) :
-    rederiveFacts p oldDate newDate none clock facts = facts := rfl
-
-/-- `LDG-16`: "never a later instant and never elapsed time". Under acceptance-order
-confirmation, changing only the withdrawn age clock or the interval changes neither fact. -/
-@[req "LDG-16"]
-theorem confirmation_ignores_age (p : Params) (hc : p.confirmationByOrder = true)
-    (oldDate newDate : Nat) (observation : Option Nat) (clock : DerivationClock)
-    (interval armedAt : Nat) (facts : ExhaustionFacts) :
-    rederiveFacts p oldDate newDate observation { clock with interval := interval, legacyArmedAt := armedAt } facts
-      = rederiveFacts p oldDate newDate observation clock facts := by
-  cases observation <;> simp [rederiveFacts, hc]
-
-/-- `PRV-13e`: "written in the same transaction as the date that observation explains".
-The no-observation case writes nothing. The existing cancellation fence is preserved.
-`legacyArmedAt` records the arming instant solely for the withdrawn age controls the module
-docstring names, never as a durable fact. -/
-@[req "PRV-13e"]
-def rederive (p : Params) (w : World) (newDate : Nat) (observation : Option Nat) : World :=
+def rederive (w : World) (newDate : Nat) (observation : Option Nat) : World :=
   match observation with
   | none => w
-  | some order =>
-    let facts := rederiveFacts p w.m.runwayUntil newDate (some order)
-      ⟨w.now, w.interval, w.legacyArmedAt⟩ ⟨w.m.rateConfirmationRef, w.m.destroyNotBefore⟩
-    { w with
-      m := { w.m with
-        runwayUntil := newDate
-        rateConfirmationRef := facts.rateConfirmationRef
-        destroyNotBefore := facts.destroyNotBefore }
-      legacyArmedAt := if w.now < w.m.runwayUntil && newDate < w.m.runwayUntil
-                       then w.now else w.legacyArmedAt }
+  | some _ => { w with m := { w.m with runwayUntil := newDate } }
 
-/-- `STO-54`: the deadline is "the restore instant plus one re-derivation interval", and
-"any `rate_confirmation_ref` already present is preserved". This model carries the reference
-and observations against which preservation matters; `Provisiond.Restore` carries the procedure.
-The restore instant is the incident's recorded instant, not a fresh clock on a repeated pass. -/
-@[req "STO-54"]
-def restoreGrace (w : World) (restoreInstant : Nat) : World :=
-  if w.m.runwayUntil ≤ restoreInstant then
-    { w with m := { w.m with destroyNotBefore := some (restoreInstant + w.interval) } }
-  else w
+/-- `LDG-40`: "the halt MUST NOT itself trigger exhaustion". Without an observation re-derivation
+is the identity, regardless of the proposed date. -/
+@[req "LDG-40"]
+theorem no_observation_changes_nothing (w : World) (newDate : Nat) :
+    rederive w newDate none = w := rfl
 
-/-- `LDG-16`: "An authorized future-date write clears both". Used only by the extension and
-no-mutation abort; re-derivation has its own transition above. -/
-@[req "LDG-16"]
-def writeDate (m : Machine) (now d : Nat) : Machine :=
-  { m with runwayUntil := d,
-           rateConfirmationRef := if now < d then none else m.rateConfirmationRef,
-           destroyNotBefore := if now < d then none else m.destroyNotBefore }
-
-/-- `LDG-16`: "An authorized future-date write clears both". The event wrappers decide
-authorization; this is their shared write. -/
-@[req "LDG-16"]
-theorem authorized_date_clears_both (m : Machine) (now d : Nat) (hf : now < d) :
-    (writeDate m now d).rateConfirmationRef = none ∧
-    (writeDate m now d).destroyNotBefore = none := by
-  simp [writeDate, hf]
-
-/-- `STO-54`: "any `rate_confirmation_ref` already present is preserved", for every restore
-write, regardless of whether the date qualifies for grace. -/
-@[req "STO-54"]
-theorem restore_preserves_reference (w : World) (instant : Nat) :
-    (restoreGrace w instant).m.rateConfirmationRef = w.m.rateConfirmationRef := by
-  unfold restoreGrace; (repeat' split) <;> rfl
-
-/-- The new setters change neither the cancellation fence nor the worker or balance. This is
-the part of the frame they retain when the whole machine row can no longer stay unchanged. -/
-theorem setters_keep_cancellation_state (p : Params) (w : World) (date : Nat)
-    (observation : Option Nat) (instant : Nat) :
-    (rederive p w date observation).m.fence = w.m.fence ∧
-    (rederive p w date observation).phase = w.phase ∧
-    (rederive p w date observation).balance = w.balance ∧
-    (restoreGrace w instant).m.fence = w.m.fence ∧
-    (restoreGrace w instant).phase = w.phase ∧
-    (restoreGrace w instant).balance = w.balance := by
-  cases observation <;> simp [rederive, restoreGrace] <;> split <;> simp
+/-- `LDG-58`: "Each pass that accepts an observation computes the rate over the window as of that
+pass, and the rate holds until the next such pass". The prices inside the window as of this pass
+are given, in acceptance order, as `rederive` is given its date; under `rateIsWindowMedian` the
+rate is `Provisiond.Rate.atPass`'s over them, and under the withdrawn rule it is the pass's own
+observation, the newest. That is all a pass carries: it sets `rate` and touches nothing else. In
+particular it does not open `STO-37`'s record — the row `readRate` contends on is `rateLost`'s,
+and who opens it is `LDG-64`'s and `STO-37`'s rule, "the meter ... opens it at a subject's first
+posting that computes no rate and finds no open row for that subject", which this model does not
+replay — so a thin pass here leaves `rate := none` with no outage open, and that state is not
+the modelled outage. -/
+@[req "LDG-58"]
+def pass (p : Params) (w : World) (window : List Nat) : World :=
+  { w with rate := if p.rateIsWindowMedian then Rate.atPass window else window.getLast? }
 
 /-! ## The events -/
 
@@ -458,7 +294,7 @@ def applyRow (w : World) (ep : EpisodeRow) (ev : Tables.Event) : World :=
                                     else w.m.fence } }
 
 /-- The exhaustion sweep: `LDG-14`'s "At end of runway the machine MUST be cancelled", routed on
-the **stored** date and `LDG-16`'s facts (`World.routed`) and on nothing else, for a machine not
+the **stored** date (`World.routed`) and on nothing else, for a machine not
 recorded gone — `LDG-74`: "a machine established gone has nothing left to cancel". Its other row
 is `OPS-48`'s sweep-close: the sweep "finds the machine of a `stalled` episode funded under
 `OPS-41`'s predicate ... **and its tenant not suspended** at that read" and closes it `funded`,
@@ -470,19 +306,39 @@ def sweep (p : Params) (w : World) : World :=
     if ep.state == .stalled && w.phase == .idle && w.attempt.all Attempt.done
         && p.abort w.m.commitment w.prot r then
       applyRow w ep (.sweepFunded w.suspended)
-    else if w.routed p && !w.m.gone then enqueue w .exhausted else w
-  | _, _ => if w.routed p && !w.m.gone then enqueue w .exhausted else w
+    else if w.routed && !w.m.gone then enqueue w .exhausted else w
+  | _, _ => if w.routed && !w.m.gone then enqueue w .exhausted else w
 
 /-- `OPS-8`: the claim, through the claim model, taking the rate snapshot the re-check will read.
-A row that is not `queued` is not claimed. -/
+A row that is not `queued` is not claimed. Under `graceAtClaim`, `OPS-41`'s read of the restore
+record follows the claim: "while a restore record is open and its `grace_ends_at` is null or in
+the future the claim MUST defer: the operation is returned to `queued` with `available_at =
+grace_ends_at` where the instant is set, and by `OPS-8`'s ordinary short delay where it is not
+yet written" — `Claim.defer` with that instant, the worker back to `idle`, no fence transaction
+entered. -/
 @[req "OPS-8"]
-def claimStep (w : World) : World :=
+def claimStep (p : Params) (w : World) : World :=
   match w.phase, w.attempt with
   | .idle, some a =>
     match Claim.claim true a.row with
-    | (r, some n) => { w with attempt := some { a with row := r }, phase := .holding n w.rate }
+    | (r, some n) =>
+      if p.graceAtClaim && Claim.graceDefers w.restore w.now then
+        { w with attempt := some { a with
+            row := Claim.defer Claim.current r n (w.restore.bind (·.graceEndsAt)) } }
+      else { w with attempt := some { a with row := r }, phase := .holding n w.rate }
     | (_, none) => w
   | _, _ => w
+
+/-- `OPS-41`: a claim under the grace "defers, and writes no fence" — the worker is `idle`, the
+row is `queued` again with `available_at` the record's instant, and the fence is what it was. -/
+@[req "OPS-41"]
+theorem grace_defers_without_fence (p : Params) (hg : p.graceAtClaim = true) (w : World)
+    (a : Attempt) (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
+    (hd : Claim.graceDefers w.restore w.now = true) :
+    (claimStep p w).phase = .idle ∧ (claimStep p w).m.fence = w.m.fence ∧
+    ∃ a', (claimStep p w).attempt = some a' ∧ a'.row.status = .queued ∧
+      a'.row.availableAt = w.restore.bind (·.graceEndsAt) := by
+  simp [claimStep, hph, ha, hg, hd, Claim.claim, hq, Claim.defer, Claim.holds, Claim.current]
 
 /-- What the re-check has to derive at. `derive r`: a rate, from the snapshot or — under the
 conditional write, where the write "affects no row" and "a rate now exists — restoration" — from
@@ -578,29 +434,24 @@ def extend (p : Params) (w : World) (sats : Nat) : World :=
     let c := w.m.commitment + sats
     match p.extendWritesDate, w.rate with
     | true, some r =>
-      { w with m := writeDate { w.m with commitment := c } w.now (w.now + runwaySeconds c w.prot r),
+      { w with m := { w.m with commitment := c, runwayUntil := w.now + runwaySeconds c w.prot r },
                balance := w.balance - sats }
     | _, _ => { w with m := { w.m with commitment := c }, balance := w.balance - sats }
 
 /-- The provider call, outside every serialization (`LDG-69`), from `fenced` and nowhere else.
-`LDG-16`'s bypasses "Both do respect the destruction deadline", checked here even for an
-already-enqueued cancellation. `applied` is the provider's fact and `reply` what came back
-(`ProviderOutcome`, flattened). -/
+Under `graceAtClaim` it reads nothing of the grace — `LDG-16`: "The worker's re-check and its
+provider call read no fact the grace wrote". With the guard off, the withdrawn placement: the
+call waits on the record's instant, after the claim has already fenced, so the fence "refuses
+`LDG-62`'s extension for the whole grace" (`ADR-0028`). `applied` is the provider's fact and
+`reply` what came back (`ProviderOutcome`, flattened). -/
 @[req "OPS-41"]
-def providerDelete (w : World) (applied : Bool) (reply : Option Bool) : World :=
+def providerDelete (p : Params) (w : World) (applied : Bool) (reply : Option Bool) : World :=
   match w.phase with
   | .fenced n =>
-    if w.deadlinePassed then
+    if !p.graceAtClaim && Claim.graceDefers w.restore w.now then w
+    else
       { w with m := { w.m with destroyed := w.m.destroyed || applied }, phase := .dispatched n reply }
-    else w
   | _ => w
-
-/-- `LDG-16`: "Both do respect the destruction deadline". Every provider call waits while
-that deadline is future, including a cancellation already fenced under either bypass. -/
-@[req "LDG-16"]
-theorem provider_waits_for_deadline (w : World) (applied : Bool) (reply : Option Bool)
-    (hd : w.deadlinePassed = false) : providerDelete w applied reply = w := by
-  unfold providerDelete; split <;> simp [hd]
 
 /-- How the reply settles the attempt: `OPS-48`'s first column and `STO-3`'s written state. -/
 def ofReply : Option Bool → Settled × Written
@@ -627,10 +478,8 @@ def finish (w : World) (n : ClaimNumber) (a : Attempt) (s : Settled) (wr : Writt
   | none => { w with attempt := some { a with row := row }, phase := .idle,
                      m := { w.m with gone := w.m.gone || s == .gone } }
 
-/-- `OPS-41`'s abort write: "write that re-derived `runway_until` to the machine row and clear
-both of `LDG-16`'s exhaustion facts — `machines.rate_confirmation_ref` and
-`machines.destroy_not_before`". -/
-def writeAbortDate (w : World) (d : Nat) : World := { w with m := writeDate w.m w.now d }
+/-- `OPS-41`'s abort write: "write that re-derived `runway_until` to the machine row". -/
+def writeAbortDate (w : World) (d : Nat) : World := { w with m := { w.m with runwayUntil := d } }
 
 /-- Settlement, from the abort or from the provider's answer. The abort also does what `OPS-41`
 says of the funded case under `abortWritesDate` — the date write — so the sweep does not route
@@ -682,14 +531,18 @@ def suspend (w : World) : World := enqueue { w with suspended := true } .tenantS
 @[req "WIR-41"]
 def resume (w : World) : World := { w with suspended := false }
 
-/-- The rate lost (`LDG-59`'s quorum gone): this machine carries an open `rate_outage` record,
-which `OPS-41` says "under `LDG-64` is every machine metered through the outage". -/
+/-- The rate lost: `LDG-59`'s window yielding "**no rate**", by staleness or by thinness at a
+pass. It is not a pass below the quorum, of which `LDG-59` says "A pass below the quorum accepts
+no observation and recomputes nothing, and the rate in force holds". This machine carries an open
+`rate_outage` record, which `OPS-41` says "under `LDG-64` is every machine metered through the
+outage". -/
 @[req "LDG-64"]
 def rateLost (w : World) : World := { w with rate := none, outageOpen := true }
 
-/-- The rate restored, at `r`: `LDG-64`'s "close the absorbed window at the first valid rate
-observation", the record's `absorbed_until` written "by the observation that restores `LDG-59`'s
-quorum". -/
+/-- The rate restored, at `r`: `LDG-64`'s "close the absorbed window at the observation with
+which `LDG-58`'s window produces a rate again", the record's `absorbed_until` "written with that
+observation's instant, by that observation's own write". The window that produced `r` is not
+carried here; `pass` is the event that carries one. -/
 @[req "LDG-64"]
 def rateRestored (w : World) (r : Nat) : World := { w with rate := some r, outageOpen := false }
 
@@ -702,7 +555,11 @@ def outageBound (w : World) : World :=
 inductive Event
   | advance (seconds : Nat)
   | rederive (newDate : Nat) (observation : Option Nat)
-  | restoreGrace (restoreInstant : Nat)
+  /-- A pass accepting an observation: the prices inside the window as of that pass. -/
+  | pass (window : List Nat)
+  /-- `STO-56`'s record as `Provisiond.Restore` wrote it: opened with the instant null, the
+  instant written at step (3), or closed (`none`). -/
+  | restoreRecord (r : Option RestoreRecord)
   | sweep | claim | fenceTxn | fenceWrite
   | extend (sats : Nat)
   | providerDelete (applied : Bool) (reply : Option Bool)
@@ -712,14 +569,15 @@ inductive Event
 
 def step (p : Params) (w : World) : Event → World
   | .advance seconds => { w with now := w.now + seconds }
-  | .rederive date observation => rederive p w date observation
-  | .restoreGrace instant => restoreGrace w instant
+  | .rederive date observation => rederive w date observation
+  | .pass window => pass p w window
+  | .restoreRecord r => { w with restore := r }
   | .sweep => sweep p w
-  | .claim => claimStep w
+  | .claim => claimStep p w
   | .fenceTxn => fenceTxn p w
   | .fenceWrite => fenceWrite p w
   | .extend s => extend p w s
-  | .providerDelete a r => providerDelete w a r
+  | .providerDelete a r => providerDelete p w a r
   | .settle => settle p w
   | .retry => retry p w
   | .goneWrite => goneWrite w
@@ -749,7 +607,7 @@ theorem extend_admitted (p : Params) (hd : p.extendWritesDate = true) (w : World
     (extend p w sats).m.commitment = w.m.commitment + sats ∧
     (extend p w sats).balance = w.balance - sats ∧
     (extend p w sats).m.runwayUntil = w.now + runwaySeconds (w.m.commitment + sats) w.prot r := by
-  simp [extend, extend_guard w sats hs hf hb, hr, hd, writeDate]
+  simp [extend, extend_guard w sats hs hf hb, hr, hd]
 
 /-- What an extension leaves alone, admitted or refused, whatever the rate and the date rule. -/
 theorem extend_frame (p : Params) (w : World) (sats : Nat) :
@@ -759,7 +617,7 @@ theorem extend_frame (p : Params) (w : World) (sats : Nat) :
     (extend p w sats).episode = w.episode ∧ (extend p w sats).rate = w.rate ∧
     (extend p w sats).outageOpen = w.outageOpen ∧ (extend p w sats).nextId = w.nextId ∧
     (extend p w sats).m.destroyed = w.m.destroyed := by
-  unfold extend; (repeat' split) <;> simp [writeDate]
+  unfold extend; (repeat' split) <;> simp
 
 /-- A fence transaction whose re-check aborts: no fence written, the worker `noMutation` with
 the date the re-check derived. -/
@@ -777,7 +635,7 @@ provider call is inert. -/
 @[req "OPS-42"]
 theorem extension_first (p : Params) (hp : p.recheckInsideFence = true) (w : World)
     (n : ClaimNumber) (r : Nat) (a : Attempt) (hph : w.phase = .holding n (some r))
-    (hr : w.rate = some r) (ha : w.attempt = some a) (hs : w.suspended = false)
+    (ha : w.attempt = some a) (hs : w.suspended = false)
     (hk : p.suspensionKey = .currentState) (sats : Nat) (hf : w.m.fence = none)
     (hb : sats ≤ w.balance)
     (hfunded : p.abort (w.m.commitment + sats) w.prot r = true) :
@@ -785,9 +643,9 @@ theorem extension_first (p : Params) (hp : p.recheckInsideFence = true) (w : Wor
     (fenceTxn p (extend p w sats)).m.fence = none ∧
     (fenceTxn p (extend p w sats)).m.commitment = w.m.commitment + sats ∧
     ∀ applied reply,
-      providerDelete (fenceTxn p (extend p w sats)) applied reply = fenceTxn p (extend p w sats) := by
+      providerDelete p (fenceTxn p (extend p w sats)) applied reply = fenceTxn p (extend p w sats) := by
   have hc : (extend p w sats).m.commitment = w.m.commitment + sats := by
-    unfold extend; simp only [extend_guard w sats hs hf hb]; (repeat' split) <;> simp_all [writeDate]
+    unfold extend; simp only [extend_guard w sats hs hf hb]; (repeat' split) <;> simp_all
   obtain ⟨hph', ha', hs', hprot', hnow', hf', -⟩ := extend_frame p w sats
   have hre : (recheck p (extend p w sats) (some r)).1 = false := by
     simp [recheck, exempt, hk, hs', hs, readRate, hc, hprot', hfunded]
@@ -833,17 +691,18 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
   cases e with
   | advance seconds => exfalso; simp [step, hw] at h
   | rederive d obs => exfalso; unfold step rederive at h; (repeat' split at h) <;> simp_all
-  | restoreGrace t => exfalso; unfold step restoreGrace at h; (repeat' split at h) <;> simp_all
+  | pass window => exfalso; simp [step, pass, hw] at h
+  | restoreRecord r => exfalso; simp [step, hw] at h
   | providerDelete applied reply =>
     simp only [step] at h
     unfold providerDelete at h
     split at h
     · rename_i n hph
       split at h
+      · simp [hw] at h
       · cases applied
         · simp [hw] at h
         · exact ⟨n, reply, rfl, hph⟩
-      · simp [hw] at h
     · simp [hw] at h
   | sweep => exfalso; unfold step sweep enqueue applyRow at h; (repeat' split at h) <;> simp_all
   | claim => exfalso; unfold step claimStep at h; (repeat' split at h) <;> simp_all
@@ -856,7 +715,7 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
     rw [step, hd] at h; simp_all
   | settle =>
     exfalso; unfold step settle writeAbortDate finish applyRow at h
-    (repeat' split at h) <;> simp_all [writeDate]
+    (repeat' split at h) <;> simp_all
   | retry => exfalso; unfold step retry at h; (repeat' split at h) <;> simp_all
   | goneWrite => exfalso; unfold step goneWrite applyRow at h; (repeat' split at h) <;> simp_all
   | suspend => exfalso; unfold step suspend enqueue at h; (repeat' split at h) <;> simp_all
@@ -882,7 +741,8 @@ theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true)
   cases e with
   | advance seconds => exfalso; exact hw (by simpa [step] using h)
   | rederive d obs => exfalso; unfold step rederive at h; (repeat' split at h) <;> simp_all
-  | restoreGrace t => exfalso; unfold step restoreGrace at h; (repeat' split at h) <;> simp_all
+  | pass window => exfalso; exact hw (by simpa [step, pass] using h)
+  | restoreRecord r => exfalso; exact hw (by simpa [step] using h)
   | fenceTxn =>
     simp only [step] at h ⊢
     unfold fenceTxn at h ⊢
@@ -948,25 +808,25 @@ theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
     · simp at h
 
 /-- Between the fence write and the provider call the machine row, the balance and the worker stay
-put: with the fence set and the worker `fenced`, every event but the provider call, gone-write,
-re-derivation and restore-grace write leaves them as they are — the sweep enqueues nothing,
-joining the open episode at most, the extension is refused, the settlement has nothing to settle.
+put: with the fence set and the worker `fenced`, every event but the provider call, gone-write
+and re-derivation leaves them as they are — the sweep enqueues nothing,
+joining the open episode at most, the extension is refused, the settlement has nothing to settle,
+a pass moves the rate and the restore record is written beside the row.
 The gone-write is the one write that moves the fence under a fenced worker, by `ADR-0021`'s design, and `gone_clears_and_closes_together` says
-what it does. The added setters are excluded from this whole-row frame: `PRV-13e` requires
-"written in the same transaction as the date that observation explains", and `STO-54` requires
-"`destroy_not_before` set to the restore instant plus one re-derivation interval". They can
-change the date and exhaustion facts, but neither changes the cancellation fence. -/
+what it does. Re-derivation is excluded from this whole-row frame: what `PRV-13e` says it
+"recomputes is `runway_until`, not the commitment". It can change the date, but not the
+cancellation fence. -/
 @[req "OPS-42"]
 theorem fenced_waits_for_the_provider (p : Params) (w : World) (n : ClaimNumber) (h : Holder)
     (hph : w.phase = .fenced n) (hf : w.m.fence = some h) (e : Event)
     (he : ∀ applied reply, e ≠ .providerDelete applied reply) (hg : e ≠ .goneWrite)
-    (hr : ∀ date observation, e ≠ .rederive date observation)
-    (hs : ∀ instant, e ≠ .restoreGrace instant) :
+    (hr : ∀ date observation, e ≠ .rederive date observation) :
     (step p w e).m = w.m ∧ (step p w e).balance = w.balance ∧ (step p w e).phase = w.phase := by
   cases e with
   | advance seconds => simp [step]
   | rederive d obs => exact absurd rfl (hr d obs)
-  | restoreGrace t => exact absurd rfl (hs t)
+  | pass window => simp [step, pass]
+  | restoreRecord r => simp [step]
   | providerDelete a r => exact absurd rfl (he a r)
   | goneWrite => exact absurd rfl hg
   | sweep => unfold step sweep enqueue applyRow; (repeat' split) <;> simp_all
@@ -1101,15 +961,15 @@ theorem writeFence_inv (p : Params) (hh : p.fenceHolds = .episodeId)
     cases hE : w.episode <;> simp_all
   · exact inv_same w _ rfl rfl rfl hw
 
-theorem claimStep_frame (w : World) :
-    (claimStep w).m.fence = w.m.fence ∧ (claimStep w).episode = w.episode ∧
-    (claimStep w).nextId = w.nextId := by
+theorem claimStep_frame (p : Params) (w : World) :
+    (claimStep p w).m.fence = w.m.fence ∧ (claimStep p w).episode = w.episode ∧
+    (claimStep p w).nextId = w.nextId := by
   unfold claimStep; (repeat' split) <;> simp
 
-theorem providerDelete_frame (w : World) (applied : Bool) (reply : Option Bool) :
-    (providerDelete w applied reply).m.fence = w.m.fence ∧
-    (providerDelete w applied reply).episode = w.episode ∧
-    (providerDelete w applied reply).nextId = w.nextId := by
+theorem providerDelete_frame (p : Params) (w : World) (applied : Bool) (reply : Option Bool) :
+    (providerDelete p w applied reply).m.fence = w.m.fence ∧
+    (providerDelete p w applied reply).episode = w.episode ∧
+    (providerDelete p w applied reply).nextId = w.nextId := by
   unfold providerDelete; (repeat' split) <;> simp
 
 theorem finish_inv (w : World) (n : ClaimNumber) (a : Attempt) (s : Settled) (wr : Written)
@@ -1131,8 +991,8 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
   | advance seconds => exact inv_same w _ rfl rfl rfl hw
   | rederive d obs =>
     simp only [step]; unfold rederive; (repeat' split) <;> exact inv_same w _ rfl rfl rfl hw
-  | restoreGrace t =>
-    simp only [step]; unfold restoreGrace; (repeat' split) <;> exact inv_same w _ rfl rfl rfl hw
+  | pass window => exact inv_same w _ rfl rfl rfl hw
+  | restoreRecord r => exact inv_same w _ rfl rfl rfl hw
   | sweep =>
     simp only [step]; unfold sweep
     split
@@ -1146,7 +1006,7 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
       · exact enqueue_inv w _ hw
       · exact hw
   | claim =>
-    obtain ⟨h1, h2, h3⟩ := claimStep_frame w
+    obtain ⟨h1, h2, h3⟩ := claimStep_frame p w
     exact inv_same w _ h1 h2 h3 hw
   | fenceTxn =>
     simp only [step]; unfold fenceTxn
@@ -1168,7 +1028,7 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
     obtain ⟨-, -, -, -, -, hf, he, -, -, hn, -⟩ := extend_frame p w s
     exact inv_same w _ hf he hn hw
   | providerDelete a r =>
-    obtain ⟨h1, h2, h3⟩ := providerDelete_frame w a r
+    obtain ⟨h1, h2, h3⟩ := providerDelete_frame p w a r
     exact inv_same w _ h1 h2 h3 hw
   | settle =>
     simp only [step]; unfold settle
@@ -1237,7 +1097,8 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
   cases e with
   | advance seconds => left; exact hep
   | rederive d obs => left; simp only [step]; unfold rederive; (repeat' split) <;> exact hep
-  | restoreGrace t => left; simp only [step]; unfold restoreGrace; (repeat' split) <;> exact hep
+  | pass window => left; exact hep
+  | restoreRecord r => left; exact hep
   | sweep =>
     simp only [step]; unfold sweep
     split
@@ -1255,7 +1116,7 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
         · left; rw [h, hep]
         · right; exact ⟨_, h⟩
       · left; exact hep
-  | claim => left; rw [step, (claimStep_frame w).2.1]; exact hep
+  | claim => left; rw [step, (claimStep_frame p w).2.1]; exact hep
   | fenceTxn =>
     left; simp only [step]; unfold fenceTxn writeFence; (repeat' split) <;> simpa using hep
   | fenceWrite =>
@@ -1263,7 +1124,7 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
   | extend s =>
     left; obtain ⟨-, -, -, -, -, -, he, -, -, -, -⟩ := extend_frame p w s
     rw [step, he]; exact hep
-  | providerDelete a rp => left; rw [step, (providerDelete_frame w a rp).2.1]; exact hep
+  | providerDelete a rp => left; rw [step, (providerDelete_frame p w a rp).2.1]; exact hep
   | settle =>
     left
     have hfin : ∀ n a s wr, (finish w n a s wr).episode = some ep := by

@@ -299,10 +299,11 @@ jobs:
           grep -A6 'proved that the proposition' build.log | grep -q 'postgres'
           echo "the migration type correctly refused the transactional CONCURRENTLY build"
 
-      # The cancellation fence (pv-vwe.4, completed by pv-vwe.10): every guard OPS-41 and
-      # OPS-42 gained by dated amendment between 2026-09-02 and 2026-09-09 is a field of
-      # `Provisiond.Fence.current`, one per line. Each row below flips one field and requires
-      # exactly one red: `decide` refuting the witness that field's amendment exists for,
+      # The cancellation fence (pv-vwe.4, completed by pv-vwe.10; pv-gip.2 for the two rules of
+      # 2026-09-23 and 2026-09-25): every guard OPS-41 and OPS-42 gained by dated amendment
+      # between 2026-09-02 and 2026-09-09, LDG-58's window median and OPS-41's grace at the claim,
+      # is a field of `Provisiond.Fence.current`, one per line. Each row below flips one field and
+      # requires exactly one red: `decide` refuting the witness that field's amendment exists for,
       # identified by a token of its proposition. Fence.lean's own theorems take each guard as
       # a hypothesis and stay green, and every witness asserts only what its own parameter
       # decides, so no neighbouring witness fails for want of the flipped one. The rows:
@@ -322,16 +323,13 @@ jobs:
       #   outageWrite (2026-09-05): a stale no-rate read destroys a funded fleet --
       #     no_rate_cancellation_witness on restoredRateTrace;
       #   ownIdClause (2026-09-02): "IS NULL alone" refuses the retry -- retry_executes_witness;
-      #   armWinsFutureClear (2026-09-21): clear wins on a future horizon crossing --
-      #     horizon_arm_wins_witness on horizonTrace;
-      #   confirmationByOrder (2026-09-21): elapsed time confirms a reused observation --
-      #     observation_order_witness on reusedObservationTrace;
-      #   observationKeepsDeadline (2026-09-21): an observation ends restore grace --
-      #     observation_keeps_restore_grace_witness on restoreObservationTrace;
-      #   backwardCannotConfirm (2026-09-21): a later poisoned backward move confirms itself --
-      #     backward_never_confirms_witness on wobbleThenPoisonTrace;
-      #   noAgeDischarge (2026-09-05, withdrawn 2026-09-21): an armed mark ages out without a rate --
-      #     no_rate_age_discharge_witness on noRateAgeTrace;
+      #   rateIsWindowMedian (LDG-58, 2026-09-23, ADR-0027): one pass's observation is the rate,
+      #     and the poisoned newest pass destroys the pinned machine --
+      #     window_median_witness on poisonedPassTrace;
+      #   graceAtClaim (OPS-41, 2026-09-25, ADR-0028): the grace is read on the provider call
+      #     instead of at the claim, the re-run delete fences first, the extension is refused for
+      #     the whole grace and the machine is destroyed after it --
+      #     grace_at_claim_witness on graceTrace;
       #   retryGuard (2026-09-09): a plain retry write reopens a closed episode --
       #     retry_guard_witness.
       # The restore (pv-vwe.11, ADR-0023), Restore.current, the same shape:
@@ -340,7 +338,7 @@ jobs:
       #   exceptionFrozen (OPS-15, 2026-09-12): the parent is queued and claimed unconfirmed --
       #     parent_waits_witness, on the claim after confirmParents;
       #   bumpOnRestore (STO-54, 2026-09-12): the revoked generation 0 is served --
-      #     resurrected_token_refused on [.., .request 0, .completeProcedure, ..];
+      #     resurrected_token_refused on [.., .request 0, .completeProcedure stepThreeAt, ..];
       #   twoPassAbsence (STO-54, 2026-09-12): the first complete pass records the absence --
       #     absence_on_second_pass_only on the two sweeps before the window;
       #   recordDecidesBoot (STO-54, 2026-09-20): the successor of a crash inside the procedure
@@ -458,11 +456,8 @@ jobs:
           Fence|suspensionKey|.currentState|.episodeReasons|resumedTenantTrace
           Fence|outageWrite|true|false|restoredRateTrace
           Fence|ownIdClause|true|false|fenceWorld retryTrace
-          Fence|armWinsFutureClear|true|false|horizonTrace
-          Fence|confirmationByOrder|true|false|reusedObservationTrace
-          Fence|observationKeepsDeadline|true|false|restoreObservationTrace
-          Fence|backwardCannotConfirm|true|false|wobbleThenPoisonTrace
-          Fence|noAgeDischarge|true|false|noRateAgeTrace
+          Fence|rateIsWindowMedian|true|false|poisonedPassTrace
+          Fence|graceAtClaim|true|false|graceTrace
           Fence|retryGuard|true|false|goneAfterStallTrace ++
           Restore|quarantineOnRestore|true|false|Event.startupPass, Event.claim { n := 0 }
           Restore|exceptionFrozen|true|false|Event.confirmParents, Event.claim { n := 1 }

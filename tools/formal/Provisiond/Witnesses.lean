@@ -132,9 +132,9 @@ open Provisiond.Fence
 second, nothing protected, nothing reserved, the stored date already reached, no outage, the
 tenant not suspended. -/
 def fenceWorld : World :=
-  { m := { commitment := 0, runwayUntil := 0, rateConfirmationRef := none, destroyNotBefore := none, fence := none,
+  { m := { commitment := 0, runwayUntil := 0, fence := none,
            destroyed := false, gone := false },
-    balance := 1000, now := 0, interval := 60, rate := some 1, prot := 0, suspended := false,
+    balance := 1000, now := 0, rate := some 1, prot := 0, suspended := false,
     outageOpen := false, episode := none, attempt := none, phase := .idle, nextId := 1 }
 
 /-- The same tenant's machine funded for a hundred seconds, its stored date written. -/
@@ -150,14 +150,14 @@ written, say — so the sweep routes it and the re-check finds it funded. -/
 def staleDateWorld : World :=
   { fenceWorld with m := { fenceWorld.m with commitment := 100 } }
 
-/-- A cancellation already enqueued before a backward re-derivation armed the reference.
-Its deadline has passed. The worker's no-mutation abort must clear both facts (`OPS-41`:
-"clear both of `LDG-16`'s exhaustion facts"). -/
+/-- The stale-date machine with a cancellation enqueued against it at `50` — an earlier pass's, or
+`API-58`'s fan-out's — and the trace's own sweep pass fifty seconds later, at `100`. What it
+traps: the sweep joins the open episode and enqueues nothing, and the abort's date write is
+derived at the re-check's own clock, `OPS-41`'s "write that re-derived `runway_until` to the
+machine row" — a hundred seconds of runway from `100`, so `200`, where a date derived from the
+enqueue would be `150`. -/
 def agedWorld : World :=
-  enqueue { staleDateWorld with
-    now := 100
-    m := { staleDateWorld.m with rateConfirmationRef := some 0, destroyNotBefore := some 60 } }
-    .exhausted
+  { enqueue { staleDateWorld with now := 50 } .exhausted with now := 100 }
 
 /-- The sweep routes, the worker claims, the fence transaction reads unfunded and wins, the
 provider deletes, the attempt settles. -/
@@ -220,7 +220,7 @@ it. -/
 @[req "OPS-42"]
 theorem successful_cancellation_witness :
     let w := run Fence.current fenceWorld cancellationTrace
-    w.m = { commitment := 0, runwayUntil := 0, rateConfirmationRef := none, destroyNotBefore := none, fence := none,
+    w.m = { commitment := 0, runwayUntil := 0, fence := none,
             destroyed := true, gone := true } ∧
     w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
     w.attempt = some { op := ⟨2⟩, ep := ⟨1⟩,
@@ -235,7 +235,7 @@ customer has just funded. -/
 theorem successful_extension_witness :
     let w := run Fence.current fenceWorld [.extend 100]
     let w' := run { Fence.current with extendWritesDate := false } fenceWorld [.extend 100]
-    w.m = { commitment := 100, runwayUntil := 100, rateConfirmationRef := none, destroyNotBefore := none, fence := none,
+    w.m = { commitment := 100, runwayUntil := 100, fence := none,
             destroyed := false, gone := false } ∧
     w.balance = 900 ∧ sweep Fence.current w = w ∧
     w'.m.commitment = 100 ∧ w'.m.runwayUntil = 0 ∧ sweep Fence.current w' ≠ w' := by decide
@@ -246,7 +246,7 @@ paid for. -/
 @[req "OPS-42"]
 theorem extension_first_witness :
     let w := run Fence.current fenceWorld extensionFirstTrace
-    w.m = { commitment := 100, runwayUntil := 100, rateConfirmationRef := none, destroyNotBefore := none, fence := none,
+    w.m = { commitment := 100, runwayUntil := 100, fence := none,
             destroyed := false, gone := false } ∧
     w.balance = 900 ∧
     w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by decide
@@ -257,7 +257,7 @@ unfunded machine is destroyed. -/
 @[req "OPS-42"]
 theorem fence_first_witness :
     let w := run Fence.current fenceWorld paidMachineTrace
-    w.m = { commitment := 0, runwayUntil := 0, rateConfirmationRef := none, destroyNotBefore := none, fence := none,
+    w.m = { commitment := 0, runwayUntil := 0, fence := none,
             destroyed := true, gone := true } ∧
     w.balance = 1000 := by decide
 
@@ -290,7 +290,7 @@ The episode closes `funded` on a machine whose stored date is still today. -/
 theorem retry_refused_with_attempt_id :
     let w := run { Fence.current with fenceHolds := .attemptId } fenceWorld retryTrace
     let w' := run { Fence.current with ownIdClause := false } fenceWorld retryTrace
-    w.m = { commitment := 0, runwayUntil := 0, rateConfirmationRef := none, destroyNotBefore := none, fence := none,
+    w.m = { commitment := 0, runwayUntil := 0, fence := none,
             destroyed := false, gone := false } ∧
     w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
     w'.m.destroyed = false ∧
@@ -316,9 +316,10 @@ theorem withdrawn_predicate_loops_in_lifecycle :
       some { id := ⟨3⟩, state := .closed .funded, reasons := [.exhausted] } := by decide
 
 /-- `OPS-41`'s 2026-09-05 date write: the abort re-derives a date a hundred seconds out and
-writes it. It must "clear both of `LDG-16`'s exhaustion facts", so the sweep does not route the
-machine again. Without the write, "an abort that re-derived a future date and wrote nothing left the
-stored one in the past — so the next pass routed the same machine, the worker aborted again". -/
+writes it, so the sweep does not route the machine again; on `agedWorld` the date is a hundred
+seconds from the re-check's clock. Without the write, "an abort that re-derived a future date and
+wrote nothing left the stored one in the past — so the next pass routed the same machine, the
+worker aborted again". -/
 @[req "OPS-41"]
 theorem abort_without_date_write_reroutes :
     let w := run Fence.current staleDateWorld abortTrace
@@ -326,175 +327,46 @@ theorem abort_without_date_write_reroutes :
     w.m.runwayUntil = 100 ∧
     w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
     sweep Fence.current w = w ∧
-    (run Fence.current agedWorld abortTrace).m.rateConfirmationRef = none ∧
-    (run Fence.current agedWorld abortTrace).m.destroyNotBefore = none ∧
     (run Fence.current agedWorld abortTrace).m.runwayUntil = 200 ∧
+    (run Fence.current agedWorld abortTrace).episode =
+      some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
     w'.m.runwayUntil = 0 ∧ sweep Fence.current w' ≠ w' := by decide
 
-/-- `LDG-16`'s "`rate_confirmation_ref` is null and its `destroy_not_before` is null or past":
-including the no-rate case (`LDG-65`: "unless its `rate_confirmation_ref` is armed"). -/
+/-- `LDG-16`'s one-clause predicate: "The exhaustion sweep MUST route a machine where its stored
+`runway_until` has passed, and MUST NOT route it otherwise" — the no-rate case included
+(`LDG-65`: "The exhaustion sweep continues during an outage on the last derived `runway_until`"),
+and a future date not. -/
 @[req "LDG-16"]
-theorem two_fact_routing_witness :
-    let p := { Fence.current with noAgeDischarge := true }
+theorem routed_on_stored_date_witness :
     let base := { fenceWorld with now := 100 }
-    let armed := { base with m := { base.m with rateConfirmationRef := some 7 } }
-    base.routed p = true ∧ ({ base with rate := none }).routed p = true ∧
-    armed.routed p = false ∧ ({ armed with rate := none }).routed p = false ∧
-    ({ base with m := { base.m with destroyNotBefore := some 101 } }).routed p = false ∧
-    ({ base with m := { base.m with destroyNotBefore := some 100 } }).routed p = true ∧
-    ({ base with m := { base.m with destroyNotBefore := some 99 } }).routed p = true ∧
-    ({ base with m := { base.m with runwayUntil := 101 } }).routed p = false := by decide
+    base.routed = true ∧ ({ base with rate := none }).routed = true ∧
+    ({ base with m := { base.m with runwayUntil := 100 } }).routed = true ∧
+    ({ base with m := { base.m with runwayUntil := 101 } }).routed = false := by decide
 
-/-- Each setter control fixes its neighbouring guards so a flip has exactly its own red build.
-The values are hypotheses of the setter theorems and `armed_reference_not_routed`, not an
-alternative rule. -/
-def setterGuards (p : Params) : Params :=
-  { p with armWinsFutureClear := true, confirmationByOrder := true,
-           observationKeepsDeadline := true, backwardCannotConfirm := true, noAgeDischarge := true }
+/-- `ADR-0026`'s sources in `ADR-0027`'s window: honest `100`s, and a poisoned `103` as the
+newest pass. The stale-date machine is the pin: a hundred satoshis committed, so at `100` the
+re-check derives one second of runway and at `103` none. -/
+def poisonedPassTrace : List Fence.Event := .pass [100, 100, 100, 103] :: cancellationTrace
 
-def horizonGuards (p : Params) : Params :=
-  { setterGuards p with armWinsFutureClear := p.armWinsFutureClear }
+/-- The median control fixes the abort's two guards, which its trace runs through, so a flip of
+either has its own red build and not this one. The values are `current`'s, not an alternative
+rule. -/
+def medianGuards (p : Params) : Params := { p with abortPredicate := .date, abortWritesDate := true }
 
-def orderGuards (p : Params) : Params :=
-  { setterGuards p with confirmationByOrder := p.confirmationByOrder }
-
-def graceGuards (p : Params) : Params :=
-  { setterGuards p with observationKeepsDeadline := p.observationKeepsDeadline }
-
-def backwardGuards (p : Params) : Params :=
-  { setterGuards p with backwardCannotConfirm := p.backwardCannotConfirm }
-
-/-- `ADR-0026`'s crossing: now + 2i to now + i/2, then natural expiry without another
-observation. The rate remains available and the worker reads no remaining usable commitment. -/
-def horizonWorld : World :=
-  { fenceWorld with now := 100, m := { fenceWorld.m with runwayUntil := 220 } }
-
-def horizonTrace : List Fence.Event := [.rederive 130 (some 7), .advance 31]
-
-/-- `LDG-16`: "Where one write would both arm it and clear it, the arm wins." The withdrawn
-clear-wins trap destroys the machine on the crossing observation alone. -/
-@[req "LDG-16"]
-theorem horizon_arm_wins_witness :
-    let p := horizonGuards Fence.current
-    let good := run p horizonWorld horizonTrace
-    let bad := run { p with armWinsFutureClear := false } horizonWorld horizonTrace
-    good.m.rateConfirmationRef = some 7 ∧ good.routed p = false ∧
-    (run p good cancellationTrace).m.destroyed = false ∧
-    bad.m.rateConfirmationRef = none ∧ bad.routed p = true ∧
-    (run { p with armWinsFutureClear := false } bad cancellationTrace).m.destroyed = true := by decide
-
-/-- Two derivations consuming acceptance order 7, more than an interval apart. The first
-moves a future date into the past; the second leaves it there. -/
-def reusedObservationTrace : List Fence.Event :=
-  [.rederive 99 (some 7), .advance 61, .rederive 99 (some 7)]
-
-/-- `LDG-16`: "a greater acceptance order, never a later instant and never elapsed time".
-Retaining the withdrawn "older than one re-derivation interval" test lets the reused poisoned
-observation stand in for its own confirmation. -/
-@[req "LDG-16"]
-theorem observation_order_witness :
-    let p := orderGuards Fence.current
-    let good := run p horizonWorld reusedObservationTrace
-    let bad := run { p with confirmationByOrder := false } horizonWorld reusedObservationTrace
-    good.m.rateConfirmationRef = some 7 ∧ good.routed p = false ∧
-    (run p good cancellationTrace).m.destroyed = false ∧
-    bad.m.rateConfirmationRef = none ∧ bad.routed p = true ∧
-    (run { p with confirmationByOrder := false } bad cancellationTrace).m.destroyed = true := by decide
-
-/-- A backward observation arms the reference; the rate disappears, then more than an
-interval passes without a derivation before the sweep and worker try to cancel. -/
-def noRateAgeTrace : List Fence.Event :=
-  [.rederive 99 (some 7), .rateLost, .advance 61] ++ cancellationTrace
-
-/-- `LDG-16`: "Under a discharge keyed to acceptance order, no rate means no discharge and the
-machine waits". The withdrawn age discharge destroys the disk without another observation;
-the guarded wait ends when a later accepted observation leaves the date in the past. -/
-@[req "LDG-16"]
-theorem no_rate_age_discharge_witness :
-    let p := Fence.current
-    let good := run p horizonWorld noRateAgeTrace
-    let bad := run { p with noAgeDischarge := false } horizonWorld noRateAgeTrace
-    good.m.rateConfirmationRef = some 7 ∧ good.routed p = false ∧
-    good.m.destroyed = false ∧
-    bad.m.rateConfirmationRef = some 7 ∧ bad.routed { p with noAgeDischarge := false } = true ∧
-    bad.m.destroyed = true ∧
-    (run p good [.rateRestored 1, .rederive 99 (some 8)]).routed p = true := by decide
-
-/-- The restored machine's stored date has already passed. -/
-def restoreGraceWorld : World := { fenceWorld with now := 100 }
-
-/-- The restore lands at 100; an accepted observation arrives two seconds later. -/
-def restoreObservationTrace : List Fence.Event :=
-  [.restoreGrace 100, .advance 2, .rederive 0 (some 8)]
-
-/-- `LDG-16`: "wall clock, and no observation discharges it". The withdrawn single-slot
-behaviour lets a rate arrival destroy the restored machine before its grace expires. -/
-@[req "LDG-16"]
-theorem observation_keeps_restore_grace_witness :
-    let p := graceGuards Fence.current
-    let initial := restoreGraceWorld
-    let good := run p initial restoreObservationTrace
-    let bad := run { p with observationKeepsDeadline := false } initial restoreObservationTrace
-    good.m.destroyNotBefore = some 160 ∧ good.routed p = false ∧
-    (run p good cancellationTrace).m.destroyed = false ∧
-    (run p good [.advance 58]).routed p = true ∧
-    bad.m.destroyNotBefore = none ∧ bad.routed p = true ∧
-    (run { p with observationKeepsDeadline := false } bad cancellationTrace).m.destroyed = true := by decide
-
-/-- Ordinary wobble from two hours out to one hour fifty, then a later poisoned observation
-moves that still-future date into the past. -/
-def wobbleWorld : World :=
-  { fenceWorld with now := 100, m := { fenceWorld.m with runwayUntil := 7300 } }
-
-def wobbleThenPoisonTrace : List Fence.Event :=
-  [.rederive 6700 (some 7), .advance 1, .rederive 99 (some 8)]
-
-/-- `LDG-16`: "A backward move never confirms itself." The later order arms afresh; under the
-withdrawn precedence it confirms an exhaustion no earlier observation derived. -/
-@[req "LDG-16"]
-theorem backward_never_confirms_witness :
-    let p := backwardGuards Fence.current
-    let good := run p wobbleWorld wobbleThenPoisonTrace
-    let bad := run { p with backwardCannotConfirm := false } wobbleWorld wobbleThenPoisonTrace
-    (run p wobbleWorld [.rederive 6700 (some 7)]).m.rateConfirmationRef = some 7 ∧
-    good.m.rateConfirmationRef = some 8 ∧ good.routed p = false ∧
-    (run p good cancellationTrace).m.destroyed = false ∧
-    bad.m.rateConfirmationRef = none ∧ bad.routed p = true ∧
-    (run { p with backwardCannotConfirm := false } bad cancellationTrace).m.destroyed = true := by decide
-
-/-- `LDG-16`: "A move of a date that had already passed arms nothing" and "Natural expiry
-arms nothing". Same or older observations do not discharge; a strictly later non-arming write
-does, whether its date is past or future. No observation writes nothing, even after an interval. -/
-@[req "LDG-16"]
-theorem rederivation_edges_witness :
-    let p := setterGuards Fence.current
-    let armed := run p horizonWorld [.rederive 99 (some 7)]
-    (run p horizonWorld [.advance 121]).m.rateConfirmationRef = none ∧
-    (run p horizonWorld [.advance 121]).routed p = true ∧
-    (run p { horizonWorld with now := 220 } [.rederive 98 (some 8)]).m.rateConfirmationRef = none ∧
-    (run p armed [.rederive 98 (some 7)]).m.rateConfirmationRef = some 7 ∧
-    (run p armed [.rederive 98 (some 6)]).m.rateConfirmationRef = some 7 ∧
-    (run p armed [.rederive 98 (some 8)]).routed p = true ∧
-    (run p armed [.rederive 200 (some 8)]).m.rateConfirmationRef = none ∧
-    (run p armed [.rederive 200 (some 7)]).m.rateConfirmationRef = some 7 ∧
-    (run p armed [.advance 61, .rederive 0 none]).m = armed.m := by decide
-
-/-- `STO-54`: "any `rate_confirmation_ref` already present is preserved"; `LDG-16`:
-"Both do respect the destruction deadline". Suspension and the outage bound bypass an armed
-reference, but the provider call waits for wall clock. -/
-@[req "STO-54"]
-theorem restore_preserves_reference_and_bypasses_wait :
-    let p := setterGuards Fence.current
-    let armed := run p horizonWorld [.rederive 99 (some 7), .restoreGrace 100]
-    let suspended := run p armed suspendedTenantTrace
-    let outage := run p armed outageCancelTrace
-    armed.m.rateConfirmationRef = some 7 ∧ armed.m.destroyNotBefore = some 160 ∧
-    (run p armed [.rederive 99 (some 8)]).m.rateConfirmationRef = none ∧
-    (run p armed [.rederive 99 (some 8)]).m.destroyNotBefore = some 160 ∧
-    (run p armed [.rederive 99 (some 8)]).routed p = false ∧
-    suspended.m.destroyed = false ∧ outage.m.destroyed = false ∧
-    (run p suspended [.advance 60, .providerDelete true (some true)]).m.destroyed = true ∧
-    (run p outage [.advance 60, .providerDelete true (some true)]).m.destroyed = true := by decide
+/-- `LDG-58`: "The rate is the lower median of the rate observations for its currency". The
+poisoned pass moves the lower median nowhere — `LDG-16`: "No single rate observation moves the
+rate outside the range the window's other observations carry" — the re-check derives at `100`,
+aborts, writes the date, and the episode closes `funded`. Under the rule that stood before
+`ADR-0027`, one pass's observation is the rate: the re-check derives at `103`, the cancellation
+proceeds, and the disk is destroyed on one observation. -/
+@[req "LDG-58"]
+theorem window_median_witness :
+    let p := medianGuards Fence.current
+    let good := run p staleDateWorld poisonedPassTrace
+    let bad := run { p with rateIsWindowMedian := false } staleDateWorld poisonedPassTrace
+    good.rate = some 100 ∧ good.m.destroyed = false ∧ good.m.runwayUntil = 1 ∧
+    good.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    bad.rate = some 103 ∧ bad.m.destroyed = true := by decide
 
 /-- `OPS-41`'s suspension key. Keyed on the tenant's current state, a suspended tenant's funded
 machine is cancelled regardless of funding, and a resumed tenant's machine, funded before the
@@ -582,15 +454,14 @@ section Restore
 open Provisiond.Restore
 
 /-- Row 0 a `queued` create, row 1 a `running` `suspend_tenant` parent, row 2 a `queued` delete,
-every other row a settled refresh the engine never touches. The stored date is already past, and
-`destroy_not_before` holds an expired deadline. -/
+every other row a settled refresh the engine never touches. The stored date is already past. -/
 def liveStore : Restore.Store :=
   { ops := fun j =>
       if j = ⟨0⟩ then { kind := .createMachine, status := .queued, applied := false }
       else if j = ⟨1⟩ then { kind := .suspendTenant, status := .running, applied := false }
       else if j = ⟨2⟩ then { kind := .deleteMachine, status := .queued, applied := false }
       else { kind := .refresh, status := .succeeded, applied := true },
-    machine := { runwayUntil := 0, destroyNotBefore := some 0, recordedGone := false },
+    machine := { runwayUntil := 0, recordedGone := false },
     credentialGen := 0,
     record := none }
 
@@ -606,8 +477,13 @@ def restoreTrace : RestoreTrace := { history := lostInterval, delta := 9, now :=
 /-- The same store crashed before any step: `STO-5`'s restart. -/
 def restartTrace : RestartTrace := { history := { initial := liveStore, steps := [] } }
 
+/-- Step (3)'s instant on `restoreTrace`: thirty seconds after the restore landed at `50`, so
+the grace `STO-56` writes, "step (3)'s instant plus one re-derivation interval", is `140` and not
+the withdrawn `110`. -/
+def stepThreeAt : Nat := 80
+
 /-- `STO-54`'s three steps. -/
-def procedure : List Restore.Event := [.lock, .startupPass, .completeProcedure]
+def procedure : List Restore.Event := [.lock, .startupPass, .completeProcedure stepThreeAt]
 
 /-- `STO-5`'s clause, "A restore from backup is not a restart and is not covered by this
 sentence": the live store is sound, so `restart_never_reorders` covers every restart on it; the
@@ -624,14 +500,14 @@ theorem restore_breaks_soundness :
   · exact absurd (h ⟨0⟩ (by decide)) (by decide)
 
 /-- `OPS-15`'s 2026-09-12 quarantine: the executed create is `needs_reconciliation` after the
-pass, the claim finds nothing to order, and `STO-54`'s deadline is "the restore instant plus one
-re-derivation interval". -/
+pass, the claim finds nothing to order, and the record's `grace_ends_at` is still null — `STO-56`:
+"It is null until step (3) of `STO-54`'s procedure is marked". -/
 @[req "OPS-15"]
 theorem executed_create_quarantined :
     let w := Restore.run Restore.current (bootRestore restoreTrace)
       [.lock, .startupPass, .claim ⟨0⟩]
     (w.store.ops ⟨0⟩).status = .needsReconciliation ∧ w.secondOrder = false ∧
-    w.store.machine.destroyNotBefore = some 110 := by decide
+    w.store.record = some { graceEndsAt := none, restoreInstant := 50 } := by decide
 
 /-- Without it — `OPS-15` inspecting `running` rows only — the pass leaves the executed create
 `queued`, the claim takes it, and the provider is ordered twice: `ADR-0023`'s "an executed
@@ -643,15 +519,15 @@ theorem executed_create_reordered_without_quarantine :
 
 /-- `STO-54`'s record, added 2026-09-20: the process dies after the restore lands and before step
 (2)'s mark. Its successor comes up while the record is open, so it is continuing the incident — the
-mode is the restore's, `api` serves nothing because step (3) is unmarked, and `LDG-16`'s grace
-stands where the first step (1) wrote it. What that mode then does to the executed create is the
-quarantine's, and `executed_create_quarantined` is where it is asserted. -/
+mode is the restore's, `api` serves nothing because step (3) is unmarked, and the record's
+`grace_ends_at` is still null for the same reason. What that mode then does to the executed
+create is the quarantine's, and `executed_create_quarantined` is where it is asserted. -/
 @[req "STO-54"]
 theorem crash_inside_procedure_continues_it :
     let w := Restore.run Restore.current (bootRestore restoreTrace)
       [.lock, .crash, .lock, .startupPass]
     w.fault = .restore ∧ (permits Restore.current w).serve = false ∧
-    w.graceWritten = true ∧ w.store.machine.destroyNotBefore = some 110 := by decide
+    w.store.record = some { graceEndsAt := none, restoreInstant := 50 } := by decide
 
 /-- Without it the successor is an ordinary restart on a restored store, which is the reading the
 set permitted by saying nothing: it serves at once, its pass inspects `running` rows only, the
@@ -664,14 +540,17 @@ theorem crash_inside_procedure_is_the_naive_boot :
 
 /-- The marks, `STO-54` 2026-09-20: the record carries which steps have completed, so a crash after
 step (3) does not run step (3) again. The mark stands, `api` keeps serving — the listener is not
-closed a second time on a customer already served — and a repeated step (3) leaves the generation
-where the first one put it. -/
+closed a second time on a customer already served — and a repeated step (3), at a later instant,
+leaves the generation where the first one put it, and the grace where the first one wrote it:
+`STO-54`'s "the grace is written once per incident — `STO-56`'s `grace_ends_at`, in step (3)'s
+mark transaction". -/
 @[req "STO-54"]
 theorem marked_step_does_not_repeat :
     let w := Restore.run Restore.current (bootRestore restoreTrace) (procedure ++ [.crash, .lock])
-    let w' := Restore.step Restore.current w .completeProcedure
+    let w' := Restore.step Restore.current w (.completeProcedure 200)
     w.procedureComplete = true ∧ (permits Restore.current w).serve = true ∧
-    w'.store.credentialGen = w.store.credentialGen := by decide
+    w.store.record = some { graceEndsAt := some 140, restoreInstant := 50 } ∧
+    w'.store.credentialGen = w.store.credentialGen ∧ w'.store.record = w.store.record := by decide
 
 /-- `ADR-0023`'s "a revoked token works again", refused: generation 0 is what the backup holds and
 what the revocation inside Δ replaced. Nothing is served before step (3); after it, 0 is refused
@@ -679,7 +558,8 @@ and the re-issued 1 is served. -/
 @[req "STO-54"]
 theorem resurrected_token_refused :
     (Restore.run Restore.current (bootRestore restoreTrace)
-      [.lock, .startupPass, .request 0, .completeProcedure, .request 0, .request 1]).servedGens
+      [.lock, .startupPass, .request 0, .completeProcedure stepThreeAt, .request 0,
+       .request 1]).servedGens
       = [1] := by decide
 
 /-- Without the bump the restored generation is live again and the revoked token is served. -/
@@ -712,7 +592,7 @@ confirms, and still refused until step (3) completes; claimed after both. -/
 theorem parent_waits_witness :
     let w := Restore.run Restore.current (bootRestore restoreTrace)
       [.lock, .startupPass, .claim ⟨1⟩, .confirmParents, .claim ⟨1⟩]
-    let w' := Restore.run Restore.current w [.completeProcedure, .claim ⟨1⟩]
+    let w' := Restore.run Restore.current w [.completeProcedure stepThreeAt, .claim ⟨1⟩]
     (Restore.run Restore.current (bootRestore restoreTrace)
       [.lock, .startupPass, .claim ⟨1⟩]).store.ops ⟨1⟩
       = { kind := .suspendTenant, status := .running, applied := false } ∧
@@ -737,17 +617,20 @@ theorem parent_resumes_on_restart :
     w.secondOrder = false ∧ w.parentResumedUnconfirmed = false := by decide
 
 /-- `F52` #3 (`STO-54`, `ADR-0023`, 2026-09-12): "an extension lost in Δ is not rebuilt". The
-tenant extended to 100 inside the interval, the restored date is 0, the grace sets
-`destroy_not_before` to "the restore instant plus one re-derivation interval" (`STO-54`), and no
-run of the procedure writes the date back. -/
+tenant extended to 100 inside the interval, the restored date is 0, the procedure writes the
+grace as `STO-56`'s `grace_ends_at`, "step (3)'s instant plus one re-derivation interval" — from
+step (3)'s instant, not the restore's, which the record keeps beside it — the interval `STO-54`
+says "buys the tenant one re-derivation interval in which to extend again" — and no run of the
+procedure writes the date back. -/
 @[req "STO-54"]
 theorem lost_extension_not_rebuilt :
     ∃ t : RestoreTrace, t.history.final.machine.runwayUntil = 100 ∧
-      t.store.machine.runwayUntil = 0 ∧
-      (Restore.step Restore.current (bootRestore t) .lock).store.machine.destroyNotBefore
-        = some (t.now + t.interval) ∧
+      t.store.machine.runwayUntil = 0 ∧ t.now ≠ stepThreeAt ∧
+      (Restore.run Restore.current (bootRestore t) procedure).store.record
+        = some { graceEndsAt := some (stepThreeAt + t.interval), restoreInstant := t.now } ∧
       ∀ evs, (Restore.run Restore.current (bootRestore t) evs).store.machine.runwayUntil = 0 :=
-  ⟨restoreTrace, by decide, by decide, by decide, fun _ => by rw [run_runwayUntil]; decide⟩
+  ⟨restoreTrace, by decide, by decide, by decide, by decide,
+   fun _ => by rw [run_runwayUntil]; decide⟩
 
 /-- The sentence this requirement and `ADR-0023` carried until 2026-09-12 — the grace as what
 "stands between the restore and the destroyed disk" — needs the procedure to give the live date
@@ -763,18 +646,79 @@ theorem grace_rebuilds_nothing :
   exact absurd this (by decide)
 
 /-- The procedure end to end: the goal-state delete re-runs, a complete pass that lists the
-machine records nothing, the confirmed parent is claimed, the grace stands, and every component
-runs. The model refuses nothing vacuously. -/
+machine records nothing, the confirmed parent is claimed, the grace is written on the record,
+and every component runs — at step (3)'s mark, which is where this clockless model lifts the
+freeze (`Provisiond.Restore`'s docstring). The model refuses nothing vacuously. -/
 @[req "STO-54"]
 theorem successful_restore_witness :
     let w := Restore.run Restore.current (bootRestore restoreTrace)
       (procedure ++ [.claim ⟨2⟩, .sweep true true, .confirmParents, .claim ⟨1⟩])
     (w.store.ops ⟨2⟩).status = .running ∧ (w.store.ops ⟨1⟩).status = .running ∧
     w.secondOrder = false ∧ w.parentResumedUnconfirmed = false ∧
-    w.store.machine = { runwayUntil := 0, destroyNotBefore := some 110, recordedGone := false } ∧
+    w.store.machine = { runwayUntil := 0, recordedGone := false } ∧
+    w.store.record = some { graceEndsAt := some 140, restoreInstant := 50 } ∧
     (∀ c, (permits Restore.current w).run c = true) := by decide
 
 end Restore
+
+/-! ## The restore grace at the claim
+
+`ADR-0028`'s placement, composed across the two models: `Provisiond.Restore` writes the instant
+at step (3), and `Provisiond.Fence` reads it at the claim. The instant the fence trace carries is
+the one the restore run above wrote, so the arithmetic has one home. -/
+
+section Grace
+open Provisiond.Fence
+
+/-- `STO-56`'s record as `Provisiond.Restore` leaves it after the procedure on `restoreTrace`:
+step (3) marked at `stepThreeAt`, `grace_ends_at` one interval after that. -/
+def graceRecord : Option RestoreRecord :=
+  (Restore.run Restore.current (Restore.bootRestore restoreTrace) procedure).store.record.map
+    (·.toRestoreRecord)
+
+/-- The fence model at the restore instant, the record open and its instant null: a delete re-run
+by step (2) already enqueued against a machine whose extension was lost in Δ — the stored date
+past, the commitment rolled back to nothing — and the tenant's balance restored with it. -/
+def restoredWorld : World :=
+  enqueue { fenceWorld with now := 50, restore := some { graceEndsAt := none } } .exhausted
+
+/-- The re-run delete claims at the restore instant, `50`, while the record's instant is null;
+the clock reaches step (3)'s instant, `80`, and only then is the record it wrote installed; the
+tenant extends inside the grace; the clock reaches `grace_ends_at`, `140`; the delete is
+re-claimed. -/
+def graceTrace : List Fence.Event :=
+  [.claim, .fenceTxn, .fenceWrite, .advance 30, .restoreRecord graceRecord, .extend 100,
+   .advance 60, .providerDelete true (some true), .settle,
+   .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- `OPS-41`: "A claim made while a restore record is open and its `grace_ends_at` is null or in
+the future defers, and writes no fence". Under `current` the claim at `50`, before step (3), defers
+on the null instant; a claim at `80`, once step (3) has written the instant, defers to it —
+`available_at = grace_ends_at = 140`; the extension at `80` lands because `destroy_committed` is
+null; and the re-claim at `140`, the grace over, closes the episode `funded` with the machine
+alive. Under the withdrawn placement the claim at `50` fences at once, the guard sits on the
+provider call — a call at `80` is held inside the grace — the fence refuses the extension at
+`80`, and the call at `140` destroys the machine: `ADR-0028`'s "A machine already fenced when
+the grace begins ... refuses `LDG-62`'s extension for the whole grace". -/
+@[req "OPS-41"]
+theorem grace_at_claim_witness :
+    let good := run Fence.current restoredWorld graceTrace
+    let bad := run { Fence.current with graceAtClaim := false } restoredWorld graceTrace
+    graceRecord = some { graceEndsAt := some 140 } ∧
+    (run Fence.current restoredWorld [.claim]).phase = .idle ∧
+    (run Fence.current restoredWorld [.claim]).m.fence = none ∧
+    (run Fence.current restoredWorld
+      [.claim, .advance 30, .restoreRecord graceRecord, .claim]).attempt.map
+      (·.row.availableAt) = some (some 140) ∧
+    good.m.destroyed = false ∧ good.m.commitment = 100 ∧ good.balance = 900 ∧
+    good.m.fence = none ∧
+    good.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    (run { Fence.current with graceAtClaim := false } restoredWorld
+      [.claim, .fenceTxn, .fenceWrite, .advance 30, .restoreRecord graceRecord,
+       .providerDelete true (some true)]).m.destroyed = false ∧
+    bad.m.destroyed = true ∧ bad.m.commitment = 0 ∧ bad.balance = 1000 := by decide
+
+end Grace
 
 /-! ## Reconciliation knowledge
 

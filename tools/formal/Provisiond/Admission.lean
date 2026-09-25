@@ -64,9 +64,9 @@ provider-currency pair adverse by 15%, an inaccessible venue for seven days" —
 the construction behind "no rate"; only its per-currency scope appears, in `rateAvailableFor`.
 
 The re-derivation row carries the halt and not its second clause: "the halt MUST NOT itself trigger
-exhaustion" is about the setter and sweep predicate, carried by `Provisiond.Fence`'s
-`rederiveFacts` (the no-observation branch) and `World.routed`; a second copy here would be a
-second normative home for one rule.
+exhaustion" is about re-derivation and the sweep predicate, carried by `Provisiond.Fence`'s
+`rederive` (the no-observation branch writes nothing) and `World.routed` (the stored date alone);
+a second copy here would be a second normative home for one rule.
 
 `Guards` carries the rules a dated amendment added or withdrew, one field each, and `current` is
 the set as it stands. Each has the pair the epic requires: the bad trace refused with the guard and

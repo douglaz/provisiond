@@ -4,9 +4,16 @@ write and the defer as guarded writes, the settlement transaction under `OPS-49`
 whole-transaction retry, and the engine's claim step. The first **reference model**
 (`CONTEXT.md`).
 
+`OPS-41`'s restore grace is read here, at the claim, because the deferral it orders is `OPS-8`'s
+defer: `graceDefers` is the test on `STO-56`'s open record, and `defer` writes the instant the
+test read. `available_at` appears exactly that far — the column `OPS-41`'s deferral writes — and
+nothing here reads it: the claim does not wait for it, and `OPS-8`'s "short delay" is not an
+instant.
+
 What the model omits: `OPS-15`'s startup pass and `OPS-27`'s resolution writes (made by no
 execution; `pv-vwe.5`), `API-58`'s fan-out transition (`pv-vwe.6`), `OPS-11`'s classification of a
-provider outcome into the state the worker writes (`Provisiond.Tables`), `available_at`,
+provider outcome into the state the worker writes (`Provisiond.Tables`), what reads
+`available_at`,
 the error classes `OPS-49` says "are not store errors and do not consume the bound" (a
 `StoreOutcome.refused` here is always a store error in that sense), the bound on repeating a
 refused claim (`engineClaim` claims again from `idle` without counting), and a second engine —
@@ -38,12 +45,15 @@ theorem Written.status_ne_running (s : Written) : s.status ≠ .running := by
 /-- The `operations` row as the guards read it. `record` stands for the columns a worker's write
 carries beside the status, abstracted to one value: `STO-3`'s "the written columns are not
 distinct from what is being written" compares it. `revision` "strictly increases on every
-client-visible change (`API-53`)", and a status change is one. -/
+client-visible change (`API-53`)", and a status change is one. `availableAt` is what `OPS-41`'s
+grace deferral writes — "returned to `queued` with `available_at = grace_ends_at` where the
+instant is set" — and `none` otherwise; nothing in this model reads it. -/
 structure Row where
-  status   : Status
-  claim    : ClaimNumber
-  record   : Nat
-  revision : Nat
+  status      : Status
+  claim       : ClaimNumber
+  record      : Nat
+  revision    : Nat
+  availableAt : Option Nat := none
   deriving DecidableEq, Repr
 
 /-- A worker's write: the state it moves to, the columns it writes, the number it holds. -/
@@ -96,12 +106,45 @@ def workerWrite (g : Guards) (r : Row) (w : WorkerWrite) : Row :=
 
 /-- `STO-3`'s fifth guarded write, `OPS-8`'s defer: `running` back to `queued`, guarded on `(id,
 status = running, claim_number = mine)`. Zero rows means "already deferred or already claimed
-again; the worker moves on". -/
+again; the worker moves on". `availableAt` is the instant the write carries where it is
+`OPS-41`'s grace deferral, and `none` for `OPS-8`'s own "short delay". -/
 @[req "OPS-8"]
-def defer (g : Guards) (r : Row) (mine : ClaimNumber) : Row :=
+def defer (g : Guards) (r : Row) (mine : ClaimNumber) (availableAt : Option Nat := none) : Row :=
   if r.status == .running && holds g r mine then
-    { r with status := .queued, revision := r.revision + 1 }
+    { r with status := .queued, revision := r.revision + 1, availableAt := availableAt }
   else r
+
+/-- `STO-56`'s open restore record as a claim reads it: `grace_ends_at`, which `STO-56` says "is
+null until step (3) of `STO-54`'s procedure is marked". The arithmetic that writes it is
+`Provisiond.Restore`'s; this is the instant, given. -/
+structure RestoreRecord where
+  graceEndsAt : Option Nat
+  deriving DecidableEq, Repr
+
+/-- `OPS-41`: "A claim made while a restore record is open and its `grace_ends_at` is null or in
+the future defers, and writes no fence". `none` is no open record. The null branch is the one
+`OPS-41` calls real: "claims begin after step (2) of `STO-54`'s procedure and the instant is
+written at step (3)". -/
+@[req "OPS-41"]
+def graceDefers (record : Option RestoreRecord) (now : Nat) : Bool :=
+  match record with
+  | none => false
+  | some r =>
+    match r.graceEndsAt with
+    | none => true
+    | some t => now < t
+
+/-- With no open record, or one whose instant has passed, the claim proceeds; open with the
+instant null or future, it defers. -/
+@[req "OPS-41"]
+theorem graceDefers_iff (record : Option RestoreRecord) (now : Nat) :
+    graceDefers record now = true ↔
+      ∃ r, record = some r ∧ (r.graceEndsAt = none ∨ ∃ t, r.graceEndsAt = some t ∧ now < t) := by
+  unfold graceDefers
+  split
+  · simp
+  · rename_i r
+    split <;> simp_all
 
 /-- `OPS-5`, `OPS-6`: the claim marks `running`, increments the number and returns it to the
 worker, in one indivisible step. `admitted = false` is the claim `STO-51`'s index refuses
