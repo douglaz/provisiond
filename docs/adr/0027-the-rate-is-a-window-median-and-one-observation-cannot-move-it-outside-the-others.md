@@ -2,7 +2,8 @@
 
 **Status:** accepted (2026-09-23). The rules are `LDG-58`, `LDG-59`, `LDG-16`, `PRV-13e`, `LDG-65`
 and `STO-49`, with the schema rows in `05-persistence.md`. Supersedes `ADR-0026`'s first fact, the
-rate confirmation reference; its second, the destruction deadline, stands. Answers the question
+rate confirmation reference; its second, the destruction deadline, stood until `ADR-0028`
+(2026-09-25) moved the restore grace onto the restore record. Answers the question
 `pv-vwe.21` put to the owner — *does the confirmation promise bind anything beyond the sweep's
 routing decision?* — by removing the need for it to bind anything at all.
 

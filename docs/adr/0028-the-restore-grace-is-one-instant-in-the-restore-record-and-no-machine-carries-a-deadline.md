@@ -50,40 +50,59 @@ machine instead.
 
 ## The decision
 
-**The restore grace is one instant, `STO-56`'s `grace_ends_at`, written when step (3) completes as
-that instant plus one re-derivation interval.** Two rules read it and nothing else does:
+**The restore grace is one instant, `STO-56`'s `grace_ends_at`: nullable, written in the same
+transaction as step (3)'s mark — "A marked step does not run again" — as that instant plus one
+re-derivation interval.** Two rules read it and nothing else does:
 
 - **The freeze on exposure-reducing cancellation lifts at `grace_ends_at`, not at step (3).**
-  `STO-54`'s frozen actors stay frozen until then; the listener, the meter, re-derivation,
-  reconciliation and the solvency check return at step (3) as today, so the interval is the
-  tenant's to act in.
-- **The worker MUST NOT claim an exposure-reducing cancellation before `grace_ends_at`.** A claim
-  that finds the open restore record's instant in the future returns the operation to `queued`
-  with `available_at = grace_ends_at` — "the same write as `OPS-8`'s defer, though nothing refused
-  it", which `F51`'s parent already uses — and re-claims after it. This covers every path that
-  reaches the worker: a delete re-run by step (2), an operator's retry, the outage bound, a
-  suspended tenant's. No fence is written, so `LDG-62`'s extension is refused by nothing the grace
-  introduced. `OPS-41` owns the rule; `OPS-48` gains no row, since a re-queued attempt has not
-  settled.
+  `STO-54`'s five frozen actors stay frozen until then (the `suspend_tenant` exception's own later
+  condition stands on top). The listener returns at step (3) as today; the meter, re-derivation,
+  reconciliation and the solvency check "are not frozen" and never left. So the interval is the
+  tenant's to act in, and the record MUST NOT be closed before `grace_ends_at` has passed — an
+  early close would end the grace by making the record no longer open.
+- **A claim of an exposure-reducing cancellation MUST defer while a restore record is open and its
+  `grace_ends_at` is null or in the future.** Claims begin after step (2) and the instant is
+  written at step (3), so the null case is real: a delete re-run by step (2) and claimed before
+  step (3) would otherwise fence, re-check the restored balance, and call the provider — the very
+  tenant the grace exists for (*found by all four readers of the first draft, 2026-09-25*). When
+  the instant is set, the claim returns the operation to `queued` with
+  `available_at = grace_ends_at`; when it is not yet written, by `OPS-8`'s ordinary short delay.
+  Either is "the same write as `OPS-8`'s defer, though nothing refused it", in `F51`'s words; `OPS-8`
+  itself covers an index refusal and a short delay, so `OPS-41` states this scope and duration
+  rather than citing it. The worker reads the restore record **at each such claim** — a new duty,
+  since `STO-56`'s "both components read the open row before anything else they do" is the
+  startup read, taken once, before the instant exists. This covers every path that reaches the
+  worker: a delete re-run by step (2), an operator's retry, the outage bound, a suspended
+  tenant's. No fence is written, so `LDG-62`'s extension is refused by nothing the grace introduced.
+  `OPS-41` owns the rule; `OPS-48` gains no row, since a re-queued attempt has not settled.
 
 **`machines.destroy_not_before` is withdrawn**, and with it every sentence that read it: `LDG-16`'s
-deadline paragraph and its "Both do respect the destruction deadline"; the deadline half of the
-sweep's routing predicate, which is again "stored `runway_until` has passed" alone; `OPS-41`'s and
-`LDG-62`'s "clears the deadline"; `PRV-13e`'s "never writes `machines.destroy_not_before`";
-`STO-54`'s step that wrote it on "every machine whose stored `runway_until` has passed". The
-worker reads no billing fact. The sweep's predicate has one clause.
+deadline paragraph and the provider-call sentence `pv-gip.1` gave it — "an exposure-reducing
+cancellation MUST NOT make its provider call while its machine's `destroy_not_before` is in the
+future"; the deadline half of the sweep's routing predicate, which is again "stored `runway_until`
+has passed" alone; `OPS-41`'s and `LDG-62`'s "clears the deadline"; `LDG-65`'s deadline clause;
+`PRV-13e`'s "never writes `machines.destroy_not_before`"; `STO-54`'s step that wrote it on "every
+machine whose stored `runway_until` has passed"; `CNF-295`'s two assertions of it. The worker
+reads no fact the grace wrote — `OPS-41`'s re-check reads the commitment and `runway_until` as it
+always has. The sweep's predicate has one clause.
 
 **A machine already fenced when the grace begins gets no extension from it**, and `STO-54` says
 so in its "what the restore does not repair" paragraph. Its fence stayed set because the provider
-refused (`stalled`) or because nobody yet knows what the provider did (`uncertain`); in neither
-case could it have extended before the restore either, since `LDG-62`'s write is "guarded on
+refused (`stalled`), because nobody yet knows what the provider did (`uncertain`), or because the
+provider accepted a cancellation for a future date (`scheduled`); in none of these could it have
+extended before the restore either, since `LDG-62`'s write is "guarded on
 `machines.destroy_committed IS NULL`". Its route back is `OPS-42`'s — the retry, the resolution,
-the operator — unchanged by this decision. The owner chose this over clearing fences at restore:
-it engineers nothing for a case the set already calls "stated as accepted".
+the operator — unchanged by this decision, and a retry's claim waits the interval like every
+claim: "outside the grace" means no extension, not exemption from the wait. The owner chose this
+over clearing fences at restore: it engineers nothing for cases of which the set already calls one
+— "a provider that refuses the delete indefinitely, on a machine that is out of runway, whose
+customer wants to pay" — "stated as accepted", and the others have their own resolution.
 
-The grace governs **every** exposure-reducing cancellation, whichever path enqueued it, because the
-freeze list already does and because a rule that scoped it by reason would be the scoping `OPS-41`'s
-2026-09-09 amendment refused.
+The grace governs every exposure-reducing cancellation **that claims**, whichever path enqueued it.
+The claim rule is what makes it universal; `STO-54`'s freeze names "exactly five things" and is
+the precedent for an incident-wide fact, not the mechanism. A rule that scoped the grace by reason
+would be the scoping `OPS-41`'s 2026-09-09 amendment refused. A provider-side scheduled
+cancellation never claims and is outside it.
 
 ## What this costs
 
@@ -94,6 +113,10 @@ interval would run every ordinary exhaustion one interval into the wind-down res
 accepted here because a restore is "a recovery incident with a stated procedure", not the ordinary
 path: the cost is one interval of reserve on the machines that exhaust during one interval after
 one incident, and the column's cost was the five defects above on every path, always.
+
+**Cancellations no extension can save wait too.** A suspended tenant's fleet, a stalled episode's
+retry, a late-attach cleanup — each waits the interval, one interval of operator-borne charge per
+restore, the price of not scoping by reason.
 
 **One column on one row.** `STO-56` gains `grace_ends_at`; `machines` loses `destroy_not_before`.
 
@@ -130,18 +153,24 @@ date the tenant was never shown", as `STO-54` already says.
 
 This is the edit list `pv-gip.5` lands, and the record and the ticket name the same edits.
 
-`STO-56` gains `grace_ends_at`, written when step (3) completes. `STO-54` says the freeze lifts at
-that instant, loses the step that wrote a deadline on every machine, and names the fenced machine
-in its not-repaired paragraph. `OPS-41` gains the claim rule, in `OPS-8`'s words, and loses its
-deadline read. `LDG-16` loses its deadline paragraph, its bypass sentence's "Both do respect the
-destruction deadline", and the deadline half of its routing predicate; its three worker sentences
-collapse to one: the worker reads no billing fact. `LDG-62` and `OPS-41` lose "clears the
-deadline"; `LDG-64` and `LDG-65` say the bound and the suspended tenant's cancellation wait for
-the grace as every cancellation does; `PRV-13e` loses "never writes `machines.destroy_not_before`".
-`05-persistence.md`'s machines table loses the column with a dated note. `CNF-99`'s restore cases
-measure from step (3), assert the queued delete is re-queued to `grace_ends_at` and not fenced,
-and add the fenced machine that gets no extension. `ADR-0027`'s "The destruction deadline stays"
-bullet and `ADR-0026`'s status line point here. `CONTEXT.md` gains **Restore grace**.
+`STO-56` gains `grace_ends_at`, nullable, written in step (3)'s mark transaction, and the rule
+that the record is not closed before it has passed. `STO-54` says the freeze lifts at
+`grace_ends_at` (the exception's later condition standing), loses the step that wrote a deadline on
+every machine, and names the fenced machine in its not-repaired paragraph. `OPS-41` gains the claim
+rule in `F51`'s words — defer while the record is open and the instant is null or future, to the
+instant when set and by a short delay when not — and the per-claim read of the record. `LDG-16`
+loses its deadline paragraph, the provider-call sentence `pv-gip.1` gave it, and the deadline half
+of its routing predicate; its bypass sentence says the bound's and the suspended tenant's
+cancellations claim like every other and wait for the grace; its worker sentences collapse to
+one: the worker reads no fact the grace wrote. `LDG-62` and `OPS-41` lose "clears the deadline";
+`LDG-65` loses its deadline clause; `LDG-64` has none and is untouched; `PRV-13e` loses "never
+writes `machines.destroy_not_before`". `05-persistence.md`'s machines table loses the column with a
+dated note in the row's place. `CNF-99`'s restore cases measure from step (3), assert the queued
+delete is re-queued to `grace_ends_at` and not fenced, that an extension inside the grace closes
+the episode `funded` at the re-claim, and that the fenced machine gets no extension; `CNF-295`'s
+restore rehearsal stops asserting the column. The deciding commit already pointed `ADR-0027`'s
+"The destruction deadline stays" bullet and `ADR-0026`'s status line here and added **Restore
+grace** to `CONTEXT.md`; those are not the ticket's.
 
 The formal layer (`pv-gip.2`): `destroyNotBefore` leaves the machine row; `providerDelete`'s gate,
 `provider_waits_for_deadline`, `observationKeepsDeadline` and its witness go; `Restore`'s grace is
