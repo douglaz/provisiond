@@ -415,8 +415,9 @@ not optional hardening — they are the only structural defence there is.
       a window that cannot produce a rate halts instead of pricing. **Asserted through the
       mechanism, not the outcome** (2026-09-05; rewritten 2026-09-21 for `ADR-0026` and 2026-09-23
       for `ADR-0027`, with the sub-quorum and ageing-out cases added the same day for its two
-      amendments, and the steady-state and silent-feed cases for `LDG-59`'s two clocks): assert the
-      rate itself, not only whether a disk survived. **One poisoned pass among honest ones**, in
+      amendments, the steady-state and silent-feed cases for `LDG-59`'s two clocks, and the
+      two-subjects, thin-start and preserved-row cases 2026-09-25 for `STO-37`'s opening rule):
+      assert the rate itself, not only whether a disk survived. **One poisoned pass among honest ones**, in
       three shapes, each asserting that the rate lies inside the range the remaining honest
       observations carry: fill a window with five honest observations at distinct prices and replace
       any one with a print far below them all; fill it again and replace any one with a print far
@@ -430,41 +431,63 @@ not optional hardening — they are the only structural defence there is.
       rate, the same way. **Steady state at a window of exactly three passes never drops the rate
       between passes** (added 2026-09-23, `ADR-0027`, with the next case, for `LDG-59`'s two
       clocks): configure the window to hold exactly three passes — cadence × 3 = window length —
-      with a staleness bound longer than the cadence, and run in steady state, so the oldest
+      with a staleness bound longer than the cadence plus the read-to-commit lag — the interval
+      between a pass's observation `observed_at` and its row's commit, which `STO-49` allows to be
+      non-zero ("a pass that reads early and commits late") — and run in steady state, so the oldest
       observation ages out just before each new one arrives, each accepting pass running strictly
       after the oldest has aged out, so that a continuous count would read two in between; assert
       that at every instant between passes there is a rate and it is the one the last accepting pass
       computed, and that the count of observations inside the window is not re-tested between
-      passes. **A feed silent for longer than the staleness bound is no rate before any pass runs**:
-      with a window that produces a rate, stop every source, or otherwise ensure no pass accepts an
-      observation, and let the wall clock advance past the staleness bound measured from the newest
-      observation's `observed_at` with no pass having accepted anything since; assert that at that
-      instant there is **no rate** — a create is refused and re-derivation halts without cancelling
-      (`LDG-40`) — before any pass runs, and that the opening of the `LDG-64` outage does not wait
-      for a pass to notice. **A sub-quorum pass with a fresh window**: with a window that
-      produces a rate, run one pass below `LDG-59`'s quorum and assert that creates and
-      re-derivations proceed at the rate in force, that no `LDG-40` halt fires and no `LDG-64`
-      outage opens, and that the next accepting pass recomputes the rate. **An observation ageing
-      out mid-increment**: fill a window with observations at 104, 100, 102, 106 and 108, oldest
-      first, so the rate is 104; let the oldest age out between two passes inside an open increment
-      — recomputed then, the four left would give 102 — and assert that the rate does not move and
-      the increment is not split before the next accepting pass recomputes; let that pass observe
-      110 inside the same increment and assert that the rate becomes 106 — with the oldest still
-      inside the window it would have stayed 104 — that the change splits the increment at that
-      pass's `STO-49` row, and that the age-out changed nothing charged: the increment the split
-      closes is debited at 104 for all of its time, the stretch after the oldest aged out included,
-      and only the one it opens is priced at 106 (`LDG-38`). **Then let a runway expire with no rate
-      movement at all and assert the machine is routed on the very next sweep** — a build that holds
-      every past date for a second look runs each ordinary exhaustion one interval into the
-      wind-down reserve. **Then the restore edge** (added 2026-09-12, `ADR-0023`): restore a store
-      in which a machine's stored `runway_until` is past and `destroy_not_before` null, run
-      `STO-54`'s procedure, and assert `destroy_not_before` is the restore instant plus one
-      re-derivation interval, that an observation arriving inside that grace does not end it, and
-      that the sweep waits until it passes; extend the machine inside that grace and assert the
-      deadline clears and it is never routed. *The per-tick cap clause is withdrawn with the
-      construct it tested (`ADR-0011`). Until 2026-09-05 this item tested a behaviour with no
-      column, no predicate and no reader behind it, and a build that routed on the date alone passed
-      it by never being fed a poisoned reading.* (`PRV-13e`, `LDG-16`, `LDG-58`, `LDG-59`, `STO-49`)
+      passes. **A feed silent for longer than the staleness bound is no rate before any pass accepts
+      an observation**: with a window that produces a rate, stop every source, or otherwise ensure
+      no pass accepts an observation, and let the wall clock advance past the staleness bound
+      measured from the newest observation's `observed_at` with no pass having accepted anything
+      since; assert that at that instant there is **no rate** — a create is refused and
+      re-derivation halts without cancelling (`LDG-40`) — before any pass accepts an observation,
+      and that the opening of the `LDG-64` outage does not wait for a pass to notice (`STO-37`).
+      **Two subjects' meters posting after one outage began** (added 2026-09-25, `ADR-0027`, for
+      `STO-37`'s opening rule): with the feed silent past the staleness bound as above, let two
+      machines in one currency each post through the meter after the outage began, each finding no
+      open row for itself, and assert two `STO-37` `rate_outage` rows, one per machine, each
+      `absorbed_from` equal to the newest observation's `observed_at` plus the staleness bound — the
+      two equal to each other and to neither posting's wall clock — and each `outage_deadline` that
+      instant plus `LDG-64`'s bound; then let the worker's `OPS-41` contend run on either machine
+      and assert it opens nothing, the currency's row count staying two. **A thin window's outage
+      starts at the pass that found it
+      thin** (added 2026-09-25, `ADR-0027`): with a window that produces a rate, and a staleness
+      bound longer than the gap between its last accepted observation and the pass that finds it
+      thin, so that observation is still fresh when the window is found thin, let the window come to hold fewer
+      than three observations as of an accepting pass — passes below `LDG-59`'s quorum accept
+      nothing while older observations leave the window — so that pass finds it thin; post the
+      meter for one machine metered in that currency and assert that the `STO-37` row it opens
+      carries `absorbed_from` equal to that pass's `observed_at`, not the newest observation's
+      `observed_at` plus the staleness bound, which lies in the future. **An open row is
+      preserved**: then let the newest observation age past the bound — a staleness computation
+      would now yield a later start — post the meter again for the same machine, and assert that
+      the row's `absorbed_from` did not move and no second row opened. **A sub-quorum pass with a fresh window**: with a window that produces a
+      rate, run one pass below `LDG-59`'s quorum and assert that creates and re-derivations proceed
+      at the rate in force, that no `LDG-40` halt fires and no `LDG-64` outage opens, and that the
+      next accepting pass recomputes the rate. **An observation ageing out mid-increment**: fill a
+      window with observations at 104, 100, 102, 106 and 108, oldest first, so the rate is 104; let
+      the oldest age out between two passes inside an open increment — recomputed then, the four
+      left would give 102 — and assert that the rate does not move and the increment is not split
+      before the next accepting pass recomputes; let that pass observe 110 inside the same increment
+      and assert that the rate becomes 106 — with the oldest still inside the window it would have
+      stayed 104 — that the change splits the increment at that pass's `STO-49` row, and that the
+      age-out changed nothing charged: the increment the split closes is debited at 104 for all of
+      its time, the stretch after the oldest aged out included, and only the one it opens is priced
+      at 106 (`LDG-38`). **Then let a runway expire with no rate movement at all and assert the
+      machine is routed on the very next sweep** — a build that holds every past date for a second
+      look runs each ordinary exhaustion one interval into the wind-down reserve. **Then the restore
+      edge** (added 2026-09-12, `ADR-0023`): restore a store in which a machine's stored
+      `runway_until` is past and `destroy_not_before` null, run `STO-54`'s procedure, and assert
+      `destroy_not_before` is the restore instant plus one re-derivation interval, that an
+      observation arriving inside that grace does not end it, and that the sweep waits until it
+      passes; extend the machine inside that grace and assert the deadline clears and it is never
+      routed. *The per-tick cap clause is withdrawn with the construct it tested (`ADR-0011`). Until
+      2026-09-05 this item tested a behaviour with no column, no predicate and no reader behind it,
+      and a build that routed on the date alone passed it by never being fed a poisoned reading.*
+      (`PRV-13e`, `LDG-16`, `LDG-58`, `LDG-59`, `STO-37`, `STO-49`)
 - [ ] **CNF-100** — At end of runway the machine is cancelled and its disk destroyed — and the
       caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
 - [ ] **CNF-101** — Under a failing solvency check, every bill-increasing operation is refused

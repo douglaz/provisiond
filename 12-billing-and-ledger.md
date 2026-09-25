@@ -1163,9 +1163,10 @@ usage cannot be converted to satoshis. A deployment MUST:
 - **persist the outage's start instant and the exact computed deadline** (not the duration, which
   a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
   and quietly extend the exposure past the bound. The deficiency record (`STO-37`) is where they
-  live — and a restore that loses the row is the reset this sentence forbids, reached through the
-  backup; `STO-54` lists it among what a restore does not repair, and the report naming the lost
-  window is what tells the operator the clock moved (*added 2026-09-12, `ADR-0023`*);
+  live — who writes them and the instant the start carries are stated there (*added 2026-09-25,
+  `ADR-0027`*) — and a restore that loses the row is the reset this sentence forbids, reached
+  through the backup; `STO-54` lists it among what a restore does not repair, and the report naming
+  the lost window is what tells the operator the clock moved (*added 2026-09-12, `ADR-0023`*);
 - **keep the outage deficiency native-only: it is never converted, at any later rate.** Its
   `rate_num`/`rate_den` stay null for good (`LDG-66`), because there was no rate while it accrued
   and stamping it with the first one to return would price those hours at a number that did not
