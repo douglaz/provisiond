@@ -110,7 +110,8 @@ create-time price, the solvency check. One rate, one home.
   that currency accepted since, are not pruned; a later rate-yielding pass moves that snapshot
   forward (*the floor as `pv-gip.18` landed it, 2026-09-25 — the first form here said "until the
   outage closes", which is narrower than the rule needs, since the start is replayed from before the
-  outage began*). The meter opens the subject's row at that subject's first posting which computes no rate and finds no
+  outage began*). The meter opens the subject's row at that subject's first posting which computes
+  no rate and finds no
   open row for it — open meaning `absorbed_until` null — as a conditional insert guarded on that
   absence, so two postings of one subject open one row. The worker's `OPS-41` contend does not
   open one; a create and the solvency check have no subject to open one for. Both consumers of the

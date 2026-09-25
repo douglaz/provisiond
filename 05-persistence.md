@@ -584,7 +584,7 @@ used for anything**, and retained at least until every subject **with an open in
 one past its `observed_at` — a stopped subject closes no further increment and must not pin the
 table forever — **and never less than one window per currency** (added 2026-09-23, `ADR-0027`): no
 row is pruned while its `observed_at` lies inside its currency's window (`LDG-58`), since the rate
-is taken over exactly those rows. **And never the rows that establish an open outage's start**
+is taken over exactly those rows. **And never the rows a replay of an outage's start would need**
 (added 2026-09-25, `ADR-0027`): for each currency, the rows that lay inside its window as of the
 last accepting pass that yielded its rate — that pass's own row and the rows within one window
 length before it — and every row of that currency accepted since are not pruned, at all times. A
