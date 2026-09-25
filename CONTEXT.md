@@ -174,15 +174,15 @@ an operator: open from before either component starts until the operator closes 
 restore instant and which of the procedure's steps have completed (`STO-56`, `STO-54` owns what it
 means). *Added 2026-09-20.*
 _Avoid_: restart, recovery (bare — the rescue recovery directory and the recovery credential
+already own that word), rollback (that is a transaction)
 
 **Restore grace**:
-The one re-derivation interval after a **restore**'s step (3) completes, during which no
-exposure-reducing cancellation is claimed, so a tenant whose extension the restore lost can extend
-again. One instant in the restore record, read by the worker at claim; never a fact on a machine
-(`ADR-0028`). A machine already fenced when it begins is outside it.
+The one re-derivation interval after a **restore**'s step (3) completes, during which every claim
+of an exposure-reducing cancellation defers rather than proceeds, so a tenant whose extension the
+restore lost can extend again. One instant in the restore record, read at each such claim; never a
+fact on a machine (`ADR-0028`). A machine already fenced when it begins gets no extension from it.
 _Avoid_: grace period (that is **runway**'s banned synonym), deadline (the withdrawn per-machine
 form), destroy_not_before
-already own that word), rollback (that is a transaction)
 
 **Recovery point**:
 How much committed work a restore may lose, stated as the greatest age of a write not yet in a
