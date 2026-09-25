@@ -83,9 +83,10 @@ cancellation MUST NOT make its provider call while its machine's `destroy_not_be
 future"; the deadline half of the sweep's routing predicate, which is again "stored `runway_until`
 has passed" alone; `OPS-41`'s and `LDG-62`'s "clears the deadline"; `LDG-65`'s deadline clause;
 `PRV-13e`'s "never writes `machines.destroy_not_before`"; `STO-54`'s step that wrote it on "every
-machine whose stored `runway_until` has passed"; `CNF-295`'s two assertions of it. The worker
-reads no fact the grace wrote — `OPS-41`'s re-check reads the commitment and `runway_until` as it
-always has. The sweep's predicate has one clause.
+machine whose stored `runway_until` has passed"; `CNF-295`'s two assertions of it. The worker's
+re-check and its provider call read no fact the grace wrote — the re-check reads the commitment and
+`runway_until` as it always has, and the one grace fact the worker does read, the restore record at
+each claim, is `OPS-41`'s rule above. The sweep's predicate has one clause.
 
 **A machine already fenced when the grace begins gets no extension from it**, and `STO-54` says
 so in its "what the restore does not repair" paragraph. Its fence stayed set because the provider
