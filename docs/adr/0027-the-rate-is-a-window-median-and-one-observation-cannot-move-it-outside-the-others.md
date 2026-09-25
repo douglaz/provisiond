@@ -84,7 +84,13 @@ create-time price, the solvency check. One rate, one home.
   from the review of `pv-gip.3`*): staleness continuously, so a feed that falls silent halts between
   passes rather than holding its last rate; thinness at the pass that computes the rate, because at
   the minimum window of three passes the oldest observation ages out just before each new one
-  arrives, and a continuous count would drop the rate between passes in steady state. *The first
+  arrives, and a continuous count would drop the rate between passes in steady state. **The outage
+  record is opened by whichever reader first computes no rate and finds it absent** (*added
+  2026-09-25*): its start, `STO-37`'s `absorbed_from`, is the newest observation's `observed_at`
+  plus the staleness bound — a value every writer computes identically — written as a conditional
+  insert keyed on the currency, so two readers racing to open it write one row with one instant.
+  Continuous staleness made this necessary: an outage can now begin with no pass running, and the
+  set named every closer of that record and never an opener (`pv-gip.16`). *The first
   draft and `pv-gip.1` kept the per-pass halt beside the
   window; the owner withdrew it, since it handed whoever can disrupt one pass a halt they never
   had, and the window exists to absorb exactly that pass.* After an outage shorter than
@@ -102,7 +108,9 @@ create-time price, the solvency check. One rate, one home.
   predicate, `LDG-65`'s "unless `rate_confirmation_ref` is armed" clause, and
   `machines.rate_confirmation_ref` all go. The routing predicate becomes what it was before
   2026-09-05 plus the deadline: stored `runway_until` past, `destroy_not_before` null or past.
-- **The destruction deadline stays**, and the worker reads it. `STO-54`'s restore grace is a
+- **The destruction deadline stays**, and the worker reads it (*superseded 2026-09-25 by
+  `ADR-0028`: the grace is one instant in the restore record and no machine carries a deadline;
+  the rest of this bullet is the record of what stood for two days*). `STO-54`'s restore grace is a
   different concern — a restore moves the fleet's dates backward by something other than
   consumption, and no price speaks to that — and `pv-gip.1` makes `LDG-16` say plainly that every
   provider call respects it, which is what its bypass sentence already required.
