@@ -359,8 +359,8 @@ jobs:
       #     absence_on_visibility_window on [.advance 20, ..];
       #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
       #     match_is_not_observation, w.orderLanded = some mach.
-      # Funding and the tenant lifecycle (pv-vwe.6; pv-vwe.15 for LDG-70's read), Ledger.current and
-      # Funding.current:
+      # Funding and the tenant lifecycle (pv-vwe.6; pv-vwe.15 for LDG-70's read; pv-vwe.16 for
+      # LDG-8's usage key and LDG-38's high-water mark), Ledger.current and Funding.current:
       #   clampAtAuthority (LDG-31's clamp paragraph): the excess is taken from available
       #     balance, the seizure -- clamp_witness on seizureBalances;
       #   serializedAuthorization (LDG-35, the primitive of ADR-0015, 2026-09-06): two opens
@@ -379,7 +379,13 @@ jobs:
       #   correctionPrefix (WIR-42, 2026-09-05): the correction collides with the source
       #     tenant's topup and nothing moves -- attribution_witness on attributionTrace;
       #   reapWaitsForWindow (API-34): a tenant with a deposit inside its window is reaped and
-      #     the payment lands unattributed -- reap_waits_for_window_witness on reapTrace.
+      #     the payment lands unattributed -- reap_waits_for_window_witness on reapTrace;
+      #   usageKeyFrom := .postingIndex (LDG-8, the withdrawn posting index): with the discard
+      #     pinned off, the replayed increment derives the next index and posts again --
+      #     increment_replay_refused_by_key on incrementReplayTrace;
+      #   markDiscards (LDG-38): the replay of an increment that rounded to nothing, and a
+      #     re-meter ending below the mark, each post under a key nothing held --
+      #     mark_discards_what_the_key_admits on remeterTrace.
       # Wire canonicalization and redaction (pv-vwe.3), Wire.current:
       #   endpointInPreimage (WIR-3, "Method and target are part of the fingerprint"): the delete
       #     on machine B replays the delete on A -- endpoint_in_fingerprint_witness on deleteOnA;
@@ -482,6 +488,8 @@ jobs:
           Funding|paymentRecordUnique|true|false|KeySource.observation
           Funding|correctionPrefix|true|false|attributionTrace
           Funding|reapWaitsForWindow|true|false|reapTrace
+          Funding|usageKeyFrom|.incrementEnd|.postingIndex|incrementReplayTrace
+          Funding|markDiscards|true|false|remeterTrace
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
