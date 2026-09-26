@@ -359,11 +359,16 @@ jobs:
       #     absence_on_visibility_window on [.advance 20, ..];
       #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
       #     match_is_not_observation, w.orderLanded = some mach.
-      # Funding and the tenant lifecycle (pv-vwe.6), Ledger.current and Funding.current:
+      # Funding and the tenant lifecycle (pv-vwe.6; pv-vwe.15 for LDG-70's read), Ledger.current and
+      # Funding.current:
       #   clampAtAuthority (LDG-31's clamp paragraph): the excess is taken from available
       #     balance, the seizure -- clamp_witness on seizureBalances;
       #   serializedAuthorization (LDG-35, the primitive of ADR-0015, 2026-09-06): two opens
       #     commit against one read -- serialized_authorization_witness on skewTrace;
+      #   appendReadsLatest (LDG-70, the rule undated): an append computes balance_after from
+      #     the row an earlier transaction read, the latest balance_after leaves the sum, and a
+      #     create the sum does not fund is authorized --
+      #     append_reads_latest_witness on staleDebitTrace;
       #   keyFrom := .observation (LDG-8): with the payments row pinned off, the replayed
       #     settlement credits twice -- replay_credits_once_by_key on replayTrace;
       #   keyFrom := .deposit (STO-31): the second rail's payment is suppressed --
@@ -471,6 +476,7 @@ jobs:
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           Ledger|clampAtAuthority|true|false|seizureBalances
           Ledger|serializedAuthorization|true|false|skewTrace
+          Ledger|appendReadsLatest|true|false|Ledger.current Ledger.Book.empty staleDebitTrace
           Funding|keyFrom|.payment|.observation|replayTrace
           Funding|keyFrom|.payment|.deposit|bothRailsTrace
           Funding|paymentRecordUnique|true|false|KeySource.observation

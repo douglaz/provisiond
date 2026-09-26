@@ -876,11 +876,11 @@ end Reconcile
 
 /-! ## Funding and the tenant lifecycle
 
-One tenant's ledger in `Ledger.Balances`, then the lifecycle in `Funding.World`: tenant 1 enrols
-and mints deposit 1; the activation minimum is 100,000; the on-chain finality window is 6. Every
-witness pair here flips one field of `Ledger.current` or `Funding.current` and asserts only what
-its own parameter decides; the attribution witness settles one payment, so that `keyFrom :=
-.deposit` decides the two-rails witness alone. -/
+One tenant's ledger in `Ledger.Balances` and its entries in `Ledger.Book`, then the lifecycle in
+`Funding.World`: tenant 1 enrols and mints deposit 1; the activation minimum is 100,000; the
+on-chain finality window is 6. Every witness pair here flips one field of `Ledger.current` or
+`Funding.current` and asserts only what its own parameter decides; the attribution witness settles
+one payment, so that `keyFrom := .deposit` decides the two-rails witness alone. -/
 
 section Funding
 open Provisiond.Funding
@@ -924,6 +924,60 @@ balance and each commit, leaving twice the balance reserved and one machine unfu
 theorem write_skew_without_serialization :
     let b := Ledger.run { Ledger.current with serializedAuthorization := false } zeroBalances skewTrace
     b.reserved = 200 ∧ b.available = -100 := by decide
+
+/-- `LDG-70`'s trace: a top-up of 17, a transaction reading the latest row, and two debits of 10
+and 7 appended after it. -/
+def staleDebitTrace : List Ledger.Posting := [.append 17, .snapshot, .append (-10), .append (-7)]
+
+/-- Under the rule each debit computes from the greatest row: the latest `balance_after` is 0, the
+sum is 0, and a create of 10 is refused. After the first debit the read is 7, which the sum funds,
+and a create of 7 is authorized: the model refuses nothing vacuously. -/
+@[req "LDG-70"]
+theorem append_reads_latest_witness :
+    let k := Ledger.Book.empty.run Ledger.current staleDebitTrace
+    let k' := Ledger.Book.empty.run Ledger.current (staleDebitTrace.take 3)
+    k.read = 0 ∧ k.sum = 0 ∧ Ledger.openAgainst k.read zeroBalances 10 = zeroBalances ∧
+    k'.read = 7 ∧ k'.sum = 7 ∧
+    (Ledger.openAgainst k'.read { zeroBalances with sum := 7 } 7).reserved = 7 := by decide
+
+/-- Without it both debits compute from the row the transaction read, the top-up's 17, and write
+`balance_after` 7, then 10: the latest is 10 while the sum is 0, and a create of 10 is authorized
+against a balance the sum does not fund — `LDG-9`'s `available`, taken from the sum, is −10, where
+`LDG-10` says "`available` MUST NOT go negative". -/
+@[req "LDG-70"]
+theorem stale_predecessor_authorizes_unfunded_create :
+    let k := Ledger.Book.empty.run { Ledger.current with appendReadsLatest := false } staleDebitTrace
+    k.entries.map (·.balanceAfter) = [17, 7, 10] ∧ k.read = 10 ∧ k.sum = 0 ∧
+    (Ledger.openAgainst k.read zeroBalances 10).available = -10 := by decide
+
+/-- `LDG-70`'s read is "`balance_after` on the greatest `seq` for that tenant", not an earlier row:
+after a top-up of 17 and a debit of 10 the greatest row says 7 and so does the sum, while the
+earlier row says 17 — and a create of 10 authorized against it is one the sum does not fund,
+`LDG-9`'s `available` from the sum at −3. Against the greatest row it is refused.
+`appendReadsLatest` is pinned: what this refutes is a read of the wrong row, not a guard that could
+be removed, so it is not one of `ci.yml`'s rows. -/
+@[req "LDG-70"]
+theorem earlier_row_authorizes_unfunded_create :
+    let k := Ledger.Book.empty.run { Ledger.current with appendReadsLatest := true }
+      [.append 17, .append (-10)]
+    let b : Ledger.Balances := { zeroBalances with sum := k.sum }
+    k.entries.map (·.balanceAfter) = [17, 7] ∧ k.read = 7 ∧ k.sum = 7 ∧
+    (Ledger.openAgainst (Ledger.balanceOf k.entries.head?) b 10).available = -3 ∧
+    Ledger.openAgainst k.read b 10 = b := by decide
+
+/-- `Ledger.drift_identity` decided on three credits of 10, 7 and 3, each computed from the empty
+history. The first reads no row where there is none; the second reads none where the greatest row
+says 10; the third none where the greatest — the second's own — says 7. The read is 3, the sum 20,
+and `read − sum` is the drifts' total, −17. -/
+@[req "LDG-70"]
+theorem drift_identity_witness :
+    let p := { Ledger.current with appendReadsLatest := false }
+    let ps : List Ledger.Posting := [.append 10, .append 7, .append 3]
+    let k := Ledger.Book.empty.run p ps
+    Ledger.Book.empty.drifts p ps = [0, -10, -7] ∧ k.read = 3 ∧ k.sum = 20 ∧
+    k.read - k.sum =
+      Ledger.Book.empty.read - Ledger.Book.empty.sum + (Ledger.Book.empty.drifts p ps).sum := by
+  decide
 
 def t1 : TenantId := ⟨1⟩
 def t2 : TenantId := ⟨2⟩
