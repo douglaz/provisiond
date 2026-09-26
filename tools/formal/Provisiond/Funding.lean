@@ -70,8 +70,10 @@ the key and the mark overlap on a replay that writes an entry, and the key's wit
 discard off; the mark's witness takes cases the stated key admits: the replay of an increment that
 wrote no entry, which left no key to collide with, and a re-meter ending below the mark, whose key
 is new. `post_replay_discarded` is the rule and `mark_covers_every_key` is `LDG-72`'s one-sided
-check. `attribution_leaves_meter_untouched` and `correction_then_post_posts_the_same` are "A
-`correction` leaves the meter's state untouched" on the composed model.
+check. `clamp_never_touches_credit_past_the_mark` and `clamp_overflow_is_a_record_past_the_mark`
+state the clamp theorems under premises that do not read the clamp's outcome.
+`attribution_leaves_meter_untouched` and `correction_then_post_posts_the_same` are "A `correction`
+leaves the meter's state untouched" on the composed model.
 
 Omitted, and where: `LDG-35`'s serialization and the two-tenant lock order of an attribution
 (`Provisiond.Ledger` carries the stale read); `LDG-7`'s two fee kinds, which pair like the usage
@@ -86,9 +88,8 @@ clipped to them" — `post` takes the increment's exact charge, so there are no 
 `LDG-74`'s stop is `Provisiond.Reconcile`'s `World.meterStoppedAt`, in a module that posts no money
 and that this one does not import; the subject's own commitment opening and close
 (`Provisiond.Ledger`); a second subject; `LDG-68`'s period boundary, which is `pv-vwe.17`'s, and
-with it `LDG-38`'s "new period's `meter_totals` row starts with `r = 0`";
-`API-34`'s cap, "A pending tenant's deposit expiry MUST be capped at its remaining signup
-time-to-live" — `mint` accepts any
+with it `LDG-38`'s "new period's `meter_totals` row starts with `r = 0`"; `API-34`'s cap, "A pending
+tenant's deposit expiry MUST be capped at its remaining signup time-to-live" — `mint` accepts any
 expiry; `API-58`'s `suspended` state — `Status` is pending or active; the attribution of a live
 tenant's deposit, which `WIR-42` does not describe and the model refuses; and every provider-side
 fact. -/
@@ -102,6 +103,8 @@ structure DepositId where n : Nat deriving DecidableEq, Repr
 structure PaymentRef where n : Nat deriving DecidableEq, Repr
 /-- An entry's position in the ledger: `LDG-6`'s stable id. -/
 structure EntryId where n : Nat deriving DecidableEq, Repr
+/-- Never constructed here: it exists so that `Subject` cannot collapse to a machine id — `LDG-8`
+and `STO-38`, quoted on `Subject`. -/
 structure AttachmentId where n : Nat deriving DecidableEq, Repr
 
 /-- `LDG-8`'s *subject*, "the machine or an individual billable attachment": never the tenant it
@@ -198,7 +201,7 @@ inductive UsageKeySource
   /-- `LDG-8`: "The key is derived from the thing being billed, never from a count of what has
   already been posted". -/
   | incrementEnd
-  /-- The withdrawn form, retained for the trap behind it — `LDG-8`: "A "posting index" counted
+  /-- The withdrawn form, retained for the trap behind it — `LDG-8`: "A 'posting index' counted
   from the ledger was the withdrawn form, and it cannot deduplicate at all: a second run reads one
   more prior debit, derives the next index, and its insert succeeds — double-charging the tenant
   and double-decrementing the commitment." Here the index is the entry count. -/
@@ -295,6 +298,7 @@ def hasKey (w : World) (t : TenantId) (k : Key) : Bool :=
 def World.unattributed (w : World) (e : Entry) : Bool := !w.live e.tenant
 
 /-- The `topup`'s key, from what the parameter says. -/
+@[req "LDG-8"]
 def topupKey (p : Params) (w : World) (d : DepositId) (ref : PaymentRef) : Key :=
   match p.keyFrom with
   | .payment => .payment ref
@@ -358,6 +362,7 @@ def attribution (p : Params) (w : World) (d : Deposit) (target : TenantId) : Wor
 
 /-- `post` refuses the increment whole: `markDiscards` discards it, or the entry it writes carries a
 key already on the tenant's ledger. An increment that writes no entry inserts no key to collide. -/
+@[req "LDG-38"]
 def refuses (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat) : Bool :=
   p.markDiscards && w.mark.any (incrementEnd ≤ ·) ||
     (Ledger.clamp w.remaining (Meter.postedDebit exact w.roundingCredit)).1 != 0 &&
@@ -498,9 +503,11 @@ theorem post_leaves_available_unchanged (p : Params) (w : World) (incrementEnd :
   · rfl
   · simp only [sumFor_append]; split <;> simp [sumFor] <;> omega
 
-/-- `LDG-38`: "`r` advances by `posted_debit_i` regardless" — the credit after an increment `post`
-does not refuse is the recurrence's, whatever the commitment had left. The clamp never touches the
-rounding credit. -/
+/-- `LDG-38`'s recurrence through the clamp: on every world where `post` does not refuse the
+increment, the credit after it is the recurrence's, and the commitment's remainder appears nowhere
+in it. Whether `post` refuses can itself turn on the remainder — the key conflict counts only where
+the clamped entry is not zero — so this premise reads the clamp's outcome;
+`clamp_never_touches_credit_past_the_mark` states the conclusion under premises that do not. -/
 @[req "LDG-38"]
 theorem clamp_never_touches_credit (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat)
     (h : refuses p w incrementEnd exact = false) :
@@ -509,7 +516,9 @@ theorem clamp_never_touches_credit (p : Params) (w : World) (incrementEnd : Nat)
 
 /-- The clamp's remainder is a record and not an entry: for an increment `post` does not refuse,
 what the subject was debited plus what the deficiency records is the computed debit, the remainder
-absorbed no time (`LDG-66`), and the commitment never goes below zero. -/
+absorbed no time (`LDG-66`), and the commitment never goes below zero. `h` reads the clamp's
+outcome, as it does for `clamp_never_touches_credit`; `clamp_overflow_is_a_record_past_the_mark` is
+the version whose premises do not. -/
 @[req "LDG-66"]
 theorem clamp_overflow_is_a_record (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat)
     (h : refuses p w incrementEnd exact = false) (hr : 0 ≤ w.remaining) (hx : 0 ≤ exact)
@@ -527,6 +536,55 @@ theorem clamp_overflow_is_a_record (p : Params) (w : World) (incrementEnd : Nat)
   · split <;> split <;> simp_all [sumFor] <;> omega
   · intro df h; split at h <;> simp_all
   · omega
+
+/-- Under the stated key, on a world carrying `World.markCovers` — the invariant
+`mark_covers_every_key` preserves on every step — an increment ending past the mark is not refused,
+whatever the commitment has left: the discard needs an end at or before the mark, and a held key
+for this end would put the mark at or past it. -/
+theorem not_refused_past_the_mark (p : Params) (hk : p.usageKeyFrom = .incrementEnd) (w : World)
+    (hm : w.markCovers) (incrementEnd : Nat) (exact : Rat)
+    (hn : w.mark.all (· < incrementEnd) = true) : refuses p w incrementEnd exact = false := by
+  have hd : w.mark.any (incrementEnd ≤ ·) = false := by
+    cases h : w.mark with
+    | none => rfl
+    | some m => simp only [h, Option.all_some, decide_eq_true_eq] at hn; simp; omega
+  have hh : hasKey w w.tenant (usageKey p w incrementEnd) = false := by
+    simp only [hasKey, usageKey, hk, List.any_eq_false, Bool.and_eq_true, decide_eq_true_eq]
+    rintro e he ⟨-, hke⟩
+    obtain ⟨m, hmk, hle⟩ := hm e he incrementEnd hke
+    simp only [hmk, Option.all_some, decide_eq_true_eq] at hn
+    omega
+  simp [refuses, hd, hh]
+
+/-- `LDG-38`: "`r` advances by `posted_debit_i` regardless" — `clamp_never_touches_credit` for
+every remainder. The premises are the stated key, `World.markCovers` (the invariant
+`mark_covers_every_key` preserves on every step) and an increment ending past the mark; none
+mentions the commitment, so the credit after the increment is the recurrence's however the clamp
+splits it. -/
+@[req "LDG-38"]
+theorem clamp_never_touches_credit_past_the_mark (p : Params)
+    (hk : p.usageKeyFrom = .incrementEnd) (w : World) (hm : w.markCovers) (incrementEnd : Nat)
+    (exact : Rat) (hn : w.mark.all (· < incrementEnd) = true) :
+    (post p w incrementEnd exact).roundingCredit = Meter.nextCredit exact w.roundingCredit :=
+  clamp_never_touches_credit p w incrementEnd exact
+    (not_refused_past_the_mark p hk w hm incrementEnd exact hn)
+
+/-- `clamp_overflow_is_a_record` for every non-negative remainder: its premises but `h`, and in
+`h`'s place those of `clamp_never_touches_credit_past_the_mark`. `hr` is the one premise that
+mentions the remainder, and it asks only its sign, never what the clamp leaves of it. -/
+@[req "LDG-66"]
+theorem clamp_overflow_is_a_record_past_the_mark (p : Params)
+    (hk : p.usageKeyFrom = .incrementEnd) (w : World) (hm : w.markCovers) (incrementEnd : Nat)
+    (exact : Rat) (hn : w.mark.all (· < incrementEnd) = true) (hr : 0 ≤ w.remaining)
+    (hx : 0 ≤ exact) (hc : w.roundingCredit < 1) :
+    let posted := Meter.postedDebit exact w.roundingCredit
+    let w' := post p w incrementEnd exact
+    sumFor w.tenant w'.entries - sumFor w.tenant w.entries
+      - ((w'.deficiencies.drop w.deficiencies.length).map (·.clampedSats)).sum = -posted ∧
+    (∀ df ∈ w'.deficiencies.drop w.deficiencies.length, df.absorbedSeconds = 0) ∧
+    0 ≤ w'.remaining :=
+  clamp_overflow_is_a_record p w incrementEnd exact
+    (not_refused_past_the_mark p hk w hm incrementEnd exact hn) hr hx hc
 
 /-! ## Credit and record are one transaction -/
 
@@ -954,7 +1012,10 @@ theorem attribution_hasKey_usage (p : Params) (w : World) (d : Deposit) (t x : T
 
 /-- The same, composed: "the next increment posts `ceil(exact − r)` exactly as it would have" — the
 increment after a correction leaves the same credit and debits the subject the same amount as
-the increment without it, under the stated key. -/
+the increment without it, under the stated key. `hk` is the statement's scope, not a weakening:
+the world is arbitrary, and under the posting index the key `post` derives is the entry count,
+which an attribution that posts a pair changes, so the two posts derive different keys — and a
+world holding one and not the other can refuse one post and admit the other. -/
 @[req "LDG-38"]
 theorem correction_then_post_posts_the_same (p : Params) (hk : p.usageKeyFrom = .incrementEnd)
     (w : World) (d : Deposit) (t : TenantId) (incrementEnd : Nat) (exact : Rat) :

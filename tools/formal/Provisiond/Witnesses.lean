@@ -887,9 +887,10 @@ against 30 of commitment. Every witness pair here flips one field of `Ledger.cur
 `Funding.current` and asserts only what its own parameter decides. The witnesses that are no
 pair's half: `earlier_row_authorizes_unfunded_create` and `drift_identity_witness`, which pin
 `appendReadsLatest` and exhibit a trace; `replay_credits_once`, where the key and the `payments`
-row each refuse the replay; `expiry_ends_watching_not_binding`; and `clamp_composed_witness` and
-`zero_debit_advances_the_mark`, which exhibit the meter under `Funding.current`. The attribution
-witness settles one payment, so that `keyFrom := .deposit` decides the two-rails witness alone. -/
+row each refuse the replay; `expiry_ends_watching_not_binding`; and `clamp_composed_witness`,
+`zero_debit_advances_the_mark` and `clamped_debit_advances_the_mark`, which exhibit the meter under
+`Funding.current`. The attribution witness settles one payment, so that `keyFrom := .deposit`
+decides the two-rails witness alone. -/
 
 section Funding
 open Provisiond.Funding
@@ -1220,6 +1221,16 @@ theorem zero_debit_advances_the_mark :
     w.roundingCredit = 3/5 ∧ w.mark = some 7 ∧
     w'.entries = w.entries ∧ w'.deficiencies = [] ∧ w'.roundingCredit = 1/5 ∧ w'.mark = some 9 ∧
     w'.entries.map (·.key) = [usageKey Funding.current fundWorld 7] := by decide +kernel
+
+/-- `STO-45`'s clamped-to-nothing increment, the second of `clamp_composed_witness`: a computed 50
+against nothing left writes no entry and still advances the mark from 10 to 20 — `LDG-72`'s record,
+written "without a ledger entry but with any deficiency `STO-45` requires where the increment rounds
+or clamps to nothing"; `clamp_composed_witness` asserts the deficiency it books. -/
+@[req "STO-45"]
+theorem clamped_debit_advances_the_mark :
+    let w := Funding.post Funding.current fundWorld 10 100
+    let w' := Funding.post Funding.current w 20 50
+    w.mark = some 10 ∧ w'.entries = w.entries ∧ w'.mark = some 20 := by decide +kernel
 
 end Funding
 
