@@ -446,6 +446,16 @@ jobs:
       #   sweepContinuesWithoutRate (LDG-40, LDG-65): the outage stops the one activity that
       #     reduces exposure -- the_rate_matrix_halts_the_purchase_and_nothing_else on
       #     exposureReducingWithoutRate.
+      # The billing period (pv-vwe.17), Period.current:
+      #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
+      #     the new period's first 2/5 posts 0 against what the old one left --
+      #     boundary_resets_the_credit on twoPeriodTrace;
+      #   splitAtBoundary (LDG-38, LDG-68): the increment straddling the boundary is filed whole
+      #     under its closing month, and the old period's piece never posts there --
+      #     straddle_split_at_the_boundary on straddleTrace;
+      #   deploymentWide (LDG-68): each subject's boundaries are its create instant's
+      #     anniversary, and the subject created mid-period files the straddling increment whole
+      #     under a period of its own -- late_subject_shares_the_boundary on lateSubjectTrace.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
@@ -453,7 +463,7 @@ jobs:
       # wrong the first time the list moved (pv-vwe.20 added four rows and retired one, leaving
       # a count of 49 that no green run could satisfy), which is AGENTS.md's "cite the list; let
       # it hold the number" in a script.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host and admission guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission and period guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -511,6 +521,9 @@ jobs:
           Admission|cancelUnsettledInvoices|true|false|unsettledUnexpiredInvoice
           Admission|exposureExemptUnderHalt|true|false|exposureReducingUnderHalt
           Admission|sweepContinuesWithoutRate|true|false|exposureReducingWithoutRate
+          Period|resetAtBoundary|true|false|twoPeriodTrace
+          Period|splitAtBoundary|true|false|straddleTrace
+          Period|deploymentWide|true|false|lateSubjectTrace
           ROWS
           )
           expected=$(printf '%s\n' "$rows" | grep -c '|')
@@ -540,7 +553,7 @@ jobs:
             rm -rf "$tmp"
           done <<<"$rows"
           if [ "$passed" -ne "$expected" ]; then
-            echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host and admission controls to pass, got $passed"; fail=1
+            echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host, admission and period controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

@@ -87,7 +87,7 @@ stop boundary MUST be re-read inside the same `LDG-35` serialization that append
 clipped to them" — `post` takes the increment's exact charge, so there are no seconds to clip, and
 `LDG-74`'s stop is `Provisiond.Reconcile`'s `World.meterStoppedAt`, in a module that posts no money
 and that this one does not import; the subject's own commitment opening and close
-(`Provisiond.Ledger`); a second subject; `LDG-68`'s period boundary, which is `pv-vwe.17`'s, and
+(`Provisiond.Ledger`); a second subject; `LDG-68`'s period boundary (`Provisiond.Period`), and
 with it `LDG-38`'s "new period's `meter_totals` row starts with `r = 0`"; `API-34`'s cap, "A pending
 tenant's deposit expiry MUST be capped at its remaining signup time-to-live" — `mint` accepts any
 expiry; `API-58`'s `suspended` state — `Status` is pending or active; the attribution of a live

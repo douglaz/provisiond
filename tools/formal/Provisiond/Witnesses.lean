@@ -8,6 +8,7 @@ import Provisiond.Restore
 import Provisiond.Reconcile
 import Provisiond.Ledger
 import Provisiond.Funding
+import Provisiond.Period
 import Provisiond.Wire
 import Provisiond.Rescue
 import Provisiond.Rehost
@@ -17,10 +18,11 @@ built, and broke; each is retained here so the trap cannot be re-laid without a 
 
 Witnesses over rationals close by `decide +kernel` (`ADR-0025`): plain `decide` gets stuck on
 `Std.Rat` normalisation and `native_decide` is refused under `@[req]`. The exceptions are
-`increment_replay_refused_by_key` and `mark_discards_what_the_key_admits`, which close by
-`with_unfolding_all decide`: each is the witness a `ci.yml` row must see refuted, refuted
-`decide +kernel` reports an instance that "did not reduce", and the row's check needs `decide` to
-have "proved that the proposition" false. -/
+`increment_replay_refused_by_key`, `mark_discards_what_the_key_admits`,
+`boundary_resets_the_credit`, `straddle_split_at_the_boundary` and
+`late_subject_shares_the_boundary`, which close by `with_unfolding_all decide`: each is the
+witness a `ci.yml` row must see refuted, refuted `decide +kernel` reports an instance that "did not
+reduce", and the row's check needs `decide` to have "proved that the proposition" false. -/
 
 open Std
 
@@ -1233,6 +1235,108 @@ theorem clamped_debit_advances_the_mark :
     w.mark = some 10 ∧ w'.entries = w.entries ∧ w'.mark = some 20 := by decide +kernel
 
 end Funding
+
+/-! ## The billing period
+
+`Provisiond.Period` on the deployment's boundaries at 10 and 20: period 0 ends at 10, period 1
+runs from 10 to 20, and period 2 opens at 20. Every increment is metered at 2/5 sat a second.
+`earlySubject` was created at 0, so its anniversary is the deployment's own boundaries, and
+`lateSubject` at 15, inside period 1. Each guarded witness takes its own field from
+`Period.current` and pins every other field, so that it decides on its own field alone; its twin
+pins every field and evaluates the trap. The twins are no `ci.yml` row's witness, since no row's
+flip reaches a witness that pins every field: `credit_carried_across_the_boundary`,
+`straddle_filed_whole_under_its_closing_month` and `anniversary_moves_the_boundary`. -/
+
+section Period
+open Provisiond.Period
+
+def deployment : List Nat := [10, 20]
+def earlySubject : Subject := { id := 1, createdAt := 0 }
+def lateSubject : Subject := { id := 2, createdAt := 15 }
+
+/-- 2/5 in the second before the boundary at 10, and 2/5 in the second after it. -/
+def twoPeriodTrace : List Increment :=
+  [{ startsAt := 9, closesAt := 10, rate := 2/5 }, { startsAt := 10, closesAt := 11, rate := 2/5 }]
+
+/-- `LDG-38`'s reset, the split and the deployment's boundaries pinned: the new period's
+"`meter_totals` row starts with `r = 0`", so each period posts 1 — in period 0 closing at 10, and
+in period 1 closing at 11. -/
+@[req "LDG-38"]
+theorem boundary_resets_the_credit :
+    let p := { Period.current with splitAtBoundary := true, deploymentWide := true }
+    let fs := file p deployment earlySubject twoPeriodTrace
+    posted p fs 0 = [(10, 1)] ∧ posted p fs 1 = [(11, 1)] := by
+  with_unfolding_all decide
+
+/-- Carrying the credit across instead, the 3/5 period 0 left pays for period 1's 2/5, which posts
+0: `LDG-38`'s "1 then 0 carrying `r`", on the composed model. -/
+@[req "LDG-38"]
+theorem credit_carried_across_the_boundary :
+    let p : Period.Params :=
+      { resetAtBoundary := false, splitAtBoundary := true, deploymentWide := true }
+    let fs := file p deployment earlySubject twoPeriodTrace
+    posted p fs 0 = [(10, 1)] ∧ posted p fs 1 = [(11, 0)] := by
+  decide +kernel
+
+/-- 2/5 at 5, then one increment from 9 to 11 across the boundary at 10. -/
+def straddleTrace : List Increment :=
+  [{ startsAt := 5, closesAt := 6, rate := 2/5 }, { startsAt := 9, closesAt := 11, rate := 2/5 }]
+
+/-- `LDG-38`'s split, the reset and the deployment's boundaries pinned: "An increment also closes
+at every period boundary", so the increment from 9 to 11 posts a piece in each period. Period 0's
+closes at the boundary instant, 10, and posts 0 against the 3/5 the increment at 5 left; period 1's
+closes at 11 and posts 1 from `r = 0`. -/
+@[req "LDG-38"]
+theorem straddle_split_at_the_boundary :
+    let p := { Period.current with resetAtBoundary := true, deploymentWide := true }
+    let fs := file p deployment earlySubject straddleTrace
+    posted p fs 0 = [(6, 1), (10, 0)] ∧ posted p fs 1 = [(11, 1)] := by
+  with_unfolding_all decide
+
+/-- Filed whole under its closing month instead, the increment from 9 to 11 posts 1 in period 1
+and nothing in period 0. The total is 2 either way, which is why the guarded witness asserts each
+period's postings rather than their sum. -/
+@[req "LDG-38"]
+theorem straddle_filed_whole_under_its_closing_month :
+    let p : Period.Params :=
+      { resetAtBoundary := true, splitAtBoundary := false, deploymentWide := true }
+    let fs := file p deployment earlySubject straddleTrace
+    posted p fs 0 = [(6, 1)] ∧ posted p fs 1 = [(11, 1)] ∧
+    (postings p fs 0).sum + (postings p fs 1).sum = 2 := by
+  decide +kernel
+
+/-- One increment from 19 to 21, across the deployment's boundary at 20. -/
+def lateSubjectTrace : List Increment := [{ startsAt := 19, closesAt := 21, rate := 2/5 }]
+
+/-- `LDG-68`'s one boundary, the reset and the split pinned: "Every tenant, every machine and every
+attachment share it", so the subject created at 15 files the increment exactly as the subject
+created at 0 does — split at 20, the piece to 20 under period 1 and the piece from 20 under
+period 2. -/
+@[req "LDG-68"]
+theorem late_subject_shares_the_boundary :
+    let p := { Period.current with resetAtBoundary := true, splitAtBoundary := true }
+    file p deployment lateSubject lateSubjectTrace = file p deployment earlySubject lateSubjectTrace ∧
+    file p deployment lateSubject lateSubjectTrace =
+      [(1, { startsAt := 19, closesAt := 20, rate := 2/5 }),
+       (2, { startsAt := 20, closesAt := 21, rate := 2/5 })] := by
+  with_unfolding_all decide
+
+/-- Under the anniversary instead, the subject created at 15 has boundaries at 25 and 35, and the
+increment is filed whole under its own first period, while the subject created at 0 still splits
+it at 20. -/
+@[req "LDG-68"]
+theorem anniversary_moves_the_boundary :
+    let p : Period.Params :=
+      { resetAtBoundary := true, splitAtBoundary := true, deploymentWide := false }
+    schedule p deployment lateSubject = [25, 35] ∧
+    file p deployment lateSubject lateSubjectTrace =
+      [(0, { startsAt := 19, closesAt := 21, rate := 2/5 })] ∧
+    file p deployment earlySubject lateSubjectTrace =
+      [(1, { startsAt := 19, closesAt := 20, rate := 2/5 }),
+       (2, { startsAt := 20, closesAt := 21, rate := 2/5 })] := by
+  decide +kernel
+
+end Period
 
 /-! ## The closed tables -/
 
