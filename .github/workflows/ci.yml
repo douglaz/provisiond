@@ -476,7 +476,7 @@ jobs:
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           Ledger|clampAtAuthority|true|false|seizureBalances
           Ledger|serializedAuthorization|true|false|skewTrace
-          Ledger|appendReadsLatest|true|false|Ledger.current Ledger.Book.empty staleDebitTrace
+          Ledger|appendReadsLatest|true|false|staleDebitTrace
           Funding|keyFrom|.payment|.observation|replayTrace
           Funding|keyFrom|.payment|.deposit|bothRailsTrace
           Funding|paymentRecordUnique|true|false|KeySource.observation

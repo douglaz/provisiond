@@ -14,10 +14,11 @@ figure `clamped_sats` is carried, in the unit the clamp arose in.
 
 The guards are the fields of `Guards`, each carried as a parameter so that the alternative the text
 forbids is a one-token change with a witness. `clampAtAuthority`: `LDG-31`'s clamp paragraph, "the
-tenant is debited only up to the authority it granted, and the remainder is recorded as an operator
-deficiency"; the remainder "MUST NOT be taken from available balance", which without the clamp it is
-— "the automatic seizure `ADR-0011` exists to forbid". (The dated amendment beside it, 2026-09-02,
-is the pairing rule's "has no exception"; the clamp paragraph itself is undated.)
+tenant is debited only up to the authority it granted, and the remainder is recorded as an
+**operator deficiency**"; the remainder "MUST NOT be taken from available balance", which without
+the clamp it is — "the automatic seizure `ADR-0011` exists to forbid". (The dated amendment
+beside it, 2026-09-02, is the pairing rule's "has no exception"; the clamp paragraph itself is
+undated.)
 `serializedAuthorization`: `LDG-35`, "The authorization read and the commitment write MUST be
 serialized per tenant" — the primitive was chosen on 2026-09-06 (`ADR-0015`), the rule is undated;
 without it the open authorizes against `snapshot`, the balance an earlier transaction read — "two
@@ -25,10 +26,10 @@ transactions can each read the same balance and each commit, leaving twice the b
 `appendReadsLatest`: `LDG-70`, "`balance_after` MUST be computed and written inside the same
 serialized transaction that appends the entry" — the rule is undated; without it an append computes
 from the row an earlier transaction read, and each such append moves the latest `balance_after` off
-the sum by the difference between that row and the greatest one, which `drift_identity` totals. The serialization is
-`LDG-35`'s, whose amendment says "`LDG-70` requires every append to happen inside this
-serialization", and `serializedAuthorization` models it for the open; this guard is which row the
-append reads. Their witnesses are in `Provisiond.Witnesses`.
+the sum by the difference between that row and the greatest one, which `drift_identity` totals.
+The serialization is `LDG-35`'s, whose amendment says "`LDG-70` requires every append to happen
+inside this serialization", and `serializedAuthorization` models it for the open; this guard is
+which row the append reads. Their witnesses are in `Provisiond.Witnesses`.
 
 What the model omits: more than one commitment (`Provisiond.Funding` carries the one metered
 subject's); the fee kinds `LDG-31` also pairs, which route through `clamp` the same way; the
@@ -75,7 +76,7 @@ structure Balances where
 def Balances.available (b : Balances) : Int := b.sum - b.reserved
 
 /-- `LDG-31`: "the commitment decrements to zero, the tenant is debited only up to the authority
-it granted, and the remainder is recorded as an operator deficiency". The entry, and the
+it granted, and the remainder is recorded as an **operator deficiency**". The entry, and the
 operator's remainder, from what remains of the commitment and the debit computed. -/
 @[req "LDG-31"]
 def clamp (remaining debit : Int) : Int × Int :=
@@ -252,8 +253,9 @@ structure Book where
 
 def Book.empty : Book := { entries := [], snapshot := none }
 
-/-- `LDG-5`: "**Balance is the sum of entries** and nothing else". -/
-@[req "LDG-5"]
+/-- `LDG-5`: "**Balance is the sum of entries** and nothing else", over one tenant's `Book`. The
+clause's tagged home is `Provisiond.Funding.sumFor`, which filters the ledger to one tenant first;
+that module imports this one, so the sum `LDG-70` compares its read against is restated here. -/
 def Book.sum (k : Book) : Int := (k.entries.map (·.amount)).sum
 
 /-- `LDG-70`: "`balance_after` on the greatest `seq` for that tenant is the authoritative read". -/
@@ -345,9 +347,10 @@ theorem latest_append_above (es : List Entry) (e : Entry) (h : ∀ x ∈ es, x.s
     simp only [List.cons_append, latest,
       ih (fun y hy => h y (List.mem_cons_of_mem _ hy)), h x (List.mem_cons_self ..), ite_true]
 
-/-- `LDG-6`'s "per-tenant monotonic sequence number": an append takes a `seq` above every one in
-the history, so on every history, whatever order its entries sit in, the greatest row after an
-append is the entry appended and the read is that entry's `balance_after`. -/
+/-- An append takes the next `seq`, `topSeq + 1`: one way to meet `LDG-6`'s "per-tenant monotonic
+sequence number", which also permits gaps. So on every history, whatever order its entries sit in,
+the greatest row after an append is the entry appended, and `LDG-70`'s read is that entry's
+`balance_after`. -/
 @[req "LDG-70"]
 theorem read_is_the_appended_entry (g : Guards) (k : Book) (n : Int) :
     (∀ e ∈ k.entries, e.seq < topSeq k.entries + 1) ∧
@@ -408,8 +411,8 @@ theorem drift_identity (g : Guards) (k : Book) (ps : List Posting) :
       rw [this, (read_is_the_appended_entry g k n).2.2, sum_append]
       omega
 
-/-- Under the guard every drift is zero, so `drift_identity` leaves `read − sum` where it started:
-at zero from the empty history, which is `read_is_sum`, reached there one append at a time. -/
+/-- Under the guard every drift is zero, so `drift_identity` leaves `read − sum` where it
+started. -/
 @[req "LDG-70"]
 theorem drifts_zero (g : Guards) (hg : g.appendReadsLatest = true) (k : Book)
     (ps : List Posting) : ∀ d ∈ k.drifts g ps, d = 0 := by
@@ -426,8 +429,8 @@ theorem drifts_zero (g : Guards) (hg : g.appendReadsLatest = true) (k : Book)
       · exact ih _ d hd
 
 /-- The direction that holds: on a trace from the empty history, a read that is not the sum names
-an append that read a row other than the greatest. The converse does not: a stale read across entries that net to zero drifts by
-nothing. -/
+an append that read a row other than the greatest. The converse does not: a stale row whose
+`balance_after` equals the greatest's drifts by nothing, and drifts of opposite sign cancel. -/
 @[req "LDG-70"]
 theorem divergence_names_a_stale_append (g : Guards) (ps : List Posting)
     (h : (Book.empty.run g ps).read ≠ (Book.empty.run g ps).sum) :

@@ -879,7 +879,9 @@ end Reconcile
 One tenant's ledger in `Ledger.Balances` and its entries in `Ledger.Book`, then the lifecycle in
 `Funding.World`: tenant 1 enrols and mints deposit 1; the activation minimum is 100,000; the
 on-chain finality window is 6. Every witness pair here flips one field of `Ledger.current` or
-`Funding.current` and asserts only what its own parameter decides; the attribution witness settles
+`Funding.current` and asserts only what its own parameter decides, and two witnesses are no pair's
+half: `earlier_row_authorizes_unfunded_create` and `drift_identity_witness` pin
+`appendReadsLatest` and exhibit a trace. The attribution witness settles
 one payment, so that `keyFrom := .deposit` decides the two-rails witness alone. -/
 
 section Funding
