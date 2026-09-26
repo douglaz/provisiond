@@ -1315,7 +1315,8 @@ period 2. -/
 @[req "LDG-68"]
 theorem late_subject_shares_the_boundary :
     let p := { Period.current with resetAtBoundary := true, splitAtBoundary := true }
-    file p deployment lateSubject lateSubjectTrace = file p deployment earlySubject lateSubjectTrace ∧
+    file p deployment lateSubject lateSubjectTrace =
+      file p deployment earlySubject lateSubjectTrace ∧
     file p deployment lateSubject lateSubjectTrace =
       [(1, { startsAt := 19, closesAt := 20, rate := 2/5 }),
        (2, { startsAt := 20, closesAt := 21, rate := 2/5 })] := by

@@ -450,8 +450,8 @@ jobs:
       #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
       #     the new period's first 2/5 posts 0 against what the old one left --
       #     boundary_resets_the_credit on twoPeriodTrace;
-      #   splitAtBoundary (LDG-38, LDG-68): the increment straddling the boundary is filed whole
-      #     under its closing month, and the old period's piece never posts there --
+      #   splitAtBoundary (LDG-38, 2026-09-05; LDG-68): the increment straddling the boundary is
+      #     filed whole under its closing month, and the old period's piece never posts there --
       #     straddle_split_at_the_boundary on straddleTrace;
       #   deploymentWide (LDG-68): each subject's boundaries are its create instant's
       #     anniversary, and the subject created mid-period files the straddling increment whole

@@ -41,8 +41,9 @@ month in UTC" is `LDG-68`'s Markdown and nothing in this module; the two ends of
 boundaries are finitely many, so `key` puts the instants before the earliest in a period 0 that
 begins at no boundary, unlike `LDG-68`'s "A period begins at `00:00:00Z` on the first day of a
 month", and the instants from the latest in a period that never ends, unlike its "ends at the same
-instant of the next"; an increment's start, which is a given of the increment here, and
-`pv-vwe.30` records that no requirement states it;
+instant of the next"; an increment's start, which is a given of the increment here — only after a
+rate change is one fixed, by `LDG-38`'s "close an increment at each rate-change instant inside its
+elapsed window and open the next one there", and `pv-vwe.30` records the starts nothing fixes;
 `LDG-72`'s high-water mark per `(subject, billing period)` — `Provisiond.Funding` models the mark,
 for one open period; `LDG-38`'s deficiency-absorbed windows split at the boundary — a piece's
 seconds are all billable, and "Where an absorbed window straddles a period boundary each period
@@ -67,7 +68,7 @@ structure Params where
   splitAtBoundary : Bool
   /-- `LDG-68`: "Every tenant, every machine and every attachment share it". `false` is the
   per-subject anniversary, `LDG-68`'s "deriving it from the machine's create instant": each
-  subject's boundaries are the deployment's shifted to start at its create instant. -/
+  subject's boundaries are the deployment's, each offset by its create instant. -/
   deploymentWide  : Bool
   deriving DecidableEq, Repr
 
@@ -104,8 +105,8 @@ structure Subject where
   deriving DecidableEq, Repr
 
 /-- The boundaries a subject's increments are filed against: the deployment's under
-`deploymentWide`, whoever the subject is; otherwise its anniversary, the deployment's shifted to
-start at its create instant. -/
+`deploymentWide`, whoever the subject is; otherwise its anniversary, the deployment's each offset
+by its create instant. -/
 @[req "LDG-68"]
 def schedule (p : Params) (bs : List Nat) (s : Subject) : List Nat :=
   if p.deploymentWide then bs else bs.map (s.createdAt + ·)
@@ -221,8 +222,9 @@ theorem piece_inside_its_period (p : Params) (hp : p.splitAtBoundary = true) (bs
   simp only [decide_eq_true_eq]
   omega
 
-/-- The pieces' seconds sum to the increment's, and so do their exact charges: no second is lost
-at a boundary or counted twice. `LDG-38` asks it of an absorbed window, "every part is counted
+/-- The pieces' seconds sum to the increment's, and so do their exact charges. A sum does not
+rule out an overlap offset by a gap; `split` has neither by construction, and this theorem does not
+prove it. `LDG-38` asks it of an absorbed window, "every part is counted
 exactly once"; this is the same of the increment's own seconds. It holds whether or not the
 increment is split. -/
 @[req "LDG-38"]
