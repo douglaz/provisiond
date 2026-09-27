@@ -771,8 +771,8 @@ and enqueues the cleanup cancellation *in the same transaction*, then tells the 
 beat: the delete is already queued, and nothing in `LDG-62`, `OPS-36` or `OPS-39` withdraws it,
 resolves its trigger, or re-examines the machine. The tenant pays, the payment is accepted and
 committed, and the disk is destroyed anyway. The satoshis come back when `LDG-32` closes the
-commitment; the data does not. `OPS-36` calls this branch "what makes `OPS-33`'s early release
-safe", so the release was resting on a path that could not deliver.
+commitment; the data does not. `OPS-36` says of this branch "This is the branch that makes
+`OPS-33`'s early release safe", so the release was resting on a path that could not deliver.
 
 **The check belongs under the fence, not in the extension.** Cancelling the queued operation from
 inside `LDG-62`'s transaction would have to win a race it holds nothing for — the worker may
@@ -910,8 +910,8 @@ close. Found by both reviewers of 2026-09-02, independently.*
 
 **The residual is stated rather than solved:** a payment landing after the fence is refused rather
 than silently ignored, so the customer learns the machine is going and keeps its money. That is the
-honest outcome, and it is the one `OPS-36` promised when it called `OPS-41` "what makes `OPS-33`'s
-early release safe" — a promise that requirement could not keep alone.
+honest outcome, and it is the one `OPS-36` promised of its survival branch, "This is the branch
+that makes `OPS-33`'s early release safe" — a promise that requirement could not keep alone.
 
 **On a `stalled` episode the fence persists and the refusal stands** (`OPS-48`), and the route back
 is the operator's `retry`, not an extension: `OPS-41`'s re-check under the fresh attempt reads the
