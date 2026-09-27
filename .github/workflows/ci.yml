@@ -456,6 +456,11 @@ jobs:
       #   deploymentWide (LDG-68): each subject's boundaries are its create instant's
       #     anniversary, and the subject created mid-period files the straddling increment whole
       #     under a period of its own -- late_subject_shares_the_boundary on lateSubjectTrace.
+      # The provider account status (pv-vwe.19), AccountStatus.current:
+      #   retainUnlessTerminated (SEC-46, 2026-08-13): an unreachable account, or one whose
+      #     credentials are rejected, releases its tenants' commitments, handing the customer
+      #     their satoshis back while the machines still bill --
+      #     retained_until_terminated_witness on credentialsRejected and accountUnreachable.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
@@ -463,7 +468,7 @@ jobs:
       # wrong the first time the list moved (pv-vwe.20 added four rows and retired one, leaving
       # a count of 49 that no green run could satisfy), which is AGENTS.md's "cite the list; let
       # it hold the number" in a script.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission and period guard's removal, one witness each
+      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status guard's removal, one witness each
         run: |
           set -uo pipefail
           fail=0
@@ -524,6 +529,7 @@ jobs:
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
           Period|deploymentWide|true|false|lateSubjectTrace
+          AccountStatus|retainUnlessTerminated|true|false|credentialsRejected
           ROWS
           )
           expected=$(printf '%s\n' "$rows" | grep -c '|')
@@ -553,7 +559,7 @@ jobs:
             rm -rf "$tmp"
           done <<<"$rows"
           if [ "$passed" -ne "$expected" ]; then
-            echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host, admission and period controls to pass, got $passed"; fail=1
+            echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

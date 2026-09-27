@@ -13,6 +13,7 @@ import Provisiond.Wire
 import Provisiond.Rescue
 import Provisiond.Rehost
 import Provisiond.Admission
+import Provisiond.AccountStatus
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -2404,5 +2405,29 @@ theorem a_usd_outage_halts_nothing_priced_in_eur :
   decide
 
 end Admission
+
+/-! ## The provider account status
+
+`SEC-46`'s table over `STO-47`'s states. `ci.yml`'s control flips `AccountStatus.current`'s
+field and expects the witness below red. -/
+
+section AccountStatus
+open Provisiond.AccountStatus
+
+/-- `SEC-46`'s amendment of 2026-08-13. With it, no retained row releases: the
+`credentials_rejected` row is "**Retained** — losing the key is not losing the servers", and the
+`account_unreachable` row "**Retained** — the machines are almost certainly still running and still
+billing". Without it both release, which is the rule `SEC-46` read until 2026-08-13: "When a
+provider account is lost, the affected tenants' **commitments MUST be closed and their reserved
+satoshis returned to available balance** (`LDG-32`)". -/
+@[req "SEC-46"]
+theorem retained_until_terminated_witness :
+    let before := { AccountStatus.current with retainUnlessTerminated := false }
+    release AccountStatus.current .credentialsRejected = false ∧
+    release AccountStatus.current .accountUnreachable = false ∧
+    release before .credentialsRejected = true ∧ release before .accountUnreachable = true := by
+  decide
+
+end AccountStatus
 
 end Provisiond.Witnesses
