@@ -91,6 +91,13 @@ One **operation** enqueued under an **episode**. Settles like any operation and 
 deleted like any operation; the episode outlives it.
 _Avoid_: requeue, run, try
 
+**Funding cancellation**:
+An exposure-reducing cancellation whose condition is that the machine may be unfunded: its
+runway's exhaustion, or a late-attach cleanup. Deciding one takes a rate. The outage bound's
+cancellation and a suspended tenant's are exposure-reducing but are not funding cancellations
+(`ADR-0029`).
+_Avoid_: price-related deletion, price-dependent cancellation
+
 **Claim**:
 The engine taking one queued **operation** to run it. Numbered per operation by its **claim
 number**, which every write made by that execution carries: a later claim of the same operation
@@ -280,6 +287,11 @@ _Avoid_: charge, capture, settle
 What measures billable machine time and produces the debits that draw a commitment down. Its
 absence is what made the first version of the ledger unimplementable.
 _Avoid_: usage tracker, billing loop
+
+**Increment**:
+One span of a subject's billable time that the **meter** prices and posts as one debit, closing
+at its increment end. Where an increment starts and ends is `LDG-38`'s.
+_Avoid_: tick, interval (the cadence is the interval), chunk
 
 **Runway**:
 How long a machine's committed satoshis keep it running at current prices. Chosen by the caller
