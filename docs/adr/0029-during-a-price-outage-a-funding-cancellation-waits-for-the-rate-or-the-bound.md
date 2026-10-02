@@ -1,9 +1,9 @@
 # During a price outage, a funding cancellation waits for the rate or the outage bound
 
 **Status:** accepted (2026-10-01). The requirement and checklist edits listed under *Consequences*
-landed in `2997723` (`pv-gip.23`); the formal-layer edits are `pv-gip.25`'s and have not landed, so
-until they do the Markdown and `Provisiond.Fence` disagree about an outage. Answers `pv-gip.23` by
-removing the branch it was about.
+landed in `2997723` (`pv-gip.23`), and the formal-layer edits in `e739240` (`pv-gip.25`), where
+the guard *Consequences* names `sweepContinuesWithoutRate` became `sweepRoutesNothingWithoutRate`.
+Answers `pv-gip.23` by removing the branch it was about.
 Overturns `LDG-40`'s sweep row, `LDG-65`'s mid-outage routing and `OPS-41`'s no-rate branch, and
 answers the rejection `ADR-0026` gave this shape.
 
