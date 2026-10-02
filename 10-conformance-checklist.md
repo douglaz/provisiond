@@ -1964,9 +1964,10 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       thirty seconds under March's. The wrong build reads the mark from the current period's row
       and, failing that, the period before's: it finds none in either, and does not charge from
       January's mark. Assert the seed itself after the first write that records the machine
-      billable: test both billing from creation, where that write is the row insert, and billing
-      from `running`, where a nonbillable row insert seeds nothing and the first `running` write
-      seeds the mark. Test a later re-entry into a billable state too. Before any tick, the mark
+      billable, under the deployment's own billable states (`LDG-37`): where it bills from
+      creation, that write is the row insert; where it bills from a later state, a nonbillable
+      row insert seeds nothing and the first write into a billable state seeds the mark. Test a
+      later re-entry into a billable state too. Before any tick, the mark
       is the transition's recorded instant, no ledger entry was written for the seed, and an
       existing row's `r` is unchanged. Use transitions after the latest mark for these cases;
       separately assert that a seed at or before the latest mark changes nothing. A build that
@@ -1976,7 +1977,8 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       at 10:00 and gone observation and attachment write at 10:05 seeds at 10:00, so the
       attachment's first increment starts at 10:00. Neither seed posts an entry; a new period
       row starts at `r = 0`. A build that uses the attachment write's time in the scheduled case
-      leaves 10:00–10:05 uncharged. (`LDG-38`, `STO-45`, `LDG-72`, `LDG-68`, `PRV-45`)
+      leaves 10:00–10:05 uncharged. (`LDG-38`, `STO-45`, `LDG-72`, `LDG-68`, `PRV-45`, `LDG-74`,
+      `LDG-37`)
 - [ ] **CNF-161** — A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at
       cancellation *acceptance* is the defect. (`LDG-37`, `DOM-19`)

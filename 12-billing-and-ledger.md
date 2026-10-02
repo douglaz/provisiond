@@ -870,7 +870,10 @@ as the write that records the subject billable and under `LDG-35`'s per-tenant s
 machine, this is the first write that records it billable — its row insert where the deployment
 bills from creation, or its later first entry into billable — and any later re-entry into a
 billable state; the seed instant is that transition's recorded instant. For a billable attachment,
-the write is `PRV-45`'s and the seed instant is the machine's stop boundary in `LDG-74`. **A seed
+the write is `PRV-45`'s and the seed instant is the machine's stop, as `LDG-74` gives it: "Billing
+stops at the observation instant, not at the unknown instant the provider acted" — "except for a
+`cancellation_scheduled` machine, whose stop is the earlier of its `effective_cancellation_date`
+and the observation (`LDG-38`)". **A seed
 at or before the subject's latest mark is discarded under the discard rule above.** This seed
 carries no seconds and posts nothing: a period row it creates starts with `r = 0`, and an existing
 row's `r` is untouched.
@@ -881,10 +884,7 @@ crosses.** There is no case without a mark: the seed puts one there before the f
 increment. The meter does not choose a start, and where a re-observation takes itself to have begun
 is not an input. A re-meter that overlaps the mark is therefore **clipped** to it: after a mark at
 10:00, a re-meter observing 09:00–10:30 charges 10:00–10:30 and nothing else, and the discard above
-is the case with nothing left after the mark. For the stop, see `LDG-74`: "Billing stops at the
-observation instant, not at the unknown instant the provider acted" — "except for a
-`cancellation_scheduled` machine, whose stop is the earlier of its `effective_cancellation_date`
-and the observation (`LDG-38`)".
+is the case with nothing left after the mark.
 
 *Why the mark, and why seeded.* `net_seconds_i`'s "elapsed billable seconds inside i" comes from
 billability "re-read inside the same `LDG-35` serialization that appends": a read at append, not a
