@@ -46,7 +46,8 @@ fixes it, "An increment MUST start at the subject's latest high-water mark", and
 `Provisiond.Funding` models that start and the seed behind it for one open period, so the split
 here cuts an increment whose start is already the rule's; that mark where it sits in an earlier
 period's row — `LDG-72`: "The mark is the greatest `increment end` among that subject's rows" —
-which neither module models, `Provisiond.Funding` having one row and this one no mark; `LDG-38`'s deficiency-absorbed windows split at the boundary — a piece's
+which neither module models, `Provisiond.Funding` having one row and this one no mark; `LDG-38`'s
+deficiency-absorbed windows split at the boundary — a piece's
 seconds are all billable, and "Where an absorbed window straddles a period boundary each period
 subtracts its own part and no more" is not modelled; `LDG-31`'s clamp (`Provisiond.Ledger`) and the
 ledger entry, which `Provisiond.Funding` composes with the recurrence for one open period; `LDG-8`'s

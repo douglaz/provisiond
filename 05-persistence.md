@@ -622,7 +622,7 @@ have discharged on the observation that preceded it.*
 | `subject_kind`, `subject_id` | enum, UUID | `machine` \| `attachment` — `LDG-8`'s subject, the same one `ledger_entries` carries. A machine and each of its billable attachments are separately metered (`STO-38`) and so are separately totalled |
 | `billing_period` | text | `LDG-68`'s calendar month in UTC |
 | `rounding_credit_num`, `rounding_credit_den` | integer, integer | `LDG-38`'s `r`: how far the last posting's `ceil` ran **ahead** of the exact charge, as an exact rational (`LDG-4`, `LDG-1`). **The invariant `0 ≤ r < 1` is the whole of this table's integrity story** — `LDG-72` checks it by inspection, and an in-range value that is nonetheless wrong costs the subject at most one satoshi for the life of the period. *Five columns stood here until 2026-09-02: `charged_magnitude`, `exact_charge_num`/`den` and three cumulative seconds figures. They are withdrawn together and the trap behind them is worth keeping — see `STO-45`* |
-| `high_water_increment_end` | timestamp | the greatest `increment end` posted for this subject and period. An increment ending at or before it is discarded, not posted (`LDG-38`) |
+| `high_water_increment_end` | timestamp | See `LDG-72` |
 | `version` | integer | for the conditional write, in the manner of `LDG-34` |
 | `updated_at` | timestamp | |
 
@@ -637,11 +637,9 @@ entry — but still carrying any `STO-37` deficiency row a clamp owes — under 
 where the increment rounds or clamps to nothing** (`LDG-72`), since the rounding credit and the
 high-water mark advance either way and a zero-value ledger row is not legal. *"The entry it summarises" was the wording until 2026-09-05, which forbade the second case
 outright and left a zero-debit increment with no legal way to record that it had happened.* The
-mark `LDG-38` seeds when a subject becomes billable is not another path: it is that requirement's
-empty increment, through the no-entry transaction above, in the transaction of the write that
-records the subject billable. *Amended 2026-10-02: the discard and the seed are stated; the first
-sentence had every increment updating the row, a replayed one included, which is what a build
-relying on `LDG-8`'s key alone does to `r` (`LDG-38`).* A
+seed is specified in `LDG-38`. *Amended 2026-10-02: the discard is stated; "Every increment
+updates it" included a replayed one, which is what a build relying on `LDG-8`'s key alone does to
+`r` (`LDG-38`).* A
 `correction` does not touch it at all (`LDG-38`). There is no
 lazy-repair path and no background reconciler: `API-54` forbids a `GET` taking a write transaction,
 so a total repaired on read was never available, and `LDG-70` reached the same conclusion for
@@ -1339,11 +1337,11 @@ has not built under `ADR-0005` is not built for this. Added 2026-09-12; until th
 and `ADR-0023` described the grace as what "stands between
 the restore and the destroyed disk", which is true only of a tenant that re-extends in time*); a
 debit lost in Δ is re-metered
-by `LDG-38`'s start rule, from the mark the backup holds (*amended 2026-10-02: the start is that
-requirement's, not this sentence's*), and the rate boundaries `LDG-38` would have split the span
-at are gone with the `rate_observations` written in Δ; a gone-write lost in Δ extends the
-customer's charge to the next complete pass (`LDG-74`), and the correction is an operator `LDG-5`
-entry; a commitment is "not a ledger entry" (`LDG-30`) and is not rebuilt from payments;
+by `LDG-38`'s start rule, from the mark the backup holds, and the rate boundaries `LDG-38` would
+have split the span at are gone with the `rate_observations` written in Δ; a gone-write lost in Δ
+extends the customer's charge to the next complete pass (`LDG-74`), and the correction is an
+operator `LDG-5` entry; a commitment is "not a ledger entry" (`LDG-30`) and is not rebuilt from
+payments;
 `STO-49` rows written in Δ are lost, and where `LDG-64`'s outage start is replayed from them its
 start and its computed deadline move with what the backup holds, and the report naming `T − Δ` is
 what tells the operator the clock moved (*amended 2026-10-02, `ADR-0029`*); a `running` install

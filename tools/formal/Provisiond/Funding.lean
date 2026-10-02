@@ -1,6 +1,7 @@
 import Provisiond.Types
 import Provisiond.Ledger
 import Provisiond.Meter
+import Provisiond.Period
 /-! Funding and the tenant lifecycle: the money-in path from a deposit's two destinations to a
 `topup` entry, the tenant that entry belongs to, the operator's re-attribution of it, and the
 one metered subject whose increments the ledger pairs — composed on `Provisiond.Ledger`'s clamp
@@ -65,18 +66,20 @@ event's rate, so a re-meter overlapping the mark is clipped to it, and `World.ch
 interval an admitted posting priced: `no_second_charged_twice` is the rule on every trace and
 `nothing_left_at_or_before_the_mark` is `LDG-38`'s "the discard above is the case with nothing left
 after the mark". `seed` is `Params.seedOnBillable`, `LDG-38`'s "Every transition of a subject into
-billable MUST write that subject's high-water mark at the recorded instant": the mark and nothing
+billable MUST write that subject's high-water mark at its seed instant": the mark and nothing
 else. `World.mark` stays an `Option` because the seed's absence is a value of the model: in the
 specified system "There is no case without a mark", and `none` is reachable here only from a world
-that was never seeded, where `start` falls back on `World.periodStart` — the withdrawn form, "with
-no mark ever, at the period's start".
-`Meter.postedDebit` computes the debit, `Ledger.clamp` splits it, `r` advances by the computed debit —
+that was never seeded, where `start` falls back on `World.periodStart` — `LDG-38`'s trap:
+"A start at the metering period's first instant, for a subject not yet marked, forfeits every
+billable second before that boundary and makes the tick's timing a pricing input".
+`Meter.postedDebit` computes the debit, `Ledger.clamp` splits it, and `r` advances by the computed
+debit —
 `LDG-38`: "`r` advances by `posted_debit_i` regardless, because the recurrence is stated over what
 the meter computed and never mentions the entry at all" — and the overflow is a `Deficiency` record,
 `STO-37`'s `clamp_overflow`, with `absorbed_seconds` zero (`LDG-66`). The entry's key is `usageKey`,
 `LDG-8`'s "`(subject, billing period, kind, increment end)`", and `Params.usageKeyFrom` keeps the
 withdrawn posting index as its other value. `World.mark` is `LDG-38`'s "greatest `increment end`
-already posted", advanced with `r` whether or not an entry posts — `LDG-72`'s record, written
+already closed for it", advanced with `r` whether or not an entry posts — `LDG-72`'s record, written
 "without a ledger entry but with any deficiency `STO-45` requires where the increment rounds or
 clamps to nothing" — and `Params.markDiscards` is its discard. Three guards overlap on a replay:
 the key refuses only an insert, the discard refuses an increment ending at or before the mark, and
@@ -403,15 +406,14 @@ docstring). -/
 def start (p : Params) (w : World) (observedFrom : Nat) : Nat :=
   if p.startsAtMark then w.mark.getD w.periodStart else observedFrom
 
-/-- `LDG-38`'s `exact_i`, with no absorbed window: the seconds from `start` to the increment's end,
-at its rate, never rounded. An increment ending at or before its start has none. -/
+/-- Apply `Period.Increment.exact` to the interval selected by `start`. -/
 @[req "LDG-38"]
 def charge (p : Params) (w : World) (observedFrom incrementEnd : Nat) (rate : Rat) : Rat :=
-  ((incrementEnd - start p w observedFrom : Nat) : Rat) * rate
+  Period.Increment.exact ⟨start p w observedFrom, incrementEnd, rate⟩
 
-/-- `LDG-38`'s seed: a transition of the subject into billable recorded at `at_` writes the mark
-there, "an empty increment through `STO-45`'s no-entry path" — no entry, no seconds, `r` where it
-was — and a mark already at or past it stays. -/
+/-- `LDG-38`'s seed: `at_` is the seed instant, a given here (the module's omissions). It writes
+"an empty increment through `STO-45`'s no-entry path" — no entry, no seconds, `r` where it was —
+and a mark already at or past it stays. -/
 @[req "LDG-38"]
 def seed (p : Params) (w : World) (at_ : Nat) : World :=
   if p.seedOnBillable then { w with mark := some (max (w.mark.getD 0) at_) } else w
@@ -427,7 +429,7 @@ def refuses (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat) : Bool :
 
 /-- One increment of the subject, closing at `incrementEnd`, priced over the seconds from `start`:
 `LDG-38`'s debit on its `charge`, `LDG-31`'s clamp, the deficiency for the overflow, `r` advanced
-by what was computed, and the mark to the greatest end posted, whether or not an entry posts. Where
+by what was computed, and the mark to the greatest end closed, whether or not an entry posts. Where
 it `refuses`, nothing is written and nothing moves — no entry, no decrement, no deficiency, `r` and
 the mark where they were — as `credit` refuses, and `STO-45`: "An increment `LDG-38` discards moves
 nothing". -/
@@ -580,7 +582,8 @@ the clamped entry is not zero — so this premise reads the clamp's outcome;
 `clamp_never_touches_credit_past_the_mark` states the conclusion under premises that do not. -/
 @[req "LDG-38"]
 theorem clamp_never_touches_credit (p : Params) (w : World) (observedFrom incrementEnd : Nat)
-    (rate : Rat) (h : refuses p w incrementEnd (charge p w observedFrom incrementEnd rate) = false) :
+    (rate : Rat)
+    (h : refuses p w incrementEnd (charge p w observedFrom incrementEnd rate) = false) :
     (post p w observedFrom incrementEnd rate).roundingCredit =
       Meter.nextCredit (charge p w observedFrom incrementEnd rate) w.roundingCredit := by
   simp [post, h]
@@ -1137,7 +1140,8 @@ posting took and whether or not it wrote an entry. -/
 @[req "LDG-38"]
 theorem post_replay_discarded (p : Params) (hp : p.markDiscards = true) (w : World)
     (observedFrom incrementEnd : Nat) (rate : Rat) :
-    step p (step p w (.post observedFrom incrementEnd rate)) (.post observedFrom incrementEnd rate) =
+    step p (step p w (.post observedFrom incrementEnd rate))
+        (.post observedFrom incrementEnd rate) =
       step p w (.post observedFrom incrementEnd rate) := by
   simp only [step]
   rcases post_refused_or_marked p w observedFrom incrementEnd rate with h | h
@@ -1227,7 +1231,7 @@ and at any rate. -/
 theorem nothing_left_at_or_before_the_mark (p : Params) (hp : p.startsAtMark = true) (w : World)
     (m : Nat) (hm : w.mark = some m) (observedFrom incrementEnd : Nat) (rate : Rat)
     (h : incrementEnd ≤ m) : charge p w observedFrom incrementEnd rate = 0 := by
-  simp [charge, start, hp, hm, Nat.sub_eq_zero_of_le h]
+  simp [charge, Period.Increment.exact, start, hp, hm, Nat.sub_eq_zero_of_le h]
 
 /-- The charged intervals lie in posting order, each ending where or before the next starts, and
 none ends past the mark. -/
@@ -1238,7 +1242,8 @@ def World.chargedInOrder (w : World) : Prop :=
 the mark, which no earlier interval ends past, and a seed only raises the mark. -/
 theorem charged_in_order_step (p : Params) (hp : p.startsAtMark = true) (w : World) (e : Event)
     (h : w.chargedInOrder) : (step p w e).chargedInOrder := by
-  have hcredit : ∀ (dep : Deposit) ref rail sats, (credit p w dep ref rail sats).chargedInOrder := by
+  have hcredit : ∀ (dep : Deposit) ref rail sats,
+      (credit p w dep ref rail sats).chargedInOrder := by
     intro dep ref rail sats
     simp only [credit]; split <;> exact h
   cases e with

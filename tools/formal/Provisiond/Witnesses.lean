@@ -1267,7 +1267,8 @@ pair's half: `earlier_row_authorizes_unfunded_create` and `drift_identity_witnes
 row each refuse the replay; `expiry_ends_watching_not_binding`; `clamp_composed_witness`,
 `zero_debit_advances_the_mark` and `clamped_debit_advances_the_mark`, which exhibit the meter under
 `Funding.current`; `replay_writing_no_entry_escapes_the_key`, which pins every guard on a replay
-off but the stated key; and `reentry_seeds_the_mark_and_nothing_else`. The attribution witness settles one payment, so that `keyFrom := .deposit`
+off but the stated key; and `reentry_seeds_the_mark_and_nothing_else`. The attribution witness
+settles one payment, so that `keyFrom := .deposit`
 decides the two-rails witness alone. -/
 
 section Funding
@@ -1622,10 +1623,11 @@ theorem clamped_debit_advances_the_mark :
     let w' := Funding.post Funding.current w 10 20 5
     w.mark = some 10 ∧ w'.entries = w.entries ∧ w'.mark = some 20 := by decide +kernel
 
-/-- `LDG-38`: "The key refuses an **insert** and nothing else". The stated key alone, the discard
-and the start rule pinned off, on two exact replays of an increment whose first posting wrote an
-entry. One second at 1/5 posts 1 and leaves `r` at 4/5, and its replay "rounds or clamps to
-nothing", "inserts no row and meets no conflict": one entry, and `r` moved to 3/5. With one satoshi
+/-- `LDG-8`: "where it inserts an entry and the first posting left one the insert conflicts".
+The stated key alone, the discard and the start rule pinned off, on two exact replays of an
+increment whose first posting wrote an entry. One second at 1/5 posts 1 and leaves `r` at 4/5, and
+its replay, in `LDG-38`'s words, "rounds or clamps to nothing", "inserts no row and meets no
+conflict": one entry, and `r` moved to 3/5. With one satoshi
 of commitment left, `incrementReplayTrace`'s first posting is clamped to 1 and books 1, and its
 replay clamps to nothing and books 1 more, `r` moved from 3/5 to 1/5. -/
 @[req "LDG-38"]
@@ -1680,7 +1682,7 @@ def seedTrace : List Funding.Event := [.billable 30, .post 60 90 (1/5)]
 def startOn : Funding.Params := { Funding.current with startsAtMark := true }
 
 /-- `LDG-38`'s seed, the start rule pinned: "Every transition of a subject into billable MUST write
-that subject's high-water mark at the recorded instant", so the seed leaves the mark at 30, and the
+that subject's high-water mark at its seed instant", so the seed leaves the mark at 30, and the
 first increment is priced from 30: sixty seconds, the one entry of 12. (The split of those seconds
 at the period boundary is `Provisiond.Period`'s.) -/
 @[req "LDG-38"]
@@ -1690,8 +1692,9 @@ theorem seed_starts_the_first_increment :
     w.charged = [(30, 90)] ∧ w.entries.map (·.sats) = [-12] ∧ w.roundingCredit = 0 := by
   with_unfolding_all decide
 
-/-- Without the seed the subject has no mark at its first tick, and the start falls to the withdrawn
-form — `LDG-38`: "with no mark ever, at the period's start": the increment is priced from 60, and
+/-- Without the seed the subject has no mark at its first tick: `LDG-38`'s trap, "A start at the
+metering period's first instant, for a subject not yet marked, forfeits every billable second before
+that boundary and makes the tick's timing a pricing input". The increment is priced from 60, and
 the thirty billable seconds before the boundary are never charged. -/
 @[req "LDG-38"]
 theorem first_increment_from_the_period_start_without_the_seed :

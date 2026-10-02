@@ -1731,9 +1731,9 @@ rather than acquiring a default.
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either — **the increment closes at the boundary,
       the old period's `meter_totals` row posts its part with its own credit, and the new period's
-      row starts at `r = 0`**, so the two rows never read each other's `r` — *scoped to the credit
-      2026-10-02; the mark is `LDG-72`'s "the greatest `increment end` among that subject's
-      rows".* The same test covers a
+      row starts at `r = 0`**, so the two rows never read each other's `r`. *Amended 2026-10-02:
+      "never read each other" was too broad; the mark is `LDG-72`'s "the greatest `increment end`
+      among that subject's rows".* The same test covers a
       deficiency's `absorbed_from`/`absorbed_until` window straddling the boundary. *The mechanism
       clause was added 2026-09-05; this item asserted apportioning while `LDG-38` split only at a
       rate change, so a straddling increment had two credits and no rule.* (`LDG-68`, `LDG-38`,
@@ -1963,13 +1963,20 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       boundaries — thirty seconds under January's row and key, all of February under February's,
       thirty seconds under March's. The wrong build reads the mark from the current period's row
       and, failing that, the period before's: it finds none in either, and does not charge from
-      January's mark. Assert the seed
-      itself, at each transition `LDG-38` names: after the machine's row insert, after a billable
-      attachment's `PRV-45` write, and after a machine's re-entry into a billable state, the
-      subject's mark is the recorded instant before any tick has run, no ledger entry was written
-      for it, and on the re-entry the row's `r` is what it was — a build that seeds only at create
-      leaves the old mark, and the re-entered machine's next increment starts before the machine
-      was billable again. (`LDG-38`, `STO-45`, `LDG-72`, `LDG-68`, `PRV-45`)
+      January's mark. Assert the seed itself after the first write that records the machine
+      billable: test both billing from creation, where that write is the row insert, and billing
+      from `running`, where a nonbillable row insert seeds nothing and the first `running` write
+      seeds the mark. Test a later re-entry into a billable state too. Before any tick, the mark
+      is the transition's recorded instant, no ledger entry was written for the seed, and an
+      existing row's `r` is unchanged. Use transitions after the latest mark for these cases;
+      separately assert that a seed at or before the latest mark changes nothing. A build that
+      seeds only at create leaves the old mark on re-entry. For a billable attachment, assert the
+      seed in `PRV-45`'s write and its first increment in both cases: an ordinary gone delete
+      seeds at the gone observation's instant; a scheduled machine with effective cancellation
+      at 10:00 and gone observation and attachment write at 10:05 seeds at 10:00, so the
+      attachment's first increment starts at 10:00. Neither seed posts an entry; a new period
+      row starts at `r = 0`. A build that uses the attachment write's time in the scheduled case
+      leaves 10:00–10:05 uncharged. (`LDG-38`, `STO-45`, `LDG-72`, `LDG-68`, `PRV-45`)
 - [ ] **CNF-161** — A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at
       cancellation *acceptance* is the defect. (`LDG-37`, `DOM-19`)

@@ -1249,8 +1249,7 @@ every machine in that account gone** — `machines.state` and `machines.state_ob
 set to the recording instant, which is the write `LDG-74` stops a meter by, and `released_at` set on
 every unreleased billable attachment, which is how an attachment's meter stops (`LDG-32`, `STO-18`);
 **post each subject's closing partial increment against its commitment** (`LDG-38`), from the start
-`LDG-38` gives every increment to the recording instant (*amended 2026-10-02: the start is that
-requirement's, not this clause's; the charge is unchanged*), which is time the customer consumed and
+`LDG-38` gives every increment to the recording instant, which is time the customer consumed and
 the last moment there is a commitment to post it against — **and where a rate outage is in force,
 post only the segment priced before the outage began, close **every affected subject's existing `rate_outage`
 deficiency record — the machine's and each unreleased attachment's, which are metered separately**
