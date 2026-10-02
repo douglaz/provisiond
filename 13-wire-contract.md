@@ -690,8 +690,8 @@ AMENDED to include it — recorded there.
 **The same transaction conditional-writes `machines.destroy_committed`, guarded on it being null,
 and returns `409` `conflict` with `details.reason: "cancellation_committed"` where that affects no
 row** (`LDG-62`, `OPS-42`) — reserving nothing and moving no balance. **Where the machine's
-currency has no rate the extension is refused `halted` with `gate: "rate_unavailable"`** (`LDG-62`,
-`LDG-40`, `WIR-9a`), likewise reserving nothing and moving no balance (*added 2026-10-02,
+currency has no rate the extension is refused `halted` with `gate: "rate_unavailable"`** (`LDG-40`,
+`WIR-9a`), likewise reserving nothing and moving no balance (`LDG-62`; *added 2026-10-02,
 `ADR-0029`*). *Added 2026-09-02: this
 endpoint's own definition never mentioned the fence, so a builder reading only the wire contract and
 `LDG-62` shipped an extension that could take a customer's money for a machine already committed to
@@ -931,7 +931,8 @@ can guarantee. *Structured what the agent must compute, prose what it must under
 machine is cancelled regardless of its runway. **It is the operator's current limit and not a term
 of the purchase**: it can change during an outage (`OVR-19` holds the rule), `binding: false`
 speaks to the price only, and for a machine the authoritative instant is its view's
-`rate_outage_deadline` (`WIR-11`) (*added 2026-10-02, `ADR-0029`*). Prices are integers of satoshis, already margined by
+`rate_outage_deadline` (`WIR-11`) (*added 2026-10-02, `ADR-0029`*). Prices are integers of
+satoshis, already margined by
 the one pricing function (`LDG-23`, `LDG-24`)
 at the same rounding as commitment creation. **An offer price is an indicative quote converted at
 read time; `binding` is `false` and the commitment is priced at accept time (`LDG-27`) and MAY

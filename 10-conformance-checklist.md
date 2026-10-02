@@ -459,8 +459,10 @@ not optional hardening — they are the only structural defence there is.
       currency, whose meter has posted nothing since the outage began and which has no `STO-37`
       row, shows that same `rate_outage_deadline`, that a machine priced in a currency with a rate
       shows null, and that no `STO-37` row stores a deadline. Then, past that deadline, let the
-      worker's `OPS-41` contend run on either of the first two machines
-      and assert it opens nothing, the currency's row count staying two. **A thin window's outage
+      worker's `OPS-41` contend run on the third machine, which has no record, and assert the
+      count of `STO-37` rows does not change — `STO-37`: "Nor does the worker's `OPS-41` contend
+      open one"; a build whose worker inserts where it finds no row, or upserts, fails here and
+      passes on a machine that already has one. **A thin window's outage
       starts at the pass that found it thin** (added 2026-09-25, `ADR-0027`): with a window that
       produces a rate, and a staleness bound longer than the gap between its last accepted
       observation and the pass that finds it thin, so that observation is still fresh when the
@@ -490,15 +492,17 @@ not optional hardening — they are the only structural defence there is.
       is thin, and there is still no rate although the new observation is fresh. Post machine B's
       meter at some `tB` after `t0+3c`; it finds no open row for B and opens B's row: assert
       `absorbed_from = t0+b`, equal to A's and not `t0+3c` (what the per-writer thin formula would
-      give), `rate_outage_deadline = t0+b+M` on B's view, one deadline for both machines, and that `[t0+b, t0+3c)`
+      give), `rate_outage_deadline = t0+b+M` on B's view, one deadline for both machines, and that
+      `[t0+b, t0+3c)`
       lies inside B's absorbed window, so B's `LDG-38` apportioning charges nothing for it. Assert
       also that B's write read no sibling row: the result is the same when A's row is opened after
       B's, or never. **A restart does not move the deadline, and a changed parameter does**
       (added 2026-10-02, `ADR-0029`): mid-outage, restart the engine with every `OVR-19` value
       unchanged and assert each machine's `rate_outage_deadline` is the instant it was; restart it
-      with the maximum tolerated outage changed to `M′` and assert each reads the outage's start plus
-      `M′`; restart it with the staleness bound changed and assert each reads the start replayed
-      under the new bound plus the maximum in force (`OVR-19`). **Two concurrent postings of one subject open one row** (added 2026-09-25,
+      with the maximum tolerated outage changed to `M′` and assert each reads the outage's start
+      plus `M′`; restart it with the staleness bound changed and assert each reads the start
+      replayed under the new bound plus the maximum in force (`OVR-19`). **Two concurrent postings
+      of one subject open one row** (added 2026-09-25,
       `ADR-0027`): let two concurrent postings of one subject both compute no rate and both find no
       open row for it, and assert exactly one `rate_outage` row for that subject, both postings
       continuing against it, and its `absorbed_from` the replayed instant. **A sub-quorum pass with
@@ -513,7 +517,8 @@ not optional hardening — they are the only structural defence there is.
       oldest still inside the window it would have stayed 104 — that the change splits the increment
       at that pass's `STO-49` row, and that the age-out changed nothing charged: the increment the
       split closes is debited at 104 for all of its time, the stretch after the oldest aged out
-      included, and only the one it opens is priced at 106 (`LDG-38`). **Then, with a rate in force, let a runway expire
+      included, and only the one it opens is priced at 106 (`LDG-38`). **Then, with a rate in
+      force, let a runway expire
       with no rate movement at all and assert the machine is routed on the very next sweep** — a
       build that holds every past date for a second look runs each ordinary exhaustion one interval
       into the wind-down reserve. **Then the restore edge** (added 2026-09-12, `ADR-0023`; rewritten
@@ -719,11 +724,19 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       stored `runway_until` passes while there is no rate, an `extend-runway` is refused `halted`
       with `gate: "rate_unavailable"` and moves no balance and no commitment, and the solvency check
       fails closed. All of them, from one fault injection; and once the rate has returned the sweep
-      routes a machine whose stored date has passed.
+      routes a machine whose stored date has passed. **One currency's outage halts nothing priced
+      in another** (added 2026-10-02, `ADR-0029`; `LDG-59`'s "a USD quorum loss halts nothing
+      priced in EUR"): bill in two currencies and inject the fault into one alone, the other
+      keeping its rate. For the currency that has a rate, assert that the sweep routes a machine
+      whose stored `runway_until` has passed, that the worker claiming that cancellation decides
+      on the re-derived date and does not defer (`OPS-41`), and that an `extend-runway` is not
+      refused with `gate: "rate_unavailable"`; for the currency in outage, assert the sweep's and
+      the extension's clauses above. A build that halts deployment-wide fails it. This case
+      asserts nothing about the solvency check while one currency alone has no rate.
       (*Amended 2026-09-23, `ADR-0027`: a pass below quorum halts nothing (`LDG-59`), so the fault
-      must outlast the bound; `CNF-99` holds the single pass.* *Amended 2026-10-02, `ADR-0029`:
-      until then this item asserted that the sweep still ran, and it had no extension clause.*)
-      (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-62`, `LDG-65`, `WIR-24`)
+      must outlast the bound; `CNF-99` holds the single pass.* *Amended 2026-10-02, `ADR-0029`;
+      `LDG-40`'s note holds the sweep's withdrawn row.*)
+      (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-62`, `LDG-65`, `OPS-41`, `WIR-24`)
 - [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no
       last-known-good fallback anywhere. Asserted by removing every source for longer than the
       staleness bound and confirming the system reports *no rate* rather than a number. (*Amended
@@ -1749,12 +1762,14 @@ rather than acquiring a default.
       with restoration committing after the fence transaction has read no rate and before its
       conditional write**: the write affects no row, the worker re-derives at the rate now in
       force, and it still makes no provider call — a build that
-      establishes "no rate" by a read passes the cases before this one and deletes the fleet in it. **Then the same with the commitment unchanged and only the price
+      establishes "no rate" by a read passes the cases before this one and deletes the fleet in
+      it. **Then the same with the commitment unchanged and only the price
       cut** between enqueue and claim: the re-derived date is in the future, the worker aborts,
       makes no provider call, and clears the fence — a worker that aborts only on a grown
       commitment passes every other case here and destroys a machine a price cut rescued.
-      **With no rate, a funding cancellation waits; it is not cancelled and not settled** (rewritten
-      2026-10-02, `ADR-0029`; `OPS-41`'s order is what each case exercises). *A fresh outage*: with a
+      **With no rate, a funding cancellation waits; it is not cancelled and not settled**
+      (rewritten 2026-10-02, `ADR-0029`; `OPS-41`'s order is what each case exercises). *A fresh
+      outage*: with a
       live machine whose stored date has passed, its episode open and its cancellation queued — an
       `exhausted` attempt enqueued before the rate was lost, and separately `OPS-36`'s late-attach
       cleanup, enqueued by its attach transaction while a rate existed — lose the rate before the
@@ -1768,19 +1783,24 @@ rather than acquiring a default.
       returning before the deadline*: at the next claim the worker re-derives, and aborts or cancels
       on the ordinary predicate. *A suspension joining the deferred attempt* (`API-58`): within one
       short delay the next claim proceeds to the provider call with still no rate. *The machine
-      recorded gone mid-outage*: the next claim settles as the no-mutation case with no provider
-      call, the episode already closed by the gone-write. *The deadline passing with still no
+      recorded gone mid-outage*: the next claim settles `succeeded` with no mutation required,
+      makes no provider call and writes no `runway_until`, the episode already closed by the
+      gone-write. *The deadline passing with still no
       rate*: the next claim writes the fence and cancels — where the machine has an open
       `rate_outage` record and where it has none alike. *The maximum tolerated outage lowered
       mid-outage below the time already run* (`OVR-19`): the deferred attempt's first claim after
       the restart that loads it proceeds. *A restore during the outage*: a claim inside the restore
       grace defers on the grace, and after `grace_ends_at` it still defers while there is no rate
-      and the deadline has not passed, so the cancellation waits for the later of the two. *The
+      and the deadline has not passed, so the cancellation waits for the later of the two. *And
+      where the deadline falls inside the grace*: a claim made past the deadline and inside the
+      grace, with no rate, returns to `queued` with `available_at = grace_ends_at` — the grace's
+      deferral, which that instant tells apart from step 4's short delay — and writes no fence;
+      the claim after `grace_ends_at`, with still no rate, writes the fence and cancels at step 5.
+      A build that checks the deadline before the grace cancels inside the grace. *The
       fence and date assertions and the outage case were added 2026-09-05; the outage kind was
       outside `OPS-41` entirely, so a bound reached one second before the rate returned destroyed
-      the fleet. Until 2026-10-02 this item's last case was "The same test with **no rate
-      available** cancels the machine, because a funding check that cannot be computed is not a
-      funded machine", withdrawn with `OPS-41`'s paragraph of the same reasoning.*
+      the fleet. `OPS-41`'s note of 2026-10-02 holds the reasoning this item's last case was
+      withdrawn with.*
       (`OPS-41`, `OPS-36`, `OPS-8`, `LDG-62`, `LDG-40`, `LDG-64`, `LDG-65`, `OVR-19`)
 - [ ] **CNF-219** — `GET /v1/balance` is answered from the latest entry's `balance_after` and takes
       no write transaction; an audit recomputation of `Σ(ledger entries)` equals it; and a seeded

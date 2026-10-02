@@ -848,8 +848,8 @@ others absorb satoshis against consumption the customer was already charged for 
 their seconds too would relieve it twice, `LDG-66`), `absorbed_from`, `absorbed_until` (**the
 placement of that absorbed window in time**, required wherever `absorbed_seconds` is non-zero and
 read by `LDG-38` to
-apportion a window that straddles a period or increment boundary; `LDG-64`'s deadline cannot serve
-as its end, since an outage that clears early absorbed less time than the deadline implies),
+apportion a window that straddles a period or increment boundary; `LDG-38` holds why `LDG-64`'s
+deadline cannot serve as its end),
 `rate_num`, `rate_den` (**nullable**; the rate in force
 when the record was opened, required only for a cause that had one and permanently null for a
 rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`),
@@ -873,11 +873,11 @@ that subject, as a **conditional insert guarded on that absence**, so two postin
 one that computes no rate by staleness, one after a pass found the window thin — open one row.
 No other row of `LDG-40`'s matrix opens one: the exhaustion sweep routes nothing while the currency
 has no rate (`LDG-16`); a create and the solvency check have no subject to open one for; an
-extension halts (`LDG-62`), re-derivation "MUST halt rather than under-reserve", and neither opens
+extension halts (`LDG-40`), re-derivation "MUST halt rather than under-reserve", and neither opens
 anything. Nor does the worker's `OPS-41` contend open
 one: `OPS-41`'s order holds what a write that affects no row means there. So a subject the meter
 has not posted for since the outage began has no row, and neither does one the meter does not post
-for (`LDG-72`'s quarantine); `LDG-64`'s deadline and its bound do not depend on the row. **Its start
+for (`LDG-72`'s quarantine). **Its start
 is the currency's.** While the parameters the start is replayed with are unchanged, every row of one
 outage carries the same `absorbed_from` — the outage is the currency's, per `LDG-59`'s "one rate,
 one quorum, one outage and one bound for each currency" — and it is, in `ADR-0027`'s words,
@@ -887,7 +887,8 @@ thinness at each accepting pass — over `STO-49`'s recorded observations. For o
 parameters it is replayed with — the staleness bound, window and quorum — it is a function of that
 history alone, so while those parameters are unchanged it is the same for every writer whatever the
 interleaving of postings and passes, and no writer reads any sibling row for it; `OVR-19` holds
-that they can change while an outage is open (*amended 2026-10-02, `ADR-0029`*). When only one clock has fired inside the outage, the
+that they can change while an outage is open (*amended 2026-10-02, `ADR-0029`*). When only one
+clock has fired inside the outage, the
 replay yields that clock's own instant: the newest observation's `observed_at` plus `LDG-59`'s
 staleness bound when only staleness has — `LDG-59`: "The window's staleness is tested continuously,
 and no pass is needed for it to produce no rate" — and the `observed_at` of the `STO-49` row of the
@@ -896,9 +897,9 @@ fresh and newest plus bound would date the start in the future. When the clocks 
 outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
 the replay returns the first instant, which those per-writer formulas did not. A late opening
 changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
-written. **The row holds no deadline.** `LDG-64`'s deadline is computed from this same replay each
-time it is needed and reads no row, so it exists from the outage's first instant and for a subject
-with no row (*amended 2026-10-02, `ADR-0029`*). *Added 2026-09-25 (`ADR-0027`): before that day the set named every closer of
+written. **The row holds no deadline**: `LDG-64` holds how the deadline is computed and which
+machines its bound reaches (*amended 2026-10-02, `ADR-0029`*). *Added 2026-09-25 (`ADR-0027`):
+before that day the set named every closer of
 this row and never an opener; the same day the start was redefined from the withdrawn per-writer
 formulas — "Both are arithmetic every writer computes identically" — to the replayed instant.*
 
@@ -1337,7 +1338,8 @@ customer's charge to the next complete pass (`LDG-74`), and the correction is an
 entry; a commitment is "not a ledger entry" (`LDG-30`) and is not rebuilt from payments;
 `STO-49` rows written in Δ are lost, and where `LDG-64`'s outage start is replayed from them its
 start and its computed deadline move with what the backup holds, and the report naming `T − Δ` is
-what tells the operator the clock moved (*amended 2026-10-02, `ADR-0029`*); a `running` install found after a
+what tells the operator the clock moved (*amended 2026-10-02, `ADR-0029`*); a `running` install
+found after a
 restore goes to `needs_reconciliation` with its `OPS-45` markers as the backup holds them, so a
 null marker there does not mean the disk is untouched and the operator resolves such a row as
 ambiguous — and `WIR-9a` renders both wire keys `unknown` on such a row for the same reason

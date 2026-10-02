@@ -1050,8 +1050,8 @@ already queued waits as `OPS-41` orders), and **the solvency check** (MUST fail 
 
 **The fifth row — metering — was missing, and it is the one that costs money** (`LDG-64`).
 
-**An extension of runway MUST halt as a create does** (`LDG-62` holds the rule): it is a purchase
-priced at an unknown rate too.
+**An extension of runway MUST halt as a create does**: it is a purchase priced at an unknown rate
+too. `LDG-62` holds what the halted extension leaves untouched.
 
 *The withdrawn wording asked whether each of these "proceeds on a stale rate or halts", which
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
@@ -1059,9 +1059,8 @@ having no rate at all, and that change altered none of its answers.*
 
 *Amended 2026-10-02 (`ADR-0029`), with the withdrawn row, kept because it reads as sound and was
 not: until then the sweep's row was "**the exhaustion sweep** (MUST continue: it reduces
-exposure)". Continuing cancelled machines on dates the outage itself had made stale, while
-`LDG-64` was charging their customers nothing; `ADR-0029` holds the argument, and the exposure the
-row was protecting is capped by `LDG-64`'s bound. The extension's row was added the same day.*
+exposure)". Continuing cancelled machines whose stored date passed during the outage, and
+`ADR-0029` holds the argument against it. The extension's row was added the same day.*
 
 **LDG-41** **AMENDED, and again 2026-09-23 (`ADR-0027`).** A rate MUST be treated as
 attacker-influenced input. A manipulated or erroneous rate mis-prices the entire fleet
@@ -1189,11 +1188,12 @@ usage cannot be converted to satoshis. A deployment MUST:
   at any point;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,
   and **cancel machines at that bound** if no rate has returned. **The bound's cancellation
-  reaches every subject priced in the outage's currency, whether or not the meter opened a
-  `rate_outage` record for it** — a subject the meter is not posting for, as under `LDG-72`'s quarantine,
-  can have none and still meets the bound (*added 2026-10-02, `ADR-0029`*). **The bound MUST be disclosed
-  before purchase (`WIR-30`'s offer) and the live deadline — the computed instant above — exposed
-  on the machine view as `rate_outage_deadline`, null when no outage is in progress (`WIR-11`)**:
+  reaches every machine priced in the outage's currency, whether or not the meter opened a
+  `rate_outage` record for it** — a machine the meter is not posting for, as under `LDG-72`'s
+  quarantine, can have none and still meets the bound (*added 2026-10-02, `ADR-0029`*). **The bound
+  MUST be disclosed before purchase (`WIR-30`'s offer) and the live deadline — the computed instant
+  above — exposed on the machine view as `rate_outage_deadline`** (`WIR-11` holds the field and
+  when it is null):
   otherwise a machine whose advertised `runway_until` is months away is destroyed for a
   reason its owner was never told about and cannot act on — `LDG-14` promises destruction at
   runway exhaustion and this is a second, undisclosed trigger. The bound is the operator's own
@@ -1237,8 +1237,8 @@ in this specification converts it: `absorbed_seconds` alone is what the meter ne
 
 **LDG-65** **During a rate outage a funding cancellation waits, for the rate or for `LDG-64`'s
 bound** (`ADR-0029`, which holds the argument). The stored `runway_until` stands through the outage,
-because `LDG-33` recomputes the date only when a rate exists; a date that passes while there is no
-rate is not evidence that the machine is unfunded, and nothing is cancelled on it. The sweep's
+because `LDG-33` recomputes the date only when a rate exists, and nothing is cancelled on a date
+that passes while there is no rate. The sweep's
 predicate is `LDG-16`'s and the worker's order is `OPS-41`'s. A machine that reaches `LDG-64`'s
 bound is cancelled there; that cancellation claims like every other exposure-reducing cancellation
 and waits for a restore's grace as `OPS-41` requires.
@@ -1248,9 +1248,8 @@ was not. Until then this requirement held: "**The exhaustion sweep continues dur
 last derived `runway_until`** (`LDG-40` requires it keep running), which remains correct because
 `LDG-33` recomputes the date only when a rate exists. A machine whose runway expires mid-outage is
 cancelled normally, and so is a machine that reaches `LDG-64`'s bound", and "What is suspended is
-*pricing*, not *protection*." The date was correct as a record and wrong as a trigger: `LDG-64`
-charges the customer nothing for the window, so a machine whose date passed mid-outage still had
-the satoshis that date had predicted it would spend.*
+*pricing*, not *protection*." It cancelled a machine on a date that passed mid-outage, and
+`ADR-0029` holds why that date is no trigger.*
 
 *Withdrawn 2026-09-25 (`ADR-0028`), from the wording above: "each respects `LDG-16`'s destruction
 deadline like every other exposure-reducing cancellation, since `LDG-16` says one "MUST NOT make its
@@ -1264,10 +1263,11 @@ the outage lasts none arrives (2026-09-05; re-keyed to the reference 2026-09-21,
 the paragraph after it, "**`LDG-64`'s bound is the one cancellation that proceeds anyway** (added
 2026-09-21, `ADR-0026`). The input that would discharge the reference is the same input whose
 absence triggers that cancellation, so waiting for it would strand exactly the exposure the bound
-exists to cap." That note went on, until 2026-10-02: "With no reference left to discharge, no
-cancellation waits for a rate, so the bound's cancellation is no longer an exception: it proceeds,
-and respects `LDG-16`'s destruction deadline, like every other cancellation" — withdrawn in turn
-(`ADR-0029`), since a funding cancellation now waits for a rate.*
+exists to cap." As written on 2026-09-23 that note went on: "With no reference left to discharge,
+no cancellation waits for a rate, so the bound's cancellation is no longer an exception: it
+proceeds, and respects `LDG-16`'s destruction deadline, like every other cancellation". That was
+true of the set that day and was withdrawn in turn on 2026-10-02 (`ADR-0029`), when a funding
+cancellation began to wait for a rate.*
 
 **Why there is no ADR for this.** Two of the three tests fail. The trade-off is real and the
 alternatives were considered — a single named exchange, a published reference index, and
@@ -1555,9 +1555,9 @@ containing it. The second offered a choice — strip, or accept that cost is dis
 **LDG-13** A machine whose funding fails MUST be cancelled, and cancellation is the only effective
 remedy — powering a machine off does not stop provider billing. There is no unfunded grace
 period, because `PRV-13d`'s runway is the grace period and it is committed in advance. **A rate
-outage is a window that sentence does not cover** (*added 2026-10-02, `ADR-0029`*): a machine
-already unfunded when the outage began runs on the operator's money until the rate returns or
-`LDG-64`'s bound fires, because its funding cancellation waits (`LDG-65`).
+outage is a window that sentence does not cover** (*added 2026-10-02, `ADR-0029`*): `LDG-65` holds
+what a funding cancellation does then, and `ADR-0029` records what that costs the operator as
+accepted.
 
 **LDG-45** The runway is **committed**, not prepaid, and `LDG-13`'s justification MUST be read
 that way. A committed reservation is released if unused (`LDG-32`); a prepayment would not be.
@@ -1589,9 +1589,9 @@ time the satoshis wind-down and any cancellation date already need, which is exa
 growth path is `LDG-63`'s scheduled-cancellation top-up. It MUST be idempotent per `API-8` — two
 concurrent extends must not reserve twice.
 
-**With no rate for the machine's currency an extension MUST halt** (`LDG-40`; *added 2026-10-02,
-`ADR-0029`*). It is priced "at the **current** rate", and where there is none it has no price: the
-extension opens or grows no commitment and moves no balance, and `WIR-24` holds the refusal.
+**With no rate for the machine's currency an extension halts, and `LDG-40` holds that rule and its
+reason** (*added 2026-10-02, `ADR-0029`*). The halted extension opens or grows no commitment and
+moves no balance, and `WIR-24` holds the refusal.
 
 **It is fenced, and this requirement carries the obligation rather than merely being cited for it**
 (added 2026-09-02). In the same `LDG-35` transaction, an extension MUST **conditional-write the
@@ -1655,12 +1655,12 @@ routes immediately, and that is the point: natural expiry of a
 runway the customer was shown is not a glitch, and delaying it an interval would run every ordinary
 exhaustion one interval into the wind-down reserve this requirement exists to keep whole.* While the
 currency has no rate the sweep routes nothing priced in it, and `LDG-65` holds what becomes of a
-machine whose date passes then (*amended 2026-10-02, `ADR-0029`: until then the predicate was the
-date alone, "MUST route a machine where its stored `runway_until` has passed, and MUST NOT route it
-otherwise"*). A
+machine whose date passes then. A
 restore's grace is no clause of this predicate: it is `STO-56`'s `grace_ends_at`, `OPS-41` holds the
 rule that defers the claim until it, and the sweep itself is among what `STO-54` freezes (*amended
-2026-09-25, `ADR-0028`*).
+2026-09-25, `ADR-0028`*). *Amended 2026-10-02, `ADR-0029`: until then the predicate was the date
+alone, "MUST route a machine where its stored `runway_until` has passed, and MUST NOT route it
+otherwise".*
 
 *Withdrawn 2026-09-25 (`ADR-0028`), the deadline: "**The destruction deadline** —
 `machines.destroy_not_before`, `STO-54`'s restore grace, which buys "the tenant one re-derivation
@@ -1678,7 +1678,7 @@ machines at that bound** if no rate has returned", and `LDG-65` carries the case
 cancellation on a suspended tenant: `OPS-41` says "**The funding re-check does not apply where the
 machine's tenant IS suspended** at the moment of the re-check". Another is `OPS-36`'s late-attach
 cleanup, enqueued by its attach transaction and not by the sweep; while its machine's currency has
-no rate it waits at `OPS-41`'s order like any funding cancellation (*added 2026-10-02,
+no rate it waits at `OPS-41`'s order as every funding cancellation does (*added 2026-10-02,
 `ADR-0029`*). Each claims like every other
 exposure-reducing cancellation and waits for a restore's grace as `OPS-41` requires (*amended
 2026-09-25, `ADR-0028`*). The worker's re-check and its provider call read no fact the grace wrote —

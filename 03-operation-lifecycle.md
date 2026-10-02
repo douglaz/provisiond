@@ -786,8 +786,10 @@ including a second extension.
 reads, never on its claim snapshot.** The order holds for every exposure-reducing cancellation,
 whatever reason the attempt was enqueued under, and the first step that applies decides:
 
-1. **The machine is recorded gone, or its episode is closed.** The worker settles as the no-mutation
-   case and makes no provider call (`OPS-48`; a close is permanent).
+1. **The machine is recorded gone, or its episode is closed.** The worker makes no provider call and
+   settles the attempt `succeeded` with a result recording that no mutation was required (`OPS-48`;
+   a close is permanent). **It writes no `runway_until`**: the date the no-mutation case above
+   writes is a re-derived one, and this step re-derives nothing.
 2. **The tenant is suspended now.** The funding re-check does not apply and the cancellation
    proceeds; the suspension paragraph below holds that rule.
 3. **A rate exists for the machine's currency** (`LDG-59`). The worker re-derives and applies the
@@ -826,19 +828,22 @@ was not. Until then this requirement held: "**Where there is no rate, the cancel
 and `LDG-65` keeps it running on the last derived `runway_until`. A funding re-check that cannot be
 computed MUST NOT be read as "funded": the worker cancels. Failing safe here costs a machine that
 may have been rescuable; failing the other way is an unfunded machine billing indefinitely, which is
-what `LDG-13` exists to prevent." It is not indefinite — `LDG-64`'s bound still fires — and the
-stored date such a cancellation acted on is one the outage itself made stale, since nothing is
-drawn down while there is no rate; `ADR-0029` holds the argument. Withdrawn with it, the reading of
+what `LDG-13` exists to prevent." It cancelled a machine on a stored date that passed during the
+outage, and `ADR-0029` holds the argument against that. Withdrawn with it, the reading of
 a conditional write that affects no row with still no rate as "the machine's own meter stopped
 (`LDG-74`), there is nothing left to cancel, and it settles as the no-mutation case": in the first
 minutes of an outage no record exists yet, since the meter opens it only at the subject's first
 posting that computes no rate, so that reading settled a live machine's cancellation, closed its
-episode, and the sweep queued it again. And withdrawn, the scope of the bound: "A `rate_outage_bound`
-cancellation is enqueued only for a machine carrying such a record, which under `LDG-64` is every
-machine metered through the outage" — a machine the meter opened no record for would never meet the
+episode, and the sweep queued it again. And withdrawn, the scope of the bound: "A
+`rate_outage_bound` cancellation is enqueued only for a machine carrying such a record, which
+under `LDG-64` is every machine metered through the outage" — a machine the meter opened no record
+for would never meet the
 bound. The conditional write itself dates from 2026-09-05, when a `rate_outage_bound` cancellation
 was brought inside this requirement's scope; a first form of it named a deployment-wide outage row
-that `STO-37` does not have and applied the write on every exposure-reducing cancellation.*
+that `STO-37` does not have, applied the write on every exposure-reducing cancellation — so on the
+ordinary exhaustion path, with a rate in force and no open record, it affected no row and aborted
+every delete into the once-per-sweep loop — and mandated abort where restoration had closed the row
+even when re-derivation at the restored rate still put the date in the past.*
 
 **The funding re-check does not apply where the machine's tenant IS suspended at the moment of
 the re-check, read in the same fence transaction** (`API-58`, `OPS-27`) — keyed on the tenant's

@@ -289,8 +289,8 @@ Three consequences make this security rather than bookkeeping:
 so a machine whose funding fails must be cancelled — and at the end of runway it is cancelled *and
 its disk destroyed*, disclosed in the terms. Deletion and cancellation therefore **bypass** the
 solvency and rate gates entirely: refusing an exposure-reducing action because exposure is too high
-is the one failure the halt matrix forbids. **A rate outage delays one kind of cancellation and
-denies none**: while a currency has no rate the customer is charged nothing, so a funding
+is the one failure the halt matrix forbids. **A rate outage delays cancellations and denies
+none**: while a currency has no rate the customer is charged nothing, so a funding
 cancellation waits for the rate to return or for the outage's stated bound, at which machines are
 cancelled (`LDG-65`, `LDG-64`, `ADR-0029`).
 
