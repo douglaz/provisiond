@@ -56,8 +56,21 @@ collision is a refused insert that rolls the transaction back. The target is per
 deposit, so a payment settling afterwards "is credited to that tenant directly as an ordinary
 `topup`" (`LDG-43`); a second call is idempotent per deposit.
 
-The meter. `post` is one increment of the one subject, `World.subject`, closing at its end instant:
-`Meter.postedDebit` computes it, `Ledger.clamp` splits it, `r` advances by the computed debit —
+The meter. `post` is one increment of the one subject, `World.subject`, closing at its end instant.
+Where it starts is `start`, and `Params.startsAtMark` is `LDG-38`'s 2026-10-02 rule, "An increment
+MUST start at the subject's latest high-water mark": the event carries where the observation takes
+itself to have begun, and under the rule that is not read — `LDG-38`: "where a re-observation takes
+itself to have begun is not an input". `charge` is the seconds from that start to the end at the
+event's rate, so a re-meter overlapping the mark is clipped to it, and `World.charged` keeps each
+interval an admitted posting priced: `no_second_charged_twice` is the rule on every trace and
+`nothing_left_at_or_before_the_mark` is `LDG-38`'s "the discard above is the case with nothing left
+after the mark". `seed` is `Params.seedOnBillable`, `LDG-38`'s "Every transition of a subject into
+billable MUST write that subject's high-water mark at the recorded instant": the mark and nothing
+else. `World.mark` stays an `Option` because the seed's absence is a value of the model: in the
+specified system "There is no case without a mark", and `none` is reachable here only from a world
+that was never seeded, where `start` falls back on `World.periodStart` — the withdrawn form, "with
+no mark ever, at the period's start".
+`Meter.postedDebit` computes the debit, `Ledger.clamp` splits it, `r` advances by the computed debit —
 `LDG-38`: "`r` advances by `posted_debit_i` regardless, because the recurrence is stated over what
 the meter computed and never mentions the entry at all" — and the overflow is a `Deficiency` record,
 `STO-37`'s `clamp_overflow`, with `absorbed_seconds` zero (`LDG-66`). The entry's key is `usageKey`,
@@ -65,11 +78,15 @@ the meter computed and never mentions the entry at all" — and the overflow is 
 withdrawn posting index as its other value. `World.mark` is `LDG-38`'s "greatest `increment end`
 already posted", advanced with `r` whether or not an entry posts — `LDG-72`'s record, written
 "without a ledger entry but with any deficiency `STO-45` requires where the increment rounds or
-clamps to nothing" — and `Params.markDiscards` is its discard. The key refuses only an insert, so
-the key and the mark overlap on a replay that writes an entry, and the key's witness pins the
-discard off; the mark's witness takes cases the stated key admits: the replay of an increment that
-wrote no entry, which left no key to collide with, and a re-meter ending below the mark, whose key
-is new. `post_replay_discarded` is the rule and `mark_covers_every_key` is `LDG-72`'s one-sided
+clamps to nothing" — and `Params.markDiscards` is its discard. Three guards overlap on a replay:
+the key refuses only an insert, the discard refuses an increment ending at or before the mark, and
+under the start rule such an increment has no seconds left to charge. So the key's witness pins the
+discard and the start rule off, and the discard's witness pins the start rule off and takes cases
+the stated key admits: the replay of an increment that wrote no entry, which left no key to collide
+with, and a re-meter ending below the mark, whose key is new. The discard stays a parameter beside
+the start rule because it is not subsumed on every world: with `r` out of range an increment of no
+seconds still computes a debit, and `post_replay_discarded` holds of every world only by the
+discard. `post_replay_discarded` is the rule and `mark_covers_every_key` is `LDG-72`'s one-sided
 check. `clamp_never_touches_credit_past_the_mark` and `clamp_overflow_is_a_record_past_the_mark`
 state the clamp theorems under premises that do not read the clamp's outcome.
 `attribution_leaves_meter_untouched` and `correction_then_post_posts_the_same` are "A `correction`
@@ -84,11 +101,17 @@ settlement event; `LDG-52`'s rail floor; `LDG-56`'s disclosure; `WIR-42`'s `oper
 and currency (`LDG-2`)" and rate on the deficiency record — `Deficiency` carries the satoshi
 figure and the absorbed time only; `LDG-38`'s 2026-09-04 clause, "The subject's billability and its
 stop boundary MUST be re-read inside the same `LDG-35` serialization that appends, and the increment
-clipped to them" — `post` takes the increment's exact charge, so there are no seconds to clip, and
-`LDG-74`'s stop is `Provisiond.Reconcile`'s `World.meterStoppedAt`, in a module that posts no money
-and that this one does not import; the subject's own commitment opening and close
-(`Provisiond.Ledger`); a second subject; `LDG-68`'s period boundary (`Provisiond.Period`), and
-with it `LDG-38`'s "new period's `meter_totals` row starts with `r = 0`"; `API-34`'s cap, "A pending
+clipped to them" — every second from `start` to the end is billable here, the subject never leaves
+billable, so `seed` models an entry into billable and no exit, and nothing here says what is
+charged between a mark and an exit; `LDG-74`'s stop is `Provisiond.Reconcile`'s
+`World.meterStoppedAt`, in a module that posts no money and that this one does not import; the
+subject's own commitment opening and close (`Provisiond.Ledger`); a second subject, and with it the
+attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
+the subject billable — `seed` is the mark's write alone; `LDG-68`'s period boundary
+(`Provisiond.Period`), and with it `LDG-38`'s "new period's `meter_totals` row starts with
+`r = 0`", the split of an increment "at every period boundary and every rate change it crosses" —
+one increment here has one rate and lies in the one open period — and the latest mark taken across
+a subject's rows (`LDG-72`), which is one row here; `API-34`'s cap, "A pending
 tenant's deposit expiry MUST be capped at its remaining signup time-to-live" — `mint` accepts any
 expiry; `API-58`'s `suspended` state — `Status` is pending or active; the attribution of a live
 tenant's deposit, which `WIR-42` does not describe and the model refuses; and every provider-side
@@ -214,7 +237,10 @@ unique". `reapWaitsForWindow`: `API-34`'s floor, "The TTL MUST exceed the deposi
 the maximum on-chain finality window", "and a tenant MUST NOT be deleted while any deposit of its
 own remains inside that window". `usageKeyFrom`: `LDG-8`, the `usage_debit`'s key. `markDiscards`:
 `LDG-38`, "an increment whose end instant is at or before that mark MUST be discarded, not
-posted" — the discard only; the mark is recorded either way. -/
+posted" — the discard only; the mark is recorded either way. `startsAtMark`: `LDG-38`, 2026-10-02,
+"An increment MUST start at the subject's latest high-water mark"; `false` starts it where the
+observation takes itself to have begun. `seedOnBillable`: `LDG-38`, 2026-10-02, the mark written at
+"Every transition of a subject into billable"; `false` writes none. -/
 structure Params where
   keyFrom             : KeySource
   correctionPrefix    : Bool
@@ -222,6 +248,8 @@ structure Params where
   reapWaitsForWindow  : Bool
   usageKeyFrom        : UsageKeySource
   markDiscards        : Bool
+  startsAtMark        : Bool
+  seedOnBillable      : Bool
   deriving DecidableEq, Repr
 
 /-- The rules as they stand. One field per line: `ci.yml`'s controls flip one each. -/
@@ -232,7 +260,9 @@ def current : Params := {
     paymentRecordUnique := true,
     reapWaitsForWindow  := true,
     usageKeyFrom        := .incrementEnd,
-    markDiscards        := true }
+    markDiscards        := true,
+    startsAtMark        := true,
+    seedOnBillable      := true }
 
 structure World where
   now           : Nat
@@ -248,14 +278,19 @@ structure World where
   entries       : List Entry
   deficiencies  : List Deficiency
   /-- The one metered subject and its one open billing period, the tenant it bills, what remains
-  of its open commitment, `LDG-38`'s rounding credit `r`, and its high-water mark, `none` before
-  its first increment. -/
+  of its open commitment, `LDG-38`'s rounding credit `r`, and its high-water mark: `none` only
+  where nothing seeded it (the module docstring). -/
   subject        : Subject
   period         : Nat
   tenant         : TenantId
   remaining      : Int
   roundingCredit : Rat
   mark           : Option Nat
+  /-- The first instant of the one open period: read only where there is no mark. -/
+  periodStart    : Nat
+  /-- Not a column: the interval each admitted posting priced, start and end, in posting order. An
+  increment of no seconds adds none. -/
+  charged        : List (Nat × Nat)
   deriving DecidableEq, Repr
 
 /-- A live `tenants` row bears the identifier. -/
@@ -360,21 +395,45 @@ def attribution (p : Params) (w : World) (d : Deposit) (target : TenantId) : Wor
                     deposits := w.deposits.map fun x =>
                       if x.id = d.id then { x with attributedTo := some target } else x } target
 
+/-- `LDG-38`: "An increment MUST start at the subject's latest high-water mark". Under the rule
+`observedFrom`, where the observation takes itself to have begun, is not read; without it, it is
+the start. With no mark — a world nothing seeded — the start is the period's (the module
+docstring). -/
+@[req "LDG-38"]
+def start (p : Params) (w : World) (observedFrom : Nat) : Nat :=
+  if p.startsAtMark then w.mark.getD w.periodStart else observedFrom
+
+/-- `LDG-38`'s `exact_i`, with no absorbed window: the seconds from `start` to the increment's end,
+at its rate, never rounded. An increment ending at or before its start has none. -/
+@[req "LDG-38"]
+def charge (p : Params) (w : World) (observedFrom incrementEnd : Nat) (rate : Rat) : Rat :=
+  ((incrementEnd - start p w observedFrom : Nat) : Rat) * rate
+
+/-- `LDG-38`'s seed: a transition of the subject into billable recorded at `at_` writes the mark
+there, "an empty increment through `STO-45`'s no-entry path" — no entry, no seconds, `r` where it
+was — and a mark already at or past it stays. -/
+@[req "LDG-38"]
+def seed (p : Params) (w : World) (at_ : Nat) : World :=
+  if p.seedOnBillable then { w with mark := some (max (w.mark.getD 0) at_) } else w
+
 /-- `post` refuses the increment whole: `markDiscards` discards it, or the entry it writes carries a
-key already on the tenant's ledger. An increment that writes no entry inserts no key to collide. -/
+key already on the tenant's ledger. An increment that writes no entry inserts no key to collide.
+`exact` is the increment's `charge`. -/
 @[req "LDG-38"]
 def refuses (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat) : Bool :=
   p.markDiscards && w.mark.any (incrementEnd ≤ ·) ||
     (Ledger.clamp w.remaining (Meter.postedDebit exact w.roundingCredit)).1 != 0 &&
       hasKey w w.tenant (usageKey p w incrementEnd)
 
-/-- One increment of the subject, closing at `incrementEnd`: `LDG-38`'s debit, `LDG-31`'s clamp,
-the deficiency for the overflow, `r` advanced by what was computed, and the mark to the greatest
-end posted, whether or not an entry posts. Where it `refuses`, nothing is written and nothing
-moves — no entry, no decrement, no deficiency, `r` and the mark where they were — as `credit`
-refuses. -/
+/-- One increment of the subject, closing at `incrementEnd`, priced over the seconds from `start`:
+`LDG-38`'s debit on its `charge`, `LDG-31`'s clamp, the deficiency for the overflow, `r` advanced
+by what was computed, and the mark to the greatest end posted, whether or not an entry posts. Where
+it `refuses`, nothing is written and nothing moves — no entry, no decrement, no deficiency, `r` and
+the mark where they were — as `credit` refuses, and `STO-45`: "An increment `LDG-38` discards moves
+nothing". -/
 @[req "LDG-38"]
-def post (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat) : World :=
+def post (p : Params) (w : World) (observedFrom incrementEnd : Nat) (rate : Rat) : World :=
+  let exact := charge p w observedFrom incrementEnd rate
   let posted := Meter.postedDebit exact w.roundingCredit
   let (entry, overflow) := Ledger.clamp w.remaining posted
   if refuses p w incrementEnd exact then w else
@@ -385,7 +444,9 @@ def post (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat) : World :=
            deficiencies := w.deficiencies ++ (if overflow = 0 then [] else
               [{ clampedSats := overflow, absorbedSeconds := 0 }]),
            roundingCredit := Meter.nextCredit exact w.roundingCredit,
-           mark := some (max (w.mark.getD 0) incrementEnd) }
+           mark := some (max (w.mark.getD 0) incrementEnd),
+           charged := w.charged ++ (if start p w observedFrom < incrementEnd then
+              [(start p w observedFrom, incrementEnd)] else []) }
 
 inductive Event
   | advance (d : Nat)
@@ -400,8 +461,11 @@ inductive Event
   | reap (t : TenantId)
   /-- `WIR-42`. -/
   | attribution (d : DepositId) (t : TenantId)
-  /-- `LDG-38`: one increment of the subject, its end instant and its exact charge. -/
-  | post (incrementEnd : Nat) (exact : Rat)
+  /-- `LDG-38`: one increment of the subject — where the observation takes itself to have begun,
+  its end instant, and the rate in force throughout it. -/
+  | post (observedFrom incrementEnd : Nat) (rate : Rat)
+  /-- `LDG-38`: the subject recorded billable at an instant. -/
+  | billable (at_ : Nat)
   deriving DecidableEq, Repr
 
 def step (p : Params) (w : World) : Event → World
@@ -432,7 +496,8 @@ def step (p : Params) (w : World) : Event → World
     match w.findDeposit d with
     | some dep => attribution p w dep t
     | none => w
-  | .post incrementEnd exact => post p w incrementEnd exact
+  | .post observedFrom incrementEnd rate => post p w observedFrom incrementEnd rate
+  | .billable at_ => seed p w at_
 
 def run (p : Params) (w : World) (evs : List Event) : World := evs.foldl (step p) w
 
@@ -491,13 +556,18 @@ theorem float_append (xs ys : List Entry) : float (xs ++ ys) = float xs + float 
 theorem sumFor_activate (w : World) (t t' : TenantId) :
     sumFor t (activate w t').entries = sumFor t w.entries := rfl
 
+/-- At a non-negative rate no increment's charge is negative: its seconds are a count. -/
+theorem charge_nonneg (p : Params) (w : World) (observedFrom incrementEnd : Nat) (rate : Rat)
+    (h : 0 ≤ rate) : 0 ≤ charge p w observedFrom incrementEnd rate :=
+  Rat.mul_nonneg (Rat.natCast_nonneg) h
+
 /-! ## The pairing, on the composed model -/
 
 /-- `LDG-31` on the composed model: an increment, however it clamps, leaves the subject's
 `available` unchanged — the entry and the decrement are the same clamped number. -/
 @[req "LDG-31"]
-theorem post_leaves_available_unchanged (p : Params) (w : World) (incrementEnd : Nat)
-    (exact : Rat) : (post p w incrementEnd exact).available = w.available := by
+theorem post_leaves_available_unchanged (p : Params) (w : World) (observedFrom incrementEnd : Nat)
+    (rate : Rat) : (post p w observedFrom incrementEnd rate).available = w.available := by
   simp only [post, World.available, Ledger.clamp]
   split
   · rfl
@@ -509,9 +579,10 @@ in it. Whether `post` refuses can itself turn on the remainder — the key confl
 the clamped entry is not zero — so this premise reads the clamp's outcome;
 `clamp_never_touches_credit_past_the_mark` states the conclusion under premises that do not. -/
 @[req "LDG-38"]
-theorem clamp_never_touches_credit (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat)
-    (h : refuses p w incrementEnd exact = false) :
-    (post p w incrementEnd exact).roundingCredit = Meter.nextCredit exact w.roundingCredit := by
+theorem clamp_never_touches_credit (p : Params) (w : World) (observedFrom incrementEnd : Nat)
+    (rate : Rat) (h : refuses p w incrementEnd (charge p w observedFrom incrementEnd rate) = false) :
+    (post p w observedFrom incrementEnd rate).roundingCredit =
+      Meter.nextCredit (charge p w observedFrom incrementEnd rate) w.roundingCredit := by
   simp [post, h]
 
 /-- The clamp's remainder is a record and not an entry: for an increment `post` does not refuse,
@@ -520,16 +591,17 @@ absorbed no time (`LDG-66`), and the commitment never goes below zero. `h` reads
 outcome, as it does for `clamp_never_touches_credit`; `clamp_overflow_is_a_record_past_the_mark` is
 the version whose premises do not. -/
 @[req "LDG-66"]
-theorem clamp_overflow_is_a_record (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat)
-    (h : refuses p w incrementEnd exact = false) (hr : 0 ≤ w.remaining) (hx : 0 ≤ exact)
-    (hc : w.roundingCredit < 1) :
-    let posted := Meter.postedDebit exact w.roundingCredit
-    let w' := post p w incrementEnd exact
+theorem clamp_overflow_is_a_record (p : Params) (w : World) (observedFrom incrementEnd : Nat)
+    (rate : Rat) (h : refuses p w incrementEnd (charge p w observedFrom incrementEnd rate) = false)
+    (hr : 0 ≤ w.remaining) (hx : 0 ≤ rate) (hc : w.roundingCredit < 1) :
+    let posted := Meter.postedDebit (charge p w observedFrom incrementEnd rate) w.roundingCredit
+    let w' := post p w observedFrom incrementEnd rate
     sumFor w.tenant w'.entries - sumFor w.tenant w.entries
       - ((w'.deficiencies.drop w.deficiencies.length).map (·.clampedSats)).sum = -posted ∧
     (∀ df ∈ w'.deficiencies.drop w.deficiencies.length, df.absorbedSeconds = 0) ∧
     0 ≤ w'.remaining := by
-  have hp := Meter.postedDebit_nonneg exact w.roundingCredit hx hc
+  have hp := Meter.postedDebit_nonneg _ w.roundingCredit
+    (charge_nonneg p w observedFrom incrementEnd rate hx) hc
   simp only [post, Ledger.clamp, h, Bool.false_eq_true, ite_false, sumFor_append,
              List.drop_append_of_le_length (Nat.le_refl _), List.drop_length, List.nil_append]
   refine ⟨?_, ?_, ?_⟩
@@ -563,28 +635,29 @@ mentions the commitment, so the credit after the increment is the recurrence's h
 splits it. -/
 @[req "LDG-38"]
 theorem clamp_never_touches_credit_past_the_mark (p : Params)
-    (hk : p.usageKeyFrom = .incrementEnd) (w : World) (hm : w.markCovers) (incrementEnd : Nat)
-    (exact : Rat) (hn : w.mark.all (· < incrementEnd) = true) :
-    (post p w incrementEnd exact).roundingCredit = Meter.nextCredit exact w.roundingCredit :=
-  clamp_never_touches_credit p w incrementEnd exact
-    (not_refused_past_the_mark p hk w hm incrementEnd exact hn)
+    (hk : p.usageKeyFrom = .incrementEnd) (w : World) (hm : w.markCovers)
+    (observedFrom incrementEnd : Nat) (rate : Rat) (hn : w.mark.all (· < incrementEnd) = true) :
+    (post p w observedFrom incrementEnd rate).roundingCredit =
+      Meter.nextCredit (charge p w observedFrom incrementEnd rate) w.roundingCredit :=
+  clamp_never_touches_credit p w observedFrom incrementEnd rate
+    (not_refused_past_the_mark p hk w hm incrementEnd _ hn)
 
 /-- `clamp_overflow_is_a_record` for every non-negative remainder: its premises but `h`, and in
 `h`'s place those of `clamp_never_touches_credit_past_the_mark`. `hr` is the one premise that
 mentions the remainder, and it asks only its sign, never what the clamp leaves of it. -/
 @[req "LDG-66"]
 theorem clamp_overflow_is_a_record_past_the_mark (p : Params)
-    (hk : p.usageKeyFrom = .incrementEnd) (w : World) (hm : w.markCovers) (incrementEnd : Nat)
-    (exact : Rat) (hn : w.mark.all (· < incrementEnd) = true) (hr : 0 ≤ w.remaining)
-    (hx : 0 ≤ exact) (hc : w.roundingCredit < 1) :
-    let posted := Meter.postedDebit exact w.roundingCredit
-    let w' := post p w incrementEnd exact
+    (hk : p.usageKeyFrom = .incrementEnd) (w : World) (hm : w.markCovers)
+    (observedFrom incrementEnd : Nat) (rate : Rat) (hn : w.mark.all (· < incrementEnd) = true)
+    (hr : 0 ≤ w.remaining) (hx : 0 ≤ rate) (hc : w.roundingCredit < 1) :
+    let posted := Meter.postedDebit (charge p w observedFrom incrementEnd rate) w.roundingCredit
+    let w' := post p w observedFrom incrementEnd rate
     sumFor w.tenant w'.entries - sumFor w.tenant w.entries
       - ((w'.deficiencies.drop w.deficiencies.length).map (·.clampedSats)).sum = -posted ∧
     (∀ df ∈ w'.deficiencies.drop w.deficiencies.length, df.absorbedSeconds = 0) ∧
     0 ≤ w'.remaining :=
-  clamp_overflow_is_a_record p w incrementEnd exact
-    (not_refused_past_the_mark p hk w hm incrementEnd exact hn) hr hx hc
+  clamp_overflow_is_a_record p w observedFrom incrementEnd rate
+    (not_refused_past_the_mark p hk w hm incrementEnd _ hn) hr hx hc
 
 /-! ## Credit and record are one transaction -/
 
@@ -632,11 +705,12 @@ theorem payments_match_topups (p : Params) (w : World) (e : Event)
             | cons x xs ih => simp [List.flatMap_cons, correctionPair, ih]
           simp [this]
     · exact h
-  | post incrementEnd exact =>
+  | post observedFrom incrementEnd rate =>
     simp only [step, post, Ledger.clamp]
     split
     · exact h
     · simp only [List.filter_append, List.length_append, h]; split <;> simp
+  | billable at_ => simp only [step, seed]; split <;> exact h
 
 /-! ## Rail identity -/
 
@@ -754,7 +828,8 @@ theorem lightning_paid_before_expiry (p : Params) (w : World) (e : Event)
           · split <;> exact hid
           · split <;> exact hlt
     · exact h
-  | post incrementEnd exact => simp only [step, post]; split <;> exact h
+  | post observedFrom incrementEnd rate => simp only [step, post]; split <;> exact h
+  | billable at_ => simp only [step, seed]; split <;> exact h
 
 /-! ## The tenant -/
 
@@ -871,7 +946,8 @@ theorem in_window_deposit_has_live_tenant (p : Params) (hp : p.reapWaitsForWindo
           · simp only [hid, ite_false] at hw ⊢
             exact h dep' hdep' hw
     · exact h
-  | post incrementEnd exact => simp only [step, post]; split <;> exact h
+  | post observedFrom incrementEnd rate => simp only [step, post]; split <;> exact h
+  | billable at_ => simp only [step, seed]; split <;> exact h
 
 /-- On a world carrying the invariant, a settlement at a deposit inside its window is credited to
 a live tenant, and the tenant is live after the credit. -/
@@ -1018,37 +1094,41 @@ which an attribution that posts a pair changes, so the two posts derive differen
 world holding one and not the other can refuse one post and admit the other. -/
 @[req "LDG-38"]
 theorem correction_then_post_posts_the_same (p : Params) (hk : p.usageKeyFrom = .incrementEnd)
-    (w : World) (d : Deposit) (t : TenantId) (incrementEnd : Nat) (exact : Rat) :
-    let w₁ := post p (attribution p w d t) incrementEnd exact
-    let w₂ := post p w incrementEnd exact
+    (w : World) (d : Deposit) (t : TenantId) (observedFrom incrementEnd : Nat) (rate : Rat) :
+    let w₁ := post p (attribution p w d t) observedFrom incrementEnd rate
+    let w₂ := post p w observedFrom incrementEnd rate
     w₁.roundingCredit = w₂.roundingCredit ∧ w₁.remaining = w₂.remaining ∧
     sumFor w.tenant w₁.entries - sumFor w.tenant (attribution p w d t).entries =
       sumFor w.tenant w₂.entries - sumFor w.tenant w.entries := by
   obtain ⟨hc, hm, hr⟩ := attribution_leaves_meter_untouched p w d t
   have hs : (attribution p w d t).subject = w.subject ∧ (attribution p w d t).period = w.period ∧
-      (attribution p w d t).tenant = w.tenant := by
+      (attribution p w d t).tenant = w.tenant ∧
+      (attribution p w d t).periodStart = w.periodStart := by
     simp only [attribution]; split
-    · exact ⟨rfl, rfl, rfl⟩
-    · split <;> exact ⟨rfl, rfl, rfl⟩
-  obtain ⟨hs, hp, ht⟩ := hs
-  simp only [post, refuses, usageKey, hk, hc, hm, hr, hs, hp, ht, attribution_hasKey_usage,
-             Ledger.clamp]
+    · exact ⟨rfl, rfl, rfl, rfl⟩
+    · split <;> exact ⟨rfl, rfl, rfl, rfl⟩
+  obtain ⟨hs, hp, ht, hps⟩ := hs
+  have hch : charge p (attribution p w d t) observedFrom incrementEnd rate =
+      charge p w observedFrom incrementEnd rate := by simp only [charge, start, hm, hps]
+  simp only [post, refuses, usageKey, hch, hk, hc, hm, hr, hs, hp, ht,
+             attribution_hasKey_usage, Ledger.clamp]
   split <;> simp_all [sumFor_append]; omega
 
 /-! ## The increment key and the high-water mark -/
 
 /-- An increment either is refused whole or leaves the mark at least its own end. -/
-theorem post_refused_or_marked (p : Params) (w : World) (incrementEnd : Nat) (exact : Rat) :
-    post p w incrementEnd exact = w ∨
-      (post p w incrementEnd exact).mark = some (max (w.mark.getD 0) incrementEnd) := by
+theorem post_refused_or_marked (p : Params) (w : World) (observedFrom incrementEnd : Nat)
+    (rate : Rat) : post p w observedFrom incrementEnd rate = w ∨
+      (post p w observedFrom incrementEnd rate).mark = some (max (w.mark.getD 0) incrementEnd) := by
   simp only [post, Ledger.clamp]; split
   · exact Or.inl rfl
   · exact Or.inr rfl
 
 /-- With the discard, an increment ending at or before the mark is refused whole, on every
 world. -/
-theorem post_discarded (p : Params) (hp : p.markDiscards = true) (w : World) (incrementEnd : Nat)
-    (exact : Rat) (h : w.mark.any (incrementEnd ≤ ·) = true) : post p w incrementEnd exact = w := by
+theorem post_discarded (p : Params) (hp : p.markDiscards = true) (w : World)
+    (observedFrom incrementEnd : Nat) (rate : Rat) (h : w.mark.any (incrementEnd ≤ ·) = true) :
+    post p w observedFrom incrementEnd rate = w := by
   simp [post, refuses, hp, h]
 
 /-- `LDG-38`: "an increment whose end instant is at or before that mark MUST be discarded, not
@@ -1056,13 +1136,13 @@ posted" — with the discard, a replayed increment is a no-op on every world, wh
 posting took and whether or not it wrote an entry. -/
 @[req "LDG-38"]
 theorem post_replay_discarded (p : Params) (hp : p.markDiscards = true) (w : World)
-    (incrementEnd : Nat) (exact : Rat) :
-    step p (step p w (.post incrementEnd exact)) (.post incrementEnd exact) =
-      step p w (.post incrementEnd exact) := by
+    (observedFrom incrementEnd : Nat) (rate : Rat) :
+    step p (step p w (.post observedFrom incrementEnd rate)) (.post observedFrom incrementEnd rate) =
+      step p w (.post observedFrom incrementEnd rate) := by
   simp only [step]
-  rcases post_refused_or_marked p w incrementEnd exact with h | h
+  rcases post_refused_or_marked p w observedFrom incrementEnd rate with h | h
   · rw [h]; exact h
-  · exact post_discarded p hp _ incrementEnd exact (by simp [h]; omega)
+  · exact post_discarded p hp _ observedFrom incrementEnd rate (by simp [h]; omega)
 
 /-- `LDG-72`'s one-sided check is kept by every step: an increment leaves the mark at least its
 own end whether or not it writes an entry, and no other step writes a `usage_debit` key or moves
@@ -1112,7 +1192,14 @@ theorem mark_covers_every_key (p : Params) (w : World) (e : Event) (h : w.markCo
             simp only [List.mem_cons, List.not_mem_nil, or_false] at he
             rcases he with rfl | rfl <;> split at hn <;> simp at hn
     · exact h
-  | post incrementEnd exact =>
+  | billable at_ =>
+    unfold World.markCovers at h ⊢
+    simp only [step, seed]; split
+    · intro e he n hn
+      obtain ⟨m, hm, hle⟩ := h e he n hn
+      exact ⟨_, rfl, by simp [hm]; omega⟩
+    · exact h
+  | post observedFrom incrementEnd rate =>
     unfold World.markCovers at h ⊢
     simp only [step, post, Ledger.clamp]; split
     · exact h
@@ -1130,5 +1217,102 @@ theorem mark_covers_every_key (p : Params) (w : World) (e : Event) (h : w.markCo
           · simp only [Key.usage.injEq] at hn
             exact ⟨_, rfl, by omega⟩
           · simp at hn
+
+/-! ## Where an increment starts -/
+
+/-- `LDG-38`: "the discard above is the case with nothing left after the mark" — under the start
+rule an increment ending at or before the mark has no seconds and no charge, whatever it observed
+and at any rate. -/
+@[req "LDG-38"]
+theorem nothing_left_at_or_before_the_mark (p : Params) (hp : p.startsAtMark = true) (w : World)
+    (m : Nat) (hm : w.mark = some m) (observedFrom incrementEnd : Nat) (rate : Rat)
+    (h : incrementEnd ≤ m) : charge p w observedFrom incrementEnd rate = 0 := by
+  simp [charge, start, hp, hm, Nat.sub_eq_zero_of_le h]
+
+/-- The charged intervals lie in posting order, each ending where or before the next starts, and
+none ends past the mark. -/
+def World.chargedInOrder (w : World) : Prop :=
+  w.charged.Pairwise (fun a b => a.2 ≤ b.1) ∧ ∀ i ∈ w.charged, ∃ m, w.mark = some m ∧ i.2 ≤ m
+
+/-- Under the start rule every step keeps `World.chargedInOrder`: a posting's interval starts at
+the mark, which no earlier interval ends past, and a seed only raises the mark. -/
+theorem charged_in_order_step (p : Params) (hp : p.startsAtMark = true) (w : World) (e : Event)
+    (h : w.chargedInOrder) : (step p w e).chargedInOrder := by
+  have hcredit : ∀ (dep : Deposit) ref rail sats, (credit p w dep ref rail sats).chargedInOrder := by
+    intro dep ref rail sats
+    simp only [credit]; split <;> exact h
+  cases e with
+  | advance n => exact h
+  | enrol t => simp only [step]; split <;> exact h
+  | mint d t x => simp only [step]; split <;> exact h
+  | settle d ref rail sats =>
+    simp only [step]; split
+    · split
+      · exact hcredit _ _ _ _
+      · exact h
+    · exact h
+  | lateOnchain d ref sats =>
+    simp only [step]; split
+    · exact hcredit _ _ _ _
+    · exact h
+  | reap t => simp only [step]; split <;> (try split) <;> exact h
+  | attribution d t =>
+    simp only [step]; split
+    · simp only [attribution]; split
+      · exact h
+      · split <;> exact h
+    · exact h
+  | billable at_ =>
+    simp only [step, seed]; split
+    · refine ⟨h.1, fun i hi => ?_⟩
+      obtain ⟨m, hm, hle⟩ := h.2 i hi
+      exact ⟨_, rfl, by simp [hm]; omega⟩
+    · exact h
+  | post observedFrom incrementEnd rate =>
+    simp only [step, post, Ledger.clamp]; split
+    · exact h
+    · obtain ⟨ho, hb⟩ := h
+      unfold World.chargedInOrder
+      simp only [start, hp, ↓reduceIte]
+      split
+      · rename_i hlt
+        refine ⟨List.pairwise_append.mpr ⟨ho, by simp, fun a ha b hb' => ?_⟩, fun i hi => ?_⟩
+        · simp only [List.mem_singleton] at hb'
+          subst hb'
+          obtain ⟨m, hm, hle⟩ := hb a ha
+          simpa [hm] using hle
+        · simp only [List.mem_append, List.mem_singleton] at hi
+          rcases hi with hi | rfl
+          · obtain ⟨m, hm, hle⟩ := hb i hi
+            exact ⟨_, rfl, by simp [hm]; omega⟩
+          · exact ⟨_, rfl, by simp; omega⟩
+      · simp only [List.append_nil]
+        refine ⟨ho, fun i hi => ?_⟩
+        obtain ⟨m, hm, hle⟩ := hb i hi
+        exact ⟨_, rfl, by simp [hm]; omega⟩
+
+/-- `LDG-38`: "An increment MUST start at the subject's latest high-water mark" — under the rule,
+from any world whose charged intervals are in order (one that has charged nothing is), through any
+events, no second lies inside two charged intervals: nothing is charged twice, whatever each
+posting observed, whether or not the discard or the seed is on, and under either key.
+
+What it does not cover: `World.charged` is the seconds each posting priced, not the satoshis, so it
+says nothing of the rounding or the clamp; one subject, one open period and one rate per increment,
+so not the split at a boundary or the latest mark read across rows (`LDG-72`); a mark moved back by
+a restore (`STO-54`), after which the same seconds are priced again against a ledger that rolled
+back with it; and it is one-sided — it does not say every billable second is charged, and nothing
+here models an exit from billable. Without the rule it is false:
+`Provisiond.Witnesses.remeter_charged_twice_without_the_start_rule`. -/
+@[req "LDG-38"]
+theorem no_second_charged_twice (p : Params) (hp : p.startsAtMark = true) (w : World)
+    (h : w.chargedInOrder) (evs : List Event) :
+    (run p w evs).charged.Pairwise
+      (fun a b => ∀ t, ¬ (a.1 ≤ t ∧ t < a.2 ∧ b.1 ≤ t ∧ t < b.2)) := by
+  have hrun : (run p w evs).chargedInOrder := by
+    unfold run
+    induction evs generalizing w with
+    | nil => exact h
+    | cons e es ih => exact ih _ (charged_in_order_step p hp w e h)
+  exact hrun.1.imp (fun hab t ht => by omega)
 
 end Provisiond.Funding

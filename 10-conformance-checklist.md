@@ -1731,7 +1731,9 @@ rather than acquiring a default.
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either — **the increment closes at the boundary,
       the old period's `meter_totals` row posts its part with its own credit, and the new period's
-      row starts at `r = 0`**, so the two rows never read each other. The same test covers a
+      row starts at `r = 0`**, so the two rows never read each other's `r` — *scoped to the credit
+      2026-10-02; the mark is `LDG-72`'s "the greatest `increment end` among that subject's
+      rows".* The same test covers a
       deficiency's `absorbed_from`/`absorbed_until` window straddling the boundary. *The mechanism
       clause was added 2026-09-05; this item asserted apportioning while `LDG-38` split only at a
       rate change, so a straddling increment had two credits and no rule.* (`LDG-68`, `LDG-38`,
@@ -1936,7 +1938,38 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
 
 - [ ] **CNF-160** — Posting the same `(subject, billing period, kind, increment end)` usage debit twice moves the
       balance once, and the debit and its commitment decrement land in one transaction — killing
-      the process between them leaves neither. (`LDG-38`, `LDG-31`, `STO-28`)
+      the process between them leaves neither. **And a replay that writes no entry moves nothing
+      either** (2026-10-02): post an increment that rounds to nothing, replay it, and assert the
+      subject's `r`, its high-water mark and its deficiency records are where the first posting
+      left them, with no entry added; then the same for an increment that posted an entry and whose
+      replay would round to nothing. A build that relies on the idempotency key alone fails both:
+      neither replay meets a conflict, and each moves `r`.
+      (`LDG-38`, `LDG-31`, `STO-28`, `STO-45`, `LDG-8`)
+- [ ] **CNF-304** — **An increment starts at the subject's high-water mark, whatever the meter
+      re-observed.** With a subject's mark at 10:00, drive a re-meter that observes 09:00–10:30 —
+      a restart that lost its place — and assert the subject is charged for 10:00–10:30 and for
+      nothing else, under the key of the increment ending at 10:30, and that the mark is then
+      10:30. The wrong builds: one that admits the increment whole because its end is past
+      the mark charges 09:00–10:00 a second time, and one that discards it whole because it
+      overlaps the mark never charges 10:00–10:30. (`LDG-38`, `LDG-72`, `LDG-8`)
+- [ ] **CNF-305** — **The mark is seeded when a subject becomes billable, and the first increment
+      starts there.** A machine recorded billable at Jan 31 23:59:30Z whose first tick is Feb 1
+      00:00:30Z is charged thirty seconds under January's `meter_totals` row and key and thirty
+      under February's. The wrong builds: one that starts a never-marked subject's first
+      increment at the period's start never charges January's thirty seconds, and one that files
+      the whole minute under either month charges it against one row's credit. **And a mark more
+      than one period back is still the start**: the same machine, billable throughout, whose
+      first tick is instead Mar 1 00:00:30Z is charged from Jan 31 23:59:30Z, split at both
+      boundaries — thirty seconds under January's row and key, all of February under February's,
+      thirty seconds under March's. The wrong build reads the mark from the current period's row
+      and, failing that, the period before's: it finds none in either, and does not charge from
+      January's mark. Assert the seed
+      itself, at each transition `LDG-38` names: after the machine's row insert, after a billable
+      attachment's `PRV-45` write, and after a machine's re-entry into a billable state, the
+      subject's mark is the recorded instant before any tick has run, no ledger entry was written
+      for it, and on the re-entry the row's `r` is what it was — a build that seeds only at create
+      leaves the old mark, and the re-entered machine's next increment starts before the machine
+      was billable again. (`LDG-38`, `STO-45`, `LDG-72`, `LDG-68`, `PRV-45`)
 - [ ] **CNF-161** — A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at
       cancellation *acceptance* is the defect. (`LDG-37`, `DOM-19`)

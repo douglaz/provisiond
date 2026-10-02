@@ -125,8 +125,11 @@ For a `usage_debit` the key MUST be **`(subject, billing period, kind, increment
 *subject* is the machine or an individual billable attachment and *increment end* is the instant
 the metered increment closes (`LDG-38`). **The key is derived from the thing being billed, never
 from a count of what has already been posted** — a redelivered or crash-replayed increment then
-derives the *same* key and conflicts, while a cadence that subdivides a period still posts every
-increment under a distinct one.
+derives the *same* key, and where it inserts an entry and the first posting left one the insert
+conflicts, while a cadence that subdivides a period still posts every increment under a distinct
+one. What stops a replayed increment, and how little of that the conflict is, is `LDG-38`'s.
+*Amended 2026-10-02: this sentence had the replay conflict unconditionally, and a conflict is a
+refused insert, which a replay that writes no entry never attempts.*
 
 *A "posting index" counted from the ledger was the withdrawn form, and it cannot deduplicate at
 all: a second run reads one more prior debit, derives the next index, and its insert succeeds —
@@ -662,7 +665,8 @@ The recurrence worked, rendered from its declaration (`Provisiond.Meter.debits`)
 <!-- /formal -->
 
 `r` and the high-water mark are the whole of the meter's state. Both are read from and written to
-`LDG-72`'s running total for this `(subject, billing period)`, never recomputed by query.
+`LDG-72`'s running total — `r` for this `(subject, billing period)`, the mark as the subject's
+latest — never recomputed by query.
 
 **This is the cumulative-ceiling rule, restated so that its state is bounded.** The withdrawn form
 carried `exact_total` and `already_charged` and posted `ceil(exact_total) − already_charged`. That is
@@ -855,11 +859,62 @@ that hides a wrong conclusion for a month.
 
 **The subject's high-water mark is the greatest `increment end` already posted for it**, and
 **an increment whose end instant is at or before that mark MUST be discarded, not posted** — a
-re-meter after restart re-observes elapsed time it has already charged, and without the mark the
-deduplication key protects only exact replays, not overlapping ones. **The mark, the cumulative sum
+re-meter after restart re-observes elapsed time it has already charged. **The mark, the cumulative sum
 and the insert MUST occur in one serialized transaction** (`LDG-35`): computing them outside it lets
 two concurrent runs both read the same prior total and both post. **Observation cadence is an
 operational choice; it MUST NOT be a pricing input.**
+
+**Every transition of a subject into billable MUST write that subject's high-water mark at the
+recorded instant** — as an empty increment through `STO-45`'s no-entry path, in the same transaction
+as the write that records the subject billable and under `LDG-35`'s per-tenant serialization. For a
+machine that write is the one that records it billable: its row insert, where the deployment bills
+from creation, and any later re-entry into a billable state. For an attachment it is `PRV-45`'s
+write. This seed carries no seconds and posts nothing: a period row it creates starts with `r = 0`,
+and an existing row's `r` is untouched.
+
+**An increment MUST start at the subject's latest high-water mark** — in whichever period's row that
+mark sits (`LDG-72`) — **and MUST be split at every period boundary and every rate change it
+crosses.** There is no case without a mark: the seed puts one there before the first metered
+increment. The meter does not choose a start, and where a re-observation takes itself to have begun
+is not an input. A re-meter that overlaps the mark is therefore **clipped** to it: after a mark at
+10:00, a re-meter observing 09:00–10:30 charges 10:00–10:30 and nothing else, and the discard above
+is the case with nothing left after the mark. Billing starts at the recorded instant, as `LDG-74`
+stops it at the recorded observation.
+
+*Why the mark, and why seeded.* `net_seconds_i`'s "elapsed billable seconds inside i" comes from
+billability "re-read inside the same `LDG-35` serialization that appends": a read at append, not a
+history. It cannot say when the subject became billable, and nothing else in the store can —
+`machines.state_observed_at` holds the latest observation only and `machine_attachments` has no
+attach instant — so no start can be left to it. A start at the metering period's first instant, for
+a subject not yet marked, forfeits every billable second before that boundary and makes the tick's
+timing a pricing input, against the sentence above: a machine recorded billable at Jan 31 23:59:30Z
+whose first tick is Feb 1 00:00:30Z owes thirty seconds under January's row and key and thirty
+under February's, and that start charges February's alone.
+
+**The mark and the start rule stop every replay, exact or overlapping; `LDG-8`'s key is a backstop
+behind them, and a narrower one than it looks.** A replayed increment ends at or before the mark and
+is discarded; an overlapping one is clipped to what lies past it. The key refuses an **insert** and
+nothing else: a replay that itself inserts an entry, under a key the first posting left. A replay
+that rounds or clamps to nothing inserts no row and meets no conflict, whatever the first posting
+wrote; a replay of an increment whose first posting wrote no entry finds no key to conflict with,
+whatever it inserts; and the key guarantees nothing about the meter's state: a replay it does not
+refuse can move `r` and can book a deficiency.
+
+*Added 2026-10-02 — the seed, the start and the clip.* Until then this requirement fixed a start
+only after a rate change, where the meter MUST "close an increment at each rate-change instant
+inside its elapsed window and open the next one there" — an instance of the rule above now. A
+re-meter re-observing 0–10 after an increment had closed at 7 ended past the mark, derived a key
+nothing held, and was admitted whole: seconds 0–7 charged twice. *The form decided the day before
+started a subject "with no mark ever, at the period's start"; it is kept because it reads as
+complete and is the forfeit worked above.*
+
+*Amended 2026-10-02 — what the key stops.* This paragraph gave the mark's reason as "without the
+mark the deduplication key protects only exact replays, not overlapping ones", which credits the key
+with every exact replay. It refuses none that writes no entry. With the key alone in the way: at
+1/5 sat a second, an increment of one second posts 1 and leaves `r` at 4/5, and its exact replay
+rounds to nothing, inserts no row and still moves `r` to 3/5; with one satoshi of commitment left,
+the replay of a clamped increment books a second deficiency. The over-claim is kept because a build
+that believes it relies on the key alone.
 
 **AMENDED — the mark and the running sum are read from `LDG-72`'s record, not derived by query.**
 *The withdrawn wording said they were "a query over the ledger, not a stored column, and this
@@ -890,8 +945,18 @@ defect and the fix was not carried across.** It is carried across now, on the sa
   no-floating-point rule reaches it) and the **greatest `increment end` posted** for that
   `(subject, billing period)`. Both MUST be written inside the same serialized transaction that
   closes the increment — the one that appends the debit where one posts (`LDG-35`, `STO-45`).
-- `LDG-38` reads both from this record, which makes a tick a single indexed row read regardless of
-  cadence or of how far into the period it falls.
+- `LDG-38` reads both from this record, and neither read depends on cadence or on how far into the
+  period the tick falls. **The mark is the greatest `increment end` among that subject's rows**,
+  whichever period's row holds it: the current period's once that row exists, an earlier period's
+  on the first tick of a new period and after a meter that lagged across more than one boundary.
+  That is one read on the primary key's `(subject_kind, subject_id)` prefix (`05-persistence.md`),
+  over one row per period the subject has a row in. **`r` is read per piece, from the row of the
+  period the piece closes under** — the row holding that mark, or one this transaction creates at
+  `r = 0` (`LDG-38`). *Amended 2026-10-02: until then the mark was read from the current period's
+  row only, which on a period's first tick holds none; `LDG-38`'s start rule needs the subject's
+  latest.*
+- **`LDG-38`'s seed is such a record**: an empty increment, closed by the transaction that records
+  the subject billable, written without a ledger entry.
 - A `correction` does **not** touch this record. It moves the balance and leaves `r` alone
   (`LDG-38`), so there is nothing to keep in step and no second channel to keep honest.
 

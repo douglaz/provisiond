@@ -629,12 +629,19 @@ have discharged on the observation that preceded it.*
 Primary key `(subject_kind, subject_id, billing_period)`.
 
 **STO-45** **The row MUST be written in the same transaction as the increment it closes, and by no
-other path.** Every increment updates it under `LDG-35`'s per-tenant serialization — in the
+other path.** An increment `LDG-38` discards moves nothing — no row write, `r` and the mark where
+they were, no deficiency, no entry — and every other increment updates it under `LDG-35`'s
+per-tenant serialization — in the
 transaction that appends the `usage_debit` where one posts, and **in a transaction with no ledger
 entry — but still carrying any `STO-37` deficiency row a clamp owes — under the same serialization
 where the increment rounds or clamps to nothing** (`LDG-72`), since the rounding credit and the
 high-water mark advance either way and a zero-value ledger row is not legal. *"The entry it summarises" was the wording until 2026-09-05, which forbade the second case
-outright and left a zero-debit increment with no legal way to record that it had happened.* A
+outright and left a zero-debit increment with no legal way to record that it had happened.* The
+mark `LDG-38` seeds when a subject becomes billable is not another path: it is that requirement's
+empty increment, through the no-entry transaction above, in the transaction of the write that
+records the subject billable. *Amended 2026-10-02: the discard and the seed are stated; the first
+sentence had every increment updating the row, a replayed one included, which is what a build
+relying on `LDG-8`'s key alone does to `r` (`LDG-38`).* A
 `correction` does not touch it at all (`LDG-38`). There is no
 lazy-repair path and no background reconciler: `API-54` forbids a `GET` taking a write transaction,
 so a total repaired on read was never available, and `LDG-70` reached the same conclusion for
@@ -1332,7 +1339,8 @@ has not built under `ADR-0005` is not built for this. Added 2026-09-12; until th
 and `ADR-0023` described the grace as what "stands between
 the restore and the destroyed disk", which is true only of a tenant that re-extends in time*); a
 debit lost in Δ is re-metered
-from the rolled-back high-water mark, and the rate boundaries `LDG-38` would have split the span
+by `LDG-38`'s start rule, from the mark the backup holds (*amended 2026-10-02: the start is that
+requirement's, not this sentence's*), and the rate boundaries `LDG-38` would have split the span
 at are gone with the `rate_observations` written in Δ; a gone-write lost in Δ extends the
 customer's charge to the next complete pass (`LDG-74`), and the correction is an operator `LDG-5`
 entry; a commitment is "not a ledger entry" (`LDG-30`) and is not rebuilt from payments;

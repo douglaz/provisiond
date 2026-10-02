@@ -41,11 +41,12 @@ month in UTC" is `LDG-68`'s Markdown and nothing in this module; the two ends of
 boundaries are finitely many, so `key` puts the instants before the earliest in a period 0 that
 begins at no boundary, unlike `LDG-68`'s "A period begins at `00:00:00Z` on the first day of a
 month", and the instants from the latest in a period that never ends, unlike its "ends at the same
-instant of the next"; an increment's start, which is a given of the increment here — only after a
-rate change is one fixed, by `LDG-38`'s "close an increment at each rate-change instant inside its
-elapsed window and open the next one there", and `pv-vwe.30` records the starts nothing fixes;
-`LDG-72`'s high-water mark per `(subject, billing period)` — `Provisiond.Funding` models the mark,
-for one open period; `LDG-38`'s deficiency-absorbed windows split at the boundary — a piece's
+instant of the next"; an increment's start, which is a given of the increment here — `LDG-38`
+fixes it, "An increment MUST start at the subject's latest high-water mark", and
+`Provisiond.Funding` models that start and the seed behind it for one open period, so the split
+here cuts an increment whose start is already the rule's; that mark where it sits in an earlier
+period's row — `LDG-72`: "The mark is the greatest `increment end` among that subject's rows" —
+which neither module models, `Provisiond.Funding` having one row and this one no mark; `LDG-38`'s deficiency-absorbed windows split at the boundary — a piece's
 seconds are all billable, and "Where an absorbed window straddles a period boundary each period
 subtracts its own part and no more" is not modelled; `LDG-31`'s clamp (`Provisiond.Ledger`) and the
 ledger entry, which `Provisiond.Funding` composes with the recurrence for one open period; `LDG-8`'s
@@ -79,7 +80,7 @@ def current : Params := {
     splitAtBoundary := true,
     deploymentWide  := true }
 
-/-- An increment of one subject: the instant it starts, which is a given (the module docstring),
+/-- An increment of one subject: the instant it starts, a given here (the module docstring),
 the instant it closes, `LDG-8`'s *increment end*, and `LDG-38`'s `customer_rate_i`, "the rate in
 force throughout i". Instants are seconds. -/
 structure Increment where

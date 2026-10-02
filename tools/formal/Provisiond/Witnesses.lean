@@ -20,6 +20,7 @@ built, and broke; each is retained here so the trap cannot be re-laid without a 
 Witnesses over rationals close by `decide +kernel` (`ADR-0025`): plain `decide` gets stuck on
 `Std.Rat` normalisation and `native_decide` is refused under `@[req]`. The exceptions are
 `increment_replay_refused_by_key`, `mark_discards_what_the_key_admits`,
+`remeter_clipped_to_the_mark`, `seed_starts_the_first_increment`,
 `boundary_resets_the_credit`, `straddle_split_at_the_boundary` and
 `late_subject_shares_the_boundary`, which close by `with_unfolding_all decide`: each is the
 witness a `ci.yml` row must see refuted, refuted `decide +kernel` reports an instance that "did not
@@ -1258,13 +1259,15 @@ end Reconcile
 One tenant's ledger in `Ledger.Balances` and its entries in `Ledger.Book`, then the lifecycle in
 `Funding.World`: tenant 1 enrols and mints deposit 1; the activation minimum is 100,000; the
 on-chain finality window is 6; machine 1 is the metered subject, billing tenant 1 in period 0
-against 30 of commitment. Every witness pair here flips one field of `Ledger.current` or
+against 30 of commitment, recorded billable at 0, where its mark was seeded. Every witness pair
+here flips one field of `Ledger.current` or
 `Funding.current` and asserts only what its own parameter decides. The witnesses that are no
 pair's half: `earlier_row_authorizes_unfunded_create` and `drift_identity_witness`, which pin
 `appendReadsLatest` and exhibit a trace; `replay_credits_once`, where the key and the `payments`
-row each refuse the replay; `expiry_ends_watching_not_binding`; and `clamp_composed_witness`,
+row each refuse the replay; `expiry_ends_watching_not_binding`; `clamp_composed_witness`,
 `zero_debit_advances_the_mark` and `clamped_debit_advances_the_mark`, which exhibit the meter under
-`Funding.current`. The attribution witness settles one payment, so that `keyFrom := .deposit`
+`Funding.current`; `replay_writing_no_entry_escapes_the_key`, which pins every guard on a replay
+off but the stated key; and `reentry_seeds_the_mark_and_nothing_else`. The attribution witness settles one payment, so that `keyFrom := .deposit`
 decides the two-rails witness alone. -/
 
 section Funding
@@ -1371,7 +1374,8 @@ def d1 : DepositId := ⟨1⟩
 def fundWorld : Funding.World :=
   { now := 0, finality := 6, activationMin := 100000, tenants := [], retired := [], deposits := [],
     payments := [], entries := [], deficiencies := [], subject := .machine ⟨1⟩, period := 0,
-    tenant := t1, remaining := 30, roundingCredit := 0, mark := none }
+    tenant := t1, remaining := 30, roundingCredit := 0, mark := some 0, periodStart := 0,
+    charged := [] }
 
 /-- The rail re-announcing one settlement: "a node replays invoice settlements on reconnect". -/
 def replayTrace : List Funding.Event :=
@@ -1518,8 +1522,8 @@ recurrence says; the next computed 50 finds nothing left, posts no entry, and bo
 never 120 — with `available` unchanged throughout. -/
 @[req "LDG-31"]
 theorem clamp_composed_witness :
-    let w := Funding.post Funding.current fundWorld 10 100
-    let w' := Funding.post Funding.current w 20 50
+    let w := Funding.post Funding.current fundWorld 0 10 10
+    let w' := Funding.post Funding.current w 10 20 5
     w.entries.map (·.sats) = [-30] ∧ w.remaining = 0 ∧
     w.deficiencies = [{ clampedSats := 70, absorbedSeconds := 0 }] ∧ w.roundingCredit = 0 ∧
     w'.entries.map (·.sats) = [-30] ∧
@@ -1527,57 +1531,68 @@ theorem clamp_composed_witness :
                        { clampedSats := 50, absorbedSeconds := 0 }] ∧
     w'.available = fundWorld.available := by decide +kernel
 
-/-- The increment closing at 7 at an exact 7/5, and its crash-replay: the same end, the same
-charge. -/
-def incrementReplayTrace : List Funding.Event := [.post 7 (7/5), .post 7 (7/5)]
+/-- At 1/5 sat a second, the increment observed from 0 and closing at 7, an exact 7/5, and its
+crash-replay: the same observation, the same end. -/
+def incrementReplayTrace : List Funding.Event := [.post 0 7 (1/5), .post 0 7 (1/5)]
 
-/-- `Funding.current` with the discard pinned off, named as `recordOff` is. -/
-def discardOff : Funding.Params := { Funding.current with markDiscards := false }
+/-- `Funding.current` with the discard and the start rule pinned off, named as `recordOff` is:
+what is left to refuse a replay is the key. -/
+def keyAlone : Funding.Params :=
+  { Funding.current with markDiscards := false, startsAtMark := false }
 
-/-- `LDG-8`'s key alone, the discard pinned off: the replay "derives the *same* key and conflicts",
-and the conflict refuses it whole — one entry of −2, 28 of the commitment left, `r` at 3/5. -/
+/-- `LDG-8`'s key alone, the discard and the start rule pinned off: the replay "derives the *same*
+key", it inserts an entry and the first posting left one, so "the insert conflicts" and the replay
+is refused whole — one entry of −2, 28 of the commitment left, `r` at 3/5. -/
 @[req "LDG-8"]
 theorem increment_replay_refused_by_key :
-    let w := Funding.run discardOff fundWorld incrementReplayTrace
+    let w := Funding.run keyAlone fundWorld incrementReplayTrace
     w.entries.map (·.sats) = [-2] ∧ w.remaining = 28 ∧ w.roundingCredit = 3/5 := by
   with_unfolding_all decide
 
-/-- Keyed on the posting index instead, the discard pinned off, the replay is `LDG-8`'s second run
+/-- Keyed on the posting index instead, the discard and the start rule pinned off, the replay is
+`LDG-8`'s second run
 that "reads one more prior debit, derives the next index, and its insert succeeds": −2 and −1,
 the commitment at 27 where one posting leaves 28, `r` at 1/5 where one posting leaves 3/5 —
 "double-charging the tenant and double-decrementing the commitment". -/
 @[req "LDG-8"]
 theorem increment_replay_posts_twice_by_index :
     let w := Funding.run
-      { Funding.current with usageKeyFrom := .postingIndex, markDiscards := false } fundWorld
-      incrementReplayTrace
+      { Funding.current with usageKeyFrom := .postingIndex, markDiscards := false,
+                             startsAtMark := false } fundWorld incrementReplayTrace
     w.entries.map (·.sats) = [-2, -1] ∧ w.remaining = 27 ∧ w.roundingCredit = 1/5 := by
   decide +kernel
 
-/-- At 1/5 sat a second: an increment closes at 7 (7/5), one at 9 (2/5) rounds to nothing, that
-one is replayed, and a re-meter after a restart re-observes 0 to 8 (8/5), time already charged,
-closing below the mark. -/
+/-- At 1/5 sat a second: an increment observed from 0 closes at 7 (7/5), one from 7 closes at 9
+(2/5) and rounds to nothing, that one is replayed, and a re-meter after a restart re-observes 0 to
+8 (8/5), time already charged, closing below the mark. -/
 def remeterTrace : List Funding.Event :=
-  [.post 7 (7/5), .post 9 (2/5), .post 9 (2/5), .post 8 (8/5)]
+  [.post 0 7 (1/5), .post 7 9 (1/5), .post 7 9 (1/5), .post 0 8 (1/5)]
 
-/-- `LDG-38`'s mark, under the stated key: the replay of the increment that rounded to nothing and
-the re-meter ending below the mark are both discarded, and the world is the one the first two
-increments left — one entry of −2, 28 left, `r` at 1/5. The first wrote no entry, so no key exists
-for its replay to conflict with; the second ends at an instant no key names. -/
+/-- `Funding.current` with the start rule pinned off: each increment starts where its observation
+takes itself to have begun. Named as `recordOff` is. -/
+def startOff : Funding.Params := { Funding.current with startsAtMark := false }
+
+/-- `LDG-38`'s discard, under the stated key and with the start rule pinned off, since under it
+neither increment has a second left to charge (`Funding.nothing_left_at_or_before_the_mark`): the
+replay of the increment that rounded to nothing and the re-meter ending below the mark are both
+discarded, and the world is the one the first two increments left — one entry of −2, 28 left, `r`
+at 1/5. The first wrote no entry, so no key exists for its replay to conflict with; the second ends
+at an instant no key names. -/
 @[req "LDG-38"]
 theorem mark_discards_what_the_key_admits :
-    let w := Funding.run Funding.current fundWorld remeterTrace
-    w = Funding.run Funding.current fundWorld (remeterTrace.take 2) ∧
+    let w := Funding.run startOff fundWorld remeterTrace
+    w = Funding.run startOff fundWorld (remeterTrace.take 2) ∧
     w.entries.map (·.sats) = [-2] ∧ w.remaining = 28 ∧ w.roundingCredit = 1/5 := by
   with_unfolding_all decide
 
-/-- Without the discard, the same trace charges what the key cannot see: the replay posts −1 and
-takes `r` to 4/5, the re-meter posts −1 more, each under a key nothing held, and the commitment
-stands at 26 where the mark leaves 28 — `LDG-38`: "without the mark the deduplication key protects
-only exact replays, not overlapping ones". -/
+/-- Without the discard and without the start rule, the same trace charges what the key cannot
+see: the replay posts −1 and takes `r` to 4/5 — `LDG-38`: "a replay of an increment whose first
+posting wrote no entry finds no key to conflict with" — the re-meter posts −1 more under a key
+nothing held, and the commitment stands at 26 where the mark leaves 28. -/
 @[req "LDG-38"]
 theorem remeter_charged_without_the_mark :
-    let p := { Funding.current with usageKeyFrom := .incrementEnd, markDiscards := false }
+    let p := { Funding.current with usageKeyFrom := .incrementEnd, markDiscards := false,
+                                    startsAtMark := false }
     let w := Funding.run p fundWorld remeterTrace
     let k := Key.usage (.machine ⟨1⟩) 0 .usageDebit
     (Funding.run p fundWorld (remeterTrace.take 3)).roundingCredit = 4/5 ∧
@@ -1603,9 +1618,98 @@ written "without a ledger entry but with any deficiency `STO-45` requires where 
 or clamps to nothing"; `clamp_composed_witness` asserts the deficiency it books. -/
 @[req "STO-45"]
 theorem clamped_debit_advances_the_mark :
-    let w := Funding.post Funding.current fundWorld 10 100
-    let w' := Funding.post Funding.current w 20 50
+    let w := Funding.post Funding.current fundWorld 0 10 10
+    let w' := Funding.post Funding.current w 10 20 5
     w.mark = some 10 ∧ w'.entries = w.entries ∧ w'.mark = some 20 := by decide +kernel
+
+/-- `LDG-38`: "The key refuses an **insert** and nothing else". The stated key alone, the discard
+and the start rule pinned off, on two exact replays of an increment whose first posting wrote an
+entry. One second at 1/5 posts 1 and leaves `r` at 4/5, and its replay "rounds or clamps to
+nothing", "inserts no row and meets no conflict": one entry, and `r` moved to 3/5. With one satoshi
+of commitment left, `incrementReplayTrace`'s first posting is clamped to 1 and books 1, and its
+replay clamps to nothing and books 1 more, `r` moved from 3/5 to 1/5. -/
+@[req "LDG-38"]
+theorem replay_writing_no_entry_escapes_the_key :
+    let p := { Funding.current with usageKeyFrom := .incrementEnd, markDiscards := false,
+                                    startsAtMark := false }
+    let w := Funding.run p fundWorld [.post 0 1 (1/5), .post 0 1 (1/5)]
+    let w' := Funding.run p { fundWorld with remaining := 1 } incrementReplayTrace
+    (Funding.run p fundWorld [.post 0 1 (1/5)]).roundingCredit = 4/5 ∧
+    w.entries.map (·.sats) = [-1] ∧ w.roundingCredit = 3/5 ∧ w.deficiencies = [] ∧
+    w'.entries.map (·.sats) = [-1] ∧ w'.roundingCredit = 1/5 ∧
+    w'.deficiencies.map (·.clampedSats) = [1, 1] := by decide +kernel
+
+/-- At 1/5 sat a second: an increment closes at 7, and a re-meter after a restart re-observes 0 to
+10, ending past the mark. -/
+def overlapTrace : List Funding.Event := [.post 0 7 (1/5), .post 0 10 (1/5)]
+
+/-- The subject with its mark at 600: 10:00, in minutes. -/
+def markedAtTen : Funding.World := { fundWorld with mark := some 600 }
+
+/-- `LDG-38`'s start rule: "A re-meter that overlaps the mark is therefore **clipped** to it". The
+re-meter of `overlapTrace` is priced over 7 to 10 and nothing else — 3/5 against `r` at 3/5 posts no
+entry — so the ten seconds cost the 2 they are worth; and with the mark at 10:00 a re-meter
+observing 09:00 to 10:30 is priced over 10:00 to 10:30. -/
+@[req "LDG-38"]
+theorem remeter_clipped_to_the_mark :
+    let w := Funding.run Funding.current fundWorld overlapTrace
+    w.charged = [(0, 7), (7, 10)] ∧ w.entries.map (·.sats) = [-2] ∧ w.remaining = 28 ∧
+    (Funding.post Funding.current markedAtTen 540 630 (1/5)).charged = [(600, 630)] := by
+  with_unfolding_all decide
+
+/-- Without the start rule the re-meter ends past the mark, so the discard admits it, and its key
+is new: it is priced over 0 to 10 whole, seconds 0 to 7 a second time, −2 and −2 with 26 left; and
+the re-meter observing 09:00 to 10:30 is priced over all of it. -/
+@[req "LDG-38"]
+theorem remeter_charged_twice_without_the_start_rule :
+    let p := { Funding.current with usageKeyFrom := .incrementEnd, markDiscards := true,
+                                    startsAtMark := false }
+    let w := Funding.run p fundWorld overlapTrace
+    w.charged = [(0, 7), (0, 10)] ∧ w.entries.map (·.sats) = [-2, -2] ∧ w.remaining = 26 ∧
+    w.roundingCredit = 3/5 ∧ w.mark = some 10 ∧
+    (Funding.post p markedAtTen 540 630 (1/5)).charged = [(540, 630)] := by decide +kernel
+
+/-- A subject nothing has marked, in a period that opened at 60. -/
+def seedWorld : Funding.World := { fundWorld with mark := none, periodStart := 60 }
+
+/-- The subject is recorded billable at 30, before the period opened, and the first tick closes an
+increment at 90, at 1/5 sat a second. -/
+def seedTrace : List Funding.Event := [.billable 30, .post 60 90 (1/5)]
+
+/-- `Funding.current` with the start rule pinned on, named as `recordOff` is. -/
+def startOn : Funding.Params := { Funding.current with startsAtMark := true }
+
+/-- `LDG-38`'s seed, the start rule pinned: "Every transition of a subject into billable MUST write
+that subject's high-water mark at the recorded instant", so the seed leaves the mark at 30, and the
+first increment is priced from 30: sixty seconds, the one entry of 12. (The split of those seconds
+at the period boundary is `Provisiond.Period`'s.) -/
+@[req "LDG-38"]
+theorem seed_starts_the_first_increment :
+    let w := Funding.run startOn seedWorld seedTrace
+    (Funding.run startOn seedWorld (seedTrace.take 1)).mark = some 30 ∧
+    w.charged = [(30, 90)] ∧ w.entries.map (·.sats) = [-12] ∧ w.roundingCredit = 0 := by
+  with_unfolding_all decide
+
+/-- Without the seed the subject has no mark at its first tick, and the start falls to the withdrawn
+form — `LDG-38`: "with no mark ever, at the period's start": the increment is priced from 60, and
+the thirty billable seconds before the boundary are never charged. -/
+@[req "LDG-38"]
+theorem first_increment_from_the_period_start_without_the_seed :
+    let p := { Funding.current with startsAtMark := true, seedOnBillable := false }
+    let w := Funding.run p seedWorld seedTrace
+    (Funding.run p seedWorld (seedTrace.take 1)).mark = none ∧
+    w.charged = [(60, 90)] ∧ w.entries.map (·.sats) = [-6] := by decide +kernel
+
+/-- `LDG-38`: the seed is written at "any later re-entry into a billable state", and "an existing
+row's `r` is untouched". After `seedTrace`'s increment a seed at 200 moves the mark from 90 to 200
+and nothing else, and a seed at or before the mark moves nothing. What is charged for the time
+before a re-entry is not this witness's: the model has no exit from billable. -/
+@[req "LDG-38"]
+theorem reentry_seeds_the_mark_and_nothing_else :
+    let p := { Funding.current with startsAtMark := true, seedOnBillable := true }
+    let w := Funding.run p seedWorld seedTrace
+    Funding.seed p w 200 = { w with mark := some 200 } ∧ w.mark = some 90 ∧
+    Funding.seed p w 50 = w := by decide +kernel
 
 end Funding
 

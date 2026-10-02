@@ -383,7 +383,8 @@ jobs:
       #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
       #     match_is_not_observation, w.orderLanded = some mach.
       # Funding and the tenant lifecycle (pv-vwe.6; pv-vwe.15 for LDG-70's read; pv-vwe.16 for
-      # LDG-8's usage key and LDG-38's high-water mark), Ledger.current and Funding.current:
+      # LDG-8's usage key and LDG-38's high-water mark; pv-vwe.30 for LDG-38's start rule and
+      # seed), Ledger.current and Funding.current:
       #   clampAtAuthority (LDG-31's clamp paragraph): the excess is taken from available
       #     balance, the seizure -- clamp_witness on seizureBalances;
       #   serializedAuthorization (LDG-35, the primitive of ADR-0015, 2026-09-06): two opens
@@ -404,11 +405,18 @@ jobs:
       #   reapWaitsForWindow (API-34): a tenant with a deposit inside its window is reaped and
       #     the payment lands unattributed -- reap_waits_for_window_witness on reapTrace;
       #   usageKeyFrom := .postingIndex (LDG-8, the withdrawn posting index): with the discard
-      #     pinned off, the replayed increment derives the next index and posts again --
-      #     increment_replay_refused_by_key on incrementReplayTrace;
-      #   markDiscards (LDG-38): the replay of an increment that rounded to nothing, and a
-      #     re-meter ending below the mark, each post under a key nothing held --
-      #     mark_discards_what_the_key_admits on remeterTrace.
+      #     and the start rule pinned off, the replayed increment derives the next index and
+      #     posts again -- increment_replay_refused_by_key on incrementReplayTrace;
+      #   markDiscards (LDG-38): with the start rule pinned off, the replay of an increment that
+      #     rounded to nothing, and a re-meter ending below the mark, each post under a key
+      #     nothing held -- mark_discards_what_the_key_admits on remeterTrace;
+      #   startsAtMark (LDG-38, 2026-10-02): the increment starts where its observation says, and
+      #     a re-meter re-observing 0 to 10 after an increment closed at 7 is priced whole,
+      #     seconds 0 to 7 a second time -- remeter_clipped_to_the_mark on overlapTrace;
+      #   seedOnBillable (LDG-38, 2026-10-02): the subject recorded billable before the period
+      #     opened has no mark at its first tick, the increment starts at the period's start and
+      #     the seconds before it are never charged -- seed_starts_the_first_increment on
+      #     seedTrace.
       # Wire canonicalization and redaction (pv-vwe.3), Wire.current:
       #   endpointInPreimage (WIR-3, "Method and target are part of the fingerprint"): the delete
       #     on machine B replays the delete on A -- endpoint_in_fingerprint_witness on deleteOnA;
@@ -535,6 +543,8 @@ jobs:
           Funding|reapWaitsForWindow|true|false|reapTrace
           Funding|usageKeyFrom|.incrementEnd|.postingIndex|incrementReplayTrace
           Funding|markDiscards|true|false|remeterTrace
+          Funding|startsAtMark|true|false|overlapTrace
+          Funding|seedOnBillable|true|false|seedTrace
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
