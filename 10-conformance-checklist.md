@@ -456,11 +456,11 @@ not optional hardening — they are the only structural defence there is.
       two equal to each other and to neither posting's wall clock — and each machine's view
       (`WIR-11`) showing `rate_outage_deadline` equal to that instant plus `LDG-64`'s bound. **A
       machine with no record shows the same deadline**: assert that a third machine priced in that
-      currency, whose meter has posted nothing since the outage began and which has no `STO-37`
-      row, shows that same `rate_outage_deadline`, that a machine priced in a currency with a rate
+      currency, under `LDG-72`'s quarantine so that its meter posts nothing and it has no
+      `STO-37` row, shows that same `rate_outage_deadline`, that a machine priced in a currency with a rate
       shows null, and that no `STO-37` row stores a deadline. Then, past that deadline, let the
       worker's `OPS-41` contend run on the third machine, which has no record, and assert the
-      count of `STO-37` rows does not change — `STO-37`: "Nor does the worker's `OPS-41` contend
+      third machine still has no `STO-37` row — `STO-37`: "Nor does the worker's `OPS-41` contend
       open one"; a build whose worker inserts where it finds no row, or upserts, fails here and
       passes on a machine that already has one. **A thin window's outage
       starts at the pass that found it thin** (added 2026-09-25, `ADR-0027`): with a window that
@@ -731,7 +731,7 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       whose stored `runway_until` has passed, that the worker claiming that cancellation decides
       on the re-derived date and does not defer (`OPS-41`), and that an `extend-runway` is not
       refused with `gate: "rate_unavailable"`; for the currency in outage, assert the sweep's and
-      the extension's clauses above. A build that halts deployment-wide fails it. This case
+      the extension's clauses above. A build whose sweep or worker halts deployment-wide fails it. This case
       asserts nothing about the solvency check while one currency alone has no rate.
       (*Amended 2026-09-23, `ADR-0027`: a pass below quorum halts nothing (`LDG-59`), so the fault
       must outlast the bound; `CNF-99` holds the single pass.* *Amended 2026-10-02, `ADR-0029`;
@@ -1793,7 +1793,8 @@ rather than acquiring a default.
       grace defers on the grace, and after `grace_ends_at` it still defers while there is no rate
       and the deadline has not passed, so the cancellation waits for the later of the two. *And
       where the deadline falls inside the grace*: a claim made past the deadline and inside the
-      grace, with no rate, returns to `queued` with `available_at = grace_ends_at` — the grace's
+      grace, with `grace_ends_at` already written and more of the grace left than `OPS-8`'s short
+      delay, and with no rate, returns to `queued` with `available_at = grace_ends_at` — the grace's
       deferral, which that instant tells apart from step 4's short delay — and writes no fence;
       the claim after `grace_ends_at`, with still no rate, writes the fence and cancels at step 5.
       A build that checks the deadline before the grace cancels inside the grace. *The

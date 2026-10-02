@@ -1050,8 +1050,8 @@ already queued waits as `OPS-41` orders), and **the solvency check** (MUST fail 
 
 **The fifth row — metering — was missing, and it is the one that costs money** (`LDG-64`).
 
-**An extension of runway MUST halt as a create does**: it is a purchase priced at an unknown rate
-too. `LDG-62` holds what the halted extension leaves untouched.
+**With no rate for the machine's currency, an extension of runway MUST halt as a create does**: it
+is a purchase priced at an unknown rate too. `LDG-62` holds what the halted extension leaves untouched.
 
 *The withdrawn wording asked whether each of these "proceeds on a stale rate or halts", which
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
@@ -1237,8 +1237,8 @@ in this specification converts it: `absorbed_seconds` alone is what the meter ne
 
 **LDG-65** **During a rate outage a funding cancellation waits, for the rate or for `LDG-64`'s
 bound** (`ADR-0029`, which holds the argument). The stored `runway_until` stands through the outage,
-because `LDG-33` recomputes the date only when a rate exists, and nothing is cancelled on a date
-that passes while there is no rate. The sweep's
+because `LDG-33` recomputes the date only when a rate exists. Nothing is cancelled on a date that
+passes while there is no rate. The sweep's
 predicate is `LDG-16`'s and the worker's order is `OPS-41`'s. A machine that reaches `LDG-64`'s
 bound is cancelled there; that cancellation claims like every other exposure-reducing cancellation
 and waits for a restore's grace as `OPS-41` requires.

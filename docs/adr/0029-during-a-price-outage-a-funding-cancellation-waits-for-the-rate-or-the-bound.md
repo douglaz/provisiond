@@ -58,20 +58,20 @@ late-attach cleanup outside the sweep, and what it does with no rate is `pv-gip.
    machine's `rate_outage` record and proceed; zero rows with a rate now in force re-derives, which
    is `CNF-218`'s existing restoration case. Zero rows with no rate also proceeds: step 1 has
    already settled a gone machine, so `OPS-41`'s reading of zero rows as "the machine's own meter
-   stopped" is deleted, not carried into this step. For a subject with no record, nothing orders
+   stopped" is deleted, not carried into this step. For a machine with no record, nothing orders
    the worker against the rate returning at that instant; that is accepted, since it needs a
-   subject the meter never posted for and a rate returning at the bound itself.
+   machine the meter never posted for and a rate returning at the bound itself.
 
 **The deadline is computed from history, not read from a record.** It is the outage's start plus
 `LDG-64`'s maximum tolerated outage. `STO-37` already defines the start as "a function of that
 history alone", replayed from `STO-49`, and `STO-49` keeps those rows so that "the snapshot it holds
-survives to the close". Any writer computes the same instant, including for a subject the meter
+survives to the close". Any writer computes the same instant, including for a machine the meter
 never posted for, and a restart with unchanged parameters cannot move it. A restart that changes
 the bound, or the staleness bound, window or quorum the start is replayed with, does move it; see
 *The bound is the setting in force* below.
 
-**The bound's cancellation reaches every subject priced in the currency**, not only "a machine
-carrying such a record" (`OPS-41`). That is what lets a subject with no record, such as one under
+**The bound's cancellation reaches every machine priced in the currency**, not only "a machine
+carrying such a record" (`OPS-41`). That is what lets a machine with no record, such as one under
 `LDG-72`'s quarantine, still meet the bound.
 
 **An extension halts with no rate.** `LDG-62` says "Extending runway is a caller write, authorized
@@ -127,7 +127,7 @@ Edits owed, each to land with its dated note (`pv-gip.23`):
 
 **The computed instant is the only deadline** (decided 2026-10-02). `STO-37`'s persisted
 `outage_deadline` is deleted rather than kept as a copy: the stored value appears only after the
-meter's first no-rate posting and never for a subject the meter does not post for, while the
+meter's first no-rate posting and never for a machine the meter does not post for, while the
 computed one exists from the outage's first instant. `LDG-64` persisted the deadline so that "a
 restart mid-outage does not reset the clock"; the computed instant meets that, since `STO-49` keeps
 the rows its start is replayed from. The machine view's `rate_outage_deadline` shows the computed

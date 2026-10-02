@@ -270,8 +270,7 @@ response. `last_install` is `DOM-29`'s, and is `null` on a machine nothing has i
 reading `bytes_verified_by_provisiond: false` is being told this system never saw what reached the
 disk, not that anything is wrong. `abuse_cases` (`WIR-43`) is absent when the machine has none.
 `rate_outage_deadline` is `LDG-64`'s computed deadline for the machine's currency: null while that
-currency has a rate, and otherwise the instant `LDG-64` computes, on every machine priced in the
-currency whether or not it carries a `rate_outage` record (`STO-37`); it is computed with the
+currency has a rate, and otherwise the instant `LDG-64` computes; it is computed with the
 parameters in force, so it moves when one of them is changed (`OVR-19`) (*added 2026-10-02,
 `ADR-0029`*).
 
