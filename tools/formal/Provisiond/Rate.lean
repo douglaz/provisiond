@@ -30,7 +30,8 @@ and keeps nothing alive (`late_row_keeps_nothing_alive`).
 What the model omits: `LDG-58`'s median of one pass's sources — an observation here is what a
 pass accepted; `LDG-59`'s quorum, which decides whether a pass accepts an observation at all;
 `LDG-60`'s exclusions; the per-currency dimension, since one list is one currency; and
-`STO-37`'s outage start replayed over the history (`absorbed_from`), which is another ticket's.
+`STO-37`'s outage start replayed over the history (`absorbed_from`), which no module replays:
+`Provisiond.Fence` takes the start as a given input, and `pv-gip.28` holds what is undecided in it.
 The promise is bounded exactly as `ADR-0027`'s *What this does not promise* bounds it: a value
 carried by half the window confirms itself, one observation can still land the rate on its own
 value where that lies between two honest ones, and nothing here sizes a reserve to the window's

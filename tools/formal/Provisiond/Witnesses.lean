@@ -137,12 +137,14 @@ open Provisiond.Fence
 
 /-- A machine at the end of its runway on a tenant with balance to extend it: one satoshi per
 second, nothing protected, nothing reserved, the stored date already reached, no outage, the
-tenant not suspended. -/
+tenant not suspended. The maximum tolerated outage in force is a hundred seconds, and the start
+an outage would be read from is the clock's zero. -/
 def fenceWorld : World :=
   { m := { commitment := 0, runwayUntil := 0, fence := none,
            destroyed := false, gone := false },
     balance := 1000, now := 0, rate := some 1, prot := 0, suspended := false,
-    outageOpen := false, episode := none, attempt := none, phase := .idle, nextId := 1 }
+    outageOpen := false, outageStart := 0, maxOutage := 100,
+    episode := none, attempt := none, phase := .idle, nextId := 1 }
 
 /-- The same tenant's machine funded for a hundred seconds, its stored date written. -/
 def fundedWorld : World :=
@@ -165,6 +167,25 @@ machine row" — a hundred seconds of runway from `100`, so `200`, where a date 
 enqueue would be `150`. -/
 def agedWorld : World :=
   { enqueue { staleDateWorld with now := 50 } .exhausted with now := 100 }
+
+/-- The outage witnesses fix the guards of `OPS-41`'s 2026-10-02 order and of the outage's other
+rules, which their traces run through, so a flip of one has its own red build — the witness that
+runs under `Fence.current` and names that guard — and not these. The values are `current`'s, not
+an alternative rule. -/
+def outageGuards (p : Params) : Params :=
+  { p with outageWrite := true, goneOrClosedFirst := true, noRateWaits := true,
+           absentRecordProceeds := true, boundReachesAll := true, sweepNeedsRate := true,
+           extendNeedsRate := true }
+
+/-- The fresh outage: a live machine whose stored date has passed, its exhaustion episode open and
+its attempt queued while a rate existed, and then no rate. The outage began at the clock's zero,
+the bound in force puts its deadline at `100`, and the meter has opened no `rate_outage` record
+for the machine. -/
+def freshOutageWorld : World := { enqueue fenceWorld .exhausted with rate := none }
+
+/-- The same outage on the stale-date machine: a hundred satoshis committed, so that a rate of
+one, once it returns, funds it for a hundred seconds. -/
+def fundedOutageWorld : World := { enqueue staleDateWorld .exhausted with rate := none }
 
 /-- The sweep routes, the worker claims, the fence transaction reads unfunded and wins, the
 provider deletes, the attempt settles. -/
@@ -200,16 +221,20 @@ def resumedTenantTrace : List Fence.Event :=
 def suspendedTenantTrace : List Fence.Event :=
   [.suspend, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
 
-/-- `OPS-41`'s interleaving: the outage reaches its bound and enqueues the delete, the worker
-claims with no rate in its snapshot, the rate returns, and the worker re-checks. -/
-def restoredRateTrace : List Fence.Event :=
-  [.rateLost, .outageBound, .claim, .rateRestored 1, .fenceTxn, .fenceWrite,
-   .providerDelete true (some true), .settle]
+/-- A machine funded for a hundred seconds at the bound of an outage: no rate since the clock's
+zero, the deadline reached at `100`, the meter's `rate_outage` record open, and the bound's
+cancellation enqueued. -/
+def boundWorld : World :=
+  enqueue { fundedWorld with rate := none, outageOpen := true, now := 100 } .rateOutageBound
 
-/-- The same, with no rate returning: "a bound the outage has not cleared is still the bound". -/
+/-- `OPS-41`'s interleaving at the bound: the worker claims, its fence transaction reads no rate
+past the deadline, and restoration commits before that transaction's conditional write. -/
+def restoredRateTrace : List Fence.Event :=
+  [.claim, .fenceTxn (some 1), .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- The same, with no rate returning: the write affects the open record's row. -/
 def outageCancelTrace : List Fence.Event :=
-  [.rateLost, .outageBound, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true),
-   .settle]
+  [.claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
 
 /-- `OPS-42`'s 2026-09-09 race: the gone-write lands "between the claim and this write". -/
 def goneRaceTrace : List Fence.Event :=
@@ -339,21 +364,38 @@ theorem abort_without_date_write_reroutes :
       some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
     w'.m.runwayUntil = 0 ∧ sweep Fence.current w' ≠ w' := by decide
 
-/-- `LDG-16`'s one-clause predicate: "The exhaustion sweep MUST route a machine where its stored
-`runway_until` has passed, and MUST NOT route it otherwise" — the no-rate case included
-(`LDG-65`: "The exhaustion sweep continues during an outage on the last derived `runway_until`"),
-and a future date not. -/
+/-- The stored date a hundred seconds past. -/
+def pastDateWorld : World := { fenceWorld with now := 100 }
+
+/-- The same, and no rate for the machine's currency. -/
+def pastDateNoRateWorld : World := { pastDateWorld with rate := none }
+
+/-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
+passed and its currency has a rate (`LDG-59`), and MUST NOT route it otherwise." With no rate a
+past date routes nothing — the sweep enqueues no cancellation and opens no episode — and once the
+rate has returned the same date routes; with a rate, a date reached routes and a future one does
+not. Under the predicate `LDG-16`'s note withdrew on 2026-10-02, "MUST route a machine where its
+stored `runway_until` has passed, and MUST NOT route it otherwise", the sweep opens an episode on
+the date alone, which is `LDG-65`'s withdrawn "A machine whose runway expires mid-outage is
+cancelled normally". -/
 @[req "LDG-16"]
-theorem routed_on_stored_date_witness :
-    let base := { fenceWorld with now := 100 }
-    base.routed = true ∧ ({ base with rate := none }).routed = true ∧
-    ({ base with m := { base.m with runwayUntil := 100 } }).routed = true ∧
-    ({ base with m := { base.m with runwayUntil := 101 } }).routed = false := by decide
+theorem routed_on_date_and_rate_witness :
+    sweep Fence.current pastDateNoRateWorld = pastDateNoRateWorld ∧
+    pastDateNoRateWorld.routed Fence.current = false ∧
+    (run Fence.current pastDateNoRateWorld [.rateRestored 1, .sweep]).episode =
+      some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
+    pastDateWorld.routed Fence.current = true ∧
+    ({ pastDateWorld with m := { pastDateWorld.m with runwayUntil := 100 } }).routed
+      Fence.current = true ∧
+    ({ pastDateWorld with m := { pastDateWorld.m with runwayUntil := 101 } }).routed
+      Fence.current = false ∧
+    (sweep { outageGuards Fence.current with sweepNeedsRate := false } pastDateNoRateWorld).episode =
+      some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } := by decide
 
 /-- `ADR-0026`'s sources in `ADR-0027`'s window: honest `100`s, and a poisoned `103` as the
 newest pass. The stale-date machine is the pin: a hundred satoshis committed, so at `100` the
 re-check derives one second of runway and at `103` none. -/
-def poisonedPassTrace : List Fence.Event := .pass [100, 100, 100, 103] :: cancellationTrace
+def poisonedPassTrace : List Fence.Event := .pass [100, 100, 100, 103] 0 :: cancellationTrace
 
 /-- The median control fixes the abort's two guards, which its trace runs through, so a flip of
 either has its own red build and not this one. The values are `current`'s, not an alternative
@@ -392,22 +434,28 @@ theorem suspension_keyed_on_current_state_witness :
     s.m.destroyed = true ∧ s.m.commitment = 100 ∧
     w'.m.destroyed = true ∧ w'.balance = 900 := by decide
 
-/-- `OPS-41`'s outage branch. With no rate the cancellation proceeds and the funded machine is
-destroyed, "because a bound the outage has not cleared is still the bound". With the rate
-restored between the claim and the re-check, the conditional write on this machine's outage
-record affects no row, the worker re-derives at the restored rate, and the fleet funded for
-months is kept. Without the write the stale snapshot is taken at its word: "workers claim at T+2s
-and destroy a fleet that is funded for months". -/
+/-- `OPS-41`'s fifth step on a machine carrying an open record. With no rate returning, the
+conditional write affects the record's row and the cancellation proceeds: the funded machine is
+destroyed at the bound. With restoration committing after the fence transaction read no rate and
+before its conditional write, the write affects no row, "the worker re-derives at that rate and
+applies the predicate above", and the machine funded at the restored rate is kept with no
+provider call. Without the write the transaction's read is taken at its word, which `OPS-41`
+says "would let the worker delete a funded fleet on stale evidence". -/
 @[req "OPS-41"]
-theorem no_rate_cancellation_witness :
-    let c := run Fence.current fundedWorld outageCancelTrace
-    let w := run Fence.current fundedWorld restoredRateTrace
-    let w' := run { Fence.current with outageWrite := false } fundedWorld restoredRateTrace
+theorem conditional_write_at_the_bound_witness :
+    let c := run Fence.current boundWorld outageCancelTrace
+    let w := run Fence.current boundWorld restoredRateTrace
+    let w' := run { Fence.current with outageWrite := false } boundWorld restoredRateTrace
     c.m.destroyed = true ∧
     c.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.rateOutageBound] } ∧
-    w.m.destroyed = false ∧ w.m.fence = none ∧
+    w.m.destroyed = false ∧ w.m.fence = none ∧ w.rate = some 1 ∧
     w.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.rateOutageBound] } ∧
-    w'.m.destroyed = true := by decide
+    w'.m.destroyed = true ∧ w'.rate = some 1 := by decide
+
+/-- The order as it stood on 2026-09-09, before `OPS-41`'s first step was put in front of it. The
+gone-race control fixes that one guard off so that `OPS-42`'s open-episode term is what decides
+its trace; the withdrawn position is the trap that term was written for, not a current rule. -/
+def beforeFirstStep (p : Params) : Params := { p with goneOrClosedFirst := false }
 
 /-- `ADR-0021`'s gone-write in the lifecycle. On a stalled, fenced episode it closes the episode
 `resource_gone` and clears the fence in one step. Racing the fence write, under the 2026-09-09
@@ -416,12 +464,19 @@ closed episode that stays closed with no fence. Without the term the write is ad
 closed episode: the provider is called on a machine already gone, the terminal transaction finds
 the episode closed and clears nothing, and "a fence set under a closed episode would clear
 never" — every extension is refused, and the invariant that a set fence names an open episode is
-false. -/
+false.
+
+The race runs under `beforeFirstStep`, the order as it stood on 2026-09-09. Since
+2026-10-02 `OPS-41`'s first step reads the same closed episode in the same transaction and
+settles the attempt before the write is reached (`gone_settles_first_witness`), so with it on the
+write's term decides nothing on this trace; `OPS-42` keeps the term, and pinning the newer step
+off is what lets this witness go red for the term's removal and for nothing else. -/
 @[req "OPS-48"]
 theorem gone_write_witness :
     let g := run Fence.current fenceWorld goneAfterStallTrace
-    let w := run Fence.current fenceWorld goneRaceTrace
-    let w' := run { Fence.current with fenceOnOpenEpisode := false } fenceWorld goneRaceTrace
+    let w := run (beforeFirstStep Fence.current) fenceWorld goneRaceTrace
+    let w' := run (beforeFirstStep { Fence.current with fenceOnOpenEpisode := false }) fenceWorld
+      goneRaceTrace
     g.m.fence = none ∧ g.m.gone = true ∧
     g.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
     w.m.fence = none ∧ w.m.destroyed = false ∧
@@ -446,6 +501,218 @@ theorem retry_guard_witness :
     (w.attempt.map (·.op)) = some ⟨2⟩ ∧
     w'.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
     (w'.attempt.map (·.op)) = some ⟨3⟩ ∧ w'.m.gone = true := by decide
+
+/-! ### The rate outage (`ADR-0029`)
+
+One outage, begun at the clock's zero under a bound of a hundred seconds. Each guard of
+2026-10-02 has one witness that runs under `Fence.current` and pairs it with its withdrawn
+position; the other traces run under `outageGuards`, and every withdrawn position is built on
+`outageGuards` too, so that it differs from the current rule in the named field alone. -/
+
+/-- A claim, the fence transaction, and whatever the worker would do had it fenced. -/
+def freshOutageTrace : List Fence.Event :=
+  [.claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- `OPS-41`'s fourth step on the fresh outage: "The claim defers: the operation is returned to
+`queued` by `OPS-8`'s ordinary short delay, and no fence is written." The row is `queued` again
+under the number the claim took, the machine row is untouched, no provider call was made, the
+attempt has not settled and the episode is open. Under the wording `OPS-41`'s note withdrew —
+"**Where there is no rate, the cancellation proceeds.**", with the absent record read as "the
+machine's own meter stopped (`LDG-74`), there is nothing left to cancel, and it settles as the
+no-mutation case" — the live machine's attempt settles `succeeded`, its episode closes `funded`,
+and the sweep, on the date alone, opens the next episode against the same machine. -/
+@[req "OPS-41"]
+theorem fresh_outage_waits_witness :
+    let w := run Fence.current freshOutageWorld freshOutageTrace
+    let old := run { outageGuards Fence.current with noRateWaits := false,
+                                                     absentRecordProceeds := false }
+      freshOutageWorld freshOutageTrace
+    w.m = freshOutageWorld.m ∧ w.phase = .idle ∧
+    w.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
+    w.attempt = some { op := ⟨2⟩, ep := ⟨1⟩,
+                       row := { status := .queued, claim := ⟨1⟩, record := 0, revision := 2 } } ∧
+    old.m.destroyed = false ∧
+    old.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    (old.attempt.map (·.row.status)) = some .succeeded ∧
+    (sweep { outageGuards Fence.current with sweepNeedsRate := false } old).episode =
+      some { id := ⟨3⟩, state := .attempting, reasons := [.exhausted] } := by decide
+
+/-- `OPS-41`: the worker decides "inside the fence transaction and on what that transaction
+reads, never on its claim snapshot". An attempt claimed while a rate existed, whose rate is lost
+before its fence transaction, defers; and one claimed with no rate, whose rate is restored before
+its fence transaction, reads that rate, re-derives at it and keeps the machine it funds, with no
+conditional write on a record to make. -/
+@[req "OPS-41"]
+theorem the_transaction_decides_witness :
+    let p := outageGuards Fence.current
+    let lost := run p (enqueue fenceWorld .exhausted) [.claim, .rateLost 0, .fenceTxn, .fenceWrite]
+    let back := run p fundedOutageWorld
+      [.claim, .rateRestored 1, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+    lost.phase = .idle ∧ lost.m.fence = none ∧
+    (lost.attempt.map (·.row.status)) = some .queued ∧
+    lost.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
+    back.m.destroyed = false ∧ back.m.fence = none ∧
+    back.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by
+  decide
+
+/-- `OPS-41`: "each later claim decides again from step 1, so a suspension that joins the episode,
+a rate that returns and a machine recorded gone are each seen at the next claim". A suspension
+joining the deferred attempt's episode: the next claim proceeds to the provider call, with still
+no rate and the deadline not passed. -/
+@[req "OPS-41"]
+theorem suspension_joins_the_wait_witness :
+    let w := run (outageGuards Fence.current) freshOutageWorld
+      [.claim, .fenceTxn, .suspend, .claim, .fenceTxn, .fenceWrite,
+       .providerDelete true (some true), .settle]
+    w.rate = none ∧ w.deadlinePassed = false ∧ w.m.destroyed = true ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone,
+                       reasons := [.tenantSuspended, .exhausted] } := by decide
+
+/-- The deferred attempt, the clock moved on, the rate back at one, and the next claim. -/
+def rateReturnsTrace (later : Nat) : List Fence.Event :=
+  [.claim, .fenceTxn, .advance later, .rateRestored 1, .claim, .fenceTxn, .fenceWrite,
+   .providerDelete true (some true), .settle]
+
+/-- The rate returning before the deadline, at `50`, and one second after it, at `101`: either
+way the next claim reads a rate — `OPS-41`'s third step, "The worker re-derives and applies the
+predicate above" — so the unfunded machine is cancelled and the funded one is kept, its episode
+closed `funded`. The deadline decides nothing once a rate exists. -/
+@[req "OPS-41"]
+theorem returned_rate_decides_on_the_predicate_witness :
+    let p := outageGuards Fence.current
+    (run p freshOutageWorld (rateReturnsTrace 50)).m.destroyed = true ∧
+    (run p fundedOutageWorld (rateReturnsTrace 50)).m.destroyed = false ∧
+    (run p fundedOutageWorld (rateReturnsTrace 50)).episode =
+      some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    (run p freshOutageWorld (rateReturnsTrace 101)).m.destroyed = true ∧
+    (run p fundedOutageWorld (rateReturnsTrace 101)).m.destroyed = false ∧
+    (run p fundedOutageWorld (rateReturnsTrace 101)).episode =
+      some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by decide
+
+/-- The machine recorded gone mid-outage, and the queued attempt's next claim. -/
+def goneMidOutageTrace : List Fence.Event :=
+  [.goneWrite, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- `OPS-41`'s first step: "**The machine is recorded gone, or its episode is closed.**" The next
+claim after the gone-write makes no provider call and settles `succeeded` under the episode the
+gone-write closed, with no rate and with one; and "**It writes no `runway_until`**" — the stored
+date is what it was, though with a rate the clock has moved fifty seconds past it. Without the
+step the order begins at the suspension read, and with no rate and the deadline not passed the
+attempt of a machine already gone defers, and goes on deferring until the bound. -/
+@[req "OPS-41"]
+theorem gone_settles_first_witness :
+    let w := run Fence.current freshOutageWorld goneMidOutageTrace
+    let r := run Fence.current (enqueue fenceWorld .exhausted) (.advance 50 :: goneMidOutageTrace)
+    let old := run { outageGuards Fence.current with goneOrClosedFirst := false } freshOutageWorld
+      goneMidOutageTrace
+    w.m.destroyed = false ∧ w.m.fence = none ∧ w.m.runwayUntil = 0 ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    (w.attempt.map (·.row.status)) = some .succeeded ∧
+    r.m.destroyed = false ∧ r.m.runwayUntil = 0 ∧
+    (r.attempt.map (·.row.status)) = some .succeeded ∧
+    (old.attempt.map (·.row.status)) = some .queued := by decide
+
+/-- The clock reaches the deadline, and the queued attempt is claimed. -/
+def unrecordedBoundTrace : List Fence.Event :=
+  [.advance 100, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- `OPS-41`'s fifth step, the deadline passed with still no rate: the next claim writes the
+fence and cancels, for a machine the meter opened no record for — "Where it affects no row and
+there is still no rate, the machine carries no open record and the cancellation proceeds as
+well" — and for one whose record the meter opened. Under the reading `OPS-41`'s note withdrew,
+"the machine's own meter stopped (`LDG-74`), there is nothing left to cancel, and it settles as
+the no-mutation case", the live machine with no record is kept past the bound and its episode
+closes `funded`. -/
+@[req "OPS-41"]
+theorem deadline_passed_cancels_witness :
+    let w := run Fence.current freshOutageWorld unrecordedBoundTrace
+    let recorded := run Fence.current freshOutageWorld (.meterOpens :: unrecordedBoundTrace)
+    let old := run { outageGuards Fence.current with absentRecordProceeds := false }
+      freshOutageWorld unrecordedBoundTrace
+    w.outageOpen = false ∧ w.rate = none ∧ w.m.destroyed = true ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    recorded.outageOpen = true ∧ recorded.m.destroyed = true ∧
+    old.m.destroyed = false ∧
+    old.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by
+  decide
+
+/-- `OPS-41`: "**One case is left unordered, and it is accepted** (`ADR-0029`): for a machine with
+no record nothing orders the worker against a rate returning at that instant". The funded machine
+with no record, claimed at the deadline, with the rate returning at one. Where the worker's read
+after its write sees the return, it re-derives and the machine is kept; where the return commits
+straight after the transaction, unseen, the cancellation has proceeded and the machine is
+destroyed with a rate in force that funds it. The model has both traces and prefers neither. -/
+@[req "OPS-41"]
+theorem unordered_return_at_the_bound_witness :
+    let p := outageGuards Fence.current
+    let seen := run p fundedOutageWorld
+      [.advance 100, .claim, .fenceTxn (some 1), .fenceWrite, .providerDelete true (some true),
+       .settle]
+    let unseen := run p fundedOutageWorld
+      [.advance 100, .claim, .fenceTxn, .rateRestored 1, .fenceWrite,
+       .providerDelete true (some true), .settle]
+    seen.rate = some 1 ∧ seen.m.destroyed = false ∧
+    seen.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    unseen.rate = some 1 ∧ unseen.m.destroyed = true := by decide
+
+/-- A funded machine a hundred seconds into the outage, at its deadline, with no record: one the
+meter never posted for. -/
+def unrecordedWorld : World := { fundedWorld with rate := none, now := 100 }
+
+/-- `LDG-64`'s canceller, once. -/
+def boundCancellerTrace : List Fence.Event := [.outageBound]
+
+/-- `LDG-64`: "The bound's cancellation reaches every machine priced in the outage's currency,
+whether or not the meter opened a `rate_outage` record for it". At the deadline the canceller
+opens the machine's episode under `rate_outage_bound`, record or no record, and one second before
+it enqueues nothing. Under the scope `OPS-41`'s note withdrew, "A `rate_outage_bound`
+cancellation is enqueued only for a machine carrying such a record", the machine with no record
+is passed over at the bound and one with a record is not. -/
+@[req "LDG-64"]
+theorem bound_reaches_every_machine_witness :
+    let w := run Fence.current unrecordedWorld boundCancellerTrace
+    let old := { outageGuards Fence.current with boundReachesAll := false }
+    w.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.rateOutageBound] } ∧
+    (run Fence.current { unrecordedWorld with now := 99 } boundCancellerTrace).episode = none ∧
+    (run old unrecordedWorld boundCancellerTrace).episode = none ∧
+    (run old { unrecordedWorld with outageOpen := true } boundCancellerTrace).episode =
+      some { id := ⟨1⟩, state := .attempting, reasons := [.rateOutageBound] } := by decide
+
+/-- `OVR-19`: the maximum tolerated outage is "read at the value in force when `LDG-64`'s
+deadline is computed, for an outage already open too". Fifty seconds into the outage the attempt
+has deferred twice against a deadline of `100`. Lowered to thirty, below the time already run,
+the deadline is `30` and the next claim proceeds with no further wait; raised to three hundred
+instead, a claim at the old deadline defers against the new one. -/
+@[req "OVR-19"]
+theorem bound_is_the_setting_in_force_witness :
+    let p := outageGuards Fence.current
+    let waiting := run p freshOutageWorld [.claim, .fenceTxn, .advance 50, .claim, .fenceTxn]
+    let lowered := run p waiting
+      [.setMaxOutage 30, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+    let raised := run p waiting
+      [.setMaxOutage 300, .advance 50, .claim, .fenceTxn, .fenceWrite,
+       .providerDelete true (some true), .settle]
+    waiting.deadline = 100 ∧ waiting.phase = .idle ∧ waiting.m.fence = none ∧
+    lowered.deadline = 30 ∧ lowered.m.destroyed = true ∧
+    raised.deadline = 300 ∧ raised.m.destroyed = false ∧ raised.m.fence = none ∧
+    (raised.attempt.map (·.row.status)) = some .queued := by decide
+
+/-- A hundred satoshis asked of the tenant's balance. -/
+def haltedExtensionTrace : List Fence.Event := [.extend 100]
+
+/-- `LDG-40`: "With no rate for the machine's currency, an extension of runway MUST halt as a
+create does". With no rate the extension leaves the world as it was — `LDG-62`: "The halted
+extension opens or grows no commitment and moves no balance" — and once the rate is back it is
+admitted as before. Without the rule, the model as it stood before 2026-10-02: the commitment
+grows at no rate at all, the balance is taken, and the stored date stays in the past. -/
+@[req "LDG-40"]
+theorem extension_halts_without_a_rate_witness :
+    let w := run Fence.current freshOutageWorld haltedExtensionTrace
+    let back := run Fence.current freshOutageWorld (.rateRestored 1 :: haltedExtensionTrace)
+    let old := run { outageGuards Fence.current with extendNeedsRate := false } freshOutageWorld
+      haltedExtensionTrace
+    w = freshOutageWorld ∧ back.m.commitment = 100 ∧ back.balance = 900 ∧
+    old.m.commitment = 100 ∧ old.balance = 900 ∧ old.m.runwayUntil = 0 := by decide
 
 end Fence
 
@@ -724,6 +991,33 @@ theorem grace_at_claim_witness :
       [.claim, .fenceTxn, .fenceWrite, .advance 30, .restoreRecord graceRecord,
        .providerDelete true (some true)]).m.destroyed = false ∧
     bad.m.destroyed = true ∧ bad.m.commitment = 0 ∧ bad.balance = 1000 := by decide
+
+/-- `OPS-41`: "Where a restore's grace and step 4's wait both apply, the cancellation waits for
+the later of the two: the grace is read first, at the claim, and this order runs only once it no
+longer defers." A restore during the fresh outage, whose deadline is `100`. With the grace ending
+first, at `50`: a claim inside it defers on the grace, `available_at` the record's instant, and
+the claim at `50` still defers, by the short delay that carries no instant, with no fence. With
+the deadline inside a grace that ends at `140`: a claim at `120`, past the deadline, defers on the
+grace to `140` and writes no fence, and the claim at `140` writes the fence and cancels at the
+fifth step. The grace guard is fixed with the outage's, so its own row has its own witness. -/
+@[req "OPS-41"]
+theorem grace_and_outage_wait_for_the_later_witness :
+    let p := { outageGuards Fence.current with graceAtClaim := true }
+    let early := { freshOutageWorld with restore := some { graceEndsAt := some 50 } }
+    let late := { freshOutageWorld with restore := some { graceEndsAt := some 140 } }
+    let inGrace := run p early [.claim]
+    let afterGrace := run p early [.claim, .advance 50, .claim, .fenceTxn, .fenceWrite]
+    let pastDeadline := run p late [.advance 120, .claim, .fenceTxn, .fenceWrite]
+    let atGraceEnd := run p late
+      [.advance 120, .claim, .advance 20, .claim, .fenceTxn, .fenceWrite,
+       .providerDelete true (some true), .settle]
+    inGrace.phase = .idle ∧ inGrace.attempt.map (·.row.availableAt) = some (some 50) ∧
+    afterGrace.phase = .idle ∧ afterGrace.m.fence = none ∧
+    afterGrace.attempt.map (·.row.status) = some .queued ∧
+    afterGrace.attempt.map (·.row.availableAt) = some none ∧
+    pastDeadline.phase = .idle ∧ pastDeadline.m.fence = none ∧
+    pastDeadline.attempt.map (·.row.availableAt) = some (some 140) ∧
+    atGraceEnd.m.destroyed = true := by decide
 
 end Grace
 
@@ -2375,28 +2669,38 @@ failure `LDG-20` already forbids". -/
 theorem the_halt_reaches_the_delete_without_the_exemption :
     underHalt { Admission.current with exposureExemptUnderHalt := false } (.caller .deleteMachine) =
         some .halted ∧
-      underHalt { Admission.current with exposureExemptUnderHalt := false } .systemCancellation =
+      underHalt { Admission.current with exposureExemptUnderHalt := false } .fundingCancellation =
         some .halted := by decide
 
-/-- `LDG-40`'s matrix with no rate: the sweep and every other exposure-reducing action continue,
-the create halts "priced at an unknown rate", the extension halts with it, the solvency check
-"fail[s] closed" and the meter runs native (`LDG-64`). -/
+/-- `LDG-40`'s matrix with no rate. No action that reduces exposure halts or fails closed: the
+sweep "MUST route no machine priced in that currency", a funding cancellation waits and so does
+the bound's where one is claimed before the deadline, a suspended tenant's cancellation
+continues, and so does the caller's delete; past the deadline the waits are over. The create
+halts "priced at an unknown rate", the extension halts with it, re-derivation halts, the solvency
+check "fail[s] closed" and the meter runs native (`LDG-64`). -/
 @[req "LDG-40"]
 theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
-    exposureReducingWithoutRate.all (· == .continues) = true ∧
+    exposureReducingWithoutRate.all (fun a => a != .halts && a != .failsClosed) = true ∧
+      underNoRate Admission.current .exhaustionSweep = .routesNothing ∧
+      underNoRate Admission.current .fundingCancellation = .waits ∧
+      underNoRate Admission.current .suspensionCancellation = .continues ∧
+      underNoRate Admission.current .boundCancellation = .waits ∧
+      (underNoRate Admission.current .fundingCancellation).atTheBound = .continues ∧
+      (underNoRate Admission.current .boundCancellation).atTheBound = .continues ∧
+      underNoRate Admission.current (.caller .deleteMachine) = .continues ∧
       underNoRate Admission.current (.caller .create) = .halts ∧
       underNoRate Admission.current (.caller .extendRunway) = .halts ∧
       underNoRate Admission.current .rederivation = .halts ∧
       underNoRate Admission.current .solvencyCheck = .failsClosed ∧
       underNoRate Admission.current .metering = .metersNative := by decide
 
-/-- Without the sweep's row the outage stops the one activity that reduces exposure, though
-`LDG-65` leaves it "the last derived `runway_until`" to run on: "what is suspended is *pricing*,
-not *protection*". -/
+/-- Under the row `LDG-40`'s 2026-10-02 note withdrew, "**the exhaustion sweep** (MUST continue:
+it reduces exposure)", the sweep goes on routing with no rate — the note: "Continuing cancelled
+machines whose stored date passed during the outage". -/
 @[req "LDG-40"]
-theorem the_outage_stops_the_sweep_without_its_row :
-    underNoRate { Admission.current with sweepContinuesWithoutRate := false } .exhaustionSweep
-      = .halts := by decide
+theorem the_sweep_continues_without_its_row :
+    underNoRate { Admission.current with sweepRoutesNothingWithoutRate := false } .exhaustionSweep
+      = .continues := by decide
 
 /-- `LDG-59`: "a USD quorum loss halts nothing priced in EUR". -/
 @[req "LDG-59"]

@@ -300,8 +300,8 @@ jobs:
           echo "the migration type correctly refused the transactional CONCURRENTLY build"
 
       # The cancellation fence (pv-vwe.4, completed by pv-vwe.10; pv-gip.2 for the two rules of
-      # 2026-09-23 and 2026-09-25): every guard the fence composes is a field of
-      # `Provisiond.Fence.current`, one per line, and the rows below carry each one's amendment
+      # 2026-09-23 and 2026-09-25; pv-gip.25 for ADR-0029's of 2026-10-02): every guard the fence
+      # composes is a field of `Provisiond.Fence.current`, one per line, and the rows below carry each one's amendment
       # date rather than this header restating which guards they are. Each row below flips one
       # field and requires exactly one red: `decide` refuting the witness that field's amendment
       # exists for, identified by a token of its proposition. Fence.lean's own theorems take each guard as
@@ -311,7 +311,8 @@ jobs:
       #     is deleted -- fence_first_witness on paidMachineTrace;
       #   fenceHolds (2026-09-08): the retry's write affects no row -- retry_executes_witness;
       #   fenceOnOpenEpisode (2026-09-09): a fence set under a closed episode clears never --
-      #     gone_write_witness on goneRaceTrace;
+      #     gone_write_witness on goneRaceTrace, which pins goneOrClosedFirst off, since OPS-41's
+      #     first step now settles that race before the write is reached;
       #   abortPredicate (2026-09-04): usable_sats > 0 aborts a routed machine forever --
       #     withdrawn_predicate_loops_in_lifecycle;
       #   abortWritesDate (2026-09-05): the abort leaves the stored date in the past --
@@ -320,8 +321,10 @@ jobs:
       #     successful_extension_witness on [.extend 100];
       #   suspensionKey (2026-09-05): a resumed tenant's paid machine is destroyed --
       #     suspension_keyed_on_current_state_witness on resumedTenantTrace;
-      #   outageWrite (2026-09-05): a stale no-rate read destroys a funded fleet --
-      #     no_rate_cancellation_witness on restoredRateTrace;
+      #   outageWrite (OPS-41, 2026-09-05; at the bound since 2026-10-02, ADR-0029): the fence
+      #     transaction's read of no rate is taken at its word, restoration commits before the
+      #     conditional write would have lost to it, and the funded machine is destroyed --
+      #     conditional_write_at_the_bound_witness on restoredRateTrace;
       #   ownIdClause (2026-09-02): "IS NULL alone" refuses the retry -- retry_executes_witness;
       #   rateIsWindowMedian (LDG-58, 2026-09-23, ADR-0027): one pass's observation is the rate,
       #     and the poisoned newest pass destroys the pinned machine --
@@ -331,7 +334,26 @@ jobs:
       #     the whole grace and the machine is destroyed after it --
       #     grace_at_claim_witness on graceTrace;
       #   retryGuard (2026-09-09): a plain retry write reopens a closed episode --
-      #     retry_guard_witness.
+      #     retry_guard_witness;
+      #   goneOrClosedFirst (OPS-41, 2026-10-02, ADR-0029): the order begins at the suspension
+      #     read, and the attempt of a machine recorded gone mid-outage defers instead of settling --
+      #     gone_settles_first_witness on goneMidOutageTrace;
+      #   noRateWaits (OPS-41, 2026-10-02, ADR-0029): "Where there is no rate, the cancellation
+      #     proceeds", and in a fresh outage the live machine is fenced on a date that passed with
+      #     no rate -- fresh_outage_waits_witness on freshOutageTrace;
+      #   absentRecordProceeds (OPS-41, 2026-10-02, ADR-0029): no record and no rate reads as the
+      #     machine's own meter stopped, and past the deadline the machine the meter opened no
+      #     record for settles as no mutation and is kept -- deadline_passed_cancels_witness on
+      #     unrecordedBoundTrace;
+      #   boundReachesAll (LDG-64, 2026-10-02, ADR-0029): the bound's cancellation is enqueued only
+      #     for a machine carrying a record, and one with none never meets the bound --
+      #     bound_reaches_every_machine_witness on boundCancellerTrace;
+      #   sweepNeedsRate (LDG-16, 2026-10-02, ADR-0029): the sweep routes on the stored date alone
+      #     and opens an episode on a date that passed mid-outage --
+      #     routed_on_date_and_rate_witness on pastDateNoRateWorld;
+      #   extendNeedsRate (LDG-40, 2026-10-02, ADR-0029): the extension grows the commitment at no
+      #     rate and takes the balance -- extension_halts_without_a_rate_witness on
+      #     haltedExtensionTrace.
       # The restore (pv-vwe.11, ADR-0023), Restore.current, the same shape:
       #   quarantineOnRestore (OPS-15, 2026-09-12): the executed create is claimed again --
       #     executed_create_quarantined on [.lock, .startupPass, .claim ⟨0⟩];
@@ -443,9 +465,10 @@ jobs:
       #   exposureExemptUnderHalt (LDG-20): the halt reaches the delete, the release, the retry and
       #     the sweep's own cancellation -- nothing_that_reduces_exposure_is_halted on
       #     exposureReducingUnderHalt;
-      #   sweepContinuesWithoutRate (LDG-40, LDG-65): the outage stops the one activity that
-      #     reduces exposure -- the_rate_matrix_halts_the_purchase_and_nothing_else on
-      #     exposureReducingWithoutRate.
+      #   sweepRoutesNothingWithoutRate (LDG-40, 2026-10-02, ADR-0029; the field was
+      #     sweepContinuesWithoutRate while the row said so): the sweep's row is the withdrawn
+      #     "MUST continue", and it routes machines whose stored date passed during the outage --
+      #     the_rate_matrix_halts_the_purchase_and_nothing_else on exposureReducingWithoutRate.
       # The billing period (pv-vwe.17), Period.current:
       #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
       #     the new period's first 2/5 posts 0 against what the old one left --
@@ -485,6 +508,12 @@ jobs:
           Fence|rateIsWindowMedian|true|false|poisonedPassTrace
           Fence|graceAtClaim|true|false|graceTrace
           Fence|retryGuard|true|false|goneAfterStallTrace ++
+          Fence|goneOrClosedFirst|true|false|goneMidOutageTrace
+          Fence|noRateWaits|true|false|freshOutageTrace
+          Fence|absentRecordProceeds|true|false|unrecordedBoundTrace
+          Fence|boundReachesAll|true|false|boundCancellerTrace
+          Fence|sweepNeedsRate|true|false|pastDateNoRateWorld
+          Fence|extendNeedsRate|true|false|haltedExtensionTrace
           Restore|quarantineOnRestore|true|false|Event.startupPass, Event.claim { n := 0 }
           Restore|exceptionFrozen|true|false|Event.confirmParents, Event.claim { n := 1 }
           Restore|bumpOnRestore|true|false|Event.request 0, Event.completeProcedure
@@ -525,7 +554,7 @@ jobs:
           Admission|haltMintsOnly|true|false|haltedMint
           Admission|cancelUnsettledInvoices|true|false|unsettledUnexpiredInvoice
           Admission|exposureExemptUnderHalt|true|false|exposureReducingUnderHalt
-          Admission|sweepContinuesWithoutRate|true|false|exposureReducingWithoutRate
+          Admission|sweepRoutesNothingWithoutRate|true|false|exposureReducingWithoutRate
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
           Period|deploymentWide|true|false|lateSubjectTrace
@@ -633,15 +662,16 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo"
-          # One word, so a docstring reflow cannot split the pattern across lines.
-          sed -i 's/every machine metered through/every machine billed through/' \
+          # One word and its closing quote, so a docstring reflow cannot split the pattern
+          # across lines.
+          sed -i 's/nowhere"/somewhere"/' \
             tools/formal/Provisiond/Fence.lean
-          grep -q 'which `OPS-41` says "under `LDG-64` is every machine billed through' \
+          grep -q 'somewhere"' \
             tools/formal/Provisiond/Fence.lean
           if python3 tools/check_citations.py > citations.log 2>&1; then
             echo "::error::citation gate passed a Lean docstring quote its target does not contain"
             exit 1
           fi
-          grep -q 'tools/formal/Provisiond/Fence.lean attributes to OPS-41 a phrase OPS-41 does not contain:' citations.log
-          grep -q '"under ldg-64 is every machine billed through the outage"' citations.log
+          grep -q 'tools/formal/Provisiond/Fence.lean attributes to LDG-64 a phrase LDG-64 does not contain:' citations.log
+          grep -q 'deadline from history, and store it somewhere"' citations.log
           echo "citation gate correctly rejected the Lean docstring misquote"

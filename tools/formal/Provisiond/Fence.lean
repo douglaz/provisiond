@@ -12,23 +12,41 @@ extension is its own transaction; the provider call is made after the worker "re
 the provider call, which `LDG-69` forbids inside" (`OPS-42`), from the one phase the fence
 transaction alone enters.
 
-The re-check as `OPS-41` writes it: the tenant's **current** suspension state first, read in the
-fence transaction; then whether a rate exists; then `LDG-33` re-derived at it. `OPS-41`'s rate
-outage is a branch, not a value — `World.rate` is optional — and "'No rate' is established by a
-conditional write, not a read": the worker's rate read is a snapshot, which "`LDG-35`'s per-tenant
-primitive orders nothing against a deployment-wide event", modelled as the rate the worker saw when it claimed
-(`Phase.holding`) — so a restoration committing after the claim is what the snapshot predates, and
-a snapshot holding a rate the outage has since removed derives at it — while the write on
-`STO-37`'s record is inside the transaction. The episode is `STO-52`'s row with its
-`reasons` set; the sweep, `API-58`'s fan-out and `LDG-64`'s bound canceller all enqueue through
-`OPS-39`'s one rule, joining an open episode and opening none while one is open. The gone-write is
-`ADR-0021`'s: it closes the open episode and clears the fence in one step, from any open state.
+The re-check is `OPS-41`'s order (2026-10-02, `ADR-0029`), decided "inside the fence transaction
+and on what that transaction reads, never on its claim snapshot": `Phase.holding` carries the
+claim number and no rate, and `recheck` reads the world the transaction runs in. The machine
+recorded gone or its episode closed settles first; then the tenant's **current** suspension state;
+then a rate, at which `LDG-33` is re-derived; then, with no rate, the outage's deadline — before
+it the claim defers through `Provisiond.Claim.defer`, and past it the worker makes the conditional
+write on `STO-37`'s record. `World.rate` is optional, and the transaction's read of it can predate
+a restoration. `OPS-41` says "`LDG-35`'s per-tenant primitive orders nothing against a
+deployment-wide event". So the `fenceTxn` event carries the restoration that commits after the
+transaction's read of no rate and before its conditional write, where there is one, and the write
+is what loses to it; nothing the worker saw at its claim enters the decision. The episode is
+`STO-52`'s row with its `reasons` set; the sweep, `API-58`'s fan-out and `LDG-64`'s bound canceller
+all enqueue through `OPS-39`'s one rule, joining an open episode and opening none while one is
+open. The gone-write is `ADR-0021`'s: it closes the open episode and clears the fence in one step,
+from any open state.
+
+The outage is three facts kept apart (`ADR-0029`). The rate is `World.rate`. The record is the
+meter's. `STO-37` says "The row is the subject's, and the meter opens it". So losing the rate —
+`rateLost`, or a `pass` whose window yields none — opens no record, and `meterOpens` is an event of
+its own: early in an outage, and for a machine the meter does not post for, there is no rate and
+no record. The deadline is computed. `LDG-64` says "compute the outage's deadline from history, and
+store it nowhere". The outage's start enters as a given input, the argument of the event that
+loses the rate, as `rederive` is handed its date; the maximum tolerated outage is the setting in
+force, `World.maxOutage`, which `setMaxOutage` changes mid-outage; and `World.deadline` adds the two
+at each use, so no structure holds the sum. The model proves what the worker does given the
+start, and nothing about the replay that produces it.
 
 `Params` lists the guards dated amendments added to what this module models, each a field so
 that removing it is a one-token change a witness theorem exercises (`ADR-0025`). Hard-wired, and
 not guards on a rule but the rule: `LDG-62`'s test on the fence, which is the fence's own second
-half; and `OPS-41`'s 2026-09-09 scope, "**any** exposure-reducing cancellation" — the model never
-scopes by reason.
+half; `OPS-41`'s 2026-09-09 scope, "**any** exposure-reducing cancellation" — the model never
+scopes by reason; the deadline's arithmetic and the separation of the rate's loss from the meter's
+record, which are `LDG-64`'s and `STO-37`'s account of what an outage is and withdraw no behaviour
+a parameter could return to; and the places of the suspension read and of the rate read in
+`OPS-41`'s order, which the 2026-10-02 amendment numbered and did not move.
 
 Re-derivation consumes an optional per-currency acceptance order (`STO-49`); no observation is
 `LDG-40`'s halt. The caller supplies the date computed by `LDG-33`; source aggregation, currency
@@ -49,8 +67,16 @@ What the model omits: the first 2026-09-05 form of
 the suspension exemption, keyed on the attempt's own reason; a second attempt enqueued while one is
 in flight (the model holds one attempt, and every enqueue waits for it); `OPS-31`'s resolution
 verbs on an `uncertain` episode (`Provisiond.Tables` has the rows); `LDG-62`'s sizing of the
-commitment it grows — `extend` takes the satoshis as given — and its wire answers; the
-`late_attach_cleanup` reason (`OPS-36` is `pv-vwe.5`'s). The provider's answer is classified as
+commitment it grows — `extend` takes the satoshis as given — and its wire answers, with any order
+between its refusals (`pv-gip.26`): every refusal here is the unchanged world, whichever test
+made it; the `late_attach_cleanup` reason (`OPS-36` is `pv-vwe.5`'s, and what its attach does with
+no rate is `pv-gip.27`'s); the two-clock replay of the outage's start over `STO-49`'s rows — what
+a changed staleness bound, window or quorum does to the replayed start is partly undecided in the
+requirements (`pv-gip.28`), a replay here would have to invent it, and so no event moves the start
+of an outage already open, a restore that loses the rows it is replayed from included (`LDG-64`:
+"A restore that loses `STO-49` rows the start is replayed from moves it as well" — `restoreRecord`
+is `STO-56`'s record and nothing of `STO-49`'s); a second machine, tenant or currency, so that `LDG-59`'s per-currency
+rate, outage and bound are one currency's here. The provider's answer is classified as
 `succeeded` on a reply, `failed` on a refusal and `needs_reconciliation` on a lost reply —
 `OPS-11`'s table is `Provisiond.Tables`'s and is not repeated. A machine is "funded" where a rate
 exists and re-deriving `LDG-33` at it puts the date strictly in the future; whole satoshis per
@@ -131,8 +157,10 @@ guarded "on that episode being open". `abortPredicate`: `OPS-41`, 2026-09-04, "T
 the re-derived `runway_until`". `abortWritesDate`: `OPS-41`, 2026-09-05, "write that re-derived
 `runway_until` to the machine row". `extendWritesDate`: `LDG-62`, 2026-09-05, the same write.
 `suspensionKey`: `OPS-41`, 2026-09-05, "keyed on the tenant's current state ... and not on the
-episode's `reasons` set". `outageWrite`: `OPS-41`, 2026-09-05, "'No rate' is established by a
-conditional write, not a read". `ownIdClause`: `OPS-42`, 2026-09-02, the guard's second
+episode's `reasons` set". `outageWrite`: `OPS-41`, 2026-09-05, the conditional write on this
+machine's `rate_outage` record, of which the requirement now holds that at the bound no rate "is
+established by that conditional write, not by a read"; its off position takes the transaction's
+read of no rate at its word. `ownIdClause`: `OPS-42`, 2026-09-02, the guard's second
 disjunct, "`IS NULL` alone until 2026-09-02". `rateIsWindowMedian`: `LDG-58`, 2026-09-23
 (`ADR-0027`), "The rate is the lower median of the rate observations for its currency —
 `STO-49`'s rows, one per pass — whose `observed_at` lies inside the last window-length before the
@@ -145,7 +173,35 @@ withdrawn placement, the grace read on the provider call after the claim has fen
 extension for the whole grace" — reading the record's instant there, since no machine carries a
 deadline. Their off positions retain withdrawn traps, not alternative current rules (`ADR-0026`).
 `retryGuard`: `OPS-48`, 2026-09-09,
-`retry` as "a conditional write on `(id, state = stalled)`". -/
+`retry` as "a conditional write on `(id, state = stalled)`".
+
+The rules of 2026-10-02 (`ADR-0029`), each with the wording it withdrew as its off position, quoted
+from the dated note that keeps it. `goneOrClosedFirst`: `OPS-41`'s first step, "**The machine is
+recorded gone, or its episode is closed.**"; its off position is the order as it stood before
+that day, which began at the suspension read and left a gone machine to the no-rate branch —
+`ADR-0029`: "Zero rows can also mean a machine genuinely gone, because the re-check runs before
+the fence write". `noRateWaits`: `OPS-41`'s fourth step, "The claim defers: the operation is
+returned to `queued` by `OPS-8`'s ordinary short delay, and no fence is written"; its off position
+is the wording withdrawn in `OPS-41`'s note, "**Where there is no rate, the cancellation
+proceeds.**", under which the conditional write is reached whatever the deadline.
+`absentRecordProceeds`: `OPS-41`'s fifth step, "Where it affects no row and there is still no
+rate, the machine carries no open record and the cancellation proceeds as well"; its off position
+is the reading withdrawn in the same note, "the machine's own meter stopped (`LDG-74`), there is
+nothing left to cancel, and it settles as the no-mutation case". `boundReachesAll`: `LDG-64`,
+"The bound's cancellation reaches every machine priced in the outage's currency, whether or not
+the meter opened a `rate_outage` record for it"; its off position is the scope withdrawn in
+`OPS-41`'s note, "A `rate_outage_bound` cancellation is enqueued only for a machine carrying such
+a record". `sweepNeedsRate`: `LDG-16`, "The exhaustion sweep MUST route a machine where its stored
+`runway_until` has passed and its currency has a rate (`LDG-59`), and MUST NOT route it
+otherwise"; its off position is the predicate withdrawn in `LDG-16`'s note, "MUST route a machine
+where its stored `runway_until` has passed, and MUST NOT route it otherwise", which is also the
+row withdrawn in `LDG-40`'s note, "**the exhaustion sweep** (MUST continue: it reduces
+exposure)", and the sentence withdrawn in `LDG-65`'s, "**The exhaustion sweep continues during an
+outage on the last derived `runway_until`**". `extendNeedsRate`: `LDG-40`, "With no rate for the
+machine's currency, an extension of runway MUST halt as a create does"; no wording was withdrawn
+for it — `LDG-40`'s note has only "The extension's row was added the same day" — and its off
+position is the extension as this module modelled it until then, which grew the commitment with
+no rate and skipped the date. -/
 structure Params where
   recheckInsideFence   : Bool
   fenceHolds           : Holds
@@ -159,11 +215,17 @@ structure Params where
   rateIsWindowMedian   : Bool
   graceAtClaim         : Bool
   retryGuard           : Bool
+  goneOrClosedFirst    : Bool
+  noRateWaits          : Bool
+  absentRecordProceeds : Bool
+  boundReachesAll      : Bool
+  sweepNeedsRate       : Bool
+  extendNeedsRate      : Bool
   deriving DecidableEq, Repr
 
-/-- The fence as it stands, with every guard it composes from `OPS-41`, `LDG-62`, `LDG-58` and
-`OPS-48` present; tagged to the fence's own requirement. One field per line: `ci.yml`'s controls
-flip one each. -/
+/-- The fence as it stands, with every guard it composes from `OPS-41`, `LDG-62`, `LDG-58`,
+`OPS-48`, `LDG-16`, `LDG-40` and `LDG-64` present; tagged to the fence's own requirement. One field
+per line: `ci.yml`'s controls flip one each. -/
 @[req "OPS-42"]
 def current : Params := {
     recheckInsideFence   := true,
@@ -177,7 +239,13 @@ def current : Params := {
     ownIdClause          := true,
     rateIsWindowMedian   := true,
     graceAtClaim         := true,
-    retryGuard           := true }
+    retryGuard           := true,
+    goneOrClosedFirst    := true,
+    noRateWaits          := true,
+    absentRecordProceeds := true,
+    boundReachesAll      := true,
+    sweepNeedsRate       := true,
+    extendNeedsRate      := true }
 
 /-- What this attempt writes into the fence column. -/
 def Params.holder (p : Params) (a : Attempt) : Holder :=
@@ -192,51 +260,76 @@ def Params.abort (p : Params) (commitment prot rate : Nat) : Bool :=
   | .sats => abortSats commitment prot rate
 
 /-- Where the worker is. `holding`: claimed, `OPS-8`'s hold on the machine, before the fence
-transaction, carrying the rate it read at the claim — a snapshot, which `OPS-41` says
-"`LDG-35`'s per-tenant primitive orders nothing against a deployment-wide event". `readUnfenced`: the split variant's phase between its read and
-its write, with what the read decided and the date it derived. `fenced`: the fence written — the
-only phase a provider call leaves from. `noMutation`: `OPS-41`'s abort, with the re-derived date
-where the re-check derived one, to be settled `succeeded`. `dispatched`: the provider call made,
-holding its reply or its loss. -/
+transaction. It carries the claim number and nothing the worker read at the claim: `OPS-41`'s
+order is decided "inside the fence transaction and on what that transaction reads, never on its
+claim snapshot". `readUnfenced`: the split variant's phase between a read that let the
+cancellation through and its write, with the date the read derived. `fenced`: the fence written —
+the only phase a provider call leaves from. `noMutation`: `OPS-41`'s abort, with the re-derived
+date where the re-check derived one, to be settled `succeeded`. `dispatched`: the provider call
+made, holding its reply or its loss. -/
 inductive Phase
   | idle
-  | holding (mine : ClaimNumber) (rateSeen : Option Nat)
-  | readUnfenced (mine : ClaimNumber) (proceed : Bool) (date : Option Nat)
+  | holding (mine : ClaimNumber)
+  | readUnfenced (mine : ClaimNumber) (date : Option Nat)
   | fenced (mine : ClaimNumber)
   | noMutation (mine : ClaimNumber) (date : Option Nat)
   | dispatched (mine : ClaimNumber) (reply : Option Bool)
   deriving DecidableEq, Repr
 
 structure World where
-  m          : Machine
+  m           : Machine
   /-- The tenant's available balance. -/
-  balance    : Nat
-  now        : Nat
+  balance     : Nat
+  now         : Nat
   /-- `LDG-59`'s rate, whole satoshis per second, and `none` while "there is no rate" (`LDG-64`). -/
-  rate       : Option Nat
+  rate        : Option Nat
   /-- `STO-56`'s restore record where one is open, with the instant `Provisiond.Restore` wrote,
   or null before step (3); `none` where no record is open. -/
-  restore    : Option RestoreRecord := none
+  restore     : Option RestoreRecord := none
   /-- `protected_sats`. -/
-  prot       : Nat
+  prot        : Nat
   /-- The tenant's current suspension state (`API-58`, `WIR-41`). -/
-  suspended  : Bool
-  /-- `OPS-41`'s "**this machine's** open `rate_outage` deficiency record (`STO-37`, guarded on
-  `absorbed_until IS NULL`)". -/
-  outageOpen : Bool
-  episode    : Option EpisodeRow
-  attempt    : Option Attempt
-  phase      : Phase
-  nextId     : Nat
+  suspended   : Bool
+  /-- Whether this machine carries an open `rate_outage` deficiency record: `STO-37`'s row,
+  open while `absorbed_until IS NULL`, opened by the meter (`meterOpens`) and by nothing else
+  here. -/
+  outageOpen  : Bool
+  /-- The start of the outage, read while there is no rate: a fact of history, given by the event
+  that lost the rate and independent of whether this machine carries a record. `STO-37` defines
+  it and the replay that produces it is not modelled. -/
+  outageStart : Nat
+  /-- The maximum tolerated rate outage (`LDG-64`), as the setting in force: `OVR-19`'s register
+  holds it, and `setMaxOutage` is the restart that loads another value. -/
+  maxOutage   : Nat
+  episode     : Option EpisodeRow
+  attempt     : Option Attempt
+  phase       : Phase
+  nextId      : Nat
   deriving DecidableEq, Repr
 
 def World.episodeOpen (w : World) : Bool := w.episode.any (·.state.isOpen)
 
+/-- The outage's deadline, a function of the given start and the setting in force, computed at
+each use. `LDG-64` says "compute the outage's deadline from history, and store it nowhere". It is
+"the outage's start plus the maximum tolerated outage". Of the two terms the maximum is the one
+this model lets change: `OVR-19` has it, with the parameters the start is replayed with, "each
+read at the value in force when `LDG-64`'s deadline is computed, for an outage already open
+too", and the start is given, with no event that replays it under other parameters. -/
+@[req "LDG-64"]
+def World.deadline (w : World) : Nat := w.outageStart + w.maxOutage
+
+/-- `OPS-41`'s fourth and fifth steps turn on whether "the deadline has passed". An instant
+reached has passed, as `routed` reads the same words of the stored date. -/
+@[req "OPS-41"]
+def World.deadlinePassed (w : World) : Bool := w.deadline ≤ w.now
+
 /-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
-passed, and MUST NOT route it otherwise." The stored date alone; `LDG-16` says of the grace that
-it "is no clause of this predicate". -/
+passed and its currency has a rate (`LDG-59`), and MUST NOT route it otherwise." Two clauses under
+`sweepNeedsRate`; without it the date alone, the predicate `LDG-16`'s note withdrew on 2026-10-02.
+`LDG-16` says of the grace that it "is no clause of this predicate". -/
 @[req "LDG-16"]
-def World.routed (w : World) : Bool := w.m.runwayUntil ≤ w.now
+def World.routed (w : World) (p : Params) : Bool :=
+  w.m.runwayUntil ≤ w.now && (!p.sweepNeedsRate || w.rate.isSome)
 
 /-- `PRV-13e`: what re-derivation "recomputes is `runway_until`, not the commitment". The optional
 observation is the acceptance order (`STO-49`) the pass consumed in the machine's currency; `none`
@@ -254,19 +347,38 @@ is the identity, regardless of the proposed date. -/
 theorem no_observation_changes_nothing (w : World) (newDate : Nat) :
     rederive w newDate none = w := rfl
 
+/-- The rate lost, with the outage's start as history gives it. The start is an argument and not
+the model's clock: the replayed start can precede the instant the loss is noticed, and what
+replays it is not modelled. An outage already open keeps its start — a second no-rate input is
+the same outage, and nothing here restarts it. No record is opened. `STO-37` says "The row is the
+subject's, and the meter opens it". -/
+@[req "LDG-64"]
+def loseRate (w : World) (start : Nat) : World :=
+  match w.rate with
+  | none => w
+  | some _ => { w with rate := none, outageStart := start }
+
+/-- The rate restored, at `r`: `LDG-64`'s "close the absorbed window at the observation with
+which `LDG-58`'s window produces a rate again", the record's `absorbed_until` "written with that
+observation's instant, by that observation's own write". The window that produced `r` is not
+carried here; `pass` is the event that carries one. -/
+@[req "LDG-64"]
+def rateRestored (w : World) (r : Nat) : World := { w with rate := some r, outageOpen := false }
+
 /-- `LDG-58`: "Each pass that accepts an observation computes the rate over the window as of that
 pass, and the rate holds until the next such pass". The prices inside the window as of this pass
 are given, in acceptance order, as `rederive` is given its date; under `rateIsWindowMedian` the
 rate is `Provisiond.Rate.atPass`'s over them, and under the withdrawn rule it is the pass's own
-observation, the newest. That is all a pass carries: it sets `rate` and touches nothing else. In
-particular it does not open `STO-37`'s record — the row `readRate` contends on is `rateLost`'s,
-and who opens it is `LDG-64`'s and `STO-37`'s rule, "the meter ... opens it at a subject's first
-posting that computes no rate and finds no open row for that subject", which this model does not
-replay — so a thin pass here leaves `rate := none` with no outage open, and that state is not
-the modelled outage. -/
+observation, the newest. A pass whose window yields a rate is `rateRestored`'s write, and one
+whose window yields none is `loseRate`'s, with the start it is given: either way of losing the
+rate treats the outage's start alike. Neither opens `STO-37`'s record — that is the meter's
+(`meterOpens`) — so a thin pass leaves no rate and no record, which is the state `ADR-0029` was
+written for. -/
 @[req "LDG-58"]
-def pass (p : Params) (w : World) (window : List Nat) : World :=
-  { w with rate := if p.rateIsWindowMedian then Rate.atPass window else window.getLast? }
+def pass (p : Params) (w : World) (window : List Nat) (start : Nat) : World :=
+  match (if p.rateIsWindowMedian then Rate.atPass window else window.getLast?) with
+  | some r => rateRestored w r
+  | none => loseRate w start
 
 /-! ## The events -/
 
@@ -294,11 +406,13 @@ def applyRow (w : World) (ep : EpisodeRow) (ev : Tables.Event) : World :=
                                     else w.m.fence } }
 
 /-- The exhaustion sweep: `LDG-14`'s "At end of runway the machine MUST be cancelled", routed on
-the **stored** date (`World.routed`) and on nothing else, for a machine not
+`LDG-16`'s predicate (`World.routed`) — the **stored** date and, since 2026-10-02, a rate for the
+machine's currency — for a machine not
 recorded gone — `LDG-74`: "a machine established gone has nothing left to cancel". Its other row
 is `OPS-48`'s sweep-close: the sweep "finds the machine of a `stalled` episode funded under
 `OPS-41`'s predicate ... **and its tenant not suspended** at that read" and closes it `funded`,
-clearing the fence; a `stalled` episode has no attempt in flight, which the guard states. -/
+clearing the fence; a `stalled` episode has no attempt in flight, which the guard states. That row
+took a rate before 2026-10-02 and is unchanged. -/
 @[req "LDG-14"]
 def sweep (p : Params) (w : World) : World :=
   match w.episode, w.rate with
@@ -306,10 +420,21 @@ def sweep (p : Params) (w : World) : World :=
     if ep.state == .stalled && w.phase == .idle && w.attempt.all Attempt.done
         && p.abort w.m.commitment w.prot r then
       applyRow w ep (.sweepFunded w.suspended)
-    else if w.routed && !w.m.gone then enqueue w .exhausted else w
-  | _, _ => if w.routed && !w.m.gone then enqueue w .exhausted else w
+    else if w.routed p && !w.m.gone then enqueue w .exhausted else w
+  | _, _ => if w.routed p && !w.m.gone then enqueue w .exhausted else w
 
-/-- `OPS-8`: the claim, through the claim model, taking the rate snapshot the re-check will read.
+/-- `LDG-16`: "While the currency has no rate the sweep routes nothing priced in it". With no rate
+the sweep is the identity: it enqueues nothing and opens no episode, whatever the stored date. -/
+@[req "LDG-16"]
+theorem sweep_routes_nothing_without_a_rate (p : Params) (hg : p.sweepNeedsRate = true)
+    (w : World) (hr : w.rate = none) : sweep p w = w := by
+  unfold sweep
+  split
+  · simp_all
+  · simp [World.routed, hg, hr]
+
+/-- `OPS-8`: the claim, through the claim model. It reads nothing of the rate: what the worker
+decides on is the fence transaction's own read.
 A row that is not `queued` is not claimed. Under `graceAtClaim`, `OPS-41`'s read of the restore
 record follows the claim: "while a restore record is open and its `grace_ends_at` is null or in
 the future the claim MUST defer: the operation is returned to `queued` with `available_at =
@@ -325,7 +450,7 @@ def claimStep (p : Params) (w : World) : World :=
       if p.graceAtClaim && Claim.graceDefers w.restore w.now then
         { w with attempt := some { a with
             row := Claim.defer Claim.current r n (w.restore.bind (·.graceEndsAt)) } }
-      else { w with attempt := some { a with row := r }, phase := .holding n w.rate }
+      else { w with attempt := some { a with row := r }, phase := .holding n }
     | (_, none) => w
   | _, _ => w
 
@@ -340,25 +465,21 @@ theorem grace_defers_without_fence (p : Params) (hg : p.graceAtClaim = true) (w 
       a'.row.availableAt = w.restore.bind (·.graceEndsAt) := by
   simp [claimStep, hph, ha, hg, hd, Claim.claim, hq, Claim.defer, Claim.holds, Claim.current]
 
-/-- What the re-check has to derive at. `derive r`: a rate, from the snapshot or — under the
-conditional write, where the write "affects no row" and "a rate now exists — restoration" — from
-the rate in force. `noRate`: "where none does ... the cancel proceeds, because a bound the outage
-has not cleared is still the bound" (`OPS-41`); without the write, a snapshot saying no rate is
-taken at its word. `meterStopped`: the write affected no row and no rate exists, "the machine's
-own meter stopped (`LDG-74`), there is nothing left to cancel". -/
-inductive RateRead
-  | derive (r : Nat) | noRate | meterStopped
+/-- What the fence transaction decides. `noMutation`: `OPS-41`'s abort, with the re-derived date
+where one was derived. `proceed`: on to `OPS-42`'s fence write, with that date. `defer`: the
+fourth step, which is "a deferral, not a settlement". -/
+inductive Verdict
+  | noMutation (date : Option Nat)
+  | proceed (date : Option Nat)
+  | defer
   deriving DecidableEq, Repr
 
+/-- `OPS-41`'s first step: "**The machine is recorded gone, or its episode is closed.**" The
+episode is the attempt's own (`operations.episode_id`), so an attempt whose episode is no longer
+the machine's is under a closed one. -/
 @[req "OPS-41"]
-def readRate (p : Params) (w : World) (rateSeen : Option Nat) : RateRead :=
-  match rateSeen with
-  | some r => .derive r
-  | none =>
-    if !p.outageWrite || w.outageOpen then .noRate
-    else match w.rate with
-      | some r => .derive r
-      | none => .meterStopped
+def settledFirst (w : World) (a : Attempt) : Bool :=
+  w.m.gone || !(w.episode.any fun ep => ep.id == a.ep && ep.state.isOpen)
 
 /-- `OPS-41`'s exemption: "where the machine's tenant IS suspended at the moment of the re-check,
 read in the same fence transaction", or — the withdrawn key — the episode's `reasons` set. -/
@@ -368,17 +489,61 @@ def exempt (p : Params) (w : World) : Bool :=
   | .currentState => w.suspended
   | .episodeReasons => w.episode.any (·.reasons.contains .tenantSuspended)
 
-/-- `OPS-41`'s re-check: whether the cancellation proceeds, and the re-derived date where one was
-derived. A suspended tenant's machine "cannot be found funded"; otherwise `readRate` decides what
-there is to derive at, and the abort predicate is applied to what the transaction read. -/
+/-- `OPS-41`'s third step, "The worker re-derives and applies the predicate above", and the
+fifth's restoration branch, "the worker re-derives at that rate and applies the predicate above":
+the abort predicate on what the transaction read, at the rate given, with the date `LDG-33`
+derives there. -/
 @[req "OPS-41"]
-def recheck (p : Params) (w : World) (rateSeen : Option Nat) : Bool × Option Nat :=
-  if exempt p w then (true, none)
-  else match readRate p w rateSeen with
-    | .derive r =>
-      (!p.abort w.m.commitment w.prot r, some (w.now + runwaySeconds w.m.commitment w.prot r))
-    | .noRate => (true, none)
-    | .meterStopped => (false, none)
+def derive (p : Params) (w : World) (r : Nat) : Verdict :=
+  if p.abort w.m.commitment w.prot r then
+    .noMutation (some (w.now + runwaySeconds w.m.commitment w.prot r))
+  else .proceed (some (w.now + runwaySeconds w.m.commitment w.prot r))
+
+/-- `OPS-41`'s order, on what the fence transaction reads, "and the first step that applies
+decides". (1) The machine recorded gone or its episode closed: no mutation, and no date — "**It
+writes no `runway_until`**". (2) The tenant suspended now: "The funding re-check does not apply
+and the cancellation proceeds". (3) A rate: `derive`. (4) No rate and the deadline not passed:
+the claim defers. (5) No rate and the deadline passed, "`LDG-64`'s bound": the conditional write
+on this machine's open `rate_outage` record. `restored` is the restoration, where there is one,
+that commits after this transaction read no rate and before that write: it closed the record, so
+the write "affects no row and a rate is now in force" and the worker re-derives at it. With no
+such restoration, an open record is a row affected and the cancellation proceeds; and no record
+is "no row and there is still no rate", where it "proceeds as well" under `absentRecordProceeds`
+and settles as the no-mutation case under the withdrawn reading.
+
+For a machine with no record the write contends with nothing, and `OPS-41` leaves that case as it
+is: "**One case is left unordered, and it is accepted**". Both orders are traces here and neither
+is chosen. `restored` on such a machine is the return the worker's read after the write sees, and
+it re-derives; a `rateRestored` event straight after the transaction is the return it does not
+see, and the cancellation has proceeded.
+
+The guards in the order they are read: without `goneOrClosedFirst` the order begins at the
+suspension read; without `noRateWaits` the write is reached whatever the deadline; without
+`outageWrite` the transaction's read of no rate is taken at its word and the cancellation
+proceeds on it. -/
+@[req "OPS-41"]
+def recheck (p : Params) (w : World) (a : Attempt) (restored : Option Nat) : Verdict :=
+  if p.goneOrClosedFirst && settledFirst w a then .noMutation none
+  else if exempt p w then .proceed none
+  else match w.rate with
+    | some r => derive p w r
+    | none =>
+      if p.noRateWaits && !w.deadlinePassed then .defer
+      else if !p.outageWrite then .proceed none
+      else match restored with
+        | some r => derive p w r
+        | none => if w.outageOpen || p.absentRecordProceeds then .proceed none else .noMutation none
+
+/-- The world a fence transaction commits against: the one it read, or — where it read no rate
+and a restoration committed before the transaction did — that world with the rate restored and
+the record closed. `OPS-41` says "`LDG-35`'s per-tenant primitive orders nothing against a
+deployment-wide event". Nothing of the tenant's moves: the machine row, the balance, the episode
+and the suspension are what the transaction read. -/
+@[req "OPS-41"]
+def midTxn (w : World) (restored : Option Nat) : World :=
+  match restored, w.rate with
+  | some r, none => rateRestored w r
+  | _, _ => w
 
 /-- `OPS-42`'s conditional write, "guarded on `destroy_committed IS NULL` *or* `destroy_committed`
 already holding this operation's episode id" — "**and on that episode being open**" under
@@ -396,19 +561,24 @@ def writeFence (p : Params) (w : World) (n : ClaimNumber) (a : Attempt) (d : Opt
   else { w with phase := .noMutation n d }
 
 /-- The fence transaction: `OPS-41`'s re-check "in the same serialized transaction that writes
-`OPS-42`'s fence". Under `recheckInsideFence` it reads and writes in one step: an abort is
-`noMutation` with no fence written, and a machine the re-check lets through takes the write.
-Without it the transaction is the read alone, and the write is `fenceWrite`'s later step. -/
+`OPS-42`'s fence". An abort is `noMutation` with no fence written. A deferral is `OPS-8`'s defer —
+`Provisiond.Claim.defer`, with no `available_at` instant, since a short delay carries none in that
+model — and leaves the worker `idle`, the row `queued`, the episode and the fence as they were:
+"The episode stays open and `OPS-48` gains no row". Under `recheckInsideFence` a machine the
+re-check lets through takes the write in the same step; without it the transaction is the read
+alone, and the write is `fenceWrite`'s later step. -/
 @[req "OPS-41"]
-def fenceTxn (p : Params) (w : World) : World :=
+def fenceTxn (p : Params) (w : World) (restored : Option Nat) : World :=
   match w.phase, w.attempt with
-  | .holding n rs, some a =>
-    -- Written out four times rather than bound once: a `let` here is a `have` the `split`
-    -- tactic cannot see through, and the four are one term to the kernel.
-    if !p.recheckInsideFence then
-      { w with phase := .readUnfenced n (recheck p w rs).1 (recheck p w rs).2 }
-    else if (recheck p w rs).1 then writeFence p w n a (recheck p w rs).2
-    else { w with phase := .noMutation n (recheck p w rs).2 }
+  | .holding n, some a =>
+    match recheck p w a restored with
+    | .defer =>
+      { midTxn w restored with
+          attempt := some { a with row := Claim.defer Claim.current a.row n }, phase := .idle }
+    | .noMutation d => { midTxn w restored with phase := .noMutation n d }
+    | .proceed d =>
+      if p.recheckInsideFence then writeFence p (midTxn w restored) n a d
+      else { midTxn w restored with phase := .readUnfenced n d }
   | _, _ => w
 
 /-- The split variant's second transaction: the fence write, deciding on what an earlier
@@ -417,26 +587,33 @@ transaction read. It exists only where the read and the write are split; under
 @[req "OPS-42"]
 def fenceWrite (p : Params) (w : World) : World :=
   match p.recheckInsideFence, w.phase, w.attempt with
-  | false, .readUnfenced n proceed d, some a =>
-    if proceed then writeFence p w n a d else { w with phase := .noMutation n d }
+  | false, .readUnfenced n d, some a => writeFence p w n a d
   | _, _, _ => w
 
 /-- `LDG-62`: in its own transaction, "conditional-write the machine row guarded on
 `machines.destroy_committed IS NULL`", failing `conflict` where it affects no row — "opening or
 growing no commitment and moving no balance" — and refused for a suspended tenant, which "`API-7`
-step 5b refuses" (`OPS-41`). Where it is admitted it grows the commitment from available under
-"`LDG-10`'s no-negative rule" and, under `extendWritesDate`, writes the re-derived `runway_until`
-— which `LDG-33` "recomputes ... only when a rate exists" (`LDG-65`). -/
+step 5b refuses" (`OPS-41`). With no rate it halts under `extendNeedsRate` — `LDG-40`: "With no
+rate for the machine's currency, an extension of runway MUST halt as a create does" — and every
+refusal is the unchanged world, so no order between them is stated. Where it is admitted it grows
+the commitment from available under "`LDG-10`'s no-negative rule" and, under `extendWritesDate`,
+writes the re-derived `runway_until`. Without `extendNeedsRate` it grows the commitment with no
+rate and writes no date, since `LDG-33` "recomputes the date only when a rate exists"
+(`LDG-65`). -/
 @[req "LDG-62"]
 def extend (p : Params) (w : World) (sats : Nat) : World :=
   if w.m.fence != none || w.suspended || w.balance < sats then w
   else
     let c := w.m.commitment + sats
-    match p.extendWritesDate, w.rate with
-    | true, some r =>
-      { w with m := { w.m with commitment := c, runwayUntil := w.now + runwaySeconds c w.prot r },
-               balance := w.balance - sats }
-    | _, _ => { w with m := { w.m with commitment := c }, balance := w.balance - sats }
+    match w.rate with
+    | some r =>
+      if p.extendWritesDate then
+        { w with m := { w.m with commitment := c, runwayUntil := w.now + runwaySeconds c w.prot r },
+                 balance := w.balance - sats }
+      else { w with m := { w.m with commitment := c }, balance := w.balance - sats }
+    | none =>
+      if p.extendNeedsRate then w
+      else { w with m := { w.m with commitment := c }, balance := w.balance - sats }
 
 /-- The provider call, outside every serialization (`LDG-69`), from `fenced` and nowhere else.
 Under `graceAtClaim` it reads nothing of the grace — `LDG-16`: "The worker's re-check and its
@@ -533,48 +710,79 @@ def resume (w : World) : World := { w with suspended := false }
 
 /-- The rate lost: `LDG-59`'s window yielding "**no rate**", by staleness or by thinness at a
 pass. It is not a pass below the quorum, of which `LDG-59` says "A pass below the quorum accepts
-no observation and recomputes nothing, and the rate in force holds". This machine carries an open
-`rate_outage` record, which `OPS-41` says "under `LDG-64` is every machine metered through the
-outage". -/
+no observation and recomputes nothing, and the rate in force holds". `start` is the outage's start
+as history gives it (`loseRate`). The machine's record is not opened here: `STO-37` has the meter
+open it "at a subject's first posting that computes no rate", and `meterOpens` is that event. -/
 @[req "LDG-64"]
-def rateLost (w : World) : World := { w with rate := none, outageOpen := true }
+def rateLost (w : World) (start : Nat) : World := loseRate w start
 
-/-- The rate restored, at `r`: `LDG-64`'s "close the absorbed window at the observation with
-which `LDG-58`'s window produces a rate again", the record's `absorbed_until` "written with that
-observation's instant, by that observation's own write". The window that produced `r` is not
-carried here; `pass` is the event that carries one. -/
-@[req "LDG-64"]
-def rateRestored (w : World) (r : Nat) : World := { w with rate := some r, outageOpen := false }
+/-- The meter opening this machine's `rate_outage` record. `STO-37` says "The row is the
+subject's, and the meter opens it". It opens "at a subject's first posting that computes no rate
+and finds no open row for that subject", so not while a rate exists, and not for a machine the
+meter has stopped for — `LDG-74`: "The meter MUST stop on evidence that the machine is gone". A
+world in which this event never happens is the machine `STO-37` describes: "a subject the meter
+has not posted for since the outage began has no row". -/
+@[req "STO-37"]
+def meterOpens (w : World) : World :=
+  if w.rate == none && !w.m.gone then { w with outageOpen := true } else w
 
-/-- `LDG-64`'s bound canceller: "cancel machines at that bound if no rate has returned", one
-`rate_outage_bound` cancellation, "enqueued only for a machine carrying such a record" (`OPS-41`). -/
+/-- The restart that loads another maximum tolerated outage. `OVR-19` has it read "at the value in
+force when `LDG-64`'s deadline is computed, for an outage already open too", so the deadline of an
+open outage moves with it and nothing else is touched. -/
+@[req "OVR-19"]
+def setMaxOutage (w : World) (bound : Nat) : World := { w with maxOutage := bound }
+
+/-- `LDG-64`'s bound canceller: "cancel machines at that bound if no rate has returned", a
+`rate_outage_bound` cancellation, once the deadline has passed, for a machine not recorded gone —
+`LDG-74`: "a machine established gone has nothing left to cancel", the sweep's own guard. Under
+`boundReachesAll` it reaches the machine with a record or without — `LDG-64`: "The bound's
+cancellation reaches every machine priced in the outage's currency, whether or not the meter
+opened a `rate_outage` record for it" — and without that guard only a machine carrying one, the
+scope `OPS-41`'s note withdrew. -/
 @[req "LDG-64"]
-def outageBound (w : World) : World :=
-  if w.rate == none && w.outageOpen then enqueue w .rateOutageBound else w
+def outageBound (p : Params) (w : World) : World :=
+  if w.rate == none && w.deadlinePassed && !w.m.gone && (p.boundReachesAll || w.outageOpen) then
+    enqueue w .rateOutageBound
+  else w
+
+/-- `LDG-64`: the bound's cancellation "reaches every machine priced in the outage's currency,
+whether or not the meter opened a `rate_outage` record for it". With no rate and the deadline
+passed the canceller enqueues for a machine not recorded gone, whatever the record. -/
+@[req "LDG-64"]
+theorem bound_reaches_a_machine_without_a_record (p : Params) (hg : p.boundReachesAll = true)
+    (w : World) (hr : w.rate = none) (hd : w.deadlinePassed = true) (hgone : w.m.gone = false) :
+    outageBound p w = enqueue w .rateOutageBound := by
+  simp [outageBound, hr, hd, hg, hgone]
 
 inductive Event
   | advance (seconds : Nat)
   | rederive (newDate : Nat) (observation : Option Nat)
-  /-- A pass accepting an observation: the prices inside the window as of that pass. -/
-  | pass (window : List Nat)
+  /-- A pass accepting an observation: the prices inside the window as of that pass, and the
+  outage's start as history gives it, read only where the window yields no rate. -/
+  | pass (window : List Nat) (start : Nat)
   /-- `STO-56`'s record as `Provisiond.Restore` wrote it: opened with the instant null, the
   instant written at step (3), or closed (`none`). -/
   | restoreRecord (r : Option RestoreRecord)
-  | sweep | claim | fenceTxn | fenceWrite
+  | sweep | claim
+  /-- The fence transaction, with the restoration that commits between its read of no rate and
+  its conditional write, where there is one. -/
+  | fenceTxn (restored : Option Nat := none)
+  | fenceWrite
   | extend (sats : Nat)
   | providerDelete (applied : Bool) (reply : Option Bool)
   | settle | retry | goneWrite | suspend | resume
-  | rateLost | rateRestored (r : Nat) | outageBound
+  | rateLost (start : Nat) | rateRestored (r : Nat) | meterOpens | setMaxOutage (bound : Nat)
+  | outageBound
   deriving DecidableEq, Repr
 
 def step (p : Params) (w : World) : Event → World
   | .advance seconds => { w with now := w.now + seconds }
   | .rederive date observation => rederive w date observation
-  | .pass window => pass p w window
+  | .pass window start => pass p w window start
   | .restoreRecord r => { w with restore := r }
   | .sweep => sweep p w
   | .claim => claimStep p w
-  | .fenceTxn => fenceTxn p w
+  | .fenceTxn restored => fenceTxn p w restored
   | .fenceWrite => fenceWrite p w
   | .extend s => extend p w s
   | .providerDelete a r => providerDelete p w a r
@@ -583,9 +791,11 @@ def step (p : Params) (w : World) : Event → World
   | .goneWrite => goneWrite w
   | .suspend => suspend w
   | .resume => resume w
-  | .rateLost => rateLost w
+  | .rateLost start => rateLost w start
   | .rateRestored r => rateRestored w r
-  | .outageBound => outageBound w
+  | .meterOpens => meterOpens w
+  | .setMaxOutage bound => setMaxOutage w bound
+  | .outageBound => outageBound p w
 
 def run (p : Params) (w : World) : List Event → World
   | [] => w
@@ -609,6 +819,17 @@ theorem extend_admitted (p : Params) (hd : p.extendWritesDate = true) (w : World
     (extend p w sats).m.runwayUntil = w.now + runwaySeconds (w.m.commitment + sats) w.prot r := by
   simp [extend, extend_guard w sats hs hf hb, hr, hd]
 
+/-- `LDG-62`: "The halted extension opens or grows no commitment and moves no balance". With no
+rate an extension changes nothing at all, whatever the fence, the tenant's state and the balance
+would have answered. -/
+@[req "LDG-62"]
+theorem extend_halts_without_a_rate (p : Params) (hg : p.extendNeedsRate = true) (w : World)
+    (hr : w.rate = none) (sats : Nat) : extend p w sats = w := by
+  unfold extend
+  split
+  · rfl
+  · simp [hr]
+
 /-- What an extension leaves alone, admitted or refused, whatever the rate and the date rule. -/
 theorem extend_frame (p : Params) (w : World) (sats : Nat) :
     (extend p w sats).phase = w.phase ∧ (extend p w sats).attempt = w.attempt ∧
@@ -616,41 +837,72 @@ theorem extend_frame (p : Params) (w : World) (sats : Nat) :
     (extend p w sats).now = w.now ∧ (extend p w sats).m.fence = w.m.fence ∧
     (extend p w sats).episode = w.episode ∧ (extend p w sats).rate = w.rate ∧
     (extend p w sats).outageOpen = w.outageOpen ∧ (extend p w sats).nextId = w.nextId ∧
-    (extend p w sats).m.destroyed = w.m.destroyed := by
+    (extend p w sats).m.destroyed = w.m.destroyed ∧ (extend p w sats).m.gone = w.m.gone ∧
+    (extend p w sats).outageStart = w.outageStart ∧
+    (extend p w sats).maxOutage = w.maxOutage := by
   unfold extend; (repeat' split) <;> simp
+
+/-- What a restoration committing inside a fence transaction leaves alone: everything but the
+rate and the record. -/
+theorem midTxn_frame (w : World) (restored : Option Nat) :
+    (midTxn w restored).m = w.m ∧ (midTxn w restored).balance = w.balance ∧
+    (midTxn w restored).phase = w.phase ∧ (midTxn w restored).attempt = w.attempt ∧
+    (midTxn w restored).episode = w.episode ∧ (midTxn w restored).nextId = w.nextId ∧
+    (midTxn w restored).outageStart = w.outageStart ∧
+    (midTxn w restored).maxOutage = w.maxOutage := by
+  unfold midTxn rateRestored; (repeat' split) <;> simp
+
+/-- Where the transaction read a rate there is no such restoration to commit. -/
+theorem midTxn_of_rate (w : World) (r : Nat) (hr : w.rate = some r) (restored : Option Nat) :
+    midTxn w restored = w := by
+  unfold midTxn; split <;> simp_all
+
+theorem fenceAdmits_midTxn (p : Params) (w : World) (restored : Option Nat) (a : Attempt) :
+    fenceAdmits p (midTxn w restored) a = fenceAdmits p w a := by
+  obtain ⟨hm, -, -, -, he, -⟩ := midTxn_frame w restored
+  simp [fenceAdmits, hm, he]
 
 /-- A fence transaction whose re-check aborts: no fence written, the worker `noMutation` with
 the date the re-check derived. -/
-theorem fenceTxn_abort (p : Params) (hp : p.recheckInsideFence = true) (w : World)
-    (n : ClaimNumber) (rs : Option Nat) (a : Attempt) (hph : w.phase = .holding n rs)
-    (ha : w.attempt = some a) (hre : (recheck p w rs).1 = false) :
-    fenceTxn p w = { w with phase := .noMutation n (recheck p w rs).2 } := by
-  simp [fenceTxn, hph, ha, hp, hre]
+theorem fenceTxn_abort (p : Params) (w : World) (n : ClaimNumber) (a : Attempt)
+    (restored : Option Nat) (d : Option Nat) (hph : w.phase = .holding n)
+    (ha : w.attempt = some a) (hre : recheck p w a restored = .noMutation d) :
+    fenceTxn p w restored = { midTxn w restored with phase := .noMutation n d } := by
+  simp [fenceTxn, hph, ha, hre]
 
 /-- `OPS-42`: "Extension first: the worker's read sees the new commitment, `OPS-41` applies, and
 it makes no provider call at all." With the read inside the fence transaction, an extension the
 store admitted before it is what the re-check reads; where that grown commitment funds the
-machine at the rate the worker holds, the transaction decides no mutation, writes no fence, and the
-provider call is inert. -/
+machine at the rate the transaction reads, it decides no mutation, writes no fence, and the
+provider call is inert. The rate is the world's and not a claim snapshot's — `OPS-41`: "never on
+its claim snapshot" — and a machine recorded gone or under a closed episode is settled by the
+first step with no mutation either, so neither is a hypothesis. -/
 @[req "OPS-42"]
-theorem extension_first (p : Params) (hp : p.recheckInsideFence = true) (w : World)
-    (n : ClaimNumber) (r : Nat) (a : Attempt) (hph : w.phase = .holding n (some r))
+theorem extension_first (p : Params) (w : World)
+    (n : ClaimNumber) (r : Nat) (a : Attempt) (hph : w.phase = .holding n) (hr : w.rate = some r)
     (ha : w.attempt = some a) (hs : w.suspended = false)
     (hk : p.suspensionKey = .currentState) (sats : Nat) (hf : w.m.fence = none)
     (hb : sats ≤ w.balance)
-    (hfunded : p.abort (w.m.commitment + sats) w.prot r = true) :
-    ∃ d, (fenceTxn p (extend p w sats)).phase = .noMutation n d ∧
-    (fenceTxn p (extend p w sats)).m.fence = none ∧
-    (fenceTxn p (extend p w sats)).m.commitment = w.m.commitment + sats ∧
+    (hfunded : p.abort (w.m.commitment + sats) w.prot r = true) (restored : Option Nat) :
+    ∃ d, (fenceTxn p (extend p w sats) restored).phase = .noMutation n d ∧
+    (fenceTxn p (extend p w sats) restored).m.fence = none ∧
+    (fenceTxn p (extend p w sats) restored).m.commitment = w.m.commitment + sats ∧
     ∀ applied reply,
-      providerDelete p (fenceTxn p (extend p w sats)) applied reply = fenceTxn p (extend p w sats) := by
+      providerDelete p (fenceTxn p (extend p w sats) restored) applied reply =
+        fenceTxn p (extend p w sats) restored := by
   have hc : (extend p w sats).m.commitment = w.m.commitment + sats := by
-    unfold extend; simp only [extend_guard w sats hs hf hb]; (repeat' split) <;> simp_all
-  obtain ⟨hph', ha', hs', hprot', hnow', hf', -⟩ := extend_frame p w sats
-  have hre : (recheck p (extend p w sats) (some r)).1 = false := by
-    simp [recheck, exempt, hk, hs', hs, readRate, hc, hprot', hfunded]
-  have hft := fenceTxn_abort p hp (extend p w sats) n (some r) a (hph'.trans hph) (ha'.trans ha) hre
-  refine ⟨_, by rw [hft], ?_, ?_, ?_⟩
+    unfold extend; simp only [extend_guard w sats hs hf hb, hr]; (repeat' split) <;> simp_all
+  obtain ⟨hph', ha', hs', hprot', hnow', hf', -, hr', -⟩ := extend_frame p w sats
+  have hmid := midTxn_of_rate (extend p w sats) r (hr'.trans hr) restored
+  have hre : ∃ d, recheck p (extend p w sats) a restored = .noMutation d := by
+    unfold recheck
+    split
+    · exact ⟨_, rfl⟩
+    · simp [exempt, hk, hs', hs, hr'.trans hr, derive, hc, hprot', hfunded]
+  obtain ⟨d, hre⟩ := hre
+  have hft := fenceTxn_abort p (extend p w sats) n a restored d (hph'.trans hph) (ha'.trans ha) hre
+  rw [hmid] at hft
+  refine ⟨d, by rw [hft], ?_, ?_, ?_⟩
   · rw [hft]; simpa using hf'.trans hf
   · rw [hft]; simpa using hc
   · intro applied reply; rw [hft]; simp [providerDelete]
@@ -668,18 +920,113 @@ holding this attempt, and every extension after it is `extend_refused_under_fenc
 commitment and the balance are what the re-check read. -/
 @[req "OPS-42"]
 theorem fence_first (p : Params) (hp : p.recheckInsideFence = true) (w : World)
-    (n : ClaimNumber) (rs : Option Nat) (a : Attempt) (hph : w.phase = .holding n rs)
-    (ha : w.attempt = some a) (hproceed : (recheck p w rs).1 = true)
+    (n : ClaimNumber) (a : Attempt) (restored : Option Nat) (d : Option Nat)
+    (hph : w.phase = .holding n) (ha : w.attempt = some a)
+    (hproceed : recheck p w a restored = .proceed d)
     (hadmit : fenceAdmits p w a = true) (sats : Nat) :
-    (fenceTxn p w).phase = .fenced n ∧
-    (fenceTxn p w).m.fence = some (p.holder a) ∧
-    extend p (fenceTxn p w) sats = fenceTxn p w ∧
-    (fenceTxn p w).m.commitment = w.m.commitment ∧ (fenceTxn p w).balance = w.balance := by
-  have hft : fenceTxn p w =
-      { w with m := { w.m with fence := some (p.holder a) }, phase := .fenced n } := by
-    simp [fenceTxn, hph, ha, hp, hproceed, writeFence, hadmit]
-  refine ⟨by simp [hft], by simp [hft], ?_, by simp [hft], by simp [hft]⟩
+    (fenceTxn p w restored).phase = .fenced n ∧
+    (fenceTxn p w restored).m.fence = some (p.holder a) ∧
+    extend p (fenceTxn p w restored) sats = fenceTxn p w restored ∧
+    (fenceTxn p w restored).m.commitment = w.m.commitment ∧
+    (fenceTxn p w restored).balance = w.balance := by
+  obtain ⟨hm, hbal, -⟩ := midTxn_frame w restored
+  have hft : fenceTxn p w restored =
+      { midTxn w restored with m := { w.m with fence := some (p.holder a) }, phase := .fenced n } := by
+    simp [fenceTxn, hph, ha, hp, hproceed, writeFence, fenceAdmits_midTxn, hadmit, hm]
+  refine ⟨by simp [hft], by simp [hft], ?_, by simp [hft], by simp [hft, hbal]⟩
   exact extend_refused_under_fence p _ (p.holder a) (by simp [hft]) sats
+
+/-! ## The wait -/
+
+/-- `OPS-41`'s fourth step: "The claim defers: the operation is returned to `queued` by `OPS-8`'s
+ordinary short delay, and no fence is written." Over every world: a fence transaction on a
+machine not recorded gone, its episode open, its tenant not suspended, with no rate and the
+deadline not passed, writes nothing to the machine row — no fence and no date — leaves the
+episode as it was, returns the row to `queued` with no `available_at` instant, and the worker to
+`idle`. It is `LDG-65`'s sentence as well: "Nothing is cancelled on a date that passes while there
+is no rate." Whether a restoration commits behind the transaction changes none of it; the next
+claim reads the rate. The row is the one the claim left, `running` under this worker's number. -/
+@[req "OPS-41"]
+theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
+    (hwait : p.noRateWaits = true) (w : World) (n : ClaimNumber) (a : Attempt)
+    (hph : w.phase = .holding n) (ha : w.attempt = some a)
+    (hrun : a.row.status = .running) (hmine : a.row.claim = n) (hgone : w.m.gone = false)
+    (hopen : (w.episode.any fun ep => ep.id == a.ep && ep.state.isOpen) = true)
+    (hs : w.suspended = false) (hr : w.rate = none) (hd : w.deadlinePassed = false)
+    (restored : Option Nat) :
+    (fenceTxn p w restored).m = w.m ∧ (fenceTxn p w restored).episode = w.episode ∧
+    (fenceTxn p w restored).phase = .idle ∧
+    ∃ a', (fenceTxn p w restored).attempt = some a' ∧ a'.row.status = .queued ∧
+      a'.row.availableAt = none := by
+  have hre : recheck p w a restored = .defer := by
+    simp [recheck, settledFirst, hgone, hopen, exempt, hk, hs, hr, hwait, hd]
+  obtain ⟨hm, -, -, -, he, -⟩ := midTxn_frame w restored
+  simp [fenceTxn, hph, ha, hre, hm, he, Claim.defer, Claim.holds, Claim.current, hrun, hmine]
+
+/-- `OPS-41`'s first step: the worker "makes no provider call and settles the attempt `succeeded`
+with a result recording that no mutation was required", and "**It writes no `runway_until`**".
+Over every world: on a machine recorded gone, or under a closed episode, the fence transaction
+writes no fence and carries no date, and the settlement that follows leaves the stored date what
+it was. -/
+@[req "OPS-41"]
+theorem gone_or_closed_settles_without_a_date (p : Params) (hg : p.goneOrClosedFirst = true)
+    (w : World) (n : ClaimNumber) (a : Attempt) (hph : w.phase = .holding n)
+    (ha : w.attempt = some a) (h : settledFirst w a = true) (restored : Option Nat) :
+    (fenceTxn p w restored).phase = .noMutation n none ∧
+    (fenceTxn p w restored).m = w.m ∧
+    (settle p (fenceTxn p w restored)).m.runwayUntil = w.m.runwayUntil := by
+  have hre : recheck p w a restored = .noMutation none := by simp [recheck, hg, h]
+  obtain ⟨hm, -, -, hatt, -⟩ := midTxn_frame w restored
+  have hft := fenceTxn_abort p w n a restored none hph ha hre
+  refine ⟨by rw [hft], by rw [hft]; simpa using hm, ?_⟩
+  rw [hft]
+  simp only [settle, hatt, ha]
+  unfold finish applyRow
+  (repeat' split) <;> simp_all
+
+/-- While an outage is open its start is what history gave, and its deadline moves with the
+setting alone: across every event of this model but the restart that loads another maximum, a
+world with no rate keeps the start and the deadline it had. `LDG-64`: "With unchanged parameters
+any writer computes the same instant". The model's events change no replay parameter and lose no
+`STO-49` row — the module's omissions name both — so this is that sentence's case and says
+nothing of the two that move the start. A second no-rate input — `rateLost` again, or another
+thin `pass` — restarts nothing: it falls inside the one interval `STO-37` dates the start from,
+"the earliest instant of the maximal interval, ending at the writer's posting, throughout which
+the window yielded no rate". What ends the outage is a rate, and the next loss is the next
+outage's start: `LDG-64`'s "Each outage has its own start and so its own deadline". -/
+@[req "LDG-64"]
+theorem open_outage_keeps_its_start (p : Params) (w : World) (hr : w.rate = none) (e : Event)
+    (he : ∀ b, e ≠ .setMaxOutage b) :
+    (step p w e).outageStart = w.outageStart ∧ (step p w e).deadline = w.deadline := by
+  have key : (step p w e).outageStart = w.outageStart ∧ (step p w e).maxOutage = w.maxOutage := by
+    cases e with
+    | advance seconds => simp [step]
+    | rederive d obs => simp only [step]; unfold rederive; (repeat' split) <;> simp_all
+    | pass window start =>
+      simp only [step]; unfold pass rateRestored loseRate; (repeat' split) <;> simp_all
+    | restoreRecord r => simp [step]
+    | sweep => simp only [step]; unfold sweep enqueue applyRow; (repeat' split) <;> simp_all
+    | claim => simp only [step]; unfold claimStep; (repeat' split) <;> simp_all
+    | fenceTxn restored =>
+      obtain ⟨-, -, -, -, -, -, h1, h2⟩ := midTxn_frame w restored
+      simp only [step]; unfold fenceTxn writeFence; (repeat' split) <;> simp_all
+    | fenceWrite => simp only [step]; unfold fenceWrite writeFence; (repeat' split) <;> simp_all
+    | extend s =>
+      obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h1, h2⟩ := extend_frame p w s
+      exact ⟨h1, h2⟩
+    | providerDelete a r => simp only [step]; unfold providerDelete; (repeat' split) <;> simp_all
+    | settle =>
+      simp only [step]; unfold settle writeAbortDate finish applyRow; (repeat' split) <;> simp_all
+    | retry => simp only [step]; unfold retry; (repeat' split) <;> simp_all
+    | goneWrite => simp only [step]; unfold goneWrite applyRow; (repeat' split) <;> simp_all
+    | suspend => simp only [step]; unfold suspend enqueue; (repeat' split) <;> simp_all
+    | resume => simp [step, resume]
+    | rateLost start => simp [step, rateLost, loseRate, hr]
+    | rateRestored r => simp [step, rateRestored]
+    | meterOpens => simp only [step]; unfold meterOpens; (repeat' split) <;> simp_all
+    | setMaxOutage b => exact absurd rfl (he b)
+    | outageBound => simp only [step]; unfold outageBound enqueue; (repeat' split) <;> simp_all
+  exact ⟨key.1, by simp [World.deadline, key.1, key.2]⟩
 
 /-! ## Destruction only after a fence transaction whose re-check let it through -/
 
@@ -691,7 +1038,8 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
   cases e with
   | advance seconds => exfalso; simp [step, hw] at h
   | rederive d obs => exfalso; unfold step rederive at h; (repeat' split at h) <;> simp_all
-  | pass window => exfalso; simp [step, pass, hw] at h
+  | pass window start =>
+    exfalso; unfold step pass rateRestored loseRate at h; (repeat' split at h) <;> simp_all
   | restoreRecord r => exfalso; simp [step, hw] at h
   | providerDelete applied reply =>
     simp only [step] at h
@@ -706,12 +1054,13 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
     · simp [hw] at h
   | sweep => exfalso; unfold step sweep enqueue applyRow at h; (repeat' split at h) <;> simp_all
   | claim => exfalso; unfold step claimStep at h; (repeat' split at h) <;> simp_all
-  | fenceTxn =>
-    exfalso; unfold step fenceTxn writeFence at h; (repeat' split at h) <;> simp_all
+  | fenceTxn restored =>
+    exfalso; obtain ⟨hm, -⟩ := midTxn_frame w restored
+    unfold step fenceTxn writeFence at h; (repeat' split at h) <;> simp_all
   | fenceWrite =>
     exfalso; unfold step fenceWrite writeFence at h; (repeat' split at h) <;> simp_all
   | extend s =>
-    exfalso; obtain ⟨-, -, -, -, -, -, -, -, -, -, hd⟩ := extend_frame p w s
+    exfalso; obtain ⟨-, -, -, -, -, -, -, -, -, -, hd, -⟩ := extend_frame p w s
     rw [step, hd] at h; simp_all
   | settle =>
     exfalso; unfold step settle writeAbortDate finish applyRow at h
@@ -720,8 +1069,11 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
   | goneWrite => exfalso; unfold step goneWrite applyRow at h; (repeat' split at h) <;> simp_all
   | suspend => exfalso; unfold step suspend enqueue at h; (repeat' split at h) <;> simp_all
   | resume => exfalso; simp [step, resume] at h; simp_all
-  | rateLost => exfalso; simp [step, rateLost] at h; simp_all
+  | rateLost start =>
+    exfalso; unfold step rateLost loseRate at h; (repeat' split at h) <;> simp_all
   | rateRestored r => exfalso; simp [step, rateRestored] at h; simp_all
+  | meterOpens => exfalso; unfold step meterOpens at h; (repeat' split at h) <;> simp_all
+  | setMaxOutage b => exfalso; simp [step, setMaxOutage] at h; simp_all
   | outageBound =>
     exfalso; unfold step outageBound enqueue at h; (repeat' split at h) <;> simp_all
 
@@ -729,34 +1081,40 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
 from `holding`, on a machine whose re-check let it through — `OPS-41`: "after claiming the machine
 (`OPS-8`) and before any provider mutation, re-read that machine's commitment and its
 `runway_until` — in the same serialized transaction that writes `OPS-42`'s fence" — and it leaves
-the fence holding this attempt. With `destroyed_only_by_provider_from_fenced` and
-`recheck_proceeds`: destruction only after a fence transaction whose re-check read unfunded, no
-rate, or suspended. -/
+the fence holding this attempt. The re-check is the transaction's own, on the world it ran in and
+the restoration, if any, that committed behind its read: nothing of the claim enters. With
+`destroyed_only_by_provider_from_fenced` and `recheck_proceeds`: destruction only after a fence
+transaction whose re-check read the tenant suspended, or a rate at which the machine is unfunded,
+or no rate with the deadline passed. -/
 @[req "OPS-41"]
 theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true) (w : World)
     (e : Event) (n : ClaimNumber) (h : (step p w e).phase = .fenced n)
     (hw : w.phase ≠ .fenced n) :
-    e = .fenceTxn ∧ ∃ rs, w.phase = .holding n rs ∧ (recheck p w rs).1 = true ∧
-    ∃ a, w.attempt = some a ∧ (step p w e).m.fence = some (p.holder a) := by
+    ∃ restored, e = .fenceTxn restored ∧ w.phase = .holding n ∧
+    ∃ a, w.attempt = some a ∧ (∃ d, recheck p w a restored = .proceed d) ∧
+      (step p w e).m.fence = some (p.holder a) := by
   cases e with
   | advance seconds => exfalso; exact hw (by simpa [step] using h)
   | rederive d obs => exfalso; unfold step rederive at h; (repeat' split at h) <;> simp_all
-  | pass window => exfalso; exact hw (by simpa [step, pass] using h)
+  | pass window start =>
+    exfalso; unfold step pass rateRestored loseRate at h; (repeat' split at h) <;> simp_all
   | restoreRecord r => exfalso; exact hw (by simpa [step] using h)
-  | fenceTxn =>
+  | fenceTxn restored =>
+    obtain ⟨hm, -, hmph, -⟩ := midTxn_frame w restored
     simp only [step] at h ⊢
     unfold fenceTxn at h ⊢
     split at h
-    · rename_i n' rs a hph ha
-      simp only [hp, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h ⊢
+    · rename_i n' a hph ha
       split at h
-      · rename_i hproceed
+      · simp at h
+      · simp at h
+      · rename_i d hre
+        simp only [hp, ↓reduceIte] at h ⊢
         unfold writeFence at h ⊢
         split at h
         · simp at h; subst h
-          exact ⟨by trivial, rs, hph, hproceed, a, ha, by simp [*]⟩
+          exact ⟨restored, rfl, hph, a, ha, ⟨d, hre⟩, by simp [*]⟩
         · simp at h
-      · simp at h
     · exact absurd h hw
   | sweep => exfalso; unfold step sweep enqueue applyRow at h; (repeat' split at h) <;> simp_all
   | claim => exfalso; unfold step claimStep at h; (repeat' split at h) <;> simp_all
@@ -772,40 +1130,57 @@ theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true)
   | goneWrite => exfalso; unfold step goneWrite applyRow at h; (repeat' split at h) <;> simp_all
   | suspend => exfalso; unfold step suspend enqueue at h; (repeat' split at h) <;> simp_all
   | resume => exfalso; simp [step, resume] at h; exact hw h
-  | rateLost => exfalso; simp [step, rateLost] at h; exact hw h
+  | rateLost start =>
+    exfalso; unfold step rateLost loseRate at h; (repeat' split at h) <;> simp_all
   | rateRestored r => exfalso; simp [step, rateRestored] at h; exact hw h
+  | meterOpens => exfalso; unfold step meterOpens at h; (repeat' split at h) <;> simp_all
+  | setMaxOutage b => exfalso; simp [step, setMaxOutage] at h; exact hw h
   | outageBound =>
     exfalso; unfold step outageBound enqueue at h; (repeat' split at h) <;> simp_all
 
-/-- What a re-check that lets the cancellation through has read, under `current`'s three keys
-(each a hypothesis, so that a flipped key reddens its witness and not this theorem): the tenant
-suspended now; no rate, the outage still open for this machine; or a rate — the snapshot's, or
-restoration's where the outage write found the record closed — at which the machine is
-unfunded. -/
+theorem derive_proceeds (p : Params) (hab : p.abortPredicate = .date) (w : World) (r : Nat)
+    (d : Option Nat) (h : derive p w r = .proceed d) :
+    abortDate w.m.commitment w.prot r = false := by
+  unfold derive at h
+  split at h
+  · simp at h
+  · simpa [Params.abort, hab] using ‹¬p.abort w.m.commitment w.prot r = true›
+
+/-- What a re-check that lets the cancellation through has read, under `current`'s keys (each a
+hypothesis, so that a flipped key reddens its witness and not this theorem): the tenant suspended
+now; or a rate at which the machine is unfunded — the transaction's own read, or, past the
+deadline, the rate of a restoration the transaction saw ahead of its conditional write; or no
+rate with the deadline passed and no restoration it saw. That last says nothing of a rate
+returning at that instant unseen, which for a machine with no record `OPS-41` leaves unordered
+and accepts. `OPS-41`: "Where there is no rate, the cancellation proceeds" is withdrawn, and with
+it the reading that no rate alone lets a cancellation through. -/
 @[req "OPS-41"]
 theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
-    (hab : p.abortPredicate = .date) (hout : p.outageWrite = true) (w : World) (rs : Option Nat)
-    (h : (recheck p w rs).1 = true) :
+    (hab : p.abortPredicate = .date) (hout : p.outageWrite = true) (hwait : p.noRateWaits = true)
+    (w : World) (a : Attempt) (restored : Option Nat) (d : Option Nat)
+    (h : recheck p w a restored = .proceed d) :
     w.suspended = true ∨
-    (rs = none ∧ w.outageOpen = true) ∨
-    ∃ r, readRate p w rs = .derive r ∧ abortDate w.m.commitment w.prot r = false := by
+    (∃ r, (w.rate = some r ∨ (w.rate = none ∧ w.deadlinePassed = true ∧ restored = some r)) ∧
+      abortDate w.m.commitment w.prot r = false) ∨
+    (w.rate = none ∧ w.deadlinePassed = true ∧ restored = none) := by
   unfold recheck at h
   split at h
-  · left; simpa [exempt, hk] using ‹exempt p w = true›
+  · simp at h
   · split at h
-    · rename_i r hr
-      right; right
-      exact ⟨r, hr, by simpa [Params.abort, hab] using h⟩
-    · rename_i hr
-      right; left
-      unfold readRate at hr
-      split at hr
-      · simp at hr
-      · simp only [hout, Bool.not_true, Bool.false_or] at hr
-        split at hr
-        · exact ⟨rfl, by assumption⟩
-        · split at hr <;> simp at hr
-    · simp at h
+    · left; simpa [exempt, hk] using ‹exempt p w = true›
+    · split at h
+      · rename_i r hr
+        exact .inr (.inl ⟨r, .inl hr, derive_proceeds p hab w r d h⟩)
+      · rename_i hr
+        split at h
+        · simp at h
+        · rename_i hdl
+          have hdp : w.deadlinePassed = true := by simpa [hwait] using hdl
+          simp only [hout, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h
+          split at h
+          · rename_i r
+            exact .inr (.inl ⟨r, .inr ⟨hr, hdp, rfl⟩, derive_proceeds p hab w r d h⟩)
+          · exact .inr (.inr ⟨hr, hdp, rfl⟩)
 
 /-- Between the fence write and the provider call the machine row, the balance and the worker stay
 put: with the fence set and the worker `fenced`, every event but the provider call, gone-write
@@ -825,21 +1200,24 @@ theorem fenced_waits_for_the_provider (p : Params) (w : World) (n : ClaimNumber)
   cases e with
   | advance seconds => simp [step]
   | rederive d obs => exact absurd rfl (hr d obs)
-  | pass window => simp [step, pass]
+  | pass window start =>
+    simp only [step]; unfold pass rateRestored loseRate; (repeat' split) <;> simp
   | restoreRecord r => simp [step]
   | providerDelete a r => exact absurd rfl (he a r)
   | goneWrite => exact absurd rfl hg
   | sweep => unfold step sweep enqueue applyRow; (repeat' split) <;> simp_all
   | claim => simp [step, claimStep, hph]
-  | fenceTxn => simp [step, fenceTxn, hph]
+  | fenceTxn restored => simp [step, fenceTxn, hph]
   | fenceWrite => unfold step fenceWrite; (repeat' split) <;> simp_all
   | extend s => simp [step, extend, hf]
   | settle => simp [step, settle, hph]
   | retry => simp [step, retry, hph]
   | suspend => unfold step suspend enqueue; (repeat' split) <;> simp_all
   | resume => simp [step, resume]
-  | rateLost => simp [step, rateLost]
+  | rateLost start => simp only [step]; unfold rateLost loseRate; split <;> simp
   | rateRestored r => simp [step, rateRestored]
+  | meterOpens => simp only [step]; unfold meterOpens; split <;> simp
+  | setMaxOutage b => simp [step, setMaxOutage]
   | outageBound => unfold step outageBound enqueue; (repeat' split) <;> simp_all
 
 /-! ## The episode: a set fence names it, a close is permanent -/
@@ -991,7 +1369,9 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
   | advance seconds => exact inv_same w _ rfl rfl rfl hw
   | rederive d obs =>
     simp only [step]; unfold rederive; (repeat' split) <;> exact inv_same w _ rfl rfl rfl hw
-  | pass window => exact inv_same w _ rfl rfl rfl hw
+  | pass window start =>
+    simp only [step]; unfold pass rateRestored loseRate
+    (repeat' split) <;> first | exact hw | exact inv_same w _ rfl rfl rfl hw
   | restoreRecord r => exact inv_same w _ rfl rfl rfl hw
   | sweep =>
     simp only [step]; unfold sweep
@@ -1008,21 +1388,22 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
   | claim =>
     obtain ⟨h1, h2, h3⟩ := claimStep_frame p w
     exact inv_same w _ h1 h2 h3 hw
-  | fenceTxn =>
+  | fenceTxn restored =>
+    obtain ⟨hm, -, -, -, he, hn, -⟩ := midTxn_frame w restored
+    have hmid : Inv (midTxn w restored) := inv_same w _ (by rw [hm]) he hn hw
     simp only [step]; unfold fenceTxn
     split
     · split
-      · exact inv_same w _ rfl rfl rfl hw
+      · exact inv_same _ _ rfl rfl rfl hmid
+      · exact inv_same _ _ rfl rfl rfl hmid
       · split
-        · exact writeFence_inv p hh ho w _ _ _ hw
-        · exact inv_same w _ rfl rfl rfl hw
+        · exact writeFence_inv p hh ho _ _ _ _ hmid
+        · exact inv_same _ _ rfl rfl rfl hmid
     · exact hw
   | fenceWrite =>
     simp only [step]; unfold fenceWrite
     split
-    · split
-      · exact writeFence_inv p hh ho w _ _ _ hw
-      · exact inv_same w _ rfl rfl rfl hw
+    · exact writeFence_inv p hh ho w _ _ _ hw
     · exact hw
   | extend s =>
     obtain ⟨-, -, -, -, -, hf, he, -, -, hn, -⟩ := extend_frame p w s
@@ -1061,8 +1442,14 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
     simp only [step]; unfold suspend
     exact enqueue_inv _ _ (inv_same w _ rfl rfl rfl hw)
   | resume => exact inv_same w _ rfl rfl rfl hw
-  | rateLost => exact inv_same w _ rfl rfl rfl hw
+  | rateLost start =>
+    simp only [step]; unfold rateLost loseRate
+    split <;> first | exact hw | exact inv_same w _ rfl rfl rfl hw
   | rateRestored r => exact inv_same w _ rfl rfl rfl hw
+  | meterOpens =>
+    simp only [step]; unfold meterOpens
+    split <;> first | exact hw | exact inv_same w _ rfl rfl rfl hw
+  | setMaxOutage b => exact inv_same w _ rfl rfl rfl hw
   | outageBound =>
     simp only [step]; unfold outageBound
     split
@@ -1097,7 +1484,8 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
   cases e with
   | advance seconds => left; exact hep
   | rederive d obs => left; simp only [step]; unfold rederive; (repeat' split) <;> exact hep
-  | pass window => left; exact hep
+  | pass window start =>
+    left; simp only [step]; unfold pass rateRestored loseRate; (repeat' split) <;> exact hep
   | restoreRecord r => left; exact hep
   | sweep =>
     simp only [step]; unfold sweep
@@ -1117,12 +1505,13 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
         · right; exact ⟨_, h⟩
       · left; exact hep
   | claim => left; rw [step, (claimStep_frame p w).2.1]; exact hep
-  | fenceTxn =>
-    left; simp only [step]; unfold fenceTxn writeFence; (repeat' split) <;> simpa using hep
+  | fenceTxn restored =>
+    left; obtain ⟨-, -, -, -, he, -⟩ := midTxn_frame w restored
+    simp only [step]; unfold fenceTxn writeFence; (repeat' split) <;> simpa [he] using hep
   | fenceWrite =>
     left; simp only [step]; unfold fenceWrite writeFence; (repeat' split) <;> simpa using hep
   | extend s =>
-    left; obtain ⟨-, -, -, -, -, -, he, -, -, -, -⟩ := extend_frame p w s
+    left; obtain ⟨-, -, -, -, -, -, he, -⟩ := extend_frame p w s
     rw [step, he]; exact hep
   | providerDelete a rp => left; rw [step, (providerDelete_frame p w a rp).2.1]; exact hep
   | settle =>
@@ -1167,8 +1556,11 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
     · left; rw [h]; exact hep
     · right; exact ⟨_, h⟩
   | resume => left; simpa [step, resume] using hep
-  | rateLost => left; simpa [step, rateLost] using hep
+  | rateLost start =>
+    left; simp only [step]; unfold rateLost loseRate; split <;> exact hep
   | rateRestored r' => left; simpa [step, rateRestored] using hep
+  | meterOpens => left; simp only [step]; unfold meterOpens; split <;> exact hep
+  | setMaxOutage b => left; exact hep
   | outageBound =>
     simp only [step]; unfold outageBound
     split

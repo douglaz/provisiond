@@ -25,10 +25,6 @@
     "13-wire-contract.md:SEC-39",
     "13-wire-contract.md:WIR-2"
   ],
-  "quoted_attributions": [
-    "tools/formal/Provisiond/Admission.lean:LDG-40:on the last derived runway_until",
-    "tools/formal/Provisiond/Admission.lean:LDG-40:what is suspended is pricing, not protection",
-    "tools/formal/Provisiond/Admission.lean:LDG-59:authorized like a purchase"
-  ],
-  "note": "Unquoted: sentences reporting what a requirement SAYS with no quote to check, as file:id signatures rather than a count -- a count cannot name which one is new. Quoted: Lean docstring residue, keyed on file:id:norm(quote), with the full normalized quote. In Admission.lean, the spans blamed on LDG-40, \"on the last derived `runway_until`\" and \"what is suspended is *pricing*, not *protection*\", are LDG-65's words; the span blamed on LDG-59, \"authorized like a purchase\", is LDG-62's. The LDG-59 span is a SPLIT false positive: its (?<=[.!?]) lookbehind misses the sentence ending inside markup, leaving the later citation's quote in the attribution verb's chunk. Its exit is pv-split-lookbehind-markup-ch2. The LDG-40 spans come from find()'s one-verb-owns-the-chunk rule over a single sentence citing LDG-40 and LDG-65, not from a missed sentence boundary. They have no exit today by decision: assigning each quote to the nearest preceding citation was rejected because it reintroduces inverted attributions (see find()'s owner comment). Both baselines may shrink, never grow; remove a quoted entry when its finding disappears."
+  "quoted_attributions": [],
+  "note": "Unquoted: sentences reporting what a requirement SAYS with no quote to check, as file:id signatures rather than a count -- a count cannot name which one is new. Quoted: Lean docstring residue, keyed on file:id:norm(quote), with the full normalized quote. Both baselines may shrink, never grow; remove a quoted entry when its finding disappears."
 }
