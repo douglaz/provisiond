@@ -299,14 +299,15 @@ jobs:
           grep -A6 'proved that the proposition' build.log | grep -q 'postgres'
           echo "the migration type correctly refused the transactional CONCURRENTLY build"
 
-      # The cancellation fence (pv-vwe.4, completed by pv-vwe.10; pv-gip.2 for the two rules of
-      # 2026-09-23 and 2026-09-25; pv-gip.25 for ADR-0029's of 2026-10-02): every guard the fence
-      # composes is a field of `Provisiond.Fence.current`, one per line, and the rows below carry each one's amendment
-      # date rather than this header restating which guards they are. Each row below flips one
-      # field and requires exactly one red: `decide` refuting the witness that field's amendment
-      # exists for, identified by a token of its proposition. Fence.lean's own theorems take each guard as
-      # a hypothesis and stay green, and every witness asserts only what its own parameter
-      # decides, so no neighbouring witness fails for want of the flipped one. The rows:
+      # The cancellation fence (pv-vwe.4, completed by pv-vwe.10; pv-gip.2 for the two rules
+      # of 2026-09-23 and 2026-09-25; pv-gip.25 for ADR-0029's of 2026-10-02): every guard
+      # the fence composes is a field of `Provisiond.Fence.current`, one per line, and the
+      # rows below carry each one's amendment date rather than this header restating which
+      # guards they are. Each row below flips one field and requires exactly one red:
+      # `decide` refuting the witness that field's amendment exists for, identified by a
+      # token of its proposition. Fence.lean's own theorems take each guard as a hypothesis
+      # and stay green, and every witness asserts only what its own parameter decides, so no
+      # neighbouring witness fails for want of the flipped one. The rows:
       #   recheckInsideFence (2026-09-02): the extension commits in the gap, the paid machine
       #     is deleted -- fence_first_witness on paidMachineTrace;
       #   fenceHolds (2026-09-08): the retry's write affects no row -- retry_executes_witness;
@@ -336,8 +337,8 @@ jobs:
       #   retryGuard (2026-09-09): a plain retry write reopens a closed episode --
       #     retry_guard_witness;
       #   goneOrClosedFirst (OPS-41, 2026-10-02, ADR-0029): the order begins at the suspension
-      #     read, and the attempt of a machine recorded gone mid-outage defers instead of settling --
-      #     gone_settles_first_witness on goneMidOutageTrace;
+      #     read, and the attempt of a machine recorded gone mid-outage defers instead of
+      #     settling -- gone_settles_first_witness on goneMidOutageTrace;
       #   noRateWaits (OPS-41, 2026-10-02, ADR-0029): "Where there is no rate, the cancellation
       #     proceeds", and in a fresh outage the live machine is fenced on a date that passed with
       #     no rate -- fresh_outage_waits_witness on freshOutageTrace;
@@ -663,15 +664,17 @@ jobs:
           cp -r . "$tmp/repo"
           cd "$tmp/repo"
           # One word and its closing quote, so a docstring reflow cannot split the pattern
-          # across lines.
-          sed -i 's/nowhere"/somewhere"/' \
+          # across lines. The file quotes that sentence more than once, so the mutation takes
+          # the first site alone and the step asserts one site moved and one finding came back:
+          # two findings from one misquote, or one from two, would say nothing of either.
+          sed -i '0,/nowhere"/s//somewhere"/' \
             tools/formal/Provisiond/Fence.lean
-          grep -q 'somewhere"' \
-            tools/formal/Provisiond/Fence.lean
+          test "$(grep -c 'somewhere"' tools/formal/Provisiond/Fence.lean)" -eq 1
           if python3 tools/check_citations.py > citations.log 2>&1; then
             echo "::error::citation gate passed a Lean docstring quote its target does not contain"
             exit 1
           fi
           grep -q 'tools/formal/Provisiond/Fence.lean attributes to LDG-64 a phrase LDG-64 does not contain:' citations.log
           grep -q 'deadline from history, and store it somewhere"' citations.log
+          test "$(grep -c 'Fence.lean attributes to LDG-64 a phrase' citations.log)" -eq 1
           echo "citation gate correctly rejected the Lean docstring misquote"

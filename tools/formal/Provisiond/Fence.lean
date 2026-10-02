@@ -28,8 +28,9 @@ all enqueue through `OPS-39`'s one rule, joining an open episode and opening non
 open. The gone-write is `ADR-0021`'s: it closes the open episode and clears the fence in one step,
 from any open state.
 
-The outage is three facts kept apart (`ADR-0029`). The rate is `World.rate`. The record is the
-meter's. `STO-37` says "The row is the subject's, and the meter opens it". So losing the rate —
+The outage's rate, its record and its deadline are kept apart (`ADR-0029`). The rate is
+`World.rate`. The record is the meter's. `STO-37` says "The row is the subject's, and the meter
+opens it". So losing the rate —
 `rateLost`, or a `pass` whose window yields none — opens no record, and `meterOpens` is an event of
 its own: early in an outage, and for a machine the meter does not post for, there is no rate and
 no record. The deadline is computed. `LDG-64` says "compute the outage's deadline from history, and
@@ -75,8 +76,15 @@ a changed staleness bound, window or quorum does to the replayed start is partly
 requirements (`pv-gip.28`), a replay here would have to invent it, and so no event moves the start
 of an outage already open, a restore that loses the rows it is replayed from included (`LDG-64`:
 "A restore that loses `STO-49` rows the start is replayed from moves it as well" — `restoreRecord`
-is `STO-56`'s record and nothing of `STO-49`'s); a second machine, tenant or currency, so that `LDG-59`'s per-currency
-rate, outage and bound are one currency's here. The provider's answer is classified as
+is `STO-56`'s record and nothing of `STO-49`'s); a second machine, tenant or currency, so that
+`LDG-59`'s per-currency rate, outage and bound are one currency's here; and the record's close
+at the meter stop. `LDG-64` closes the absorbed window at the rate's return "or with the
+subject's own meter-stop instant where that comes first", and here `goneWrite` and a settlement
+with the resource gone leave `World.outageOpen` as it was, so a machine recorded gone can still
+show an open record (`pv-gip.34`). No modelled outcome turns on it while `OPS-41`'s first step is
+in the order: an attempt on a machine recorded gone is settled there, before the step that
+contends on the record, and `meterOpens` and `outageBound` each stop at a machine recorded gone.
+The provider's answer is classified as
 `succeeded` on a reply, `failed` on a refusal and `needs_reconciliation` on a lost reply —
 `OPS-11`'s table is `Provisiond.Tables`'s and is not repeated. A machine is "funded" where a rate
 exists and re-deriving `LDG-33` at it puts the date strictly in the future; whole satoshis per
@@ -175,10 +183,11 @@ deadline. Their off positions retain withdrawn traps, not alternative current ru
 `retryGuard`: `OPS-48`, 2026-09-09,
 `retry` as "a conditional write on `(id, state = stalled)`".
 
-The rules of 2026-10-02 (`ADR-0029`), each with the wording it withdrew as its off position, quoted
-from the dated note that keeps it. `goneOrClosedFirst`: `OPS-41`'s first step, "**The machine is
-recorded gone, or its episode is closed.**"; its off position is the order as it stood before
-that day, which began at the suspension read and left a gone machine to the no-rate branch —
+The rules of 2026-10-02 (`ADR-0029`), each with its off position; where a wording was withdrawn,
+it is quoted from the dated note that keeps it. `goneOrClosedFirst`: `OPS-41`'s first step,
+"**The machine is recorded gone, or its episode is closed.**"; its off position is the order as
+it stood before that day, which began at the suspension read and left a gone machine to the
+no-rate branch —
 `ADR-0029`: "Zero rows can also mean a machine genuinely gone, because the re-check runs before
 the fence write". `noRateWaits`: `OPS-41`'s fourth step, "The claim defers: the operation is
 returned to `queued` by `OPS-8`'s ordinary short delay, and no fence is written"; its off position
@@ -563,10 +572,10 @@ def writeFence (p : Params) (w : World) (n : ClaimNumber) (a : Attempt) (d : Opt
 /-- The fence transaction: `OPS-41`'s re-check "in the same serialized transaction that writes
 `OPS-42`'s fence". An abort is `noMutation` with no fence written. A deferral is `OPS-8`'s defer —
 `Provisiond.Claim.defer`, with no `available_at` instant, since a short delay carries none in that
-model — and leaves the worker `idle`, the row `queued`, the episode and the fence as they were:
-"The episode stays open and `OPS-48` gains no row". Under `recheckInsideFence` a machine the
-re-check lets through takes the write in the same step; without it the transaction is the read
-alone, and the write is `fenceWrite`'s later step. -/
+model — and leaves the worker `idle`, the row `queued`, the episode and the fence as they were,
+which is `OPS-41`'s "The episode stays open and `OPS-48` gains no row". Under `recheckInsideFence`
+a machine the re-check lets through takes the write in the same step; without it the transaction
+is the read alone, and the write is `fenceWrite`'s later step. -/
 @[req "OPS-41"]
 def fenceTxn (p : Params) (w : World) (restored : Option Nat) : World :=
   match w.phase, w.attempt with
@@ -747,7 +756,10 @@ def outageBound (p : Params) (w : World) : World :=
 
 /-- `LDG-64`: the bound's cancellation "reaches every machine priced in the outage's currency,
 whether or not the meter opened a `rate_outage` record for it". With no rate and the deadline
-passed the canceller enqueues for a machine not recorded gone, whatever the record. -/
+passed, on a machine not recorded gone, the canceller's step is `enqueue`'s under
+`rate_outage_bound`, whatever the record. What that step then does is `enqueue`'s and not this
+theorem's: it opens an episode, joins one already open, or changes nothing while an attempt under
+a closed episode has yet to settle. -/
 @[req "LDG-64"]
 theorem bound_reaches_a_machine_without_a_record (p : Params) (hg : p.boundReachesAll = true)
     (w : World) (hr : w.rate = none) (hd : w.deadlinePassed = true) (hgone : w.m.gone = false) :
@@ -943,9 +955,12 @@ ordinary short delay, and no fence is written." Over every world: a fence transa
 machine not recorded gone, its episode open, its tenant not suspended, with no rate and the
 deadline not passed, writes nothing to the machine row — no fence and no date — leaves the
 episode as it was, returns the row to `queued` with no `available_at` instant, and the worker to
-`idle`. It is `LDG-65`'s sentence as well: "Nothing is cancelled on a date that passes while there
-is no rate." Whether a restoration commits behind the transaction changes none of it; the next
-claim reads the rate. The row is the one the claim left, `running` under this worker's number. -/
+`idle`. That is one fence transaction before the deadline, and so a part of `LDG-65`'s "Nothing
+is cancelled on a date that passes while there is no rate" and not the whole of it: that sentence
+is about the outage from end to end, the sweep's half of it is
+`sweep_routes_nothing_without_a_rate`, and no theorem here runs the wait across claims. Whether a
+restoration commits behind the transaction changes none of it; the next claim reads the rate. The
+row is the one the claim left, `running` under this worker's number. -/
 @[req "OPS-41"]
 theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
     (hwait : p.noRateWaits = true) (w : World) (n : ClaimNumber) (a : Attempt)
@@ -962,6 +977,42 @@ theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
     simp [recheck, settledFirst, hgone, hopen, exempt, hk, hs, hr, hwait, hd]
   obtain ⟨hm, -, -, -, he, -⟩ := midTxn_frame w restored
   simp [fenceTxn, hph, ha, hre, hm, he, Claim.defer, Claim.holds, Claim.current, hrun, hmine]
+
+/-- `OPS-39`: "The wait `OPS-41`'s order gives a cancellation while its machine's currency has no
+rate is a delay and not a denial: it ends at the rate's return or at `LDG-64`'s bound". The
+converse of `no_rate_waits`, over every world and every setting of the guards: a re-check that
+defers has read no rate, with the deadline not passed, under the wait's guard, on a tenant the
+exemption does not reach — and, under `goneOrClosedFirst`, on a machine not recorded gone whose
+episode is open. So a re-check that reads a rate, or the deadline passed, does not defer: nothing
+else in the order waits. What ends the wait across claims — the clock reaching the deadline, a
+rate returning — is run by `Provisiond.Witnesses`, not proved here. -/
+@[req "OPS-39"]
+theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (a : Attempt)
+    (restored : Option Nat) (h : recheck p w a restored = .defer) :
+    w.rate = none ∧ w.deadlinePassed = false ∧ p.noRateWaits = true ∧ exempt p w = false ∧
+      (p.goneOrClosedFirst = true → settledFirst w a = false) := by
+  have hderive : ∀ r, derive p w r ≠ .defer := by
+    intro r; unfold derive; split <;> simp
+  unfold recheck at h
+  split at h
+  · simp at h
+  · rename_i hfirst
+    split at h
+    · simp at h
+    · rename_i hex
+      split at h
+      · exact absurd h (hderive _)
+      · rename_i hr
+        split at h
+        · rename_i hwait
+          simp only [Bool.and_eq_true, Bool.not_eq_true'] at hwait
+          exact ⟨hr, hwait.2, hwait.1, by simpa using hex, fun hg => by simpa [hg] using hfirst⟩
+        · exfalso
+          split at h
+          · simp at h
+          · split at h
+            · exact hderive _ h
+            · split at h <;> simp at h
 
 /-- `OPS-41`'s first step: the worker "makes no provider call and settles the attempt `succeeded`
 with a result recording that no mutation was required", and "**It writes no `runway_until`**".
@@ -1153,7 +1204,13 @@ deadline, the rate of a restoration the transaction saw ahead of its conditional
 rate with the deadline passed and no restoration it saw. That last says nothing of a rate
 returning at that instant unseen, which for a machine with no record `OPS-41` leaves unordered
 and accepts. `OPS-41`: "Where there is no rate, the cancellation proceeds" is withdrawn, and with
-it the reading that no rate alone lets a cancellation through. -/
+it the reading that no rate alone lets a cancellation through.
+
+Changed 2026-10-02. The no-rate disjunct gained the deadline. And it lost a conjunct: until
+then it held `w.outageOpen = true` as well, and it no longer says anything of the record.
+`OPS-41`'s fifth step forced that: "Where it affects no row and there is still no rate, the
+machine carries no open record and the cancellation proceeds as well". A cancellation let
+through at the bound has an open record or none. -/
 @[req "OPS-41"]
 theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
     (hab : p.abortPredicate = .date) (hout : p.outageWrite = true) (hwait : p.noRateWaits = true)

@@ -69,7 +69,9 @@ exhaustion" is about re-derivation and the sweep predicate, carried by `Provisio
 rate for the machine's currency); a second copy here would be a second normative home for one
 rule. The same holds of the outage's clock: `OPS-41`'s order turns on `LDG-64`'s deadline, which
 `Provisiond.Fence` carries; this matrix answers for the outage before that deadline, and
-`RateAnswer.atTheBound` for the one answer the deadline changes.
+`RateAnswer.atTheBound` for the one answer the deadline changes. The order's first step is
+`Provisiond.Fence`'s as well: this model has no machine to record gone and no episode to close, so
+a system cancellation's row answers for an attempt that step does not settle.
 
 `Guards` carries the rules a dated amendment added or withdrew, one field each, and `current` is
 the set as it stands. Each has the pair the epic requires: the bad trace refused with the guard and
@@ -469,11 +471,16 @@ def admit (g : Guards) (r : Request) : Option Outcome :=
 sweep's cancellation is enqueued by a sweep and "never traverses this pipeline" (`API-7`,
 `OPS-39`), and the re-derivation, the solvency check and the meter have no caller at all.
 
-The system's cancellations are three actions, because with no rate they are not one
-(`CONTEXT.md`, **Funding cancellation**): a funding cancellation is "An exposure-reducing
-cancellation whose condition is that the machine may be unfunded: its runway's exhaustion, or a
-late-attach cleanup", and "The outage bound's cancellation and a suspended tenant's are
-exposure-reducing but are not funding cancellations". -/
+The system's cancellations are kept apart by the condition that queued them, which is the
+glossary's distinction (`CONTEXT.md`, **Funding cancellation**): a funding cancellation is "An
+exposure-reducing cancellation whose condition is that the machine may be unfunded: its runway's
+exhaustion, or a late-attach cleanup", and "The outage bound's cancellation and a suspended
+tenant's are exposure-reducing but are not funding cancellations". That condition is what the
+attempt was enqueued under, and no cell of either matrix reads it: what the worker does with a
+claimed cancellation is `OPS-41`'s order, which "holds for every exposure-reducing cancellation,
+whatever reason the attempt was enqueued under". They are separate constructors so that
+`the_enqueue_reason_decides_nothing_without_a_rate` is a statement that can fail, and not a
+property of a type with one inhabitant. -/
 inductive Action
   | caller (v : Verb)
   | fundingCancellation
@@ -498,11 +505,19 @@ theorem Action.mem_all (a : Action) : a ∈ Action.all := by
 instance {q : Action → Prop} [DecidablePred q] : Decidable (∀ a, q a) :=
   Tables.decidableForallOfList Action.all Action.mem_all q
 
+/-- The system's own cancellations, `OPS-39`'s "Exposure-reducing system cancellations": the
+actions a worker claims and decides by `OPS-41`'s order. The exhaustion sweep is not one — it
+enqueues a cancellation and is not itself claimed. No wildcard. -/
+@[req "OPS-39"]
+def Action.systemCancellation : Action → Bool
+  | .fundingCancellation | .suspensionCancellation | .boundCancellation => true
+  | .caller _ | .rederivation | .exhaustionSweep | .solvencyCheck | .metering => false
+
 /-- `LDG-20`: the operations that "*reduce* exposure". `API-7`'s tail names them one at a time —
 delete and cancel "**bypass the rate and solvency gates entirely** — these reduce exposure"; the
 release "**no commitment and no spending gate** — it reduces exposure, on the delete row's
 reasoning"; the retry the same, "the attempt reduces exposure, on the delete row's reasoning". The
-system's own cancellations are `OPS-39`'s "Exposure-reducing system cancellations", all three of
+system's own cancellations are `OPS-39`'s "Exposure-reducing system cancellations", each of
 them, and the exhaustion sweep is what enqueues the first. `LDG-40`'s row for the sweep said as
 much of it until 2026-10-02; what `ADR-0029` withdrew is that it continues with no rate
 (`underNoRate`), not which way it moves exposure.
@@ -642,30 +657,34 @@ The extension is `LDG-40`'s own sentence: "With no rate for the machine's curren
 of runway MUST halt as a create does".
 
 The system's cancellations, claimed while there is no rate and before the outage's deadline;
-`RateAnswer.atTheBound` is the same matrix past it. A funding cancellation waits: the sweep's row
-has it, and `OPS-39` names what the wait is, "a delay and not a denial: it ends at the rate's
-return or at `LDG-64`'s bound". A suspended tenant's continues: `OPS-41`'s second step, "The
-funding re-check does not apply and the cancellation proceeds". The bound's waits as the funding
-one does, where there is one to claim before the deadline: it is enqueued at the deadline, so
-that takes the operator raising the maximum after it was enqueued, and `OPS-41`'s order "holds for
-every exposure-reducing cancellation, whatever reason the attempt was enqueued under". Past the
-deadline it is what `LDG-65` says of it: "A machine that reaches `LDG-64`'s bound is cancelled
-there". What sets the bound's cancellation apart from a funding one is who enqueues it and when —
-the canceller at the deadline, where the sweep routes nothing — and not what the worker does
-with it.
+`RateAnswer.atTheBound` is the same matrix past it. `t` is the tenant's state as the worker's
+re-check reads it, and it decides the row; the reason the attempt was enqueued under decides
+nothing. `OPS-41`'s order "holds for every exposure-reducing cancellation, whatever reason the
+attempt was enqueued under, and the first step that applies decides", and its exemption is "keyed
+on the tenant's current state, not on the reason the operation was enqueued under". A tenant
+suspended now is the second step, "The funding re-check does not apply and the cancellation
+proceeds": the cancellation continues, a funding one and the bound's included. Under any other
+tenant it waits — the fourth step, "The claim defers" — a suspension's cancellation whose tenant
+has since been resumed included; `OPS-39`'s name for the wait is "a delay and not a denial". The
+bound's is enqueued at the deadline, so one claimed before it takes the operator raising the
+maximum after it was enqueued; past the deadline it is `LDG-65`'s "A machine that reaches
+`LDG-64`'s bound is cancelled there". `the_enqueue_reason_decides_nothing_without_a_rate` is the
+claim that no cell here keys on the reason, and `Provisiond.Fence.recheck` is the order itself.
 
-Every other caller verb continues: they open no commitment and pass no spending gate, so no rate is
-consulted. No wildcard. -/
+Every other row discards `t`. A caller verb's tenant is the pipeline's question (`admit`), and a
+verb that reaches this matrix has passed it; the verbs continue because they open no commitment
+and pass no spending gate, so no rate is consulted. No wildcard. -/
 @[req "LDG-40"]
-def underNoRate (g : Guards) (a : Action) : RateAnswer :=
+def underNoRate (g : Guards) (t : TenantState) (a : Action) : RateAnswer :=
   match a with
   | .exhaustionSweep => if g.sweepRoutesNothingWithoutRate then .routesNothing else .continues
   | .rederivation => .halts
   | .solvencyCheck => .failsClosed
   | .metering => .metersNative
-  | .fundingCancellation => .waits
-  | .suspensionCancellation => .continues
-  | .boundCancellation => .waits
+  | .fundingCancellation | .suspensionCancellation | .boundCancellation =>
+    match t with
+    | .suspended => .continues
+    | .pending | .active => .waits
   | .caller v =>
     match v with
     | .create | .extendRunway => .halts
@@ -822,47 +841,89 @@ theorem exposure_reducing_is_never_halted (g : Guards) (hg : g.exposureExemptUnd
   intro a ha
   simp [underHalt, ha, hg]
 
-/-- `OPS-39`: "Pacing MAY delay such a cancellation briefly; nothing may deny it. The wait
-`OPS-41`'s order gives a cancellation while its machine's currency has no rate is a delay and not
-a denial: it ends at the rate's return or at `LDG-64`'s bound". Over the whole action space and
-whatever the guards: every action that reduces exposure, the sweep apart, either continues with
-no rate or waits, and past the deadline every one of them continues. The sweep is not a
-cancellation and `OPS-39`'s sentence is not about it; its row is the next theorem's. -/
+/-- `OPS-41`: "The order holds for every exposure-reducing cancellation, whatever reason the
+attempt was enqueued under, and the first step that applies decides". Over every setting of the
+guards, every tenant state and every pair of actions: two system cancellations get one answer
+with no rate, whatever each was enqueued under, and that answer is the tenant's state at the
+re-check — continues where the tenant is suspended now, waits otherwise. An amendment that keys a
+cell on the reason again is a red build. No wildcard. -/
+@[req "OPS-41"]
+theorem the_enqueue_reason_decides_nothing_without_a_rate (g : Guards) (t : TenantState) :
+    ∀ a b : Action, a.systemCancellation = true → b.systemCancellation = true →
+      underNoRate g t a = underNoRate g t b ∧
+      underNoRate g t a = (match t with
+        | .suspended => .continues
+        | .pending | .active => .waits) := by
+  intro a b ha hb
+  cases a <;> cases b <;> cases t <;> simp_all [Action.systemCancellation, underNoRate]
+
+/-- The tenant's state is read by the system cancellations' rows and by no other: every other
+action's answer with no rate is the same under every tenant state. -/
+@[req "LDG-40"]
+theorem only_a_system_cancellation_reads_the_tenant_state (g : Guards) (t t' : TenantState) :
+    ∀ a : Action, a.systemCancellation = false → underNoRate g t a = underNoRate g t' a := by
+  intro a ha
+  cases a <;> simp_all [Action.systemCancellation, underNoRate]
+
+/-- `OPS-39`: "Pacing MAY delay such a cancellation briefly; nothing may deny it." What this
+proves is a property of the table and of nothing with a clock in it: over the whole action space,
+every tenant state and whatever the guards, no action that reduces exposure, the sweep apart, is
+answered with a halt — each continues or waits — and the wait's answer past the deadline
+(`RateAnswer.atTheBound`) is `continues`. This model has no rate that returns and no deadline
+that passes, so that the wait in fact ends is not this theorem's.
+`Provisiond.Fence.defer_only_without_a_rate_before_the_deadline` proves, over every world, that a
+re-check defers only with no rate and the deadline not passed, so that nothing else in the order
+waits; its statement has no clock either. `Provisiond.Witnesses` runs the wait to its end both
+ways (`returned_rate_decides_on_the_predicate_witness`, `the_wait_ends_at_the_bound_witness`).
+The sweep is not a cancellation and `OPS-39`'s sentence is not about it; its row is the next
+theorem's.
+
+Changed with the matrix's tenant-state argument (`underNoRate`): the statement ranges over that
+state as well, and says of each what it said before. -/
 @[req "OPS-39"]
-theorem a_cancellation_is_delayed_never_denied_for_want_of_a_rate (g : Guards) :
+theorem a_cancellation_is_delayed_never_denied_for_want_of_a_rate (g : Guards) (t : TenantState) :
     ∀ a : Action, a.reducesExposure = true → a ≠ .exhaustionSweep →
-      (underNoRate g a = .continues ∨ underNoRate g a = .waits) ∧
-      (underNoRate g a).atTheBound = .continues := by
+      (underNoRate g t a = .continues ∨ underNoRate g t a = .waits) ∧
+      (underNoRate g t a).atTheBound = .continues := by
   intro a ha hs
   cases a with
   | caller v => cases v <;> simp_all [Action.reducesExposure, underNoRate, RateAnswer.atTheBound]
   | exhaustionSweep => exact absurd rfl hs
-  | fundingCancellation => simp [underNoRate, RateAnswer.atTheBound]
-  | suspensionCancellation => simp [underNoRate, RateAnswer.atTheBound]
-  | boundCancellation => simp [underNoRate, RateAnswer.atTheBound]
+  | fundingCancellation => cases t <;> simp [underNoRate, RateAnswer.atTheBound]
+  | suspensionCancellation => cases t <;> simp [underNoRate, RateAnswer.atTheBound]
+  | boundCancellation => cases t <;> simp [underNoRate, RateAnswer.atTheBound]
   | rederivation => simp [Action.reducesExposure] at ha
   | solvencyCheck => simp [Action.reducesExposure] at ha
   | metering => simp [Action.reducesExposure] at ha
 
 /-- What each action that reduces exposure does with no rate, under `LDG-40`'s landed row and
-before the outage's deadline: the funding cancellation and the bound's wait, the sweep routes
-nothing, and every other one continues. The cases are exclusive, so an amendment that moves an
-action from one to another is a red build. -/
+before the outage's deadline: a system cancellation waits unless its tenant is suspended now, the
+sweep routes nothing, and everything else — a system cancellation under a suspended tenant
+included — continues. The cases are exclusive, so an amendment that moves an action from one to
+another is a red build.
+
+Changed with the matrix's tenant-state argument. The statement used to name which cancellations
+wait by constructor — the funding one and the bound's — and so by the reason each was enqueued
+under; it names them by the tenant's state now, because `OPS-41`'s exemption is "keyed on the
+tenant's current state, not on the reason the operation was enqueued under". It no longer says
+that a suspension's cancellation continues whatever the tenant's state, nor that a funding one
+waits under a suspended tenant: each contradicts that sentence. -/
 @[req "LDG-40"]
 theorem exposure_reducing_waits_or_continues_without_a_rate (g : Guards)
-    (hg : g.sweepRoutesNothingWithoutRate = true) :
+    (hg : g.sweepRoutesNothingWithoutRate = true) (t : TenantState) :
     ∀ a : Action, a.reducesExposure = true →
-      ((a = .fundingCancellation ∨ a = .boundCancellation) ∧ underNoRate g a = .waits) ∨
-      (a = .exhaustionSweep ∧ underNoRate g a = .routesNothing) ∨
-      (a ≠ .fundingCancellation ∧ a ≠ .boundCancellation ∧ a ≠ .exhaustionSweep ∧
-        underNoRate g a = .continues) := by
+      (a.systemCancellation = true ∧ t ≠ .suspended ∧ underNoRate g t a = .waits) ∨
+      (a = .exhaustionSweep ∧ underNoRate g t a = .routesNothing) ∨
+      ((a.systemCancellation = false ∨ t = .suspended) ∧ a ≠ .exhaustionSweep ∧
+        underNoRate g t a = .continues) := by
   intro a ha
   cases a with
-  | caller v => cases v <;> simp_all [Action.reducesExposure, underNoRate]
-  | exhaustionSweep => simp [underNoRate, hg]
-  | fundingCancellation => simp [underNoRate]
-  | suspensionCancellation => simp [underNoRate]
-  | boundCancellation => simp [underNoRate]
+  | caller v =>
+    cases v <;> simp_all [Action.reducesExposure, Action.systemCancellation, underNoRate]
+  | exhaustionSweep => simp [underNoRate, hg, Action.systemCancellation]
+  | fundingCancellation => cases t <;> simp [underNoRate, Action.systemCancellation]
+  | suspensionCancellation => cases t <;> simp [underNoRate, Action.systemCancellation]
+  | boundCancellation => cases t <;> simp [underNoRate, Action.systemCancellation]
   | rederivation => simp [Action.reducesExposure] at ha
   | solvencyCheck => simp [Action.reducesExposure] at ha
   | metering => simp [Action.reducesExposure] at ha
@@ -885,15 +946,18 @@ theorem the_on_chain_rail_cannot_be_halted (g : Guards) (settled expired : Bool)
     destinationAfterHalt g .onchain settled expired = true := rfl
 
 /-- `LDG-40` and `LDG-64`'s two rows that are not a halt: the solvency check "MUST fail closed",
-and the meter runs natively rather than posting a deferred satoshi debit. -/
+and the meter runs natively rather than posting a deferred satoshi debit. Changed with the
+matrix's tenant-state argument (`underNoRate`): the statement ranges over that state, and each row
+answers the same under every one. -/
 @[req "LDG-40"]
 theorem the_two_rows_that_do_not_halt (g : Guards) :
-    underNoRate g .solvencyCheck = .failsClosed ∧ underNoRate g .metering = .metersNative :=
-  ⟨rfl, rfl⟩
+    ∀ t : TenantState,
+      underNoRate g t .solvencyCheck = .failsClosed ∧ underNoRate g t .metering = .metersNative :=
+  fun _ => ⟨rfl, rfl⟩
 
 /-- `OPS-39`: the exposure-reducing cancellation is "never blocked by a caller's ceiling", and
 `API-7` says why it cannot be — "that sweep enqueues directly and never traverses this pipeline".
-No verb produces any of the three. -/
+No verb produces any of them. -/
 @[req "OPS-39"]
 theorem no_verb_reaches_the_system_cancellation :
     ∀ v : Verb, Action.caller v ≠ Action.fundingCancellation ∧

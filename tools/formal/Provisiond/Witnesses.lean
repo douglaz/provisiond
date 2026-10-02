@@ -505,9 +505,13 @@ theorem retry_guard_witness :
 /-! ### The rate outage (`ADR-0029`)
 
 One outage, begun at the clock's zero under a bound of a hundred seconds. Each guard of
-2026-10-02 has one witness that runs under `Fence.current` and pairs it with its withdrawn
-position; the other traces run under `outageGuards`, and every withdrawn position is built on
-`outageGuards` too, so that it differs from the current rule in the named field alone. -/
+2026-10-02 has one witness that runs under `Fence.current` and pairs it with its off position,
+and that off position is built on `outageGuards`, so that it differs from the current rule in the
+named field alone. The other traces run under `outageGuards`, with any older guard their trace
+turns on fixed beside it and named in the docstring. The exception is
+`the_no_rate_branch_as_it_stood_witness`, which is `pv-gip.23`'s defect: it is no guard's pair,
+and on `outageGuards` it turns off every field that defect needed, each named in its docstring,
+and not all in one `Params`. -/
 
 /-- A claim, the fence transaction, and whatever the worker would do had it fenced. -/
 def freshOutageTrace : List Fence.Event :=
@@ -516,26 +520,96 @@ def freshOutageTrace : List Fence.Event :=
 /-- `OPS-41`'s fourth step on the fresh outage: "The claim defers: the operation is returned to
 `queued` by `OPS-8`'s ordinary short delay, and no fence is written." The row is `queued` again
 under the number the claim took, the machine row is untouched, no provider call was made, the
-attempt has not settled and the episode is open. Under the wording `OPS-41`'s note withdrew —
-"**Where there is no rate, the cancellation proceeds.**", with the absent record read as "the
-machine's own meter stopped (`LDG-74`), there is nothing left to cancel, and it settles as the
-no-mutation case" — the live machine's attempt settles `succeeded`, its episode closes `funded`,
-and the sweep, on the date alone, opens the next episode against the same machine. -/
+attempt has not settled and the episode is open. Under the wording `OPS-41`'s note withdrew,
+"**Where there is no rate, the cancellation proceeds.**", the conditional write is reached before
+the deadline: it affects no row with still no rate, the cancellation proceeds, and the live
+machine is fenced and destroyed on a stored date that passed with no rate, its episode closed
+`resource_gone`.
+
+Changed with `old`, which turned `absentRecordProceeds` off as well as `noRateWaits` and so
+asserted what the two withdrawn readings did together — the attempt settled with no mutation and
+the sweep queued the machine again. That trace is `the_no_rate_branch_as_it_stood_witness`'s now,
+and this pair differs in `noRateWaits` alone. -/
 @[req "OPS-41"]
 theorem fresh_outage_waits_witness :
     let w := run Fence.current freshOutageWorld freshOutageTrace
-    let old := run { outageGuards Fence.current with noRateWaits := false,
-                                                     absentRecordProceeds := false }
+    let old := run { outageGuards Fence.current with noRateWaits := false }
       freshOutageWorld freshOutageTrace
     w.m = freshOutageWorld.m ∧ w.phase = .idle ∧
     w.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
     w.attempt = some { op := ⟨2⟩, ep := ⟨1⟩,
                        row := { status := .queued, claim := ⟨1⟩, record := 0, revision := 2 } } ∧
+    old.rate = none ∧ old.deadlinePassed = false ∧ old.m.destroyed = true ∧
+    old.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } := by
+  decide
+
+/-- `pv-gip.23`'s defect, the no-rate branch as it stood before 2026-10-02 — not a pair: it turns
+off every field the defect needed, each a rule of that day in the off position
+`Fence.Params`'s docstring gives it. `noRateWaits`, so that the conditional write is reached
+before the deadline. `absentRecordProceeds`, so that the write affecting no row, with still no
+rate, settles as the no-mutation case. And `sweepNeedsRate`, in the last conjunct's sweep alone,
+so that the sweep routes on the stored date with no rate. `ADR-0029` has it: "The write affects
+no row, and `OPS-41` reads zero rows as the machine's meter having stopped: the cancellation
+settles as the no-mutation case, the episode closes, and the sweep queues it again." In the fresh
+outage the live machine's attempt settles `succeeded` with the machine kept, its episode closes
+`funded`, and the sweep, on the date alone as it then routed, opens the next episode against the
+same machine. -/
+@[req "OPS-41"]
+theorem the_no_rate_branch_as_it_stood_witness :
+    let old := run { outageGuards Fence.current with noRateWaits := false,
+                                                     absentRecordProceeds := false }
+      freshOutageWorld freshOutageTrace
     old.m.destroyed = false ∧
     old.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
     (old.attempt.map (·.row.status)) = some .succeeded ∧
     (sweep { outageGuards Fence.current with sweepNeedsRate := false } old).episode =
       some { id := ⟨3⟩, state := .attempting, reasons := [.exhausted] } := by decide
+
+/-- The deferred attempt, the clock at the deadline, and the next claim. -/
+def waitEndsAtBoundTrace : List Fence.Event :=
+  [.advance 100, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
+
+/-- `OPS-39`: "The wait `OPS-41`'s order gives a cancellation while its machine's currency has no
+rate is a delay and not a denial: it ends at the rate's return or at `LDG-64`'s bound". One
+attempt, deferred and then let through, at an unchanged bound: claimed in the fresh outage it
+defers, with the machine row untouched and the row `queued`; a hundred seconds on, with no rate
+returned and the maximum what it was, the deadline it deferred against has passed, the next claim
+proceeds, and the machine is destroyed, its episode closed `resource_gone`. The rate's return is
+`returned_rate_decides_on_the_predicate_witness`'s. This is no guard's pair: it runs under
+`outageGuards`, and no older guard decides anything on its trace. -/
+@[req "OPS-39"]
+theorem the_wait_ends_at_the_bound_witness :
+    let p := outageGuards Fence.current
+    let waiting := run p freshOutageWorld [.claim, .fenceTxn]
+    let ended := run p waiting waitEndsAtBoundTrace
+    waiting.deadlinePassed = false ∧ waiting.phase = .idle ∧ waiting.m = freshOutageWorld.m ∧
+    (waiting.attempt.map (·.row.status)) = some .queued ∧
+    ended.rate = none ∧ ended.deadline = waiting.deadline ∧ ended.maxOutage = waiting.maxOutage ∧
+    ended.deadlinePassed = true ∧ ended.m.destroyed = true ∧
+    ended.episode =
+      some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } := by decide
+
+/-- The two models on one question — which system cancellation waits with no rate, and which
+continues — on the two traces where the reason an attempt was enqueued under and its tenant's
+state at the re-check point opposite ways. `OPS-41`'s exemption is "keyed on the tenant's current
+state, not on the reason the operation was enqueued under". An attempt enqueued `exhausted`,
+whose tenant is suspended before the claim: the worker's re-check proceeds, and the matrix's row
+for a funding cancellation under a suspended tenant continues. An attempt enqueued
+`tenant_suspended`, whose tenant is resumed before the claim: the re-check defers, and the
+matrix's row for a suspension's cancellation under an active tenant waits. The suspension key is
+fixed beside `outageGuards`, since the second trace is the one its withdrawn form decides. -/
+@[req "OPS-41"]
+theorem the_matrix_and_the_worker_agree_witness :
+    let p := { outageGuards Fence.current with suspensionKey := .currentState }
+    let joined := run p freshOutageWorld [.suspend, .claim]
+    let resumed := run p { fenceWorld with rate := none } [.suspend, .resume, .claim]
+    joined.episode = some { id := ⟨1⟩, state := .attempting,
+                            reasons := [.tenantSuspended, .exhausted] } ∧
+    joined.attempt.map (recheck p joined · none) = some (.proceed none) ∧
+    Admission.underNoRate Admission.current .suspended .fundingCancellation = .continues ∧
+    resumed.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.tenantSuspended] } ∧
+    resumed.attempt.map (recheck p resumed · none) = some .defer ∧
+    Admission.underNoRate Admission.current .active .suspensionCancellation = .waits := by decide
 
 /-- `OPS-41`: the worker decides "inside the fence transaction and on what that transaction
 reads, never on its claim snapshot". An attempt claimed while a rate existed, whose rate is lost
@@ -2610,9 +2684,9 @@ def haltedMint : Action := .caller .deposit
 def exposureReducingUnderHalt : List (Option Tables.ErrorKind) :=
   (Action.all.filter Action.reducesExposure).map (underHalt Admission.current)
 
-/-- The same actions under a rate outage. -/
-def exposureReducingWithoutRate : List RateAnswer :=
-  (Action.all.filter Action.reducesExposure).map (underNoRate Admission.current)
+/-- The same actions under a rate outage, for a tenant in state `t` at the worker's re-check. -/
+def exposureReducingWithoutRate (t : TenantState) : List RateAnswer :=
+  (Action.all.filter Action.reducesExposure).map (underNoRate Admission.current t)
 
 /-- An unsettled Lightning invoice on an unexpired deposit, once the halt is declared. -/
 def unsettledUnexpiredInvoice : Bool :=
@@ -2672,35 +2746,61 @@ theorem the_halt_reaches_the_delete_without_the_exemption :
       underHalt { Admission.current with exposureExemptUnderHalt := false } .fundingCancellation =
         some .halted := by decide
 
-/-- `LDG-40`'s matrix with no rate. No action that reduces exposure halts or fails closed: the
-sweep "MUST route no machine priced in that currency", a funding cancellation waits and so does
-the bound's where one is claimed before the deadline, a suspended tenant's cancellation
-continues, and so does the caller's delete; past the deadline the waits are over. The create
-halts "priced at an unknown rate", the extension halts with it, re-derivation halts, the solvency
-check "fail[s] closed" and the meter runs native (`LDG-64`). -/
+/-- `LDG-40`'s matrix with no rate. No action that reduces exposure halts or fails closed,
+whatever the tenant's state: the sweep "MUST route no machine priced in that currency"; a system
+cancellation waits where its tenant is not suspended at the re-check and continues where it is,
+whichever reason it was enqueued under, and past the deadline the wait is over; the caller's
+delete continues. The create halts "priced at an unknown rate", the extension halts with it,
+re-derivation halts, the solvency check "fail[s] closed" and the meter runs native (`LDG-64`).
+
+Until 2026-10-02 the first conjunct was that every exposure-reducing action's answer is
+`continues`; it is weakened to "neither `halts` nor `failsClosed`", and no longer says that each
+of them continues. The wait forced that — `LDG-40`'s sweep row has "a funding cancellation
+already queued waits as `OPS-41` orders" — and the exact answers are pinned by the conjuncts
+beside it and by `exposure_reducing_waits_or_continues_without_a_rate`. Then the cancellations'
+conjuncts were re-keyed with `underNoRate`: they pinned an answer per reason — a funding
+cancellation waits, a suspension's continues — and pin one per tenant state now, each reason
+under every state, because `OPS-41`'s exemption is "keyed on the tenant's current state, not on
+the reason the operation was enqueued under". And the statement was strengthened to what the
+first paragraph says: it pins each cancellation under every tenant state, and the wait's end for
+every cell that waits, where it pinned the wait's end for the funding and the bound's
+cancellation, with no tenant state. -/
 @[req "LDG-40"]
 theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
-    exposureReducingWithoutRate.all (fun a => a != .halts && a != .failsClosed) = true ∧
-      underNoRate Admission.current .exhaustionSweep = .routesNothing ∧
-      underNoRate Admission.current .fundingCancellation = .waits ∧
-      underNoRate Admission.current .suspensionCancellation = .continues ∧
-      underNoRate Admission.current .boundCancellation = .waits ∧
-      (underNoRate Admission.current .fundingCancellation).atTheBound = .continues ∧
-      (underNoRate Admission.current .boundCancellation).atTheBound = .continues ∧
-      underNoRate Admission.current (.caller .deleteMachine) = .continues ∧
-      underNoRate Admission.current (.caller .create) = .halts ∧
-      underNoRate Admission.current (.caller .extendRunway) = .halts ∧
-      underNoRate Admission.current .rederivation = .halts ∧
-      underNoRate Admission.current .solvencyCheck = .failsClosed ∧
-      underNoRate Admission.current .metering = .metersNative := by decide
+    (∀ t, (exposureReducingWithoutRate t).all (fun a => a != .halts && a != .failsClosed)) ∧
+      (∀ t, underNoRate Admission.current t .exhaustionSweep = .routesNothing) ∧
+      underNoRate Admission.current .pending .fundingCancellation = .waits ∧
+      underNoRate Admission.current .pending .suspensionCancellation = .waits ∧
+      underNoRate Admission.current .pending .boundCancellation = .waits ∧
+      underNoRate Admission.current .active .fundingCancellation = .waits ∧
+      underNoRate Admission.current .active .suspensionCancellation = .waits ∧
+      underNoRate Admission.current .active .boundCancellation = .waits ∧
+      underNoRate Admission.current .suspended .fundingCancellation = .continues ∧
+      underNoRate Admission.current .suspended .suspensionCancellation = .continues ∧
+      underNoRate Admission.current .suspended .boundCancellation = .continues ∧
+      (underNoRate Admission.current .pending .fundingCancellation).atTheBound = .continues ∧
+      (underNoRate Admission.current .pending .suspensionCancellation).atTheBound = .continues ∧
+      (underNoRate Admission.current .pending .boundCancellation).atTheBound = .continues ∧
+      (underNoRate Admission.current .active .fundingCancellation).atTheBound = .continues ∧
+      (underNoRate Admission.current .active .suspensionCancellation).atTheBound = .continues ∧
+      (underNoRate Admission.current .active .boundCancellation).atTheBound = .continues ∧
+      (∀ t, underNoRate Admission.current t (.caller .deleteMachine) = .continues ∧
+        underNoRate Admission.current t (.caller .create) = .halts ∧
+        underNoRate Admission.current t (.caller .extendRunway) = .halts ∧
+        underNoRate Admission.current t .rederivation = .halts ∧
+        underNoRate Admission.current t .solvencyCheck = .failsClosed ∧
+        underNoRate Admission.current t .metering = .metersNative) := by decide
 
 /-- Under the row `LDG-40`'s 2026-10-02 note withdrew, "**the exhaustion sweep** (MUST continue:
 it reduces exposure)", the sweep goes on routing with no rate — the note: "Continuing cancelled
-machines whose stored date passed during the outage". -/
+machines whose stored date passed during the outage". Stated over every tenant state, which
+the matrix gained with its tenant-state argument (`underNoRate`): the withdrawn row keys the sweep
+on no tenant, and `only_a_system_cancellation_reads_the_tenant_state` proves the sweep's row reads
+none. -/
 @[req "LDG-40"]
 theorem the_sweep_continues_without_its_row :
-    underNoRate { Admission.current with sweepRoutesNothingWithoutRate := false } .exhaustionSweep
-      = .continues := by decide
+    ∀ t, underNoRate { Admission.current with sweepRoutesNothingWithoutRate := false } t
+      .exhaustionSweep = .continues := by decide
 
 /-- `LDG-59`: "a USD quorum loss halts nothing priced in EUR". -/
 @[req "LDG-59"]
