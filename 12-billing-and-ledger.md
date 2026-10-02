@@ -954,8 +954,8 @@ defect and the fix was not carried across.** It is carried across now, on the sa
   on the first tick of a new period and after a meter that lagged across more than one boundary.
   That is one read on the primary key's `(subject_kind, subject_id)` prefix (`05-persistence.md`),
   over one row per period the subject has a row in. **`r` is read per piece, from the row of the
-  period the piece starts in** — using that row's existing credit, or `r = 0` if this transaction
-  creates it (`LDG-38`). *Amended 2026-10-02: until then the mark was read from the current period's
+  period the piece starts in**, using that row's current credit. For initialization and credit
+  updates, see `LDG-38`. *Amended 2026-10-02: until then the mark was read from the current period's
   row only, which on a period's first tick holds none; `LDG-38`'s start rule needs the subject's
   latest.*
 - For the seed, see `LDG-38`.
