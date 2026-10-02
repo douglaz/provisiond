@@ -907,7 +907,7 @@ wait by constructor — the funding one and the bound's — and so by the reason
 under; it names them by the tenant's state now, because `OPS-41`'s exemption is "keyed on the
 tenant's current state, not on the reason the operation was enqueued under". It no longer says
 that a suspension's cancellation continues whatever the tenant's state, nor that a funding one
-waits under a suspended tenant: each contradicts that sentence. -/
+or the bound's waits under a suspended tenant: each contradicts that sentence. -/
 @[req "LDG-40"]
 theorem exposure_reducing_waits_or_continues_without_a_rate (g : Guards)
     (hg : g.sweepRoutesNothingWithoutRate = true) (t : TenantState) :

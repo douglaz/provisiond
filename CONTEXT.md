@@ -93,7 +93,7 @@ _Avoid_: requeue, run, try
 
 **Funding cancellation**:
 An exposure-reducing cancellation whose condition is that the machine may be unfunded: its
-runway's exhaustion, or a late-attach cleanup. Deciding one takes a rate. The outage bound's
+runway's exhaustion, or a late-attach cleanup. The outage bound's
 cancellation and a suspended tenant's are exposure-reducing but are not funding cancellations
 (`ADR-0029`).
 _Avoid_: price-related deletion, price-dependent cancellation

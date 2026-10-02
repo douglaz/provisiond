@@ -606,10 +606,14 @@ theorem the_matrix_and_the_worker_agree_witness :
     joined.episode = some { id := ⟨1⟩, state := .attempting,
                             reasons := [.tenantSuspended, .exhausted] } ∧
     joined.attempt.map (recheck p joined · none) = some (.proceed none) ∧
-    Admission.underNoRate Admission.current .suspended .fundingCancellation = .continues ∧
+    Admission.underNoRate Admission.current
+      (if joined.suspended then Admission.TenantState.suspended else Admission.TenantState.active)
+      .fundingCancellation = .continues ∧
     resumed.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.tenantSuspended] } ∧
     resumed.attempt.map (recheck p resumed · none) = some .defer ∧
-    Admission.underNoRate Admission.current .active .suspensionCancellation = .waits := by decide
+    Admission.underNoRate Admission.current
+      (if resumed.suspended then Admission.TenantState.suspended else Admission.TenantState.active)
+      .suspensionCancellation = .waits := by decide
 
 /-- `OPS-41`: the worker decides "inside the fence transaction and on what that transaction
 reads, never on its claim snapshot". An attempt claimed while a rate existed, whose rate is lost

@@ -28,7 +28,8 @@ all enqueue through `OPS-39`'s one rule, joining an open episode and opening non
 open. The gone-write is `ADR-0021`'s: it closes the open episode and clears the fence in one step,
 from any open state.
 
-The outage's rate, its record and its deadline are kept apart (`ADR-0029`). The rate is
+The outage's rate, its record and its deadline are kept apart, by `ADR-0029`'s "The deadline is
+computed from history, not read from a record". The rate is
 `World.rate`. The record is the meter's. `STO-37` says "The row is the subject's, and the meter
 opens it". So losing the rate —
 `rateLost`, or a `pass` whose window yields none — opens no record, and `meterOpens` is an event of
@@ -1210,7 +1211,8 @@ Changed 2026-10-02. The no-rate disjunct gained the deadline. And it lost a conj
 then it held `w.outageOpen = true` as well, and it no longer says anything of the record.
 `OPS-41`'s fifth step forced that: "Where it affects no row and there is still no rate, the
 machine carries no open record and the cancellation proceeds as well". A cancellation let
-through at the bound has an open record or none. -/
+through at the bound has an open record or none. It also gained the hypothesis `hwait`,
+`noRateWaits` on: with that rule off, no rate proceeds at any instant, deadline or not. -/
 @[req "OPS-41"]
 theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
     (hab : p.abortPredicate = .date) (hout : p.outageWrite = true) (hwait : p.noRateWaits = true)
