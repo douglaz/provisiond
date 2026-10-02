@@ -870,7 +870,7 @@ as the write that records the subject billable and under `LDG-35`'s per-tenant s
 machine, this is the first write that records it billable — its row insert where the deployment
 bills from creation, or its later first entry into billable — and any later re-entry into a
 billable state; the seed instant is that transition's recorded instant. For a billable attachment,
-the write is `PRV-45`'s and the seed instant is the machine's stop boundary defined above. **A seed
+the write is `PRV-45`'s and the seed instant is the machine's stop boundary in `LDG-74`. **A seed
 at or before the subject's latest mark is discarded under the discard rule above.** This seed
 carries no seconds and posts nothing: a period row it creates starts with `r = 0`, and an existing
 row's `r` is untouched.
@@ -954,8 +954,8 @@ defect and the fix was not carried across.** It is carried across now, on the sa
   on the first tick of a new period and after a meter that lagged across more than one boundary.
   That is one read on the primary key's `(subject_kind, subject_id)` prefix (`05-persistence.md`),
   over one row per period the subject has a row in. **`r` is read per piece, from the row of the
-  period the piece starts in** — the row holding that mark, or one this transaction creates at
-  `r = 0` (`LDG-38`). *Amended 2026-10-02: until then the mark was read from the current period's
+  period the piece starts in** — using that row's existing credit, or `r = 0` if this transaction
+  creates it (`LDG-38`). *Amended 2026-10-02: until then the mark was read from the current period's
   row only, which on a period's first tick holds none; `LDG-38`'s start rule needs the subject's
   latest.*
 - For the seed, see `LDG-38`.
