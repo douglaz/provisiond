@@ -269,6 +269,11 @@ rescue address. `external_id` and raw provider metadata are **absent** on the cu
 response. `last_install` is `DOM-29`'s, and is `null` on a machine nothing has installed; a client
 reading `bytes_verified_by_provisiond: false` is being told this system never saw what reached the
 disk, not that anything is wrong. `abuse_cases` (`WIR-43`) is absent when the machine has none.
+`rate_outage_deadline` is `LDG-64`'s computed deadline for the machine's currency: null while that
+currency has a rate, and otherwise the instant `LDG-64` computes, on every machine priced in the
+currency whether or not it carries a `rate_outage` record (`STO-37`); it is computed with the
+parameters in force, so it moves when one of them is changed (`OVR-19`) (*added 2026-10-02,
+`ADR-0029`*).
 
 **`install_strategies` is `DOM-30`'s, and it is the *machine's* frozen copy — not the offer's live
 list** (`WIR-30`, `05-persistence.md`). **The key is present on every machine**, unlike
@@ -684,7 +689,10 @@ AMENDED to include it — recorded there.
 
 **The same transaction conditional-writes `machines.destroy_committed`, guarded on it being null,
 and returns `409` `conflict` with `details.reason: "cancellation_committed"` where that affects no
-row** (`LDG-62`, `OPS-42`) — reserving nothing and moving no balance. *Added 2026-09-02: this
+row** (`LDG-62`, `OPS-42`) — reserving nothing and moving no balance. **Where the machine's
+currency has no rate the extension is refused `halted` with `gate: "rate_unavailable"`** (`LDG-62`,
+`LDG-40`, `WIR-9a`), likewise reserving nothing and moving no balance (*added 2026-10-02,
+`ADR-0029`*). *Added 2026-09-02: this
 endpoint's own definition never mentioned the fence, so a builder reading only the wire contract and
 `LDG-62` shipped an extension that could take a customer's money for a machine already committed to
 destruction.*
@@ -920,7 +928,10 @@ against "cloud-init configured with the correct datasource order", which only th
 can guarantee. *Structured what the agent must compute, prose what it must understand.*
 
 `max_rate_outage_seconds` is `LDG-64`'s bound, disclosed before purchase because past it a
-machine is cancelled regardless of its runway. Prices are integers of satoshis, already margined by
+machine is cancelled regardless of its runway. **It is the operator's current limit and not a term
+of the purchase**: it can change during an outage (`OVR-19` holds the rule), `binding: false`
+speaks to the price only, and for a machine the authoritative instant is its view's
+`rate_outage_deadline` (`WIR-11`) (*added 2026-10-02, `ADR-0029`*). Prices are integers of satoshis, already margined by
 the one pricing function (`LDG-23`, `LDG-24`)
 at the same rounding as commitment creation. **An offer price is an indicative quote converted at
 read time; `binding` is `false` and the commitment is priced at accept time (`LDG-27`) and MAY

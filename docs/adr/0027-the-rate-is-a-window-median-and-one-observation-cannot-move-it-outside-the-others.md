@@ -116,7 +116,8 @@ create-time price, the solvency check. One rate, one home.
   absence, so two postings of one subject open one row. The worker's `OPS-41` contend does not
   open one; a create and the solvency check have no subject to open one for. Both consumers of the
   instant — `LDG-38`'s apportioning and `LDG-64`'s bound — read the persisted `absorbed_from`, so a
-  late opening changes no bill and no deadline. `STO-37` owns the rule and carries the argument;
+  late opening changes no bill and no deadline. *(2026-10-02: `ADR-0029` computes the deadline from
+  the replay and stores none, so the bound no longer reads a row.)* `STO-37` owns the rule and carries the argument;
   this paragraph is the decision and its history. *The first
   draft and `pv-gip.1` kept the per-pass halt beside the
   window; the owner withdrew it, since it handed whoever can disrupt one pass a halt they never

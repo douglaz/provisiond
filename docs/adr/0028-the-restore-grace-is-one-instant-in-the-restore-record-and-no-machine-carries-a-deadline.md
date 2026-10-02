@@ -86,7 +86,8 @@ has passed" alone; `OPS-41`'s and `LDG-62`'s "clears the deadline"; `LDG-65`'s d
 machine whose stored `runway_until` has passed"; `CNF-295`'s two assertions of it. The worker's
 re-check and its provider call read no fact the grace wrote — the re-check reads the commitment and
 `runway_until` as it always has, and the one grace fact the worker does read, the restore record at
-each claim, is `OPS-41`'s rule above. The sweep's predicate has one clause.
+each claim, is `OPS-41`'s rule above. The sweep's predicate has one clause. *(2026-10-02: `ADR-0029` gave it a second, that the
+machine's currency has a rate. The grace is still no clause of it.)*
 
 **A machine already fenced when the grace begins gets no extension from it**, and `STO-54` says
 so in its "what the restore does not repair" paragraph. Its fence stayed set because the provider

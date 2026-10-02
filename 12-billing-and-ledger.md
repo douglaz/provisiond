@@ -811,11 +811,9 @@ period's billable time to zero for consumption nobody disputes, which is the ope
 twice for one interruption. Where an absorbed window straddles a period boundary each period
 subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
 **The window is read from the deficiency record's `absorbed_from` and `absorbed_until`**
-(`STO-37`), which every cause that absorbs time MUST carry. `outage_deadline` is not that window's
-end: it is a *computed deadline*, so an outage that clears early absorbed less time than it
-implies, and a split no record can locate in time is not a split an implementation can perform.
-*`absorbed_from` is also the outage's start for `LDG-64`'s bound; a separate `outage_started_at`
-held the same instant until 2026-09-05.*
+(`STO-37`), which every cause that absorbs time MUST carry. `LDG-64`'s deadline is not that
+window's end: an outage that clears early absorbed less time than the deadline implies, and a split
+no record can locate in time is not a split an implementation can perform.
 
 **AMENDED 2026-09-02 — exactly one cause absorbs time, and it is `rate_outage`.** *The withdrawn
 clause said "a `clamp_overflow` deficiency absorbs billable time too", and that double-relieves the
@@ -1047,13 +1045,23 @@ A deployment MUST state: the maximum age at which a source's price may still be 
 and, for each of the following, the behaviour when no rate is available — **create** (MUST halt:
 it is a purchase priced at an unknown rate), **re-derivation** (MUST halt rather than
 under-reserve, and the halt MUST NOT itself trigger exhaustion), **the exhaustion sweep** (MUST
-continue: it reduces exposure), and **the solvency check** (MUST fail closed).
+route no machine priced in that currency: `LDG-16` holds the predicate, and a funding cancellation
+already queued waits as `OPS-41` orders), and **the solvency check** (MUST fail closed).
 
 **The fifth row — metering — was missing, and it is the one that costs money** (`LDG-64`).
 
+**An extension of runway MUST halt as a create does** (`LDG-62` holds the rule): it is a purchase
+priced at an unknown rate too.
+
 *The withdrawn wording asked whether each of these "proceeds on a stale rate or halts", which
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
-having no rate at all, and its four answers are unchanged.*
+having no rate at all, and that change altered none of its answers.*
+
+*Amended 2026-10-02 (`ADR-0029`), with the withdrawn row, kept because it reads as sound and was
+not: until then the sweep's row was "**the exhaustion sweep** (MUST continue: it reduces
+exposure)". Continuing cancelled machines on dates the outage itself had made stale, while
+`LDG-64` was charging their customers nothing; `ADR-0029` holds the argument, and the exposure the
+row was protecting is capped by `LDG-64`'s bound. The extension's row was added the same day.*
 
 **LDG-41** **AMENDED, and again 2026-09-23 (`ADR-0027`).** A rate MUST be treated as
 attacker-influenced input. A manipulated or erroneous rate mis-prices the entire fleet
@@ -1094,7 +1102,9 @@ than used.** A deployment MUST state a **quorum**: the minimum number of live, n
 a pass needs to accept an observation — **per billing currency**: there is one rate, one quorum, one
 outage and one bound for each currency the deployment bills in, a subject's rate is its offer's
 currency, and a USD quorum loss halts nothing priced in EUR (*added 2026-09-05, when `STO-49` gained
-a currency dimension that "the rate" upstream did not have*). **A pass below the quorum accepts no
+a currency dimension that "the rate" upstream did not have*). The bound is one duration on
+`OVR-19`'s register, and each currency's outage runs its own clock against that one value
+(*clarified 2026-10-02, `ADR-0029`*). **A pass below the quorum accepts no
 observation and recomputes nothing, and the rate in force holds**: a pass below quorum halts
 nothing, in any currency, and a quorum loss halts even its own currency only through the window
 below, once that yields **no rate**. **Falling back to the last known rate MUST NOT happen.**
@@ -1160,13 +1170,16 @@ usage cannot be converted to satoshis. A deployment MUST:
   that one: after an outage longer than `LDG-58`'s window it leaves that window too thin to
   produce a rate (`LDG-59`) (*added 2026-09-23, `ADR-0027`, and reworded the same day out of the
   withdrawn per-pass quorum frame*);
-- **persist the outage's start instant and the exact computed deadline** (not the duration, which
-  a restart would re-apply from a fresh start), so a restart mid-outage does not reset the clock
-  and quietly extend the exposure past the bound. The deficiency record (`STO-37`) is where they
-  live — who writes them and the instant the start carries are stated there (*added 2026-09-25,
-  `ADR-0027`*) — and a restore that loses the row is the reset this sentence forbids, reached
-  through the backup; `STO-54` lists it among what a restore does not repair, and the report naming
-  the lost window is what tells the operator the clock moved (*added 2026-09-12, `ADR-0023`*);
+- **compute the outage's deadline from history, and store it nowhere.** The deadline is the
+  outage's start plus the maximum tolerated outage below, and the start is the instant `STO-37`
+  defines, replayed from `STO-49`'s recorded observations. With unchanged parameters any writer
+  computes the same instant, for a subject the meter has opened no record for as for one it has,
+  and a restart mid-outage does not reset the clock and quietly extend the exposure past
+  the bound, because `STO-49` keeps the rows the start is replayed from. A changed parameter does
+  move the deadline, and `OVR-19` holds that rule. A restore that loses `STO-49` rows the start is
+  replayed from moves it as well, through the backup; `STO-54` lists that among what a restore
+  does not repair, and the report naming the lost window is what tells the operator the clock
+  moved (*amended 2026-10-02, `ADR-0029`*);
 - **keep the outage deficiency native-only: it is never converted, at any later rate.** Its
   `rate_num`/`rate_den` stay null for good (`LDG-66`), because there was no rate while it accrued
   and stamping it with the first one to return would price those hours at a number that did not
@@ -1175,12 +1188,23 @@ usage cannot be converted to satoshis. A deployment MUST:
   subtracts the **elapsed time** the deficiency absorbed (`absorbed_seconds`), which needs no rate
   at any point;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,
-  and **cancel machines at that bound** if no rate has returned. **The bound MUST be disclosed
-  before purchase (`WIR-30`'s offer) and the live deadline exposed on the machine view as
-  `rate_outage_deadline`, null when no outage is in progress (`WIR-11`)**: otherwise a machine whose advertised `runway_until` is months away is destroyed for a
+  and **cancel machines at that bound** if no rate has returned. **The bound's cancellation
+  reaches every subject priced in the outage's currency, whether or not the meter opened a
+  `rate_outage` record for it** — a subject the meter is not posting for, as under `LDG-72`'s quarantine,
+  can have none and still meets the bound (*added 2026-10-02, `ADR-0029`*). **The bound MUST be disclosed
+  before purchase (`WIR-30`'s offer) and the live deadline — the computed instant above — exposed
+  on the machine view as `rate_outage_deadline`, null when no outage is in progress (`WIR-11`)**:
+  otherwise a machine whose advertised `runway_until` is months away is destroyed for a
   reason its owner was never told about and cannot act on — `LDG-14` promises destruction at
   runway exhaustion and this is a second, undisclosed trigger. The bound is the operator's own
-  loss limit, and it MUST be stated with the other deployment parameters (`OVR-19`).
+  loss limit, and it MUST be stated with the other deployment parameters (`OVR-19`), which holds
+  what a change to it does to an outage already open.
+
+**The bound caps one outage, not their sum, and the wait before it has a price** (added 2026-10-02,
+`ADR-0029`, which records each of these as an accepted cost). Each outage has its own start and so
+its own deadline, so a feed that flaps is capped per outage and not across them. And a funding
+cancellation the outage delayed (`LDG-65`) can cost the operator one more period at a provider
+whose contract has a notice period or a billing granularity (`PRV-13c`).
 
 **LDG-66** **An operator deficiency is a durable record of its own, and it is NOT a ledger
 entry.** `LDG-7`'s entry kinds are closed and every one of them moves *tenant* satoshis, so the
@@ -1211,16 +1235,27 @@ because that is what the operator's loss was worth at the moment it was taken. A
 deficiency (`LDG-64`) opens precisely when there is no rate, so it carries none, ever, and nothing
 in this specification converts it: `absorbed_seconds` alone is what the meter needs.
 
-**LDG-65** **The exhaustion sweep continues during an outage on the last derived
-`runway_until`** (`LDG-40` requires it keep running), which remains correct because `LDG-33`
-recomputes the date only when a rate exists. A machine whose runway expires mid-outage is
-cancelled normally, and so is a machine that reaches `LDG-64`'s bound; each claims like every other
-exposure-reducing cancellation and waits for a restore's grace as `OPS-41` requires (*amended
-2026-09-25, `ADR-0028`*). What is suspended is *pricing*, not *protection*. *Withdrawn 2026-09-25
-(`ADR-0028`): "each respects `LDG-16`'s destruction deadline like every other exposure-reducing
-cancellation, since `LDG-16` says one "MUST NOT make its provider call while its machine's
-`destroy_not_before` is in the future"" — that sentence of `LDG-16` is withdrawn with the deadline,
-and so is the deadline the 2026-09-23 note below names.*
+**LDG-65** **During a rate outage a funding cancellation waits, for the rate or for `LDG-64`'s
+bound** (`ADR-0029`, which holds the argument). The stored `runway_until` stands through the outage,
+because `LDG-33` recomputes the date only when a rate exists; a date that passes while there is no
+rate is not evidence that the machine is unfunded, and nothing is cancelled on it. The sweep's
+predicate is `LDG-16`'s and the worker's order is `OPS-41`'s. A machine that reaches `LDG-64`'s
+bound is cancelled there; that cancellation claims like every other exposure-reducing cancellation
+and waits for a restore's grace as `OPS-41` requires.
+
+*Amended 2026-10-02 (`ADR-0029`), with the withdrawn wording, kept because it reads as sound and
+was not. Until then this requirement held: "**The exhaustion sweep continues during an outage on the
+last derived `runway_until`** (`LDG-40` requires it keep running), which remains correct because
+`LDG-33` recomputes the date only when a rate exists. A machine whose runway expires mid-outage is
+cancelled normally, and so is a machine that reaches `LDG-64`'s bound", and "What is suspended is
+*pricing*, not *protection*." The date was correct as a record and wrong as a trigger: `LDG-64`
+charges the customer nothing for the window, so a machine whose date passed mid-outage still had
+the satoshis that date had predicted it would spend.*
+
+*Withdrawn 2026-09-25 (`ADR-0028`), from the wording above: "each respects `LDG-16`'s destruction
+deadline like every other exposure-reducing cancellation, since `LDG-16` says one "MUST NOT make its
+provider call while its machine's `destroy_not_before` is in the future"" — that sentence of
+`LDG-16` is withdrawn with the deadline, and so is the deadline the 2026-09-23 note below names.*
 
 *Withdrawn 2026-09-23 (`ADR-0027`), with the reference: the clause that followed "cancelled
 normally", "— **unless its `rate_confirmation_ref` is armed**, since a rate-induced jump with no
@@ -1229,9 +1264,10 @@ the outage lasts none arrives (2026-09-05; re-keyed to the reference 2026-09-21,
 the paragraph after it, "**`LDG-64`'s bound is the one cancellation that proceeds anyway** (added
 2026-09-21, `ADR-0026`). The input that would discharge the reference is the same input whose
 absence triggers that cancellation, so waiting for it would strand exactly the exposure the bound
-exists to cap." With no reference left to discharge, no cancellation waits for a rate, so the
-bound's cancellation is no longer an exception: it proceeds, and respects `LDG-16`'s destruction
-deadline, like every other cancellation.*
+exists to cap." That note went on, until 2026-10-02: "With no reference left to discharge, no
+cancellation waits for a rate, so the bound's cancellation is no longer an exception: it proceeds,
+and respects `LDG-16`'s destruction deadline, like every other cancellation" — withdrawn in turn
+(`ADR-0029`), since a funding cancellation now waits for a rate.*
 
 **Why there is no ADR for this.** Two of the three tests fail. The trade-off is real and the
 alternatives were considered — a single named exchange, a published reference index, and
@@ -1239,7 +1275,8 @@ abandoning the rate entirely by pricing in satoshis — but **the decision is ch
 swapping the median for an index, or adding and removing sources, is a contained change behind
 `LDG-40`'s interface. What is *not* cheap to reverse is `LDG-40`'s halt matrix and `LDG-59`'s
 refusal to fall back, and those are recorded as requirements because they are product-visible
-availability behaviour, not implementation.
+availability behaviour, not implementation. *The matrix has since had an ADR of its own for the
+sweep's row and the extension's (`ADR-0029`, 2026-10-01), and the estimator has `ADR-0027`.*
 
 ## Money in
 
@@ -1517,14 +1554,19 @@ containing it. The second offered a choice — strip, or accept that cost is dis
 
 **LDG-13** A machine whose funding fails MUST be cancelled, and cancellation is the only effective
 remedy — powering a machine off does not stop provider billing. There is no unfunded grace
-period, because `PRV-13d`'s runway is the grace period and it is committed in advance.
+period, because `PRV-13d`'s runway is the grace period and it is committed in advance. **A rate
+outage is a window that sentence does not cover** (*added 2026-10-02, `ADR-0029`*): a machine
+already unfunded when the outage began runs on the operator's money until the rate returns or
+`LDG-64`'s bound fires, because its funding cancellation waits (`LDG-65`).
 
 **LDG-45** The runway is **committed**, not prepaid, and `LDG-13`'s justification MUST be read
 that way. A committed reservation is released if unused (`LDG-32`); a prepayment would not be.
 The first version used both words and they mean different things to a customer reading the terms.
 
 **LDG-14** **AMENDED.** At end of runway the machine MUST be cancelled and its disk destroyed
-with it, and this MUST be stated plainly in the terms and the API documentation. **Where the
+with it, and this MUST be stated plainly in the terms and the API documentation. Where the stored
+date passes while the machine's currency has no rate, `LDG-65` holds what happens instead (*added
+2026-10-02, `ADR-0029`*). **Where the
 provider cannot cancel immediately** (`PRV-13`'s scheduled-cancellation shape, `DOM-19`), the
 machine keeps running and keeps billing until its effective date, and the deployment MUST hold a
 commitment covering that whole window or MUST NOT sell that machine on prepaid terms
@@ -1546,6 +1588,10 @@ time the satoshis wind-down and any cancellation date already need, which is exa
 `LDG-33` exists to prevent. It is the only way a **caller** grows a commitment; the only other
 growth path is `LDG-63`'s scheduled-cancellation top-up. It MUST be idempotent per `API-8` — two
 concurrent extends must not reserve twice.
+
+**With no rate for the machine's currency an extension MUST halt** (`LDG-40`; *added 2026-10-02,
+`ADR-0029`*). It is priced "at the **current** rate", and where there is none it has no price: the
+extension opens or grows no commitment and moves no balance, and `WIR-24` holds the refusal.
 
 **It is fenced, and this requirement carries the obligation rather than merely being cited for it**
 (added 2026-09-02). In the same `LDG-35` transaction, an extension MUST **conditional-write the
@@ -1603,10 +1649,15 @@ withdrawn with the adjustment itself. So is "persist across more than one deriva
 **Derivation**), so two derivations an interval apart could consume the same poisoned price and the
 wait established nothing.*
 
-**The exhaustion sweep MUST route a machine where its stored `runway_until` has passed, and MUST
-NOT route it otherwise.** *A past date routes immediately, and that is the point: natural expiry of a
+**The exhaustion sweep MUST route a machine where its stored `runway_until` has passed and its
+currency has a rate (`LDG-59`), and MUST NOT route it otherwise.** *With a rate in force a past date
+routes immediately, and that is the point: natural expiry of a
 runway the customer was shown is not a glitch, and delaying it an interval would run every ordinary
-exhaustion one interval into the wind-down reserve this requirement exists to keep whole.* A
+exhaustion one interval into the wind-down reserve this requirement exists to keep whole.* While the
+currency has no rate the sweep routes nothing priced in it, and `LDG-65` holds what becomes of a
+machine whose date passes then (*amended 2026-10-02, `ADR-0029`: until then the predicate was the
+date alone, "MUST route a machine where its stored `runway_until` has passed, and MUST NOT route it
+otherwise"*). A
 restore's grace is no clause of this predicate: it is `STO-56`'s `grace_ends_at`, `OPS-41` holds the
 rule that defers the claim until it, and the sweep itself is among what `STO-54` freezes (*amended
 2026-09-25, `ADR-0028`*).
@@ -1621,12 +1672,15 @@ worker's re-check stands behind. Re-derivation's own write is not one: it never 
 deadline." — and the predicate's second clause, "and its `destroy_not_before` is null or past". The
 grace is one instant on the restore record, read at the claim, and no machine carries a deadline.*
 
-**Two cancellations reach the worker without passing through that predicate**, which is the
-exhaustion sweep's alone. The first is `LDG-64`'s bound: `LDG-64` says the deployment MUST "**cancel
-machines at that bound** if no rate has returned", and `LDG-65` carries the case. The second is a
+**Some cancellations reach the worker without passing through that predicate**, which is the
+exhaustion sweep's alone. One is `LDG-64`'s bound: `LDG-64` says the deployment MUST "**cancel
+machines at that bound** if no rate has returned", and `LDG-65` carries the case. Another is a
 cancellation on a suspended tenant: `OPS-41` says "**The funding re-check does not apply where the
-machine's tenant IS suspended** at the moment of the re-check". Both claim like every other
-exposure-reducing cancellation and wait for a restore's grace as `OPS-41` requires (*amended
+machine's tenant IS suspended** at the moment of the re-check". Another is `OPS-36`'s late-attach
+cleanup, enqueued by its attach transaction and not by the sweep; while its machine's currency has
+no rate it waits at `OPS-41`'s order like any funding cancellation (*added 2026-10-02,
+`ADR-0029`*). Each claims like every other
+exposure-reducing cancellation and waits for a restore's grace as `OPS-41` requires (*amended
 2026-09-25, `ADR-0028`*). The worker's re-check and its provider call read no fact the grace wrote —
 the claim's read of the restore record's `grace_ends_at` is `OPS-41`'s. `OPS-41`'s re-check at claim
 is the last look before the mutation — `OPS-41` says the worker MUST "re-read that machine's

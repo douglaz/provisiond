@@ -235,7 +235,9 @@ never the account's status, so `OPS-36`'s late attach under a terminated account
 `08-provider-notes.md` — only DigitalOcean's image delete is — and never returns that answer on a
 dead account; `OPS-41`'s outage branch, which settles a machine whose meter stopped "as the
 no-mutation case", no longer closes the episode `funded` by accident, because the meter stop *is*
-the gone-write and the permanence rule makes the later settlement an attempt-only change; and
+the gone-write and the permanence rule makes the later settlement an attempt-only change
+(*2026-10-02, `ADR-0029`: that outage branch is withdrawn, and a machine recorded gone is settled
+by the first step of `OPS-41`'s order*); and
 `STO-3` lists four guarded writes while `API-63`'s administrative `failed` on a queued create — and
 now on a queued system cancellation, guarded on `status = queued` and `requested_by = system` —
 are guarded writes `STO-3` does not list. The same read found `retry`'s state change and `OPS-42`'s

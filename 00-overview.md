@@ -288,8 +288,8 @@ count in it now.*
 | The meter (`LDG-37`, `LDG-38`, `LDG-72`) | `ledger` | Posts debits and decrements commitments, and enqueues nothing. **Where `LDG-37`'s stated source of truth is a provider usage API rather than the machine record, the driver call belongs to `engine`** and hands the meter the figures — the same shape as the sweep below |
 | Rate derivation and re-derivation (`LDG-58`–`LDG-61`, `PRV-13e`, `LDG-33`) | `ledger` | A pure balance event mints no operation (`OPS-39`), and the source set is fixed at deployment (`LDG-61`) |
 | The solvency check (`LDG-17`, `LDG-20`) | `ledger` | Reads balances and held satoshis. **The two rail balances it needs are pushed in by `api`'s funding side** (`SEC-48`'s scoped read); `ledger` MUST NOT call `api` to fetch them, which `OVR-9` forbids and which would make the money module depend on the surface |
-| The exhaustion sweep (`LDG-13`, `LDG-14`) | `engine` | It reads the machine's `runway_until` (`05-persistence.md`) and its commitment through `ledger`, then **enqueues** a cancellation, which is `engine`'s primitive (`OVR-9`) |
-| `LDG-64`'s outage-bound canceller | `engine` | Same shape: a balance-adjacent condition whose effect is an enqueued provider mutation with `system_reason: rate_outage_bound` (`OPS-39`) |
+| The exhaustion sweep (`LDG-13`, `LDG-14`) | `engine` | It reads the machine's `runway_until` (`05-persistence.md`), and through `ledger` its commitment and whether its currency has a rate (`LDG-16`), then **enqueues** a cancellation, which is `engine`'s primitive (`OVR-9`) |
+| `LDG-64`'s outage-bound canceller | `engine` | Same shape: a balance-adjacent condition — `LDG-64`'s computed deadline, read through `ledger` — whose effect is an enqueued provider mutation with `system_reason: rate_outage_bound` (`OPS-39`) |
 | `OPS-27`'s resolution sweep | `engine` | It searches providers by correlator, so it needs a provider credential, and its terminal transaction writes money through `ledger` (`OPS-27`) |
 | `OPS-32`'s account sweep | `engine` | Lists resources at a provider, so it needs a provider credential |
 | `OPS-15`'s startup pass and the worker pool | `engine` | Already implied by the table; stated so the list is complete |
@@ -405,6 +405,13 @@ marked human are procedures the deployment records rather than values the proces
 | Reconciliation rota | `OPS-26` | human | no |
 | Recovery directory | `RSC-20` | absolute path | yes |
 | Recovery-key inventory procedure | `RSC-21` | human | no |
+
+**The maximum tolerated rate outage, and the staleness bound, window and quorum an outage's start is
+replayed with (`STO-37`), are each read at the value in force when `LDG-64`'s deadline is computed,
+for an outage already open too, so lowering the maximum below the time an outage has already run
+makes that outage's cancellations eligible at the restart that loads the new value, with no further
+notice** (*added 2026-10-02, `ADR-0029`, which holds why the value is not frozen per outage and
+what the offer says of it, `WIR-30`*).
 
 ## Non-goals
 
