@@ -116,5 +116,19 @@ Edits owed, each to land with its dated note (`pv-gip.23`):
   `ci.yml`; `Provisiond.Admission`: the `sweepContinuesWithoutRate` guard and the theorem that no
   exposure-reducing action halts for want of a rate.
 
-Open with the owner: whether `STO-37`'s persisted `outage_deadline`, also shown on the machine view
-as `rate_outage_deadline`, stays as a copy of the computed instant or is deleted.
+**The computed instant is the only deadline** (decided 2026-10-02). `STO-37`'s persisted
+`outage_deadline` is deleted rather than kept as a copy: the stored value appears only after the
+meter's first no-rate posting and never for a subject the meter does not post for, while the
+computed one exists from the outage's first instant. `LDG-64` persisted the deadline so that "a
+restart mid-outage does not reset the clock"; the computed instant meets that, since `STO-49` keeps
+the rows its start is replayed from. The machine view's `rate_outage_deadline` shows the computed
+instant. The record keeps its billing fields. Further edits this owes:
+
+- `STO-37` (`05-persistence.md:851`, `:856`, `:895`): the column, and the sentence writing it in
+  the record's insert.
+- `LDG-64` (`12-billing-and-ledger.md:1163–1169`): "persist the outage's start instant and the
+  exact computed deadline", and the restore that "loses the row", which becomes a restore that
+  loses `STO-49`'s rows; `:1180`, the machine view's field.
+- `LDG-38` (`12-billing-and-ledger.md:814`): its sentence naming `outage_deadline`.
+- `CNF-99` (`10-conformance-checklist.md:454`, `:477`, `:485`): the assertions on
+  `outage_deadline`, restated on the computed deadline.
