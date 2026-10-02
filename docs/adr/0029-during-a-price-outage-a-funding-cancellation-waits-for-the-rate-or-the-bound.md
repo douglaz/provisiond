@@ -1,6 +1,7 @@
 # During a price outage, a funding cancellation waits for the rate or the outage bound
 
-**Status:** accepted (2026-10-01). The requirement and checklist edits listed under *Consequences*
+**Status:** accepted (2026-10-01); amended 2026-10-02 by *An outage pauses the restore grace*
+below (`pv-gip.29`). The requirement and checklist edits listed under *Consequences*
 landed in `2997723` (`pv-gip.23`), and the formal-layer edits in `e739240` (`pv-gip.25`), where
 the guard *Consequences* names `sweepContinuesWithoutRate` became `sweepRoutesNothingWithoutRate`.
 Answers `pv-gip.23` by removing the branch it was about.
@@ -75,9 +76,11 @@ carrying such a record" (`OPS-41`). That is what lets a machine with no record, 
 `LDG-72`'s quarantine, still meet the bound.
 
 **An extension halts with no rate.** `LDG-62` says "Extending runway is a caller write, authorized
-like a purchase", and `LDG-40`'s matrix halts a create for the same reason. Under this decision no
-funding cancellation proceeds before the bound, so no customer needs to extend mid-outage to keep a
-machine.
+like a purchase", and `LDG-40` says "With no rate for the machine's currency, an extension of
+runway MUST halt as a create does". The original argument — "Under this decision no funding
+cancellation proceeds before the bound, so no customer needs to extend mid-outage to keep a
+machine" — missed the restore grace: the rate can return after the grace was spent unusably,
+and the next claim cancels before the tenant can act. The dated amendment below answers that case.
 
 ## Considered options
 
@@ -101,7 +104,16 @@ Accepted costs, decided by the owner on 2026-10-01:
 - A flapping feed gives each outage its own deadline, so the cap holds per outage, not across them.
 - A provider whose contract has a notice period or a billing granularity can charge one more period
   for a cancellation the outage delayed (`PRV-13c`).
-- A restore's grace composes with the deadline: a cancellation waits for the later of the two.
+- A bound reached inside the original wall-clock restore grace still waits to `grace_ends_at`.
+  After that end, no-rate claims reach the ordinary short-delay or bound decision. Funding claims
+  with a returned rate also observe the accumulated grace decided below; the original blanket
+  description, "a cancellation waits for the later of the two", did not cover this composition.
+- Added 2026-10-02: a price move across an outage arrives as one step when the rate returns; a
+  thin-margin machine can re-derive into the past without a chance to react while the feed was
+  dark. `LDG-16` says "A machine within one honest step of exhaustion can be pushed over by that
+  step." This is that accepted risk magnified, not a new general grace.
+- Added 2026-10-02: a machine inside a restore incident runs on the operator's money for the
+  paused part of its grace.
 
 Edits owed, each to land with its dated note (`pv-gip.23`):
 
@@ -167,3 +179,57 @@ is read as each currency's outage running its own clock against that one value. 
   it.
 - `CNF-99`, `CNF-184` and `CNF-218`: a parameter changed mid-outage, including a lowering below the
   time already elapsed.
+
+
+## An outage pauses the restore grace — 2026-10-02
+
+The owner decided that a funding cancellation's restore grace is one re-derivation interval of
+**rate-present time from step (3), summed across outages**. An outage pauses accumulation; a
+return resumes the unspent portion, never a fresh interval. The normative owners are `OPS-41`
+(claim and deferral), `STO-49` (history retention), and `STO-56` (stored end and incident closure).
+`STO-54` keeps the procedure and freeze; `OPS-36` points its extension opportunity to `LDG-40`.
+
+The reason is the defect this ADR missed. `ADR-0028` says "The grace is one interval from the
+instant a tenant can first act" and rejects "A grace nobody could use". An outage covering the
+available wall-clock interval recreates it because the extension halts. It happens when a restore
+runs during an outage, including one the restore causes by losing rate-observation rows, and when
+an outage begins inside an unfinished grace and outlasts its original end.
+
+This is narrower than a general interval after recovery. `LDG-64` says "charge the customer
+nothing for that window": a customer funded at outage start keeps the remaining commitment,
+and the returned rate determines the re-derived runway, not a promise of the same seconds at a
+different price. A customer already unpaid had the preceding runway in which to extend.
+`OPS-36` offers survival "before the cleanup cancellation this transaction enqueued has written
+`OPS-42`'s fence"; that is no guaranteed minimum opportunity even without an outage. Its pointer
+to `LDG-40` qualifies admission; late attach gains no post-outage interval outside a restore.
+
+Only funding cancellations gain the paused measure. The outage bound and a currently suspended
+tenant keep the original wall-clock grace. A historical enqueue reason or episode reason cannot
+convert either into a funding cancellation deferred indefinitely. The longer incident lifetime
+keeps history available and the claim rule active; it does not extend the freeze and prevent the
+bound canceller from running.
+
+No new storage: step (3)'s transaction still writes `grace_ends_at` once. Subtract one
+re-derivation interval to recover the starting instant and use retained currency history on the
+same basis as the outage-start computation. `LDG-64` identifies the return as "the observation
+with which `LDG-58`'s window produces a rate again". A first arrival can leave a thin window;
+a subject's `absorbed_until` may be absent or precede the currency return at a meter stop.
+Neither is the source. Raw `observed_at` values are not assumed monotonic in acceptance order.
+Retention must span the whole open restore's needed history, including its left edge, even after
+multiple returns move the ordinary outage snapshot forward. The Lean model abstracts replay as
+effective outage spans; its proofs establish neither replay correctness nor retention.
+
+Incident closure waits for the original wall-clock end and the other incident obligations, and
+for each currency's accumulated grace to finish **or its outage to reach the bound**. The latter
+exception prevents a never-returning currency from holding the record open forever: past that
+bound no funding cancellation remains to protect. A finished currency cannot discharge another's
+unfinished grace. `STO-56` is the close rule's single home, with a pointer from `STO-54`.
+
+At each claim the original wall-clock grace still comes first, including the null-end short
+deferral before step (3). In the additional portion, with a rate, an unfinished funding grace
+returns the attempt to `queued` until the paused end computed at that claim, writing no fence and
+making no provider call. With no rate after the wall-clock end, the worker takes the existing
+short-delay path before the bound, or the bound/current-suspension path when applicable. It never
+parks until an unknown return. Each later claim recomputes; neither accumulation nor a revised
+end is persisted. Once grace no longer defers, the ordinary ordered funding re-check and fence
+transaction run. The rule changes deferral, not settlement, and does not clear inherited fences.

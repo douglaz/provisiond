@@ -25,7 +25,7 @@ engine (`OPS-47`), and time does not advance: `now` is the restore instant.
 What the model omits: `Provisiond.Reconcile`'s knowledge type — absence here is the machine's
 `recordedGone` Boolean, and `OPS-32`'s own three conjuncts (a complete pass, `PRV-36`'s window,
 the direct reread) are that module's, so on a restart the sweep records an absence on a complete
-pass alone; when the record closes, which `STO-54` gives to the operator once the obligations that
+pass alone; when the record closes, which `STO-56` gives to the operator once the obligations that
 outlive step (3) are discharged — so the record is open throughout this module and every successor
 here is a continuation, and a boot on a closed record is the restart `bootRestart` already is;
 `STO-54`'s step (1) beyond the freeze (the published window,
@@ -35,7 +35,9 @@ waiting parent, which `Event.confirmParents` stands for beside confirming it; th
 per-account report; and everything after the procedure that touches the stored date — the tenant
 extending again inside the grace (`LDG-62`), the claim that defers until the grace and the routing
 (`Provisiond.Fence` has those, reading the instant this module writes) — so the grace is stated
-as the instant written, `STO-56`'s `grace_ends_at`. The freeze's end is not modelled: `STO-54`
+as the unpaused instant written, `STO-56`'s `grace_ends_at`.
+`Claim` sums replayed rate-present time and `Fence` composes it at claims; this module neither
+replays currency history nor checks the per-currency closure obligations. The freeze's end is not modelled: `STO-54`
 says "the freeze lifts at `grace_ends_at`", and that instant is step (3)'s plus one interval,
 which a model where time does not advance never reaches, so a freeze that lifted there would
 never lift and every theorem over `permits` would hold of frozen components only; the model lifts

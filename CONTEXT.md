@@ -186,8 +186,11 @@ already own that word), rollback (that is a transaction)
 **Restore grace**:
 The one re-derivation interval after a **restore**'s step (3) completes, during which every claim
 of an exposure-reducing cancellation defers rather than proceeds, so a tenant whose extension the
-restore lost can extend again. One instant in the restore record, read at each such claim; never a
-fact on a machine (`ADR-0028`). A machine already fenced when it begins gets no extension from it.
+restore lost can extend again. For a **funding cancellation** only time in which the machine's
+currency has a rate counts toward the interval, since no tenant can extend without one; an outage
+pauses the grace rather than spending it (`ADR-0029`). Its unpaused end is one instant in the
+restore record, read at each such claim; never a fact on a machine (`ADR-0028`). A machine already
+fenced when it begins gets no extension from it.
 _Avoid_: grace period (that is **runway**'s banned synonym), deadline (the withdrawn per-machine
 form), destroy_not_before
 

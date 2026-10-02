@@ -400,7 +400,7 @@ flowchart TD
     H1 -- "no" --> H3["No commitment at all.<br/>LDG-66 operator deficiency"]
     H2 --> I["Enqueue the cleanup cancellation<br/>in the SAME transaction"]
     H3 --> I
-    I --> J["Tenant may still extend-runway<br/>LDG-62, until OPS-42's fence"]
+    I --> J["Tenant may still extend-runway subject to LDG-40<br/>LDG-62, until OPS-42's fence"]
 
     E -- "zero, authoritative,<br/>past the negative window" --> K["Resolved-absent.<br/>Close and release in full"]
     E -- "zero, window not elapsed" --> WAIT
@@ -541,8 +541,8 @@ immediately (`requested_by: system`,
 `system_reason: late_attach_cleanup`); the attach, the commitment-or-deficiency and that enqueue
 commit together, under the atomicity rule stated above. **Survival requires a caller action**: the
 tenant may
-`extend-runway` (`LDG-62`) against the attached machine **before the cleanup cancellation this
-transaction enqueued has written `OPS-42`'s fence** (`OPS-41`), which is an explicit, capped,
+`extend-runway` (`LDG-62`), subject to `LDG-40`'s outage halt, against the attached machine
+**before the cleanup cancellation this transaction enqueued has written `OPS-42`'s fence** (`OPS-41`), which is an explicit, capped,
 idempotent authorization rather than an inference about what it would have wanted. *"Before the
 exhaustion sweep reaches it" was the withdrawn wording, and it described a race against something
 that had already happened: the delete is enqueued here, in this same transaction, so there is no
@@ -703,7 +703,7 @@ provider call, settle the operation `succeeded` with a result recording that no 
 required, **write that re-derived `runway_until` to the machine row** (*withdrawn 2026-09-25,
 `ADR-0028`: "and clear the deadline — `LDG-16`'s `machines.destroy_not_before` (the abort is the
 second of the two authorized future-date writes, `ADR-0026`)" — no machine carries a deadline; the
-restore grace is `STO-56`'s `grace_ends_at`*), **clear `machines.destroy_committed`**, and close
+restore grace's unpaused end is `STO-56`'s `grace_ends_at`*), **clear `machines.destroy_committed`**, and close
 the episode where
 it is still open (`OPS-48`; a gone-write may have closed it first, and a close is permanent) so a
 later lapse can open a fresh one. *The date write was added 2026-09-05: the sweep routes on the
@@ -737,6 +737,33 @@ duration rather than citing it. The read is a new duty: `STO-56` says "Both comp
 row before anything else they do", and that is the startup read, taken once per process, so it
 cannot see an instant written or passed later in the incident. `OPS-48` gains no row — a re-queued
 attempt has not settled.
+
+**Amended 2026-10-02 (`ADR-0029`): for a funding cancellation, the grace counts rate-present
+time, summed across outages.** From step (3)'s instant, derived as `grace_ends_at` minus one
+re-derivation interval, accumulate only time in which the machine's currency has a rate. An outage
+MUST pause that measure, neither spending the remaining grace nor resetting what accumulated.
+Compute it from the retained per-currency `STO-49` history on the same history basis as `STO-37`'s
+outage-start replay. The return boundary is `LDG-64`'s "the observation with which `LDG-58`'s
+window produces a rate again", not the first arriving observation; a thin window may need more.
+Do not use a subject's `absorbed_until`, and do not assume `observed_at` increases in acceptance
+order. No accumulated measure or revised grace end is persisted.
+
+The null-before-step-(3) and original wall-clock deferrals above remain first for **every**
+covered claim. After that wall-clock end, while a rate exists and a funding cancellation has
+unspent grace, the claim MUST return the attempt to `queued` with `available_at` equal to
+`now + (one re-derivation interval − accumulated rate-present time)`, the paused end computed at
+this claim. No fence is written and the re-check above does not run on that path; no provider call
+is made. Recompute at every later claim; a new outage can change that end. With no outage this
+ends at the original `grace_ends_at`.
+
+Only funding cancellations gain the paused portion. A currently suspended tenant's cancellation
+and, with no rate, a cancellation at the outage bound retain the original wall-clock grace only,
+whatever the attempt's enqueue reason or the episode's historical reasons. With no rate after the
+wall-clock end, the grace MUST NOT defer to an unknowable rate-return instant: the ordered worker
+decision below runs, including step 4's short delay, step 5's bound and current suspension.
+With no open restore record there is no restore-grace deferral. Once grace no longer defers, the
+ordinary ordered re-check and fence transaction remain unchanged. `STO-56` owns incident closure;
+`STO-54` says "the freeze lifts at `grace_ends_at`"; the paused portion does not extend it.
 
 **AMENDED 2026-09-04 — the abort predicate was the routing predicate, so every correctly routed
 cancellation aborted.** *It read "where the remaining commitment now covers the wind-down floor at
@@ -818,9 +845,10 @@ never posted for and a rate returning at the bound itself.
 **Step 4 is a deferral, not a settlement.** The episode stays open and `OPS-48` gains no row, on the
 restore-grace paragraph's reasoning — a re-queued attempt has not settled — and each later claim
 decides again from step 1, so a suspension that joins the episode, a rate that returns and a machine
-recorded gone are each seen at the next claim, with no wake-up to arrange. Where a restore's grace
-and step 4's wait both apply, the cancellation waits for the later of the two: the grace is read
-first, at the claim, and this order runs only once it no longer defers.
+recorded gone are each seen at the next claim, with no wake-up to arrange. For their composition,
+the grace is read first, at the claim: its original wall-clock protection precedes this order;
+its additional funding-only paused portion uses the claim rule above. With no rate after the
+wall-clock end this order runs, so step 4, the bound and current suspension remain reachable.
 
 *Amended 2026-10-02 (`ADR-0029`), with the withdrawn wording, kept because it reads as sound and
 was not. Until then this requirement held: "**Where there is no rate, the cancellation proceeds.**

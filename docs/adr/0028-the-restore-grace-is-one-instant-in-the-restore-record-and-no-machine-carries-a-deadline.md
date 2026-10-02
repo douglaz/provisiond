@@ -1,6 +1,8 @@
 # The restore grace is one instant in the restore record, and no machine carries a deadline
 
-**Status:** accepted (2026-09-25). The rules are `STO-54`, `STO-56`, `LDG-16`, `OPS-41`, `LDG-62`,
+**Status:** accepted (2026-09-25); amended for outages by `ADR-0029`, *An outage pauses the
+restore grace — 2026-10-02*. The decision below records the original wall-clock design; that
+amendment qualifies its funding-grace and incident-close statements without rewriting this history. The rules are `STO-54`, `STO-56`, `LDG-16`, `OPS-41`, `LDG-62`,
 `LDG-64`, `LDG-65` and `PRV-13e`, with the machines row in `05-persistence.md`. Supersedes the
 mechanism `ADR-0023` gave the grace on 2026-09-12 (a per-machine column, then the second use of
 `exhausted_since`), `ADR-0026`'s second fact (`machines.destroy_not_before`), and the sentence in

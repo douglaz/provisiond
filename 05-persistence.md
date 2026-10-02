@@ -264,7 +264,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
-| *`destroy_not_before`* | — | **Withdrawn 2026-09-25 (`ADR-0028`).** *It was `ADR-0026`'s destruction deadline, a wall-clock instant the exhaustion sweep's predicate and the cancelling worker's provider call read (`LDG-16`); it delayed a destruction, where `destroy_committed` below, `OPS-42`'s fence, orders two writers against each other. Written only by `STO-54`'s restore, as the restore instant plus one re-derivation interval; cleared by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort; discharged by no observation, because a restore moved the date backward by something other than consumption. The restore grace is now one instant on the restore record, `STO-56`'s `grace_ends_at`, read at each claim (`OPS-41`), and no machine carries a deadline. With `rate_confirmation_ref`, withdrawn 2026-09-23 (`ADR-0027`), it replaced `exhausted_since` (2026-09-05 to 2026-09-21), which carried the confirmation wait and the restore grace on one clock and whose horizon half could never fire — `ADR-0026`. A conformance item, `CNF-99`, tested the behaviour for three weeks with no mechanism behind it, and then passed over the dead branch for sixteen days more* |
+| *`destroy_not_before`* | — | **Withdrawn 2026-09-25 (`ADR-0028`).** *It was `ADR-0026`'s destruction deadline, a wall-clock instant the exhaustion sweep's predicate and the cancelling worker's provider call read (`LDG-16`); it delayed a destruction, where `destroy_committed` below, `OPS-42`'s fence, orders two writers against each other. Written only by `STO-54`'s restore, as the restore instant plus one re-derivation interval; cleared by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort; discharged by no observation, because a restore moved the date backward by something other than consumption. The restore grace's unpaused end is one instant on the restore record, `STO-56`'s `grace_ends_at`, used at each claim under `OPS-41`, and no machine carries a deadline. With `rate_confirmation_ref`, withdrawn 2026-09-23 (`ADR-0027`), it replaced `exhausted_since` (2026-09-05 to 2026-09-21), which carried the confirmation wait and the restore grace on one clock and whose horizon half could never fire — `ADR-0026`. A conformance item, `CNF-99`, tested the behaviour for three weeks with no mechanism behind it, and then passed over the dead branch for sixteen days more* |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
 | `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
 | `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
@@ -593,6 +593,13 @@ later accepting pass that yields that currency's rate moves that snapshot forwar
 holds the old one; an outage has no such pass, so the snapshot it holds survives to the close and
 `STO-37`'s replay always has its left edge. *The retention the rate confirmation reference needed
 went with the reference, 2026-09-23 (`ADR-0027`).*
+
+**While a restore record is open**, retention MUST additionally preserve, for each currency, all
+rows needed to recompute its rate-present time from step (3)'s instant (`OPS-41`), including the
+window and outage-start history needed at that left edge. This obligation survives each outage's
+close and each later rate-producing pass moving the snapshot above forward: keeping only the
+current window or the current outage's snapshot is insufficient. Step (3)'s instant is derived
+from the record's single `grace_ends_at`; nothing new is stored. *Added 2026-10-02 (`ADR-0029`).*
 
 *Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
 self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
@@ -1122,14 +1129,23 @@ is continuing an incident rather than restarting, and `steps_completed` is what 
 resume, so neither fact depends on an operator being at the console when a process dies. *Added
 2026-09-20 (`ADR-0023`).*
 
-**`grace_ends_at` is the restore grace, one instant for the whole incident** (*added 2026-09-25,
-`ADR-0028`*). It is null until step (3) of `STO-54`'s procedure is marked, and it MUST be written in
-the same transaction as that mark, as step (3)'s instant plus one re-derivation interval — `STO-54`
-says "A marked step does not run again", so it is written once per incident. **The record MUST NOT be
-closed before `grace_ends_at` has passed**: the grace holds while the record is open, and an early
-close would end it. The read above is the startup read, taken once per process, so it cannot see an
-instant written or passed later in the incident; the freeze that lifts at this instant is
-`STO-54`'s, and the per-claim read of it is `OPS-41`'s.
+**`grace_ends_at` is the unpaused end of the restore grace, one stored instant for the whole
+incident** (*added 2026-09-25, `ADR-0028`; amended 2026-10-02, `ADR-0029`*). It is null until
+step (3) of `STO-54`'s procedure is marked, and it MUST be written in the same transaction as that
+mark, as step (3)'s instant plus one re-derivation interval — `STO-54` says "A marked step does
+not run again", so it is written once per incident. `OPS-41` owns its per-claim read and the
+funding-only paused use of this instant; `STO-49` owns the history retained for that computation.
+The startup read above is taken once per process. `STO-54` says "the freeze lifts at
+`grace_ends_at`"; keeping this record open does not prolong that freeze.
+
+**The operator MUST NOT close the record until** step (3) is marked, `grace_ends_at` has passed,
+the account sweep's second pass is done, every waiting parent is confirmed or cancelled, and,
+for **each currency**, either its accumulated rate-present time since step (3) has reached one
+re-derivation interval (`OPS-41`) or its outage has reached `LDG-64`'s bound. The bound discharges
+that currency's grace obligation even if its rate never returns: no funding cancellation remains
+to protect past that bound. A finished currency does not discharge another's obligation. Closing
+at the original end alone MUST NOT disable unfinished paused grace; the bound exception does not
+discharge the wall-clock or other incident obligations.
 
 ## Migrations
 
@@ -1265,7 +1281,7 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   step could "backdate an `exhausted_since` a later re-derivation had set" — `ADR-0023`'s own reason
   for the step marks. Two facts cannot collide in one slot, and re-keying that slot to an
   observation instead was refused because a rate arriving seconds after a restore would then end
-  the grace)" — the grace is the record's one instant, `STO-56`'s `grace_ends_at`, and no machine
+  the grace)" — the stored unpaused end is `STO-56`'s `grace_ends_at`, and no machine
   carries a deadline.* *Withdrawn 2026-09-23 (`ADR-0027`), with the reference: "and
   **any `rate_confirmation_ref` already present is preserved**, because a restore is not an
   observation and discharges nothing".* (2) *Before the first claim:* every `queued` create, install
@@ -1301,11 +1317,10 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   second skip of `deposits.derivation_index` allocates forward, the only direction that column moves
   — while `grace_ends_at` is written in the mark's own transaction (`STO-56`), so an interruption
   before the mark leaves it null and the repeat writes it once (*added 2026-09-25, `ADR-0028`*). The
-  operator closes the record once the incident's last obligation is discharged: step (3) marked,
-  `grace_ends_at` passed, as `STO-56` requires (*added 2026-09-25, `ADR-0028`*), the account sweep's
-  second pass done, and every waiting parent confirmed or cancelled — all but the first outlive step
-  (3), which is why the record does not close with it — after which a process that starts is an
-  ordinary restart. *Added 2026-09-20 (`ADR-0023`): the procedure ordered its steps and said nothing
+  operator closes the record only under `STO-56`'s close rule, including its per-currency grace
+  obligation and bound exception (*amended 2026-10-02, `ADR-0029`*), after which a process that
+  starts is an ordinary restart. *Added 2026-09-20 (`ADR-0023`): the procedure ordered its steps
+  and said nothing
   about a crash inside them, so `OPS-15`'s restore branch rested on knowledge no engine held.*
 - **`OPS-32`'s complete pass is a step, not a gate, and runs twice.** The first pass may record
   nothing about absence: `provider_observations` written in Δ are gone, so `PRV-36`'s effective
@@ -1318,14 +1333,15 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   the four destructive witnesses above through it (`CNF-295`).
 
 *What the restore does not repair, stated so it is not assumed: **an extension lost in Δ is not
-rebuilt** — the grace above buys the tenant one re-derivation interval in which to extend again, and
-a machine whose tenant does not is routed at the interval's end and cancelled, one interval after a
-date the tenant was never shown (*amended 2026-09-25, `ADR-0028`: the interval runs from step (3),
+rebuilt** — `OPS-41` owns the opportunity to extend again and its funding-only paused measure;
+extension admission remains subject to `LDG-40` and `LDG-62`. Routing follows `LDG-16`, and
+cancellation follows `OPS-41`, including when the rate is absent (*amended 2026-10-02,
+`ADR-0029`; amended 2026-09-25, `ADR-0028`: the interval runs from step (3),
 when the tenant can first act, not from the restore instant, and **a machine already fenced when the
 grace begins gets no extension from it** — its fence stayed set because the provider refused
 (`stalled`), because nobody yet knows what the provider did (`uncertain`) or because the provider
 accepted a cancellation for a future date (`scheduled`); its route back is `OPS-42`'s, and a retry's
-claim waits for `grace_ends_at` like every claim — in `ADR-0028`'s words, "outside the grace" means
+claim follows `OPS-41`'s grace rule like every claim — in `ADR-0028`'s words, "outside the grace" means
 no extension, not exemption from the wait, and clearing fences at restore was refused because it
 "engineers nothing for cases of which the set already calls one" accepted and "the others have their
 own resolution"*); the extension's satoshis are back in the tenant's balance, because the debit that

@@ -493,6 +493,10 @@ jobs:
       #     credentials are rejected, releases its tenants' commitments, handing the customer
       #     their satoshis back while the machines still bill --
       #     retained_until_terminated_witness on credentialsRejected and accountUnreachable.
+      # Paused restore grace (pv-gip.29), Fence.current.pauseFundingGrace:
+      #   OPS-41, ADR-0029 (2026-10-02): the entire wall-clock grace is dark; without
+      #   accumulated rate time the return's first claim destroys the machine --
+      #   paused_funding_grace_witness on pausedGraceReturn. Other guards are pinned.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
@@ -516,6 +520,7 @@ jobs:
           Fence|ownIdClause|true|false|fenceWorld retryTrace
           Fence|rateIsWindowMedian|true|false|poisonedPassTrace
           Fence|graceAtClaim|true|false|graceTrace
+          Fence|pauseFundingGrace|true|false|pausedGraceReturn
           Fence|retryGuard|true|false|goneAfterStallTrace ++
           Fence|goneOrClosedFirst|true|false|goneMidOutageTrace
           Fence|noRateWaits|true|false|freshOutageTrace

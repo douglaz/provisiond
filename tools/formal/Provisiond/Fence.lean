@@ -65,6 +65,14 @@ claim leaves: the worker `idle`, the row `queued`, the fence untouched. The work
 its provider call read no fact of the grace, as `LDG-16` says: "The worker's re-check and its
 provider call read no fact the grace wrote".
 
+For the 2026-10-02 paused grace, `World.rateHistory` is replay's effective completed outage
+spans in natural time units, not a new persisted field. `rateRestored` appends an outage only
+when returning from no rate; a thin `pass` does not close it. A trace assumes its rate-return
+event occurs at the effective qualifying boundary. `Claim.rateTime` unions spans so overlap
+cannot double-count absence. This abstracts currency replay, not subject `absorbed_until`, and
+assumes no ordering of raw `observed_at` values. The model proves neither history retention nor
+replay correctness nor incident closure; those remain obligations of `STO-49` and `STO-56`.
+
 What the model omits: the first 2026-09-05 form of
 the suspension exemption, keyed on the attempt's own reason; a second attempt enqueued while one is
 in flight (the model holds one attempt, and every enqueue waits for it); `OPS-31`'s resolution
@@ -211,7 +219,9 @@ outage on the last derived `runway_until`**". `extendNeedsRate`: `LDG-40`, "With
 machine's currency, an extension of runway MUST halt as a create does"; no wording was withdrawn
 for it — `LDG-40`'s note has only "The extension's row was added the same day" — and its off
 position is the extension as this module modelled it until then, which grew the commitment with
-no rate and skipped the date. -/
+no rate and skipped the date. `pauseFundingGrace` is the further 2026-10-02 amendment:
+`OPS-41` says "An outage MUST pause that measure, neither spending the remaining grace nor
+resetting what accumulated". Off restores the original wall-clock-only grace. -/
 structure Params where
   recheckInsideFence   : Bool
   fenceHolds           : Holds
@@ -223,6 +233,7 @@ structure Params where
   outageWrite          : Bool
   ownIdClause          : Bool
   rateIsWindowMedian   : Bool
+  pauseFundingGrace   : Bool
   graceAtClaim         : Bool
   retryGuard           : Bool
   goneOrClosedFirst    : Bool
@@ -248,6 +259,7 @@ def current : Params := {
     outageWrite          := true,
     ownIdClause          := true,
     rateIsWindowMedian   := true,
+    pauseFundingGrace   := true,
     graceAtClaim         := true,
     retryGuard           := true,
     goneOrClosedFirst    := true,
@@ -296,6 +308,10 @@ structure World where
   /-- `STO-56`'s restore record where one is open, with the instant `Provisiond.Restore` wrote,
   or null before step (3); `none` where no record is open. -/
   restore     : Option RestoreRecord := none
+  /-- Effective completed currency outages, a replay abstraction, not new runtime storage. -/
+  rateHistory : Claim.RateHistory := []
+  /-- The interval used for step (3)'s single end write. -/
+  interval    : Nat := 60
   /-- `protected_sats`. -/
   prot        : Nat
   /-- The tenant's current suspension state (`API-58`, `WIR-41`). -/
@@ -373,7 +389,10 @@ which `LDG-58`'s window produces a rate again", the record's `absorbed_until` "w
 observation's instant, by that observation's own write". The window that produced `r` is not
 carried here; `pass` is the event that carries one. -/
 @[req "LDG-64"]
-def rateRestored (w : World) (r : Nat) : World := { w with rate := some r, outageOpen := false }
+def rateRestored (w : World) (r : Nat) : World :=
+  { w with rate := some r, outageOpen := false,
+           rateHistory := if w.rate.isNone then (w.outageStart, w.now) :: w.rateHistory
+                          else w.rateHistory }
 
 /-- `LDG-58`: "Each pass that accepts an observation computes the rate over the window as of that
 pass, and the rate holds until the next such pass". The prices inside the window as of this pass
@@ -443,37 +462,63 @@ theorem sweep_routes_nothing_without_a_rate (p : Params) (hg : p.sweepNeedsRate 
   · simp_all
   · simp [World.routed, hg, hr]
 
-/-- `OPS-8`: the claim, through the claim model. It reads nothing of the rate: what the worker
-decides on is the fence transaction's own read.
-A row that is not `queued` is not claimed. Under `graceAtClaim`, `OPS-41`'s read of the restore
-record follows the claim: "while a restore record is open and its `grace_ends_at` is null or in
-the future the claim MUST defer: the operation is returned to `queued` with `available_at =
-grace_ends_at` where the instant is set, and by `OPS-8`'s ordinary short delay where it is not
-yet written" — `Claim.defer` with that instant, the worker back to `idle`, no fence transaction
-entered. -/
+/-- Claim-time grace inputs. Current suspension wins over historical episode reasons.
+With no rate, the grace's additional portion is disabled and the worker decides the bound. -/
+def World.graceContext (w : World) (p : Params) : Claim.GraceContext :=
+  { pauseFunding := p.pauseFundingGrace, funding := !w.suspended &&
+      !(!w.rate.isSome && w.deadlinePassed), hasRate := w.rate.isSome,
+    interval := w.interval, history := w.rateHistory }
+
+/-- `OPS-8` composed with `OPS-41`: read grace first at each claim and write its computed
+`available_at`. This rate read only decides the additional grace; the ordinary funding re-check
+still reads inside its own fence transaction. -/
 @[req "OPS-8"]
 def claimStep (p : Params) (w : World) : World :=
   match w.phase, w.attempt with
   | .idle, some a =>
     match Claim.claim true a.row with
     | (r, some n) =>
-      if p.graceAtClaim && Claim.graceDefers w.restore w.now then
+      if p.graceAtClaim && Claim.graceDefers w.restore w.now (w.graceContext p) then
         { w with attempt := some { a with
-            row := Claim.defer Claim.current r n (w.restore.bind (·.graceEndsAt)) } }
+            row := Claim.defer Claim.current r n (Claim.graceAvailableAt w.restore w.now (w.graceContext p)) } }
       else { w with attempt := some { a with row := r }, phase := .holding n }
     | (_, none) => w
   | _, _ => w
 
 /-- `OPS-41`: a claim under the grace "defers, and writes no fence" — the worker is `idle`, the
-row is `queued` again with `available_at` the record's instant, and the fence is what it was. -/
+row is `queued` again with `available_at` computed at this claim, and the fence is what it was. -/
 @[req "OPS-41"]
 theorem grace_defers_without_fence (p : Params) (hg : p.graceAtClaim = true) (w : World)
     (a : Attempt) (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
-    (hd : Claim.graceDefers w.restore w.now = true) :
+    (hd : Claim.graceDefers w.restore w.now (w.graceContext p) = true) :
     (claimStep p w).phase = .idle ∧ (claimStep p w).m.fence = w.m.fence ∧
     ∃ a', (claimStep p w).attempt = some a' ∧ a'.row.status = .queued ∧
-      a'.row.availableAt = w.restore.bind (·.graceEndsAt) := by
+      a'.row.availableAt = Claim.graceAvailableAt w.restore w.now (w.graceContext p) := by
   simp [claimStep, hph, ha, hg, hd, Claim.claim, hq, Claim.defer, Claim.holds, Claim.current]
+
+/-- Once grace no longer defers, the actual composed claim enters the ordinary worker.
+No rate or funding snapshot is carried into that worker phase. -/
+@[req "OPS-41"]
+theorem claim_after_grace (p : Params) (w : World) (a : Attempt)
+    (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
+    (hd : Claim.graceDefers w.restore w.now (w.graceContext p) = false) :
+    (claimStep p w).phase = .holding ⟨a.row.claim.n + 1⟩ := by
+  simp [claimStep, hph, ha, hq, hd, Claim.claim]
+
+/-- Any finite replay pattern with a full interval accumulated releases the composed claim,
+not just an arithmetic helper. Validity is the single end written by the restore procedure. -/
+@[req "OPS-41"]
+theorem accumulated_grace_releases_claim (p : Params) (w : World) (a : Attempt) (t : Nat)
+    (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
+    (record : w.restore = some ⟨some t⟩) (valid : w.interval ≤ t)
+    (started : t - w.interval ≤ w.now)
+    (elapsed : w.interval ≤ Claim.rateTime w.rateHistory (t - w.interval)
+      (w.now - (t - w.interval))) :
+    (claimStep p w).phase = .holding ⟨a.row.claim.n + 1⟩ := by
+  apply claim_after_grace p w a hph ha hq
+  rw [record]
+  exact Claim.grace_finishes_after_accumulated_interval (w.graceContext p) t w.now
+    valid elapsed started
 
 /-- What the fence transaction decides. `noMutation`: `OPS-41`'s abort, with the re-derived date
 where one was derived. `proceed`: on to `OPS-42`'s fence write, with that date. `defer`: the
@@ -635,7 +680,7 @@ call waits on the record's instant, after the claim has already fenced, so the f
 def providerDelete (p : Params) (w : World) (applied : Bool) (reply : Option Bool) : World :=
   match w.phase with
   | .fenced n =>
-    if !p.graceAtClaim && Claim.graceDefers w.restore w.now then w
+    if !p.graceAtClaim && Claim.graceDefers w.restore w.now (w.graceContext p) then w
     else
       { w with m := { w.m with destroyed := w.m.destroyed || applied }, phase := .dispatched n reply }
   | _ => w
@@ -1014,6 +1059,33 @@ theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (
           · split at h
             · exact hderive _ h
             · split at h <;> simp at h
+
+/-- The bound is reachable through the composed claim regardless of unfinished rate-time
+or historical enqueue reasons. The original wall-clock end must have passed. The second
+conjunct is the ordinary ordered re-check on the claimed world: no grace was carried there. -/
+@[req "OPS-41"]
+theorem bound_not_held_by_paused_grace (p : Params) (w : World) (a : Attempt) (t : Nat)
+    (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
+    (record : w.restore = some ⟨some t⟩) (wall : t ≤ w.now)
+    (hr : w.rate = none) (bound : w.deadlinePassed = true)
+    (hg : settledFirst w a = false) (hk : p.suspensionKey = .currentState)
+    (hab : p.absentRecordProceeds = true) :
+    (claimStep p w).phase = .holding ⟨a.row.claim.n + 1⟩ ∧
+    recheck p w a none = .proceed none := by
+  constructor
+  · apply claim_after_grace p w a hph ha hq
+    simp [Claim.graceDefers, record, World.graceContext, hr, show ¬ w.now < t by omega]
+  · simp [recheck, hg, exempt, hk, hr, bound, hab]
+
+/-- Current suspension also releases the composed claim at the original wall-clock end,
+with any rate history or episode reasons. -/
+@[req "OPS-41"]
+theorem suspension_ignores_paused_grace (p : Params) (w : World) (a : Attempt) (t : Nat)
+    (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
+    (record : w.restore = some ⟨some t⟩) (wall : t ≤ w.now) (hs : w.suspended = true) :
+    (claimStep p w).phase = .holding ⟨a.row.claim.n + 1⟩ := by
+  apply claim_after_grace p w a hph ha hq
+  simp [Claim.graceDefers, record, World.graceContext, hs, show ¬ w.now < t by omega]
 
 /-- `OPS-41`'s first step: the worker "makes no provider call and settles the attempt `succeeded`
 with a result recording that no mutation was required", and "**It writes no `runway_until`**".

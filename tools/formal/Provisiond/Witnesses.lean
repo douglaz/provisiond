@@ -965,9 +965,8 @@ theorem parent_resumes_on_restart :
 /-- `F52` #3 (`STO-54`, `ADR-0023`, 2026-09-12): "an extension lost in Δ is not rebuilt". The
 tenant extended to 100 inside the interval, the restored date is 0, the procedure writes the
 grace as `STO-56`'s `grace_ends_at`, "step (3)'s instant plus one re-derivation interval" — from
-step (3)'s instant, not the restore's, which the record keeps beside it — the interval `STO-54`
-says "buys the tenant one re-derivation interval in which to extend again" — and no run of the
-procedure writes the date back. -/
+step (3)'s instant, not the restore's, which the record keeps beside it. `OPS-41` owns its
+paused use after an outage; no run of this procedure writes the date back. -/
 @[req "STO-54"]
 theorem lost_extension_not_rebuilt :
     ∃ t : RestoreTrace, t.history.final.machine.runwayUntil = 100 ∧
@@ -1014,6 +1013,7 @@ at step (3), and `Provisiond.Fence` reads it at the claim. The instant the fence
 the one the restore run above wrote, so the arithmetic has one home. -/
 
 section Grace
+set_option maxRecDepth 4096
 open Provisiond.Fence
 
 /-- `STO-56`'s record as `Provisiond.Restore` leaves it after the procedure on `restoreTrace`:
@@ -1064,16 +1064,11 @@ theorem grace_at_claim_witness :
        .providerDelete true (some true)]).m.destroyed = false ∧
     bad.m.destroyed = true ∧ bad.m.commitment = 0 ∧ bad.balance = 1000 := by decide
 
-/-- `OPS-41`: "Where a restore's grace and step 4's wait both apply, the cancellation waits for
-the later of the two: the grace is read first, at the claim, and this order runs only once it no
-longer defers." A restore during the fresh outage, whose deadline is `100`. With the grace ending
-first, at `50`: a claim inside it defers on the grace, `available_at` the record's instant, and
-the claim at `50` still defers, by the short delay that carries no instant, with no fence. With
-the deadline inside a grace that ends at `140`: a claim at `120`, past the deadline, defers on the
-grace to `140` and writes no fence, and the claim at `140` writes the fence and cancels at the
-fifth step. The grace guard is fixed with the outage's, so its own row has its own witness. -/
+/-- The original wall-clock protection still precedes the no-rate worker decision.
+At the original end, a no-rate claim before the bound short-defers; past the bound it cancels.
+The grace guard is fixed with the outage guards so each control has its own witness. -/
 @[req "OPS-41"]
-theorem grace_and_outage_wait_for_the_later_witness :
+theorem wall_grace_precedes_outage_decision_witness :
     let p := { outageGuards Fence.current with graceAtClaim := true }
     let early := { freshOutageWorld with restore := some { graceEndsAt := some 50 } }
     let late := { freshOutageWorld with restore := some { graceEndsAt := some 140 } }
@@ -1090,6 +1085,94 @@ theorem grace_and_outage_wait_for_the_later_witness :
     pastDeadline.phase = .idle ∧ pastDeadline.m.fence = none ∧
     pastDeadline.attempt.map (·.row.availableAt) = some (some 140) ∧
     atGraceEnd.m.destroyed = true := by decide
+
+/-- Pin unrelated guards at their current values: only the paused-measure control decides
+this historical witness. The off trace still uses the same claim placement and worker order. -/
+def pausedGraceGuards (p : Params) : Params := { p with
+    recheckInsideFence   := true,
+    fenceHolds           := .episodeId,
+    fenceOnOpenEpisode   := true,
+    abortPredicate       := .date,
+    abortWritesDate      := true,
+    extendWritesDate     := true,
+    suspensionKey        := .currentState,
+    outageWrite          := true,
+    ownIdClause          := true,
+    rateIsWindowMedian   := true,
+    graceAtClaim         := true,
+    retryGuard           := true,
+    goneOrClosedFirst    := true,
+    noRateWaits          := true,
+    absentRecordProceeds := true,
+    boundReachesAll      := true,
+    sweepNeedsRate       := true,
+    extendNeedsRate      := true }
+
+/-- Step (3) at 80, end 140 from `graceRecord`; outage covers it until 200. The bound is later.
+The subject has no outage record, so a subject's absorbed instant cannot supply this grace. -/
+def pausedGraceWorld : World :=
+  { restoredWorld with now := 80, restore := graceRecord, interval := 60, maxOutage := 1000 }
+
+def pausedGraceReturn : List Fence.Event :=
+  [.rateLost 80, .advance 120, .pass [] 80, .claim, .fenceTxn,
+   .pass [1, 1, 1] 80, .claim, .fenceTxn, .providerDelete true (some true)]
+
+/-- The historical defect: the first claim at the qualifying return destroys a machine whose
+entire wall-clock grace was dark. Guarded, it defers to 260 without a fence, admits an extension,
+and settles funded after 60 rate-present units. Removing only the pause reproduces destruction. -/
+@[req "OPS-41"]
+theorem paused_funding_grace_witness :
+    let p := pausedGraceGuards Fence.current
+    let good := run p pausedGraceWorld pausedGraceReturn
+    let bad := run { p with pauseFundingGrace := false } pausedGraceWorld pausedGraceReturn
+    let saved := run p good [.extend 100, .advance 60, .claim, .fenceTxn, .settle]
+    good.phase = .idle ∧ good.attempt.map (·.row.availableAt) = some (some 260) ∧
+    good.m.fence = none ∧ good.m.destroyed = false ∧
+    good.outageOpen = false ∧ good.rateHistory = [(80, 200)] ∧
+    saved.m.commitment = 100 ∧ saved.m.destroyed = false ∧ saved.m.fence = none ∧
+    saved.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
+    bad.m.destroyed = true := by decide
+
+/-- Independent checks pin the new guard too, so removing it refutes only its historical witness.
+Partly spent grace survives two outages, the short delay is used while dark, and a resumed tenant
+with historical suspension reasons keeps the funding grace. -/
+@[req "OPS-41"]
+theorem paused_grace_flapping_witness :
+    let p := { pausedGraceGuards Fence.current with pauseFundingGrace := true }
+    let first := run p pausedGraceWorld
+      [.advance 20, .rateLost 100, .advance 100, .claim, .fenceTxn]
+    let returned := run p first [.pass [1, 1, 1] 100, .claim]
+    let second := run p returned
+      [.advance 15, .rateLost 215, .advance 100, .claim, .fenceTxn, .rateRestored 1, .claim]
+    let ended := run p second
+      [.advance 25, .claim, .fenceTxn, .providerDelete true (some true), .settle]
+    first.attempt.map (·.row.availableAt) = some none ∧ first.m.fence = none ∧
+    returned.attempt.map (·.row.availableAt) = some (some 240) ∧
+    second.attempt.map (·.row.availableAt) = some (some 340) ∧ second.m.fence = none ∧
+    Claim.rateTime second.rateHistory 80 260 = 60 ∧ ended.m.destroyed = true ∧
+    (claimStep p { returned with episode := returned.episode.map fun ep =>
+      { ep with reasons := [.tenantSuspended, .exhausted] } }).phase = .idle := by decide
+
+/-- Neither a current suspension nor the no-rate bound waits for the paused portion. The
+original wall end still protects a bound reached earlier; absent/null records keep their cases. -/
+@[req "OPS-41"]
+theorem paused_grace_exceptions_witness :
+    let p := { pausedGraceGuards Fence.current with pauseFundingGrace := true }
+    let dark := run p pausedGraceWorld [.rateLost 80, .advance 120]
+    let bound := run p { dark with maxOutage := 100 }
+      [.claim, .fenceTxn, .providerDelete true (some true)]
+    let suspended := run p { dark with suspended := true }
+      [.claim, .fenceTxn, .providerDelete true (some true)]
+    let suspendedRate := run p { dark with suspended := true }
+      [.rateRestored 1, .claim, .fenceTxn, .providerDelete true (some true)]
+    let early := run p { pausedGraceWorld with maxOutage := 10 }
+      [.rateLost 80, .advance 20, .claim, .fenceTxn]
+    let ended := run p early [.advance 40, .claim, .fenceTxn, .providerDelete true (some true)]
+    bound.m.destroyed = true ∧ suspended.m.destroyed = true ∧ suspendedRate.m.destroyed = true ∧
+    early.m.fence = none ∧ early.attempt.map (·.row.availableAt) = some (some 140) ∧
+    ended.m.destroyed = true ∧
+    (claimStep p { dark with restore := none }).phase = .holding ⟨1⟩ ∧
+    (claimStep p { dark with restore := some ⟨none⟩ }).phase = .idle := by decide
 
 end Grace
 

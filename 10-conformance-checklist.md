@@ -522,7 +522,10 @@ not optional hardening — they are the only structural defence there is.
       with no rate movement at all and assert the machine is routed on the very next sweep** — a
       build that holds every past date for a second look runs each ordinary exhaustion one interval
       into the wind-down reserve. **Then the restore edge** (added 2026-09-12, `ADR-0023`; rewritten
-      2026-09-25, `ADR-0028`, to measure from step (3)): restore a store in which a machine's stored
+      2026-09-25, `ADR-0028`, to measure from step (3)): with a rate continuously in force,
+      an active tenant, sufficient available balance and otherwise satisfied extension admission
+      conditions, with the requested runway extending beyond the tested re-claim, restore a store
+      in which a machine's stored
       `runway_until` is past, run `STO-54`'s procedure, and assert that the record's `grace_ends_at`
       (`STO-56`) is step (3)'s instant plus one re-derivation interval and that the exhaustion sweep
       does not route the machine before it — the freeze holds; take a queued delete re-run by step
@@ -534,7 +537,9 @@ not optional hardening — they are the only structural defence there is.
       `grace_ends_at` the worker aborts and closes the episode `funded` (`OPS-48`'s no-mutation
       row), the machine never routed again for that lapse; and take a machine already fenced when
       the grace begins, and assert an extension is refused `cancellation_committed` throughout the
-      grace and that its retry's claim waits for `grace_ends_at` like every claim. *The per-tick cap
+      grace and that its retry's claim waits for `grace_ends_at` like every claim. Repeat with
+      a restore-caused loss of `STO-49` rows leaving no rate: exercise `CNF-218`'s paused
+      cases and assert the single original end is never rewritten (`STO-56`). *The per-tick cap
       clause is withdrawn with the construct it tested (`ADR-0011`). Until 2026-09-05 this item
       tested a behaviour with no column, no predicate and no reader behind it, and a build that
       routed on the date alone passed it by never being fed a poisoned reading.* (`PRV-13e`,
@@ -651,8 +656,10 @@ takes the machines *and* the float" partly false.
       signed spend, by someone other than whoever wrote it. Before the first customer payment.
       (`SEC-53`)
 - [ ] **CNF-295** — **The restore rehearsal** (added 2026-09-12, `ADR-0023`). Before the
-      first customer payment, by someone other than whoever wrote the procedure: with a
-      `suspend_tenant` parent unsettled — once `running`, once `queued` under `OPS-49`'s defer —
+      first customer payment, by someone other than whoever wrote the procedure: keep a rate in
+      force for the no-outage run below, with separate active tenants for the re-extension machines,
+      sufficient available balance, requested runway beyond the tested re-claim and otherwise
+      satisfied admission conditions; with a `suspend_tenant` parent for another tenant unsettled — once `running`, once `queued` under `OPS-49`'s defer —
       take a backup, then in the lost interval extend a machine's runway from balance, revoke a
       spending token, let a `queued` create order and a `queued` raw-disk install write, and let
       the parent settle and the tenant resume; restore, and run `STO-54`'s procedure in its stated
@@ -679,7 +686,17 @@ takes the machines *and* the float" partly false.
       `suspend_tenant` parent, in either state, does not resume without operator confirmation; the
       sweep's first pass records no absence and
       its second may; and the operator report names `T − Δ` and every unrecorded machine per
-      account. (`STO-54`, `STO-56`, `OPS-15`, `OPS-41`, `LDG-16`, `API-56`, `OPS-27`, `OPS-32`)
+      account. Repeat across an outage starting inside grace and a restore-caused outage:
+      after the wall-clock end the actors in `STO-54`'s freeze run, but unfinished funding grace
+      still defers claims under `OPS-41`. Kill and restart after multiple qualifying returns;
+      assert recomputation from retained `STO-49` history preserves the unspent time and the
+      step-(3) mark and original end remain unchanged. Before the bound, refuse incident close
+      while any currency has unspent grace. Finish currency A's grace while B still has unspent
+      grace and has not reached its bound: closing is still refused. Leave B without a rate
+      through its bound: B ceases to block closure, but refuse close until wall-clock grace and
+      every other obligation in `STO-56`'s close rule is satisfied. Only then close and verify
+      ordinary restart behavior. (`STO-54`, `STO-56`, `STO-49`, `OPS-15`, `OPS-41`, `LDG-16`,
+      `LDG-64`, `API-56`, `OPS-27`, `OPS-32`)
 - [ ] **CNF-296** — **The two synchronous writes hang alone** (added 2026-09-12,
       `ADR-0023`). Stall the named standby. Assert a deposit mint and a payment credit block, every
       engine write and every other `api` write proceeds, and `OVR-18`'s alarm fires. Release the
@@ -1772,7 +1789,8 @@ rather than acquiring a default.
       **With no rate, a funding cancellation waits; it is not cancelled and not settled**
       (rewritten 2026-10-02, `ADR-0029`; `OPS-41`'s order is what each case exercises). *A fresh
       outage*: with a
-      live machine whose stored date has passed, its episode open and its cancellation queued — an
+      live machine outside a restore incident whose stored date has passed, its episode open and
+      its cancellation queued — an
       `exhausted` attempt enqueued before the rate was lost, and separately `OPS-36`'s late-attach
       cleanup, enqueued by its attach transaction while a rate existed — lose the rate before the
       claim, and before the meter has
@@ -1791,20 +1809,56 @@ rather than acquiring a default.
       rate*: the next claim writes the fence and cancels — where the machine has an open
       `rate_outage` record and where it has none alike. *The maximum tolerated outage lowered
       mid-outage below the time already run* (`OVR-19`): the deferred attempt's first claim after
-      the restart that loads it proceeds. *A restore during the outage*: a claim inside the restore
-      grace defers on the grace, and after `grace_ends_at` it still defers while there is no rate
-      and the deadline has not passed, so the cancellation waits for the later of the two. *And
-      where the deadline falls inside the grace*: a claim made past the deadline and inside the
-      grace, with `grace_ends_at` already written and more of the grace left than `OPS-8`'s short
-      delay, and with no rate, returns to `queued` with `available_at = grace_ends_at` — the grace's
-      deferral, which that instant tells apart from step 4's short delay — and writes no fence;
-      the claim after `grace_ends_at`, with still no rate, writes the fence and cancels at step 5.
-      A build that checks the deadline before the grace cancels inside the grace. *The
-      fence and date assertions and the outage case were added 2026-09-05; the outage kind was
+      the restart that loads it proceeds.
+      **Restore grace across outages** (`OPS-41`, `STO-56`; amended 2026-10-02, `ADR-0029`).
+      Use an active tenant, an unfenced live machine with an open funding episode, and a queued
+      cancellation; set a bound later than each tested return except in the bound cases below.
+      For every extension assertion, first establish a rate, sufficient available balance and
+      all other admission conditions (`LDG-40`, `LDG-62`); choose requested runway beyond the
+      tested re-claim. Write step (3)'s mark and original end
+      once. Before that mark, a null end still defers by a short delay with no fence or provider
+      call. Exercise the following histories using `STO-49`'s currency rows:
+      *No outage*: at a claim inside the grace `available_at` is the original end; an extension
+      is admitted, and re-claim at that end settles `funded`, clears the fence and leaves the
+      machine alive (`OPS-48`).
+      *An outage covering the entire original grace*, including one caused by restoring away
+      rate-observation rows: before the original end claims defer to that end; afterwards, with
+      no rate and before the bound, the ordered worker uses step 4's short delay, never an
+      unknowable return instant. Admit an observation that leaves the window thin and assert it
+      does not start spending grace. At the qualifying return `R`, claim and assert
+      `available_at = R + I`, where `I` is the re-derivation interval; no fence or provider call.
+      An eligible extension during that remaining interval is admitted, and after its end the
+      funded re-check settles with the machine alive.
+      *An outage after part of the grace*: spend `a < I` with a rate after step (3), then lose
+      the rate past the original end; on a qualifying return at `R`, claim and assert
+      `available_at = R + (I - a)`, not `R + I`.
+      *Flapping*: spend another `b < I - a` with a rate, lose it again, and claim at the next
+      qualifying return `S`: assert `available_at = S + (I - a - b)`. Re-claim after later
+      outages and returns and check the sum of all rate-present segments, with none discarded
+      or counted twice. With no extension and an unfunded re-check, cancellation can proceed
+      once the sum reaches `I`. Prune between the returns and restart: the history and its
+      left edge needed to reproduce every result survive while the restore record is open
+      (`STO-49`). Repeat for a live machine with no `rate_outage` record. Stop another subject
+      in the same currency and write its `absorbed_until` before the currency returns: the
+      live machine's grace is unchanged by that subject record.
+      *The bound while paused grace is unfinished*: with no rate and the wall-clock end passed,
+      a funding-enqueued attempt reaches step 5 and cancels, both with and without an outage
+      record. If the deadline falls before the original end, a claim past the deadline still
+      returns to `queued` with `available_at = grace_ends_at`, with no fence or provider call;
+      at that end, still without a rate, it reaches step 5. *Current suspension*: after the
+      wall-clock end a suspended tenant's claim proceeds without waiting for unspent paused
+      grace, with and without a rate, even if enqueued for exhaustion. Conversely, historical
+      suspension reasons do not bypass paused grace for a resumed tenant. The episode stays
+      open on each deferral, and every later claim recomputes; no deferral settles the attempt,
+      writes a new fence, clears an inherited fence, or calls the provider. Repeat the rate-return
+      cases for an inherited fence: extension remains refused `cancellation_committed`, and
+      retry claims observe the applicable grace. `CNF-295` exercises incident closure.
+      *The fence and date assertions and the outage case were added 2026-09-05; the outage kind was
       outside `OPS-41` entirely, so a bound reached one second before the rate returned destroyed
       the fleet. `OPS-41`'s note of 2026-10-02 holds the reasoning this item's last case was
       withdrawn with.*
-      (`OPS-41`, `OPS-36`, `OPS-8`, `LDG-62`, `LDG-40`, `LDG-64`, `LDG-65`, `OVR-19`)
+      (`OPS-41`, `OPS-36`, `OPS-8`, `OPS-48`, `STO-49`, `STO-54`, `STO-56`,
+      `LDG-62`, `LDG-40`, `LDG-64`, `LDG-65`, `OVR-19`)
 - [ ] **CNF-219** — `GET /v1/balance` is answered from the latest entry's `balance_after` and takes
       no write transaction; an audit recomputation of `Σ(ledger entries)` equals it; and a seeded
       mismatch **fails closed** rather than answering from either number. (`LDG-70`, `LDG-9`,
