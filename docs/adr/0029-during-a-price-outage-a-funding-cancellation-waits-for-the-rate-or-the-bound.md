@@ -63,7 +63,9 @@ woken.
 `LDG-64`'s maximum tolerated outage. `STO-37` already defines the start as "a function of that
 history alone", replayed from `STO-49`, and `STO-49` keeps those rows so that "the snapshot it holds
 survives to the close". Any writer computes the same instant, including for a subject the meter
-never posted for, and a restart cannot move it.
+never posted for, and a restart with unchanged parameters cannot move it. A restart that changes
+the bound, or the staleness bound, window or quorum the start is replayed with, does move it; see
+*The bound is the setting in force* below.
 
 **The bound's cancellation reaches every subject priced in the currency**, not only "a machine
 carrying such a record" (`OPS-41`). That is what lets a subject with no record, such as one under
@@ -136,3 +138,29 @@ instant. The record keeps its billing fields. Further edits this owes:
 - `LDG-38` (`12-billing-and-ledger.md:814`): its sentence naming `outage_deadline`.
 - `CNF-99` (`10-conformance-checklist.md:454`, `:477`, `:485`): the assertions on
   `outage_deadline`, restated on the computed deadline.
+- `STO-54` (`05-persistence.md:1336`): "`LDG-64`'s persisted outage start and deadline are lost
+  with their `STO-37` row" becomes the loss of `STO-49`'s rows the start is replayed from.
+
+**The bound is the setting in force** (decided 2026-10-02, after a four-model panel that voted for
+it unanimously). When the operator changes the maximum tolerated outage, or the staleness bound,
+window or quorum the outage's start is replayed with, the deadline uses the value in force when it
+is computed, for open outages too. Lowering the bound below the time an outage has already run
+makes its cancellations eligible at the restart that loads it, with no further notice; that is the
+operator's own choice, since `LDG-64` calls the bound "the operator's own loss limit". The
+disclosure is a notice of the mechanism, not a promise of the number: `LDG-64`'s harm is a trigger
+"its owner was never told about", and `WIR-30`'s `binding: false` covers price only. Following
+`ADR-0011`, which let the runway date float on condition that "the terms must say so", the offer
+says so. Rejected: freezing the value per outage (it needs the setting's history stored, the record
+this ADR declined) and a per-machine floor at the disclosed value (the create's offer snapshot does
+not carry `max_rate_outage_seconds`, `STO-50` forbids writing it there, and `STO-14` deletes the
+settled create anyway). The register row is one duration; `LDG-59`'s "one bound for each currency"
+is read as each currency's outage running its own clock against that one value. Further edits:
+
+- `OVR-19` (`00-overview.md:349–362`): one sentence owning the rule above, for the bound and the
+  replay's parameters together.
+- `WIR-30` (`13-wire-contract.md:922`): `max_rate_outage_seconds` is the operator's current limit,
+  it can change during an outage, and the machine view's `rate_outage_deadline` is authoritative.
+- `LDG-64` (`12-billing-and-ledger.md:1177–1183`): cites `OVR-19`'s sentence rather than restating
+  it.
+- `CNF-99`, `CNF-184` and `CNF-218`: a parameter changed mid-outage, including a lowering below the
+  time already elapsed.
