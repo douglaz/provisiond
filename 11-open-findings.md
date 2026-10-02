@@ -45,12 +45,13 @@ the machine lock, `machines.system_trigger_ids` and requeue survive only in with
 The construction half did not, and the first finding is the one that matters.
 
 **F46. CLOSED — the epoch was not a fence, and it failed the way the leases failed.** `OPS-47`
-said "Every engine write to `operations` and `machines` MUST be guarded on `epoch = mine`", and
-`operations.epoch` was "stamped by `STO-1`'s claim" — by the claiming process, from the value it
-held. A worker checking that the row still carried its own number was checking a value it wrote
-itself, so the term held by construction; `engine_epoch` was read once in the set, at increment,
-and compared to nothing. Of `STO-3`'s four conditional writes only the worker's carried the term,
-and the one doing the work was the startup pass, "guarded on `(id, status = running)`". So the
+said, in the wording `ADR-0019` keeps, "Every engine write to `operations` and `machines` MUST be
+guarded on `epoch = mine`", and `operations.epoch` was "stamped by `STO-1`'s claim" — by the
+claiming process, from the value it held. A worker checking that the row still carried its own
+number was checking a value it wrote itself, so the term held by construction; `engine_epoch` was
+read once in the set, at increment, and compared to nothing. Of `STO-3`'s four conditional writes
+only the worker's carried the term, and the one doing the work was the startup pass, "guarded on
+`(id, status = running)`". So the
 guard caught a process whose operations the successor had already swept, and a process that woke
 past a restart and claimed a *fresh* operation passed every check and ran alongside the live
 engine indefinitely. `ADR-0016`'s "the guard is what makes "exactly one" a property the store
@@ -220,9 +221,10 @@ that refuses indefinitely, a machine out of runway, a customer who wants to pay 
 `OPS-42` as accepted, with no verb.
 
 Both reviewers found the same second thing. `API-63` records every machine of a terminated account
-gone, and `OPS-39` said "A tombstoned machine keeps any episode that is still open", so an episode
-open at the recording sat `stalled` in `OPS-26`'s listing forever — the outcome `API-63`'s own text
-called "a different failure", reached for the pre-existing episodes rather than the new ones. The
+gone, and `OPS-39` said, in the wording `ADR-0021` keeps, "A tombstoned machine keeps any episode
+that is still open", so an episode open at the recording sat `stalled` in `OPS-26`'s listing
+forever — the outcome `API-63`'s own text called "a different failure", reached for the
+pre-existing episodes rather than the new ones. The
 same hole sat behind `LDG-74`'s evidence write. `ADR-0021` keys the close on the machine's
 gone-write, in any open state, with the guards the reviews named: the close is permanent, so a later
 `OPS-31` resolution of a retained attempt changes the attempt and not the episode; the trigger is

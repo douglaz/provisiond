@@ -16,7 +16,7 @@ provider outcome into the state the worker writes (`Provisiond.Tables`), what re
 `available_at`,
 the error classes `OPS-49` says "are not store errors and do not consume the bound" (a
 `StoreOutcome.refused` here is always a store error in that sense), the bound on repeating a
-refused claim (`engineClaim` claims again from `idle` without counting), and a second engine —
+refused claim (`engineClaim` claims again from `idle` without counting), and a second engine.
 `OPS-47`'s single engine is assumed throughout, as `OPS-6` says the number "is not a fence against
 a second engine". -/
 
@@ -97,7 +97,7 @@ def workerGuard (g : Guards) (r : Row) (w : WorkerWrite) : WriteResult :=
       && r.record == w.record then .repeated
   else .zeroRows
 
-/-- The worker's write applied. `revision` "advance[s] only on the first branch". -/
+/-- The worker's write applied. `revision` advances "only on the first branch". -/
 @[req "STO-3"]
 def workerWrite (g : Guards) (r : Row) (w : WorkerWrite) : Row :=
   if workerGuard g r w = .moved then

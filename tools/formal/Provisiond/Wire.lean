@@ -394,7 +394,7 @@ inductive KeyReuse
   deriving DecidableEq, Repr
 
 /-- `API-11`: "Re-sending the same key with a byte-equivalent request MUST return the existing
-operation. Re-sending it with a different request MUST fail `409 Conflict`", with `API-12`
+operation" and "Re-sending it with a different request MUST fail `409 Conflict`", with `API-12`
 deciding equivalence over the canonical form and `WIR-3` over the fingerprint: "Any fingerprint
 that is not byte-equal to the stored one, under the same `(principal, key)`, is a `409 conflict`
 ..., never a replay". -/

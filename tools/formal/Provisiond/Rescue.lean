@@ -490,7 +490,7 @@ structure World where
   now                 : Nat
   deriving DecidableEq, Repr
 
-/-- The execution is over: `STO-3`'s overtaken worker "exits", the process died, or `RSC-26`'s
+/-- The execution is over: `STO-3`'s overtaken worker exits, the process died, or `RSC-26`'s
 abort ended it — "abort with `integrity` — before writing a single byte" and "before any write",
 which leaves no later write and no second resolution to make. Every step by which this execution
 writes a column, resolves or runs a phase reads this first. The two that do not are the two that

@@ -14,9 +14,14 @@ citation resolves to a real identifier. `check_obligations.py` is satisfied --
 no duty is being assigned. The sentence reads fluently. Only the relationship
 between the claim and the cited text is broken.
 
-TWO RULES, deliberately narrow.
+FOUR RULES, deliberately narrow.
 
-  QUOTED   A quoted phrase attributed to `X` must appear in X's own body.
+  QUOTED   A quoted phrase attributed to `X` must appear in X's own body, or in
+           a document the same chunk cites: a root document by file name, or
+           an ADR by `ADR-NNNN` -- that ADR's file alone. Until 2026-10-02 the
+           concatenated text of every ADR satisfied any attribution, which let
+           `11-open-findings.md` attribute to `OPS-47` and `OPS-39` wording
+           only `ADR-0019` and `ADR-0021` still hold (`pv-vwe.25`).
            Hard failure: the quote either occurs there or it does not, so a
            finding is provable and needs no judgement. Reads the Markdown
            documents and /-- ... -/ and /-! ... -/ docstrings under tools/formal/,
@@ -25,6 +30,44 @@ TWO RULES, deliberately narrow.
            with the full normalized quote; its note owns the causes and exits.
            On 2026-09-15 a Lean docstring quoting withdrawn wording stayed green
            for a day, motivating the Lean QUOTED pass.
+           REACH: a quote is checked only when its SPLIT chunk carries an
+           ATTRIB match (a speech verb, or `X`'s <noun> that) before it and the
+           chunk is neither HISTORICAL nor TEACHING. In Lean docstrings that is
+           the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
+           or more normalised words were compared. The gate prints both figures
+           on every run; the numbers here are that day's reading, not a rule.
+           What it cannot see: a quotation SPLIT cuts. SPLIT breaks on a
+           sentence ender followed by whitespace, inside a quotation as readily
+           as outside it, so a two-sentence quotation, or a `...` elision with a
+           space after it, leaves an unpaired quote mark in each half and QUOTE
+           matches neither; the span is counted by no rule. An `...` with no
+           whitespace after it, or `…`, stays in one chunk and reaches
+           fragments().
+
+  EXISTS   Every quote of four or more normalised words in a Lean docstring
+           must appear somewhere in the corpus -- every root *.md plus
+           docs/adr/*.md -- whether or not its chunk carries an attribution
+           (`pv-vwe.25`, decided 2026-10-01). A quote is what QUOTE matches:
+           a paired span of 8 to 400 characters, so a four-word span shorter
+           or a quotation longer than that is counted by neither rule.
+           Compared with norm() and, in this
+           rule only, with ' and " removed from both sides, since a docstring
+           writes a nested quotation with single marks where the document has
+           double ones. Chunks HISTORICAL or TEACHING match are skipped, as
+           QUOTED skips them, and elisions split a quote into fragments
+           matched one by one, as QUOTED's do, subject to the SPLIT limit
+           stated there (`...` followed by whitespace cuts the chunk; `…`
+           never does). Residue is ratcheted in
+           citation-baseline.json's quoted_existence, keyed by file:quote, each
+           entry carrying its own reason; a finding not in it is exit 1.
+           Lean docstrings only: Markdown is out of its scope by decision.
+           What it cannot see: a verbatim quote attributed to the wrong
+           requirement passes, because no owner is consulted; a misquote
+           that happens to match text anywhere in the corpus passes, including
+           `11-open-findings.md`'s and the ADRs' records of withdrawn or wrong
+           wording; and a quotation SPLIT cuts is as invisible here as under
+           QUOTED, for the reason given there. Explicit attribution syntax is the owner's named direction
+           if verbatim-but-misattributed quotes start to matter (`pv-n9p`).
 
   UNQUOTED "`X` says/states/reads ..." with no quote at all is unverifiable by
            construction. Ratcheted against `citation-baseline.json` rather than
@@ -46,9 +89,10 @@ contract: a wrong SUMMARY. "`WIR-30` forbids the server resolving eligibility
 that way" reverses `WIR-30`'s meaning, uses a summary verb, and carries no
 quote -- no lexical signal separates it from a correct summary. That one was the
 worst defect of 2026-09-03 and it stays a review problem. Lean docstrings participate
-only in QUOTED: they supply neither requirement bodies nor UNQUOTED or NAMES input.
+in QUOTED and EXISTS only: they supply neither requirement bodies nor UNQUOTED or
+NAMES input.
 
-A third rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
+The fourth rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
 
   NAMES    A backticked `Provisiond.*` name is a citation of a Lean declaration
            and must resolve against the index `lake exe gate` writes: a tagged
@@ -60,8 +104,9 @@ A third rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
            index is written by `tools/check_formal.sh`, which `check-all.sh`
            runs first; a missing index is a red gate, not a skipped rule.
 
-Exit 0 = clean, 1 = an unverifiable quote, an unresolved name or a rise above
-the baseline or a failed extractor case, 2 = the index is missing.
+Exit 0 = clean, 1 = an unverifiable quote, a Lean docstring quote found nowhere,
+an unresolved name or a rise above a baseline or a failed extractor case, 2 = the
+index is missing.
 """
 
 import glob
@@ -107,6 +152,7 @@ SPLIT = re.compile(r"(?<=[.!?])\s+|\n\s*[-*]\s+|\n\s*\n|\n(?=\|)")
 # quotes as a failed one.
 QUOTE = re.compile(r'“([^”]{8,400})”|"((?:[^"\n]|\n(?!\s*\n)){8,400})"')
 DOC = re.compile(r"`(\d\d-[a-z-]+\.md|README\.md|CONTEXT\.md|AGENTS\.md)`")
+ADR = re.compile(r"`(ADR-\d{4})`")
 LEAN = re.compile(r"`(Provisiond\.[A-Za-z0-9_.]+)`(?<!\.lean`)")  # `Provisiond.lean` is a file
 INDEX = os.path.join(ROOT, "tools", "formal", ".lake", "index.jsonl")
 MODULES = os.path.join(ROOT, "tools", "formal", "Provisiond.lean")
@@ -134,6 +180,11 @@ def norm(s):
     return re.sub(r"\s+", " ", s).lower().strip(" .,;:")
 
 
+def fragments(q):
+    """A `...`/`…` elision splits a normalised quote into fragments matched one by one."""
+    return [x for x in (p.strip() for p in re.split(r"\.\.\.|…", q)) if x]
+
+
 def load(rev=None):
     os.chdir(ROOT)
     def read(f):
@@ -142,12 +193,14 @@ def load(rev=None):
                                   capture_output=True, text=True).stdout
         return open(f).read()
     docs = {f: read(f) for f in sorted(glob.glob("*.md"))}
-    adr = " ".join(read(f) for f in sorted(glob.glob("docs/adr/*.md")))
+    # Keyed by the id a chunk cites, so find() can admit one ADR's file and no other.
+    adrs = {f"ADR-{os.path.basename(f)[:4]}": read(f)
+            for f in sorted(glob.glob("docs/adr/*.md"))}
     reqs = {}
     for f, t in docs.items():
         for k, v in bodies(t).items():
             reqs.setdefault(k, (f, v))
-    return docs, adr, reqs
+    return docs, adrs, reqs
 
 
 def docstrings(text):
@@ -195,10 +248,18 @@ def load_lean_docstrings():
     return docs
 
 
-def find(docs, adr, reqs):
-    """Return (unverified_quotes, unquoted_attributions)."""
-    bad, unquoted = [], []
-    nadr = norm(adr)
+def find(docs, adrs, reqs, corpus=None):
+    """Return (unverified_quotes, unquoted_attributions, quotes_compared).
+
+    `corpus` is where a cited root document (`DOC`) is looked up; it defaults to
+    the texts being checked, which is right for Markdown and wrong for Lean
+    docstrings, whose caller passes the Markdown set. Until 2026-10-02 the Lean
+    pass looked the citation up in the Lean set and no root document ever
+    resolved. The count is the quotes that sat after an attribution and were
+    compared, after the HISTORICAL/TEACHING skip; main() prints it."""
+    bad, unquoted, checked = [], [], 0
+    ndocs = {f: norm(t) for f, t in (docs if corpus is None else corpus).items()}
+    nadrs = {a: norm(t) for a, t in adrs.items()}
     for f, text in docs.items():
         for sent in SPLIT.split(text):
             m = ATTRIB.search(sent)
@@ -218,7 +279,11 @@ def find(docs, adr, reqs):
                 if verb not in CONSULTS:
                     unquoted.append((f, rid, " ".join(sent.split())[:100]))
                 continue
-            docpool = [norm(docs[d]) for d in DOC.findall(sent) if d in docs]
+            # What the chunk cites by name joins the pool: a root document, or
+            # one ADR's file. Never every ADR -- withdrawn wording an ADR records
+            # must be cited as that ADR's, not passed off as the requirement's.
+            docpool = [ndocs[d] for d in DOC.findall(sent) if d in ndocs]
+            docpool += [nadrs[a] for a in ADR.findall(sent) if a in adrs]
             for _pos, q in quotes:
                 # The quote belongs to whoever the attribution verb attaches to,
                 # NOT to the nearest citation before it: "`STO-43` says `STO-14`
@@ -228,12 +293,34 @@ def find(docs, adr, reqs):
                 # confusion actually came from.
                 owner = rid
                 pool = [norm(reqs[owner][1])] if owner in reqs else []
-                pool += docpool + [nadr]
-                frags = [x for x in
-                         (p.strip() for p in re.split(r"\.\.\.|…", norm(q))) if x]
-                if not any(all(fr in p for fr in frags) for p in pool):
+                pool += docpool
+                checked += 1
+                if not any(all(fr in p for fr in fragments(norm(q))) for p in pool):
                     bad.append((f, owner, norm(q)))
-    return bad, unquoted
+    return bad, unquoted, checked
+
+
+def exists(lean, corpus):
+    """EXISTS: return (absent_quotes, quotes_counted) over Lean docstrings.
+
+    Owner-free, so quote marks are dropped on both sides here and nowhere else:
+    a docstring's nested quotation is 'single' where the document's is "double"."""
+    def unquoted(s):
+        return s.replace('"', "").replace("'", "")
+    corpus = [unquoted(norm(t)) for t in corpus]
+    missing, total = [], 0
+    for f, text in lean.items():
+        for sent in SPLIT.split(text):
+            quotes = [norm(qm.group(1) or qm.group(2)) for qm in QUOTE.finditer(sent)]
+            quotes = [q for q in quotes if len(q.split()) >= 4]
+            total += len(quotes)
+            if HISTORICAL.search(sent) or TEACHING.search(sent):
+                continue
+            for q in quotes:
+                frags = fragments(unquoted(q))
+                if not any(all(fr in c for fr in frags) for c in corpus):
+                    missing.append((f, q))
+    return missing, total
 
 
 def check_docstrings():
@@ -261,13 +348,26 @@ def check_docstrings():
             assert list(docstrings(text)) == first + [good, good], name
             # A misquote after each construct must still reach QUOTED.
             wrong = text.replace('metered through the outage', 'billed through the blackout')
-            bad, _ = find({'probe.lean': '\n\n'.join(docstrings(wrong))}, '',
-                          {'OPS-41': ('probe.md', 'metered through the outage')})
+            bad, _, _ = find({'probe.lean': '\n\n'.join(docstrings(wrong))}, {},
+                             {'OPS-41': ('probe.md', 'metered through the outage')})
             assert len(bad) == 2, (name, bad)
         except (AssertionError, ValueError) as exc:
             print(f'FAIL: {name}: {exc}')
             return 1
         print(f'PASS: {name}: following docstrings intact; both misquotes detected')
+    # A root document a Lean docstring cites is looked up in the Markdown corpus,
+    # not in the Lean set being checked (pv-vwe.25, 2026-10-02): the cited form
+    # passes on the document alone, and the same docstring uncited fails.
+    cited = '/-- `OPS-41` says, per `CONTEXT.md`, "metered through the outage". -/\ndef d := 0\n'
+    corpus = {'CONTEXT.md': 'Billing is metered through the outage.'}
+    reqs = {'OPS-41': ('probe.md', 'nothing of the kind')}
+    probes = {'cited': cited, 'uncited': cited.replace(', per `CONTEXT.md`', '')}
+    bad = {k: find({'probe.lean': '\n\n'.join(docstrings(v))}, {}, reqs, corpus=corpus)[0]
+           for k, v in probes.items()}
+    if bad['cited'] or len(bad['uncited']) != 1:
+        print(f'FAIL: cited root document: {bad}')
+        return 1
+    print('PASS: cited root document: vouches for a Lean docstring quote; uncited fails')
     return 0
 
 
@@ -296,46 +396,58 @@ def lean_names():
     return names
 
 
-def unresolved(docs, adr):
+def unresolved(docs, adrs):
     names = lean_names()
-    texts = list(docs.items()) + [("docs/adr/*.md", adr)]
+    texts = list(docs.items()) + list(adrs.items())
     return [(f, n) for f, t in texts for n in LEAN.findall(t) if n not in names]
 
 
 def main():
     if check_docstrings():
         return 1
-    docs, adr, reqs = load()
-    bad, unquoted = find(docs, adr, reqs)
-    lean_bad, _ = find(load_lean_docstrings(), adr, reqs)
+    docs, adrs, reqs = load()
+    bad, unquoted, _ = find(docs, adrs, reqs)
+    lean = load_lean_docstrings()
+    lean_bad, _, compared = find(lean, adrs, reqs, corpus=docs)
+    missing, total = exists(lean, list(docs.values()) + list(adrs.values()))
     try:
         with open(BASELINE) as source:
-            quoted_base = set(json.load(source).get("quoted_attributions", []))
+            baseline = json.load(source)
+        quoted_base = set(baseline.get("quoted_attributions", []))
+        exists_base = dict(baseline.get("quoted_existence", {}))
     except (OSError, ValueError, TypeError, AttributeError):
         # Without a readable baseline there are no exemptions, so ratcheted residue
         # surfaces as findings and fails the gate before the unquoted initializer.
-        quoted_base = set()
+        quoted_base, exists_base = set(), {}
     lean_new = [(f, rid, q) for f, rid, q in lean_bad
                 if f"{f}:{rid}:{q}" not in quoted_base]
     bad += lean_new
     for f, rid, q in bad:
         print(f"  {f} attributes to {rid} a phrase {rid} does not contain:")
         print(f'      "{q}"')
-    if bad:
-        print(f"\nFAIL: {len(bad)} unverifiable quoted attribution(s). Quote the "
-              f"requirement's own words, or cite it without quoting.")
+    missing_new = [(f, q) for f, q in missing if f"{f}:{q}" not in exists_base]
+    for f, q in missing_new:
+        print(f"  {f} quotes a phrase found in no document or ADR:")
+        print(f'      "{q}"')
+    if bad or missing_new:
+        print(f"\nFAIL: {len(bad)} unverifiable quoted attribution(s) and {len(missing_new)} "
+              f"Lean docstring quote(s) found nowhere. Quote the requirement's own "
+              f"words, or cite it without quoting.")
         return 1
     print(f"quoted attributions verified: clean")
     print(f"Lean quoted attributions: {len(lean_bad)}, none new against baseline {len(quoted_base)}")
+    print(f"Lean docstring quotes: {total}; {compared} compared under QUOTED; EXISTS finds "
+          f"{len(missing)} absent, none new against baseline {len(exists_base)}")
 
-    dangling = unresolved(docs, adr)
+    dangling = unresolved(docs, adrs)
     for f, n in dangling:
         print(f"  {f} cites `{n}`, which the index does not carry")
     if dangling:
         print(f"\nFAIL: {len(dangling)} Provisiond.* name(s) do not resolve against "
               f"tools/formal/.lake/index.jsonl. Cite the tagged declaration by its current name.")
         return 1
-    print(f"Provisiond.* names resolved: {len(LEAN.findall(adr)) + sum(len(LEAN.findall(t)) for t in docs.values())}")
+    print(f"Provisiond.* names resolved: "
+          f"{sum(len(LEAN.findall(t)) for t in list(docs.values()) + list(adrs.values()))}")
 
     sigs = sorted({f"{f}:{rid}" for f, rid, _ in unquoted})
     try:
@@ -369,11 +481,11 @@ if __name__ == "__main__":
     if "--selftest" in sys.argv:
         rev = "5aecdbe"
         try:
-            docs, adr, reqs = load(rev)
+            docs, adrs, reqs = load(rev)
         except Exception as exc:  # noqa: BLE001 -- selftest is best-effort
             print(f"SKIP: cannot read {rev} ({exc})")
             sys.exit(0)
-        bad, unq = find(docs, adr, reqs)
+        bad, unq, _ = find(docs, adrs, reqs)
         hit = [x for x in bad + unq if x[1] == "WIR-1"]
         if not hit:
             print(f"SELFTEST FAIL: no longer detects the {rev} WIR-1 miscitation")

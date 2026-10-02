@@ -666,7 +666,9 @@ jobs:
           echo "citation gate correctly rejected the dangling declaration name"
 
       # QUOTED also reads Lean docstrings. Carry the index from "Run all gates"
-      # and assert the named quote failure, not merely a nonzero exit.
+      # and assert the named quote failure, not merely a nonzero exit. Since
+      # 2026-10-02 EXISTS fires on this mutation too, with its own line; the step
+      # asserts QUOTED's line and that line's count, which that addition leaves alone.
       - name: Prove the citation gate rejects a misquote in a Lean docstring
         run: |
           set -euo pipefail
@@ -688,3 +690,54 @@ jobs:
           grep -q 'deadline from history, and store it somewhere"' citations.log
           test "$(grep -c 'Fence.lean attributes to LDG-64 a phrase' citations.log)" -eq 1
           echo "citation gate correctly rejected the Lean docstring misquote"
+
+      # EXISTS (pv-vwe.25, 2026-10-02): a Lean docstring quote in a chunk with no
+      # attribution is outside QUOTED's reach, and this is the rule that sees it
+      # corrupted. The chunk mutated here opens `API-11`: "..." -- a colon, no speech
+      # verb -- so the step also asserts QUOTED stayed silent: a red from the wrong
+      # rule would not be evidence of this one.
+      - name: Prove the citation gate rejects a Lean docstring quote found nowhere
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/with a byte-equivalent request MUST return/with a byte-identical request MUST return/' \
+            tools/formal/Provisiond/Wire.lean
+          test "$(grep -c 'byte-identical request MUST return' tools/formal/Provisiond/Wire.lean)" -eq 1
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a Lean docstring quote found in no document or ADR"
+            exit 1
+          fi
+          grep -q 'tools/formal/Provisiond/Wire.lean quotes a phrase found in no document or ADR:' citations.log
+          grep -q '"re-sending the same key with a byte-identical request must return the existing operation"' citations.log
+          test "$(grep -c 'quotes a phrase found in no document' citations.log)" -eq 1
+          if grep -q 'attributes to' citations.log; then
+            echo "::error::the red came from QUOTED, which has no attribution to fire on here"
+            exit 1
+          fi
+          echo "citation gate correctly rejected the Lean docstring quote found nowhere"
+
+      # The pool (pv-vwe.25, 2026-10-02): a phrase an ADR holds verbatim vouches for an
+      # attribution to a requirement only when the chunk cites that ADR. ADR-0016's
+      # sentence is nowhere in OVR-1, and the chunk below cites no ADR and no document;
+      # until this rule the concatenated ADRs satisfied it and the gate passed (shown at
+      # c5e31be). The step asserts the phrase is in the ADR, so a red cannot come from a
+      # phrase that never existed anywhere.
+      - name: Prove the citation gate rejects an attribution only the ADR pool satisfied
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n`OVR-1` says "The promise was in prose and absent from the predicate".\n' \
+            >> 00-overview.md
+          grep -q '^`OVR-1` says "The promise was in prose and absent from the predicate".$' 00-overview.md
+          grep -q 'The promise was in prose and absent from the predicate' docs/adr/0016-*.md
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a quote found only in an ADR the sentence does not cite"
+            exit 1
+          fi
+          grep -q '00-overview.md attributes to OVR-1 a phrase OVR-1 does not contain:' citations.log
+          grep -q '"the promise was in prose and absent from the predicate"' citations.log
+          echo "citation gate correctly rejected the attribution the ADR pool used to satisfy"

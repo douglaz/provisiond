@@ -41,9 +41,9 @@ instance {p : Status → Prop} [DecidablePred p] : Decidable (∀ s, p s) :=
 structure Rules where
   /-- `SEC-46`'s amendment of 2026-08-13: "Only one of them establishes that billing has stopped,
   and releasing on the other two hands the customer their satoshis back while the operator keeps
-  paying for machines that are still running". `false` is the rule before it, `SEC-46`'s "When a
-  provider account is lost, the affected tenants' **commitments MUST be closed and their reserved
-  satoshis returned to available balance**", which released on every loss:
+  paying for machines that are still running". `false` is the rule `SEC-46` read until 2026-08-13,
+  "When a provider account is lost, the affected tenants' **commitments MUST be closed and their
+  reserved satoshis returned to available balance**", which released on every loss:
   `account_unreachable`, `credentials_rejected` and `terminated`. -/
   retainUnlessTerminated : Bool
   deriving DecidableEq, Repr
