@@ -4,7 +4,8 @@
 readers of one brief — Codex at xhigh and a fresh Fable reader — each ran Lean 4.30.0 from `flake.nix`
 and proved the first theorems before answering). The first modules are `tools/formal/`; the gate that
 runs them joins `tools/check-all.sh`. Amended 2026-09-19 with the wire-fixture decision under
-*Scope*. Does not amend `ADR-0001`: the formal layer describes and checks the system and
+*Scope*, and 2026-10-01 (`pv-vwe.28`) with the deletion of the tactic sentence under *Trust
+policy*. Does not amend `ADR-0001`: the formal layer describes and checks the system and
 implements none of it.
 
 ## The problem as found
@@ -70,7 +71,12 @@ stuck on rational equalities and reached for `native_decide`; the other closed t
   except the `Provisiond.Explore` namespace, which may hold nothing tagged — Lean 4.30.0 mints a
   fresh per-declaration axiom for it that an old-name blacklist would miss, so the gate matches the
   axiom's shape, not a name. An untagged declaration outside `Explore` is otherwise unconstrained.
-  Witnesses over rationals close by `decide +kernel`.
+  The policy is what `Gate.lean` enforces; which tactic closes a witness is the proof's own choice.
+  *Amended 2026-10-01 (`pv-vwe.28`): the sentence "Witnesses over rationals close by
+  `decide +kernel`" is deleted, and with it the exception list that `Witnesses.lean`'s docstring
+  kept against it — the witnesses a `ci.yml` Params row must see refuted, which close by a
+  different tactic. That list was a second home for a rule `docs/adr/` owns. The rejected
+  alternative is under *Considered options*.*
 - **No Mathlib.** Every theorem proved so far closed on core Lean. Mathlib is added only in a
   commit that names the theorem that cannot be closed without it.
 - **The gate runs with the others, on every push.** `lake build` and `lake exe gate` join
@@ -136,6 +142,9 @@ costs a multi-gigabyte cache, minutes of CI and an exact-tag coupling to the Lea
 
 **`native_decide` for witnesses.** Rejected under `@[req]` once `decide +kernel` was shown to close
 the same witnesses under the standard axioms.
+
+**Widening `ci.yml`'s row check to accept "did not reduce"** so that every witness could keep one
+tactic. Rejected 2026-10-01 (`pv-vwe.28`): a term that fails to evaluate is not a refutation.
 
 **A model checker instead of a proof assistant for the lifecycle models.** Considered, since every
 contested question here was settled by executing a negative witness. Not adopted as a second tool:

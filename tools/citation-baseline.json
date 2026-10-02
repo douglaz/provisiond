@@ -24,8 +24,6 @@
     "13-wire-contract.md:WIR-2"
   ],
   "quoted_attributions": [],
-  "quoted_existence": {
-    "tools/formal/Provisiond/Witnesses.lean:proved that the proposition": "Lean's own error text, the token ci.yml greps for in a refuted witness's build log; not a quotation of this set"
-  },
+  "quoted_existence": {},
   "note": "Unquoted: sentences reporting what a requirement SAYS with no quote to check, as file:id signatures rather than a count -- a count cannot name which one is new. Quoted: Lean docstring residue, keyed on file:id:norm(quote), with the full normalized quote. Existence: Lean docstring quotes found in no document or ADR, keyed on file:norm(quote), each with its own reason; a real misquote is fixed, never entered here. All three baselines may shrink, never grow; remove an entry when its finding disappears."
 }

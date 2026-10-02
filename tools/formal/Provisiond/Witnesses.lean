@@ -17,14 +17,7 @@ import Provisiond.AccountStatus
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
-Witnesses over rationals close by `decide +kernel` (`ADR-0025`): plain `decide` gets stuck on
-`Std.Rat` normalisation and `native_decide` is refused under `@[req]`. The exceptions are
-`increment_replay_refused_by_key`, `mark_discards_what_the_key_admits`,
-`remeter_clipped_to_the_mark`, `seed_starts_the_first_increment`,
-`boundary_resets_the_credit`, `straddle_split_at_the_boundary` and
-`late_subject_shares_the_boundary`, which close by `with_unfolding_all decide`: each is the
-witness a `ci.yml` row must see refuted, refuted `decide +kernel` reports an instance that "did not
-reduce", and the row's check needs `decide` to have "proved that the proposition" false. -/
+How a proof here may be trusted is `ADR-0025`'s trust policy, enforced by `Gate.lean`. -/
 
 open Std
 
