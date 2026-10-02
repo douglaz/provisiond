@@ -1,7 +1,9 @@
 # During a price outage, a funding cancellation waits for the rate or the outage bound
 
-**Status:** accepted (2026-10-01), not yet landed. The requirement and model edits listed under
-*Consequences* are bead `pv-gip.23`'s. Answers `pv-gip.23` by removing the branch it was about.
+**Status:** accepted (2026-10-01). The requirement and checklist edits listed under *Consequences*
+landed in `2997723` (`pv-gip.23`); the formal-layer edits are `pv-gip.25`'s and have not landed, so
+until they do the Markdown and `Provisiond.Fence` disagree about an outage. Answers `pv-gip.23` by
+removing the branch it was about.
 Overturns `LDG-40`'s sweep row, `LDG-65`'s mid-outage routing and `OPS-41`'s no-rate branch, and
 answers the rejection `ADR-0026` gave this shape.
 
@@ -39,8 +41,9 @@ Why it holds:
 ## The shape
 
 **The sweep routes a funding cancellation only where the stored date has passed and the machine's
-currency has a rate.** No new funding episode opens during an outage, so nothing piles up to be
-woken.
+currency has a rate.** The sweep opens no new funding episode during an outage, so nothing it
+routes piles up to be woken. `OPS-36`'s attach transaction is the exception: it enqueues a
+late-attach cleanup outside the sweep, and what it does with no rate is `pv-gip.27`'s.
 
 **The worker decides inside the fence transaction**, not on its claim snapshot, in this order:
 
