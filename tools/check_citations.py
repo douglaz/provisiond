@@ -17,8 +17,9 @@ between the claim and the cited text is broken.
 FOUR RULES, deliberately narrow.
 
   QUOTED   A quoted phrase attributed to `X` must appear in X's own body, or in
-           a document the same chunk cites: a root document by file name, or
-           an ADR by `ADR-NNNN` -- that ADR's file alone. Until 2026-10-02 the
+           a document the same chunk cites: a document DOC matches by file name
+           (a numbered requirement document, README.md, CONTEXT.md or
+           AGENTS.md), or an ADR by `ADR-NNNN` -- that ADR's file alone. Until 2026-10-02 the
            concatenated text of every ADR satisfied any attribution, which let
            `11-open-findings.md` attribute to `OPS-47` and `OPS-39` wording
            only `ADR-0019` and `ADR-0021` still hold (`pv-vwe.25`).
@@ -36,13 +37,18 @@ FOUR RULES, deliberately narrow.
            the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
            or more normalised words were compared. The gate prints both figures
            on every run; the numbers here are that day's reading, not a rule.
-           What it cannot see: a quotation SPLIT cuts. SPLIT breaks on a
-           sentence ender followed by whitespace, inside a quotation as readily
-           as outside it, so a two-sentence quotation, or a `...` elision with a
-           space after it, leaves an unpaired quote mark in each half and QUOTE
-           matches neither; the span is counted by no rule. An `...` with no
-           whitespace after it, or `…`, stays in one chunk and reaches
-           fragments().
+           What it cannot see: a quote QUOTE mispairs. QUOTE pairs marks in
+           order within a chunk, so any unpaired mark pairs with the next one
+           and the quotes after it are matched off by one: the prose between
+           two real quotes is taken for a quote, and the real ones go
+           uncounted by every rule. Two causes are known. A quoted span shorter
+           than QUOTE's 8 characters is not matched, so its closing mark opens
+           a false span. And SPLIT breaks on a sentence ender followed by
+           whitespace, inside a quotation as readily as outside it, so a
+           two-sentence quotation, or a `...` elision with a space after it,
+           leaves an unpaired mark in each chunk. An `...` with no whitespace
+           after it, or `…`, stays in one chunk and reaches fragments()
+           (`pv-vwe.35`).
 
   EXISTS   Every quote of four or more normalised words in a Lean docstring
            must appear somewhere in the corpus -- every root *.md plus
@@ -65,9 +71,10 @@ FOUR RULES, deliberately narrow.
            requirement passes, because no owner is consulted; a misquote
            that happens to match text anywhere in the corpus passes, including
            `11-open-findings.md`'s and the ADRs' records of withdrawn or wrong
-           wording; and a quotation SPLIT cuts is as invisible here as under
-           QUOTED, for the reason given there. Explicit attribution syntax is the owner's named direction
-           if verbatim-but-misattributed quotes start to matter (`pv-n9p`).
+           wording; and a quote QUOTE mispairs is as invisible here as under
+           QUOTED, for the reasons given there. Explicit attribution syntax is
+           the owner's named direction if verbatim-but-misattributed quotes
+           start to matter (`pv-vwe.25`, the decision of 2026-10-01).
 
   UNQUOTED "`X` says/states/reads ..." with no quote at all is unverifiable by
            construction. Ratcheted against `citation-baseline.json` rather than

@@ -23,9 +23,9 @@ window's staleness is tested continuously, and no pass is needed for it to produ
 staleness bound also applies to the window's newest observation — newest by `observed_at`, not
 by acceptance order" — and the instant no observation of that window lies inside the bound, there
 is no rate, whatever the last pass computed. The window is not re-filtered at `now`: `ADR-0027`
-refused a window measured from "now", which "would have changed the rate at an observation's
-expiry with no row to split an increment at"; a row observed after the pass is in no window yet,
-and keeps nothing alive (`late_row_keeps_nothing_alive`).
+refused a window measured from the present instant, which "would have changed the rate at an
+observation's expiry with no row to split an increment at"; a row observed after the pass is in no
+window yet, and keeps nothing alive (`late_row_keeps_nothing_alive`).
 
 What the model omits: `LDG-58`'s median of one pass's sources — an observation here is what a
 pass accepted; `LDG-59`'s quorum, which decides whether a pass accepts an observation at all;
