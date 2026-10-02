@@ -53,7 +53,11 @@ woken.
    write no fence.
 5. No rate, and the deadline has passed: this is the bound. Make today's conditional write on the
    machine's `rate_outage` record and proceed; zero rows with a rate now in force re-derives, which
-   is `CNF-218`'s existing restoration case.
+   is `CNF-218`'s existing restoration case. Zero rows with no rate also proceeds: step 1 has
+   already settled a gone machine, so `OPS-41`'s reading of zero rows as "the machine's own meter
+   stopped" is deleted, not carried into this step. For a subject with no record, nothing orders
+   the worker against the rate returning at that instant; that is accepted, since it needs a
+   subject the meter never posted for and a rate returning at the bound itself.
 
 **The deadline is computed from history, not read from a record.** It is the outage's start plus
 `LDG-64`'s maximum tolerated outage. `STO-37` already defines the start as "a function of that
