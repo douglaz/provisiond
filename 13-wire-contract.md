@@ -497,7 +497,15 @@ invoice's own embedded expiry MUST equal `expires_at`. Both rails carry a `floor
 **WIR-15** `GET /v1/deposits/{id}` — the same body plus
 `"credits": [{"rail": "lightning", "amount_sats": 250000, "credited_at": "2026-08-13T14:07:31Z"}]` (one entry per
 settled payment, `LDG-55` — plural on purpose), `"credited_sats"` (their sum), and
-`"expired": false`.
+`"expired": false`, plus a required top-level `"gate"` and a required boolean
+`"cancelled"` inside the existing `"lightning"` object. `gate` is `null` when there is no
+solvency halt and `"solvency"` during `LDG-20`'s halt. `lightning.cancelled` is `false` for an
+invoice that has not been cancelled and `true` once it has been cancelled; the read MUST report
+the invoice's cancellation state even after the halt clears. Thus a normal, payable invoice
+reads `gate: null` and `lightning.cancelled: false`; an invoice cancelled during the halt reads
+`gate: "solvency"` and `lightning.cancelled: true`. `expired` reports deposit expiry only:
+neither deposit expiry nor the invoice's own expiry sets `lightning.cancelled`, and cancellation
+does not set `expired`. The invoice and the existing response additions remain present.
 
 **WIR-16** **AMENDED** `GET /v1/balance` (`API-47`):
 

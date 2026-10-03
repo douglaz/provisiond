@@ -72,12 +72,12 @@ owns the current order. The decision was inside the fence transaction, not on it
 history alone", replayed from `STO-49`, and `STO-49` keeps those rows so that "the snapshot it holds
 survives to the close". Any writer computes the same instant, including for a machine the meter
 never posted for, and a restart with unchanged parameters cannot move it. A restart that changes
-the bound, or the staleness bound, window or quorum the start is replayed with, does move it; see
+the bound, or the staleness bound or window the start is replayed with, does move it; see
 *The bound is the setting in force* below.
 
-**The bound's cancellation reaches every machine priced in the currency**, not only "a machine
-carrying such a record" (`OPS-41`). That is what lets a machine with no record, such as one under
-`LDG-72`'s quarantine, still meet the bound.
+**The bound's population is owned by `LDG-64`**, including its not-recorded-gone clause.
+The rejected scope was "a machine carrying such a record" (`OPS-41`); see `LDG-64` for
+the live machine without one, including under quarantine.
 
 **An extension halts with no rate.** `LDG-62` says "Extending runway is a caller write, authorized
 like a purchase", and `LDG-40` says "With no rate for the machine's currency, an extension of
@@ -161,8 +161,8 @@ instant. The record keeps its billing fields. Further edits this owes:
   with their `STO-37` row" becomes the loss of `STO-49`'s rows the start is replayed from.
 
 **The bound is the setting in force** (decided 2026-10-02, after a four-model panel that voted for
-it unanimously). When the operator changes the maximum tolerated outage, or the staleness bound,
-window or quorum the outage's start is replayed with, the deadline uses the value in force when it
+it unanimously). When the operator changes the maximum tolerated outage, or the staleness bound
+or window the outage's start is replayed with, the deadline uses the value in force when it
 is computed, for open outages too. Lowering the bound below the time an outage has already run
 makes its cancellations eligible at the restart that loads it, with no further notice; that is the
 operator's own choice, since `LDG-64` calls the bound "the operator's own loss limit". The
@@ -184,6 +184,12 @@ is read as each currency's outage running its own clock against that one value. 
 - `CNF-99`, `CNF-184` and `CNF-218`: a parameter changed mid-outage, including a lowering below the
   time already elapsed.
 
+
+**Replay inputs corrected — 2026-10-03 (`pv-gip.28`).** The earlier replay lists included
+quorum. That would require rejudging accepted observations from source counts absent from
+`STO-49`'s column list. `STO-37` owns the acceptance/replay distinction and the old-row/new-row rule;
+`OVR-19` owns the settings in force, and `LDG-64` owns posting closure without a new observation.
+Retention under enlarged or shrunk windows remains owner-reserved.
 
 ## An outage pauses the restore grace — 2026-10-02
 
@@ -302,8 +308,8 @@ crossing and discharges only that currency's grace obligation, not the wall-cloc
 incident obligations."
 
 The deadline makes cancellation eligible; it does not itself cancel. `LDG-64` says "The bound's
-cancellation reaches every machine priced in the outage's currency, whether or not the meter
-opened a `rate_outage` record for it". That includes funded machines. For the returned-rate path,
+cancellation reaches every machine not recorded gone priced in the outage's currency, whether or
+not the meter opened a `rate_outage` record for it". That includes funded machines. For the returned-rate path,
 `OPS-41` step 3 says "If funded, it performs the no-mutation abort and settlement above".
 Preserving the restore victim's opportunity gives it the same outcome available to a funded
 machine when the rate returns before cancellation. Even past the bound, step 5 sends a return to
@@ -337,8 +343,8 @@ Rejected alternatives:
 - **Nothing protected still queued (option B as originally framed).** A later sweep can route a
   cancellation and an operator retry can enqueue a new attempt; an empty queue does not establish
   machine disposition. `LDG-16` says the sweep "MUST route a machine where its stored
-  `runway_until` has passed and its currency has a rate"; `API-64` says it "enqueues a fresh
-  `delete_machine` attempt under it, both in one transaction".
+  `runway_until` has passed and its currency has a rate (`LDG-59`) and it is not recorded gone";
+  `API-64` says it "enqueues a fresh `delete_machine` attempt under it, both in one transaction".
 - **Recorded gone only.** A provider refusing deletion could hold the restore record open
   indefinitely although the existing fence has already ended the extension opportunity.
   `ADR-0028` says "A machine already fenced when the grace begins gets no extension from it".

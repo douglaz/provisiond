@@ -501,7 +501,43 @@ not optional hardening — they are the only structural defence there is.
       unchanged and assert each machine's `rate_outage_deadline` is the instant it was; restart it
       with the maximum tolerated outage changed to `M′` and assert each reads the outage's start
       plus `M′`; restart it with the staleness bound changed and assert each reads the start
-      replayed under the new bound plus the maximum in force (`OVR-19`). **Two concurrent postings
+      replayed under the new bound plus the maximum in force (`OVR-19`).
+      **Old rows stay fixed; new rows use the changed replay parameters.** Use a populated
+      window, newest observation at 12:00, a silent feed and a 20-minute staleness bound.
+      A was billable before 12:20 and posts at 12:25: assert its open row starts at 12:20,
+      `absorbed_until = null` and `absorbed_seconds = 0`. At 12:45 load a 30-minute bound;
+      post A again and first-post B, also billable before 12:20. Assert A's start is still
+      12:20 with no duplicate row, B's is 12:30, and both views use the replayed 12:30 start
+      plus the maximum in force for their deadline. A third subject seeded at 12:35 has
+      its new row clipped to 12:35. Return the rate at 12:50 with sufficient retained
+      observations: assert closures at 12:50 with seconds 1800, 1200 and 900 respectively,
+      and each subject's billing subtracts only its own row's overlap.
+      **A larger window yields a rate without a new observation.** Retain the whole history
+      needed by both windows, including their replay left edges; this case exercises no
+      pruning policy. Use a 30-minute window, 20-minute staleness bound, and accepted
+      observations at 11:40, 11:50 and 12:00, producing a rate at 12:00. Accept nothing
+      until a 12:50 observation: the outage starts at 12:20 and that pass leaves the old
+      window thin. With a seed/mark at 12:00 and sufficient authority, post at 12:25:
+      assert an open [12:20, null) row with zero seconds. At 12:55 load a two-hour window;
+      accept no new observation before the 13:00 posting. Replay now yields a return at
+      12:50. That first rate-present posting MUST close the existing row at 12:50 and write
+      `absorbed_seconds = 1800`, preserving `absorbed_from = 12:20`. Choose accepted prices
+      whose medians give customer rates 1/5 sat/s before the outage and 2/5 after return,
+      with no native-price or margin change and initial `r = 0`. Across both postings,
+      expect 240 sats for [12:00,12:20), none for [12:20,12:50), 240 for [12:50,13:00),
+      total debit/decrement 480, final `r = 0` and mark 13:00. Repeat the posting: no
+      duplicate row, changed closure, added seconds or debit. A subject first posted at
+      13:00 uses its own replay-derived start, clipped to its billable-span seed.
+      For the separate paused-grace case, see `CNF-218`: "A restart loads a 6h staleness
+      bound; a qualifying pass at 14:00 accepts an observation at that same price."
+      That accepting pass is not this no-new-observation closer.
+      **Quorum changes acceptance, not replay.** With the needed history retained, raise
+      the quorum from three to five while holding staleness and window fixed. Assert that
+      recorded observations accepted from three sources remain replay inputs, and replayed
+      outage boundaries and existing rows are unchanged. A new pass with three live,
+      non-excluded sources accepts nothing and writes no observation; a later pass with
+      five accepts one, whose effect on the window is then replayed normally.
+      **Two concurrent postings
       of one subject open one row** (added 2026-09-25,
       `ADR-0027`): let two concurrent postings of one subject both compute no rate and both find no
       open row for it, and assert exactly one `rate_outage` row for that subject, both postings
@@ -521,7 +557,13 @@ not optional hardening — they are the only structural defence there is.
       force, let a runway expire
       with no rate movement at all and assert the machine is routed on the very next sweep** — a
       build that holds every past date for a second look runs each ordinary exhaustion one interval
-      into the wind-down reserve. **Then the restore edge** (added 2026-09-12, `ADR-0023`; rewritten
+      into the wind-down reserve. **A gone machine is not routed again:** retain a past
+      stored date after recording a machine gone and closing its episode `resource_gone`.
+      With a rate present, the next exhaustion sweep opens no episode and enqueues no attempt.
+      With no rate, at and after the outage deadline, the bound canceller likewise opens no
+      episode and enqueues no attempt. Contrast a live machine without an outage record,
+      including a quarantined one: at the bound it is enqueued. A live scheduled cancellation
+      is not a gone record. **Then the restore edge** (added 2026-09-12, `ADR-0023`; rewritten
       2026-09-25, `ADR-0028`, to measure from step (3)): with a rate continuously in force,
       an active tenant, sufficient available balance and otherwise satisfied extension admission
       conditions, with the requested runway extending beyond the tested re-claim, restore a store
@@ -545,8 +587,9 @@ not optional hardening — they are the only structural defence there is.
       routed on the date alone passed it by never being fed a poisoned reading.* (`PRV-13e`,
       `LDG-16`, `LDG-58`, `LDG-59`, `LDG-64`, `STO-37`, `STO-49`, `STO-54`, `STO-56`, `OPS-41`,
       `OVR-19`, `WIR-11`)
-- [ ] **CNF-100** — At end of runway the machine is cancelled and its disk destroyed — and the
-      caller-facing documentation says so in words. (`LDG-13`, `LDG-14`)
+- [ ] **CNF-100** — At end of runway, with a rate in force, the machine is cancelled and its disk
+      destroyed — and the terms and API documentation state both that destruction and the outage
+      wait owned by `LDG-65` in words. (`LDG-13`, `LDG-14`, `LDG-65`)
 - [ ] **CNF-101** — Under a failing solvency check, every bill-increasing operation is refused
       while cancel and delete continue to work. **The operations that reduce exposure are never
       gated by the check that fires because exposure is too high.** (`LDG-20`)
@@ -764,8 +807,9 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
 
       **Only currency, covered float.** In a deployment billing in only that currency, held
       satoshis cover the float. Assert that a deposit mints, no unsettled invoice is cancelled,
-      and the deposit read reports no `gate: "solvency"`. From the same fault, assert that a
-      create is refused, re-derivation halts **without** cancelling anything, and the exhaustion
+      and the deposit read reports `gate: null` and `lightning.cancelled: false`.
+      From the same fault, assert that a create is refused, re-derivation halts **without**
+      cancelling anything, and the exhaustion
       sweep enqueues no cancellation and opens no episode for a machine whose stored
       `runway_until` passes during the outage. An `extend-runway` is refused `halted` with
       `gate: "rate_unavailable"` and moves no balance and no commitment. Once the rate returns,
@@ -773,7 +817,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
 
       **Only currency, short float.** Keep that outage and make held satoshis fall short of the
       float. Assert the computed-failure halt: deposit minting is refused `halted`, the unsettled
-      Lightning invoice is cancelled, the deposit read reports `gate: "solvency"`, and every
+      Lightning invoice is cancelled, the deposit read reports `gate: "solvency"` and
+      `lightning.cancelled: true` with `expired: false`, and every
       bill-increasing operation is refused. Caller cancellation and deletion remain permitted.
       This case selects no precedence between simultaneous extension refusals.
 
@@ -781,7 +826,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       window yielding its rate. Held satoshis cover the float plus stressed EUR payables; arrange
       USD payables so that valuing them at the last pre-outage rate would make the check short.
       Assert that an EUR create and `extend-runway` are admitted, a deposit mints, no unsettled
-      invoice is cancelled, and the deposit read reports no `gate: "solvency"`. For EUR, assert
+      invoice is cancelled, and the deposit read reports `gate: null` and
+      `lightning.cancelled: false`. For EUR, assert
       that the sweep routes a machine whose stored `runway_until` has passed and the worker
       claiming that cancellation decides on the re-derived date without deferring (`OPS-41`).
       For USD, repeat the no-rate create, re-derivation, sweep and extension assertions of the
@@ -792,7 +838,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       the float beyond held coverage. Assert the deployment-wide computed-failure halt: EUR
       create and `extend-runway` are refused `halted` with `gate: "solvency"`, deposit minting is
       refused `halted`, the unsettled Lightning invoice is cancelled, and the deposit read reports
-      `gate: "solvency"`. Caller cancellation and deletion remain permitted. The EUR requests
+      `gate: "solvency"` and `lightning.cancelled: true` with `expired: false`.
+      Caller cancellation and deletion remain permitted. The EUR requests
       have no competing refusal; this case establishes no extension-refusal ordering.
 
       (*Amended 2026-09-23, `ADR-0027`: a pass below quorum halts nothing (`LDG-59`), so the fault
@@ -801,7 +848,7 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       (`pv-gip.31`): until then the case asserted that "the solvency check fails closed";
       `LDG-40` keeps that withdrawn row.*)
       (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-17`, `LDG-20`, `LDG-53`, `LDG-62`, `LDG-65`,
-      `OPS-41`, `WIR-24`)
+      `OPS-41`, `WIR-15`, `WIR-24`)
 - [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no
       last-known-good fallback anywhere. Asserted by removing every source for longer than the
       staleness bound and confirming the system reports *no rate* rather than a number. (*Amended
@@ -1504,8 +1551,9 @@ rather than acquiring a default.
       history-derived outage start at 7, stop at 14. Expect total debit/decrement 2 for [0,7),
       `r = 3/5`, mark 14 and one native-only `rate_outage` row with `absorbed_from = 7`,
       `absorbed_until = 14`, `absorbed_seconds = 7`. Exercise a first no-rate posting at 10
-      that opens the row before exit, and no intervening tick so the exit conditionally inserts
-      and closes it itself. There is never a duplicate, no satoshi debit for [7,14), and a later
+      that opens the row before exit with `absorbed_seconds = 0` and `absorbed_until = null`,
+      then repeat without an intervening tick so the exit conditionally inserts and closes it
+      itself. There is never a duplicate, no satoshi debit for [7,14), and a later
       rate return posts no catch-up debit. Repeat through the attachment release writers.
       **Rate returns before exit:** mark 12:00, outage 12:20–12:30, exit 12:40, within one
       period. First run with a no-rate posting at 12:25 to open the row while the outage is live;
@@ -1514,7 +1562,31 @@ rather than acquiring a default.
       and leave `absorbed_until = 12:30` after exit, with mark 12:40. With `r = 0`, sufficient
       authority, 1/5 sat/s before the outage and 2/5 after it, expect total debit/decrement 480
       and final `r = 0`. The row was opened while the outage was live, so this checks its
-      end independently of historical no-row replay. (`LDG-38`, `LDG-35`, `LDG-64`, `STO-37`,
+      end independently of historical no-row replay; assert `absorbed_seconds = 600`.
+      **Finished outage discovered at posting:** within one period, mark/seed 12:00,
+      initial `r = 0`, sufficient authority, customer rates 1/5 sat/s before the history-derived
+      12:20–12:50 outage and 2/5 afterwards. Retain the history for replay and post nothing
+      during the outage. Run independent ordinary-tick and exit fixtures at 13:00. Both
+      conditionally insert one subject row already closed, `absorbed_from = 12:20`,
+      `absorbed_until = 12:50`, `absorbed_seconds = 1800`, null rate fields and `resolved_at`.
+      Assert debit/decrement 240 for [12:00,12:20), none for [12:20,12:50), and 240 for
+      [12:50,13:00), total 480, final `r = 0`, mark 13:00; the exit releases only after
+      posting. Repeat the tick and replay the exit: no extra row, debit, seconds or relief.
+      **Delayed gone observation:** with the same history and mark, a scheduled stop at
+      12:40 and gone writer at 13:00 inserts [12:20,12:40), `absorbed_seconds = 1200`.
+      Assert debit/decrement 240 for [12:00,12:20), none after 12:20, mark 12:40 and
+      `r = 0`. Run a matched tick at 13:00 clipped to the same scheduled stop: identical
+      row, charge and mark. Its later gone write discards the already closed increment;
+      neither it nor a repeat tick moves the row's end to 12:50 or 13:00.
+      **Increment begins inside the finished outage:** first post at 12:30 to open the
+      [12:20, null) row and advance the mark to 12:30; assert zero seconds while open.
+      The return closes it at 12:50 with 1800 seconds. The 13:00 tick subtracts only
+      [12:30,12:50), 1200 seconds, from its increment, charging 240 for [12:50,13:00).
+      Earlier charged time is untouched and the total remains 480. Repeat with no prior
+      outage row and a subject seeded at 12:30: its first posting at 13:00 inserts
+      [12:30,12:50) with 1200 seconds and charges only the same 240. Exercise these
+      historical cases for attachment subjects as well; `CNF-216` and `CNF-305` hold
+      the period and billable-span cases. (`LDG-38`, `LDG-35`, `LDG-64`, `STO-37`,
       `LDG-8`)
 - [ ] **CNF-278** — **An account can actually be recorded lost, and the right thing happens.** Drive
       `POST /v1/provider-accounts/{account}/actions/record-status` across all four statuses, **on
@@ -1775,7 +1847,12 @@ rather than acquiring a default.
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
       are cancelled and a payment attempted against one fails back with the payer's funds intact; an
       on-chain payment arriving at an already-issued address is still **credited**, not held; and the
-      deposit read reports the halt with `gate: "solvency"` before a caller pays. (`LDG-20`,
+      deposit read reports the halt with `gate: "solvency"` and `lightning.cancelled: true`
+      before a caller pays. Set both expiries after this check and assert `expired: false`,
+      preserving the invoice and existing credit fields. Before the halt assert `gate: null`
+      and `lightning.cancelled: false` on that same live, payable invoice; after the halt clears,
+      assert `gate: null` and `lightning.cancelled: true`. On an independent uncancelled deposit,
+      let expiry pass and assert `expired: true` and `lightning.cancelled: false`. (`LDG-20`,
       `LDG-55`, `LDG-47`, `LDG-51`, `WIR-15`)
 - [ ] **CNF-243** — **A tenant is not stranded on a dead provider account.** After `SEC-46` records a
       confirmed termination, the affected tenants are surfaced to the operator, the re-assignment
@@ -2265,8 +2342,9 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       **Exit and re-entry inside one outage:** outage 12:20–13:00, with the subject already
       billable at 12:20. Post at 12:25 while no rate exists, exit to nonbillable at 12:30,
       re-enter at 12:40, post at 12:45 and exit at 12:50. Keep the commitment open. Assert
-      separate native-only rows with absorbed windows [12:20,12:30) and [12:40,12:50), and no
-      absorption or billing for [12:30,12:40). Competing no-rate postings in either span create
+      separate native-only rows with absorbed windows [12:20,12:30) and [12:40,12:50), each
+      closed with `absorbed_seconds = 600`, and no absorption or billing for [12:30,12:40).
+      Competing no-rate postings in either span create
       no duplicate open row. The currency outage start remains 12:20 and the computed deadline
       is unchanged across re-entry with unchanged replay parameters and bound. Rate return at
       13:00 does not extend either closed row. (`STO-37`, `LDG-64`, `LDG-38`)

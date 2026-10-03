@@ -860,14 +860,18 @@ that cannot state its own size in the unit it arose in is not a durable record o
 `absorbed_seconds` (the elapsed billable time absorbed, which is what `LDG-38`
 subtracts — in seconds, never converted; **zero for every cause but `rate_outage`**, since the
 others absorb satoshis against consumption the customer was already charged for and subtracting
-their seconds too would relieve it twice, `LDG-66`), `absorbed_from`, `absorbed_until` (**the
+their seconds too would relieve it twice, `LDG-66`; an open outage row carries zero, and the write
+that sets `absorbed_until` MUST also write the elapsed billable length in seconds of the window
+placed by `absorbed_from` and `absorbed_until`, clipped to the subject's billable span, not the
+posting's wall-clock duration; an insertion already closed writes those seconds in that insertion),
+`absorbed_from`, `absorbed_until` (**the
 placement of that absorbed window in time**, required wherever `absorbed_seconds` is non-zero and
 read by `LDG-38` to
 apportion a window that straddles a period or increment boundary; `LDG-38` holds why `LDG-64`'s
 deadline cannot serve as its end),
 `rate_num`, `rate_den` (**nullable**; the rate in force
 when the record was opened, required only for a cause that had one and permanently null for a
-rate-outage deficiency, which opens when there is no rate — `LDG-66`, `LDG-64`),
+rate-outage deficiency, including one inserted after the rate returns — `LDG-64`),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
@@ -883,10 +887,14 @@ billable span of a machine or attachment within an outage — the table's own
 `subject_kind`/`subject_id`, and what `OPS-41` contends on, "**this machine's** open `rate_outage` deficiency record" — and nothing
 deployment-wide. Open means what `OPS-41`'s guard says: `absorbed_until IS NULL`; `resolved_at` is
 not that marker and stays null on this cause. The meter (`LDG-64`; `LDG-40`'s "fifth row —
-metering") opens it at a subject's first posting that computes no rate and finds no open row for
-that subject, including an exit posting (`LDG-38`), as a **conditional insert guarded on that
-absence**, so two postings of one subject —
-one that computes no rate by staleness, one after a pass found the window thin — open one row.
+metering") MUST replay the history for every no-rate span intersecting a subject's clipped
+increment, including a completed outage when a rate exists at posting time. Its first posting
+that finds such a span without that subject's row for that outage and billable span, including
+an exit posting (`LDG-38`), opens it as a **conditional insert guarded on that absence**.
+The guard includes already closed rows: a repeat posting MUST NOT duplicate or reopen one.
+Concurrent postings for the same span use the same row, including one computing staleness and
+one after a pass found the window thin. For insertion already closed and for an open row whose
+rate returns without a new observation, see `LDG-64`'s close bullet.
 No other row of `LDG-40`'s matrix opens one: the exhaustion sweep routes nothing while the currency
 has no rate (`LDG-16`); a create and the solvency check have no subject to open one for; an
 extension halts (`LDG-40`), re-derivation "MUST halt rather than under-reserve", and neither opens
@@ -895,15 +903,18 @@ one: `OPS-41`'s order holds what a write that affects no row means there. So a s
 has not posted for since the outage began has no row for that outage, including one already
 quarantined when it began. For closure of an existing row on a quarantined exit, see `LDG-72`.
 **The currency outage start and the subject row start are distinct.** The currency outage start is
-the earliest instant of the maximal interval, ending at the writer's posting, throughout which the
-window yielded no rate, computed by replaying `LDG-59`'s two clocks — staleness at every instant,
+the earliest instant of each maximal interval throughout which the window yielded no rate,
+ending at its replayed return or still continuing at the writer's posting. Both ongoing and
+completed intervals are computed by replaying `LDG-59`'s two clocks — staleness at every instant,
 thinness at each accepting pass — over `STO-49`'s recorded observations. For one setting of the
-parameters it is replayed with — the staleness bound, window and quorum — it is a function of that
+parameters it is replayed with — the staleness bound and window — it is a function of that
 history alone, so while those parameters are unchanged it is the same for every writer whatever the
 interleaving of postings and passes, and no writer reads any sibling row for it; `OVR-19` holds
-that they can change while an outage is open (*amended 2026-10-02, `ADR-0029`*). When only one
-clock has fired inside the outage, the
-replay yields that clock's own instant: the newest observation's `observed_at` plus `LDG-59`'s
+that they can change while an outage is open (*amended 2026-10-02, `ADR-0029`*).
+Quorum is an acceptance setting: `LDG-59` calls it what a pass needs "to accept an observation";
+replay MUST NOT accept or reject recorded observations retrospectively under a changed quorum.
+When only one clock has fired inside the outage, the replay yields that clock's own instant:
+the newest observation's `observed_at` plus `LDG-59`'s
 staleness bound when only staleness has — `LDG-59`: "The window's staleness is tested continuously,
 and no pass is needed for it to produce no rate" — and the `observed_at` of the `STO-49` row of the
 pass that found the window thin when only thinness has, since the newest observation is then still
@@ -914,6 +925,8 @@ changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, no
 written. **The subject row starts at `max(currency outage start, billable-span seed)`.**
 Rows of one outage carry the same `absorbed_from` only where that maximum is the same, with the
 same replay parameters. For row closure at exit to nonbillable, see `LDG-38` and `LDG-72`.
+Changing a replay parameter MUST NOT move an already open row's `absorbed_from`; a subsequently
+opened row uses the replay parameters then in force.
 Re-entry during the same currency outage can open a new row, whose `absorbed_from` is clipped to
 the re-entry seed. Neither row absorbs the nonbillable gap. The conditional-insert guard above
 applies to competing postings within each span. Re-entry changes the subject row start, not the replayed currency outage start.

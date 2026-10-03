@@ -365,7 +365,8 @@ def pastDateWorld : World := { fenceWorld with now := 100 }
 def pastDateNoRateWorld : World := { pastDateWorld with rate := none }
 
 /-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
-passed and its currency has a rate (`LDG-59`), and MUST NOT route it otherwise." With no rate a
+passed and its currency has a rate (`LDG-59`) and it is not recorded gone, and MUST NOT route it
+otherwise." With no rate a
 past date routes nothing — the sweep enqueues no cancellation and opens no episode — and once the
 rate has returned the same date routes; with a rate, a date reached routes and a future one does
 not. Under the predicate `LDG-16`'s note withdrew on 2026-10-02, "MUST route a machine where its
@@ -698,12 +699,13 @@ closes `funded`. -/
 @[req "OPS-41"]
 theorem deadline_passed_cancels_witness :
     let w := run Fence.current freshOutageWorld unrecordedBoundTrace
-    let recorded := run Fence.current freshOutageWorld (.meterOpens :: unrecordedBoundTrace)
+    let opened := run Fence.current freshOutageWorld [.meterOpens]
+    let recorded := run Fence.current opened unrecordedBoundTrace
     let old := run { outageGuards Fence.current with absentRecordProceeds := false }
       freshOutageWorld unrecordedBoundTrace
     w.outageOpen = false ∧ w.rate = none ∧ w.m.destroyed = true ∧
     w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
-    recorded.outageOpen = true ∧ recorded.m.destroyed = true ∧
+    opened.outageOpen = true ∧ recorded.m.destroyed = true ∧
     old.m.destroyed = false ∧
     old.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by
   decide
@@ -734,7 +736,8 @@ def unrecordedWorld : World := { fundedWorld with rate := none, now := 100 }
 /-- `LDG-64`'s canceller, once. -/
 def boundCancellerTrace : List Fence.Event := [.outageBound]
 
-/-- `LDG-64`: "The bound's cancellation reaches every machine priced in the outage's currency,
+/-- `LDG-64`: "The bound's cancellation reaches every machine not recorded gone priced in the
+outage's currency,
 whether or not the meter opened a `rate_outage` record for it". At the deadline the canceller
 opens the machine's episode under `rate_outage_bound`, record or no record, and one second before
 it enqueues nothing. Under the scope `OPS-41`'s note withdrew, "A `rate_outage_bound`

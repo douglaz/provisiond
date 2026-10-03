@@ -800,6 +800,12 @@ subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
 (`STO-37`), which every cause that absorbs time MUST carry. `LDG-64`'s deadline is not that
 window's end: an outage that clears early absorbed less time than the deadline implies, and a split
 no record can locate in time is not a split an implementation can perform.
+Before pricing, a posting MUST use `STO-37`'s replay and conditional-insert path for each
+no-rate span inside its clipped increment, even when the outage finished before the posting.
+`LDG-64` owns closure, including an insertion already closed. Split at the absorbed window's
+boundaries as well as the period and rate boundaries: price the pieces on either side at their
+own rates and absorb only the overlap with this increment. These row writes share the posting's
+serialization and discard rule; a discarded increment writes no deficiency.
 
 **AMENDED 2026-09-02 — exactly one cause absorbs time, and it is `rate_outage`.** *The withdrawn
 clause said "a `clamp_overflow` deficiency absorbs billable time too", and that double-relieves the
@@ -876,8 +882,9 @@ For a quarantined subject, apply `LDG-72`'s exit exception.
 **For an exit increment containing outage time, `LDG-64` owns the absorbed window's end.**
 Each priced piece, including one after the rate's return, is debited under its applicable rate.
 The exit closes an open subject outage row at that end; it MUST NOT overwrite an earlier
-rate-return closure. Where the closing posting is the first to compute no rate within its clipped
-increment, it uses `STO-37`'s conditional-insert path and closes the resulting row at that end.
+closure. Where the closing posting first discovers no-rate time within its clipped
+increment, including a finished outage, it uses `STO-37`'s conditional-insert path and closes
+the resulting row at that end under `LDG-64`'s close bullet.
 It advances the mark to the boundary without a satoshi debit for the absorbed segment. For rounding state, see above; for later billing, see `LDG-64`.
 The rationale for exit closure is in `ADR-0011` (2026-10-03).
 
@@ -1253,14 +1260,21 @@ usage cannot be converted to satoshis. A deployment MUST:
   again** — `STO-37`'s `absorbed_until` is written with that observation's instant, by that
   observation's own write — **or with the subject's own meter-stop instant where that comes
   first** (the exit writer is `LDG-38`'s), since a machine that died mid-outage absorbed nothing
-  after it died — and by no other event (*added 2026-09-05; the column was required by
+  after it died. **The posting exception:** a posting discovering a completed outage inserts
+  the subject's row already closed at the replayed return, or at its earlier meter stop; the
+  first posting that computes a rate and finds the subject's row open MUST close it at that
+  replayed return (or earlier stop), including when changed replay parameters yield a rate
+  without a new accepted observation. Neither path may reopen a closed row or overwrite an
+  earlier closure. No other event closes the window. The same write supplies
+  `absorbed_seconds` under `STO-37`'s column rule (*added 2026-09-05; the column was required by
   `LDG-38`'s apportioning and had no writer, so the meter could neither end the window nor tell
   where billable time resumed*). The first observation accepted after an outage is not always
   that one: after an outage longer than `LDG-58`'s window it leaves that window too thin to
   produce a rate (`LDG-59`) (*added 2026-09-23, `ADR-0027`, and reworded the same day out of the
   withdrawn per-pass quorum frame*);
 - **compute the outage's deadline from history, and store it nowhere.** The deadline is the
-  outage's start plus the maximum tolerated outage below, and the start is the currency outage
+  outage's start plus the maximum tolerated outage below. An instant reached has passed:
+  the deadline counts as passed at equality as well as after it. The start is the currency outage
   start `STO-37` defines, replayed from `STO-49`'s recorded observations. With unchanged parameters any writer
   computes the same instant, for a subject the meter has opened no record for as for one it has,
   and a restart mid-outage does not reset the clock and quietly extend the exposure past
@@ -1278,9 +1292,10 @@ usage cannot be converted to satoshis. A deployment MUST:
   at any point;
 - **state a maximum tolerated outage**, chosen against how much exposure the operator will carry,
   and **cancel machines at that bound** if no rate has returned. **The bound's cancellation
-  reaches every machine priced in the outage's currency, whether or not the meter opened a
-  `rate_outage` record for it** — a machine the meter is not posting for, as under `LDG-72`'s
-  quarantine, can have none and still meets the bound (*added 2026-10-02, `ADR-0029`*). **The bound
+  reaches every machine not recorded gone priced in the outage's currency, whether or not the
+  meter opened a `rate_outage` record for it** — a machine the meter is not posting for, as under `LDG-72`'s
+  quarantine, can have none and still meets the bound (*added 2026-10-02, `ADR-0029`*).
+  `LDG-74`: "a machine established gone has nothing left to cancel". **The bound
   MUST be disclosed before purchase (`WIR-30`'s offer) and the live deadline — the computed instant
   above — exposed on the machine view as `rate_outage_deadline`** (`WIR-11` holds the field and
   when it is null):
@@ -1655,7 +1670,8 @@ that way. A committed reservation is released if unused (`LDG-32`); a prepayment
 The first version used both words and they mean different things to a customer reading the terms.
 
 **LDG-14** **AMENDED.** At end of runway the machine MUST be cancelled and its disk destroyed
-with it, and this MUST be stated plainly in the terms and the API documentation. Where the stored
+with it; this destruction and `LDG-65`'s outage wait MUST be stated plainly in the terms and the
+API documentation. Where the stored
 date passes while the machine's currency has no rate, `LDG-65` holds what happens instead (*added
 2026-10-02, `ADR-0029`*). **Where the
 provider cannot cancel immediately** (`PRV-13`'s scheduled-cancellation shape, `DOM-19`), the
@@ -1741,7 +1757,9 @@ withdrawn with the adjustment itself. So is "persist across more than one deriva
 wait established nothing.*
 
 **The exhaustion sweep MUST route a machine where its stored `runway_until` has passed and its
-currency has a rate (`LDG-59`), and MUST NOT route it otherwise.** *With a rate in force a past date
+currency has a rate (`LDG-59`) and it is not recorded gone, and MUST NOT route it otherwise.**
+An instant reached has passed: the stored date counts as passed at equality as well as after it.
+`LDG-74`: "a machine established gone has nothing left to cancel". *With a rate in force a past date
 routes immediately, and that is the point: natural expiry of a
 runway the customer was shown is not a glitch, and delaying it an interval would run every ordinary
 exhaustion one interval into the wind-down reserve this requirement exists to keep whole.* While the

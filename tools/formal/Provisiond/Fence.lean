@@ -80,16 +80,18 @@ commitment it grows — `extend` takes the satoshis as given — and its wire an
 between its refusals (`pv-gip.26`): every refusal here is the unchanged world, whichever test
 made it; the `late_attach_cleanup` reason (`OPS-36` is `pv-vwe.5`'s, and what its attach does with
 no rate is `pv-gip.27`'s); the two-clock replay of the outage's start over `STO-49`'s rows — what
-a changed staleness bound, window or quorum does to the replayed start is partly undecided in the
-requirements (`pv-gip.28`), a replay here would have to invent it, and so no event moves the start
+a changed staleness bound or window does to the replayed start belongs to `STO-37` and `OVR-19`,
+and history retention under a changed window remains outside this model (`pv-gip.28`);
+no event moves the start
 of an outage already open, a restore that loses the rows it is replayed from included (`LDG-64`:
 "A restore that loses `STO-49` rows the start is replayed from moves it as well" — `restoreRecord`
 is `STO-56`'s record and nothing of `STO-49`'s); a second machine, tenant or currency, so that
-`LDG-59`'s per-currency rate, outage and bound are one currency's here; and the record's close
-at the meter stop. `LDG-64` closes the absorbed window at the rate's return "or with the
-subject's own meter-stop instant where that comes first", and here `goneWrite` and a settlement
+`LDG-59`'s per-currency rate, outage and bound are one currency's here; historical posting
+insertion and posting closure without a new observation (`STO-37`, `LDG-64`); and the record's close
+at the meter stop. The exit's close is not modelled: `LDG-38` says "The exit closes an open
+subject outage row at that end". Here `goneWrite` and a settlement
 with the resource gone leave `World.outageOpen` as it was, so a machine recorded gone can still
-show an open record (`pv-gip.34`). No modelled outcome turns on it while `OPS-41`'s first step is
+show an open record. No modelled outcome turns on it while `OPS-41`'s first step is
 in the order: an attempt on a machine recorded gone is settled there, before the step that
 contends on the record, and `meterOpens` and `outageBound` each stop at a machine recorded gone.
 The provider's answer is classified as
@@ -205,11 +207,13 @@ proceeds.**", under which the conditional write is reached whatever the deadline
 rate, the machine carries no open record and the cancellation proceeds as well"; its off position
 is the reading withdrawn in the same note, "the machine's own meter stopped (`LDG-74`), there is
 nothing left to cancel, and it settles as the no-mutation case". `boundReachesAll`: `LDG-64`,
-"The bound's cancellation reaches every machine priced in the outage's currency, whether or not
+"The bound's cancellation reaches every machine not recorded gone priced in the outage's currency,
+whether or not
 the meter opened a `rate_outage` record for it"; its off position is the scope withdrawn in
 `OPS-41`'s note, "A `rate_outage_bound` cancellation is enqueued only for a machine carrying such
 a record". `sweepNeedsRate`: `LDG-16`, "The exhaustion sweep MUST route a machine where its stored
-`runway_until` has passed and its currency has a rate (`LDG-59`), and MUST NOT route it
+`runway_until` has passed and its currency has a rate (`LDG-59`) and it is not recorded gone,
+and MUST NOT route it
 otherwise"; its off position is the predicate withdrawn in `LDG-16`'s note, "MUST route a machine
 where its stored `runway_until` has passed, and MUST NOT route it otherwise", which is also the
 row withdrawn in `LDG-40`'s note, "**the exhaustion sweep** (MUST continue: it reduces
@@ -358,8 +362,10 @@ reached has passed, as `routed` reads the same words of the stored date. -/
 def World.deadlinePassed (w : World) : Bool := w.deadline ≤ w.now
 
 /-- `LDG-16`: "The exhaustion sweep MUST route a machine where its stored `runway_until` has
-passed and its currency has a rate (`LDG-59`), and MUST NOT route it otherwise." Two clauses under
-`sweepNeedsRate`; without it the date alone, the predicate `LDG-16`'s note withdrew on 2026-10-02.
+passed and its currency has a rate (`LDG-59`) and it is not recorded gone, and MUST NOT route it
+otherwise." This definition checks date and rate, with the rate clause under
+`sweepNeedsRate`; `sweep` carries the not-gone clause. The off position keeps the date check
+without the rate, the predicate `LDG-16`'s note withdrew on 2026-10-02.
 `LDG-16` says of the grace that it "is no clause of this predicate". -/
 @[req "LDG-16"]
 def World.routed (w : World) (p : Params) : Bool :=
@@ -443,14 +449,13 @@ def applyRow (w : World) (ep : EpisodeRow) (ev : Tables.Event) : World :=
                                     else w.m.fence } }
 
 /-- The exhaustion sweep: `LDG-14`'s "At end of runway the machine MUST be cancelled", routed on
-`LDG-16`'s predicate (`World.routed`) — the **stored** date and, since 2026-10-02, a rate for the
-machine's currency — for a machine not
-recorded gone — `LDG-74`: "a machine established gone has nothing left to cancel". Its other row
+`LDG-16`'s predicate: `World.routed` checks the stored date and rate; `sweep` adds the clause
+"and it is not recorded gone". Its other row
 is `OPS-48`'s sweep-close: the sweep "finds the machine of a `stalled` episode funded under
 `OPS-41`'s predicate ... **and its tenant not suspended** at that read" and closes it `funded`,
 clearing the fence; a `stalled` episode has no attempt in flight, which the guard states. That row
 took a rate before 2026-10-02 and is unchanged. -/
-@[req "LDG-14"]
+@[req "LDG-16"]
 def sweep (p : Params) (w : World) : World :=
   match w.episode, w.rate with
   | some ep, some r =>
@@ -839,15 +844,14 @@ def resume (w : World) : World := { w with suspended := false }
 /-- The rate lost: `LDG-59`'s window yielding "**no rate**", by staleness or by thinness at a
 pass. It is not a pass below the quorum, of which `LDG-59` says "A pass below the quorum accepts
 no observation and recomputes nothing, and the rate in force holds". `start` is the outage's start
-as history gives it (`loseRate`). The machine's record is not opened here: `STO-37` has the meter
-open it "at a subject's first posting that computes no rate", and `meterOpens` is that event. -/
+as history gives it (`loseRate`). The machine's record is not opened here: `STO-37` says "The row
+is the subject's, and the meter opens it"; `meterOpens` models the live-outage opening. -/
 @[req "LDG-64"]
 def rateLost (w : World) (start : Nat) : World := loseRate w start
 
 /-- The meter opening this machine's `rate_outage` record. `STO-37` says "The row is the
-subject's, and the meter opens it". It opens "at a subject's first posting that computes no rate
-and finds no open row for that subject", so not while a rate exists, and not for a machine the
-meter has stopped for — `LDG-74`: "The meter MUST stop on evidence that the machine is gone". A
+subject's, and the meter opens it". This event models the still-live subject with no rate;
+historical insertion and exit closure are outside the model, as the omissions state. A
 world in which this event never happens is the machine `STO-37` describes: "a subject the meter
 has not posted for since the outage began has no row". -/
 @[req "STO-37"]
@@ -861,10 +865,10 @@ open outage moves with it and nothing else is touched. -/
 def setMaxOutage (w : World) (bound : Nat) : World := { w with maxOutage := bound }
 
 /-- `LDG-64`'s bound canceller: "cancel machines at that bound if no rate has returned", a
-`rate_outage_bound` cancellation, once the deadline has passed, for a machine not recorded gone —
-`LDG-74`: "a machine established gone has nothing left to cancel", the sweep's own guard. Under
-`boundReachesAll` it reaches the machine with a record or without — `LDG-64`: "The bound's
-cancellation reaches every machine priced in the outage's currency, whether or not the meter
+`rate_outage_bound` cancellation, once the deadline has passed. The not-gone guard is part of
+`LDG-64`'s population below. Under `boundReachesAll` it reaches the machine with a record or
+without — `LDG-64`: "The bound's cancellation reaches every machine not recorded gone priced
+in the outage's currency, whether or not the meter
 opened a `rate_outage` record for it" — and without that guard only a machine carrying one, the
 scope `OPS-41`'s note withdrew. -/
 @[req "LDG-64"]
@@ -873,7 +877,8 @@ def outageBound (p : Params) (w : World) : World :=
     enqueue w .rateOutageBound
   else w
 
-/-- `LDG-64`: the bound's cancellation "reaches every machine priced in the outage's currency,
+/-- `LDG-64`: the bound's cancellation "reaches every machine not recorded gone priced in the
+outage's currency,
 whether or not the meter opened a `rate_outage` record for it". With no rate and the deadline
 passed, on a machine not recorded gone, the canceller's step is `enqueue`'s under
 `rate_outage_bound`, whatever the record. What that step then does is `enqueue`'s and not this
@@ -1200,8 +1205,8 @@ any writer computes the same instant". The model's events change no replay param
 `STO-49` row — the module's omissions name both — so this is that sentence's case and says
 nothing of the two that move the start. A second no-rate input — `rateLost` again, or another
 thin `pass` — restarts nothing: it falls inside the one interval `STO-37` dates the start from,
-"the earliest instant of the maximal interval, ending at the writer's posting, throughout which
-the window yielded no rate". What ends the outage is a rate, and the next loss is the next
+"the earliest instant of each maximal interval throughout which the window yielded no rate".
+What ends the outage is a rate, and the next loss is the next
 outage's start: `LDG-64`'s "Each outage has its own start and so its own deadline". -/
 @[req "LDG-64"]
 theorem open_outage_keeps_its_start (p : Params) (w : World) (hr : w.rate = none) (e : Event)
