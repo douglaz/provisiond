@@ -691,12 +691,22 @@ takes the machines *and* the float" partly false.
       still short-defers unfunded attempts in `OPS-41`'s fence transaction. Kill and restart after
       multiple qualifying returns;
       assert recomputation from retained `STO-49` history preserves the unspent time and the
-      step-(3) mark and original end remain unchanged. Before the bound, refuse incident close
-      while any currency has unspent grace. Finish currency A's grace while B still has unspent
-      grace and has not reached its bound: closing is still refused. Leave B without a rate
-      through its bound: B ceases to block closure, but refuse close until wall-clock grace and
-      every other obligation in `STO-56`'s close rule is satisfied. Only then close and verify
-      ordinary restart behavior. (`STO-54`, `STO-56`, `STO-49`, `OPS-15`, `OPS-41`, `LDG-16`,
+      step-(3) mark and original end remain unchanged. Finish currency A's grace while B has
+      unspent grace and a live unfenced machine: closing is refused. Leave B without a rate
+      through its bound: closing is still refused until every machine priced in B is recorded
+      gone or fenced (`machines.destroy_committed` non-null). Drive `CNF-218`'s no-return
+      disposition trace, including its funded machine with no queued attempt, absent outage
+      record and provider refusal; assert B ceases to block despite its unspent rate time.
+      The refused deletion does not block B's discharge merely because the machine is not
+      recorded gone: check its fence, not just the failed attempt. In a separate run, make every
+      B machine gone or fenced before its outage bound and assert B's grace obligation is discharged then.
+      In each run, refuse close while any other prerequisite in `STO-56` remains unsatisfied;
+      exercise the wall-clock end and the other incident obligations independently, including
+      a run with all machines already gone or fenced before the wall-clock end. Only when every
+      prerequisite is satisfied close and verify ordinary restart behavior. `CNF-218` carries
+      the refused-close/returned-rate worker regressions. *Amended 2026-10-03 (`ADR-0029`):
+      withdrawn — "Leave B without a rate through its bound: B ceases to block closure".*
+      (`STO-54`, `STO-56`, `STO-49`, `OPS-15`, `OPS-41`, `LDG-16`,
       `LDG-64`, `API-56`, `OPS-27`, `OPS-32`)
 - [ ] **CNF-296** — **The two synchronous writes hang alone** (added 2026-09-12,
       `ADR-0023`). Stall the named standby. Assert a deposit mint and a payment credit block, every
@@ -1888,8 +1898,10 @@ rather than acquiring a default.
       mid-outage below the time already run* (`OVR-19`): the deferred attempt's first claim after
       the restart that loads it proceeds.
       **Restore grace across outages** (`OPS-41`, `STO-56`; amended 2026-10-02, `ADR-0029`).
-      Keep the restore record open throughout the following traces. Use an active tenant, an
-      unfenced live machine with an open funding episode, and a queued cancellation; set a bound
+      Keep the restore record open throughout the following traces, including the refused close
+      attempts below; successful closure is exercised in `CNF-295`. Unless a trace specifies
+      otherwise, use an active tenant, an unfenced live machine with an open funding episode,
+      and a queued cancellation; set a bound
       later than each tested return except in the bound cases below.
       For every extension assertion, first establish a rate, sufficient available balance and
       all other admission conditions (`LDG-40`, `LDG-62`); choose requested runway beyond the
@@ -1967,8 +1979,39 @@ rather than acquiring a default.
       the fan-out joins the existing episode and creates no replacement attempt. No claim is
       manufactured before availability; at the next eligible claim at `R + d`, step 2 proceeds
       to the fence and cancellation, within one short delay of suspension. Exercise with and
-      without a rate at that claim. These queue traces keep the incident open; incident closure
-      at the bound is outside them.
+      without a rate at that claim.
+      *Close refused between the bound and the next eligible claim* (`pv-gip.37`; added
+      2026-10-03): let `d` be the ordinary short delay. After the original wall-clock end,
+      Alice's live unfenced machine has a queued funding cancellation, an active tenant and
+      unspent rate-time grace. With no rate, claim at `Q` before the outage bound `B`; step 4
+      short-defers with `available_at = Q + d`. Choose `Q < B < Q + d`, complete all other
+      incident obligations, and attempt close after `B` but before `Q + d`: assert refusal
+      under `STO-56` and leave the record open. Return the rate before `Q + d`, leaving
+      accumulated grace unspent at the next eligible claim and the re-derived date still past.
+      With the worker available and no competing hold, claim at `Q + d`: assert step 3
+      re-derives first, short-defers, writes no new fence, makes no provider call, and keeps
+      the attempt queued and episode open. Do not manufacture a claim before `available_at`
+      or close the record to reproduce the defect. Retain the direct-return and conditional-write
+      interleavings above, and their funded re-derivation-first outcomes.
+      *New routing after the bound*: begin instead with a live unfenced machine in the outage
+      currency and no open episode or queued cancellation. Let the bound pass before its
+      cancellation is routed, with all other incident obligations complete and grace unspent;
+      assert close is refused even though nothing is queued. Return the rate, keep the stored
+      and re-derived dates past, and run the exhaustion sweep before the bound canceller routes
+      an attempt. At the new funding attempt's first eligible claim, with the tenant active and
+      accumulated grace still unspent, assert the same step-3 short deferral, no fence or
+      provider call, and an open episode.
+      *No return through disposition*: after the wall-clock end, leave the rate absent and
+      grace unspent, with all other incident obligations complete. Include a funded live
+      unfenced machine with no queued attempt and a machine with no `rate_outage` record.
+      Past the bound, before disposition, assert close is refused. Run the bound canceller
+      and actual queue through eligible claims; step 5 processes every machine in the currency
+      to recorded gone or fenced. Assert the currency still blocks while any live unfenced
+      machine remains. For a bound cancellation whose provider call is refused, assert the
+      failed attempt leaves its live machine fenced (`machines.destroy_committed` non-null).
+      A failure alone is not the discharge condition. Once every machine qualifies, assert
+      this currency ceases to block despite unspent rate time; keep the record open here and
+      exercise successful closure and ordinary restart in `CNF-295`.
       *The bound while paused grace is unfinished*: with no rate and the wall-clock end passed,
       a funding-enqueued attempt reaches step 5 and cancels, both with and without an outage
       record. If the deadline falls before the original end, a claim past the deadline still

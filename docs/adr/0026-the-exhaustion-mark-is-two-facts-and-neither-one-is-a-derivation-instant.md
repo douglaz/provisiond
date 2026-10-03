@@ -98,7 +98,7 @@ ordinary exhaustion. `LDG-65` refuses it a second time: a runway expiring mid-ou
 normally — **unless `machines.exhausted_since` is set**", and a universal rule would invert that
 into cancelling nothing while the outage lasts, stranding the exposure `LDG-64` exists to cap.
 *(2026-10-02: `ADR-0029` answers this for the outage alone. A funding cancellation does wait while
-there is no rate, `LDG-64`'s bound still fires so nothing is stranded past it, and the wording of
+there is no rate, and the wording of
 `LDG-65` quoted here is withdrawn. The refusal of a universal fence stands.)*
 
 **Re-keying the single column to an observation**, which loses the restore grace silently: two fresh

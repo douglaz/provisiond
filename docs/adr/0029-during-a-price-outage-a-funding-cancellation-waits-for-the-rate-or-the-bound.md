@@ -1,7 +1,9 @@
 # During a price outage, a funding cancellation waits for the rate or the outage bound
 
 **Status:** accepted (2026-10-01); amended 2026-10-02 by *An outage pauses the restore grace*
-below (`pv-gip.29`), with the placement corrected 2026-10-03 (`pv-gip.35`, `pv-gip.36`). The
+below (`pv-gip.29`), with the placement corrected 2026-10-03 (`pv-gip.35`, `pv-gip.36`) and
+incident closure corrected by *Close on grace spent or machine disposition — 2026-10-03*
+(`pv-gip.37`). The
 requirement and checklist edits listed under *Consequences*
 landed in `2997723` (`pv-gip.23`), and the formal-layer edits in `e739240` (`pv-gip.25`), where
 the guard *Consequences* names `sweepContinuesWithoutRate` became `sweepRoutesNothingWithoutRate`.
@@ -37,8 +39,7 @@ Why it holds:
   indefinitely". It is not indefinite: `LDG-64` says to "cancel machines at that bound if no rate
   has returned".
 - `ADR-0026` rejected waiting as "cancelling nothing while the outage lasts, stranding the exposure
-  `LDG-64` exists to cap". Under this decision the bound still fires, so nothing is stranded past
-  it.
+  `LDG-64` exists to cap".
 
 ## The shape
 
@@ -222,11 +223,13 @@ Retention must span the whole open restore's needed history, including its left 
 multiple returns move the ordinary outage snapshot forward. The Lean model abstracts replay as
 effective outage spans; its proofs establish neither replay correctness nor retention.
 
-Incident closure waits for the original wall-clock end and the other incident obligations, and
-for each currency's accumulated grace to finish **or its outage to reach the bound**. The latter
-exception prevents a never-returning currency from holding the record open forever: past that
-bound no funding cancellation remains to protect. A finished currency cannot discharge another's
-unfinished grace. `STO-56` is the close rule's single home, with a pointer from `STO-54`.
+**Withdrawn 2026-10-03**, by *Close on grace spent or machine disposition* below:
+
+> Incident closure waits for the original wall-clock end and the other incident obligations, and
+> for each currency's accumulated grace to finish **or its outage to reach the bound**. The latter
+> exception prevents a never-returning currency from holding the record open forever: past that
+> bound no funding cancellation remains to protect. A finished currency cannot discharge another's
+> unfinished grace. `STO-56` is the close rule's single home, with a pointer from `STO-54`.
 
 ### Placement corrected — 2026-10-03
 
@@ -260,9 +263,9 @@ model writes `available_at` but does not read it. A hand-scheduled claim at the 
 refute parking. The new placement witness proves the claim-to-transaction interleaving, and its
 guard's off position reinstates the old placement and destruction.
 
-This correction is evaluated while the restore record remains open. It leaves the incident-close
-decision above and `STO-56`'s bound exception unchanged; `pv-gip.37` remains the question about
-closing at the bound with a pending cancellation.
+This correction was evaluated while the restore record remained open. It left the incident-close
+paragraph above unchanged at that landing. The pending-cancellation question was tracked as
+`pv-gip.37`, resolved by *Close on grace spent or machine disposition* below.
 
 
 ### Setting-in-force extension — 2026-10-03
@@ -284,4 +287,69 @@ It also made the funding-order defect independently refutable:
 commitment, comparing settlement against premature deferral, under the `rederiveFirst` control.
 `OPS-41` retains the actual withdrawn computed-end sentence; `LDG-13` points to `OPS-41`
 for restore grace alongside its outage exception. The incident-close question on `pv-gip.37`
-remains outside this amendment.
+was outside that amendment; *Close on grace spent or machine disposition* below records its
+subsequent resolution.
+
+### Close on grace spent or machine disposition — 2026-10-03
+
+The owner chose to preserve the worker's behavior and replace the incident-close alternative.
+`STO-56` is the single home of closure: for each currency, "either its accumulated rate-present
+time since step (3) has reached one re-derivation interval (`OPS-41`) or every machine priced in
+that currency is recorded gone or fenced". Its limits remain explicit: "A finished currency does
+not discharge another's obligation" and "The gone-or-fenced alternative requires no outage-bound
+crossing and discharges only that currency's grace obligation, not the wall-clock or other
+incident obligations."
+
+The deadline makes cancellation eligible; it does not itself cancel. `LDG-64` says "The bound's
+cancellation reaches every machine priced in the outage's currency, whether or not the meter
+opened a `rate_outage` record for it". That includes funded machines. For the returned-rate path,
+`OPS-41` step 3 says "If funded, it performs the no-mutation abort and settlement above".
+Preserving the restore victim's opportunity gives it the same outcome available to a funded
+machine when the rate returns before cancellation. Even past the bound, step 5 sends a return to
+step 3: "the worker takes step 3 at that returned rate, including its re-derivation first and
+paused check on the returned currency history" (`OPS-41`).
+
+The withdrawn premise fails on `pv-gip.37`'s close-then-return trace: the wall-clock end passed,
+a no-rate funding attempt short-deferred, the bound passed before its next eligible claim, and
+closing the record discarded its unspent grace before the rate returned. `OPS-41` says "With no
+open restore record there is no restore-grace deferral." The replacement tests machine disposition
+instead of assuming it. Conformance: `CNF-218` for the worker regressions, `CNF-295` for closure.
+`Provisiond.Witnesses.paused_grace_conditional_return_witness` also refutes the premise: at time
+200 after deadline 180, the returned rate leaves the unfunded attempt short-deferred with the
+episode open and no new fence. That is evidence about the worker interleaving, not a closure
+proof. The model's omissions in `Fence.lean` and `Restore.lean` remain unchanged.
+
+The expected progress paths are continued no-rate step-5 processing that fences or settles the
+currency's machines, or a returned rate that allows accumulated time to finish. The no-rate create
+premise is `LDG-40`'s "**create** (MUST halt: it is a purchase priced at an unknown rate)".
+These paths are not unconditional process liveness. Late attach with no rate remains undecided
+in `pv-gip.27`; this decision does not establish that a later attach cannot introduce a live
+unfenced machine after the disposition condition held. That interaction is recorded on that task.
+
+Rejected alternatives:
+
+- **End grace irrevocably at the bound (option A).** The 2026-10-02 decision above says "a
+  return resumes the unspent portion, never a fresh interval". Irrevocable expiry would need a
+  stored latch: `OVR-19` uses "the value in force when `LDG-64`'s deadline is computed, for an
+  outage already open too", so raising the maximum can make a previously reached bound no
+  longer reached. This amendment adds no latch.
+- **Nothing protected still queued (option B as originally framed).** A later sweep can route a
+  cancellation and an operator retry can enqueue a new attempt; an empty queue does not establish
+  machine disposition. `LDG-16` says the sweep "MUST route a machine where its stored
+  `runway_until` has passed and its currency has a rate"; `API-64` says it "enqueues a fresh
+  `delete_machine` attempt under it, both in one transaction".
+- **Recorded gone only.** A provider refusing deletion could hold the restore record open
+  indefinitely although the existing fence has already ended the extension opportunity.
+  `ADR-0028` says "A machine already fenced when the grace begins gets no extension from it".
+  `LDG-62` requires an extension to "conditional-write the machine row guarded on
+  `machines.destroy_committed IS NULL`" and on refusal to leave "opening or growing no
+  commitment and moving no balance". The fence, not a failed attempt by itself, supplies this
+  alternative; no new stored disposition is introduced.
+
+**Provenance corrected.** The withdrawn bound exception came from the **caller's** `pv-gip.29`
+work order, `/var/tmp/provisiond-gates/gip29.md`: "or for that currency's outage to reach
+`LDG-64`'s bound (after which no funding cancellation is left to protect)". The owner's
+2026-10-02 comment on `pv-gip.29` instead said "STO-56's close rule and STO-54's close list wait
+for the paused grace's end". The original `pv-gip.37` description attributed the work order to
+the owner; that attribution was wrong. The owner's 2026-10-03 decision, recorded on `pv-gip.37`,
+resolves it with the rule quoted above.

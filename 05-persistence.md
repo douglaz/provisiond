@@ -1146,11 +1146,16 @@ The startup read above is taken once per process. `STO-54` says "the freeze lift
 **The operator MUST NOT close the record until** step (3) is marked, `grace_ends_at` has passed,
 the account sweep's second pass is done, every waiting parent is confirmed or cancelled, and,
 for **each currency**, either its accumulated rate-present time since step (3) has reached one
-re-derivation interval (`OPS-41`) or its outage has reached `LDG-64`'s bound. The bound discharges
-that currency's grace obligation even if its rate never returns: no funding cancellation remains
-to protect past that bound. A finished currency does not discharge another's obligation. Closing
-at the original end alone MUST NOT disable unfinished paused grace; the bound exception does not
-discharge the wall-clock or other incident obligations.
+re-derivation interval (`OPS-41`) or every machine priced in that currency is recorded gone or
+fenced (`machines.destroy_committed` is non-null; `OPS-42`, `LDG-62`). A finished currency does
+not discharge another's obligation. Closing at the original end alone MUST NOT disable unspent
+paused grace for a currency with a live unfenced machine. The gone-or-fenced alternative requires
+no outage-bound crossing and discharges only that currency's grace obligation, not the wall-clock
+or other incident obligations.
+
+*Amended 2026-10-03 (`ADR-0029`): withdrawn — "or its outage has reached `LDG-64`'s bound. The
+bound discharges that currency's grace obligation even if its rate never returns: no funding
+cancellation remains to protect past that bound." `ADR-0029` holds the decision and its argument.*
 
 ## Migrations
 
@@ -1322,10 +1327,9 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   second skip of `deposits.derivation_index` allocates forward, the only direction that column moves
   — while `grace_ends_at` is written in the mark's own transaction (`STO-56`), so an interruption
   before the mark leaves it null and the repeat writes it once (*added 2026-09-25, `ADR-0028`*). The
-  operator closes the record only under `STO-56`'s close rule, including its per-currency grace
-  obligation and bound exception (*amended 2026-10-02, `ADR-0029`*), after which a process that
-  starts is an ordinary restart. *Added 2026-09-20 (`ADR-0023`): the procedure ordered its steps
-  and said nothing
+  operator closes the record only under `STO-56`'s close rule (*amended 2026-10-03, `ADR-0029`*),
+  after which a process that starts is an ordinary restart. *Added 2026-09-20 (`ADR-0023`): the
+  procedure ordered its steps and said nothing
   about a crash inside them, so `OPS-15`'s restore branch rested on knowledge no engine held.*
 - **`OPS-32`'s complete pass is a step, not a gate, and runs twice.** The first pass may record
   nothing about absence: `provider_observations` written in Δ are gone, so `PRV-36`'s effective
