@@ -1123,7 +1123,16 @@ and, for each of the following, the behaviour when no rate is available — **cr
 it is a purchase priced at an unknown rate), **re-derivation** (MUST halt rather than
 under-reserve, and the halt MUST NOT itself trigger exhaustion), **the exhaustion sweep** (MUST
 route no machine priced in that currency: `LDG-16` holds the predicate, and a funding cancellation
-already queued waits as `OPS-41` orders), and **the solvency check** (MUST fail closed).
+already queued waits as `OPS-41` orders), and **the solvency check** (MUST continue over the
+terms it can value). The check MUST evaluate `LDG-17`'s inequality and `LDG-20`'s stress using
+held satoshis and the float, which need no currency rate, and the payables and stress legs of
+currencies whose windows yield rates, valued at those rates. Asset treatment remains `LDG-53`'s
+and `LDG-20`'s. It MUST omit the unrated currency's non-negative payables and stress leg, without
+substituting a last-known or estimated rate. A shortfall on the valued terms is a computed failure
+and MUST trigger `LDG-20`'s deployment-wide consequences. A missing rate alone MUST NOT cause a
+solvency halt; only this matrix's other no-rate rows apply to that currency. This does not establish
+that the whole pool is solvent while a leg is unknown, change the reserve obligation, or add a
+public assurance.
 
 **The fifth row — metering — was missing, and it is the one that costs money** (`LDG-64`).
 
@@ -1132,12 +1141,17 @@ is a purchase priced at an unknown rate too. `LDG-62` holds what the halted exte
 
 *The withdrawn wording asked whether each of these "proceeds on a stale rate or halts", which
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
-having no rate at all, and that change altered none of its answers.*
+having no rate at all; that source-construction amendment altered none of its answers at the
+time. The later row amendments are dated below.*
 
 *Amended 2026-10-02 (`ADR-0029`), with the withdrawn row, kept because it reads as sound and was
 not: until then the sweep's row was "**the exhaustion sweep** (MUST continue: it reduces
 exposure)". Continuing cancelled machines whose stored date passed during the outage, and
 `ADR-0029` holds the argument against it. The extension's row was added the same day.*
+
+*Withdrawn 2026-10-03 (`ADR-0029`): "**the solvency check** (MUST fail closed)".
+The retained trap turned an unavailable rate into a declared insolvency; `ADR-0029` holds the
+decision and its accepted cost.*
 
 **LDG-41** **AMENDED, and again 2026-09-23 (`ADR-0027`).** A rate MUST be treated as
 attacker-influenced input. A manipulated or erroneous rate mis-prices the entire fleet
@@ -1839,7 +1853,8 @@ consumed with maximum provider cost through cancellation. An asset counts only i
 the provider's account before the liability falls due.
 
 **On failure the system MUST halt top-ups first**, then refuse every bill-increasing operation,
-while continuing to permit cancellation and deletion.
+while continuing to permit cancellation and deletion. See `LDG-40` for a check during a currency's
+rate outage.
 
 **AMENDED 2026-08-31 — "halt top-ups" halts minting, and only minting.** Every destination already
 handed out stays payable: a Lightning invoice until its own expiry, an on-chain address forever

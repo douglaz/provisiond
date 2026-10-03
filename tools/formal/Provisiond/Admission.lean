@@ -58,10 +58,13 @@ counter gave, and the counter, the interval and `WIR-9a`'s `retry_after_ms` are 
 replay rule needs.
 
 `LDG-20`'s "halt top-ups first" orders two responses in time; this is a matrix, so what it
-carries is that minting is refused and crediting is not. The stress set itself — "the
-provider-currency pair adverse by 15%, an inaccessible venue for seven days" — is the input to
-`solvencyHalt`, not a term here. `LDG-58`'s median, `LDG-59`'s quorum and `LDG-60`'s exclusions are
-the construction behind "no rate"; only its per-currency scope appears, in `rateAvailableFor`.
+carries is that minting is refused and crediting is not. Valuation is not modelled: the inequality,
+asset treatment and stress set — "the provider-currency pair adverse by 15%, an inaccessible venue
+for seven days" — are outside. `solvencyHalt` remains an input standing for a computed shortfall,
+represented by applying `underHalt`; the no-rate matrix does not compute that input or prove the
+monetary calculation. Its solvency row only records that the check continues over valued terms.
+`LDG-58`'s median, `LDG-59`'s quorum and `LDG-60`'s exclusions are the construction behind "no
+rate"; only its per-currency scope appears, in `rateAvailableFor`.
 
 The re-derivation row carries the halt and not its second clause: "the halt MUST NOT itself trigger
 exhaustion" is about re-derivation and the sweep predicate, carried by `Provisiond.Fence`'s
@@ -267,7 +270,11 @@ matrix, "**the exhaustion sweep** (MUST route no machine priced in that currency
 the predicate, and a funding cancellation already queued waits as `OPS-41` orders)". Its off
 position is the row `LDG-40`'s note of that day withdrew, "**the exhaustion sweep** (MUST
 continue: it reduces exposure)", of which the note has: "Continuing cancelled machines whose
-stored date passed during the outage". -/
+stored date passed during the outage".
+
+`solvencyUsesValuedTerms` (`LDG-40`, 2026-10-03, `ADR-0029`): "the solvency check" now
+"MUST continue over the terms it can value". Its off position restores the withdrawn row,
+"**the solvency check** (MUST fail closed)". -/
 structure Guards where
   listenerSplit            : Bool
   operatorSkipsTenantSteps : Bool
@@ -280,6 +287,7 @@ structure Guards where
   cancelUnsettledInvoices  : Bool
   exposureExemptUnderHalt  : Bool
   sweepRoutesNothingWithoutRate : Bool
+  solvencyUsesValuedTerms  : Bool
   deriving DecidableEq, Repr
 
 /-- The pipeline and the two matrices as they stand. `stepTwoReadsSuspension` is the withdrawn
@@ -296,7 +304,8 @@ def current : Guards := {
     haltMintsOnly            := true,
     cancelUnsettledInvoices  := true,
     exposureExemptUnderHalt  := true,
-    sweepRoutesNothingWithoutRate := true }
+    sweepRoutesNothingWithoutRate := true,
+    solvencyUsesValuedTerms  := true }
 
 /-- One authenticated write as the pipeline reads it. `tenant` is the tenant steps 2 and 5b test —
 the principal's own, or the one an operator names. `admin` is `API-5`'s flag: "Each token maps to
@@ -624,9 +633,9 @@ cancelled invoice is the unsettled one, and settlement is what distinguishes the
 def arrivalIsCredited (g : Guards) (rail : Rail) (settled : Bool) : Bool :=
   settled && (creditArrival g rail == none)
 
-/-- The answers the matrix gives: `LDG-40`'s across its rows, the one `LDG-64` added with the
-fifth, and the two `ADR-0029` gave the outage — the sweep that routes nothing, and the funding
-cancellation that waits. -/
+/-- The answers of `LDG-40`'s matrix and the cancellation order in `OPS-41` (`ADR-0029`).
+`continues` on the solvency row means the check runs over valued terms, not that the whole pool
+is solvent. `failsClosed` retains only the withdrawn solvency row for the guard's off position. -/
 inductive RateAnswer
   | halts | continues | failsClosed | metersNative | routesNothing | waits
   deriving DecidableEq, Repr
@@ -648,10 +657,12 @@ def RateAnswer.atTheBound : RateAnswer → RateAnswer
 at an unknown rate), **re-derivation** (MUST halt rather than under-reserve, and the halt MUST NOT
 itself trigger exhaustion), **the exhaustion sweep** (MUST route no machine priced in that
 currency: `LDG-16` holds the predicate, and a funding cancellation already queued waits as
-`OPS-41` orders), and **the solvency check** (MUST fail closed)", with "**The fifth row — metering
-— was missing, and it is the one that costs money**" answered by `LDG-64`: "**meter in the
-provider's own currency**" for the duration, never as a deferred satoshi debit. Without
-`sweepRoutesNothingWithoutRate` the sweep's answer is the withdrawn row's, `continues`.
+`OPS-41` orders), and **the solvency check** (MUST continue over the terms it can value)", with
+"**The fifth row — metering — was missing, and it is the one that costs money**" answered by
+`LDG-64`: "**meter in the provider's own currency**" for the duration, never as a deferred satoshi
+debit. Without `sweepRoutesNothingWithoutRate` the sweep's answer is the withdrawn row's,
+`continues`; without `solvencyUsesValuedTerms` the solvency answer is the withdrawn `failsClosed`.
+The latter row models no valuation and supplies no whole-pool solvency verdict.
 
 The extension is `LDG-40`'s own sentence: "With no rate for the machine's currency, an extension
 of runway MUST halt as a create does".
@@ -679,7 +690,7 @@ def underNoRate (g : Guards) (t : TenantState) (a : Action) : RateAnswer :=
   match a with
   | .exhaustionSweep => if g.sweepRoutesNothingWithoutRate then .routesNothing else .continues
   | .rederivation => .halts
-  | .solvencyCheck => .failsClosed
+  | .solvencyCheck => if g.solvencyUsesValuedTerms then .continues else .failsClosed
   | .metering => .metersNative
   | .fundingCancellation | .suspensionCancellation | .boundCancellation =>
     match t with
@@ -947,15 +958,16 @@ however the halt is configured, which is the accepted residual that requirement 
 theorem the_on_chain_rail_cannot_be_halted (g : Guards) (settled expired : Bool) :
     destinationAfterHalt g .onchain settled expired = true := rfl
 
-/-- `LDG-40` and `LDG-64`'s two rows that are not a halt: the solvency check "MUST fail closed",
-and the meter runs natively rather than posting a deferred satoshi debit. Changed with the
-matrix's tenant-state argument (`underNoRate`): the statement ranges over that state, and each row
-answers the same under every one. -/
+/-- `LDG-40`'s solvency row "MUST continue over the terms it can value" with its guard enabled;
+`LDG-64`'s meter runs natively rather than posting a deferred satoshi debit. Neither answer keys
+on tenant state. The guard hypothesis pins the amended policy independently of `current`, so the
+matrix witness is the regression control's single refutation. This proves no valuation. -/
 @[req "LDG-40"]
-theorem the_two_rows_that_do_not_halt (g : Guards) :
+theorem the_two_rows_that_do_not_halt (g : Guards) (hg : g.solvencyUsesValuedTerms = true) :
     ∀ t : TenantState,
-      underNoRate g t .solvencyCheck = .failsClosed ∧ underNoRate g t .metering = .metersNative :=
-  fun _ => ⟨rfl, rfl⟩
+      underNoRate g t .solvencyCheck = .continues ∧ underNoRate g t .metering = .metersNative := by
+  intro t
+  simp [underNoRate, hg]
 
 /-- `OPS-39`: the exposure-reducing cancellation is "never blocked by a caller's ceiling", and
 `API-7` says why it cannot be — "that sweep enqueues directly and never traverses this pipeline".

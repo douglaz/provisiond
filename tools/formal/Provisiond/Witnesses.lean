@@ -3150,7 +3150,9 @@ whatever the tenant's state: the sweep "MUST route no machine priced in that cur
 cancellation waits where its tenant is not suspended at the re-check and continues where it is,
 whichever reason it was enqueued under, and past the deadline the wait is over; the caller's
 delete continues. The create halts "priced at an unknown rate", the extension halts with it,
-re-derivation halts, the solvency check "fail[s] closed" and the meter runs native (`LDG-64`).
+re-derivation halts, the solvency check "MUST continue over the terms it can value", and the
+meter runs native (`LDG-64`). The solvency conjunct checks the row, not a monetary calculation
+or whole-pool solvency. Its separate proof gives the guard's negative control a specific diagnostic.
 
 Until 2026-10-02 the first conjunct was that every exposure-reducing action's answer is
 `continues`; it is weakened to "neither `halts` nor `failsClosed`", and no longer says that each
@@ -3166,6 +3168,7 @@ every cell that waits, where it pinned the wait's end for the funding and the bo
 cancellation, with no tenant state. -/
 @[req "LDG-40"]
 theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
+    (∀ t, underNoRate Admission.current t .solvencyCheck = .continues) ∧
     (∀ t, (exposureReducingWithoutRate t).all (fun a => a != .halts && a != .failsClosed)) ∧
       (∀ t, underNoRate Admission.current t .exhaustionSweep = .routesNothing) ∧
       underNoRate Admission.current .pending .fundingCancellation = .waits ∧
@@ -3187,8 +3190,8 @@ theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
         underNoRate Admission.current t (.caller .create) = .halts ∧
         underNoRate Admission.current t (.caller .extendRunway) = .halts ∧
         underNoRate Admission.current t .rederivation = .halts ∧
-        underNoRate Admission.current t .solvencyCheck = .failsClosed ∧
-        underNoRate Admission.current t .metering = .metersNative) := by decide
+        underNoRate Admission.current t .metering = .metersNative) := by
+  constructor <;> decide
 
 /-- Under the row `LDG-40`'s 2026-10-02 note withdrew, "**the exhaustion sweep** (MUST continue:
 it reduces exposure)", the sweep goes on routing with no rate — the note: "Continuing cancelled
@@ -3200,6 +3203,13 @@ none. -/
 theorem the_sweep_continues_without_its_row :
     ∀ t, underNoRate { Admission.current with sweepRoutesNothingWithoutRate := false } t
       .exhaustionSweep = .continues := by decide
+
+/-- `LDG-40`'s withdrawn 2026-10-03 row, "**the solvency check** (MUST fail closed)",
+returns when its guard is disabled. This is the historical policy, not a computed shortfall. -/
+@[req "LDG-40"]
+theorem the_solvency_check_fails_closed_without_its_row :
+    ∀ t, underNoRate { Admission.current with solvencyUsesValuedTerms := false } t
+      .solvencyCheck = .failsClosed := by decide
 
 /-- `LDG-59`: "a USD quorum loss halts nothing priced in EUR". -/
 @[req "LDG-59"]

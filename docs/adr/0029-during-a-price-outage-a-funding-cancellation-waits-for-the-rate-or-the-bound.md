@@ -353,3 +353,67 @@ work order, `/var/tmp/provisiond-gates/gip29.md`: "or for that currency's outage
 for the paused grace's end". The original `pv-gip.37` description attributed the work order to
 the owner; that attribution was wrong. The owner's 2026-10-03 decision, recorded on `pv-gip.37`,
 resolves it with the rule quoted above.
+
+## A solvency check that cannot be computed has not failed — 2026-10-03
+
+The owner accepted the valued-term check on `pv-gip.31` (comment 128). `LDG-40` is the
+normative home; its amended solvency row replaces the withdrawn "**the solvency check** (MUST
+fail closed)". This changes the treatment of an unavailable currency leg, not the reserve
+obligation, and establishes neither whole-pool solvency while that leg is unknown nor a public
+assurance. The formal admission matrix records the row, not the monetary calculation.
+
+The reasons:
+
+- `LDG-20` explains its halt because "a customer could pay for a claim the operator had just
+  computed it could not honour". A missing rate computes no such insolvency. The withdrawn
+  reading invoked "Cancel unsettled Lightning invoices on unexpired deposits" and made the
+  deposit read report `gate: "solvency"` for what that requirement calls "a declared
+  insolvency". `LDG-19`'s standard applies: "A statement a reader will misunderstand is worse
+  than silence".
+- Nothing still allowed during the outage changes the unrated term through customer spending.
+  `LDG-40`'s create row says "MUST halt: it is a purchase priced at an unknown rate", and its
+  extension sentence says "an extension of runway MUST halt as a create does". `LDG-64` says
+  "charge the customer nothing for that window". A top-up adds the same satoshis to held and
+  float, leaving the margin unchanged. The outage removes knowledge of whether the pool was
+  already short, not money. This is a statement about customer spending, not an assertion that
+  provider liabilities cannot accrue: the operator's native accrual remains part of the cost below.
+- The computable terms still matter. `LDG-17` requires "satoshi reserves at least equal to the
+  float plus provider payables already incurred"; `LDG-20`'s stress includes "the
+  provider-currency pair adverse by 15%". Held satoshis and float need no currency rate.
+  Omitting non-negative payables can only make that inequality easier to satisfy, so a shortfall
+  even without them is evidence for the existing halt. The asset basis remains `LDG-53`'s
+  "channel balances and confirmed on-chain outputs", subject to `LDG-20`'s "An asset counts
+  only if it can reach the provider's account before the liability falls due."
+
+Rejected alternatives:
+
+- **Deployment-wide fail-closed, the withdrawn policy.** It stops healthy-currency business over
+  one window and contradicts `LDG-59`'s "a USD quorum loss halts nothing priced in EUR". It
+  hands whoever can starve one currency's window a deployment-wide halt plus invoice
+  cancellation. `ADR-0027` rejected a per-pass halt because it "handed whoever can disrupt one
+  pass a halt they never had"; expanding the blast radius does not answer that objection.
+- **A currency-scoped failure.** There is one pool and one verdict, with no subject to scope it
+  by. `05-persistence.md` says "a create and the solvency check have no subject to open one for".
+- **A last-known or estimated valuation of the unrated leg.** `LDG-59` says "Falling back to the
+  last known rate MUST NOT happen." `ADR-0027`'s "One rate, one home" still includes "the
+  solvency check. One rate, one home"; this decision does not create another estimator.
+
+**Accepted cost:** for as long as a currency has no rate, a shortfall lying wholly in that
+currency's leg (a move of the pair beyond the stress's 15%, plus the outage's native accrual under
+`LDG-64`) goes undetected, and top-ups taken meanwhile cannot be refunded (`ADR-0004`: "No
+withdrawal of the balance in any form" and "no refunds, ever"). **It lasts as long as the outage,
+which the bound does not end: the bound cancels machines, it does not value payables.** `LDG-64`'s
+words are "cancel machines at that bound if no rate has returned". The earlier panel suggestion
+that this blind spot lasted only until the cancellation bound was not the accepted decision.
+
+**Single-currency consequence:** a deployment whose only currency has no rate checks held
+satoshis against the float alone, so top-ups continue through a rate outage; until now they halted.
+A shortfall against that float still causes the computed-failure halt. That is a behavior change,
+not an assurance that the unknown leg is covered.
+
+The API write table gains a solvency pointer on `extend-runway`: `LDG-62` calls it "authorized
+like a purchase". Refusal ordering remains `pv-gip.26`'s question. `CNF-138` holds the outage
+conformance cases. The admission guard's off position retains the withdrawn solvency row, and
+`.github/workflows/ci.yml` holds its regression control. Neither the matrix proof nor those
+conformance requirements are evidence about a running system. Provider-payable resolution
+(`pv-gip.39`) and the deposit-read schema (`pv-gip.40`) remain separate work.

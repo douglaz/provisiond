@@ -748,25 +748,53 @@ takes the machines *and* the float" partly false.
 Added 2026-08-12. Past the window median (`LDG-58`), a wrong rate is the only
 external input in this specification that reaches a customer's disk (`LDG-41`, `LDG-14`).
 
-- [ ] **CNF-138** — With every rate source unavailable for longer than the staleness bound, a create
-      is refused, re-derivation halts **without** cancelling anything, the exhaustion sweep
-      enqueues no cancellation and opens no episode for a machine priced in that currency whose
-      stored `runway_until` passes while there is no rate, an `extend-runway` is refused `halted`
-      with `gate: "rate_unavailable"` and moves no balance and no commitment, and the solvency check
-      fails closed. All of them, from one fault injection; and once the rate has returned the sweep
-      routes a machine whose stored date has passed. **One currency's outage halts nothing priced
-      in another** (added 2026-10-02, `ADR-0029`; `LDG-59`'s "a USD quorum loss halts nothing
-      priced in EUR"): bill in two currencies and inject the fault into one alone, the other
-      keeping its rate. For the currency that has a rate, assert that the sweep routes a machine
-      whose stored `runway_until` has passed, that the worker claiming that cancellation decides
-      on the re-derived date and does not defer (`OPS-41`), and that an `extend-runway` is not
-      refused with `gate: "rate_unavailable"`; for the currency in outage, assert the sweep's and
-      the extension's clauses above. A build whose sweep or worker halts deployment-wide fails it. This case
-      asserts nothing about the solvency check while one currency alone has no rate.
-      (*Amended 2026-09-23, `ADR-0027`: a pass below quorum halts nothing (`LDG-59`), so the fault
-      must outlast the bound; `CNF-99` holds the single pass.* *Amended 2026-10-02, `ADR-0029`;
-      `LDG-40`'s note holds the sweep's withdrawn row.*)
-      (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-62`, `LDG-65`, `OPS-41`, `WIR-24`)
+- [ ] **CNF-138** — **No rate is not a computed solvency failure.** Use otherwise admissible
+      requests with fresh idempotency keys: no unrelated suspension, cancellation fence, spending
+      shortfall or restore grace explains a refusal or deferral. Before each fault, mint an
+      unexpired deposit with an unsettled Lightning invoice. Remove the affected currency's rate
+      sources for longer than the staleness bound and verify that its window yields **no rate**;
+      one below-quorum pass is insufficient (`CNF-99`). Observe the sweep and worker cases before
+      the outage bound. In the covered cases below, keep adequate assets after `LDG-53`'s asset
+      treatment and `LDG-20`'s stress, including through the admitted purchases.
+
+      **Only currency, covered float.** In a deployment billing in only that currency, held
+      satoshis cover the float. Assert that a deposit mints, no unsettled invoice is cancelled,
+      and the deposit read reports no `gate: "solvency"`. From the same fault, assert that a
+      create is refused, re-derivation halts **without** cancelling anything, and the exhaustion
+      sweep enqueues no cancellation and opens no episode for a machine whose stored
+      `runway_until` passes during the outage. An `extend-runway` is refused `halted` with
+      `gate: "rate_unavailable"` and moves no balance and no commitment. Once the rate returns,
+      the sweep routes a machine whose stored date has passed.
+
+      **Only currency, short float.** Keep that outage and make held satoshis fall short of the
+      float. Assert the computed-failure halt: deposit minting is refused `halted`, the unsettled
+      Lightning invoice is cancelled, the deposit read reports `gate: "solvency"`, and every
+      bill-increasing operation is refused. Caller cancellation and deletion remain permitted.
+      This case selects no precedence between simultaneous extension refusals.
+
+      **USD unrated, EUR covered.** Bill in USD and EUR, remove only USD's rate, and keep EUR's
+      window yielding its rate. Held satoshis cover the float plus stressed EUR payables; arrange
+      USD payables so that valuing them at the last pre-outage rate would make the check short.
+      Assert that an EUR create and `extend-runway` are admitted, a deposit mints, no unsettled
+      invoice is cancelled, and the deposit read reports no `gate: "solvency"`. For EUR, assert
+      that the sweep routes a machine whose stored `runway_until` has passed and the worker
+      claiming that cancellation decides on the re-derived date without deferring (`OPS-41`).
+      For USD, repeat the no-rate create, re-derivation, sweep and extension assertions of the
+      covered-float case. This rejects both deployment-wide failure from the missing rate and
+      last-rate fallback, as well as a sweep or worker that halts across currencies.
+
+      **USD still unrated, valued terms short.** With EUR still rated, increase EUR payables or
+      the float beyond held coverage. Assert the deployment-wide computed-failure halt: EUR
+      create and `extend-runway` are refused `halted` with `gate: "solvency"`, deposit minting is
+      refused `halted`, the unsettled Lightning invoice is cancelled, and the deposit read reports
+      `gate: "solvency"`. Caller cancellation and deletion remain permitted. The EUR requests
+      have no competing refusal; this case establishes no extension-refusal ordering.
+
+      (*Amended 2026-09-23, `ADR-0027`: the fault must make the window yield no rate; `CNF-99`
+      holds the single-pass case. Amended 2026-10-02 and 2026-10-03, `ADR-0029`; `LDG-40` keeps
+      the withdrawn rows.*)
+      (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-17`, `LDG-20`, `LDG-53`, `LDG-62`, `LDG-65`,
+      `OPS-41`, `WIR-24`)
 - [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no
       last-known-good fallback anywhere. Asserted by removing every source for longer than the
       staleness bound and confirming the system reports *no rate* rather than a number. (*Amended

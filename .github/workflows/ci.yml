@@ -478,6 +478,10 @@ jobs:
       #     sweepContinuesWithoutRate while the row said so): the sweep's row is the withdrawn
       #     "MUST continue", and it routes machines whose stored date passed during the outage --
       #     the_rate_matrix_halts_the_purchase_and_nothing_else on exposureReducingWithoutRate.
+      #   solvencyUsesValuedTerms (LDG-40, 2026-10-03, ADR-0029): the withdrawn
+      #     "MUST fail closed" row turns a missing rate into a solvency failure --
+      #     the_rate_matrix_halts_the_purchase_and_nothing_else, only its solvency conjunct,
+      #     on Action.solvencyCheck. Valuation itself is outside this model.
       # Exit closure (pv-vwe.34), Funding.current.exitPosts:
       #   LDG-38, 2026-10-03: exit without posting loses a sub-interval life and the tails
       #   around re-entry -- exit_closes_each_tail on exitCases Funding.current. Other
@@ -587,6 +591,7 @@ jobs:
           Admission|cancelUnsettledInvoices|true|false|unsettledUnexpiredInvoice
           Admission|exposureExemptUnderHalt|true|false|exposureReducingUnderHalt
           Admission|sweepRoutesNothingWithoutRate|true|false|exposureReducingWithoutRate
+          Admission|solvencyUsesValuedTerms|true|false|Action.solvencyCheck
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
           Period|deploymentWide|true|false|lateSubjectTrace
