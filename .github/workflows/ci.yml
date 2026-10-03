@@ -478,6 +478,10 @@ jobs:
       #     sweepContinuesWithoutRate while the row said so): the sweep's row is the withdrawn
       #     "MUST continue", and it routes machines whose stored date passed during the outage --
       #     the_rate_matrix_halts_the_purchase_and_nothing_else on exposureReducingWithoutRate.
+      # Exit closure (pv-vwe.34), Funding.current.exitPosts:
+      #   LDG-38, 2026-10-03: exit without posting loses a sub-interval life and the tails
+      #   around re-entry -- exit_closes_each_tail on exitCases Funding.current. Other
+      #   Funding guards are pinned so each row still refutes exactly one witness.
       # The billing period (pv-vwe.17), Period.current:
       #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
       #     the new period's first 2/5 posts 0 against what the old one left --
@@ -560,6 +564,7 @@ jobs:
           Funding|markDiscards|true|false|remeterTrace
           Funding|startsAtMark|true|false|overlapTrace
           Funding|seedOnBillable|true|false|seedTrace
+          Funding|exitPosts|true|false|exitCases Funding.current
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
@@ -629,7 +634,7 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo"
-          sed -i 's/^| machine deleted, commitment closed | 71,900 | 0 | 71,900 |$/| machine deleted, commitment closed | 71,900 | 0 | 71,901 |/' \
+          sed -i 's/^| machine deleted at that increment end, commitment closed | 71,900 | 0 | 71,900 |$/| machine deleted at that increment end, commitment closed | 71,900 | 0 | 71,901 |/' \
             12-billing-and-ledger.md
           grep -q '| 0 | 71,901 |' 12-billing-and-ledger.md
           if python3 tools/check_regions.py > regions.log 2>&1; then

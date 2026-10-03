@@ -1265,6 +1265,11 @@ the account would record every unlisted machine as gone — stopping their meter
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
 
+**The sweep's exit/gone write MUST take the affected subject's tenant primitive (`LDG-35`);
+see `LDG-38` for the exit.** One transaction per machine suffices; a transaction covering several
+tenants acquires their primitives in ascending tenant-identifier order (`LDG-35`). Provider
+enumeration and the direct re-read below remain outside the primitive (`LDG-69`).
+
 **And it may record an absence only about a machine past `PRV-36`'s effective visibility window for
 that provider** — `max(declared, max(observed))`, not the declaration alone (`ADR-0018`; this
 sentence read "declared" until 2026-09-08) — measured from the dispatch of the create that produced

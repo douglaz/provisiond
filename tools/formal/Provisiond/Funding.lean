@@ -104,12 +104,16 @@ settlement event; `LDG-52`'s rail floor; `LDG-56`'s disclosure; `WIR-42`'s `oper
 and currency (`LDG-2`)" and rate on the deficiency record — `Deficiency` carries the satoshi
 figure and the absorbed time only; `LDG-38`'s 2026-09-04 clause, "The subject's billability and its
 stop boundary MUST be re-read inside the same `LDG-35` serialization that appends, and the increment
-clipped to them" — every second from `start` to the end is billable here, the subject never leaves
-billable, so `seed` models an entry into billable and no exit, and nothing here says what is
-charged between a mark and an exit; `LDG-74`'s stop is `Provisiond.Reconcile`'s
-`World.meterStoppedAt`, in a module that posts no money and that this one does not import; the
-subject's own commitment opening and close (`Provisiond.Ledger`); a second subject, and with it the
-attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
+clipped to them" — the lifecycle trace below assumes ordered, non-quarantined transitions and given
+stop boundaries, with a rate for every increment. Non-quarantine is an explicit initial-state
+hypothesis of that trace; the standalone quarantined exit posts nothing. It proves interval coverage,
+not positive satoshi debits: rounding and clamp remain composed through `post`. Quarantine detection
+and recovery are excluded from that theorem; rate outages, provider observations and concurrent re-reads are not
+modeled here. `LDG-74`'s observation is `Provisiond.Reconcile`'s `World.meterStoppedAt`, in a
+module that posts no money and that this one does not import. The lifecycle release zeros the
+one remaining commitment after a stop; its opening and other ledger rules are in
+`Provisiond.Ledger`. No one-subject theorem establishes an account-wide transaction. Omitted also:
+a second subject, and with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
 the subject billable — `seed` is the mark's write alone; `LDG-68`'s period boundary
 (`Provisiond.Period`), and with it `LDG-38`'s "new period's `meter_totals` row starts with
 `r = 0`", the split of an increment "at every period boundary and every rate change it crosses" —
@@ -243,7 +247,8 @@ own remains inside that window". `usageKeyFrom`: `LDG-8`, the `usage_debit`'s ke
 posted" — the discard only; the mark is recorded either way. `startsAtMark`: `LDG-38`, 2026-10-02,
 "An increment MUST start at the subject's latest high-water mark"; `false` starts it where the
 observation takes itself to have begun. `seedOnBillable`: `LDG-38`, 2026-10-02, the mark written at
-"Every transition of a subject into billable"; `false` writes none. -/
+"Every transition of a subject into billable"; `false` writes none. `exitPosts`: `LDG-38`,
+2026-10-03, the exit closes through `post`; `false` records a stop without closing its tail. -/
 structure Params where
   keyFrom             : KeySource
   correctionPrefix    : Bool
@@ -253,6 +258,7 @@ structure Params where
   markDiscards        : Bool
   startsAtMark        : Bool
   seedOnBillable      : Bool
+  exitPosts           : Bool
   deriving DecidableEq, Repr
 
 /-- The rules as they stand. One field per line: `ci.yml`'s controls flip one each. -/
@@ -265,7 +271,8 @@ def current : Params := {
     usageKeyFrom        := .incrementEnd,
     markDiscards        := true,
     startsAtMark        := true,
-    seedOnBillable      := true }
+    seedOnBillable      := true,
+    exitPosts           := true }
 
 structure World where
   now           : Nat
@@ -294,6 +301,8 @@ structure World where
   /-- Not a column: the interval each admitted posting priced, start and end, in posting order. An
   increment of no seconds adds none. -/
   charged        : List (Nat × Nat)
+  /-- The subject quarantine from `LDG-72`; the audit that sets it is not modeled. -/
+  quarantined    : Bool := false
   deriving DecidableEq, Repr
 
 /-- A live `tenants` row bears the identifier. -/
@@ -1305,8 +1314,8 @@ What it does not cover: `World.charged` is the seconds each posting priced, not 
 says nothing of the rounding or the clamp; one subject, one open period and one rate per increment,
 so not the split at a boundary or the latest mark read across rows (`LDG-72`); a mark moved back by
 a restore (`STO-54`), after which the same seconds are priced again against a ledger that rolled
-back with it; and it is one-sided — it does not say every billable second is charged, and nothing
-here models an exit from billable. Without the rule it is false:
+back with it. This theorem alone is one-sided; `lifecycle_coverage` below adds coverage for
+well-formed entry/tick/exit traces. Without the rule it is false:
 `Provisiond.Witnesses.remeter_charged_twice_without_the_start_rule`. -/
 @[req "LDG-38"]
 theorem no_second_charged_twice (p : Params) (hp : p.startsAtMark = true) (w : World)
@@ -1319,5 +1328,186 @@ theorem no_second_charged_twice (p : Params) (hp : p.startsAtMark = true) (w : W
     | nil => exact h
     | cons e es ih => exact ih _ (charged_in_order_step p hp w e h)
   exact hrun.1.imp (fun hab t ht => by omega)
+
+
+/-! ## Completed billable spans
+
+`LifecycleTrace` is the validity relation: chronological entries, ticks only while billable,
+exit only while billable, re-entry only after exit, release only after a stop. The seed and
+posting operations are the existing ones. The trace requires a non-quarantined initial subject and
+contains no outage, restore, period change or provider calls. Its rates are nonnegative and each posting has one rate.
+The initial world has an empty priced-interval history, a mark at the initial cursor and keys
+covered by that mark. These are input-state hypotheses, not an assumed coverage conclusion. -/
+
+/-- The exit's meter write (`LDG-38`), before any commitment release. The off position retains
+an executable stop without posting. Stop recording itself is the `LifecycleTrace.exit` transition.
+A quarantined exit records its stop externally and leaves this money/meter world untouched. -/
+@[req "LDG-38"]
+def exitSubject (p : Params) (w : World) (boundary : Nat) (rate : Rat) : World :=
+  if w.quarantined then w else if p.exitPosts then post p w boundary boundary rate else w
+
+/-- `LDG-72`: a quarantined exit changes no entry, commitment or meter state. Stop recording
+and deletion completion are external to this one-subject money world. -/
+@[req "LDG-72"]
+theorem quarantined_exit_untouched (p : Params) (w : World) (boundary : Nat) (rate : Rat)
+    (hq : w.quarantined = true) : exitSubject p w boundary rate = w := by
+  simp [exitSubject, hq]
+
+theorem post_quarantined (p : Params) (w : World) (observed at_ : Nat) (rate : Rat) :
+    (post p w observed at_ rate).quarantined = w.quarantined := by
+  simp only [post]; split <;> rfl
+
+/-- The one-subject release (`LDG-32`); its admission is the trace's release constructor. -/
+@[req "LDG-32"]
+def release (w : World) : World := { w with remaining := 0 }
+
+/-- A second is in a half-open interval; this records pricing coverage, not a satoshi debit. -/
+def Inside (t : Nat) (i : Nat × Nat) : Prop := i.1 ≤ t ∧ t < i.2
+
+def Covered (xs : List (Nat × Nat)) (t : Nat) : Prop := ∃ i ∈ xs, Inside t i
+
+/-- Well-formed sequences of entries, ticks, exits and optional releases for one non-quarantined
+subject. `cursor` orders observations; `active` is the current seed; `spans` records completed
+seed-to-stop spans; `stopped` admits release only after an exit, never on an active subject.
+Temporary exits do not require release before re-entry. -/
+@[req "LDG-38"]
+inductive LifecycleTrace (p : Params) (initial : World) (origin : Nat) :
+    World → Nat → Option Nat → List (Nat × Nat) → Option Nat → Prop
+  | initial (notQuarantined : initial.quarantined = false) :
+      LifecycleTrace p initial origin initial origin none [] none
+  | enter {w cursor spans stopped} (prior : LifecycleTrace p initial origin w cursor none spans stopped)
+      (at_ : Nat) (ordered : cursor ≤ at_) :
+      LifecycleTrace p initial origin (seed p w at_) at_ (some at_) spans none
+  | tick {w cursor begin spans} (prior : LifecycleTrace p initial origin w cursor (some begin) spans none)
+      (at_ : Nat) (rate : Rat) (ordered : cursor ≤ at_) (priced : 0 ≤ rate) :
+      LifecycleTrace p initial origin (post p w cursor at_ rate) at_ (some begin) spans none
+  | exit {w cursor begin spans} (prior : LifecycleTrace p initial origin w cursor (some begin) spans none)
+      (at_ : Nat) (rate : Rat) (ordered : cursor ≤ at_) (priced : 0 ≤ rate) :
+      LifecycleTrace p initial origin (exitSubject p w at_ rate) at_ none (spans ++ [(begin, at_)]) (some at_)
+  | release {w cursor spans boundary}
+      (prior : LifecycleTrace p initial origin w cursor none spans (some boundary)) :
+      LifecycleTrace p initial origin (release w) cursor none spans (some boundary)
+
+/-- The ordinary posting reaches the requested boundary, adding exactly the remaining interval;
+a boundary already at the mark is a whole-state discard, including zero-entry postings. -/
+theorem post_partition (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (w : World) (cursor at_ observed : Nat) (rate : Rat)
+    (hm : w.mark = some cursor) (hc : w.markCovers) (ho : cursor ≤ at_) :
+    (post p w observed at_ rate).mark = some at_ ∧
+    (post p w observed at_ rate).charged =
+      w.charged ++ (if cursor < at_ then [(cursor, at_)] else []) := by
+  by_cases h : cursor < at_
+  · have hn := not_refused_past_the_mark p hk w hc at_ (charge p w observed at_ rate)
+        (by simp [hm, h])
+    simp [post, hn, start, hs, hm, h, Nat.max_eq_right ho]
+  · have he : at_ = cursor := by omega
+    subst at_
+    rw [post_discarded p hd w observed cursor rate (by simp [hm])]
+    simp [hm]
+
+/-- Splitting at any chronological tick preserves precisely the covered seconds. -/
+theorem covered_split (xs : List (Nat × Nat)) (a b t : Nat) :
+    Covered (xs ++ (if a < b then [(a,b)] else [])) t ↔
+      Covered xs t ∨ (a ≤ t ∧ t < b) := by
+  by_cases h : a < b
+  · simp [Covered, h, Inside]
+  · simp [Covered, h]; omega
+
+/-- Invariant derived from transitions: coverage equals completed spans plus the active prefix,
+with all priced intervals ordered. The mark/key hypotheses prevent an unrelated key conflict
+from silently refusing a fresh closing posting. -/
+theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
+    (initial : World) (origin : Nat) (hm : initial.mark = some origin)
+    (hc : initial.markCovers) (hempty : initial.charged = [])
+    {w cursor active spans stopped}
+    (trace : LifecycleTrace p initial origin w cursor active spans stopped) :
+    w.quarantined = false ∧ w.mark = some cursor ∧ w.markCovers ∧ w.chargedInOrder ∧
+    (∀ begin, active = some begin → begin ≤ cursor) ∧
+    (∀ boundary, stopped = some boundary → boundary = cursor) ∧
+    (∀ t, Covered w.charged t ↔ Covered spans t ∨
+      ∃ begin, active = some begin ∧ begin ≤ t ∧ t < cursor) := by
+  induction trace with
+  | initial hnq =>
+    refine ⟨hnq, hm, hc, ?_, by simp, by simp, ?_⟩
+    · simp [World.chargedInOrder, hempty]
+    · simp [Covered, hempty]
+  | @enter w cursor spans stopped prior at_ ordered ih =>
+    obtain ⟨hnq, hmark, hkeys, horder, _, _, hcover⟩ := ih
+    have hseed : seed p w at_ = { w with mark := some at_ } := by
+      simp [seed, he, hmark, Nat.max_eq_right ordered]
+    refine ⟨by simpa [hseed] using hnq, by simp [hseed], mark_covers_every_key p w (.billable at_) hkeys,
+      charged_in_order_step p hs w (.billable at_) horder, by simp, by simp, ?_⟩
+    intro t
+    have hem : ¬ (at_ ≤ t ∧ t < at_) := by omega
+    simpa [hseed, hem] using hcover t
+  | @tick w cursor begin spans prior at_ rate ordered priced ih =>
+    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
+    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ cursor rate hmark hkeys ordered
+    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, hm',
+      mark_covers_every_key p w (.post cursor at_ rate) hkeys,
+      charged_in_order_step p hs w (.post cursor at_ rate) horder, ?_, by simp, ?_⟩
+    · intro b hb; have := hbegin b hb; omega
+    · intro t
+      rw [hcharged, covered_split, hcover]
+      have := hbegin begin rfl
+      simp
+      by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
+  | @exit w cursor begin spans prior at_ rate ordered priced ih =>
+    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
+    simp only [exitSubject, hnq, Bool.false_eq_true, ↓reduceIte, hx]
+    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ at_ rate hmark hkeys ordered
+    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, hm',
+      mark_covers_every_key p w (.post at_ at_ rate) hkeys,
+      charged_in_order_step p hs w (.post at_ at_ rate) horder, by simp, by simp_all, ?_⟩
+    intro t
+    rw [hcharged, covered_split, hcover]
+    have := hbegin begin rfl
+    have happ : Covered (spans ++ [(begin, at_)]) t ↔
+        Covered spans t ∨ (begin ≤ t ∧ t < at_) := by simp [Covered, Inside]
+    rw [happ]
+    simp
+    by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
+  | @release w cursor spans boundary prior ih =>
+    exact ih
+
+/-- Every second in each completed seed-to-stop span belongs to exactly one priced increment:
+coverage is an equivalence (so nonbillable gaps are excluded), and pairwise disjointness rules out
+multiple occurrences. Hypotheses are the specified guards, a valid non-quarantined trace and a
+clean initial interval history with a consistent mark/key relation. Rounding and clamp may still
+post zero satoshis. -/
+@[req "LDG-38"]
+theorem lifecycle_coverage (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
+    (initial : World) (origin : Nat) (hm : initial.mark = some origin)
+    (hc : initial.markCovers) (hempty : initial.charged = [])
+    {w cursor spans stopped}
+    (trace : LifecycleTrace p initial origin w cursor none spans stopped) :
+    (∀ t, Covered w.charged t ↔ Covered spans t) ∧
+    w.charged.Pairwise (fun a b => ∀ t, ¬ (Inside t a ∧ Inside t b)) := by
+  obtain ⟨_, _, _, ho, _, _, hcov⟩ := lifecycle_invariant p hs hk hd he hx initial origin hm hc hempty trace
+  refine ⟨by simpa using hcov, ho.1.imp ?_⟩
+  intro a b hab t ht
+  simp only [Inside] at ht
+  omega
+
+/-- Any admitted release follows an exit that already closed the meter at its stop boundary.
+This holds for arbitrary valid traces, including ticks and repeated exit/re-entry without release;
+`release` cannot itself advance the mark or append a priced interval. -/
+@[req "LDG-32", req "LDG-38"]
+theorem release_follows_close (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
+    (initial : World) (origin : Nat) (hm : initial.mark = some origin)
+    (hc : initial.markCovers) (hempty : initial.charged = [])
+    {w cursor spans boundary}
+    (trace : LifecycleTrace p initial origin w cursor none spans (some boundary)) :
+    w.mark = some boundary ∧ (release w).mark = w.mark ∧
+      (release w).charged = w.charged ∧ (release w).remaining = 0 := by
+  obtain ⟨_, hmark, _, _, _, hstop, _⟩ := lifecycle_invariant p hs hk hd he hx initial origin hm hc hempty trace
+  exact ⟨by simpa [hstop boundary rfl] using hmark, rfl, rfl, rfl⟩
 
 end Provisiond.Funding

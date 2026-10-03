@@ -1002,11 +1002,39 @@ rather than acquiring a default.
       increments rate-homogeneous and the original unconditional claim becomes both true and
       demanding. When a conformance item has to be weakened to stay true, suspect the requirement.*
       (`LDG-38`, `LDG-28`, `LDG-4`, `PRV-13e`)
+      **Exit between ticks:** within one billing period, start at second 0, use 1/5 sat/s through
+      second 7 and 2/5 afterwards, and delete at 14. Compare no intervening tick with ticks at
+      3, 6, 9 and 12: both total 5 sats for exact consumption 21/5, end with `r = 4/5`, and
+      mark 14. Repeat over arbitrary subdivisions and stop instants, with sufficient authority.
+      Include a closing increment spanning a period boundary: seed Jan 31 23:59:30Z, no tick,
+      exit Feb 1 00:00:30Z, rate 1/5 sat/s before midnight and 2/5 after. Expect January's debit
+      6 and February's debit 12, keys ending at midnight and the stop respectively, both credits
+      zero. (`LDG-38`, `LDG-68`)
 - [ ] **CNF-186** — Two credited payments each below the activation minimum, summing above it,
       activate the tenant atomically. (`LDG-52`, `API-35`)
 - [ ] **CNF-187** — A machine deleted while a billable attachment survives keeps its commitment
       open and keeps metering that attachment; the commitment closes only when the last billable
       resource stops. (`LDG-32`, `PRV-13a`, `STO-18`)
+      **Close each subject before releasing authority.** With 30 sats remaining, machine seed 0,
+      no tick, 1/5 sat/s and gone delete at 7, assert debit 2, machine mark 7 and `r = 3/5`,
+      then 28 still committed while the retained attachment is seeded at 7. Release it at 11
+      at 1/5 sat/s with no attachment tick: its own debit is 1, mark 11, `r = 1/5`, and only
+      then is the remaining 27 released. Repeat with an `api` attachment through `PRV-45`'s
+      terminal release, and a `manual` attachment through `API-65`'s synchronous release.
+      With two retained attachments, releasing one must leave the commitment open for the other.
+      **Release while the machine runs:** use the same retained-row setup, then a fixture driver
+      authoritatively reports that same, untombstoned machine running again at 9 (`DOM-8`),
+      before releasing the attachment at 11. For the `api` case, first let the delete's automatic
+      release attempt settle as a deterministic failure without releasing the attachment; the
+      refresh can then run, followed by the operator's fresh release. This is a re-entry of the
+      existing machine, not a new row or reused identifier. Assert its seed at 9 and unchanged
+      machine credit; the
+      attachment still posts its own 1 sat at release, leaving 27 committed for the running
+      machine. Exercise both release writers. A fixture starting with a running machine and no
+      retained attachment row cannot exercise either writer. Finally repeat the gone-delete
+      case with only 1 sat remaining: its computed 2 clamps to a debit/decrement of 1 and a
+      `clamp_overflow` of 1; attachment consumption with zero authority uses the ordinary clamp,
+      never available balance. (`LDG-38`, `LDG-31`, `PRV-45`, `API-65`)
 - [ ] **CNF-188** — An unreachable provider account or rejected credentials leave commitments
       **open**, with the carried exposure recorded as an **operator deficiency** (`LDG-66`); only
       confirmed termination closes them and returns their reserved satoshis to available. Run it
@@ -1411,6 +1439,28 @@ rather than acquiring a default.
       waits for an absence write — that is the
       ordinary machine, and binding the stop to a caller's refresh leaves it draining forever.
       (`LDG-74`, `OPS-32`, `STO-48`, `LDG-37`, `DOM-7`, `DOM-8`, `STO-18`, `SEC-46`)
+      **No tick during a short life:** configure a 60-second meter interval and a fixture
+      provider whose effective visibility window is one second. Record the machine billable at
+      second 10, with `r = 0`, 30 sats committed and customer rate 1/5 sat/s; record it gone at
+      14 with no intervening tick. Expect priced interval [10,14), debit/decrement 1, `r = 1/5`,
+      mark 14, and release of 29 only after that posting. Drive the gone write separately through
+      the complete sweep and direct re-read, explicit refresh, an operation's authoritative
+      driver read, and successful delete settlement (`OPS-48`'s gone-write row).
+      **Race the tick:** let a tick read billable at 13 and wait outside serialization; commit
+      the exit at 14, then resume the tick, and also submit a tick after the exit. Assert the
+      re-read clips to 14 and discards: no debit, decrement, credit change or false deficiency.
+      Observe tenant serialization on each exit, including the sweep, with provider enumeration
+      and direct re-read outside it. Repeat on a zero-entry closing increment: tick at 7 on a
+      seed at 0 and rate 1/5 posts 2, then exit at 9 posts no entry, leaves `r = 1/5` and mark 9;
+      neither late tick moves anything despite there being no entry key ending at 9.
+      **Outage exit:** seed 0 with `r = 0` and sufficient commitment; use 1/5 sat/s until a
+      history-derived outage start at 7, stop at 14. Expect total debit/decrement 2 for [0,7),
+      `r = 3/5`, mark 14 and one native-only `rate_outage` row with `absorbed_from = 7`,
+      `absorbed_until = 14`, `absorbed_seconds = 7`. Exercise a first no-rate posting at 10
+      that opens the row before exit, and no intervening tick so the exit conditionally inserts
+      and closes it itself. There is never a duplicate, no satoshi debit for [7,14), and a later
+      rate return posts no catch-up debit. Repeat through the attachment release writers.
+      (`LDG-38`, `LDG-35`, `LDG-64`, `STO-37`, `LDG-8`)
 - [ ] **CNF-278** — **An account can actually be recorded lost, and the right thing happens.** Drive
       `POST /v1/provider-accounts/{account}/actions/record-status` across all four statuses, **on
       independent account fixtures** — `terminated` is write-once (`API-63`), so a single account
@@ -1427,9 +1477,17 @@ rather than acquiring a default.
       list, or a fixture where the two sets coincide, passes the build this item exists to reject.*
       **On the `terminated` case, assert the whole ordered transaction and then run the clock out.**
       Each machine carries a gone state and `state_observed_at` at the recording instant, every
-      unreleased billable attachment carries a `released_at`, and the **last** debit for each subject
-      ends exactly at that instant — neither dropped nor clamped away, which is what posting it after
-      the release would do. Then advance past at least one metered increment and assert **nothing
+      unreleased billable attachment carries a `released_at`. For ordinary priced subjects with
+      sufficient commitment the **last** debit ends at their stop boundary — neither dropped nor
+      clamped away by premature release. Use the 10-to-14 short-life fixture of `CNF-277` on
+      different tenants: each posts 1 before releasing its remaining 29. Include a scheduled
+      machine with effective date 12, seed 10, rate 1/5 and termination at 14: its debit is 1,
+      mark 12 and `r = 3/5`, never a charge for [12,14). Include a quarantined subject using
+      `CNF-236`'s delete fixture: stop is recorded, no debit/decrement or meter-state write;
+      its commitment is released by termination. Exercise `CNF-277`'s outage fixtures too.
+      Assert all affected tenants' primitives are acquired in ascending identifier order,
+      in the one account transaction, with stop → `LDG-38` exit → `LDG-32` release. Then advance
+      past at least one metered increment and assert **nothing
       further posts**, for any machine in that account or any attachment it left behind. Finally
       assert the exhaustion sweep mints **no** delete for those machines: a build that stops the
       meters and leaves the rows in inventory floods the operator listing with one permanently-open
@@ -1745,6 +1803,15 @@ rather than acquiring a default.
       increment boundary, and its amount is a rounded difference of two cumulative figures, so the
       rational was never recoverable. It read as the most rigorous item in the file for a day.
       (`LDG-72`, `STO-45`, `LDG-38`, `LDG-8`)
+      **Execute a quarantined delete:** seed at 0, tick at 7 at 1/5 sat/s (debit 2, mark 7,
+      `r = 3/5`), then inject `r = 2` and run the required check to quarantine the subject.
+      Delete at 14 with no surviving attachment. Assert deletion and the gone write complete,
+      no usage debit or commitment decrement posts, and the exit leaves mark 7 and `r = 2`
+      untouched as alert evidence. Commitment release is still permitted; it is not a usage
+      decrement. Repeat with a mark behind the existing key instead of an invalid credit.
+      No new deficiency cause or later catch-up debit appears. Repeat during a rate outage with
+      no existing outage row: quarantine still posts nothing and creates no row. (`LDG-72`,
+      `LDG-38`, `LDG-64`, `STO-37`)
 - [ ] **CNF-216** — The billing period boundary is `00:00:00Z` on the first of the month for every
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either — **the increment closes at the boundary,
@@ -2086,9 +2153,23 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       row starts at `r = 0`. A build that uses the attachment write's time in the scheduled case
       leaves 10:00–10:05 uncharged. (`LDG-38`, `STO-45`, `LDG-72`, `LDG-68`, `PRV-45`, `LDG-74`,
       `LDG-37`)
+      **Close before re-entry:** configure a deployment-defined nonbillable state, such as
+      `unknown`, without changing the billability of `stopped` or treating `failed` as gone.
+      Within one period at 1/5 sat/s, seed at 0, tick at 7, record that nonbillable state at 9,
+      re-enter billable at 20 and exit at 24. Keep the commitment open across the temporary
+      exit. Expect intervals [0,7), [7,9), [20,24), debits 2 then 1 in total (the first exit
+      writes no entry), mark 9 and `r = 1/5` at the first exit, seed 20 with that credit
+      unchanged, and final mark 24 with `r = 2/5`. No [9,20) seconds are charged; re-entry
+      cannot erase the earlier tail. (`LDG-38`, `LDG-37`)
 - [ ] **CNF-161** — A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at
-      cancellation *acceptance* is the defect. (`LDG-37`, `DOM-19`)
+      cancellation *acceptance* is the defect. With seed at 10:00, effective date 10:04,
+      gone observation at 10:05, `r = 0`, rate 1/5 sat/s and sufficient authority, expect 48
+      sats and mark 10:04. First run with no intervening tick: the gone write posts the 48
+      before commitment release. Repeat with a tick that already closed at 10:04: the gone
+      write discards its attempt and changes neither meter state nor entries. Neither case
+      charges 10:04–10:05, and cancellation acceptance posts no future consumption.
+      (`LDG-37`, `DOM-19`, `LDG-38`, `LDG-74`)
 - [ ] **CNF-162** — **REWRITTEN.** The setup fee follows `LDG-39`'s table: debited **on confirmed
       acceptance** and the commitment decremented in the **same transaction** (kill the process
       between them and neither survives); **released in full** on deterministic rejection and on

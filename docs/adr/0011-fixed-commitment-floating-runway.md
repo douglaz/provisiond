@@ -81,3 +81,15 @@ being grabbable by one price reading, which is an attack surface with the whole 
 
 **Symmetric gentle widening with the gap priced** — the status quo ante. Keeps both the lag *and*
 the freeze surface; the costs of each design and the clarity of neither.
+
+## Exit closure — 2026-10-03
+
+The owner selected exit-owned closure; `LDG-38` is the rule's home, including outages, with
+`LDG-72` owning quarantine. Rejected together: a minimum charge of one meter interval overcharges
+partial use, still does not recover the tail lost across exit/re-entry, and turns cadence into a
+pricing input, against `LDG-38`'s “Observation cadence is an operational choice; it MUST NOT be a
+pricing input.” Leaving the tail free conflicts with `LDG-74`'s “Billing stops at the observation
+instant” and `CNF-161`'s “is billed through its effective date”, and permits create-and-delete
+within an interval without paying for the consumed time. Closing before release preserves the
+remaining authority for the tail; it does not promise a positive debit despite rounding, the
+`LDG-31` clamp or `LDG-64`'s absorbed outage time.

@@ -1862,15 +1862,76 @@ theorem first_increment_from_the_period_start_without_the_seed :
     w.charged = [(60, 90)] ∧ w.entries.map (·.sats) = [-6] := by decide +kernel
 
 /-- `LDG-38`: the seed is written at "any later re-entry into a billable state", and "an existing
-row's `r` is untouched". After `seedTrace`'s increment a seed at 200 moves the mark from 90 to 200
-and nothing else, and a seed at or before the mark moves nothing. What is charged for the time
-before a re-entry is not this witness's: the model has no exit from billable. -/
+row's `r` is untouched". Exit at 100 closes the ten seconds left after `seedTrace`'s tick;
+re-entry at 200 moves only the mark. All guards here are pinned for control isolation. -/
 @[req "LDG-38"]
 theorem reentry_seeds_the_mark_and_nothing_else :
-    let p := { Funding.current with startsAtMark := true, seedOnBillable := true }
-    let w := Funding.run p seedWorld seedTrace
-    Funding.seed p w 200 = { w with mark := some 200 } ∧ w.mark = some 90 ∧
-    Funding.seed p w 50 = w := by decide +kernel
+    let p := { Funding.current with startsAtMark := true, seedOnBillable := true,
+                                    exitPosts := true, markDiscards := true, usageKeyFrom := .incrementEnd }
+    let w := Funding.exitSubject p (Funding.run p seedWorld seedTrace) 100 (1/5)
+    Funding.seed p w 200 = { w with mark := some 200 } ∧ w.mark = some 100 ∧
+    w.charged = [(30, 90), (90, 100)] ∧ Funding.seed p w 50 = w := by decide +kernel
+
+/-- Only the exit guard follows the current settings; each older control retains its own witness. -/
+def exitGuards (p : Funding.Params) : Funding.Params :=
+  { p with startsAtMark := true, seedOnBillable := true, markDiscards := true,
+           usageKeyFrom := .incrementEnd }
+
+/-- Four seconds at 1/5 sat per second, no intervening tick. -/
+def shortLife (p : Funding.Params) : Funding.World :=
+  Funding.exitSubject p (Funding.seed p fundWorld 10) 14 (1/5)
+
+/-- A tick at 7, exit at 9, re-entry at 20, exit at 24. No commitment release at the temporary
+exit: both completed billable spans consume the same still-open authority. -/
+def reenteredLife (p : Funding.Params) : Funding.World :=
+  let w := Funding.post p (Funding.seed p fundWorld 0) 0 7 (1/5)
+  let w := Funding.exitSubject p w 9 (1/5)
+  Funding.exitSubject p (Funding.seed p w 20) 24 (1/5)
+
+/-- One diagnostic for the exit guard, with both required lifecycles. -/
+def exitCases (p : Funding.Params) : Prop :=
+  let p := exitGuards p
+  let short := shortLife p
+  let twice := reenteredLife p
+  short.charged = [(10,14)] ∧ short.mark = some 14 ∧ short.entries.map (·.sats) = [-1] ∧
+  short.remaining = 29 ∧ short.roundingCredit = 1/5 ∧
+  twice.charged = [(0,7), (7,9), (20,24)] ∧ twice.mark = some 24 ∧
+  twice.entries.map (·.sats) = [-2,-1] ∧ twice.remaining = 27 ∧ twice.roundingCredit = 2/5
+
+instance (p : Funding.Params) : Decidable (exitCases p) := by
+  unfold exitCases
+  infer_instance
+
+/-- `LDG-38`'s exit closes both a sub-interval life and each span around a nonbillable gap. -/
+@[req "LDG-38"]
+theorem exit_closes_each_tail : exitCases Funding.current := by
+  with_unfolding_all decide
+
+/-- Without the exit guard, the four-second subject posts nothing; re-entry irretrievably moves
+past the first span's 7-to-9 tail, and the second span posts nothing either. -/
+@[req "LDG-38"]
+theorem exit_without_posting_loses_tails :
+    let p := { exitGuards Funding.current with exitPosts := false }
+    let short := shortLife p
+    let twice := reenteredLife p
+    short.charged = [] ∧ short.mark = some 10 ∧ short.entries = [] ∧ short.remaining = 30 ∧
+    twice.charged = [(0,7)] ∧ twice.mark = some 20 ∧ twice.entries.map (·.sats) = [-2] ∧
+    twice.remaining = 28 ∧ twice.roundingCredit = 3/5 := by decide +kernel
+
+/-- The short life is admitted by the general trace relation, so its coverage is not predicated
+on a hand-written interval partition. Validity itself does not assume that the guard is on. -/
+@[req "LDG-38"]
+theorem short_life_is_valid (p : Funding.Params) :
+    Funding.LifecycleTrace p fundWorld 0 (shortLife p) 14 none [(10,14)] (some 14) := by
+  exact .exit (.enter (.initial rfl) 10 (by decide)) 14 (1/5) (by decide) (by decide +kernel)
+
+/-- The re-entry witness also inhabits the general trace, without a release between spans. -/
+@[req "LDG-38"]
+theorem reentered_life_is_valid (p : Funding.Params) :
+    Funding.LifecycleTrace p fundWorld 0 (reenteredLife p) 24 none [(0,9),(20,24)] (some 24) := by
+  exact .exit (.enter (.exit (.tick (.enter (.initial rfl) 0 (by decide)) 7 (1/5)
+    (by decide) (by decide +kernel)) 9 (1/5) (by decide) (by decide +kernel))
+    20 (by decide)) 24 (1/5) (by decide) (by decide +kernel)
 
 end Funding
 

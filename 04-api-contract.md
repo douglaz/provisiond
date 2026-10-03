@@ -1006,6 +1006,7 @@ list for that reason. A release the delete's terminal transaction enqueues carri
 `requested_by` and `system_reason`, so `WIR-10a`'s set gains no member for it. The `202` form is
 idempotent as any operation is (`API-11`); the `200` form, returning no operation, commits the
 `released_at` write and its idempotency record together under `WIR-24`'s one-transaction rule.
+For the release's exit write, see `LDG-38`.
 Either is what opens `STO-18`'s tombstone gate, and `LDG-74` is where the tombstone then happens.
 
 ## Operation views
@@ -1248,17 +1249,8 @@ surface the tenants it affects.
 every machine in that account gone** — `machines.state` and `machines.state_observed_at` (`STO-48`)
 set to the recording instant, which is the write `LDG-74` stops a meter by, and `released_at` set on
 every unreleased billable attachment, which is how an attachment's meter stops (`LDG-32`, `STO-18`);
-**post each subject's closing partial increment against its commitment** (`LDG-38`), from the start
-`LDG-38` gives every increment to the recording instant, which is time the customer consumed and
-the last moment there is a commitment to post it against — **and where a rate outage is in force,
-post only the segment priced before the outage began, close **every affected subject's existing `rate_outage`
-deficiency record — the machine's and each unreleased attachment's, which are metered separately**
-— at that subject's meter-stop instant (`LDG-38` — the recording instant, or the
-earlier `effective_cancellation_date` of a scheduled machine; `STO-37`'s `absorbed_until`; not a
-second record),
-and advance the meter's state without a satoshi debit** (*added 2026-09-05: `LDG-64`
-forbids a deferred satoshi debit at a later rate, and a closing increment with no rate to price it
-at had either to break that rule or to leave the meter unclosable*); **close and release in full
+**apply `LDG-38`'s exit rule to every subject**, including scheduled machines and quarantined
+subjects; **close and release in full
 every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create naming that
 account straight to `failed`** — `conflict`, `details.reason: "account_terminated"` — **and close
 and release its commitment**, exactly as `API-58` step 4 does for a suspension and for the same
@@ -1323,25 +1315,15 @@ machine is *somewhere* rather than orphaned in silence.
 `affected_tenants`, acquired in ascending tenant-identifier order** — the ordering `LDG-35` already
 states for the two-tenant attribution case, applied here to n tenants, and that set rather than "the
 tenants whose commitments were released" because a metered machine need not have one (`OPS-36`) and
-its meter is exactly what this serializes against. *Added 2026-09-04, and it is the half that
-statement order cannot supply: ordering the writes **inside** one transaction says nothing about a
-meter transaction already in flight for one of these tenants, which reads a machine that is still
-billable and posts its `usage_debit` after the release. `LDG-70` puts every ledger append inside this
-serialization already, so holding the primitive is what serializes the two; nothing weaker does.*
-**What that late debit costs is the operator, not the customer** — with the commitment closed there
-is no remaining amount, so `LDG-31` debits the tenant nothing and books the whole of it as an
-operator deficiency (`LDG-66`, `STO-37`). *A draft said it posted "straight into free balance",
-which `LDG-31` forbids eight lines further down this same requirement. The lock is still required:
-without it the operator absorbs a deficiency for seconds that were already billed before the stop,
-and the meter's rounding credit advances against an increment nobody authorized.*
+its meter is exactly what this serializes against. For the posting's serialized re-read and
+clipping, see `LDG-38`.
 It holds **no machine** (`OPS-8`) — `LDG-69` forbids that under the serialization — and these are
-the same columns `OPS-32`'s sweep writes without holding one (`STO-48`).
+the same columns `OPS-32`'s sweep writes without holding one (`STO-48`); both exit writes take
+the tenant primitive per `LDG-38`.
 
 **The order is the requirement, and each step exists because the one after it destroys the evidence
-it needs.** The closing increment cannot post after the release, because there is no commitment left
-to post it against and `LDG-31`'s clamp would write the whole of it off as an operator deficiency —
-so the customer's last minutes would be free and the operator's ledger would carry a loss it never
-incurred. The tombstones cannot come before the attachment writes, because `STO-18` forbids
+it needs.** For closing increments see `LDG-38`, and for the decision see `ADR-0011` (2026-10-03).
+The tombstones cannot come before the attachment writes, because `STO-18` forbids
 tombstoning while a billable attachment has a null `released_at`. And **leaving the machine rows
 without a gone state is not a smaller version of this rule but a different failure**: the rows stay
 in inventory at zero usable satoshis, `LDG-13`'s exhaustion sweep reads them off `runway_until`,
@@ -1355,10 +1337,8 @@ per machine — the `CNF-272` scenario, at the scale of a whole account.*
 `LDG-32`'s first terminal outcome reads "the machine stops billing **and every billable attachment
 it left behind has stopped billing**", which is the shape the other rows share — while the
 account-termination row added on 2026-09-02 released the money
-and left every meter running. The debits then post against a closed commitment, which is to say
-directly against the tenant's free balance, for machines nobody can observe, on an account whose
-credentials no longer work. `LDG-13`'s exhaustion sweep eventually cancels what it cannot reach,
-so the customer's whole balance drains into a provider that already threw the machines away.*
+and left every meter running. For exit ordering and its rationale, see `LDG-38` and
+`ADR-0011` (2026-10-03).*
 **This is the one case where a machine's meter and its attachments' meters stop together**, against
 `LDG-74`'s general rule that they must not be collapsed: that rule protects volumes which outlive
 their machine, and nothing in a terminated account outlives it.

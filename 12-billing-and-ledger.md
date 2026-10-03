@@ -283,7 +283,7 @@ because spending what you already committed neither frees nor freezes anything:
 | `topup` +72,000 | 72,000 | 0 | 72,000 |
 | commitment opened, 72,000 | 72,000 | 72,000 | 0 |
 | one hour consumed: `usage_debit` −100, commitment → 71,900 | 71,900 | 71,900 | 0 |
-| machine deleted, commitment closed | 71,900 | 0 | 71,900 |
+| machine deleted at that increment end, commitment closed | 71,900 | 0 | 71,900 |
 <!-- /formal -->
 
 **LDG-32** **AMENDED.** A commitment MUST be closed, and its remaining amount released in full,
@@ -428,24 +428,6 @@ column is still null when the worker writes it, and the machine is destroyed any
 permitted direction above is exactly what the fence is built on, and the prohibition that matters is
 the other clause: **the provider call happens after that transaction commits**, never inside it.
 
-**`OPS-41`'s re-check is the one path that genuinely nests.** Every other `LDG-35`-serialized path —
-enqueue-time authorization (`LDG-11`), `OPS-27`'s resolution, `OPS-36`'s late attach, the meter
-(`LDG-38`), extend-runway (`LDG-62`) — runs under no operation's hold on a machine, and a create
-holds none at all, because `OPS-8` binds the hold to an operation that *names* a machine and a
-create's `machine_id` is set only on completion (`05-persistence.md`). That is why this requirement
-is written as an *order* rather than a prohibition, and why `CNF-217` asserts the boundary — no
-acquisition of a machine, no child wait and no provider call from *inside* the primitive — rather
-than asserting that nothing outside it holds one. The one entry kind that would put a debit inside
-a machine-holding worker is `operation_fee_debit`, and `LDG-25` prices privileged operations at zero
-in v1 — so it is defined, paired by `LDG-31`, and posted by nothing. **Price an install and the
-nesting becomes reachable in the same release**, which is why the rule is written now rather than
-when it first bites.
-
-*Recorded because it was checked: an earlier review asserted a live lock-order inversion between
-the machine hold and this primitive, and two independent reviewers refuted it on the reading above.
-What survived the refutation was the absence of any boundary rule at all — nothing said a money
-transaction may not outlive itself — and that is what this requirement supplies.*
-
 **LDG-11** Opening the commitment and enqueuing the operation MUST be one transaction — `store`'s,
 the only module that opens one (`OVR-9`). A
 commitment without an operation silently freezes a customer's money; an operation without a
@@ -538,7 +520,8 @@ nothing in the system raises anything.
   attachments are separately metered subjects (`STO-38`, `LDG-32`) that keep running after the
   machine is gone. So the machine subject stops, each unreleased billable attachment keeps being
   metered on its own identity, and the row is tombstoned when `STO-18` allows and the commitment
-  closes per `LDG-32`. *Written out because the obvious implementation — set `deleted` and
+  closes per `LDG-32`. For exit ordering, see `LDG-38`. *Written out because the obvious
+  implementation — set `deleted` and
   tombstone — is the one `STO-18` refuses, and a terminated machine leaving volumes behind is the
   ordinary case rather than the exotic one.*
 
@@ -604,10 +587,9 @@ half a lock alone does not buy.* `LDG-70` already puts every append inside that 
 appends cannot interleave — but nothing said the *inputs* had to be read there. A tick that read
 `running` before an `API-63` termination or an `LDG-74` stop, then waited, then took the primitive,
 posts an increment computed from state that is no longer true. Holding the primitive orders the
-writes and does nothing about the stale read. The debit is not the customer's — with the commitment
-closed `LDG-31` clamps it to zero against the tenant and books the remainder as an operator
-deficiency — so the visible damage is an operator loss for time nobody consumed, plus a rounding
-credit advanced against an increment that never existed.
+writes and does nothing about the stale read. After an ordinary exit closes its increment under
+the exit rule below, a late tick re-reads the stop boundary and finds the mark there: its clipped
+attempt is discarded, with no debit, decrement, rounding-state change or deficiency.
 
 **For a `cancellation_scheduled` machine the stop boundary is the earlier of its
 `effective_cancellation_date` and any gone observation** (`LDG-74`, `DOM-19`). *Added 2026-09-05.
@@ -878,6 +860,27 @@ at or before the subject's latest mark is discarded under the discard rule above
 carries no seconds and posts nothing: a period row it creates starts with `r = 0`, and an existing
 row's `r` is untouched.
 
+**Every transition of a subject out of billable MUST close that subject's increment at its stop
+boundary, in the write that records the exit, holding that subject's tenant's `LDG-35` primitive,
+before any `LDG-32` close.** This applies to the gone writers in `OPS-48`'s gone-write row and
+`LDG-74`, attachment releases (`PRV-45`, `API-65`), transitions out of `LDG-37`'s deployment-defined
+billable set, and account termination (`API-63`). Each subject closes independently; an attachment
+release need not close its machine's commitment. For an exit to a deployment-defined nonbillable
+state, the boundary is that transition's recorded instant; for an attachment release, it is
+`released_at`. The start, splits, arithmetic, clamp and discard are the same as for any increment
+below, including a stop whose boundary a tick already closed.
+A scheduled cancellation uses the stop boundary above, never its later gone observation or future
+time charged at cancellation acceptance.
+For a quarantined subject, apply `LDG-72`'s exit exception.
+
+**On an exit during a rate outage, only the priced segment before the outage is debited; the
+remaining outage time is absorbed through the subject's stop boundary.** The exit closes any
+existing subject outage row with `absorbed_until` at that boundary. Where the closing posting is
+the first to compute no rate within its clipped increment, it uses `STO-37`'s conditional-insert
+path and closes the resulting row there. It advances the mark to the boundary without a satoshi
+debit for the absorbed segment. For rounding state, see above; for later billing, see `LDG-64`.
+The rationale for exit closure is in `ADR-0011` (2026-10-03).
+
 **An increment MUST start at the subject's latest high-water mark** — in whichever period's row that
 mark sits (`LDG-72`) — **and MUST be split at every period boundary and every rate change it
 crosses.** There is no case without a mark: the seed puts one there before the first metered
@@ -1001,7 +1004,12 @@ that, and they were found together:
 - **Fail closed means the SUBJECT, not the deployment.** On a failed check the deployment MUST
   quarantine further usage debits, commitment decrements and exhaustion decisions for that subject,
   MUST alert, and MUST continue to admit cancellation and deletion — a machine nobody can bill is
-  still a machine somebody is paying for. *`LDG-20`'s deployment-wide solvency halt was cited here
+  still a machine somebody is paying for. **A quarantined exit MUST record the stop and allow
+  deletion to complete, but MUST post no usage debit or commitment decrement and MUST write no
+  meter state: both mark and `r` remain the evidence referenced by the alert.** The unposted tail
+  has the existing treatment of time suppressed by quarantine (`LDG-64`, `STO-37`); it creates no
+  new deficiency cause, catch-up debit or meter repair. Re-entry uses `LDG-38`'s seed unchanged.
+  *`LDG-20`'s deployment-wide solvency halt was cited here
   and is the wrong instrument: one subject's corrupted rounding credit is not evidence that the
   float is short, and halting every tenant over it converts a one-satoshi exposure into an outage.*
 
@@ -1229,7 +1237,7 @@ usage cannot be converted to satoshis. A deployment MUST:
 - **close the absorbed window at the observation with which `LDG-58`'s window produces a rate
   again** — `STO-37`'s `absorbed_until` is written with that observation's instant, by that
   observation's own write — **or with the subject's own meter-stop instant where that comes
-  first** (`LDG-38`, `LDG-74`, `API-63`), since a machine that died mid-outage absorbed nothing
+  first** (the exit writer is `LDG-38`'s), since a machine that died mid-outage absorbed nothing
   after it died — and by no other event (*added 2026-09-05; the column was required by
   `LDG-38`'s apportioning and had no writer, so the meter could neither end the window nor tell
   where billable time resumed*). The first observation accepted after an outage is not always

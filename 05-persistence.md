@@ -282,11 +282,12 @@ column existed to receive it — which is `STO-38`'s named failure class, on the
 hit it. It is separate from `updated_at` because that column moves when the fence is set, a
 restriction is recorded or a runway is re-derived, none of which is evidence about the provider; and
 separate from `network_restriction_observed_at`, which answers a different question about a machine
-that still exists.
+that still exists. For exit writes and their serialization, see `LDG-38` and `OPS-32`.
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; **unique `(provider_account,
 external_id)` across all tenants (`STO-17`), which is also the index `OPS-32`'s account sweep reads
-by** — that sweep has no `tenant_id`, so the first constraint's leading column is useless to it;
+by** — account enumeration has no `tenant_id` filter; each matched machine row supplies its
+tenant for the exit write (`OPS-32`);
 index on `(tenant_id, updated_at desc)`; index on `(correlator_value)` for reconciliation lookup
 (`OPS-27`); index on `(runway_until)` for the exhaustion sweep (`LDG-13`).
 
@@ -581,8 +582,10 @@ unique on `(currency, observed_at)` and on `(currency, acceptance_order)`. Reade
 subject's currency. **One row per rate observation
 the deployment accepts** (`LDG-58`'s median of one pass's sources), **written before that rate is
 used for anything**, and retained at least until every subject **with an open increment** has closed
-one past its `observed_at` — a stopped subject closes no further increment and must not pin the
-table forever — **and never less than one window per currency** (added 2026-09-23, `ADR-0027`): no
+one past its `observed_at` — an exiting subject retains its open increment through `LDG-38`'s
+exit write; after that write a stopped subject closes no further increment and must not pin the
+table forever, including a quarantined exit under `LDG-72` — **and never less than one window per
+currency** (added 2026-09-23, `ADR-0027`): no
 row is pruned while its `observed_at` lies inside its currency's window (`LDG-58`), since the rate
 is taken over exactly those rows. **And never the rows a replay of an outage's start would need**
 (added 2026-09-25, `ADR-0027`): for each currency, the rows that lay inside its window as of the
@@ -881,7 +884,8 @@ contends on, "**this machine's** open `rate_outage` deficiency record" — and n
 deployment-wide. Open means what `OPS-41`'s guard says: `absorbed_until IS NULL`; `resolved_at` is
 not that marker and stays null on this cause. The meter (`LDG-64`; `LDG-40`'s "fifth row —
 metering") opens it at a subject's first posting that computes no rate and finds no open row for
-that subject, as a **conditional insert guarded on that absence**, so two postings of one subject —
+that subject, including an exit posting (`LDG-38`), as a **conditional insert guarded on that
+absence**, so two postings of one subject —
 one that computes no rate by staleness, one after a pass found the window thin — open one row.
 No other row of `LDG-40`'s matrix opens one: the exhaustion sweep routes nothing while the currency
 has no rate (`LDG-16`); a create and the solvency check have no subject to open one for; an

@@ -180,7 +180,7 @@ def ldg31Table : Region :=
     [ ("`topup` +72,000", .topup 72000),
       ("commitment opened, 72,000", .openCommitment 72000),
       ("one hour consumed: `usage_debit` −100, commitment → 71,900", .usageDebit 100),
-      ("machine deleted, commitment closed", .closeCommitment) ]
+      ("machine deleted at that increment end, commitment closed", .closeCommitment) ]
   let (_, lines) := rows.foldl (fun (b, acc) (label, e) =>
     let (b', line) := ledgerRow b label e
     (b', acc ++ [line]))

@@ -267,14 +267,8 @@ card-payments primitive (authorize once, capture once, against a discrete purcha
 ledger draft model a reservation that never shrank, which drives the available balance negative one
 hour into the first machine's life.
 
-The specification's own worked example is the clearest statement of the invariant:
-
-| Event | Σ ledger entries | Reserved | Available |
-|---|---:|---:|---:|
-| `topup` +72,000 | 72,000 | 0 | 72,000 |
-| commitment opened, 72,000 | 72,000 | 72,000 | 0 |
-| one hour consumed: `usage_debit` −100 | 71,900 | 71,900 | 0 |
-| machine deleted, commitment closed | 71,900 | 0 | 71,900 |
+See `LDG-31`'s rendered worked table for the consumption and release example, and `LDG-38`
+for exit closure.
 
 `available = Σ(ledger entries) − Σ(open commitments)`, and `available ≥ required_commitment` is the
 **only** authorization a create receives. The check and the write must be serialized per tenant, or

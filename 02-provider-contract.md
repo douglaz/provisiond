@@ -436,7 +436,7 @@ cannot carry two statuses — the shape `ADR-0017` corrected on the episode. It 
 under `OPS-8`, MUST be safe to call twice — a provider answering "already deleted" is reporting
 the goal state, which `OPS-11` classifies as success — and its failures classify under `OPS-11`'s
 delete row. A successful release writes the row's `released_at` in its terminal transaction; a
-`manual` row is released only by an operator.
+`manual` row is released only by an operator. For the exit write, see `LDG-38`.
 
 ### Power
 
