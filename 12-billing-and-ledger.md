@@ -1127,10 +1127,9 @@ already queued waits as `OPS-41` orders), and **the solvency check** (MUST conti
 terms it can value). The check MUST evaluate `LDG-17`'s inequality and `LDG-20`'s stress using
 held satoshis and the float, which need no currency rate, and the payables and stress legs of
 currencies whose windows yield rates, valued at those rates. Asset treatment remains `LDG-53`'s
-and `LDG-20`'s. It MUST omit the unrated currency's non-negative payables and stress leg, without
-substituting a last-known or estimated rate. A shortfall on the valued terms is a computed failure
-and MUST trigger `LDG-20`'s deployment-wide consequences. A missing rate alone MUST NOT cause a
-solvency halt; only this matrix's other no-rate rows apply to that currency. This does not establish
+and `LDG-20`'s. It MUST omit the unrated currency's non-negative payables and stress leg. A shortfall on the
+valued terms is a computed failure and MUST trigger `LDG-20`'s deployment-wide consequences. A
+missing rate alone MUST NOT cause a solvency halt. This does not establish
 that the whole pool is solvent while a leg is unknown, change the reserve obligation, or add a
 public assurance.
 

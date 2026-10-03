@@ -795,9 +795,11 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       `gate: "solvency"`. Caller cancellation and deletion remain permitted. The EUR requests
       have no competing refusal; this case establishes no extension-refusal ordering.
 
-      (*Amended 2026-09-23, `ADR-0027`: the fault must make the window yield no rate; `CNF-99`
-      holds the single-pass case. Amended 2026-10-02 and 2026-10-03, `ADR-0029`; `LDG-40` keeps
-      the withdrawn rows.*)
+      (*Amended 2026-09-23, `ADR-0027`: a pass below quorum halts nothing (`LDG-59`), so the fault
+      must outlast the bound; `CNF-99` holds the single pass.* *Amended 2026-10-02, `ADR-0029`;
+      `LDG-40`'s note holds the sweep's withdrawn row.* *Amended 2026-10-03, `ADR-0029`
+      (`pv-gip.31`): until then the case asserted that "the solvency check fails closed";
+      `LDG-40` keeps that withdrawn row.*)
       (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-17`, `LDG-20`, `LDG-53`, `LDG-62`, `LDG-65`,
       `OPS-41`, `WIR-24`)
 - [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no

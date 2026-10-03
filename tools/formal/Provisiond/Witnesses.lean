@@ -3154,7 +3154,7 @@ re-derivation halts, the solvency check "MUST continue over the terms it can val
 meter runs native (`LDG-64`). The solvency conjunct checks the row, not a monetary calculation
 or whole-pool solvency. Its separate proof gives the guard's negative control a specific diagnostic.
 
-Until 2026-10-02 the first conjunct was that every exposure-reducing action's answer is
+Until 2026-10-02 the exposure-reducing conjunct was that every exposure-reducing action's answer is
 `continues`; it is weakened to "neither `halts` nor `failsClosed`", and no longer says that each
 of them continues. The wait forced that — `LDG-40`'s sweep row has "a funding cancellation
 already queued waits as `OPS-41` orders" — and the exact answers are pinned by the conjuncts

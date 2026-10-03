@@ -3,7 +3,8 @@
 **Status:** accepted (2026-10-01); amended 2026-10-02 by *An outage pauses the restore grace*
 below (`pv-gip.29`), with the placement corrected 2026-10-03 (`pv-gip.35`, `pv-gip.36`) and
 incident closure corrected by *Close on grace spent or machine disposition — 2026-10-03*
-(`pv-gip.37`). The
+(`pv-gip.37`); amended 2026-10-03 by *A solvency check that cannot be computed has not failed*
+below (`pv-gip.31`), overturning `LDG-40`'s solvency row. The
 requirement and checklist edits listed under *Consequences*
 landed in `2997723` (`pv-gip.23`), and the formal-layer edits in `e739240` (`pv-gip.25`), where
 the guard *Consequences* names `sweepContinuesWithoutRate` became `sweepRoutesNothingWithoutRate`.

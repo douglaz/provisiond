@@ -60,8 +60,8 @@ replay rule needs.
 `LDG-20`'s "halt top-ups first" orders two responses in time; this is a matrix, so what it
 carries is that minting is refused and crediting is not. Valuation is not modelled: the inequality,
 asset treatment and stress set — "the provider-currency pair adverse by 15%, an inaccessible venue
-for seven days" — are outside. `solvencyHalt` remains an input standing for a computed shortfall,
-represented by applying `underHalt`; the no-rate matrix does not compute that input or prove the
+for seven days" — are outside. A computed shortfall remains an input, represented by applying
+`underHalt`; the no-rate matrix does not compute that input or prove the
 monetary calculation. Its solvency row only records that the check continues over valued terms.
 `LDG-58`'s median, `LDG-59`'s quorum and `LDG-60`'s exclusions are the construction behind "no
 rate"; only its per-currency scope appears, in `rateAvailableFor`.
