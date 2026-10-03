@@ -700,7 +700,9 @@ takes the machines *and* the float" partly false.
       The refused deletion does not block B's discharge merely because the machine is not
       recorded gone: check its fence, not just the failed attempt. In a separate run, make every
       B machine gone or fenced before its outage bound and assert B's grace obligation is discharged then.
-      In each run, refuse close while any other prerequisite in `STO-56` remains unsatisfied;
+      Then resolve one fenced B machine's episode `abandoned` (`OPS-48`; its fence clears and the
+      machine stays live) and assert close is refused again until that machine is gone or fenced
+      once more: the discharge is read at close, never latched. In each run, refuse close while any other prerequisite in `STO-56` remains unsatisfied;
       exercise the wall-clock end and the other incident obligations independently, including
       a run with all machines already gone or fenced before the wall-clock end. Only when every
       prerequisite is satisfied close and verify ordinary restart behavior. `CNF-218` carries
