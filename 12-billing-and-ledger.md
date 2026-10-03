@@ -800,8 +800,7 @@ subtracts its own part and no more, and the parts sum to `absorbed_seconds`.
 (`STO-37`), which every cause that absorbs time MUST carry. `LDG-64`'s deadline is not that
 window's end: an outage that clears early absorbed less time than the deadline implies, and a split
 no record can locate in time is not a split an implementation can perform.
-Before pricing, a posting MUST use `STO-37`'s replay and conditional-insert path for each
-no-rate span inside its clipped increment, even when the outage finished before the posting.
+Before pricing, a posting performs `STO-37`'s replay and conditional insert.
 `LDG-64` owns closure, including an insertion already closed. Split at the absorbed window's
 boundaries as well as the period and rate boundaries: price the pieces on either side at their
 own rates and absorb only the overlap with this increment. These row writes share the posting's
@@ -882,9 +881,8 @@ For a quarantined subject, apply `LDG-72`'s exit exception.
 **For an exit increment containing outage time, `LDG-64` owns the absorbed window's end.**
 Each priced piece, including one after the rate's return, is debited under its applicable rate.
 The exit closes an open subject outage row at that end; it MUST NOT overwrite an earlier
-closure. Where the closing posting first discovers no-rate time within its clipped
-increment, including a finished outage, it uses `STO-37`'s conditional-insert path and closes
-the resulting row at that end under `LDG-64`'s close bullet.
+closure. A row the closing posting inserts through `STO-37`'s conditional insert is closed at
+that end under `LDG-64`'s close bullet.
 It advances the mark to the boundary without a satoshi debit for the absorbed segment. For rounding state, see above; for later billing, see `LDG-64`.
 The rationale for exit closure is in `ADR-0011` (2026-10-03).
 
@@ -1014,8 +1012,8 @@ that, and they were found together:
   still a machine somebody is paying for. **A quarantined exit MUST record the stop and allow
   deletion to complete, but MUST post no usage debit or commitment decrement and MUST write no
   meter state: both mark and `r` remain the evidence referenced by the alert.** It MUST close an
-  already-open subject `rate_outage` deficiency row with `absorbed_until` at the subject's stop
-  boundary; this deficiency-record closure is neither a meter-state write nor a usage debit or
+  already-open subject `rate_outage` deficiency row with `absorbed_until` at the end `LDG-64`
+  gives; this deficiency-record closure is neither a meter-state write nor a usage debit or
   commitment decrement. The unposted tail creates no new deficiency cause, catch-up debit or
   meter repair. Re-entry uses `LDG-38`'s seed unchanged.
   *`LDG-20`'s deployment-wide solvency halt was cited here
@@ -1260,15 +1258,15 @@ usage cannot be converted to satoshis. A deployment MUST:
   again** — `STO-37`'s `absorbed_until` is written with that observation's instant, by that
   observation's own write — **or with the subject's own meter-stop instant where that comes
   first** (the exit writer is `LDG-38`'s), since a machine that died mid-outage absorbed nothing
-  after it died. **The posting exception:** a posting discovering a completed outage inserts
+  after it died (*added 2026-09-05; the column was required by `LDG-38`'s apportioning and had no
+  writer, so the meter could neither end the window nor tell where billable time resumed*).
+  **The posting exception:** a posting discovering a completed outage inserts
   the subject's row already closed at the replayed return, or at its earlier meter stop; the
   first posting that computes a rate and finds the subject's row open MUST close it at that
   replayed return (or earlier stop), including when changed replay parameters yield a rate
   without a new accepted observation. Neither path may reopen a closed row or overwrite an
   earlier closure. No other event closes the window. The same write supplies
-  `absorbed_seconds` under `STO-37`'s column rule (*added 2026-09-05; the column was required by
-  `LDG-38`'s apportioning and had no writer, so the meter could neither end the window nor tell
-  where billable time resumed*). The first observation accepted after an outage is not always
+  `absorbed_seconds` under `STO-37`'s column rule. The first observation accepted after an outage is not always
   that one: after an outage longer than `LDG-58`'s window it leaves that window too thin to
   produce a rate (`LDG-59`) (*added 2026-09-23, `ADR-0027`, and reworded the same day out of the
   withdrawn per-pass quorum frame*);
@@ -1337,7 +1335,8 @@ there is no satoshi figure to absorb and time is the only channel that works.
 the deficiency was opened — the clamp overflow, the exception branch, an account loss, an unfunded
 wind-down, an unrecoverable setup fee — the record MUST carry it as `rate_num`/`rate_den` (`LDG-4`),
 because that is what the operator's loss was worth at the moment it was taken. A rate-outage
-deficiency (`LDG-64`) opens precisely when there is no rate, so it carries none, ever, and nothing
+deficiency (`LDG-64`) absorbs only time with no rate, so it carries none, ever, including one
+inserted after the rate returns, and nothing
 in this specification converts it: `absorbed_seconds` alone is what the meter needs.
 
 **LDG-65** **During a rate outage a funding cancellation waits, for the rate or for `LDG-64`'s

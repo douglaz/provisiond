@@ -920,8 +920,8 @@ and no pass is needed for it to produce no rate" — and the `observed_at` of th
 pass that found the window thin when only thinness has, since the newest observation is then still
 fresh and newest plus bound would date the start in the future. When the clocks cross inside one
 outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
-the replay returns the first instant, which those per-writer formulas did not. A late opening
-changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
+the replay returns the first instant, which those per-writer formulas did not. With unchanged
+replay parameters, a late opening changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
 written. **The subject row starts at `max(currency outage start, billable-span seed)`.**
 Rows of one outage carry the same `absorbed_from` only where that maximum is the same, with the
 same replay parameters. For row closure at exit to nonbillable, see `LDG-38` and `LDG-72`.

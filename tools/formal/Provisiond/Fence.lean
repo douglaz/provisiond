@@ -356,8 +356,8 @@ that replays it under other parameters. -/
 @[req "LDG-64"]
 def World.deadline (w : World) : Nat := w.outageStart + w.maxOutage
 
-/-- `OPS-41`'s fourth and fifth steps turn on whether "the deadline has passed". An instant
-reached has passed, as `routed` reads the same words of the stored date. -/
+/-- `OPS-41`'s fourth and fifth steps turn on whether "the deadline has passed", and `LDG-64`:
+"An instant reached has passed". -/
 @[req "OPS-41"]
 def World.deadlinePassed (w : World) : Bool := w.deadline ≤ w.now
 

@@ -186,10 +186,10 @@ is read as each currency's outage running its own clock against that one value. 
 
 
 **Replay inputs corrected — 2026-10-03 (`pv-gip.28`).** The earlier replay lists included
-quorum. That would require rejudging accepted observations from source counts absent from
-`STO-49`'s column list. `STO-37` owns the acceptance/replay distinction and the old-row/new-row rule;
-`OVR-19` owns the settings in force, and `LDG-64` owns posting closure without a new observation.
-Retention under enlarged or shrunk windows remains owner-reserved.
+quorum. That would require rejudging accepted observations by how many sources each pass had, and
+`STO-49` stores one row per accepted observation with no source count. `STO-37` owns the
+acceptance/replay distinction and the old-row/new-row rule; `OVR-19` owns the settings in force,
+and `LDG-64` owns posting closure without a new observation.
 
 ## An outage pauses the restore grace — 2026-10-02
 

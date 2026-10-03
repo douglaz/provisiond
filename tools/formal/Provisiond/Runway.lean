@@ -19,9 +19,9 @@ rate is the meter's concern (`Provisiond.Meter`). -/
 @[req "LDG-33"]
 def runwaySeconds (reserved prot rate : Nat) : Nat := usableSats reserved prot / rate
 
-/-- The exhaustion sweep routes a machine exactly when its stored `runway_until ≤ now`: the
-`machines` table is indexed on `(runway_until)` for `LDG-13`'s sweep, and `LDG-14` cancels at end
-of runway. -/
+/-- Only `LDG-16`'s date clause, "where its stored `runway_until` has passed", read as the runway
+being spent; its rate and recorded-gone clauses are `Provisiond.Fence.sweep`'s. The `machines`
+table is indexed on `(runway_until)` for `LDG-13`'s sweep. -/
 @[req "LDG-16"]
 def routed (reserved prot rate : Nat) : Prop := runwaySeconds reserved prot rate = 0
 
