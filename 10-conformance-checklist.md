@@ -1477,14 +1477,23 @@ rather than acquiring a default.
       list, or a fixture where the two sets coincide, passes the build this item exists to reject.*
       **On the `terminated` case, assert the whole ordered transaction and then run the clock out.**
       Each machine carries a gone state and `state_observed_at` at the recording instant, every
-      unreleased billable attachment carries a `released_at`. For ordinary priced subjects with
-      sufficient commitment the **last** debit ends at their stop boundary — neither dropped nor
-      clamped away by premature release. Use the 10-to-14 short-life fixture of `CNF-277` on
+      unreleased billable attachment carries a `released_at`. For each non-quarantined subject,
+      the closing increment and mark reach its stop boundary before commitment release. Assert a
+      final ledger entry only when the computed posting is positive and the commitment permits it;
+      during an outage its priced prefix ends at the outage start, while the mark reaches the stop.
+      Use the 10-to-14 short-life fixture of `CNF-277` on
       different tenants: each posts 1 before releasing its remaining 29. Include a scheduled
       machine with effective date 12, seed 10, rate 1/5 and termination at 14: its debit is 1,
       mark 12 and `r = 3/5`, never a charge for [12,14). Include a quarantined subject using
       `CNF-236`'s delete fixture: stop is recorded, no debit/decrement or meter-state write;
       its commitment is released by termination. Exercise `CNF-277`'s outage fixtures too.
+      **Zero-entry termination:** within one billing period, seed at 0 with `r = 0`, rate
+      1/5 sat/s and commitment 30. Tick at 7: debit/decrement 2, mark 7, `r = 3/5`, remaining
+      commitment 28. Record account termination at 9: the closing increment [7,9) costs exactly
+      2/5, so `ceil(2/5 − 3/5) = 0`. Assert no extra debit or usage decrement, mark 9 and
+      `r = 1/5` before release of the remaining 28; the last ledger debit still ends at 7.
+      Resume a tick that read billable before termination and submit another after it: neither
+      posts nor changes the mark or credit, despite there being no entry key ending at 9.
       Assert all affected tenants' primitives are acquired in ascending identifier order,
       in the one account transaction, with stop → `LDG-38` exit → `LDG-32` release. Then advance
       past at least one metered increment and assert **nothing

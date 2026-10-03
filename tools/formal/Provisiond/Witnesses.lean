@@ -1933,6 +1933,47 @@ theorem reentered_life_is_valid (p : Funding.Params) :
     (by decide) (by decide +kernel)) 9 (1/5) (by decide) (by decide +kernel))
     20 (by decide)) 24 (1/5) (by decide) (by decide +kernel)
 
+/-- First entry of the unmarked subject, followed by exit with no intervening tick. -/
+def unmarkedShortLife (p : Funding.Params) : Funding.World :=
+  Funding.exitSubject p (Funding.seed p seedWorld 30) 34 (1/5)
+
+/-- Validity starts with `mark = none` and uses the existing seed, without assuming coverage. -/
+@[req "LDG-38"]
+theorem unmarked_short_life_is_valid (p : Funding.Params) :
+    Funding.LifecycleTrace p seedWorld 0 (unmarkedShortLife p) 34 none [(30,34)] (some 34) := by
+  exact .exit (.enter (.initial rfl) 30 (by decide)) 34 (1/5) (by decide) (by decide +kernel)
+
+/-- Execute the first seed and close. All relevant guards are pinned: this additional witness
+is not a second target for any guard-removal control. -/
+@[req "LDG-38", req "LDG-32"]
+theorem unmarked_short_life_closes :
+    let p := { exitGuards Funding.current with exitPosts := true }
+    let w := unmarkedShortLife p
+    seedWorld.mark = none ∧ (Funding.seed p seedWorld 30).mark = some 30 ∧
+    w.charged = [(30,34)] ∧ w.mark = some 34 ∧ w.entries.map (·.sats) = [-1] ∧
+    w.remaining = 29 ∧ w.roundingCredit = 1/5 ∧ (Funding.release w).remaining = 0 := by
+  decide +kernel
+
+/-- Apply the general unmarked-world proofs to this executable trace: its first span is covered
+without overlap, and the close precedes release. No partition is supplied as a premise. -/
+@[req "LDG-38", req "LDG-32"]
+theorem unmarked_short_life_covered_before_release :
+    let p := { exitGuards Funding.current with exitPosts := true }
+    let w := unmarkedShortLife p
+    (∀ t, Funding.Covered w.charged t ↔ Funding.Covered [(30,34)] t) ∧
+    w.charged.Pairwise (fun a b => ∀ t, ¬ (Funding.Inside t a ∧ Funding.Inside t b)) ∧
+    w.mark = some 34 ∧ (Funding.release w).mark = w.mark ∧
+      (Funding.release w).charged = w.charged ∧ (Funding.release w).remaining = 0 := by
+  let p := { exitGuards Funding.current with exitPosts := true }
+  have hc : seedWorld.markCovers := by
+    intro e he
+    cases he
+  have trace := unmarked_short_life_is_valid p
+  have coverage := Funding.unmarked_lifecycle_coverage p rfl rfl rfl rfl rfl seedWorld 0
+    rfl hc rfl trace
+  exact ⟨coverage.1, coverage.2, Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
+    seedWorld 0 rfl hc rfl trace⟩
+
 end Funding
 
 /-! ## The billing period

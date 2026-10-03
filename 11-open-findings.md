@@ -1142,9 +1142,7 @@ review asserted a live lock-order inversion between the per-machine lock and the
 serialization. Two independent reviewers refuted it on the same reading: `OPS-8` binds the lock to
 an operation that *names* a machine, and a create's `machine_id` is set only on completion
 (`05-persistence.md`), so a create holds no machine lock and `OPS-27`'s money transaction never
-nests inside one. What survived was the *absence of a boundary rule*, now `LDG-69` — and the
-observation that today's safety is accidental, resting on `LDG-25` pricing privileged operations
-at zero so that `operation_fee_debit` is defined, paired, and posted by nothing.
+nests inside one. What survived was the *absence of a boundary rule*; see `LDG-69`.
 
 **F34 — there is no way to answer an abuse notice, and the design removed every channel. CLOSED
 2026-08-16** — see the grill session above; `ADR-0012` and `DOM-23`.

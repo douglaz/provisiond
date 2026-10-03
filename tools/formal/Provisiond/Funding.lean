@@ -1336,8 +1336,9 @@ theorem no_second_charged_twice (p : Params) (hp : p.startsAtMark = true) (w : W
 exit only while billable, re-entry only after exit, release only after a stop. The seed and
 posting operations are the existing ones. The trace requires a non-quarantined initial subject and
 contains no outage, restore, period change or provider calls. Its rates are nonnegative and each posting has one rate.
-The initial world has an empty priced-interval history, a mark at the initial cursor and keys
-covered by that mark. These are input-state hypotheses, not an assumed coverage conclusion. -/
+The initial world has an empty priced-interval history and a consistent mark/key relation. It
+may have a mark at the initial cursor or no mark before its first entry; that entry executes
+`seed`. These are input-state hypotheses, not an assumed coverage conclusion. -/
 
 /-- The exit's meter write (`LDG-38`), before any commitment release. The off position retains
 an executable stop without posting. Stop recording itself is the `LifecycleTrace.exit` transition.
@@ -1416,7 +1417,73 @@ theorem covered_split (xs : List (Nat × Nat)) (a b t : Nat) :
 
 /-- Invariant derived from transitions: coverage equals completed spans plus the active prefix,
 with all priced intervals ordered. The mark/key hypotheses prevent an unrelated key conflict
-from silently refusing a fresh closing posting. -/
+from silently refusing a fresh closing posting. The alternative to a mark at the cursor is
+only the untouched initial world before any entry, so an unmarked first entry loses no span. -/
+theorem lifecycle_initial_invariant (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
+    (initial : World) (origin : Nat) (hm : initial.mark = some origin ∨ initial.mark = none)
+    (hc : initial.markCovers) (hempty : initial.charged = [])
+    {w cursor active spans stopped}
+    (trace : LifecycleTrace p initial origin w cursor active spans stopped) :
+    w.quarantined = false ∧
+    (w.mark = some cursor ∨ (w = initial ∧ cursor = origin ∧ active = none ∧ stopped = none)) ∧
+    w.markCovers ∧ w.chargedInOrder ∧
+    (∀ begin, active = some begin → begin ≤ cursor) ∧
+    (∀ boundary, stopped = some boundary → boundary = cursor) ∧
+    (∀ t, Covered w.charged t ↔ Covered spans t ∨
+      ∃ begin, active = some begin ∧ begin ≤ t ∧ t < cursor) := by
+  induction trace with
+  | initial hnq =>
+    refine ⟨hnq, Or.inr ⟨rfl, rfl, rfl, rfl⟩, hc, ?_, by simp, by simp, ?_⟩
+    · simp [World.chargedInOrder, hempty]
+    · simp [Covered, hempty]
+  | @enter w cursor spans stopped prior at_ ordered ih =>
+    obtain ⟨hnq, hmark, hkeys, horder, _, _, hcover⟩ := ih
+    have hseed : seed p w at_ = { w with mark := some at_ } := by
+      rcases hmark with hmark | ⟨rfl, rfl, _, _⟩
+      · simp [seed, he, hmark, Nat.max_eq_right ordered]
+      · rcases hm with hm | hm <;> simp [seed, he, hm, Nat.max_eq_right ordered]
+    refine ⟨by simpa [hseed] using hnq, Or.inl (by simp [hseed]), mark_covers_every_key p w (.billable at_) hkeys,
+      charged_in_order_step p hs w (.billable at_) horder, by simp, by simp, ?_⟩
+    intro t
+    have hem : ¬ (at_ ≤ t ∧ t < at_) := by omega
+    simpa [hseed, hem] using hcover t
+  | @tick w cursor begin spans prior at_ rate ordered priced ih =>
+    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
+    have hmark := hmark.resolve_right (by rintro ⟨_, _, h, _⟩; cases h)
+    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ cursor rate hmark hkeys ordered
+    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, Or.inl hm',
+      mark_covers_every_key p w (.post cursor at_ rate) hkeys,
+      charged_in_order_step p hs w (.post cursor at_ rate) horder, ?_, by simp, ?_⟩
+    · intro b hb; have := hbegin b hb; omega
+    · intro t
+      rw [hcharged, covered_split, hcover]
+      have := hbegin begin rfl
+      simp
+      by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
+  | @exit w cursor begin spans prior at_ rate ordered priced ih =>
+    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
+    simp only [exitSubject, hnq, Bool.false_eq_true, ↓reduceIte, hx]
+    have hmark := hmark.resolve_right (by rintro ⟨_, _, h, _⟩; cases h)
+    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ at_ rate hmark hkeys ordered
+    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, Or.inl hm',
+      mark_covers_every_key p w (.post at_ at_ rate) hkeys,
+      charged_in_order_step p hs w (.post at_ at_ rate) horder, by simp, by simp_all, ?_⟩
+    intro t
+    rw [hcharged, covered_split, hcover]
+    have := hbegin begin rfl
+    have happ : Covered (spans ++ [(begin, at_)]) t ↔
+        Covered spans t ∨ (begin ≤ t ∧ t < at_) := by simp [Covered, Inside]
+    rw [happ]
+    simp
+    by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
+  | @release w cursor spans boundary prior ih =>
+    obtain ⟨hnq, hmark, rest⟩ := ih
+    have hmark := hmark.resolve_right (by rintro ⟨_, _, _, h⟩; cases h)
+    exact ⟨hnq, Or.inl hmark, rest⟩
+
+/-- The marked-initial-state invariant, preserved as a specialization. -/
 theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
@@ -1429,49 +1496,12 @@ theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
     (∀ boundary, stopped = some boundary → boundary = cursor) ∧
     (∀ t, Covered w.charged t ↔ Covered spans t ∨
       ∃ begin, active = some begin ∧ begin ≤ t ∧ t < cursor) := by
-  induction trace with
-  | initial hnq =>
-    refine ⟨hnq, hm, hc, ?_, by simp, by simp, ?_⟩
-    · simp [World.chargedInOrder, hempty]
-    · simp [Covered, hempty]
-  | @enter w cursor spans stopped prior at_ ordered ih =>
-    obtain ⟨hnq, hmark, hkeys, horder, _, _, hcover⟩ := ih
-    have hseed : seed p w at_ = { w with mark := some at_ } := by
-      simp [seed, he, hmark, Nat.max_eq_right ordered]
-    refine ⟨by simpa [hseed] using hnq, by simp [hseed], mark_covers_every_key p w (.billable at_) hkeys,
-      charged_in_order_step p hs w (.billable at_) horder, by simp, by simp, ?_⟩
-    intro t
-    have hem : ¬ (at_ ≤ t ∧ t < at_) := by omega
-    simpa [hseed, hem] using hcover t
-  | @tick w cursor begin spans prior at_ rate ordered priced ih =>
-    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
-    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ cursor rate hmark hkeys ordered
-    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, hm',
-      mark_covers_every_key p w (.post cursor at_ rate) hkeys,
-      charged_in_order_step p hs w (.post cursor at_ rate) horder, ?_, by simp, ?_⟩
-    · intro b hb; have := hbegin b hb; omega
-    · intro t
-      rw [hcharged, covered_split, hcover]
-      have := hbegin begin rfl
-      simp
-      by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
-  | @exit w cursor begin spans prior at_ rate ordered priced ih =>
-    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
-    simp only [exitSubject, hnq, Bool.false_eq_true, ↓reduceIte, hx]
-    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ at_ rate hmark hkeys ordered
-    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, hm',
-      mark_covers_every_key p w (.post at_ at_ rate) hkeys,
-      charged_in_order_step p hs w (.post at_ at_ rate) horder, by simp, by simp_all, ?_⟩
-    intro t
-    rw [hcharged, covered_split, hcover]
-    have := hbegin begin rfl
-    have happ : Covered (spans ++ [(begin, at_)]) t ↔
-        Covered spans t ∨ (begin ≤ t ∧ t < at_) := by simp [Covered, Inside]
-    rw [happ]
-    simp
-    by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
-  | @release w cursor spans boundary prior ih =>
-    exact ih
+  obtain ⟨hnq, hmark, rest⟩ := lifecycle_initial_invariant p hs hk hd he hx initial origin
+    (Or.inl hm) hc hempty trace
+  refine ⟨hnq, ?_, rest⟩
+  rcases hmark with hmark | ⟨rfl, rfl, _, _⟩
+  · exact hmark
+  · exact hm
 
 /-- Every second in each completed seed-to-stop span belongs to exactly one priced increment:
 coverage is an equivalence (so nonbillable gaps are excluded), and pairwise disjointness rules out
@@ -1508,6 +1538,44 @@ theorem release_follows_close (p : Params) (hs : p.startsAtMark = true)
     w.mark = some boundary ∧ (release w).mark = w.mark ∧
       (release w).charged = w.charged ∧ (release w).remaining = 0 := by
   obtain ⟨_, hmark, _, _, _, hstop, _⟩ := lifecycle_invariant p hs hk hd he hx initial origin hm hc hempty trace
+  exact ⟨by simpa [hstop boundary rfl] using hmark, rfl, rfl, rfl⟩
+
+/-- Coverage from an initially unmarked subject, including its first completed span. The trace
+executes the existing seed on first entry and admits arbitrary later ticks, exits, re-entries and
+releases. Empty initial history and a consistent key relation are premises; coverage is derived.
+As for `lifecycle_coverage`, this covers intervals, including zero-entry increments, not satoshis. -/
+@[req "LDG-38"]
+theorem unmarked_lifecycle_coverage (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
+    (initial : World) (origin : Nat) (hm : initial.mark = none)
+    (hc : initial.markCovers) (hempty : initial.charged = [])
+    {w cursor spans stopped}
+    (trace : LifecycleTrace p initial origin w cursor none spans stopped) :
+    (∀ t, Covered w.charged t ↔ Covered spans t) ∧
+    w.charged.Pairwise (fun a b => ∀ t, ¬ (Inside t a ∧ Inside t b)) := by
+  obtain ⟨_, _, _, ho, _, _, hcov⟩ := lifecycle_initial_invariant p hs hk hd he hx initial origin
+    (Or.inr hm) hc hempty trace
+  refine ⟨by simpa using hcov, ho.1.imp ?_⟩
+  intro a b hab t ht
+  simp only [Inside] at ht
+  omega
+
+/-- The release ordering also holds from an unmarked initial world: the first entry seeds,
+and a stopped trace has already advanced the mark to its boundary before release. -/
+@[req "LDG-32", req "LDG-38"]
+theorem unmarked_release_follows_close (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
+    (initial : World) (origin : Nat) (hm : initial.mark = none)
+    (hc : initial.markCovers) (hempty : initial.charged = [])
+    {w cursor spans boundary}
+    (trace : LifecycleTrace p initial origin w cursor none spans (some boundary)) :
+    w.mark = some boundary ∧ (release w).mark = w.mark ∧
+      (release w).charged = w.charged ∧ (release w).remaining = 0 := by
+  obtain ⟨_, hmark, _, _, _, hstop, _⟩ := lifecycle_initial_invariant p hs hk hd he hx initial origin
+    (Or.inr hm) hc hempty trace
+  have hmark := hmark.resolve_right (by rintro ⟨_, _, _, h⟩; cases h)
   exact ⟨by simpa [hstop boundary rfl] using hmark, rfl, rfl, rfl⟩
 
 end Provisiond.Funding
