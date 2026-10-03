@@ -1858,8 +1858,8 @@ rather than acquiring a default.
       observations at 08:00, 09:00 and 10:00, each from three independent, live, non-excluded
       sources at the same price; retain the left edge needed for replay. Step (3) is at 11:00
       and the original end is 12:00. Accept no further observation before 14:00: under the
-      original setting, the newest observation becomes stale at the 11:00 boundary and there
-      is no rate until 14:00. A restart loads a 6h staleness bound; a qualifying pass at 14:00
+      original setting, the newest observation is still valid at exactly 11:00, but there
+      is no rate after 11:00 until 14:00. A restart loads a 6h staleness bound; a qualifying pass at 14:00
       accepts an observation at that same price. The 10:00 and 14:00 windows are sufficiently populated,
       so thinness does not decide this trace. Keep the restore record
       open, the outage bound later than the trace, and the tenant active, machine live and
@@ -1868,7 +1868,7 @@ rather than acquiring a default.
       admit no extension. At the 14:05 fence transaction, assert replay with the setting now
       in force counts 11:00–14:05 as rate-present: the accumulated interval is spent, and the
       otherwise unfunded cancellation fences and proceeds to the provider call. Replaying
-      with the old bound would count only five minutes and incorrectly short-defer. This is
+      with the old bound would leave unspent grace and incorrectly short-defer. This is
       a history-replay conformance case; the Lean effective-outage-span model does not prove it.
       *Return between claim and fence transaction* (`pv-gip.35`): with no rate at the claim,
       the original end passed, and an unfunded re-derivation, commit a qualifying return before
