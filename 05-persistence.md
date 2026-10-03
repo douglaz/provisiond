@@ -879,8 +879,8 @@ the operator has already borne, not one that can be undone, and a null there is 
 2026-09-05; the column had no writer at all, so `OPS-36`'s wind-down deficiency outlived the
 extension that funded it, and `LDG-20`'s solvency check carried a phantom liability for the life of
 the machine.* **The row is the subject's, and the meter opens it.** One `rate_outage` row per
-machine or attachment per outage — the table's own `subject_kind`/`subject_id`, and what `OPS-41`
-contends on, "**this machine's** open `rate_outage` deficiency record" — and nothing
+billable span of a machine or attachment within an outage — the table's own
+`subject_kind`/`subject_id`, and what `OPS-41` contends on, "**this machine's** open `rate_outage` deficiency record" — and nothing
 deployment-wide. Open means what `OPS-41`'s guard says: `absorbed_until IS NULL`; `resolved_at` is
 not that marker and stays null on this cause. The meter (`LDG-64`; `LDG-40`'s "fifth row —
 metering") opens it at a subject's first posting that computes no rate and finds no open row for
@@ -892,13 +892,11 @@ has no rate (`LDG-16`); a create and the solvency check have no subject to open 
 extension halts (`LDG-40`), re-derivation "MUST halt rather than under-reserve", and neither opens
 anything. Nor does the worker's `OPS-41` contend open
 one: `OPS-41`'s order holds what a write that affects no row means there. So a subject the meter
-has not posted for since the outage began has no row, and neither does one the meter does not post
-for (`LDG-72`'s quarantine). **Its start
-is the currency's.** While the parameters the start is replayed with are unchanged, every row of one
-outage carries the same `absorbed_from` — the outage is the currency's, per `LDG-59`'s "one rate,
-one quorum, one outage and one bound for each currency" — and it is, in `ADR-0027`'s words,
-"the earliest instant of the maximal interval, ending at the writer's posting, throughout which the
-window yielded no rate", computed by replaying `LDG-59`'s two clocks — staleness at every instant,
+has not posted for since the outage began has no row for that outage, including one already
+quarantined when it began. For closure of an existing row on a quarantined exit, see `LDG-72`.
+**The currency outage start and the subject row start are distinct.** The currency outage start is
+the earliest instant of the maximal interval, ending at the writer's posting, throughout which the
+window yielded no rate, computed by replaying `LDG-59`'s two clocks — staleness at every instant,
 thinness at each accepting pass — over `STO-49`'s recorded observations. For one setting of the
 parameters it is replayed with — the staleness bound, window and quorum — it is a function of that
 history alone, so while those parameters are unchanged it is the same for every writer whatever the
@@ -913,7 +911,13 @@ fresh and newest plus bound would date the start in the future. When the clocks 
 outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
 the replay returns the first instant, which those per-writer formulas did not. A late opening
 changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
-written. **The row holds no deadline**: `LDG-64` holds how the deadline is computed and which
+written. **The subject row starts at `max(currency outage start, billable-span seed)`.**
+Rows of one outage carry the same `absorbed_from` only where that maximum is the same, with the
+same replay parameters. For row closure at exit to nonbillable, see `LDG-38` and `LDG-72`.
+Re-entry during the same currency outage can open a new row, whose `absorbed_from` is clipped to
+the re-entry seed. Neither row absorbs the nonbillable gap. The conditional-insert guard above
+applies to competing postings within each span. Re-entry changes the subject row start, not the replayed currency outage start.
+**The row holds no deadline**: `LDG-64` holds how the deadline is computed and which
 machines its bound reaches (*amended 2026-10-02, `ADR-0029`*). *Added 2026-09-25 (`ADR-0027`):
 before that day the set named every closer of
 this row and never an opener; the same day the start was redefined from the withdrawn per-writer

@@ -110,9 +110,12 @@ hypothesis of that trace; the standalone quarantined exit posts nothing. It prov
 not positive satoshi debits: rounding and clamp remain composed through `post`. Quarantine detection
 and recovery are excluded from that theorem; rate outages, provider observations and concurrent re-reads are not
 modeled here. `LDG-74`'s observation is `Provisiond.Reconcile`'s `World.meterStoppedAt`, in a
-module that posts no money and that this one does not import. The lifecycle release zeros the
-one remaining commitment after a stop; its opening and other ledger rules are in
-`Provisiond.Ledger`. No one-subject theorem establishes an account-wide transaction. Omitted also:
+module that posts no money and that this one does not import. `LifecycleTrace` describes ordered
+lifecycles; `exitAndRelease` separately executes the release-order guard, including release before
+the closing post with the guard off. Release zeros the one remaining commitment; its opening and
+other ledger rules are in `Provisiond.Ledger`. Outage deficiency-row closure on a quarantined exit
+is outside this money/meter world, as are all outage rows. No one-subject theorem establishes an
+account-wide transaction. Omitted also:
 a second subject, and with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
 the subject billable — `seed` is the mark's write alone; `LDG-68`'s period boundary
 (`Provisiond.Period`), and with it `LDG-38`'s "new period's `meter_totals` row starts with
@@ -248,7 +251,9 @@ posted" — the discard only; the mark is recorded either way. `startsAtMark`: `
 "An increment MUST start at the subject's latest high-water mark"; `false` starts it where the
 observation takes itself to have begun. `seedOnBillable`: `LDG-38`, 2026-10-02, the mark written at
 "Every transition of a subject into billable"; `false` writes none. `exitPosts`: `LDG-38`,
-2026-10-03, the exit closes through `post`; `false` records a stop without closing its tail. -/
+2026-10-03, the exit closes through `post`; `false` records a stop without closing its tail.
+`closeBeforeRelease`: `LDG-38`, "before any `LDG-32` close"; `false` releases authority before
+posting the tail in `exitAndRelease`. -/
 structure Params where
   keyFrom             : KeySource
   correctionPrefix    : Bool
@@ -259,6 +264,7 @@ structure Params where
   startsAtMark        : Bool
   seedOnBillable      : Bool
   exitPosts           : Bool
+  closeBeforeRelease  : Bool
   deriving DecidableEq, Repr
 
 /-- The rules as they stand. One field per line: `ci.yml`'s controls flip one each. -/
@@ -272,7 +278,8 @@ def current : Params := {
     markDiscards        := true,
     startsAtMark        := true,
     seedOnBillable      := true,
-    exitPosts           := true }
+    exitPosts           := true,
+    closeBeforeRelease  := true }
 
 structure World where
   now           : Nat
@@ -1358,9 +1365,24 @@ theorem post_quarantined (p : Params) (w : World) (observed at_ : Nat) (rate : R
     (post p w observed at_ rate).quarantined = w.quarantined := by
   simp only [post]; split <;> rfl
 
-/-- The one-subject release (`LDG-32`); its admission is the trace's release constructor. -/
+/-- The one-subject release (`LDG-32`), used by the ordered trace and by `exitAndRelease`. -/
 @[req "LDG-32"]
 def release (w : World) : World := { w with remaining := 0 }
+
+/-- The exit that also releases authority (`LDG-38`, `LDG-32`). Both orders execute the same
+money operations; only their order differs. With the guard off a still-funded tail meets the
+clamp after release has removed its authority. This operation does not assume a stopped world. -/
+@[req "LDG-38", req "LDG-32"]
+def exitAndRelease (p : Params) (w : World) (boundary : Nat) (rate : Rat) : World :=
+  if p.closeBeforeRelease then release (exitSubject p w boundary rate)
+  else exitSubject p (release w) boundary rate
+
+/-- Enabled ordering preserves the input authority for the entire closing post. -/
+@[req "LDG-38", req "LDG-32"]
+theorem exit_closes_before_release (p : Params) (h : p.closeBeforeRelease = true)
+    (w : World) (boundary : Nat) (rate : Rat) :
+    exitAndRelease p w boundary rate = release (exitSubject p w boundary rate) := by
+  simp [exitAndRelease, h]
 
 /-- A second is in a half-open interval; this records pricing coverage, not a satoshi debit. -/
 def Inside (t : Nat) (i : Nat × Nat) : Prop := i.1 ≤ t ∧ t < i.2

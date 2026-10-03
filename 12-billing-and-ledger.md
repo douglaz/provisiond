@@ -873,12 +873,12 @@ A scheduled cancellation uses the stop boundary above, never its later gone obse
 time charged at cancellation acceptance.
 For a quarantined subject, apply `LDG-72`'s exit exception.
 
-**On an exit during a rate outage, only the priced segment before the outage is debited; the
-remaining outage time is absorbed through the subject's stop boundary.** The exit closes any
-existing subject outage row with `absorbed_until` at that boundary. Where the closing posting is
-the first to compute no rate within its clipped increment, it uses `STO-37`'s conditional-insert
-path and closes the resulting row there. It advances the mark to the boundary without a satoshi
-debit for the absorbed segment. For rounding state, see above; for later billing, see `LDG-64`.
+**For an exit increment containing outage time, `LDG-64` owns the absorbed window's end.**
+Each priced piece, including one after the rate's return, is debited under its applicable rate.
+The exit closes an open subject outage row at that end; it MUST NOT overwrite an earlier
+rate-return closure. Where the closing posting is the first to compute no rate within its clipped
+increment, it uses `STO-37`'s conditional-insert path and closes the resulting row at that end.
+It advances the mark to the boundary without a satoshi debit for the absorbed segment. For rounding state, see above; for later billing, see `LDG-64`.
 The rationale for exit closure is in `ADR-0011` (2026-10-03).
 
 **An increment MUST start at the subject's latest high-water mark** — in whichever period's row that
@@ -1006,9 +1006,11 @@ that, and they were found together:
   MUST alert, and MUST continue to admit cancellation and deletion — a machine nobody can bill is
   still a machine somebody is paying for. **A quarantined exit MUST record the stop and allow
   deletion to complete, but MUST post no usage debit or commitment decrement and MUST write no
-  meter state: both mark and `r` remain the evidence referenced by the alert.** The unposted tail
-  has the existing treatment of time suppressed by quarantine (`LDG-64`, `STO-37`); it creates no
-  new deficiency cause, catch-up debit or meter repair. Re-entry uses `LDG-38`'s seed unchanged.
+  meter state: both mark and `r` remain the evidence referenced by the alert.** It MUST close an
+  already-open subject `rate_outage` deficiency row with `absorbed_until` at the subject's stop
+  boundary; this deficiency-record closure is neither a meter-state write nor a usage debit or
+  commitment decrement. The unposted tail creates no new deficiency cause, catch-up debit or
+  meter repair. Re-entry uses `LDG-38`'s seed unchanged.
   *`LDG-20`'s deployment-wide solvency halt was cited here
   and is the wrong instrument: one subject's corrupted rounding credit is not evidence that the
   float is short, and halting every tenant over it converts a one-satoshi exposure into an outage.*
@@ -1245,8 +1247,8 @@ usage cannot be converted to satoshis. A deployment MUST:
   produce a rate (`LDG-59`) (*added 2026-09-23, `ADR-0027`, and reworded the same day out of the
   withdrawn per-pass quorum frame*);
 - **compute the outage's deadline from history, and store it nowhere.** The deadline is the
-  outage's start plus the maximum tolerated outage below, and the start is the instant `STO-37`
-  defines, replayed from `STO-49`'s recorded observations. With unchanged parameters any writer
+  outage's start plus the maximum tolerated outage below, and the start is the currency outage
+  start `STO-37` defines, replayed from `STO-49`'s recorded observations. With unchanged parameters any writer
   computes the same instant, for a subject the meter has opened no record for as for one it has,
   and a restart mid-outage does not reset the clock and quietly extend the exposure past
   the bound, because `STO-49` keeps the rows the start is replayed from. A changed parameter does

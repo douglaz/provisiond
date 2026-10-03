@@ -1470,7 +1470,15 @@ rather than acquiring a default.
       that opens the row before exit, and no intervening tick so the exit conditionally inserts
       and closes it itself. There is never a duplicate, no satoshi debit for [7,14), and a later
       rate return posts no catch-up debit. Repeat through the attachment release writers.
-      (`LDG-38`, `LDG-35`, `LDG-64`, `STO-37`, `LDG-8`)
+      **Rate returns before exit:** mark 12:00, outage 12:20–12:30, exit 12:40, within one
+      period. First run with a no-rate posting at 12:25 to open the row while the outage is live;
+      the returning observation closes it at 12:30. Across that posting and the exit, price
+      [12:00,12:20) and [12:30,12:40) at their respective rates, absorb only [12:20,12:30),
+      and leave `absorbed_until = 12:30` after exit, with mark 12:40. With `r = 0`, sufficient
+      authority, 1/5 sat/s before the outage and 2/5 after it, expect total debit/decrement 480
+      and final `r = 0`. The row was opened while the outage was live, so this checks its
+      end independently of historical no-row replay. (`LDG-38`, `LDG-35`, `LDG-64`, `STO-37`,
+      `LDG-8`)
 - [ ] **CNF-278** — **An account can actually be recorded lost, and the right thing happens.** Drive
       `POST /v1/provider-accounts/{account}/actions/record-status` across all four statuses, **on
       independent account fixtures** — `terminated` is write-once (`API-63`), so a single account
@@ -1829,8 +1837,12 @@ rather than acquiring a default.
       untouched as alert evidence. Commitment release is still permitted; it is not a usage
       decrement. Repeat with a mark behind the existing key instead of an invalid credit.
       No new deficiency cause or later catch-up debit appears. Repeat during a rate outage with
-      no existing outage row: quarantine still posts nothing and creates no row. (`LDG-72`,
-      `LDG-38`, `LDG-64`, `STO-37`)
+      no existing outage row: quarantine still posts nothing and creates no row. Repeat with an
+      existing open subject `rate_outage` row, opened by a posting while the outage is live before
+      quarantine: deletion and the gone write complete, and `absorbed_until` receives the stop
+      boundary. Mark, `r`, usage entries and usage decrements remain untouched; closing the
+      deficiency row does not repair the quarantined meter. Run both quarantine fixtures above.
+      (`LDG-72`, `LDG-38`, `LDG-64`, `STO-37`)
 - [ ] **CNF-216** — The billing period boundary is `00:00:00Z` on the first of the month for every
       tenant and every machine, and a metered increment straddling it is apportioned across the
       two periods rather than falling wholly into either — **the increment closes at the boundary,
@@ -2213,6 +2225,14 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       writes no entry), mark 9 and `r = 1/5` at the first exit, seed 20 with that credit
       unchanged, and final mark 24 with `r = 2/5`. No [9,20) seconds are charged; re-entry
       cannot erase the earlier tail. (`LDG-38`, `LDG-37`)
+      **Exit and re-entry inside one outage:** outage 12:20–13:00, with the subject already
+      billable at 12:20. Post at 12:25 while no rate exists, exit to nonbillable at 12:30,
+      re-enter at 12:40, post at 12:45 and exit at 12:50. Keep the commitment open. Assert
+      separate native-only rows with absorbed windows [12:20,12:30) and [12:40,12:50), and no
+      absorption or billing for [12:30,12:40). Competing no-rate postings in either span create
+      no duplicate open row. The currency outage start remains 12:20 and the computed deadline
+      is unchanged across re-entry with unchanged replay parameters and bound. Rate return at
+      13:00 does not extend either closed row. (`STO-37`, `LDG-64`, `LDG-38`)
 - [ ] **CNF-161** — A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at
       cancellation *acceptance* is the defect. With seed at 10:00, effective date 10:04,

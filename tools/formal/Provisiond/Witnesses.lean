@@ -1425,7 +1425,9 @@ pair's half: `earlier_row_authorizes_unfunded_create` and `drift_identity_witnes
 row each refuse the replay; `expiry_ends_watching_not_binding`; `clamp_composed_witness`,
 `zero_debit_advances_the_mark` and `clamped_debit_advances_the_mark`, which exhibit the meter under
 `Funding.current`; `replay_writing_no_entry_escapes_the_key`, which pins every guard on a replay
-off but the stated key; and `reentry_seeds_the_mark_and_nothing_else`. The attribution witness
+off but the stated key; `reentry_seeds_the_mark_and_nothing_else`; `short_life_is_valid`,
+`reentered_life_is_valid`, `unmarked_short_life_is_valid`, `unmarked_short_life_closes`,
+and `unmarked_short_life_covered_before_release`. The attribution witness
 settles one payment, so that `keyFrom := .deposit`
 decides the two-rails witness alone. -/
 
@@ -1973,6 +1975,32 @@ theorem unmarked_short_life_covered_before_release :
     rfl hc rfl trace
   exact ⟨coverage.1, coverage.2, Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
     seedWorld 0 rfl hc rfl trace⟩
+
+/-- Pin the posting guards so release order alone determines this witness. -/
+def releaseOrderGuards (p : Funding.Params) : Funding.Params :=
+  { exitGuards p with exitPosts := true }
+
+/-- Four seconds at 1/5 sat/s against 30 sats of authority, followed by release. -/
+def releaseOrderTail (p : Funding.Params) : Funding.World :=
+  let p := releaseOrderGuards p
+  Funding.exitAndRelease p (Funding.seed p fundWorld 10) 14 (1/5)
+
+/-- The closing post consumes one satoshi before release; it generates no clamp deficiency. -/
+@[req "LDG-38", req "LDG-32", req "LDG-31"]
+theorem close_before_release_witness :
+    let w := releaseOrderTail Funding.current
+    w.entries.map (·.sats) = [-1] ∧ w.deficiencies = [] ∧ w.remaining = 0 ∧
+    w.mark = some 14 ∧ w.roundingCredit = 1/5 ∧ w.charged = [(10,14)] := by
+  with_unfolding_all decide
+
+/-- Flip only release ordering: the same nonzero tail now posts after authority was released,
+so the existing clamp emits `clamp_overflow` and no tenant debit, while closing the meter. -/
+@[req "LDG-38", req "LDG-32", req "LDG-31", req "STO-37"]
+theorem release_before_close_loses_debit :
+    let w := releaseOrderTail { Funding.current with closeBeforeRelease := false }
+    w.entries = [] ∧ w.deficiencies = [{ clampedSats := 1, absorbedSeconds := 0 }] ∧
+    w.remaining = 0 ∧ w.mark = some 14 ∧ w.roundingCredit = 1/5 ∧
+    w.charged = [(10,14)] := by decide +kernel
 
 end Funding
 

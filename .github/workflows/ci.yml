@@ -565,6 +565,7 @@ jobs:
           Funding|startsAtMark|true|false|overlapTrace
           Funding|seedOnBillable|true|false|seedTrace
           Funding|exitPosts|true|false|exitCases Funding.current
+          Funding|closeBeforeRelease|true|false|releaseOrderTail Funding.current
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat

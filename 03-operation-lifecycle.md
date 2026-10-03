@@ -954,9 +954,8 @@ Nothing in `LDG-62`, `OPS-36`, `OPS-39` or `OPS-41` closed it.
 `LDG-62` is not an operation and holds no machine under `OPS-8` — a synchronous caller write cannot
 wait behind an install holding the machine for up to `RSC-35`'s ninety minutes, and refusing to
 extend runway for the duration of an install is precisely the wrong failure. **The worker holds the
-machine and then takes the tenant primitive**, in that order and only for the bounded
-read-and-write above; `LDG-62` takes the tenant primitive and never the machine. A cycle needs two
-acquirers in opposite orders, and there is no second order here.
+machine and then takes the tenant primitive**, in that order; `LDG-62` takes the tenant primitive
+and never the machine. A cycle needs two acquirers in opposite orders, and there is no second order here.
 
 *This paragraph said the worker takes the machine and never the tenant primitive until 2026-09-02,
 and it is retained because the trap is live: that sentence was true of the withdrawn ordering-only
@@ -1265,10 +1264,8 @@ the account would record every unlisted machine as gone — stopping their meter
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
 
-**The sweep's exit/gone write MUST take the affected subject's tenant primitive (`LDG-35`);
-see `LDG-38` for the exit.** One transaction per machine suffices; a transaction covering several
-tenants acquires their primitives in ascending tenant-identifier order (`LDG-35`). Provider
-enumeration and the direct re-read below remain outside the primitive (`LDG-69`).
+The sweep's gone-write is an exit under `LDG-38`. Provider enumeration and the direct re-read below
+remain outside the primitive (`LDG-69`).
 
 **And it may record an absence only about a machine past `PRV-36`'s effective visibility window for
 that provider** — `max(declared, max(observed))`, not the declaration alone (`ADR-0018`; this

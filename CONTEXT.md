@@ -291,7 +291,8 @@ _Avoid_: usage tracker, billing loop
 **Increment**:
 One span of a subject's billable time that the **meter** prices and posts as one debit, closing
 at its increment end. Where an increment starts and ends is `LDG-38`'s. Every entry into
-billable starts one and every exit ends one, so no billable time falls outside an increment.
+billable starts one and every exit ends one, so no billable time falls outside an increment,
+except a quarantined exit (`LDG-72`).
 _Avoid_: tick, interval (the cadence is the interval), chunk
 
 **Runway**:
