@@ -751,7 +751,12 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
 - [ ] **CNF-138** — **No rate is not a computed solvency failure.** Use otherwise admissible
       requests with fresh idempotency keys: no unrelated suspension, cancellation fence, spending
       shortfall or restore grace explains a refusal or deferral. Before each fault, mint an
-      unexpired deposit with an unsettled Lightning invoice. Remove the affected currency's rate
+      unexpired deposit with an unsettled Lightning invoice. In both the single-currency and
+      USD-unrated/EUR-rated cases, choose deposit and invoice expiries after the covered-outage
+      observations and the corresponding induced-shortfall cancellation check. Keep the invoice
+      unsettled until that check deliberately cancels it: verify it remains live and payable
+      throughout the covered observations, and observe cancellation while it is otherwise payable
+      and before either expiry. Remove the affected currency's rate
       sources for longer than the staleness bound and verify that its window yields **no rate**;
       one below-quorum pass is insufficient (`CNF-99`). Observe the sweep and worker cases before
       the outage bound. In the covered cases below, keep adequate assets after `LDG-53`'s asset
