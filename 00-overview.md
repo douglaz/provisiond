@@ -408,10 +408,12 @@ marked human are procedures the deployment records rather than values the proces
 
 **The maximum tolerated rate outage, and the staleness bound, window and quorum an outage's start is
 replayed with (`STO-37`), are each read at the value in force when `LDG-64`'s deadline is computed,
-for an outage already open too, so lowering the maximum below the time an outage has already run
+for an outage already open too; the staleness bound, window and quorum are likewise read at the
+value in force when `OPS-41`'s paused measure is computed, including during an open restore
+incident, so lowering the maximum below the time an outage has already run
 makes that outage's cancellations eligible at the restart that loads the new value, with no further
 notice** (*added 2026-10-02, `ADR-0029`, which holds why the value is not frozen per outage and
-what the offer says of it, `WIR-30`*).
+what the offer says of it, `WIR-30`; extended to the paused measure 2026-10-03 by the caller*).
 
 ## Non-goals
 

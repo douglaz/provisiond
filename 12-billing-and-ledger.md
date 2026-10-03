@@ -1624,7 +1624,8 @@ remedy — powering a machine off does not stop provider billing. There is no un
 period, because `PRV-13d`'s runway is the grace period and it is committed in advance. **A rate
 outage is a window that sentence does not cover** (*added 2026-10-02, `ADR-0029`*): `LDG-65` holds
 what a funding cancellation does then, and `ADR-0029` records what that costs the operator as
-accepted.
+accepted. **Restore grace is the other exception**, both its original wall-clock interval and
+its paused portion with a rate in force; `OPS-41` owns the rule.
 
 **LDG-45** The runway is **committed**, not prepaid, and `LDG-13`'s justification MUST be read
 that way. A committed reservation is released if unused (`LDG-32`); a prepayment would not be.

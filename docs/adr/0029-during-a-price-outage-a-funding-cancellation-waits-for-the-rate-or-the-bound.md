@@ -263,3 +263,25 @@ guard's off position reinstates the old placement and destruction.
 This correction is evaluated while the restore record remains open. It leaves the incident-close
 decision above and `STO-56`'s bound exception unchanged; `pv-gip.37` remains the question about
 closing at the bound with a pending cancellation.
+
+
+### Setting-in-force extension — 2026-10-03
+
+The caller extended the setting rule to the paused measure; `OVR-19` owns that rule and
+`OPS-41` points to it. This extends the application of the owner's 2026-10-02 decision,
+*The bound is the setting in force*, above; it is not a new decision attributed to that owner.
+
+Accepted cost: raising the staleness bound or window during an open restore incident can
+retroactively count outage time as rate-present time, spending paused grace. As with the
+bound, this is the operator's own parameter change. Freezing replay settings per incident
+was not requested. The mid-incident regression case is in `CNF-218`; it keeps the record open
+and tests history replay, which the Lean effective-outage-span model does not establish.
+
+The same review restored the re-check converse over worlds with an open restore record,
+including the direct and step-5 paused-deferral cases, and qualified Admission's description.
+It also made the funding-order defect independently refutable:
+`Provisiond.Witnesses.funded_during_paused_grace_witness` keeps the price cut and unchanged
+commitment, comparing settlement against premature deferral, under the `rederiveFirst` control.
+`OPS-41` retains the actual withdrawn computed-end sentence; `LDG-13` points to `OPS-41`
+for restore grace alongside its outage exception. The incident-close question on `pv-gip.37`
+remains outside this amendment.

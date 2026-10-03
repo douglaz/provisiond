@@ -224,7 +224,9 @@ resetting what accumulated". Off restores the original wall-clock-only grace.
 `pausedGraceInFence`: the 2026-10-03 placement in step 3 after re-derivation; off reinstates
 `ad6e2d9`'s claim-time check and computed paused-end parking, the historical counterfactual. This
 is separate from `graceAtClaim`, which controls the original wall-clock gate. `ADR-0029` records
-both withdrawn traces. -/
+both withdrawn traces. `rederiveFirst` controls the transaction entry: off checks paused
+grace before entering the ordinary re-check, even for a funded machine. `OPS-41` says
+"The worker re-derives and applies the predicate above **first**". -/
 structure Params where
   recheckInsideFence   : Bool
   fenceHolds           : Holds
@@ -238,6 +240,7 @@ structure Params where
   rateIsWindowMedian   : Bool
   pauseFundingGrace    : Bool
   pausedGraceInFence   : Bool
+  rederiveFirst        : Bool
   graceAtClaim         : Bool
   retryGuard           : Bool
   goneOrClosedFirst    : Bool
@@ -265,6 +268,7 @@ def current : Params := {
     rateIsWindowMedian   := true,
     pauseFundingGrace    := true,
     pausedGraceInFence   := true,
+    rederiveFirst        := true,
     graceAtClaim         := true,
     retryGuard           := true,
     goneOrClosedFirst    := true,
@@ -343,9 +347,8 @@ def World.episodeOpen (w : World) : Bool := w.episode.any (·.state.isOpen)
 /-- The outage's deadline, a function of the given start and the setting in force, computed at
 each use. `LDG-64` says "compute the outage's deadline from history, and store it nowhere". It is
 "the outage's start plus the maximum tolerated outage". Of the two terms the maximum is the one
-this model lets change: `OVR-19` has it, with the parameters the start is replayed with, "each
-read at the value in force when `LDG-64`'s deadline is computed, for an outage already open
-too", and the start is given, with no event that replays it under other parameters. -/
+this model lets change; see `OVR-19` for the setting rule. The start is given, with no event
+that replays it under other parameters. -/
 @[req "LDG-64"]
 def World.deadline (w : World) : Nat := w.outageStart + w.maxOutage
 
@@ -681,6 +684,32 @@ def fenceTxn (p : Params) (w : World) (restored : Option Nat) : World :=
       else { midTxn w restored with phase := .readUnfenced n d }
   | _, _ => w
 
+/-- The order control at the fence transaction's entry. With the guard off, a rate-present
+funding claim can short-defer before re-derivation; the ordinary ordered transaction is
+never reached on that path. The original claim gate and the paused placement guard are unchanged.
+The counterfactual preserves the gone/closed and suspension precedence. -/
+def fundingOrderTxn (p : Params) (w : World) (restored : Option Nat) : World :=
+  match w.phase, w.attempt with
+  | .holding n, some a =>
+    if !p.rederiveFirst && !(p.goneOrClosedFirst && settledFirst w a) &&
+        !exempt p w && w.rate.isSome && p.pausedGraceInFence && pausedGrace p w then
+      { midTxn w restored with
+          attempt := some { a with row := Claim.defer Claim.current a.row n }, phase := .idle }
+    else fenceTxn p w restored
+  | _, _ => fenceTxn p w restored
+
+/-- The counterfactual entry either reaches the ordered transaction or short-defers without
+changing the machine, balance, episode or id counter. -/
+theorem fundingOrderTxn_cases (p : Params) (w : World) (restored : Option Nat) :
+    fundingOrderTxn p w restored = fenceTxn p w restored ∨
+    ((fundingOrderTxn p w restored).phase = .idle ∧
+      (fundingOrderTxn p w restored).m = w.m ∧
+      (fundingOrderTxn p w restored).balance = w.balance ∧
+      (fundingOrderTxn p w restored).episode = w.episode ∧
+      (fundingOrderTxn p w restored).nextId = w.nextId) := by
+  unfold fundingOrderTxn midTxn rateRestored
+  (repeat' split) <;> simp_all
+
 /-- The split variant's second transaction: the fence write, deciding on what an earlier
 transaction read. It exists only where the read and the write are split; under
 `recheckInsideFence` there is no such step. -/
@@ -884,7 +913,7 @@ def step (p : Params) (w : World) : Event → World
   | .restoreRecord r => { w with restore := r }
   | .sweep => sweep p w
   | .claim => claimStep p w
-  | .fenceTxn restored => fenceTxn p w restored
+  | .fenceTxn restored => fundingOrderTxn p w restored
   | .fenceWrite => fenceWrite p w
   | .extend s => extend p w s
   | .providerDelete a r => providerDelete p w a r
@@ -1068,17 +1097,20 @@ theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
   obtain ⟨hm, -, -, -, he, -⟩ := midTxn_frame w restored
   simp [fenceTxn, hph, ha, hre, hm, he, Claim.defer, Claim.holds, Claim.current, hrun, hmine]
 
-/-- Outside an open restore incident, the original converse of `no_rate_waits` still holds:
-only the no-rate branch before the deadline defers. The 2026-10-03 paused branch invalidates
-that converse inside an incident; `derive_defers_iff` below describes its exact added case. -/
+/-- The converse of `no_rate_waits`, over every world, including an open restore incident.
+A re-check defers only in the no-rate wait or in the applicable funding derivation (directly or
+through step 5's returned rate). `derive_defers_iff` gives that added case its paused-grace
+meaning. Exemption and the gone/closed first step still precede every deferral. This is a
+property of one re-check, not a claim that a clocked wait eventually ends. -/
 @[req "OPS-39"]
 theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (a : Attempt)
-    (noRestore : w.restore = none)
     (restored : Option Nat) (h : recheck p w a restored = .defer) :
-    w.rate = none ∧ w.deadlinePassed = false ∧ p.noRateWaits = true ∧ exempt p w = false ∧
-      (p.goneOrClosedFirst = true → settledFirst w a = false) := by
-  have hderive : ∀ v r, v.restore = none → derive p v r ≠ .defer := by
-    intro v r hv; simp [derive, pausedGrace, hv]; split <;> simp
+    exempt p w = false ∧ (p.goneOrClosedFirst = true → settledFirst w a = false) ∧
+    ((w.rate = none ∧ w.deadlinePassed = false ∧ p.noRateWaits = true) ∨
+      (∃ r, w.rate = some r ∧ derive p w r = .defer) ∨
+      (w.rate = none ∧ (p.noRateWaits = true → w.deadlinePassed = true) ∧
+        p.outageWrite = true ∧ ∃ r, restored = some r ∧
+          derive p (rateRestored w r) r = .defer)) := by
   unfold recheck at h
   split at h
   · simp at h
@@ -1086,18 +1118,23 @@ theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (
     split at h
     · simp at h
     · rename_i hex
+      refine ⟨by simpa using hex, fun hg => by simpa [hg] using hfirst, ?_⟩
       split at h
-      · exact absurd h (hderive _ _ noRestore)
+      · rename_i r hr
+        exact .inr (.inl ⟨r, hr, h⟩)
       · rename_i hr
         split at h
         · rename_i hwait
           simp only [Bool.and_eq_true, Bool.not_eq_true'] at hwait
-          exact ⟨hr, hwait.2, hwait.1, by simpa using hex, fun hg => by simpa [hg] using hfirst⟩
-        · exfalso
+          exact .inl ⟨hr, hwait.2, hwait.1⟩
+        · rename_i hwait
           split at h
           · simp at h
-          · split at h
-            · exact hderive _ _ (by simpa [rateRestored] using noRestore) h
+          · rename_i hout
+            refine .inr (.inr ⟨hr, fun hw => by simpa [hw] using hwait,
+              by simpa using hout, ?_⟩)
+            split at h
+            · exact ⟨_, rfl, h⟩
             · split at h <;> simp at h
 
 /-- Exactly the added funding deferral: the ordinary predicate did not abort, the placement is
@@ -1181,7 +1218,7 @@ theorem open_outage_keeps_its_start (p : Params) (w : World) (hr : w.rate = none
     | claim => simp only [step]; unfold claimStep; (repeat' split) <;> simp_all
     | fenceTxn restored =>
       obtain ⟨-, -, -, -, -, -, h1, h2⟩ := midTxn_frame w restored
-      simp only [step]; unfold fenceTxn writeFence; (repeat' split) <;> simp_all
+      simp only [step]; unfold fundingOrderTxn fenceTxn writeFence; (repeat' split) <;> simp_all
     | fenceWrite => simp only [step]; unfold fenceWrite writeFence; (repeat' split) <;> simp_all
     | extend s =>
       obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h1, h2⟩ := extend_frame p w s
@@ -1228,7 +1265,7 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
   | claim => exfalso; unfold step claimStep at h; (repeat' split at h) <;> simp_all
   | fenceTxn restored =>
     exfalso; obtain ⟨hm, -⟩ := midTxn_frame w restored
-    unfold step fenceTxn writeFence at h; (repeat' split at h) <;> simp_all
+    unfold step fundingOrderTxn fenceTxn writeFence at h; (repeat' split at h) <;> simp_all
   | fenceWrite =>
     exfalso; unfold step fenceWrite writeFence at h; (repeat' split at h) <;> simp_all
   | extend s =>
@@ -1274,6 +1311,11 @@ theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true)
   | fenceTxn restored =>
     obtain ⟨hm, -, hmph, -⟩ := midTxn_frame w restored
     simp only [step] at h ⊢
+    have entry : fundingOrderTxn p w restored = fenceTxn p w restored := by
+      rcases fundingOrderTxn_cases p w restored with entry | entry
+      · exact entry
+      · simp [entry.1] at h
+    rw [entry] at h ⊢
     unfold fenceTxn at h ⊢
     split at h
     · rename_i n' a hph ha
@@ -1386,7 +1428,7 @@ theorem fenced_waits_for_the_provider (p : Params) (w : World) (n : ClaimNumber)
   | goneWrite => exact absurd rfl hg
   | sweep => unfold step sweep enqueue applyRow; (repeat' split) <;> simp_all
   | claim => simp [step, claimStep, hph]
-  | fenceTxn restored => simp [step, fenceTxn, hph]
+  | fenceTxn restored => simp [step, fundingOrderTxn, fenceTxn, hph]
   | fenceWrite => unfold step fenceWrite; (repeat' split) <;> simp_all
   | extend s => simp [step, extend, hf]
   | settle => simp [step, settle, hph]
@@ -1570,15 +1612,19 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
   | fenceTxn restored =>
     obtain ⟨hm, -, -, -, he, hn, -⟩ := midTxn_frame w restored
     have hmid : Inv (midTxn w restored) := inv_same w _ (by rw [hm]) he hn hw
-    simp only [step]; unfold fenceTxn
-    split
-    · split
-      · exact inv_same _ _ rfl rfl rfl hmid
-      · exact inv_same _ _ rfl rfl rfl hmid
+    simp only [step]
+    rcases fundingOrderTxn_cases p w restored with entry | entry
+    · rw [entry]
+      unfold fenceTxn
+      split
       · split
-        · exact writeFence_inv p hh ho _ _ _ _ hmid
         · exact inv_same _ _ rfl rfl rfl hmid
-    · exact hw
+        · exact inv_same _ _ rfl rfl rfl hmid
+        · split
+          · exact writeFence_inv p hh ho _ _ _ _ hmid
+          · exact inv_same _ _ rfl rfl rfl hmid
+      · exact hw
+    · exact inv_same w _ (by rw [entry.2.1]) entry.2.2.2.1 entry.2.2.2.2 hw
   | fenceWrite =>
     simp only [step]; unfold fenceWrite
     split
@@ -1686,7 +1732,7 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
   | claim => left; rw [step, (claimStep_frame p w).2.1]; exact hep
   | fenceTxn restored =>
     left; obtain ⟨-, -, -, -, he, -⟩ := midTxn_frame w restored
-    simp only [step]; unfold fenceTxn writeFence; (repeat' split) <;> simpa [he] using hep
+    simp only [step]; unfold fundingOrderTxn fenceTxn writeFence; (repeat' split) <;> simpa [he] using hep
   | fenceWrite =>
     left; simp only [step]; unfold fenceWrite writeFence; (repeat' split) <;> simpa using hep
   | extend s =>

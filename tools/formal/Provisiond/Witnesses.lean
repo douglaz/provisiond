@@ -1101,6 +1101,7 @@ def pausedGraceGuards (p : Params) : Params := { p with
     rateIsWindowMedian   := true,
     graceAtClaim         := true,
     pausedGraceInFence   := true,
+    rederiveFirst        := true,
     retryGuard           := true,
     goneOrClosedFirst    := true,
     noRateWaits          := true,
@@ -1225,18 +1226,30 @@ theorem paused_grace_conditional_return_witness :
     returned.attempt.map (·.row.availableAt) = some none ∧ returned.episode = dark.episode ∧
     inherited.m.fence = some (.episode ⟨1⟩) ∧ inherited.m.destroyed = false := by decide
 
+/-- Leave only the funding-order guard variable for its independent control. -/
+def fundingOrderGuards (p : Params) : Params :=
+  { pausedGraceGuards p with pauseFundingGrace := true, rederiveFirst := p.rederiveFirst }
+
 /-- A price cut rescues a machine before its paused interval is spent without growing the
 commitment. Re-derivation precedes the paused check; settlement writes the date, clears even an
-inherited fence and closes funded. Extension is exercised by `paused_funding_grace_witness`. -/
+inherited fence and closes funded. With the order guard off the same price cut leaves the
+attempt queued and the inherited fence set. Extension is exercised by `paused_funding_grace_witness`. -/
 @[req "OPS-41"]
 theorem funded_during_paused_grace_witness :
-    let p := { pausedGraceGuards Fence.current with pauseFundingGrace := true }
+    let p := fundingOrderGuards Fence.current
     let initial := { pausedGraceWorld with
       rate := some 2, prot := 10, m := { pausedGraceWorld.m with commitment := 11, fence := some (.episode ⟨1⟩) } }
     let waiting := run p initial
       [.rateLost 80, .advance 120, .rateRestored 2, .claim, .fenceTxn]
     let funded := run p waiting [.advance 5, .pass [1, 1, 1] 80, .claim, .fenceTxn,
       .providerDelete true (some true), .settle]
+    let premature := run { p with rederiveFirst := false } waiting
+      [.advance 5, .pass [1, 1, 1] 80, .claim, .fenceTxn,
+       .providerDelete true (some true), .settle]
+    premature.phase = .idle ∧ premature.m.commitment = 11 ∧
+    premature.m.fence = some (.episode ⟨1⟩) ∧ premature.m.destroyed = false ∧
+    premature.attempt.map (·.row.status) = some .queued ∧
+    premature.episode = waiting.episode ∧
     waiting.phase = .idle ∧ waiting.m.commitment = 11 ∧
     funded.m.commitment = 11 ∧ funded.m.runwayUntil = 206 ∧
     funded.m.fence = none ∧ funded.m.destroyed = false ∧

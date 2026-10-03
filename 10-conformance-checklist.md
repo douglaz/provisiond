@@ -1853,6 +1853,23 @@ rather than acquiring a default.
       (`STO-49`). Repeat for a live machine with no `rate_outage` record. Stop another subject
       in the same currency and write its `absorbed_until` before the currency returns: the
       live machine's grace is unchanged by that subject record.
+      *Replay setting changed during the incident* (`OVR-19`): use a 1h staleness bound,
+      a 1h re-derivation interval, a 24h window and quorum three. Retain accepted currency
+      observations at 08:00, 09:00 and 10:00, each from three independent, live, non-excluded
+      sources at the same price; retain the left edge needed for replay. Step (3) is at 11:00
+      and the original end is 12:00. Accept no further observation before 14:00: under the
+      original setting, the newest observation becomes stale at the 11:00 boundary and there
+      is no rate until 14:00. A restart loads a 6h staleness bound; a qualifying pass at 14:00
+      accepts an observation at that same price. The 10:00 and 14:00 windows are sufficiently populated,
+      so thinness does not decide this trace. Keep the restore record
+      open, the outage bound later than the trace, and the tenant active, machine live and
+      unfenced, funding episode open, and cancellation eligible at 14:05 with no competing
+      operation hold. Leave the commitment insufficient for a future re-derived date and
+      admit no extension. At the 14:05 fence transaction, assert replay with the setting now
+      in force counts 11:00–14:05 as rate-present: the accumulated interval is spent, and the
+      otherwise unfunded cancellation fences and proceeds to the provider call. Replaying
+      with the old bound would count only five minutes and incorrectly short-defer. This is
+      a history-replay conformance case; the Lean effective-outage-span model does not prove it.
       *Return between claim and fence transaction* (`pv-gip.35`): with no rate at the claim,
       the original end passed, and an unfunded re-derivation, commit a qualifying return before
       the fence transaction. Assert the transaction reads that return and its currency history,

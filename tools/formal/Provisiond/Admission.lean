@@ -872,8 +872,10 @@ answered with a halt — each continues or waits — and the wait's answer past 
 (`RateAnswer.atTheBound`) is `continues`. This model has no rate that returns and no deadline
 that passes, so that the wait in fact ends is not this theorem's.
 `Provisiond.Fence.defer_only_without_a_rate_before_the_deadline` proves, over every world, that a
-re-check defers only with no rate and the deadline not passed, so that nothing else in the order
-waits; its statement has no clock either. `Provisiond.Witnesses` runs the wait to its end both
+re-check defers only with no rate and the deadline not passed, or through the applicable
+`derive` branch's paused deferral, including a return seen in step 5. `Provisiond.Fence.derive_defers_iff`
+characterizes that added case; nothing else in the ordered re-check waits. This is a property
+of one re-check, not proof that a clocked wait eventually ends. `Provisiond.Witnesses` runs the wait to its end both
 ways (`returned_rate_decides_on_the_predicate_witness`, `the_wait_ends_at_the_bound_witness`).
 The sweep is not a cancellation and `OPS-39`'s sentence is not about it; its row is the next
 theorem's.

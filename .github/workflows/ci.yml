@@ -501,6 +501,10 @@ jobs:
       #   OPS-41, ADR-0029 (2026-10-03): reinstate ad6e2d9's claim-time check;
       #   a qualifying return before the fence destroys with zero accumulated grace --
       #   paused_grace_placement_witness on pausedGraceRace. Other guards are pinned.
+      # Funding order (pv-gip.29 review residue), Fence.current.rederiveFirst:
+      #   OPS-41, ADR-0029 (2026-10-03): paused deferral before re-derivation strands
+      #   the price-cut-funded machine with its commitment unchanged --
+      #   funded_during_paused_grace_witness. Other guards are pinned.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
@@ -526,6 +530,7 @@ jobs:
           Fence|graceAtClaim|true|false|graceTrace
           Fence|pauseFundingGrace|true|false|pausedGraceReturn
           Fence|pausedGraceInFence|true|false|pausedGraceRace
+          Fence|rederiveFirst|true|false|fundingOrderGuards Fence.current
           Fence|retryGuard|true|false|goneAfterStallTrace ++
           Fence|goneOrClosedFirst|true|false|goneMidOutageTrace
           Fence|noRateWaits|true|false|freshOutageTrace
