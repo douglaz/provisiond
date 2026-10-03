@@ -431,8 +431,8 @@ theorem suspension_keyed_on_current_state_witness :
 /-- `OPS-41`'s fifth step on a machine carrying an open record. With no rate returning, the
 conditional write affects the record's row and the cancellation proceeds: the funded machine is
 destroyed at the bound. With restoration committing after the fence transaction read no rate and
-before its conditional write, the write affects no row, "the worker re-derives at that rate and
-applies the predicate above", and the machine funded at the restored rate is kept with no
+before its conditional write, the write affects no row, "the worker takes step 3 at that returned
+rate", and the machine funded at the restored rate is kept with no
 provider call. Without the write the transaction's read is taken at its word, which `OPS-41`
 says "would let the worker delete a funded fleet on stale evidence". -/
 @[req "OPS-41"]
@@ -627,7 +627,7 @@ theorem the_transaction_decides_witness :
     back.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by
   decide
 
-/-- `OPS-41`: "each later claim decides again from step 1, so a suspension that joins the episode,
+/-- `OPS-41`: "each later eligible claim decides again from step 1, so a suspension that joins the episode,
 a rate that returns and a machine recorded gone are each seen at the next claim". A suspension
 joining the deferred attempt's episode: the next claim proceeds to the provider call, with still
 no rate and the deadline not passed. -/
@@ -964,7 +964,7 @@ theorem parent_resumes_on_restart :
 
 /-- `F52` #3 (`STO-54`, `ADR-0023`, 2026-09-12): "an extension lost in Δ is not rebuilt". The
 tenant extended to 100 inside the interval, the restored date is 0, the procedure writes the
-grace as `STO-56`'s `grace_ends_at`, "step (3)'s instant plus one re-derivation interval" — from
+unpaused end as `STO-56`'s `grace_ends_at`, "step (3)'s instant plus one re-derivation interval" — from
 step (3)'s instant, not the restore's, which the record keeps beside it. `OPS-41` owns its
 paused use after an outage; no run of this procedure writes the date back. -/
 @[req "STO-54"]
@@ -1006,7 +1006,7 @@ theorem successful_restore_witness :
 
 end Restore
 
-/-! ## The restore grace at the claim
+/-! ## The original claim gate and the paused grace
 
 `ADR-0028`'s placement, composed across the two models: `Provisiond.Restore` writes the instant
 at step (3), and `Provisiond.Fence` reads it at the claim. The instant the fence trace carries is
@@ -1100,6 +1100,7 @@ def pausedGraceGuards (p : Params) : Params := { p with
     ownIdClause          := true,
     rateIsWindowMedian   := true,
     graceAtClaim         := true,
+    pausedGraceInFence   := true,
     retryGuard           := true,
     goneOrClosedFirst    := true,
     noRateWaits          := true,
@@ -1118,15 +1119,16 @@ def pausedGraceReturn : List Fence.Event :=
    .pass [1, 1, 1] 80, .claim, .fenceTxn, .providerDelete true (some true)]
 
 /-- The historical defect: the first claim at the qualifying return destroys a machine whose
-entire wall-clock grace was dark. Guarded, it defers to 260 without a fence, admits an extension,
-and settles funded after 60 rate-present units. Removing only the pause reproduces destruction. -/
+entire wall-clock grace was dark. Guarded, it short-defers without a fence, admits an extension,
+and settles funded before 60 rate-present units accumulate. Removing only the pause reproduces
+destruction. -/
 @[req "OPS-41"]
 theorem paused_funding_grace_witness :
     let p := pausedGraceGuards Fence.current
     let good := run p pausedGraceWorld pausedGraceReturn
     let bad := run { p with pauseFundingGrace := false } pausedGraceWorld pausedGraceReturn
-    let saved := run p good [.extend 100, .advance 60, .claim, .fenceTxn, .settle]
-    good.phase = .idle ∧ good.attempt.map (·.row.availableAt) = some (some 260) ∧
+    let saved := run p good [.extend 100, .advance 5, .claim, .fenceTxn, .settle]
+    good.phase = .idle ∧ good.attempt.map (·.row.availableAt) = some none ∧
     good.m.fence = none ∧ good.m.destroyed = false ∧
     good.outageOpen = false ∧ good.rateHistory = [(80, 200)] ∧
     saved.m.commitment = 100 ∧ saved.m.destroyed = false ∧ saved.m.fence = none ∧
@@ -1141,17 +1143,19 @@ theorem paused_grace_flapping_witness :
     let p := { pausedGraceGuards Fence.current with pauseFundingGrace := true }
     let first := run p pausedGraceWorld
       [.advance 20, .rateLost 100, .advance 100, .claim, .fenceTxn]
-    let returned := run p first [.pass [1, 1, 1] 100, .claim]
+    let returned := run p first [.pass [1, 1, 1] 100, .claim, .fenceTxn]
     let second := run p returned
-      [.advance 15, .rateLost 215, .advance 100, .claim, .fenceTxn, .rateRestored 1, .claim]
+      [.advance 15, .rateLost 215, .advance 100, .claim, .fenceTxn, .rateRestored 1, .claim, .fenceTxn]
     let ended := run p second
       [.advance 25, .claim, .fenceTxn, .providerDelete true (some true), .settle]
     first.attempt.map (·.row.availableAt) = some none ∧ first.m.fence = none ∧
-    returned.attempt.map (·.row.availableAt) = some (some 240) ∧
-    second.attempt.map (·.row.availableAt) = some (some 340) ∧ second.m.fence = none ∧
+    returned.attempt.map (·.row.availableAt) = some none ∧
+    Claim.rateTime returned.rateHistory 80 120 = 20 ∧
+    second.attempt.map (·.row.availableAt) = some none ∧
+    Claim.rateTime second.rateHistory 80 235 = 35 ∧ second.m.fence = none ∧
     Claim.rateTime second.rateHistory 80 260 = 60 ∧ ended.m.destroyed = true ∧
-    (claimStep p { returned with episode := returned.episode.map fun ep =>
-      { ep with reasons := [.tenantSuspended, .exhausted] } }).phase = .idle := by decide
+    (run p { returned with episode := returned.episode.map fun ep =>
+      { ep with reasons := [.tenantSuspended, .exhausted] } } [.claim, .fenceTxn]).phase = .idle := by decide
 
 /-- Neither a current suspension nor the no-rate bound waits for the paused portion. The
 original wall end still protects a bound reached earlier; absent/null records keep their cases. -/
@@ -1173,6 +1177,71 @@ theorem paused_grace_exceptions_witness :
     ended.m.destroyed = true ∧
     (claimStep p { dark with restore := none }).phase = .holding ⟨1⟩ ∧
     (claimStep p { dark with restore := some ⟨none⟩ }).phase = .idle := by decide
+
+/-- The Manager's `pv-gip.35` probe: no rate at the claim, qualifying return before the fence
+transaction, original end passed with zero rate-present time spent. -/
+def pausedGraceRace : List Fence.Event :=
+  [.rateLost 80, .advance 120, .claim, .pass [1, 1, 1] 80,
+   .fenceTxn, .providerDelete true (some true)]
+
+/-- Pin the measure guard while leaving only the placement guard variable. Keeping this helper
+named also keeps the trace visible in the workflow's refuted-proposition diagnostic. -/
+def pausedPlacementGuards (p : Params) : Params :=
+  { pausedGraceGuards p with pauseFundingGrace := true, pausedGraceInFence := p.pausedGraceInFence }
+
+/-- The 2026-10-03 placement guard's historical pair (`ADR-0029`). Reinstating `ad6e2d9`'s
+claim-time check destroys the machine at 200 despite zero accumulated time. The transaction
+placement short-defers with no fence or provider call and leaves the episode open. All other
+guards are fixed, including the accumulated measure's guard. No queue-timing claim is made. -/
+@[req "OPS-41"]
+theorem paused_grace_placement_witness :
+    let p := pausedPlacementGuards Fence.current
+    let good := run p pausedGraceWorld pausedGraceRace
+    let bad := run { p with pausedGraceInFence := false } pausedGraceWorld pausedGraceRace
+    good.now = 200 ∧ good.rateHistory = [(80, 200)] ∧
+    Claim.rateTime good.rateHistory 80 120 = 0 ∧
+    good.restore = graceRecord ∧ good.m.destroyed = false ∧ good.m.fence = none ∧
+    good.phase = .idle ∧ good.attempt.map (·.row.status) = some .queued ∧
+    good.attempt.map (·.row.availableAt) = some none ∧
+    good.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
+    bad.now = 200 ∧ bad.rateHistory = [(80, 200)] ∧ bad.m.destroyed = true := by decide
+
+/-- The conditional-write branch must see returned history too. At the bound, a restoration
+closes the subject record before the conditional write; re-derivation leaves the machine
+unfunded but the common step-3 branch still short-defers. An inherited fence is untouched.
+This is a transaction interleaving, not a claim about queue eligibility at the bound. -/
+@[req "OPS-41"]
+theorem paused_grace_conditional_return_witness :
+    let p := { pausedGraceGuards Fence.current with pauseFundingGrace := true }
+    let dark := run p { pausedGraceWorld with maxOutage := 100 }
+      [.rateLost 80, .meterOpens, .advance 120, .claim]
+    let returned := run p dark [.fenceTxn (some 1), .providerDelete true (some true)]
+    let inherited := run p { dark with m := { dark.m with fence := some (.episode ⟨1⟩) } }
+      [.fenceTxn (some 1), .providerDelete true (some true)]
+    dark.outageOpen = true ∧ returned.outageOpen = false ∧
+    returned.rateHistory = [(80, 200)] ∧ returned.m.destroyed = false ∧
+    returned.m.fence = none ∧ returned.phase = .idle ∧
+    returned.attempt.map (·.row.status) = some .queued ∧
+    returned.attempt.map (·.row.availableAt) = some none ∧ returned.episode = dark.episode ∧
+    inherited.m.fence = some (.episode ⟨1⟩) ∧ inherited.m.destroyed = false := by decide
+
+/-- A price cut rescues a machine before its paused interval is spent without growing the
+commitment. Re-derivation precedes the paused check; settlement writes the date, clears even an
+inherited fence and closes funded. Extension is exercised by `paused_funding_grace_witness`. -/
+@[req "OPS-41"]
+theorem funded_during_paused_grace_witness :
+    let p := { pausedGraceGuards Fence.current with pauseFundingGrace := true }
+    let initial := { pausedGraceWorld with
+      rate := some 2, prot := 10, m := { pausedGraceWorld.m with commitment := 11, fence := some (.episode ⟨1⟩) } }
+    let waiting := run p initial
+      [.rateLost 80, .advance 120, .rateRestored 2, .claim, .fenceTxn]
+    let funded := run p waiting [.advance 5, .pass [1, 1, 1] 80, .claim, .fenceTxn,
+      .providerDelete true (some true), .settle]
+    waiting.phase = .idle ∧ waiting.m.commitment = 11 ∧
+    funded.m.commitment = 11 ∧ funded.m.runwayUntil = 206 ∧
+    funded.m.fence = none ∧ funded.m.destroyed = false ∧
+    Claim.rateTime funded.rateHistory 80 125 = 5 ∧
+    funded.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } := by decide
 
 end Grace
 

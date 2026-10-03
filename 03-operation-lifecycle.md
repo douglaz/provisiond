@@ -748,22 +748,9 @@ window produces a rate again", not the first arriving observation; a thin window
 Do not use a subject's `absorbed_until`, and do not assume `observed_at` increases in acceptance
 order. No accumulated measure or revised grace end is persisted.
 
-The null-before-step-(3) and original wall-clock deferrals above remain first for **every**
-covered claim. After that wall-clock end, while a rate exists and a funding cancellation has
-unspent grace, the claim MUST return the attempt to `queued` with `available_at` equal to
-`now + (one re-derivation interval − accumulated rate-present time)`, the paused end computed at
-this claim. No fence is written and the re-check above does not run on that path; no provider call
-is made. Recompute at every later claim; a new outage can change that end. With no outage this
-ends at the original `grace_ends_at`.
-
-Only funding cancellations gain the paused portion. A currently suspended tenant's cancellation
-and, with no rate, a cancellation at the outage bound retain the original wall-clock grace only,
-whatever the attempt's enqueue reason or the episode's historical reasons. With no rate after the
-wall-clock end, the grace MUST NOT defer to an unknowable rate-return instant: the ordered worker
-decision below runs, including step 4's short delay, step 5's bound and current suspension.
-With no open restore record there is no restore-grace deferral. Once grace no longer defers, the
-ordinary ordered re-check and fence transaction remain unchanged. `STO-56` owns incident closure;
-`STO-54` says "the freeze lifts at `grace_ends_at`"; the paused portion does not extend it.
+The ordered decision below determines which cancellations reach the funding-only paused check
+in step 3. With no open restore record there is no restore-grace deferral. `STO-56` owns incident
+closure; `STO-54` says "the freeze lifts at `grace_ends_at`"; the paused portion does not extend it.
 
 **AMENDED 2026-09-04 — the abort predicate was the routing predicate, so every correctly routed
 cancellation aborted.** *It read "where the remaining commitment now covers the wind-down floor at
@@ -820,7 +807,17 @@ whatever reason the attempt was enqueued under, and the first step that applies 
 2. **The tenant is suspended now.** The funding re-check does not apply and the cancellation
    proceeds; the suspension paragraph below holds that rule.
 3. **A rate exists for the machine's currency** (`LDG-59`). The worker re-derives and applies the
-   predicate above.
+   predicate above **first**. If funded, it performs the no-mutation abort and settlement above,
+   including the re-derived date write, fence clearing and episode closure where applicable.
+   **Only if the predicate would cancel**, and a restore record is open, its original
+   `grace_ends_at` has passed, and the currency has accumulated less than one re-derivation
+   interval of rate-present time since step (3), the worker MUST return the attempt to `queued`
+   by `OPS-8`'s ordinary short delay. The paused check reads the restore record and currency
+   history on this transaction's reads, including the returned rate it sees, never the claim's
+   rate snapshot. It writes no new fence, makes no provider call, and neither settles the attempt
+   nor closes its episode. Otherwise it proceeds to the existing fence and cancellation path.
+   *Amended 2026-10-03 (`ADR-0029`): the paused check moved here from the claim; the computed
+   paused-end availability is withdrawn in favour of the ordinary short delay.*
 4. **There is no rate, and the outage's deadline has not passed** (`LDG-64` holds how the deadline
    is computed). The claim defers: the operation is returned to `queued` by `OPS-8`'s ordinary
    short delay, and no fence is written.
@@ -829,9 +826,9 @@ whatever reason the attempt was enqueued under, and the first step that applies 
    record (`STO-37`, guarded on `absorbed_until IS NULL`; a no-op write on the row, whose only
    purpose is to contend). Where that write affects a row, the outage is still open for this
    machine and the cancellation proceeds. Where it affects no row and a rate is now in force —
-   restoration (`LDG-64`) closed the record first — the worker re-derives at that rate and applies
-   the predicate above. Where it affects no row and there is still no rate, the machine carries no
-   open record and the cancellation proceeds as well: `LDG-64`'s bound reaches a machine the meter
+   restoration (`LDG-64`) closed the record first — the worker takes step 3 at that returned rate,
+   including its re-derivation first and paused check on the returned currency history. Where it
+   affects no row and there is still no rate, the machine carries no open record and the cancellation proceeds as well: `LDG-64`'s bound reaches a machine the meter
    opened no record for, and step 1 has already settled a machine that is gone.
 
 **At the bound "no rate" is established by that conditional write, not by a read.** A read of "no
@@ -842,13 +839,13 @@ two. **One case is left unordered, and it is accepted** (`ADR-0029`): for a mach
 nothing orders the worker against a rate returning at that instant, which takes a machine the meter
 never posted for and a rate returning at the bound itself.
 
-**Step 4 is a deferral, not a settlement.** The episode stays open and `OPS-48` gains no row, on the
-restore-grace paragraph's reasoning — a re-queued attempt has not settled — and each later claim
-decides again from step 1, so a suspension that joins the episode, a rate that returns and a machine
-recorded gone are each seen at the next claim, with no wake-up to arrange. For their composition,
-the grace is read first, at the claim: its original wall-clock protection precedes this order;
-its additional funding-only paused portion uses the claim rule above. With no rate after the
-wall-clock end this order runs, so step 4, the bound and current suspension remain reachable.
+**The short deferrals in steps 3 and 4 are not settlements.** The episode stays open and
+`OPS-48` gains no row — a re-queued attempt has not settled — and each later eligible claim
+decides again from step 1, so a suspension that joins the episode, a rate that returns and a
+machine recorded gone are each seen at the next claim, with no wake-up to arrange. The original
+wall-clock grace is still read first at the claim and precedes this order, including a bound
+inside that interval; the paused portion is decided only at step 3. A paused deferral does not
+clear an inherited fence.
 
 *Amended 2026-10-02 (`ADR-0029`), with the withdrawn wording, kept because it reads as sound and
 was not. Until then this requirement held: "**Where there is no rate, the cancellation proceeds.**

@@ -4,11 +4,13 @@ write and the defer as guarded writes, the settlement transaction under `OPS-49`
 whole-transaction retry, and the engine's claim step. The first **reference model**
 (`CONTEXT.md`).
 
-`OPS-41`'s restore grace is read here, at the claim, because the deferral it orders is `OPS-8`'s
-defer: `graceDefers` is the test on `STO-56`'s open record, and `defer` writes the instant the
-test read. `available_at` appears exactly that far — the column `OPS-41`'s deferral writes — and
-nothing here reads it: the claim does not wait for it, and `OPS-8`'s "short delay" is not an
-instant.
+`OPS-41`'s original wall-clock gate is read at the claim: `graceDefers` tests `STO-56`'s open
+record and `defer` writes its end or the ordinary short delay. The paused check belongs to
+`Provisiond.Fence`'s funding branch. `available_at` appears exactly as a written column; nothing
+here reads it, and `OPS-8`'s "short delay" is represented by `none`, not a scheduled instant.
+The later-bound and later-suspension queue-timing defect (`pv-gip.36`) is therefore outside the
+model. Its evidence is `OPS-41`'s short-delay rule and the queue-eligibility traces in
+`10-conformance-checklist.md`; manually scheduling a claim cannot refute the former parking.
 
 What the model omits: `OPS-15`'s startup pass and `OPS-27`'s resolution writes (made by no
 execution; `pv-vwe.5`), `API-58`'s fan-out transition (`pv-vwe.6`), `OPS-11`'s classification of a
@@ -163,82 +165,28 @@ theorem rateTime_no_outage (start n : Nat) : rateTime [] start n = n := by
   | zero => rfl
   | succ n ih => simp [rateTime, ratePresent, ih]
 
-/-- Claim-time inputs, not stored columns. `funding` excludes current suspension and the current
-no-rate bound, independently of enqueue reasons. `hasRate` is the currency's present rate.
-`interval` is the same re-derivation interval used by `Provisiond.Restore` for the single write. -/
-structure GraceContext where
-  pauseFunding : Bool
-  funding : Bool
-  hasRate : Bool
-  interval : Nat
-  history : RateHistory
-  deriving DecidableEq, Repr
-
-/-- The additional portion applies only with a rate; without one the ordinary ordered worker
-reaches its short-delay or bound path after wall-clock grace. -/
-def pausedEnd (c : GraceContext) (unpaused now : Nat) : Nat :=
-  now + (c.interval - rateTime c.history (unpaused - c.interval)
-    (now - (unpaused - c.interval)))
-
-/-- The instant to write on a grace deferral. Null still means a short delay before step (3).
-Wall-clock protection takes precedence; only the additional funding portion uses replay. -/
+/-- The original wall-clock deferral's instant. Null means the ordinary short delay. -/
 @[req "OPS-41"]
-def graceAvailableAt (record : Option RestoreRecord) (now : Nat) (c : GraceContext) : Option Nat :=
-  record.bind fun r => r.graceEndsAt.map fun t =>
-    if now < t then t
-    else if c.pauseFunding && c.funding && c.hasRate then pausedEnd c t now else t
+def graceAvailableAt (record : Option RestoreRecord) : Option Nat :=
+  record.bind (·.graceEndsAt)
 
 /-- `OPS-41`: "A claim made while a restore record is open and its `grace_ends_at` is null or in
-the future defers, and writes no fence". The original wall-clock rule remains; the amendment
-adds the funding-only rate-present measure. `none` is no open record. -/
+the future defers, and writes no fence". No rate or suspension input narrows this gate. -/
 @[req "OPS-41"]
-def graceDefers (record : Option RestoreRecord) (now : Nat) (c : GraceContext) : Bool :=
+def graceDefers (record : Option RestoreRecord) (now : Nat) : Bool :=
   match record with
   | none => false
-  | some r =>
-    match r.graceEndsAt with
+  | some r => match r.graceEndsAt with
     | none => true
-    | some t => now < t ||
-        (c.pauseFunding && c.funding && c.hasRate && now < pausedEnd c t now)
+    | some t => now < t
 
-/-- The old iff is narrowed to wall-clock-only claims: it no longer describes funding claims
-with a rate after an outage (`ADR-0029`, 2026-10-02). -/
+/-- The wall-clock gate's complete scope, independent of the later funding decision. -/
 @[req "OPS-41"]
-theorem graceDefers_wall_only (record : Option RestoreRecord) (now : Nat) (c : GraceContext)
-    (h : c.funding = false ∨ c.hasRate = false ∨ c.pauseFunding = false) :
-    graceDefers record now c = true ↔
+theorem graceDefers_wall_only (record : Option RestoreRecord) (now : Nat) :
+    graceDefers record now = true ↔
       ∃ r, record = some r ∧ (r.graceEndsAt = none ∨ ∃ t, r.graceEndsAt = some t ∧ now < t) := by
-  rcases h with h | h | h <;> cases record <;> simp [graceDefers]
-  all_goals rename_i r; cases r.graceEndsAt <;> simp [h]
-
-/-- Under any finite outage pattern, one interval of accumulated rate-present time finishes the
-grace. The stored end must be a valid step-(3) instant plus the interval; replay may have any
-finite outage pattern, and need not have a rate now. This is not a promise of eventual return. -/
-@[req "OPS-41"]
-theorem grace_finishes_after_accumulated_interval (c : GraceContext) (t now : Nat)
-    (valid : c.interval ≤ t)
-    (elapsed : c.interval ≤ rateTime c.history (t - c.interval) (now - (t - c.interval)))
-    (started : t - c.interval ≤ now) :
-    graceDefers (some ⟨some t⟩) now c = false := by
-  have := rateTime_le c.history (t - c.interval) (now - (t - c.interval))
-  have wall : ¬ now < t := by omega
-  have rest : c.interval - rateTime c.history (t - c.interval) (now - (t - c.interval)) = 0 := by omega
-  simp [graceDefers, pausedEnd, wall, rest]
-
-/-- Removing the amendment exposes exactly the unused-time defect. -/
-@[req "OPS-41"]
-theorem paused_grace_guarded (c : GraceContext) (t now : Nat)
-    (hp : c.pauseFunding = true) (hf : c.funding = true) (hr : c.hasRate = true)
-    (remaining : rateTime c.history (t - c.interval) (now - (t - c.interval)) < c.interval) :
-    graceDefers (some ⟨some t⟩) now c = true := by
-  have : now < pausedEnd c t now := by unfold pausedEnd; omega
-  simp [graceDefers, hp, hf, hr, this]
-
-@[req "OPS-41"]
-theorem paused_grace_unguarded (c : GraceContext) (t now : Nat)
-    (hp : c.pauseFunding = false) (wall : t ≤ now) :
-    graceDefers (some ⟨some t⟩) now c = false := by
-  simp [graceDefers, hp, show ¬ now < t by omega]
+  cases record <;> simp [graceDefers]
+  rename_i r; cases r.graceEndsAt <;> simp
 
 /-- `OPS-5`, `OPS-6`: the claim marks `running`, increments the number and returns it to the
 worker, in one indivisible step. `admitted = false` is the claim `STO-51`'s index refuses

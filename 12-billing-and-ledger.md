@@ -1672,8 +1672,8 @@ lands after the fence keeps its satoshis rather than paying for a machine that i
 **In that same transaction an extension MUST write the re-derived `runway_until` (`LDG-33`) to the
 machine row** (*withdrawn 2026-09-25, `ADR-0028`: "and clear the deadline — `LDG-16`'s
 `machines.destroy_not_before`, an extension being the authorized future-date write that ends the
-restore grace (`ADR-0026`)" — no machine carries a deadline; the restore grace is `STO-56`'s
-`grace_ends_at`*) **and, where it opens the commitment on a machine carrying an unresolved
+restore grace (`ADR-0026`)" — no machine carries a deadline; see `OPS-41` for restore grace*) **and, where it
+opens the commitment on a machine carrying an unresolved
 `late_attach_cleanup` deficiency (`OPS-36`, `STO-37`), write that record's `resolved_at`**, because
 the commitment it opens is sized with
 `protected_sats` and is what ends the operator's exposure; *the abort that follows only notices it
@@ -1723,9 +1723,8 @@ runway the customer was shown is not a glitch, and delaying it an interval would
 exhaustion one interval into the wind-down reserve this requirement exists to keep whole.* While the
 currency has no rate the sweep routes nothing priced in it, and `LDG-65` holds what becomes of a
 machine whose date passes then. A
-restore's grace is no clause of this predicate: it is `STO-56`'s `grace_ends_at`, `OPS-41` holds the
-rule that defers the claim until it, and the sweep itself is among what `STO-54` freezes (*amended
-2026-09-25, `ADR-0028`*). *Amended 2026-10-02, `ADR-0029`: until then the predicate was the date
+restore's grace is no clause of this predicate; see `OPS-41` for the grace rule and `STO-54` for
+the sweep's freeze (*amended 2026-09-25, `ADR-0028`*). *Amended 2026-10-02, `ADR-0029`: until then the predicate was the date
 alone, "MUST route a machine where its stored `runway_until` has passed, and MUST NOT route it
 otherwise".*
 
@@ -1736,8 +1735,8 @@ observation discharges it**: a restore moves the fleet's dates backward by somet
 consumption, and no price speaks to that. **An authorized future-date write clears the deadline** —
 an extension (`LDG-62`) or `OPS-41`'s no-mutation abort, the two writes a tenant's money or a
 worker's re-check stands behind. Re-derivation's own write is not one: it never touches the
-deadline." — and the predicate's second clause, "and its `destroy_not_before` is null or past". The
-grace is one instant on the restore record, read at the claim, and no machine carries a deadline.*
+deadline." — and the predicate's second clause, "and its `destroy_not_before` is null or past". No
+machine carries a deadline; see `OPS-41` for restore grace.*
 
 **Some cancellations reach the worker without passing through that predicate**, which is the
 exhaustion sweep's alone. One is `LDG-64`'s bound: `LDG-64` says the deployment MUST "**cancel
@@ -1748,17 +1747,13 @@ cleanup, enqueued by its attach transaction and not by the sweep; while its mach
 no rate it waits at `OPS-41`'s order as every funding cancellation does (*added 2026-10-02,
 `ADR-0029`*). Each claims like every other
 exposure-reducing cancellation and waits for a restore's grace as `OPS-41` requires (*amended
-2026-09-25, `ADR-0028`*). The worker's re-check and its provider call read no fact the grace wrote —
-the claim's read of the restore record's `grace_ends_at` is `OPS-41`'s. `OPS-41`'s re-check at claim
-is the last look before the mutation — `OPS-41` says the worker MUST "re-read that machine's
-commitment and its `runway_until`" — and its no-mutation abort writes the re-derived date.
+2026-09-25, `ADR-0028`*).
 *Withdrawn 2026-09-25 (`ADR-0028`), the trap retained: "**The worker's provider call reads the
 deadline and nothing else of this requirement's: an exposure-reducing cancellation MUST NOT make its
 provider call while its machine's `destroy_not_before` is in the future**, whichever path reached
 the worker. `OPS-41`'s re-check decides whether to cancel and the deadline decides when, so every
 such provider call respects the deadline, which runs on wall clock, expires on its own and is never
-longer than one re-derivation interval." — the worker's re-check and its provider call read no fact
-the grace wrote.*
+longer than one re-derivation interval."*
 
 *Withdrawn 2026-09-23 (`ADR-0027`): the rate confirmation reference, `machines.rate_confirmation_ref`
 — a per-machine mark that a backward re-derivation armed and a strictly later accepted observation

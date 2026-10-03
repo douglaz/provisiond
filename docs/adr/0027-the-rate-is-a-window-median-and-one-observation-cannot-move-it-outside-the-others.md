@@ -137,7 +137,7 @@ create-time price, the solvency check. One rate, one home.
   `machines.rate_confirmation_ref` all go. The routing predicate becomes what it was before
   2026-09-05 plus the deadline: stored `runway_until` past, `destroy_not_before` null or past.
 - **The destruction deadline stays**, and the worker reads it (*superseded 2026-09-25 by
-  `ADR-0028`: the grace is one instant in the restore record and no machine carries a deadline;
+  `ADR-0028`: see that ADR for the restore-record design;
   the rest of this bullet is the record of what stood for two days*). `STO-54`'s restore grace is a
   different concern — a restore moves the fleet's dates backward by something other than
   consumption, and no price speaks to that — and `pv-gip.1` makes `LDG-16` say plainly that every

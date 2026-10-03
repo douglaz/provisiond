@@ -57,13 +57,12 @@ selection and rate arithmetic are outside this transition. The rate the worker r
 `rederive` carries the date, and `LDG-58`'s lower median over them is the rate in force until the
 next pass. `advance` moves wall clock and nothing else.
 
-The restore grace is read here where `OPS-41` puts it, at the claim: `World.restore` is
-`STO-56`'s open record as `Provisiond.Restore` wrote it — the instant is given, never computed
-here — and `claimStep` composes `Provisiond.Claim.graceDefers` on the claim. `OPS-41` says "No
-fence is written and the re-check above does not run on that path", which is what a deferred
-claim leaves: the worker `idle`, the row `queued`, the fence untouched. The worker's re-check and
-its provider call read no fact of the grace, as `LDG-16` says: "The worker's re-check and its
-provider call read no fact the grace wrote".
+The original wall-clock gate composes `Provisiond.Claim.graceDefers` at the claim. The paused
+portion is checked by `derive` only after the ordinary predicate would cancel (`OPS-41`,
+2026-10-03). Both the direct rate read and the return observed through the conditional write use
+that branch, with the returned currency history. A short deferral leaves the worker `idle`, the
+row `queued`, the fence untouched and the episode open. Queue eligibility is not modelled; see
+`Provisiond.Claim`'s omissions for the later-bound and later-suspension evidence (`pv-gip.36`).
 
 For the 2026-10-02 paused grace, `World.rateHistory` is replay's effective completed outage
 spans in natural time units, not a new persisted field. `rateRestored` appends an outage only
@@ -221,7 +220,11 @@ for it — `LDG-40`'s note has only "The extension's row was added the same day"
 position is the extension as this module modelled it until then, which grew the commitment with
 no rate and skipped the date. `pauseFundingGrace` is the further 2026-10-02 amendment:
 `OPS-41` says "An outage MUST pause that measure, neither spending the remaining grace nor
-resetting what accumulated". Off restores the original wall-clock-only grace. -/
+resetting what accumulated". Off restores the original wall-clock-only grace.
+`pausedGraceInFence`: the 2026-10-03 placement in step 3 after re-derivation; off reinstates
+`ad6e2d9`'s claim-time check and computed paused-end parking, the historical counterfactual. This
+is separate from `graceAtClaim`, which controls the original wall-clock gate. `ADR-0029` records
+both withdrawn traces. -/
 structure Params where
   recheckInsideFence   : Bool
   fenceHolds           : Holds
@@ -233,7 +236,8 @@ structure Params where
   outageWrite          : Bool
   ownIdClause          : Bool
   rateIsWindowMedian   : Bool
-  pauseFundingGrace   : Bool
+  pauseFundingGrace    : Bool
+  pausedGraceInFence   : Bool
   graceAtClaim         : Bool
   retryGuard           : Bool
   goneOrClosedFirst    : Bool
@@ -259,7 +263,8 @@ def current : Params := {
     outageWrite          := true,
     ownIdClause          := true,
     rateIsWindowMedian   := true,
-    pauseFundingGrace   := true,
+    pauseFundingGrace    := true,
+    pausedGraceInFence   := true,
     graceAtClaim         := true,
     retryGuard           := true,
     goneOrClosedFirst    := true,
@@ -462,38 +467,78 @@ theorem sweep_routes_nothing_without_a_rate (p : Params) (hg : p.sweepNeedsRate 
   · simp_all
   · simp [World.routed, hg, hr]
 
-/-- Claim-time grace inputs. Current suspension wins over historical episode reasons.
-With no rate, the grace's additional portion is disabled and the worker decides the bound. -/
-def World.graceContext (w : World) (p : Params) : Claim.GraceContext :=
-  { pauseFunding := p.pauseFundingGrace, funding := !w.suspended &&
-      !(!w.rate.isSome && w.deadlinePassed), hasRate := w.rate.isSome,
-    interval := w.interval, history := w.rateHistory }
+/-- `OPS-41`'s paused measure, on the fence transaction's inputs. The current funding branch
+supplies the rate and excludes suspension before reaching this check. No new state is stored. -/
+@[req "OPS-41"]
+def pausedGrace (p : Params) (w : World) : Bool :=
+  match w.restore.bind (·.graceEndsAt) with
+  | none => false
+  | some t => p.pauseFundingGrace && t ≤ w.now &&
+      Claim.rateTime w.rateHistory (t - w.interval) (w.now - (t - w.interval)) < w.interval
 
-/-- `OPS-8` composed with `OPS-41`: read grace first at each claim and write its computed
-`available_at`. This rate read only decides the additional grace; the ordinary funding re-check
-still reads inside its own fence transaction. -/
+/-- Any finite outage pattern with a full interval accumulated finishes the paused portion.
+This proves the measure, not eventual return, replay, retention or incident closure. -/
+@[req "OPS-41"]
+theorem grace_finishes_after_accumulated_interval (p : Params) (w : World) (t : Nat)
+    (record : w.restore = some ⟨some t⟩)
+    (elapsed : w.interval ≤ Claim.rateTime w.rateHistory (t - w.interval)
+      (w.now - (t - w.interval))) : pausedGrace p w = false := by
+  simp [pausedGrace, record, show ¬ Claim.rateTime w.rateHistory (t - w.interval)
+    (w.now - (t - w.interval)) < w.interval by omega]
+
+@[req "OPS-41"]
+theorem paused_grace_guarded (p : Params) (w : World) (t : Nat)
+    (hp : p.pauseFundingGrace = true) (record : w.restore = some ⟨some t⟩) (wall : t ≤ w.now)
+    (remaining : Claim.rateTime w.rateHistory (t - w.interval)
+      (w.now - (t - w.interval)) < w.interval) : pausedGrace p w = true := by
+  simp [pausedGrace, hp, record, wall, remaining]
+
+@[req "OPS-41"]
+theorem paused_grace_unguarded (p : Params) (w : World)
+    (hp : p.pauseFundingGrace = false) : pausedGrace p w = false := by
+  unfold pausedGrace; split <;> simp [hp]
+
+/-- Historical `ad6e2d9` placement only: a returned rate at the claim parks an unfunded or funded
+attempt before re-derivation. The current placement never takes this branch (`ADR-0029`). -/
+def legacyPausedClaim (p : Params) (w : World) : Bool :=
+  !p.pausedGraceInFence && !w.suspended && w.rate.isSome && pausedGrace p w
+
+/-- The withdrawn computed paused end, retained solely to execute the placement counterfactual.
+The current branch writes only the original wall-clock end or the ordinary short delay. -/
+def claimAvailableAt (p : Params) (w : World) : Option Nat :=
+  if legacyPausedClaim p w then
+    w.restore.bind fun r => r.graceEndsAt.map fun t =>
+      w.now + (w.interval - Claim.rateTime w.rateHistory (t - w.interval)
+        (w.now - (t - w.interval)))
+  else Claim.graceAvailableAt w.restore
+
+def claimGraceDefers (p : Params) (w : World) : Bool :=
+  Claim.graceDefers w.restore w.now || legacyPausedClaim p w
+
+/-- `OPS-8` composed with `OPS-41`'s wall-clock claim gate; the placement counterfactual alone
+adds the withdrawn paused check here. -/
 @[req "OPS-8"]
 def claimStep (p : Params) (w : World) : World :=
   match w.phase, w.attempt with
   | .idle, some a =>
     match Claim.claim true a.row with
     | (r, some n) =>
-      if p.graceAtClaim && Claim.graceDefers w.restore w.now (w.graceContext p) then
+      if p.graceAtClaim && claimGraceDefers p w then
         { w with attempt := some { a with
-            row := Claim.defer Claim.current r n (Claim.graceAvailableAt w.restore w.now (w.graceContext p)) } }
+            row := Claim.defer Claim.current r n (claimAvailableAt p w) } }
       else { w with attempt := some { a with row := r }, phase := .holding n }
     | (_, none) => w
   | _, _ => w
 
 /-- `OPS-41`: a claim under the grace "defers, and writes no fence" — the worker is `idle`, the
-row is `queued` again with `available_at` computed at this claim, and the fence is what it was. -/
+row is `queued` again with the claim gate's availability, and the fence is what it was. -/
 @[req "OPS-41"]
 theorem grace_defers_without_fence (p : Params) (hg : p.graceAtClaim = true) (w : World)
     (a : Attempt) (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
-    (hd : Claim.graceDefers w.restore w.now (w.graceContext p) = true) :
+    (hd : claimGraceDefers p w = true) :
     (claimStep p w).phase = .idle ∧ (claimStep p w).m.fence = w.m.fence ∧
     ∃ a', (claimStep p w).attempt = some a' ∧ a'.row.status = .queued ∧
-      a'.row.availableAt = Claim.graceAvailableAt w.restore w.now (w.graceContext p) := by
+      a'.row.availableAt = claimAvailableAt p w := by
   simp [claimStep, hph, ha, hg, hd, Claim.claim, hq, Claim.defer, Claim.holds, Claim.current]
 
 /-- Once grace no longer defers, the actual composed claim enters the ordinary worker.
@@ -501,7 +546,7 @@ No rate or funding snapshot is carried into that worker phase. -/
 @[req "OPS-41"]
 theorem claim_after_grace (p : Params) (w : World) (a : Attempt)
     (hph : w.phase = .idle) (ha : w.attempt = some a) (hq : a.row.status = .queued)
-    (hd : Claim.graceDefers w.restore w.now (w.graceContext p) = false) :
+    (hd : claimGraceDefers p w = false) :
     (claimStep p w).phase = .holding ⟨a.row.claim.n + 1⟩ := by
   simp [claimStep, hph, ha, hq, hd, Claim.claim]
 
@@ -516,13 +561,14 @@ theorem accumulated_grace_releases_claim (p : Params) (w : World) (a : Attempt) 
       (w.now - (t - w.interval))) :
     (claimStep p w).phase = .holding ⟨a.row.claim.n + 1⟩ := by
   apply claim_after_grace p w a hph ha hq
-  rw [record]
-  exact Claim.grace_finishes_after_accumulated_interval (w.graceContext p) t w.now
-    valid elapsed started
+  have ht := Claim.rateTime_le w.rateHistory (t - w.interval) (w.now - (t - w.interval))
+  have wall : ¬ w.now < t := by omega
+  simp [claimGraceDefers, Claim.graceDefers, record, legacyPausedClaim, pausedGrace, wall,
+    show ¬ Claim.rateTime w.rateHistory (t - w.interval) (w.now - (t - w.interval)) < w.interval by omega]
 
 /-- What the fence transaction decides. `noMutation`: `OPS-41`'s abort, with the re-derived date
 where one was derived. `proceed`: on to `OPS-42`'s fence write, with that date. `defer`: the
-fourth step, which is "a deferral, not a settlement". -/
+short deferral in step 3 or 4; neither settles. -/
 inductive Verdict
   | noMutation (date : Option Nat)
   | proceed (date : Option Nat)
@@ -544,14 +590,13 @@ def exempt (p : Params) (w : World) : Bool :=
   | .currentState => w.suspended
   | .episodeReasons => w.episode.any (·.reasons.contains .tenantSuspended)
 
-/-- `OPS-41`'s third step, "The worker re-derives and applies the predicate above", and the
-fifth's restoration branch, "the worker re-derives at that rate and applies the predicate above":
-the abort predicate on what the transaction read, at the rate given, with the date `LDG-33`
-derives there. -/
+/-- `OPS-41`'s common funding decision: re-derive first, then short-defer only an unfunded
+machine with unspent paused grace. The return observed by step 5 uses this same branch. -/
 @[req "OPS-41"]
 def derive (p : Params) (w : World) (r : Nat) : Verdict :=
   if p.abort w.m.commitment w.prot r then
     .noMutation (some (w.now + runwaySeconds w.m.commitment w.prot r))
+  else if p.pausedGraceInFence && pausedGrace p w then .defer
   else .proceed (some (w.now + runwaySeconds w.m.commitment w.prot r))
 
 /-- `OPS-41`'s order, on what the fence transaction reads, "and the first step that applies
@@ -586,7 +631,7 @@ def recheck (p : Params) (w : World) (a : Attempt) (restored : Option Nat) : Ver
       if p.noRateWaits && !w.deadlinePassed then .defer
       else if !p.outageWrite then .proceed none
       else match restored with
-        | some r => derive p w r
+        | some r => derive p (rateRestored w r) r
         | none => if w.outageOpen || p.absentRecordProceeds then .proceed none else .noMutation none
 
 /-- The world a fence transaction commits against: the one it read, or — where it read no rate
@@ -619,7 +664,7 @@ def writeFence (p : Params) (w : World) (n : ClaimNumber) (a : Attempt) (d : Opt
 `OPS-42`'s fence". An abort is `noMutation` with no fence written. A deferral is `OPS-8`'s defer —
 `Provisiond.Claim.defer`, with no `available_at` instant, since a short delay carries none in that
 model — and leaves the worker `idle`, the row `queued`, the episode and the fence as they were,
-which is `OPS-41`'s "The episode stays open and `OPS-48` gains no row". Under `recheckInsideFence`
+with no settlement (`OPS-41`). Under `recheckInsideFence`
 a machine the re-check lets through takes the write in the same step; without it the transaction
 is the read alone, and the write is `fenceWrite`'s later step. -/
 @[req "OPS-41"]
@@ -671,8 +716,7 @@ def extend (p : Params) (w : World) (sats : Nat) : World :=
       else { w with m := { w.m with commitment := c }, balance := w.balance - sats }
 
 /-- The provider call, outside every serialization (`LDG-69`), from `fenced` and nowhere else.
-Under `graceAtClaim` it reads nothing of the grace — `LDG-16`: "The worker's re-check and its
-provider call read no fact the grace wrote". With the guard off, the withdrawn placement: the
+With `graceAtClaim` off, the withdrawn wall-clock placement: the
 call waits on the record's instant, after the claim has already fenced, so the fence "refuses
 `LDG-62`'s extension for the whole grace" (`ADR-0028`). `applied` is the provider's fact and
 `reply` what came back (`ProviderOutcome`, flattened). -/
@@ -680,7 +724,7 @@ call waits on the record's instant, after the claim has already fenced, so the f
 def providerDelete (p : Params) (w : World) (applied : Bool) (reply : Option Bool) : World :=
   match w.phase with
   | .fenced n =>
-    if !p.graceAtClaim && Claim.graceDefers w.restore w.now (w.graceContext p) then w
+    if !p.graceAtClaim && Claim.graceDefers w.restore w.now then w
     else
       { w with m := { w.m with destroyed := w.m.destroyed || applied }, phase := .dispatched n reply }
   | _ => w
@@ -1005,7 +1049,7 @@ episode as it was, returns the row to `queued` with no `available_at` instant, a
 is cancelled on a date that passes while there is no rate" and not the whole of it: that sentence
 is about the outage from end to end, the sweep's half of it is
 `sweep_routes_nothing_without_a_rate`, and no theorem here runs the wait across claims. Whether a
-restoration commits behind the transaction changes none of it; the next claim reads the rate. The
+restoration commits behind the transaction changes none of it; the next fence transaction reads the rate. The
 row is the one the claim left, `running` under this worker's number. -/
 @[req "OPS-41"]
 theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
@@ -1024,21 +1068,17 @@ theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
   obtain ⟨hm, -, -, -, he, -⟩ := midTxn_frame w restored
   simp [fenceTxn, hph, ha, hre, hm, he, Claim.defer, Claim.holds, Claim.current, hrun, hmine]
 
-/-- `OPS-39`: "The wait `OPS-41`'s order gives a cancellation while its machine's currency has no
-rate is a delay and not a denial: it ends at the rate's return or at `LDG-64`'s bound". The
-converse of `no_rate_waits`, over every world and every setting of the guards: a re-check that
-defers has read no rate, with the deadline not passed, under the wait's guard, on a tenant the
-exemption does not reach — and, under `goneOrClosedFirst`, on a machine not recorded gone whose
-episode is open. So a re-check that reads a rate, or the deadline passed, does not defer: nothing
-else in the order waits. What ends the wait across claims — the clock reaching the deadline, a
-rate returning — is run by `Provisiond.Witnesses`, not proved here. -/
+/-- Outside an open restore incident, the original converse of `no_rate_waits` still holds:
+only the no-rate branch before the deadline defers. The 2026-10-03 paused branch invalidates
+that converse inside an incident; `derive_defers_iff` below describes its exact added case. -/
 @[req "OPS-39"]
 theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (a : Attempt)
+    (noRestore : w.restore = none)
     (restored : Option Nat) (h : recheck p w a restored = .defer) :
     w.rate = none ∧ w.deadlinePassed = false ∧ p.noRateWaits = true ∧ exempt p w = false ∧
       (p.goneOrClosedFirst = true → settledFirst w a = false) := by
-  have hderive : ∀ r, derive p w r ≠ .defer := by
-    intro r; unfold derive; split <;> simp
+  have hderive : ∀ v r, v.restore = none → derive p v r ≠ .defer := by
+    intro v r hv; simp [derive, pausedGrace, hv]; split <;> simp
   unfold recheck at h
   split at h
   · simp at h
@@ -1047,7 +1087,7 @@ theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (
     · simp at h
     · rename_i hex
       split at h
-      · exact absurd h (hderive _)
+      · exact absurd h (hderive _ _ noRestore)
       · rename_i hr
         split at h
         · rename_i hwait
@@ -1057,11 +1097,19 @@ theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (
           split at h
           · simp at h
           · split at h
-            · exact hderive _ h
+            · exact hderive _ _ (by simpa [rateRestored] using noRestore) h
             · split at h <;> simp at h
 
-/-- The bound is reachable through the composed claim regardless of unfinished rate-time
-or historical enqueue reasons. The original wall-clock end must have passed. The second
+/-- Exactly the added funding deferral: the ordinary predicate did not abort, the placement is
+in the transaction, and the paused protection applies. In particular a funded machine never waits. -/
+@[req "OPS-41"]
+theorem derive_defers_iff (p : Params) (w : World) (r : Nat) :
+    derive p w r = .defer ↔ p.abort w.m.commitment w.prot r = false ∧
+      p.pausedGraceInFence = true ∧ pausedGrace p w = true := by
+  unfold derive; (repeat' split) <;> simp_all
+
+/-- A supplied claim at the bound proceeds regardless of unfinished rate-time or historical
+enqueue reasons. This does not establish queue eligibility; see the module omissions. The original wall-clock end must have passed. The second
 conjunct is the ordinary ordered re-check on the claimed world: no grace was carried there. -/
 @[req "OPS-41"]
 theorem bound_not_held_by_paused_grace (p : Params) (w : World) (a : Attempt) (t : Nat)
@@ -1074,7 +1122,7 @@ theorem bound_not_held_by_paused_grace (p : Params) (w : World) (a : Attempt) (t
     recheck p w a none = .proceed none := by
   constructor
   · apply claim_after_grace p w a hph ha hq
-    simp [Claim.graceDefers, record, World.graceContext, hr, show ¬ w.now < t by omega]
+    simp [claimGraceDefers, Claim.graceDefers, legacyPausedClaim, record, hr, show ¬ w.now < t by omega]
   · simp [recheck, hg, exempt, hk, hr, bound, hab]
 
 /-- Current suspension also releases the composed claim at the original wall-clock end,
@@ -1085,7 +1133,7 @@ theorem suspension_ignores_paused_grace (p : Params) (w : World) (a : Attempt) (
     (record : w.restore = some ⟨some t⟩) (wall : t ≤ w.now) (hs : w.suspended = true) :
     (claimStep p w).phase = .holding ⟨a.row.claim.n + 1⟩ := by
   apply claim_after_grace p w a hph ha hq
-  simp [Claim.graceDefers, record, World.graceContext, hs, show ¬ w.now < t by omega]
+  simp [claimGraceDefers, Claim.graceDefers, legacyPausedClaim, record, hs, show ¬ w.now < t by omega]
 
 /-- `OPS-41`'s first step: the worker "makes no provider call and settles the attempt `succeeded`
 with a result recording that no mutation was required", and "**It writes no `runway_until`**".
@@ -1310,7 +1358,7 @@ theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
           simp only [hout, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h
           split at h
           · rename_i r
-            exact .inr (.inl ⟨r, .inr ⟨hr, hdp, rfl⟩, derive_proceeds p hab w r d h⟩)
+            exact .inr (.inl ⟨r, .inr ⟨hr, hdp, rfl⟩, derive_proceeds p hab (rateRestored w r) r d h⟩)
           · exact .inr (.inr ⟨hr, hdp, rfl⟩)
 
 /-- Between the fence write and the provider call the machine row, the balance and the worker stay

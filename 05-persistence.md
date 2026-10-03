@@ -1134,7 +1134,8 @@ incident** (*added 2026-09-25, `ADR-0028`; amended 2026-10-02, `ADR-0029`*). It 
 step (3) of `STO-54`'s procedure is marked, and it MUST be written in the same transaction as that
 mark, as step (3)'s instant plus one re-derivation interval — `STO-54` says "A marked step does
 not run again", so it is written once per incident. `OPS-41` owns its per-claim read and the
-funding-only paused use of this instant; `STO-49` owns the history retained for that computation.
+funding-only paused check in the fence transaction; `STO-49` owns the history retained for that
+computation.
 The startup read above is taken once per process. `STO-54` says "the freeze lifts at
 `grace_ends_at`"; keeping this record open does not prolong that freeze.
 

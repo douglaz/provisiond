@@ -1,7 +1,8 @@
 # During a price outage, a funding cancellation waits for the rate or the outage bound
 
 **Status:** accepted (2026-10-01); amended 2026-10-02 by *An outage pauses the restore grace*
-below (`pv-gip.29`). The requirement and checklist edits listed under *Consequences*
+below (`pv-gip.29`), with the placement corrected 2026-10-03 (`pv-gip.35`, `pv-gip.36`). The
+requirement and checklist edits listed under *Consequences*
 landed in `2997723` (`pv-gip.23`), and the formal-layer edits in `e739240` (`pv-gip.25`), where
 the guard *Consequences* names `sweepContinuesWithoutRate` became `sweepRoutesNothingWithoutRate`.
 Answers `pv-gip.23` by removing the branch it was about.
@@ -46,7 +47,8 @@ currency has a rate.** The sweep opens no new funding episode during an outage, 
 routes piles up to be woken. `OPS-36`'s attach transaction is the exception: it enqueues a
 late-attach cleanup outside the sweep, and what it does with no rate is `pv-gip.27`'s.
 
-**The worker decides inside the fence transaction**, not on its claim snapshot, in this order:
+**The original 2026-10-02 worker order**, before the paused-grace amendment below; `OPS-41`
+owns the current order. The decision was inside the fence transaction, not on its claim snapshot:
 
 1. The machine is recorded gone, or its episode is closed: settle as the no-mutation case, with no
    provider call.
@@ -186,7 +188,8 @@ is read as each currency's outage running its own clock against that one value. 
 The owner decided that a funding cancellation's restore grace is one re-derivation interval of
 **rate-present time from step (3), summed across outages**. An outage pauses accumulation; a
 return resumes the unspent portion, never a fresh interval. The normative owners are `OPS-41`
-(claim and deferral), `STO-49` (history retention), and `STO-56` (stored end and incident closure).
+(claim gate and fence-transaction deferral), `STO-49` (history retention), and `STO-56` (stored end
+and incident closure).
 `STO-54` keeps the procedure and freeze; `OPS-36` points its extension opportunity to `LDG-40`.
 
 The reason is the defect this ADR missed. `ADR-0028` says "The grace is one interval from the
@@ -206,7 +209,7 @@ to `LDG-40` qualifies admission; late attach gains no post-outage interval outsi
 Only funding cancellations gain the paused measure. The outage bound and a currently suspended
 tenant keep the original wall-clock grace. A historical enqueue reason or episode reason cannot
 convert either into a funding cancellation deferred indefinitely. The longer incident lifetime
-keeps history available and the claim rule active; it does not extend the freeze and prevent the
+keeps history available and the grace rule active; it does not extend the freeze and prevent the
 bound canceller from running.
 
 No new storage: step (3)'s transaction still writes `grace_ends_at` once. Subtract one
@@ -225,11 +228,38 @@ exception prevents a never-returning currency from holding the record open forev
 bound no funding cancellation remains to protect. A finished currency cannot discharge another's
 unfinished grace. `STO-56` is the close rule's single home, with a pointer from `STO-54`.
 
-At each claim the original wall-clock grace still comes first, including the null-end short
-deferral before step (3). In the additional portion, with a rate, an unfinished funding grace
-returns the attempt to `queued` until the paused end computed at that claim, writing no fence and
-making no provider call. With no rate after the wall-clock end, the worker takes the existing
-short-delay path before the bound, or the bound/current-suspension path when applicable. It never
-parks until an unknown return. Each later claim recomputes; neither accumulation nor a revised
-end is persisted. Once grace no longer defers, the ordinary ordered funding re-check and fence
-transaction run. The rule changes deferral, not settlement, and does not clear inherited fences.
+### Placement corrected — 2026-10-03
+
+The first landing (`ad6e2d9`) put the paused check at the claim and wrote availability at a
+computed paused end. Both choices broke the decision:
+
+- A claim at 200 saw no rate after an outage starting at step (3), 80; the original end was 140.
+  A qualifying return before the fence transaction left zero rate-present time accumulated, but
+  the transaction cancelled the unfunded machine. `pv-gip.35` and the model's historical placement
+  witness carry that interleaving.
+- A paused deferral parked the attempt until its computed end. A later outage could reach its
+  bound earlier, or a suspension could join the episode, while that attempt was still ineligible.
+  `OPS-6` says "The claim MUST select the oldest `queued` operation whose availability time has
+  passed." `OPS-39` says "a sweep MUST enqueue nothing against a machine whose episode under that
+  key is open". Neither event supplied an eligible attempt (`pv-gip.36`).
+
+The caller identified the computed-end instruction as their error: it contradicted *Considered
+options* above, which rejected parking because "a parked attempt strands a suspension that joins
+its episode" and chose "Short deferral re-decides at every claim and needs no wake-up."
+
+The correction lands in `OPS-41`'s ordered step 3, after re-derivation, with the ordinary short
+delay. Re-derivation comes first so an extension or a price cut that funds the machine settles
+its existing no-mutation outcome at the next eligible claim, before paused grace finishes.
+Only an otherwise cancelling funding decision checks the unspent grace. The direct rate-return
+path and the return observed through the conditional write use that same step. The original
+null/future wall-clock claim gate is unchanged. No storage, wake-up, settlement row or fence-clear
+path is added; `OPS-41` is the rule's home.
+
+The bound and suspension queue traces belong to `10-conformance-checklist.md`: the Lean claim
+model writes `available_at` but does not read it. A hand-scheduled claim at the bound would not
+refute parking. The new placement witness proves the claim-to-transaction interleaving, and its
+guard's off position reinstates the old placement and destruction.
+
+This correction is evaluated while the restore record remains open. It leaves the incident-close
+decision above and `STO-56`'s bound exception unchanged; `pv-gip.37` remains the question about
+closing at the bound with a pending cancellation.

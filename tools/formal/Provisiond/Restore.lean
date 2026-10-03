@@ -33,10 +33,10 @@ the account status and the rate quorum) and step (3) beyond the credential bump 
 (the watch set, the rails, `SEC-39`'s counters, the derivation index); the operator cancelling a
 waiting parent, which `Event.confirmParents` stands for beside confirming it; the sweep's
 per-account report; and everything after the procedure that touches the stored date — the tenant
-extending again inside the grace (`LDG-62`), the claim that defers until the grace and the routing
+extending again inside the grace (`LDG-62`), the wall-clock claim gate, paused funding check and routing
 (`Provisiond.Fence` has those, reading the instant this module writes) — so the grace is stated
 as the unpaused instant written, `STO-56`'s `grace_ends_at`.
-`Claim` sums replayed rate-present time and `Fence` composes it at claims; this module neither
+`Claim` sums replayed rate-present time and `Fence` checks it in the funding branch after re-derivation; this module neither
 replays currency history nor checks the per-currency closure obligations. The freeze's end is not modelled: `STO-54`
 says "the freeze lifts at `grace_ends_at`", and that instant is step (3)'s plus one interval,
 which a model where time does not advance never reaches, so a freeze that lifted there would

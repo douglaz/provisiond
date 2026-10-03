@@ -688,7 +688,8 @@ takes the machines *and* the float" partly false.
       its second may; and the operator report names `T − Δ` and every unrecorded machine per
       account. Repeat across an outage starting inside grace and a restore-caused outage:
       after the wall-clock end the actors in `STO-54`'s freeze run, but unfinished funding grace
-      still defers claims under `OPS-41`. Kill and restart after multiple qualifying returns;
+      still short-defers unfunded attempts in `OPS-41`'s fence transaction. Kill and restart after
+      multiple qualifying returns;
       assert recomputation from retained `STO-49` history preserves the unspent time and the
       step-(3) mark and original end remain unchanged. Before the bound, refuse incident close
       while any currency has unspent grace. Finish currency A's grace while B still has unspent
@@ -1811,8 +1812,9 @@ rather than acquiring a default.
       mid-outage below the time already run* (`OVR-19`): the deferred attempt's first claim after
       the restart that loads it proceeds.
       **Restore grace across outages** (`OPS-41`, `STO-56`; amended 2026-10-02, `ADR-0029`).
-      Use an active tenant, an unfenced live machine with an open funding episode, and a queued
-      cancellation; set a bound later than each tested return except in the bound cases below.
+      Keep the restore record open throughout the following traces. Use an active tenant, an
+      unfenced live machine with an open funding episode, and a queued cancellation; set a bound
+      later than each tested return except in the bound cases below.
       For every extension assertion, first establish a rate, sufficient available balance and
       all other admission conditions (`LDG-40`, `LDG-62`); choose requested runway beyond the
       tested re-claim. Write step (3)'s mark and original end
@@ -1825,15 +1827,25 @@ rather than acquiring a default.
       rate-observation rows: before the original end claims defer to that end; afterwards, with
       no rate and before the bound, the ordered worker uses step 4's short delay, never an
       unknowable return instant. Admit an observation that leaves the window thin and assert it
-      does not start spending grace. At the qualifying return `R`, claim and assert
-      `available_at = R + I`, where `I` is the re-derivation interval; no fence or provider call.
-      An eligible extension during that remaining interval is admitted, and after its end the
-      funded re-check settles with the machine alive.
+      does not start spending grace. At the qualifying return `R`, claim and run the fence
+      transaction: with the re-derived date still past, assert the ordinary short delay in
+      `available_at`, no fence or provider call, and the attempt queued with its episode open.
+      Let `I` be the re-derivation interval. At each eligible claim before `I` rate-present time
+      has accumulated, an unfunded attempt short-defers again; it does not park until `R + I`.
+      Admit an eligible extension during this remaining grace, with enough runway beyond the
+      next claim. At that next eligible claim, still before the interval completes, assert
+      the existing `funded` no-mutation outcome: `succeeded`, the re-derived future date written,
+      fence cleared and episode closed, with the machine intact. Repeat with commitment unchanged
+      and a price cut making the re-derived date future; it settles at that next eligible claim
+      too, without waiting for the grace to finish.
       *An outage after part of the grace*: spend `a < I` with a rate after step (3), then lose
-      the rate past the original end; on a qualifying return at `R`, claim and assert
-      `available_at = R + (I - a)`, not `R + I`.
+      the rate past the original end; on a qualifying return at `R`, claim and run the fence
+      transaction: assert a short delay and only `I - a` rate-present time left. With the rate
+      continuously present and no new funding, the first eligible claim at or after `R + (I - a)`
+      proceeds, without granting another full interval.
       *Flapping*: spend another `b < I - a` with a rate, lose it again, and claim at the next
-      qualifying return `S`: assert `available_at = S + (I - a - b)`. Re-claim after later
+      qualifying return `S`: assert a short delay and only `I - a - b` rate-present time left.
+      Re-claim after later
       outages and returns and check the sum of all rate-present segments, with none discarded
       or counted twice. With no extension and an unfunded re-check, cancellation can proceed
       once the sum reaches `I`. Prune between the returns and restart: the history and its
@@ -1841,6 +1853,29 @@ rather than acquiring a default.
       (`STO-49`). Repeat for a live machine with no `rate_outage` record. Stop another subject
       in the same currency and write its `absorbed_until` before the currency returns: the
       live machine's grace is unchanged by that subject record.
+      *Return between claim and fence transaction* (`pv-gip.35`): with no rate at the claim,
+      the original end passed, and an unfunded re-derivation, commit a qualifying return before
+      the fence transaction. Assert the transaction reads that return and its currency history,
+      finds unspent rate-time grace, short-defers the attempt with its episode open, writes no
+      fence and makes no provider call; the live machine remains intact. Repeat with a subject
+      outage record at the bound and the return committing after the transaction read no rate
+      but before its conditional write: zero affected rows reaches the same step-3 deferral.
+      *A new outage bound after paused deferral* (`pv-gip.36`): let `d` be the ordinary short
+      delay and choose remaining grace greater than `3d`. At `R`, with a rate, an unfunded
+      attempt short-defers in step 3. Inspect `available_at = R + d`. Lose the rate before that
+      instant and choose the new outage's bound `B` after `R + d` but before the former computed
+      paused end. Run the actual queue through eligible claims only; while no rate exists and
+      before `B`, assert each short deferral's availability. At the first eligible claim at or
+      after `B`, no later than `B + d` with the worker otherwise available, assert step 5 fences
+      and calls the provider to cancel, without waiting for that former end. Run this with and
+      without a subject `rate_outage` record. The original wall-clock end is already past.
+      *A suspension after paused deferral* (`pv-gip.36`): repeat the rate-present deferral at
+      `R`, inspect `available_at = R + d`, then suspend the tenant before that instant. Assert
+      the fan-out joins the existing episode and creates no replacement attempt. No claim is
+      manufactured before availability; at the next eligible claim at `R + d`, step 2 proceeds
+      to the fence and cancellation, within one short delay of suspension. Exercise with and
+      without a rate at that claim. These queue traces keep the incident open; incident closure
+      at the bound is outside them.
       *The bound while paused grace is unfinished*: with no rate and the wall-clock end passed,
       a funding-enqueued attempt reaches step 5 and cancels, both with and without an outage
       record. If the deadline falls before the original end, a claim past the deadline still
@@ -1849,7 +1884,8 @@ rather than acquiring a default.
       wall-clock end a suspended tenant's claim proceeds without waiting for unspent paused
       grace, with and without a rate, even if enqueued for exhaustion. Conversely, historical
       suspension reasons do not bypass paused grace for a resumed tenant. The episode stays
-      open on each deferral, and every later claim recomputes; no deferral settles the attempt,
+      open on each deferral, and every later eligible claim re-decides from step 1; no deferral settles
+      the attempt,
       writes a new fence, clears an inherited fence, or calls the provider. Repeat the rate-return
       cases for an inherited fence: extension remains refused `cancellation_committed`, and
       retry claims observe the applicable grace. `CNF-295` exercises incident closure.
