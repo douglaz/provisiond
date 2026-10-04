@@ -1032,20 +1032,21 @@ structure TailResult where
 `API-7`: "collect every applicable refusal once". The guard retains the former single refusal
 as its off position. `cap` and `balance` are check failures, ignored when price is unavailable. -/
 @[req "API-7"]
-def purchaseTail (g : Guards) (create healthy fenced halted rate cap balance : Bool) : TailResult :=
+def purchaseTail (g : Guards) (create healthy fenced halted rate capPresent cap balance : Bool) : TailResult :=
   let priced := rate && (!create || healthy)
   let refusals := (if create && !healthy then [.account] else []) ++
     (if !create && fenced then [.fence] else []) ++
     (if halted then [.solvency] else []) ++ (if !rate then [.rate] else []) ++
-    (if priced && cap then [.cap] else []) ++ (if priced && balance then [.balance] else [])
+    (if priced && capPresent && cap then [.cap] else []) ++ (if priced && balance then [.balance] else [])
   let reasons := (if create && !healthy then [UncheckedReason.unhealthy] else []) ++
     (if !rate then [.noRate] else [])
   { refusals := if g.richTailCollection then refusals else refusals.take 1
-    notChecked := reasons.map (.commitmentCap, ·) ++ reasons.map (.balance, ·) }
+    notChecked := (if capPresent then reasons.map (.commitmentCap, ·) else []) ++
+      reasons.map (.balance, ·) }
 
 @[req "API-7"]
-def tailAdmitted (create healthy fenced halted rate cap balance : Bool) : Bool :=
-  (if create then healthy else !fenced) && !halted && rate && !cap && !balance
+def tailAdmitted (create healthy fenced halted rate capPresent cap balance : Bool) : Bool :=
+  (if create then healthy else !fenced) && !halted && rate && !(capPresent && cap) && !balance
 
 @[req "API-7"]
 def TailRefusal.rank : TailRefusal → Nat
@@ -1055,53 +1056,53 @@ def TailRefusal.rank : TailRefusal → Nat
   | .cap => 3
   | .balance => 4
 
-@[req "WIR-9b"]
+@[req "WIR-9a"]
 def TailRefusal.retryable : TailRefusal → Bool
-  | .solvency | .rate => true
-  | .account | .fence | .cap | .balance => false
+  | .account | .solvency | .rate => true
+  | .fence | .cap | .balance => false
 
 @[req "WIR-9b"]
 def envelopeRetryable (r : TailResult) : Bool := r.refusals.all TailRefusal.retryable
 
 @[req "API-7"]
 theorem empty_iff_admitted (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r p b : Bool,
-      (purchaseTail g c h f s r p b).refusals.isEmpty = tailAdmitted c h f s r p b := by
-  intro c h f s r p b
-  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+    ∀ c h f s r q p b : Bool,
+      (purchaseTail g c h f s r q p b).refusals.isEmpty = tailAdmitted c h f s r q p b := by
+  intro c h f s r q p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
     simp [purchaseTail, tailAdmitted, hg]
 
 @[req "API-7"]
 theorem ordered_without_duplicates (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r p b : Bool,
-      ((purchaseTail g c h f s r p b).refusals.map TailRefusal.rank).Pairwise (· < ·) ∧
-      (purchaseTail g c h f s r p b).refusals.Nodup := by
-  intro c h f s r p b
-  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+    ∀ c h f s r q p b : Bool,
+      ((purchaseTail g c h f s r q p b).refusals.map TailRefusal.rank).Pairwise (· < ·) ∧
+      (purchaseTail g c h f s r q p b).refusals.Nodup := by
+  intro c h f s r q p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
     simp [purchaseTail, TailRefusal.rank, hg]
 
 @[req "API-7"]
 theorem unpriced_checks_are_skipped (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r p b : Bool,
+    ∀ c h f s r q p b : Bool,
       (r = false ∨ (c = true ∧ h = false)) →
-      (purchaseTail g c h f s r p b).refusals.contains .cap = false ∧
-      (purchaseTail g c h f s r p b).refusals.contains .balance = false ∧
-      (purchaseTail g c h f s r p b).notChecked.any (fun x => x.1 == .commitmentCap) = true ∧
-      (purchaseTail g c h f s r p b).notChecked.any (fun x => x.1 == .balance) = true := by
-  intro c h f s r p b
-  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+      (purchaseTail g c h f s r q p b).refusals.contains .cap = false ∧
+      (purchaseTail g c h f s r q p b).refusals.contains .balance = false ∧
+      (purchaseTail g c h f s r q p b).notChecked.any (fun x => x.1 == .commitmentCap) = q ∧
+      (purchaseTail g c h f s r q p b).notChecked.any (fun x => x.1 == .balance) = true := by
+  intro c h f s r q p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
     simp [purchaseTail, hg]
 
 /-- Agreement is scoped to purchase actions after the common pipeline, not other verbs. -/
 @[req "LDG-40"]
 theorem tail_agrees_with_policy (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r p b : Bool,
-      ((purchaseTail g c h f s r p b).refusals.contains .solvency = s) ∧
-      ((purchaseTail g c h f s r p b).refusals.contains .rate = !r) ∧
+    ∀ c h f s r q p b : Bool,
+      ((purchaseTail g c h f s r q p b).refusals.contains .solvency = s) ∧
+      ((purchaseTail g c h f s r q p b).refusals.contains .rate = !r) ∧
       underHalt g (.caller (if c then .create else .extendRunway)) = some .halted ∧
       underNoRate g .active (.caller (if c then .create else .extendRunway)) = .halts := by
-  intro c h f s r p b
-  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+  intro c h f s r q p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
     simp [purchaseTail, hg, underHalt, underNoRate, Action.reducesExposure,
       Action.billIncreasing, Action.mintsDestination]
 

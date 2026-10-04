@@ -1134,7 +1134,8 @@ held satoshis and the float, which need no currency rate, and the payables and s
 currencies whose windows yield rates, valued at those rates. Asset treatment remains `LDG-53`'s
 and `LDG-20`'s. It MUST omit the unrated currency's non-negative payables and stress leg. A shortfall on the
 valued terms is a computed failure and MUST trigger `LDG-20`'s deployment-wide consequences. A
-missing rate alone MUST NOT start a solvency halt. An incomplete passing check MUST preserve
+missing rate alone MUST NOT start a solvency halt. *Amended 2026-10-04 (`pv-gip.42`,
+`ADR-0029`):* An incomplete passing check MUST preserve
 the existing verdict; a halt in force MUST lift only when every leg can be valued and the full
 check passes. A shortfall cured during the outage, including by recording a payment or adding
 satoshis, therefore keeps top-ups halted until the rate returns. This does not establish
@@ -1703,11 +1704,13 @@ concurrent extends must not reserve twice.
 reason** (*added 2026-10-02, `ADR-0029`*). The halted extension opens or grows no commitment and
 moves no balance. `API-7` owns tail refusal collection and ordering; `WIR-24` owns the wire action.
 
+**Amended 2026-10-04 (`ADR-0030`, `pv-gip.26`).** Refusal collection reads
+`destroy_committed` from the `API-7` snapshot; a non-null value contributes the fence refusal.
+See `API-7` for refusal purity and receipts. Only an admitting extension, with a rate to re-derive
+`runway_until`, proceeds to the conditional write.
+
 **It is fenced, and this requirement carries the obligation rather than merely being cited for it**
-(added 2026-09-02). Refusal collection reads `destroy_committed` from the `API-7` snapshot;
-a non-null value contributes the fence refusal without writing the machine. Only an admitting
-extension, with a rate to re-derive `runway_until`, proceeds to the conditional write; a refusing
-path MUST write nothing. In the same `LDG-35` transaction, an admitted extension MUST **conditional-write the
+(added 2026-09-02). In the same `LDG-35` transaction, an admitted extension MUST **conditional-write the
 machine row guarded on `machines.destroy_committed IS NULL`**, and where that write affects no row
 it MUST fail `conflict` with `details.reason: "cancellation_committed"` (`WIR-9a`) — **opening or
 growing no commitment and moving no balance** — telling the tenant plainly that the machine is

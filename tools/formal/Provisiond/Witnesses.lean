@@ -3198,7 +3198,7 @@ theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
 
 /-- The rich tail retains resource, pool and rate refusals together. -/
 def fencedHaltedNoRate (g : Admission.Guards) :=
-  purchaseTail g false true true true false true true
+  purchaseTail g false true true true false true true true
 
 @[req "API-7"]
 theorem rich_tail_retains_every_refusal :

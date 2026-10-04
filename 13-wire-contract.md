@@ -99,11 +99,22 @@ non-2xx response is exactly:
     "kind": "insufficient_balance",
     "message": "available 41200 sats, required 72000 sats",
     "retryable": false,
-    "details": {"available_sats": 41200, "required_sats": 72000}
+    "details": {
+      "available_sats": 41200, "required_sats": 72000,
+      "refusals": [{
+        "kind": "insufficient_balance",
+        "message": "available 41200 sats, required 72000 sats",
+        "retryable": false,
+        "details": {"available_sats": 41200, "required_sats": 72000}
+      }],
+      "not_checked": []
+    }
   },
   "correlation_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11"
 }
 ```
+
+*Fixture amended 2026-10-04 (`ADR-0030`): singleton balance purchase tail.*
 
 `kind` is `DOM-17`'s closed set. `retryable` is normative for callers (`API-51`). The inner
 `error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is
@@ -127,12 +138,26 @@ agent to parse English. Minimum keys:
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
 
-**On create and extend-runway tail refusals**, `details.refusals` is the ordered list of
+**On create and extend-runway tail refusals** (*amended 2026-10-04, `ADR-0030`*), `details.refusals` is the ordered list of
 `WIR-9` inner objects and `details.not_checked` is a list of `{check, because}` objects; `API-7`
-owns collection, ordering and evaluation. `check` is exactly `commitment_cap` or `balance`;
+owns refusal collection, refusal ordering and evaluation. `check` is exactly `commitment_cap` or `balance`;
 `because` is exactly `rate_unavailable` or `provider_account_not_healthy` (create only).
-When both reasons apply, each skipped check has an entry for each reason, in check order
+Every genuinely skipped check MUST appear with every applicable reason; an absent refusal does
+not imply that check passed. `commitment_cap` applies only when the request supplied
+`max_commitment_sats`; without it there is no cap check to skip. Balance is always a check.
+When no checks were skipped, the list MUST be empty. Entries MUST be in check order
 `commitment_cap`, `balance`, then reason order `provider_account_not_healthy`, `rate_unavailable`.
+Purchase-tail entries MUST use these `retryable` values, applying `DOM-17`'s "whether repeating
+the same request is safe and sensible":
+
+| Refusal | `retryable` | Reason |
+|---|---|---|
+| `halted` / `solvency` or `rate_unavailable` | `true` | The same purchase can succeed when the gate clears |
+| `conflict` / `state` on an unhealthy create account | `true` | Repeating is safe and can succeed after recovery of `account_unreachable` or `credentials_rejected` (`API-63`); it promises no recovery of a terminated account |
+| `conflict` / `cancellation_committed` | `false` | The fence is permanent |
+| `invalid_request` for `max_commitment_sats` | `false` | The caller must revise its spend bound |
+| `insufficient_balance` | `false` | The caller must supply balance before purchasing |
+
 **Only on the `max_commitment_sats` refusal**, `invalid_request` carries
 `details.max_commitment_sats` (the supplied cap) and `details.required_sats` (the computed
 commitment to open or additional satoshis to reserve); these keys are not required of other
@@ -166,9 +191,9 @@ operation the restore quarantine or the post-restore startup pass moved (`STO-54
 exactly those rows that "a null marker there does not mean the disk is untouched", and `none` on
 either key would tell the caller the opposite of what the operator is told about the same row.
 
-**WIR-9b** **`retryable` precedence.** For `API-7`'s rich purchase-tail refusal, the envelope's
+**WIR-9b** **`retryable` precedence** (*amended 2026-10-04, `ADR-0030`*). For `API-7`'s rich purchase-tail refusal, the envelope's
 `retryable` MUST be true iff every refusal entry's `retryable` is true. Each entry retains its
-existing per-kind value; this aggregation does not amend `DOM-17`. When an error accompanies an operation view, the operation
+per-refusal value from `WIR-9a`. When an error accompanies an operation view, the operation
 view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 `needs_reconciliation` and `gone` are **always** `retryable: false` — re-issuing either under a
 fresh idempotency key is a fresh operation, not a retry: a second purchase on a create, a second
@@ -712,9 +737,9 @@ AMENDED to include it — recorded there.
 `max_commitment_sats` is optional and caps the additional satoshis reserved by this request,
 including a commitment opened where none exists. If that computed amount exceeds the cap the
 request fails `invalid_request` before any commitment opens or grows; `WIR-9a` owns its details.
-`API-7` owns collection and ordering of tail refusals, including solvency and rate unavailability.
-`LDG-62` owns the read used for fence reporting and the conditional write on admission, including
-the re-derived `runway_until`.
+*Amended 2026-10-04 (`ADR-0030`).* `API-7` owns the collection snapshot and ordering of
+tail refusals, including fence reporting, solvency and rate unavailability. `LDG-62` owns the
+conditional write on admission, including the re-derived `runway_until`.
 
 **WIR-25** `GET /v1/machines`, `GET /v1/machines/{id}` — machine views; the list is
 cursor-paginated (`WIR-32`): `{"machines": [], "next_cursor": null}`. The example shows an empty

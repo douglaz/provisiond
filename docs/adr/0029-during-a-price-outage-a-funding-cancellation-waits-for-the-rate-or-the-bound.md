@@ -436,6 +436,6 @@ The accepted cost is stated there, beside the rule. The preceding undetected-sho
 concerns a new shortfall during an outage; it does not justify forgetting a computed one.
 
 Rejected: accepting the lift as another outage cost. Starving one currency's window would then
-reopen funding after the operator had computed the claim could not be honoured, the very reason
-for `LDG-20`'s halt. Conformance is `CNF-306`; the formal transition and its guard witnesses
+reopen funding despite `LDG-20`'s reason: "a customer could pay for a claim the operator had just
+computed it could not honour". Conformance is `CNF-306`; the formal transition and its guard witnesses
 check preservation without claiming to calculate monetary solvency.

@@ -823,9 +823,11 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       `CNF-307` owns combined extension-refusal expectations.
 
       **USD unrated, EUR covered.** Start independently with no halt in force and a fresh
-      unsettled invoice; do not inherit the preceding short-float halt. Bill in USD and EUR, remove only USD's rate, and keep EUR's
-      window yielding its rate. Held satoshis cover the float plus stressed EUR payables; arrange
-      USD payables so that valuing them at the last pre-outage rate would make the check short.
+      unsettled invoice; do not inherit the preceding short-float halt. No complete check was short
+      before the outage. Bill in USD and EUR, remove only USD's rate, and keep EUR's window yielding
+      its rate. Held satoshis cover the float plus stressed EUR payables. Only after USD's window
+      yields no rate, arrange USD payables so that valuing them at the last pre-outage rate would
+      make the check short.
       Assert that an EUR create and `extend-runway` are admitted, a deposit mints, no unsettled
       invoice is cancelled, and the deposit read reports `gate: null` and
       `lightning.cancelled: false`. For EUR, assert
@@ -847,7 +849,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       must outlast the bound; `CNF-99` holds the single pass.* *Amended 2026-10-02, `ADR-0029`;
       `LDG-40`'s note holds the sweep's withdrawn row.* *Amended 2026-10-03, `ADR-0029`
       (`pv-gip.31`): until then the case asserted that "the solvency check fails closed";
-      `LDG-40` keeps that withdrawn row.*)
+      `LDG-40` keeps that withdrawn row.* *Amended 2026-10-04 (`pv-gip.42`, `ADR-0030`):
+      isolate the no-prior-halt trace and defer combined refusal assertions to `CNF-307`.*)
       (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-17`, `LDG-20`, `LDG-53`, `LDG-62`, `LDG-65`,
       `OPS-41`, `WIR-15`, `WIR-24`)
 - [ ] **CNF-306** — **An incomplete pass cannot lift a computed halt.** With every leg
@@ -859,31 +862,43 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       `lightning.cancelled: true`. Restore the rate and cover the full stressed check; only then
       does the halt lift, a fresh deposit mint succeed, and the old read report `gate: null`
       while `lightning.cancelled` remains `true`. Also keep a complete-but-short check halted.
-      `CNF-138` owns starting a halt from short valued terms and no-rate-alone with no prior halt.
+      Repeat independently with no prior halt: first remove the rate, then make the valued terms
+      short, starting a halt during the outage. Cover those terms while the rate remains absent;
+      assert the same retained halt and deposit results until every leg is valued and a complete
+      check passes. This rejects remembering only a short complete check or only the current
+      shortfall. `CNF-138` owns no-rate-alone with no prior halt.
+      (*Amended 2026-10-04, `pv-gip.42`.*)
       (`LDG-40`, `LDG-20`, `WIR-15`)
 - [ ] **CNF-307** — **Rich purchase-tail refusals.** Exercise create and extend-runway after
       the common pipeline, with a fresh key each time. For each fault alone assert a singleton
-      `details.refusals` containing exactly `kind`, `message`, `retryable`, `details`, matching
+      `details.refusals` whose singleton is exactly a `WIR-9` inner object, matching
       the headline and its HTTP status: unhealthy create account or fenced extension `409`
       `conflict` (reason `state` or `cancellation_committed`); solvency halt or absent rate `503`
       `halted` (gate `solvency` or `rate_unavailable`); cap exceeded `400` `invalid_request`
       (`max_commitment_sats`, `required_sats`); balance short `402` `insufficient_balance`
-      (`available_sats`, `required_sats`). Preserve per-kind retryability and required pacing.
+      (`available_sats`, `required_sats`). Assert `WIR-9a`'s per-refusal retryability and required pacing, including each
+      recoverable account status and a terminated account.
       No entry contains a nested list, no check/refusal repeats, and every refusing tail writes
       no commitment, balance, machine, operation or receipt and makes no provider call.
 
       Fence + solvency + absent rate: HTTP `409`, entries fence/solvency/rate in that order;
-      cap and balance each unchecked because `rate_unavailable`; headline has no synthesized
+      with a supplied cap, cap and balance each unchecked because `rate_unavailable`; headline has no synthesized
       pacing. Solvency + short balance with a rate: HTTP `503`, envelope `retryable: false`,
       entries solvency (`retryable: true`) then balance (`retryable: false`), with the balance's
-      amounts and solvency's own pacing at the top level and in its entry. Give the subordinate
+      amounts only in the balance entry; solvency's own pacing appears at the top level and in
+      the solvency entry. Give the subordinate
       rate entry a longer delay in a solvency+rate case and assert headline pacing is unchanged.
       Cap + short balance: HTTP `400`, cap before balance, envelope false and `not_checked: []`.
-      An unhealthy create account + solvency halt: `409`, state then solvency, cap and balance
+      An unhealthy create account + solvency halt with a supplied cap: `409`, state then solvency, cap and balance
       unchecked because `provider_account_not_healthy`; repeat with no rate as well and require
       the rate refusal and both reasons for each skipped check. A skipped check never appears
       as a priced refusal or as passed. A fenced extension with a rate still evaluates cap and
       balance; empty `not_checked` proves they ran even though the resource refused.
+
+      Repeat absent-rate and unhealthy-account cases without `max_commitment_sats`: only balance
+      appears in `not_checked`, with every applicable reason and no cap refusal. With a rate and
+      healthy account, omitting the cap leaves balance evaluated and `not_checked: []`.
+      (*Amended 2026-10-04, `pv-gip.26`, `ADR-0030`.*)
 
       Clear faults and resend the exact request and key: admission succeeds, proving refusal
       left no replay receipt. Check singleton/no-rate `not_checked` as well as the empty list
