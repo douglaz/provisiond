@@ -21,6 +21,7 @@
 | GET | `/v1/episodes` | ✓ | Operator: list episodes, filterable by state (`API-64`, `WIR-51`) |
 | GET | `/v1/episodes/{id}` | ✓ | Operator: read one episode (`WIR-51`) |
 | POST | `/v1/episodes/{id}/actions/retry` | ✓ | Operator: enqueue a fresh attempt under a `stalled` episode (`API-64`, `WIR-51`) |
+| POST | `/v1/episodes/{id}/actions/keep` | ✓ | Operator: keep a stalled machine (`API-68`, `WIR-55`) |
 | POST | `/v1/enrol/token` | ✓ | Unauthenticated: obtain the enrolment admission token, answering only after a stated delay (`API-33`, `WIR-49`) |
 | POST | `/v1/enrol` | ✓ | Create a pending tenant, return a handle; requires an admission token (`API-32`, `API-33`) |
 | GET | `/v1/enrol/{handle}` | ✓ | Enrolment **status only**; never returns a credential (`API-33`, `WIR-13`) |
@@ -248,6 +249,7 @@ The tail then depends on what the endpoint does:
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
 | **release attachment** | operator-only (`API-65`, `WIR-52`); on an `api` row enqueue one `release_attachment`, then `202`; on a `manual` row synchronous `200`, writing `released_at` (`API-48`); **no commitment and no spending gate** — it reduces exposure, on the delete row's reasoning |
 | **revoke** | operator or recovery-credential principal (`API-56`, `WIR-38`); synchronous, `200`, no provider mutation (`API-48`) |
+| **keep** (*added 2026-10-04, `pv-gip.11`*) | operator-only, synchronous `200` (`API-68`, `WIR-55`); **no commitment and no spending gate**; admission follows this pipeline, with no retry-ceiling treatment |
 | **resume, resolve** | **operator-only** (`WIR-41`, `WIR-35`, `WIR-34`); synchronous, `200`, no provider mutation (`API-48`). The recovery credential reaches **neither** — `API-55` confines it to `API-56`, and a recovered-after-theft credential that could resume its own tenant or resolve an uncertain provider mutation would undo the suspension that answered the theft |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
 | **deposit** | synchronous; allowed while pending; **refused `halted` while `LDG-20`'s solvency halt is in force** — that halt stops top-ups *first*, and minting a destination invites exactly the payment it forbids; otherwise **mints a destination and writes NO ledger entry** — a deposit is not money until it settles (`LDG-47`) — plus an idempotency record, in one transaction; `200` |
@@ -845,6 +847,8 @@ returns `202` and an operation" — the set `OVR-4` names as the closed set of s
     is an ordinary `202`.
 20. `POST /v1/provider-accounts/{account}/actions/record-billing` (`API-66`, `WIR-53`; added
     2026-10-04, `pv-gip.39`).
+21. `POST /v1/episodes/{id}/actions/keep` (`API-68`, `WIR-55`; added 2026-10-04,
+    `pv-gip.11`).
 
 Every member has the same justification: **none of them is itself a provider mutation**, so none
 needs a durable operation of its own. Any endpoint added later that *does* touch a provider MUST
@@ -1020,6 +1024,30 @@ rejection automatically is the loop `OPS-39` exists to prevent. A throttled atte
 so a throttled delete is `failed`, and nothing in this set returns it to `queued` (`F48`). The
 episode, not the `failed` attempt row, is what
 outlives `STO-14`'s retention, which is why the verb is on the episode (`ADR-0017`).
+
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): retry means delete. The new attempt is
+stamped `requested_by: operator`, with its non-null `episode_id`, in the enqueue transaction;
+these fields identify its origin across claims and restarts. It uses `OPS-41`'s retry branch.
+Keeping the machine is the distinct `API-68` verb.*
+
+**API-68** **ADDED 2026-10-04 (`pv-gip.11`, `ADR-0032`) — keep a stalled machine.**
+`POST /v1/episodes/{id}/actions/keep` (`WIR-55`) MUST be operator-only and synchronous,
+returning `200` with `WIR-51`'s episode view and minting no operation. It is admissible only in
+`stalled`: under `LDG-35`'s per-tenant serialization, conditional-write on `(id, state = stalled)`
+to close `kept`, clear `machines.destroy_committed`, record the authenticated operator principal
+and the supplied evidence in `STO-52`, and write the `LDG-33` re-derived `runway_until` using the
+transaction's rate and clock, with no-rate handling governed by `LDG-65`. These effects
+and the `STO-35` idempotency receipt MUST commit in one transaction under `WIR-24`. A lost
+conditional write or any other episode state is `409` `conflict`, `details.reason: "state"`;
+`API-7` step 5a applies first: "an equal fingerprint under the
+    same `(principal, key)` returns the stored result". A keep racing a
+retry or gone-write cannot overwrite its winner's state or clear its fence.
+
+Keep MUST NOT change the commitment or balance, mutate the provider, or settle/rewrite the
+old attempt. It adds no funding, suspension or retry-ceiling gate to `API-7`'s operator path.
+**A still-unfunded machine is routed again at the next exhaustion sweep under the existing
+predicate**, opening a fresh episode under `OPS-39`; keep grants no grace or exclusion from
+that population. The close and evidence survive with the episode under `STO-52`.
 
 **API-65** **ADDED 2026-09-08 — the operator's half of `PRV-45`, which had no route.**
 `GET /v1/machines/{id}/attachments` (`WIR-52`) is **operator-only** (`WIR-34`) and lists the

@@ -205,6 +205,65 @@ def retryTrace : List Fence.Event :=
   [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete false (some false), .settle,
    .retry, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
 
+/-- A deterministic refusal followed by a favorable rate: no timer reverses the decision. -/
+def priceFundedStall : List Fence.Event :=
+  [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete false (some false), .settle,
+   .rateRestored 1, .rederive 1 (some 1)]
+
+/-- Pin the independent old guards so each new amendment has exactly its own refutation. -/
+def operatorGuards (p : Params) : Params :=
+  { p with
+    recheckInsideFence := true, fenceHolds := .episodeId, fenceOnOpenEpisode := true,
+    abortPredicate := .date, abortWritesDate := true, extendWritesDate := true,
+    suspensionKey := .currentState, ownIdClause := true, retryGuard := true,
+    goneOrClosedFirst := true, sweepNeedsRate := true }
+
+/-- The funded stalled retry reaches the provider; removing the retry exemption revives it.
+The same trace after resume is below; ordinary attempts retain the suspension-key witness. -/
+@[req "API-64"]
+theorem retry_deletes_funded_witness :
+    let p := operatorGuards Fence.current
+    let tail : List Fence.Event := [.retry, .claim, .fenceTxn, .fenceWrite,
+      .providerDelete true (some true), .settle]
+    let w := run p subSecondWorld (priceFundedStall ++ tail)
+    let old := run { p with retryDeletes := false } subSecondWorld (priceFundedStall ++ tail)
+    w.m.destroyed = true ∧ old.m.destroyed = false := by decide
+
+/-- Keep writes the derived date, clears only with a kept close, and moves no money.
+The old stored date is zero while the current derivation is one. -/
+@[req "API-68"]
+theorem keep_writes_date_witness :
+    let p := operatorGuards Fence.current
+    let stalled := run p subSecondWorld priceFundedStall
+    let w := keep p { stalled with m := { stalled.m with runwayUntil := 0 } }
+    let old := keep { p with keepWritesDate := false }
+      { stalled with m := { stalled.m with runwayUntil := 0 } }
+    w.m.runwayUntil = 1 ∧ old.m.runwayUntil = 0 ∧ w.m.fence = none ∧
+    w.episode.map (·.state) = some (.closed .kept) ∧
+    w.m.commitment = 1 ∧ w.balance = 1000 := by decide
+
+/-- Timer stability across funding and another lapse, explicit retry after resume, and keep's
+unfunded route back. These traces pin the new guards; their removal is tested separately. -/
+@[req "OPS-48"]
+theorem operator_episode_cases :
+    let p := operatorGuards { Fence.current with retryDeletes := true, keepWritesDate := true }
+    let stalled := run p subSecondWorld priceFundedStall
+    let swept := run p stalled [.sweep, .sweep, .advance 2, .sweep, .extend 100]
+    let resumed := run p fundedWorld [.suspend, .claim, .fenceTxn,
+      .providerDelete false (some false), .settle, .resume, .retry, .claim, .fenceTxn,
+      .providerDelete true (some true), .settle]
+    let unfunded := { stalled with m := { stalled.m with commitment := 0 } }
+    let kept := keep p unfunded
+    let routed := sweep p kept
+    swept.episode.map (·.state) = some .stalled ∧ swept.attempt = stalled.attempt ∧
+    swept.m.fence = stalled.m.fence ∧ swept.balance = stalled.balance ∧
+    resumed.m.destroyed = true ∧ kept.m.commitment = 0 ∧ kept.balance = unfunded.balance ∧
+    routed.episode.map (·.state) = some .attempting ∧ routed.nextId > kept.nextId ∧
+    keep p (goneWrite stalled) = goneWrite stalled ∧
+    keep p (retry p stalled) = retry p stalled ∧
+    keep p (keep p stalled) = keep p stalled ∧
+    (extend p (keep p stalled) 100).m.commitment = 101 := by decide
+
 /-- `OPS-41`'s 2026-09-05 trace: the tenant is suspended, its fan-out enqueues the delete, the
 tenant is resumed and funds the machine before the worker claims, and the worker re-checks. -/
 def resumedTenantTrace : List Fence.Event :=
@@ -304,7 +363,7 @@ theorem retry_executes_witness :
     w.m.destroyed = true ∧
     w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
     w.attempt = some { op := ⟨3⟩, ep := ⟨1⟩,
-                       row := { status := .succeeded, claim := ⟨1⟩, record := 0, revision := 2 } } := by
+                       row := { status := .succeeded, claim := ⟨1⟩, record := 0, revision := 2 }, retried := true } := by
   decide
 
 /-- The 2026-09-08 amendment's trace, with the column holding the attempt's id — and the same
@@ -2144,20 +2203,10 @@ theorem termination_leaves_episode_open_witness :
     episodeStep { currentRows with goneWriteRow := false } .stalled .goneWrite = (.stalled, false) := by
   decide
 
-/-- `ADR-0021`'s second read: the sweep finds a suspended tenant's stalled machine funded after a
-rate rise. With the exemption the episode stays `stalled` and fenced; without it the row "would
-have un-fenced it on a rate rise" and closed the episode `funded` on a machine "not kept by being
-funded". -/
-@[req "OPS-48"]
-theorem suspended_sweep_close_witness :
-    episodeStep currentRows .stalled (.sweepFunded true) = (.stalled, false) ∧
-    episodeStep { currentRows with suspensionExemption := false } .stalled (.sweepFunded true) =
-      (.closed .funded, true) := by decide
-
 /-- The edge `DOM-31`'s diagram drew and `ADR-0021` deleted, `stalled --> closed : abandoned`: a
 `stalled` episode's attempt is `failed`, "a settled state the resolution verbs cannot reach", so
-the verb changes nothing; with the edge restored, an operator could "end an exposure by declaring
-it over". -/
+the verb changes nothing. The explicit keep added in 2026-10-04 has a different event and
+close reason; restoring the abandoned edge still invents a resolution of a settled attempt. -/
 @[req "OPS-48"]
 theorem abandon_from_stalled_witness :
     episodeStep currentRows .stalled (.resolved .abandoned false) = (.stalled, false) ∧

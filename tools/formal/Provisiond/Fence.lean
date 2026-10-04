@@ -15,7 +15,7 @@ transaction alone enters.
 The re-check is `OPS-41`'s order (2026-10-02, `ADR-0029`), decided "inside the fence transaction
 and on what that transaction reads, never on its claim snapshot": `Phase.holding` carries the
 claim number and no rate, and `recheck` reads the world the transaction runs in. The machine
-recorded gone or its episode closed settles first; then the tenant's **current** suspension state;
+recorded gone or its episode closed settles first; then explicit retry or the tenant's **current** suspension state;
 then a rate, at which `LDG-33` is re-derived; then, with no rate, the outage's deadline — before
 it the claim defers through `Provisiond.Claim.defer`, and past it the worker makes the conditional
 write on `STO-37`'s record. `World.rate` is optional, and the transaction's read of it can predate
@@ -48,7 +48,11 @@ half; `OPS-41`'s 2026-09-09 scope, "**any** exposure-reducing cancellation" — 
 scopes by reason; the deadline's arithmetic and the separation of the rate's loss from the meter's
 record, which are `LDG-64`'s and `STO-37`'s account of what an outage is and withdraw no behaviour
 a parameter could return to; and the places of the suspension read and of the rate read in
-`OPS-41`'s order, which the 2026-10-02 amendment numbered and did not move.
+`OPS-41`'s order. The 2026-10-04 retry branch precedes the funding decision.
+`retryDeletes` restores the old funding re-check when disabled; `keepWritesDate` omits the
+operator keep's date write. Keep admission, durable operator evidence and idempotency receipt
+storage are outside this model. `Attempt.retried` abstracts the durable requested-by/episode
+origin specified by API-64, not a claim-local flag.
 
 Re-derivation consumes an optional per-currency acceptance order (`STO-49`); no observation is
 `LDG-40`'s halt. The caller supplies the date computed by `LDG-33`; source aggregation, currency
@@ -144,6 +148,8 @@ structure Attempt where
   op  : OperationId
   ep  : EpisodeId
   row : Row
+  /-- API-64 origin, retained with the attempt through claims. -/
+  retried : Bool := false
   deriving DecidableEq, Repr
 
 /-- Settled, in `OPS-3`'s sense, or `needs_reconciliation`: no longer `queued` or `running`. -/
@@ -233,6 +239,10 @@ both withdrawn traces. `rederiveFirst` controls the transaction entry: off check
 grace before entering the ordinary re-check, even for a funded machine. `OPS-41` says
 "The worker re-derives and applies the predicate above **first**". -/
 structure Params where
+  /-- API-64 retry skips the funding decision (2026-10-04). -/
+  retryDeletes : Bool
+  /-- API-68 keep writes the derived date (2026-10-04). -/
+  keepWritesDate : Bool
   recheckInsideFence   : Bool
   fenceHolds           : Holds
   fenceOnOpenEpisode   : Bool
@@ -261,6 +271,8 @@ structure Params where
 per line: `ci.yml`'s controls flip one each. -/
 @[req "OPS-42"]
 def current : Params := {
+    retryDeletes        := true,
+    keepWritesDate      := true,
     recheckInsideFence   := true,
     fenceHolds           := .episodeId,
     fenceOnOpenEpisode   := true,
@@ -449,32 +461,27 @@ def applyRow (w : World) (ep : EpisodeRow) (ev : Tables.Event) : World :=
            m := { w.m with fence := if (episodeStep currentRows ep.state ev).2 then none
                                     else w.m.fence } }
 
-/-- The exhaustion sweep: `LDG-14`'s "At end of runway the machine MUST be cancelled", routed on
-`LDG-16`'s predicate: `World.routed` checks the stored date and rate; `sweep` adds the clause
-"and it is not recorded gone". Its other row
-is `OPS-48`'s sweep-close: the sweep "finds the machine of a `stalled` episode funded under
-`OPS-41`'s predicate ... **and its tenant not suspended** at that read" and closes it `funded`,
-clearing the fence; a `stalled` episode has no attempt in flight, which the guard states. That row
-took a rate before 2026-10-02 and is unchanged. -/
+/-- The exhaustion sweep uses the existing routed population and gone exclusion.
+An open episode is only joined; it is never closed by funding (2026-10-04, `ADR-0032`). -/
 @[req "LDG-16"]
 def sweep (p : Params) (w : World) : World :=
-  match w.episode, w.rate with
-  | some ep, some r =>
-    if ep.state == .stalled && w.phase == .idle && w.attempt.all Attempt.done
-        && p.abort w.m.commitment w.prot r then
-      applyRow w ep (.sweepFunded w.suspended)
-    else if w.routed p && !w.m.gone then enqueue w .exhausted else w
-  | _, _ => if w.routed p && !w.m.gone then enqueue w .exhausted else w
+  if w.routed p && !w.m.gone then enqueue w .exhausted else w
 
-/-- `LDG-16`: "While the currency has no rate the sweep routes nothing priced in it". With no rate
-the sweep is the identity: it enqueues nothing and opens no episode, whatever the stored date. -/
+/-- No rate routes nothing. -/
 @[req "LDG-16"]
 theorem sweep_routes_nothing_without_a_rate (p : Params) (hg : p.sweepNeedsRate = true)
     (w : World) (hr : w.rate = none) : sweep p w = w := by
+  simp [sweep, World.routed, hg, hr]
+
+/-- For every rate, date and suspension state, a sweep preserves a stalled state,
+its attempt and its fence. It may add the exhausted reason to the existing episode. -/
+@[req "OPS-48"]
+theorem sweep_keeps_stalled (p : Params) (w : World) (ep : EpisodeRow)
+    (hep : w.episode = some ep) (hst : ep.state = .stalled) :
+    (sweep p w).episode.map (·.state) = some .stalled ∧
+    (sweep p w).attempt = w.attempt ∧ (sweep p w).m.fence = w.m.fence := by
   unfold sweep
-  split
-  · simp_all
-  · simp [World.routed, hg, hr]
+  split <;> simp [enqueue, World.episodeOpen, hep, hst, Episode.isOpen]
 
 /-- `OPS-41`'s paused measure, on the fence transaction's inputs. The current funding branch
 supplies the rate and excludes suspension before reaching this check. No new state is stored. -/
@@ -592,10 +599,11 @@ def settledFirst (w : World) (a : Attempt) : Bool :=
   w.m.gone || !(w.episode.any fun ep => ep.id == a.ep && ep.state.isOpen)
 
 /-- `OPS-41`'s exemption: "where the machine's tenant IS suspended at the moment of the re-check,
-read in the same fence transaction", or — the withdrawn key — the episode's `reasons` set. -/
+read in the same fence transaction", or — the withdrawn key — the episode's `reasons` set.
+The 2026-10-04 API-64 retry exemption is independent of that suspension key. -/
 @[req "OPS-41"]
-def exempt (p : Params) (w : World) : Bool :=
-  match p.suspensionKey with
+def exempt (p : Params) (w : World) (a : Attempt) : Bool :=
+  (p.retryDeletes && a.retried) || match p.suspensionKey with
   | .currentState => w.suspended
   | .episodeReasons => w.episode.any (·.reasons.contains .tenantSuspended)
 
@@ -610,7 +618,7 @@ def derive (p : Params) (w : World) (r : Nat) : Verdict :=
 
 /-- `OPS-41`'s order, on what the fence transaction reads, "and the first step that applies
 decides". (1) The machine recorded gone or its episode closed: no mutation, and no date — "**It
-writes no `runway_until`**". (2) The tenant suspended now: "The funding re-check does not apply
+writes no `runway_until`**". (2) Explicit retry or the tenant suspended now: "The funding re-check does not apply
 and the cancellation proceeds". (3) A rate: `derive`. (4) No rate and the deadline not passed:
 the claim defers. (5) No rate and the deadline passed, "`LDG-64`'s bound": the conditional write
 on this machine's open `rate_outage` record. `restored` is the restoration, where there is one,
@@ -633,7 +641,7 @@ proceeds on it. -/
 @[req "OPS-41"]
 def recheck (p : Params) (w : World) (a : Attempt) (restored : Option Nat) : Verdict :=
   if p.goneOrClosedFirst && settledFirst w a then .noMutation none
-  else if exempt p w then .proceed none
+  else if exempt p w a then .proceed none
   else match w.rate with
     | some r => derive p w r
     | none =>
@@ -642,6 +650,14 @@ def recheck (p : Params) (w : World) (a : Attempt) (restored : Option Nat) : Ver
       else match restored with
         | some r => derive p (rateRestored w r) r
         | none => if w.outageOpen || p.absentRecordProceeds then .proceed none else .noMutation none
+
+/-- Explicit retry bypasses only funding, after the gone/closed decision. This is independent
+of rate, suspension and paused rate-time; the original restore gate is still claimStep's. -/
+@[req "OPS-41"]
+theorem retry_bypasses_funding (p : Params) (hg : p.retryDeletes = true) (w : World)
+    (a : Attempt) (ha : a.retried = true) (hs : settledFirst w a = false)
+    (restored : Option Nat) : recheck p w a restored = .proceed none := by
+  simp [recheck, hs, exempt, hg, ha]
 
 /-- The world a fence transaction commits against: the one it read, or — where it read no rate
 and a restoration committed before the transaction did — that world with the rate restored and
@@ -698,7 +714,7 @@ def fundingOrderTxn (p : Params) (w : World) (restored : Option Nat) : World :=
   match w.phase, w.attempt with
   | .holding n, some a =>
     if !p.rederiveFirst && !(p.goneOrClosedFirst && settledFirst w a) &&
-        !exempt p w && w.rate.isSome && p.pausedGraceInFence && pausedGrace p w then
+        !exempt p w a && w.rate.isSome && p.pausedGraceInFence && pausedGrace p w then
       { midTxn w restored with
           attempt := some { a with row := Claim.defer Claim.current a.row n }, phase := .idle }
     else fenceTxn p w restored
@@ -817,10 +833,27 @@ def retry (p : Params) (w : World) : World :=
   | .idle, some a, some ep =>
     if a.done && (!p.retryGuard || ep.state == .stalled) then
       { w with episode := some { ep with state := (episodeStep currentRows .stalled .retry).1 },
-               attempt := some { op := ⟨w.nextId⟩, ep := ep.id, row := freshRow },
+               attempt := some { op := ⟨w.nextId⟩, ep := ep.id, row := freshRow, retried := true },
                nextId := w.nextId + 1 }
     else w
   | _, _, _ => w
+
+/-- Operator keep, after admission: one stalled-only close/fence/date transaction.
+No rate retains the stored date under LDG-65. Receipts and principal/evidence storage are
+not represented in this machine model; API-68 and STO-52 specify them. -/
+@[req "API-68"]
+def keep (p : Params) (w : World) : World :=
+  match w.phase, w.episode with
+  | .idle, some ep =>
+    if ep.state == .stalled then
+      let closed := applyRow w ep .keep
+      match w.rate with
+      | some r => if p.keepWritesDate then
+          writeAbortDate closed (w.now + runwaySeconds w.m.commitment w.prot r)
+        else closed
+      | none => closed
+    else w
+  | _, _ => w
 
 /-- The gone-write (`ADR-0021`): "the write of `machines.state` to gone with `state_observed_at`
 (`STO-48`), by any of `LDG-74`'s triggers ... or by `API-63`'s termination", which "closes its
@@ -907,7 +940,7 @@ inductive Event
   | fenceWrite
   | extend (sats : Nat)
   | providerDelete (applied : Bool) (reply : Option Bool)
-  | settle | retry | goneWrite | suspend | resume
+  | settle | retry | keep | goneWrite | suspend | resume
   | rateLost (start : Nat) | rateRestored (r : Nat) | meterOpens | setMaxOutage (bound : Nat)
   | outageBound
   deriving DecidableEq, Repr
@@ -925,6 +958,7 @@ def step (p : Params) (w : World) : Event → World
   | .providerDelete a r => providerDelete p w a r
   | .settle => settle p w
   | .retry => retry p w
+  | .keep => keep p w
   | .goneWrite => goneWrite w
   | .suspend => suspend w
   | .resume => resume w
@@ -1011,13 +1045,14 @@ theorem fenceTxn_abort (p : Params) (w : World) (n : ClaimNumber) (a : Attempt)
 it makes no provider call at all." With the read inside the fence transaction, an extension the
 store admitted before it is what the re-check reads; where that grown commitment funds the
 machine at the rate the transaction reads, it decides no mutation, writes no fence, and the
-provider call is inert. The rate is the world's and not a claim snapshot's — `OPS-41`: "never on
+provider call is inert for an ordinary attempt. The explicit retry bypass (2026-10-04)
+is excluded by `hordinary`; it deliberately carries out the deletion decision. The rate is the world's and not a claim snapshot's — `OPS-41`: "never on
 its claim snapshot" — and a machine recorded gone or under a closed episode is settled by the
 first step with no mutation either, so neither is a hypothesis. -/
 @[req "OPS-42"]
 theorem extension_first (p : Params) (w : World)
     (n : ClaimNumber) (r : Nat) (a : Attempt) (hph : w.phase = .holding n) (hr : w.rate = some r)
-    (ha : w.attempt = some a) (hs : w.suspended = false)
+    (ha : w.attempt = some a) (hordinary : a.retried = false) (hs : w.suspended = false)
     (hk : p.suspensionKey = .currentState) (sats : Nat) (hf : w.m.fence = none)
     (hb : sats ≤ w.balance)
     (hfunded : p.abort (w.m.commitment + sats) w.prot r = true) (restored : Option Nat) :
@@ -1035,7 +1070,7 @@ theorem extension_first (p : Params) (w : World)
     unfold recheck
     split
     · exact ⟨_, rfl⟩
-    · simp [exempt, hk, hs', hs, hr'.trans hr, derive, hc, hprot', hfunded]
+    · simp [exempt, hordinary, hk, hs', hs, hr'.trans hr, derive, hc, hprot', hfunded]
   obtain ⟨d, hre⟩ := hre
   have hft := fenceTxn_abort p (extend p w sats) n a restored d (hph'.trans hph) (ha'.trans ha) hre
   rw [hmid] at hft
@@ -1077,7 +1112,7 @@ theorem fence_first (p : Params) (hp : p.recheckInsideFence = true) (w : World)
 
 /-- `OPS-41`'s fourth step: "The claim defers: the operation is returned to `queued` by `OPS-8`'s
 ordinary short delay, and no fence is written." Over every world: a fence transaction on a
-machine not recorded gone, its episode open, its tenant not suspended, with no rate and the
+machine not recorded gone, its episode open, its tenant not suspended, its attempt not a retry, with no rate and the
 deadline not passed, writes nothing to the machine row — no fence and no date — leaves the
 episode as it was, returns the row to `queued` with no `available_at` instant, and the worker to
 `idle`. That is one fence transaction before the deadline, and so a part of `LDG-65`'s "Nothing
@@ -1090,7 +1125,7 @@ row is the one the claim left, `running` under this worker's number. -/
 theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
     (hwait : p.noRateWaits = true) (w : World) (n : ClaimNumber) (a : Attempt)
     (hph : w.phase = .holding n) (ha : w.attempt = some a)
-    (hrun : a.row.status = .running) (hmine : a.row.claim = n) (hgone : w.m.gone = false)
+    (hordinary : a.retried = false) (hrun : a.row.status = .running) (hmine : a.row.claim = n) (hgone : w.m.gone = false)
     (hopen : (w.episode.any fun ep => ep.id == a.ep && ep.state.isOpen) = true)
     (hs : w.suspended = false) (hr : w.rate = none) (hd : w.deadlinePassed = false)
     (restored : Option Nat) :
@@ -1099,7 +1134,7 @@ theorem no_rate_waits (p : Params) (hk : p.suspensionKey = .currentState)
     ∃ a', (fenceTxn p w restored).attempt = some a' ∧ a'.row.status = .queued ∧
       a'.row.availableAt = none := by
   have hre : recheck p w a restored = .defer := by
-    simp [recheck, settledFirst, hgone, hopen, exempt, hk, hs, hr, hwait, hd]
+    simp [recheck, settledFirst, hgone, hopen, exempt, hordinary, hk, hs, hr, hwait, hd]
   obtain ⟨hm, -, -, -, he, -⟩ := midTxn_frame w restored
   simp [fenceTxn, hph, ha, hre, hm, he, Claim.defer, Claim.holds, Claim.current, hrun, hmine]
 
@@ -1111,7 +1146,7 @@ property of one re-check, not a claim that a clocked wait eventually ends. -/
 @[req "OPS-39"]
 theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (a : Attempt)
     (restored : Option Nat) (h : recheck p w a restored = .defer) :
-    exempt p w = false ∧ (p.goneOrClosedFirst = true → settledFirst w a = false) ∧
+    exempt p w a = false ∧ (p.goneOrClosedFirst = true → settledFirst w a = false) ∧
     ((w.rate = none ∧ w.deadlinePassed = false ∧ p.noRateWaits = true) ∨
       (∃ r, w.rate = some r ∧ derive p w r = .defer) ∨
       (w.rate = none ∧ (p.noRateWaits = true → w.deadlinePassed = true) ∧
@@ -1219,7 +1254,7 @@ theorem open_outage_keeps_its_start (p : Params) (w : World) (hr : w.rate = none
     | pass window start =>
       simp only [step]; unfold pass rateRestored loseRate; (repeat' split) <;> simp_all
     | restoreRecord r => simp [step]
-    | sweep => simp only [step]; unfold sweep enqueue applyRow; (repeat' split) <;> simp_all
+    | sweep => simp only [step]; unfold sweep enqueue; (repeat' split) <;> simp_all
     | claim => simp only [step]; unfold claimStep; (repeat' split) <;> simp_all
     | fenceTxn restored =>
       obtain ⟨-, -, -, -, -, -, h1, h2⟩ := midTxn_frame w restored
@@ -1232,6 +1267,7 @@ theorem open_outage_keeps_its_start (p : Params) (w : World) (hr : w.rate = none
     | settle =>
       simp only [step]; unfold settle writeAbortDate finish applyRow; (repeat' split) <;> simp_all
     | retry => simp only [step]; unfold retry; (repeat' split) <;> simp_all
+    | keep => simp only [step]; unfold keep writeAbortDate applyRow; (repeat' split) <;> simp_all
     | goneWrite => simp only [step]; unfold goneWrite applyRow; (repeat' split) <;> simp_all
     | suspend => simp only [step]; unfold suspend enqueue; (repeat' split) <;> simp_all
     | resume => simp [step, resume]
@@ -1266,7 +1302,7 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
         · simp [hw] at h
         · exact ⟨n, reply, rfl, hph⟩
     · simp [hw] at h
-  | sweep => exfalso; unfold step sweep enqueue applyRow at h; (repeat' split at h) <;> simp_all
+  | sweep => exfalso; unfold step sweep enqueue at h; (repeat' split at h) <;> simp_all
   | claim => exfalso; unfold step claimStep at h; (repeat' split at h) <;> simp_all
   | fenceTxn restored =>
     exfalso; obtain ⟨hm, -⟩ := midTxn_frame w restored
@@ -1280,6 +1316,7 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
     exfalso; unfold step settle writeAbortDate finish applyRow at h
     (repeat' split at h) <;> simp_all
   | retry => exfalso; unfold step retry at h; (repeat' split at h) <;> simp_all
+  | keep => exfalso; unfold step keep writeAbortDate applyRow at h; (repeat' split at h) <;> simp_all
   | goneWrite => exfalso; unfold step goneWrite applyRow at h; (repeat' split at h) <;> simp_all
   | suspend => exfalso; unfold step suspend enqueue at h; (repeat' split at h) <;> simp_all
   | resume => exfalso; simp [step, resume] at h; simp_all
@@ -1298,7 +1335,7 @@ from `holding`, on a machine whose re-check let it through — `OPS-41`: "after 
 the fence holding this attempt. The re-check is the transaction's own, on the world it ran in and
 the restoration, if any, that committed behind its read: nothing of the claim enters. With
 `destroyed_only_by_provider_from_fenced` and `recheck_proceeds`: destruction only after a fence
-transaction whose re-check read the tenant suspended, or a rate at which the machine is unfunded,
+transaction whose ordered decision read an explicit retry, the tenant suspended, or a rate at which the machine is unfunded,
 or no rate with the deadline passed. -/
 @[req "OPS-41"]
 theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true) (w : World)
@@ -1335,7 +1372,7 @@ theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true)
           exact ⟨restored, rfl, hph, a, ha, ⟨d, hre⟩, by simp [*]⟩
         · simp at h
     · exact absurd h hw
-  | sweep => exfalso; unfold step sweep enqueue applyRow at h; (repeat' split at h) <;> simp_all
+  | sweep => exfalso; unfold step sweep enqueue at h; (repeat' split at h) <;> simp_all
   | claim => exfalso; unfold step claimStep at h; (repeat' split at h) <;> simp_all
   | fenceWrite =>
     exfalso; unfold step fenceWrite writeFence at h; (repeat' split at h) <;> simp_all
@@ -1346,6 +1383,7 @@ theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true)
     exfalso; unfold step settle writeAbortDate finish applyRow at h
     (repeat' split at h) <;> simp_all
   | retry => exfalso; unfold step retry at h; (repeat' split at h) <;> simp_all
+  | keep => exfalso; unfold step keep writeAbortDate applyRow at h; (repeat' split at h) <;> simp_all
   | goneWrite => exfalso; unfold step goneWrite applyRow at h; (repeat' split at h) <;> simp_all
   | suspend => exfalso; unfold step suspend enqueue at h; (repeat' split at h) <;> simp_all
   | resume => exfalso; simp [step, resume] at h; exact hw h
@@ -1366,7 +1404,8 @@ theorem derive_proceeds (p : Params) (hab : p.abortPredicate = .date) (w : World
   · simpa [Params.abort, hab] using ‹¬p.abort w.m.commitment w.prot r = true›
 
 /-- What a re-check that lets the cancellation through has read, under `current`'s keys (each a
-hypothesis, so that a flipped key reddens its witness and not this theorem): the tenant suspended
+hypothesis, so that a flipped key reddens its witness and not this theorem): explicit retry
+(added 2026-10-04 by owner decision); or the tenant suspended
 now; or a rate at which the machine is unfunded — the transaction's own read, or, past the
 deadline, the rate of a restoration the transaction saw ahead of its conditional write; or no
 rate with the deadline passed and no restoration it saw. That last says nothing of a rate
@@ -1385,7 +1424,7 @@ theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
     (hab : p.abortPredicate = .date) (hout : p.outageWrite = true) (hwait : p.noRateWaits = true)
     (w : World) (a : Attempt) (restored : Option Nat) (d : Option Nat)
     (h : recheck p w a restored = .proceed d) :
-    w.suspended = true ∨
+    (p.retryDeletes = true ∧ a.retried = true) ∨ w.suspended = true ∨
     (∃ r, (w.rate = some r ∨ (w.rate = none ∧ w.deadlinePassed = true ∧ restored = some r)) ∧
       abortDate w.m.commitment w.prot r = false) ∨
     (w.rate = none ∧ w.deadlinePassed = true ∧ restored = none) := by
@@ -1393,8 +1432,12 @@ theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
   split at h
   · simp at h
   · split at h
-    · left; simpa [exempt, hk] using ‹exempt p w = true›
-    · split at h
+    · rcases (by simpa [exempt, hk] using ‹exempt p w a = true› :
+          (p.retryDeletes = true ∧ a.retried = true) ∨ w.suspended = true) with h | h
+      · exact .inl h
+      · exact .inr (.inl h)
+    · apply Or.inr
+      split at h
       · rename_i r hr
         exact .inr (.inl ⟨r, .inl hr, derive_proceeds p hab w r d h⟩)
       · rename_i hr
@@ -1431,13 +1474,14 @@ theorem fenced_waits_for_the_provider (p : Params) (w : World) (n : ClaimNumber)
   | restoreRecord r => simp [step]
   | providerDelete a r => exact absurd rfl (he a r)
   | goneWrite => exact absurd rfl hg
-  | sweep => unfold step sweep enqueue applyRow; (repeat' split) <;> simp_all
+  | sweep => unfold step sweep enqueue; (repeat' split) <;> simp_all
   | claim => simp [step, claimStep, hph]
   | fenceTxn restored => simp [step, fundingOrderTxn, fenceTxn, hph]
   | fenceWrite => unfold step fenceWrite; (repeat' split) <;> simp_all
   | extend s => simp [step, extend, hf]
   | settle => simp [step, settle, hph]
   | retry => simp [step, retry, hph]
+  | keep => simp [step, keep, hph]
   | suspend => unfold step suspend enqueue; (repeat' split) <;> simp_all
   | resume => simp [step, resume]
   | rateLost start => simp only [step]; unfold rateLost loseRate; split <;> simp
@@ -1481,7 +1525,7 @@ theorem inv_same (w w' : World) (hf : w'.m.fence = w.m.fence) (he : w'.episode =
 
 theorem episodeStep_closed (r : CloseReason) (ev : Tables.Event) :
     episodeStep currentRows (.closed r) ev = (.closed r, false) :=
-  closed_absorbing true true false r ev
+  closed_absorbing true false r ev
 
 theorem episodeStep_keeps_open (s : Episode) (ev : Tables.Event) (hs : s.isOpen = true)
     (hc : (episodeStep currentRows s ev).2 = false) :
@@ -1490,7 +1534,7 @@ theorem episodeStep_keeps_open (s : Episode) (ev : Tables.Event) (hs : s.isOpen 
   | true => rfl
   | false =>
     have h2 : (episodeStep currentRows s ev).2 = true :=
-      (fence_cleared_iff_closes true true false s ev).mpr ⟨hs, hno⟩
+      (fence_cleared_iff_closes true false s ev).mpr ⟨hs, hno⟩
     rw [hc] at h2
     exact absurd h2 Bool.false_ne_true
 
@@ -1602,15 +1646,8 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
   | sweep =>
     simp only [step]; unfold sweep
     split
-    · rename_i ep r hep hr
-      split
-      · exact applyRow_inv w ep _ hep hw
-      · split
-        · exact enqueue_inv w _ hw
-        · exact hw
-    · split
-      · exact enqueue_inv w _ hw
-      · exact hw
+    · exact enqueue_inv w _ hw
+    · exact hw
   | claim =>
     obtain ⟨h1, h2, h3⟩ := claimStep_frame p w
     exact inv_same w _ h1 h2 h3 hw
@@ -1660,6 +1697,19 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
           simp only [hep] at hw ⊢
           split at hw <;> simp_all [episodeStep, Episode.isOpen]
         · unfold idsFresh at hi ⊢; simp only [hep] at hi ⊢; simp at hi ⊢; omega
+      · exact hw
+    · exact hw
+  | keep =>
+    simp only [step]; unfold keep
+    split
+    · rename_i ep hph hep
+      split
+      · have hi := applyRow_inv w ep .keep hep hw
+        split
+        · split
+          · exact inv_same _ _ rfl rfl rfl hi
+          · exact hi
+        · exact hi
       · exact hw
     · exact hw
   | goneWrite =>
@@ -1720,20 +1770,10 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
   | sweep =>
     simp only [step]; unfold sweep
     split
-    · rename_i ep' r' hep' hr
-      rw [hep] at hep'; obtain rfl := Option.some.inj hep'
-      split
-      · rename_i hst; simp [hc] at hst
-      · split
-        · rcases enqueue_closed w .exhausted hnot with h | h
-          · left; rw [h, hep]
-          · right; exact ⟨_, h⟩
-        · left; exact hep
-    · split
-      · rcases enqueue_closed w .exhausted hnot with h | h
-        · left; rw [h, hep]
-        · right; exact ⟨_, h⟩
-      · left; exact hep
+    · rcases enqueue_closed w .exhausted hnot with h | h
+      · left; rw [h, hep]
+      · right; exact ⟨_, h⟩
+    · left; exact hep
   | claim => left; rw [step, (claimStep_frame p w).2.1]; exact hep
   | fenceTxn restored =>
     left; obtain ⟨-, -, -, -, he, -⟩ := midTxn_frame w restored
@@ -1772,6 +1812,9 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
       · rename_i hst; simp [hc, hg] at hst
       · exact hep
     · exact hep
+  | keep =>
+    left; simp [step, keep, hep]
+    split <;> simp_all
   | goneWrite =>
     left; simp only [step]; unfold goneWrite
     split

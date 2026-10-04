@@ -155,9 +155,11 @@ the same request is safe and sensible":
 | `halted` / `solvency` or `rate_unavailable` | `true` | The same purchase can succeed when the gate clears |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `account_unreachable` or `credentials_rejected` | `true` | The named account can recover |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `terminated` | `false` | The named account cannot recover |
-| `conflict` / `cancellation_committed` | `false` | The fence is permanent |
+| `conflict` / `cancellation_committed` | `false` | Repeating does not revoke a committed cancellation (`API-68` is a separate decision) |
 | `invalid_request` for `max_commitment_sats` | `false` | The caller must revise its spend bound |
 | `insufficient_balance` | `false` | The caller must supply balance before purchasing |
+
+*Amended 2026-10-04 (`pv-gip.11`): fence retryability retains false; keep is a separate operator decision.*
 
 *Amended 2026-10-04 (`pv-gip.26`, S2): account retryability distinguishes permanent termination
 from recoverable status; kind and reason remain unchanged.*
@@ -783,17 +785,22 @@ episode's attempt history is findable; the open episodes `OPS-26` requires liste
   "opened_at": "2026-09-06T03:10:00Z",
   "current_operation_id": "0198d4a0-5f6a-7b8c-9d0e-1f2a3b4c5d23",
   "closed_at": null,
-  "close_reason": null
+  "close_reason": null,
+  "kept_by": null,
+  "keep_evidence": null
 }
 ```
 
 `key` is `delete` for an exposure-reducing cancellation and the `system_reason` for every other
 trigger (`OPS-39`); `reasons` is the set of `WIR-10a`'s `system_reason` values that contributed;
-`state` ∈ {`attempting`, `uncertain`, `stalled`, `scheduled`, `closed`} and `close_reason` ∈
-{`resource_gone`, `funded`, `abandoned`} are `DOM-31`'s, and `close_reason` is non-null only when `state` is
+`state` and `close_reason` use `DOM-31`'s sets; `close_reason` is non-null only when `state` is
 `closed`. `current_operation_id` names the latest attempt, which is an ordinary operation read
 through `WIR-27` — until `STO-14` retires it, after which the id is a `410` `gone` there and the
 episode is still here.
+
+*Amended 2026-10-04 (`pv-gip.11`): close reasons follow `DOM-31`, including `kept`.
+`kept_by` and `keep_evidence` expose `STO-52`'s durable keep evidence, null on other closes
+and while open.*
 
 `GET /v1/episodes/{id}` — **operator-only** (`WIR-34`), one episode view. `GET /v1/episodes?state=`
 — **operator-only**, cursor-paginated per `WIR-32`: `{"episodes": [], "next_cursor": null}`, each
@@ -807,6 +814,17 @@ under `WIR-24`'s one-transaction rule; **synchronous** `200` with the episode vi
 list. `API-64` is the rule: admissible only in `stalled`, otherwise `409` `conflict` with
 `details.reason: "state"`. The fresh attempt is the asynchronous part and is read through
 `current_operation_id`.
+
+**WIR-55** **ADDED 2026-10-04 (`pv-gip.11`, `ADR-0032`).**
+`POST /v1/episodes/{id}/actions/keep` (`API-68`) — **operator-only** (`WIR-34`), body
+`{"operator_ref": "opref-keep-19"}`, required and validated under `WIR-42`'s opaque-reference
+constraint and `WIR-1a`. No unredacted evidence or credential belongs in this body. Carry
+`Idempotency-Key` under `WIR-24`'s one-transaction rule, scoped to the operator principal
+(`API-10`, `STO-35`). Response: synchronous `200` with `WIR-51`'s episode view; `API-68`
+owns admission and effects. The server records the authenticated principal, never a caller-supplied
+identity, in `STO-52`; the durable receipt stores this response for exact replay. A new key on
+an already-closed episode gets the state refusal; a replay keeps its original response even if a
+subsequent sweep has opened a different episode.
 
 **WIR-52** **ADDED 2026-09-08** — attachments on the wire, the operator half of `PRV-45`
 (`API-65`). `GET /v1/machines/{id}/attachments` — **operator-only** (`WIR-34`), returns
@@ -1269,10 +1287,10 @@ legs. All money integers follow `WIR-1a`. Account reads observe the same deploym
 
 ## Listeners, limits and fixtures
 
-**WIR-34** **Operator-only routes** (*amended 2026-10-04, `pv-gip.39`: billing routes*) (`WIR-35` resolve, `WIR-39`
+**WIR-34** *Amended 2026-10-04 (`pv-gip.11`): include keep.* **Operator-only routes** (*amended 2026-10-04, `pv-gip.39`: billing routes*) (`WIR-35` resolve, `WIR-39`
 suspend, `WIR-41` resume, `WIR-42` attribute, `WIR-44`'s three abuse-case verbs, `WIR-46`
 address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, `WIR-48`
-assign-provider-account, `WIR-50` record-status, `WIR-51`'s three episode routes, `WIR-52`'s two attachment routes, `WIR-53` record-billing, `WIR-54` billing read, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+assign-provider-account, `WIR-50` record-status, `WIR-51`'s episode routes, `WIR-55` keep, `WIR-52`'s two attachment routes, `WIR-53` record-billing, `WIR-54` billing read, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
 

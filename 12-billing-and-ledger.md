@@ -1398,13 +1398,16 @@ inserted after the rate returns. `absorbed_seconds` alone is what the meter need
 valuation of the provider payable belongs to `LDG-75`, not to this historical rate evidence
 (*amended 2026-10-04, `pv-gip.39`*).
 
-**LDG-65** **During a rate outage a funding cancellation waits, for the rate or for `LDG-64`'s
+**LDG-65** **During a rate outage the funding-decision branch waits, for the rate or for `LDG-64`'s
 bound** (`ADR-0029`, which holds the argument). The stored `runway_until` stands through the outage,
 because `LDG-33` recomputes the date only when a rate exists. Nothing is cancelled on a date that
 passes while there is no rate. The sweep's
 predicate is `LDG-16`'s and the worker's order is `OPS-41`'s. A machine that reaches `LDG-64`'s
 bound is cancelled there; that cancellation claims like every other exposure-reducing cancellation
 and waits for a restore's grace as `OPS-41` requires.
+
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): scope follows `OPS-41`'s ordered
+branches, including the explicit retry branch. The stored-date rule is unchanged.*
 
 *Amended 2026-10-02 (`ADR-0029`), with the withdrawn wording, kept because it reads as sound and
 was not. Until then this requirement held: "**The exhaustion sweep continues during an outage on the

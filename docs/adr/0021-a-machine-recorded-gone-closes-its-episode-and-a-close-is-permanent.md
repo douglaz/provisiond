@@ -42,29 +42,17 @@ meter stopped and its episode left open, until an operator retried a delete for 
   reasoning: they have touched no provider. The write is guarded on `status = queued` and
   `requested_by = system`; a claimed one loses that race and settles as its own worker's write
   under an episode that is already closed.
-- **The `abandoned` exit from `stalled` is deleted, and no verb replaces it.** An episode is the
-  condition; an operator cannot end an exposure by declaring it over, and `OPS-48`'s own note on the
-  `uncertain` abandon says a later sweep opens a fresh one. The route back for a machine worth
-  keeping is `retry`: `OPS-41`'s re-check under the fresh attempt reads the tenant's current state
-  and the re-derived date, so a machine that still has runway at the retry survives one after a
-  resume and the episode closes `funded`.
-- **`OPS-41`'s re-check applies to every exposure-reducing cancellation**, with the tenant's current
-  suspension as the only exemption. Its scope sentence still listed three reasons, from before the
-  2026-09-05 rewrite keyed the exemption on current state "not on the reason the operation was
-  enqueued under"; the two could not both hold, and `CNF-272`'s resume case already asserted the
-  later one. The same exemption governs `OPS-48`'s sweep-close row, which had applied the funding
-  predicate to a suspended tenant's stalled machine and would have un-fenced it on a rate rise.
+- **Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`).** The stalled `abandoned` edge remains
+  withdrawn; the later operator decision has its own home in `API-68`. The retry-as-withdrawal
+  argument and the sweep-close suspension exemption are superseded. `OPS-41` and `OPS-48`
+  hold the current scope and transitions.
 
 ## Considered options
 
-**An operator `abandon` on a `stalled` episode.** Its strongest case, found by both reviewers: the
-customer cannot fund a fenced machine (`LDG-62` refuses under the fence), so a resumed tenant whose
-cancellation stalled seemed to have no way to keep the machine. Rejected because the case dissolves
-on reading `OPS-41`: a suspension cancels regardless of funding, the re-check reads the tenant's
-current state, and `retry` therefore already is the withdrawal verb for a machine that still has
-runway. What remains — a provider that refuses
-indefinitely, on a machine out of runway, whose customer wants to pay — is stated in `OPS-42` as an
-accepted residual. A bare abandon there races the sweep and hides the condition for one interval.
+**An operator `abandon` on a `stalled` episode.** Originally rejected because retry was treated
+as a withdrawal path. *Superseded 2026-10-04 by `ADR-0032`: that premise is withdrawn; the
+explicit operator decision is `API-68` keep. The remaining unfunded-machine sweep consequence
+belongs there, rather than being an accepted no-exit residual here.*
 
 **Closing episodes only at `API-63`.** Rejected because the gap is the gone-write's, not the
 termination's: `LDG-74` had the same hole for a machine the provider removed on its own.
@@ -74,13 +62,13 @@ goal-state rule classifies "already deleted" `succeeded` — but it re-issues a 
 bookkeeping, counts against `SEC-39`'s retry ceiling, is pinned to no provider's code for a machine
 delete in `08-provider-notes.md`, and never returns that answer on a dead account.
 
-## Consequences
+## Original consequences (2026-09-09; operator paths superseded by `ADR-0032`)
 
 - `DOM-31`'s diagram loses the `abandoned` exit from `stalled` and gains a `machine recorded gone`
   exit from every open state. `CONTEXT.md`'s Episode entry says what closes one and what does not.
 - `OPS-48` gains the gone-write row, the permanence rule and the two guards; `OPS-39`'s "keeps any
   episode" sentence is replaced; `OPS-41`'s scope and its abort's close are amended; `OPS-42`
-  states the stalled residual and the retry route, and its fence write is guarded on the episode
+  stated the stalled residual and retry route (superseded 2026-10-04), and its fence write is guarded on the episode
   being open; `OPS-26` names the gone-write exit. `STO-52`'s close columns are write-once;
   `machines.destroy_committed` lists the gone-write among what clears it.
 - `API-63` closes the episodes and fails the queued system cancellations under a stated guard;

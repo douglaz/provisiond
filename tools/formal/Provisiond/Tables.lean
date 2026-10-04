@@ -287,13 +287,13 @@ theorem resolve_shapes :
 
 /-! ## `OPS-48`, the episode lifecycle over `DOM-31`'s states -/
 
-/-- `DOM-31`: "Close reasons: `resource_gone`, `funded`, `abandoned`." -/
+/-- `DOM-31`: "Close reasons: `resource_gone`, `funded`, `abandoned`, `kept`." -/
 inductive CloseReason
-  | resourceGone | funded | abandoned
+  | resourceGone | funded | abandoned | kept
   deriving DecidableEq, Repr
 
 instance {p : CloseReason → Prop} [DecidablePred p] : Decidable (∀ r, p r) :=
-  decidableForallOfList [.resourceGone, .funded, .abandoned] (by intro r; cases r <;> decide) p
+  decidableForallOfList [.resourceGone, .funded, .abandoned, .kept] (by intro r; cases r <;> decide) p
 
 /-- `DOM-31`: "States: `attempting`, `uncertain`, `stalled`, `scheduled`, `closed`", a close
 carrying its reason. -/
@@ -303,7 +303,7 @@ inductive Episode
 
 def Episode.all : List Episode :=
   [.attempting, .uncertain, .stalled, .scheduled,
-   .closed .resourceGone, .closed .funded, .closed .abandoned]
+   .closed .resourceGone, .closed .funded, .closed .abandoned, .closed .kept]
 
 theorem Episode.mem_all (s : Episode) : s ∈ Episode.all := by
   cases s with
@@ -325,15 +325,14 @@ inductive Settled
   deriving DecidableEq, Repr
 
 /-- What happens to an open episode: its attempt settles; its attempt is resolved under a verb,
-`dated` being `WIR-35`'s `effective_cancellation_date` on `applied`; `retry`; the exhaustion sweep
-finds the machine funded, reading the tenant's suspension; the machine's gone-write; and the
+`dated` being `WIR-35`'s `effective_cancellation_date` on `applied`; `retry`; operator `keep`; the machine's gone-write; and the
 transaction that tombstones a scheduled machine at its effective date — a gone-write of its own,
 since nothing tombstones by timer and `LDG-74` allows "A machine still present after its date". -/
 inductive Event
   | settled (s : Settled)
   | resolved (v : Verb) (dated : Bool)
   | retry
-  | sweepFunded (tenantSuspended : Bool)
+  | keep
   | goneWrite
   | tombstone
   deriving DecidableEq, Repr
@@ -341,13 +340,12 @@ inductive Event
 def Event.all : List Event :=
   [.gone, .noMutation, .scheduled, .failed, .needsReconciliation].map Event.settled ++
   (Verb.all.flatMap fun v => [.resolved v true, .resolved v false]) ++
-  [.retry, .sweepFunded true, .sweepFunded false, .goneWrite, .tombstone]
+  [.retry, .keep, .goneWrite, .tombstone]
 
 theorem Event.mem_all (e : Event) : e ∈ Event.all := by
   cases e with
   | settled s => cases s <;> decide
   | resolved v d => cases v <;> cases d <;> decide
-  | sweepFunded b => cases b <;> decide
   | _ => decide
 
 instance {p : Event → Prop} [DecidablePred p] : Decidable (∀ e, p e) :=
@@ -355,19 +353,18 @@ instance {p : Event → Prop} [DecidablePred p] : Decidable (∀ e, p e) :=
 
 /-- The rows `OPS-48` and `DOM-31` gained or lost by dated amendment, all `ADR-0021` (2026-09-09).
 `goneWriteRow`: "the machine is recorded gone ... in any open state, `scheduled` included" closes
-it. `suspensionExemption`: the sweep-close row's "**and its tenant not suspended** at that read".
+it.
 `abandonFromStalled`: the edge `DOM-31`'s diagram drew, `stalled --> closed : abandoned`, which
 "had no provider" and is deleted — `true` restores it. -/
 structure Rows where
   goneWriteRow        : Bool
-  suspensionExemption : Bool
   abandonFromStalled  : Bool
   deriving DecidableEq, Repr
 
 /-- `OPS-48` as it stands. -/
 @[req "OPS-48"]
 def currentRows : Rows :=
-  { goneWriteRow := true, suspensionExemption := true, abandonFromStalled := false }
+  { goneWriteRow := true, abandonFromStalled := false }
 
 /-- A close, with the fence cleared in the same transaction. -/
 def close (r : CloseReason) : Episode × Bool := (.closed r, true)
@@ -393,7 +390,7 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .settled .needsReconciliation => (.uncertain, false)
     | .resolved _ _ => stay
     | .retry => stay
-    | .sweepFunded _ => stay
+    | .keep => stay
     | .goneWrite => goneRow
     | .tombstone => stay
   | .uncertain =>
@@ -406,7 +403,7 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .resolved .observed _ => stay
     | .resolved .absent _ => stay
     | .retry => stay
-    | .sweepFunded _ => stay
+    | .keep => stay
     | .goneWrite => goneRow
     | .tombstone => stay
   | .stalled =>
@@ -418,8 +415,7 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .resolved .observed _ => stay
     | .resolved .absent _ => stay
     | .retry => (.attempting, false)
-    | .sweepFunded suspended =>
-      if rows.suspensionExemption && suspended then stay else close .funded
+    | .keep => close .kept
     | .goneWrite => goneRow
     | .tombstone => stay
   | .scheduled =>
@@ -427,7 +423,7 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .settled _ => stay
     | .resolved _ _ => stay
     | .retry => stay
-    | .sweepFunded _ => stay
+    | .keep => stay
     | .goneWrite => goneRow
     | .tombstone => close .resourceGone
 
@@ -435,16 +431,16 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
 event, a closed episode is unchanged and clears nothing. -/
 @[req "OPS-48"]
 theorem closed_absorbing :
-    ∀ (g x a : Bool) (r : CloseReason) (e : Event),
-      episodeStep ⟨g, x, a⟩ (.closed r) e = (.closed r, false) := by decide
+    ∀ (g a : Bool) (r : CloseReason) (e : Event),
+      episodeStep ⟨g, a⟩ (.closed r) e = (.closed r, false) := by decide
 
 /-- "Nothing else clears `destroy_committed`": the fence is cleared in a step exactly when that step
 closes an open episode, under every row set. -/
 @[req "OPS-48"]
 theorem fence_cleared_iff_closes :
-    ∀ (g x a : Bool) (s : Episode) (e : Event),
-      (episodeStep ⟨g, x, a⟩ s e).2 = true ↔
-        (s.isOpen = true ∧ (episodeStep ⟨g, x, a⟩ s e).1.isOpen = false) := by decide
+    ∀ (g a : Bool) (s : Episode) (e : Event),
+      (episodeStep ⟨g, a⟩ s e).2 = true ↔
+        (s.isOpen = true ∧ (episodeStep ⟨g, a⟩ s e).1.isOpen = false) := by decide
 
 /-- `retry` "on a `stalled` episode" reopens `attempting`, and is "admissible in no other state":
 everywhere else it changes nothing. -/
@@ -459,12 +455,16 @@ theorem gone_closes_and_clears :
     ∀ s, s.isOpen = true → episodeStep currentRows s .goneWrite = (.closed .resourceGone, true) := by
   decide
 
-/-- `funded` is written by the two rows that name it and no other: the attempt "recording that no
-mutation was required", and the sweep finding a `stalled` episode's machine funded with its tenant
-not suspended. -/
+/-- Only the ordinary no-mutation settlement closes `funded` (2026-10-04, `ADR-0032`). -/
 @[req "OPS-48"]
 theorem funded_only_from_its_rows :
     ∀ s e, s.isOpen = true → (episodeStep currentRows s e).1 = .closed .funded →
-      (e = .settled .noMutation ∨ e = .sweepFunded false) := by decide
+      e = .settled .noMutation := by decide
+
+/-- The operator keep transition is confined to stalled episodes. -/
+@[req "API-68"]
+theorem keep_only_from_stalled :
+    ∀ s, episodeStep currentRows s .keep =
+      (if s = .stalled then (.closed .kept, true) else (s, false)) := by decide
 
 end Provisiond.Tables

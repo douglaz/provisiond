@@ -694,11 +694,12 @@ a tenant's fleet, and the hole sits exactly where the most alarming event does: 
 vanished overnight (`F31`). A pure balance event with no provider mutation — a commitment
 release, a re-derivation — mints **no** operation; the ledger is already that record.
 
-**OPS-41** **An exposure-reducing cancellation MUST re-check funding under the fence, and abort if
-the machine is funded.** A worker executing **any** exposure-reducing cancellation (`OPS-39`,
+**OPS-41** **An exposure-reducing cancellation MUST apply the ordered decision below under the fence.**
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the retry exception below supersedes the
+unconditional funding re-check, including after a resume.* A worker executing **any** exposure-reducing cancellation (`OPS-39`,
 `LDG-64`) — *scoped by reason to exhaustion, late-attach cleanup and the rate-outage bound until
 2026-09-09, which contradicted the 2026-09-05 paragraph below keying the exemption on the tenant's
-current state and not the reason; `ADR-0021`* — MUST, **after claiming the
+current state and not the reason; `ADR-0021`* — MUST, **except for the retry and suspension branches below**, **after claiming the
 machine (`OPS-8`) and before any provider mutation**, re-read that machine's commitment and its
 `runway_until` — **in the same serialized transaction that writes `OPS-42`'s fence**, without which
 the extension it is racing can commit between the read and the write. Where re-deriving `LDG-33`
@@ -718,8 +719,7 @@ this requirement warns about for the withdrawn predicate, reached through a stal
 `LDG-62` had the same gap and carries the same write.*
 **Those last two happen in the terminal transaction** (`OPS-48`'s no-mutation row): the fence exists to
 order this worker against `LDG-62`, and leaving it set on a machine the worker has just decided not
-to cancel would refuse every future extension on a funded, running machine — permanently, since
-nothing else would clear it.
+to cancel would refuse extensions on a funded, running machine until another close.
 
 **A claim made while a restore record is open and its `grace_ends_at` is null or in the future
 defers, and writes no fence** (*added 2026-09-25, `ADR-0028`*). A worker claiming **any**
@@ -809,8 +809,11 @@ whatever reason the attempt was enqueued under, and the first step that applies 
    settles the attempt `succeeded` with a result recording that no mutation was required (`OPS-48`;
    a close is permanent). **It writes no `runway_until`**: the date the no-mutation case above
    writes is a re-derived one, and this step re-derives nothing.
-2. **The tenant is suspended now.** The funding re-check does not apply and the cancellation
-   proceeds; the suspension paragraph below holds that rule.
+2. **The attempt was enqueued by `API-64` retry, or the tenant is suspended now.** The funding
+   re-check does not apply and the cancellation proceeds. Retry bypasses the remaining funding
+   decision, regardless of the current rate or suspension; it retains step 1 and the restore
+   claim gate above. The durable origin stamp is specified at `API-64`.
+   The suspension paragraph below governs other attempts. *Amended 2026-10-04 (`ADR-0032`).*
 3. **A rate exists for the machine's currency** (`LDG-59`). The worker re-derives and applies the
    predicate above **first**. If funded, it performs the no-mutation abort and settlement above,
    including the re-derived date write, fence clearing and episode closure where applicable.
@@ -974,16 +977,12 @@ than silently ignored, so the customer learns the machine is going and keeps its
 honest outcome, and it is the one `OPS-36` promised of its survival branch, "This is the branch
 that makes `OPS-33`'s early release safe" — a promise that requirement could not keep alone.
 
-**On a `stalled` episode the fence persists and the refusal stands** (`OPS-48`), and the route back
-is the operator's `retry`, not an extension: `OPS-41`'s re-check under the fresh attempt reads the
-machine's re-derived date and the tenant's *current* state, so a machine that still has runway at
-the retry — a suspension cancels regardless of funding, and the fence forbids extending it, but
-a `stalled` machine keeps billing and its date keeps moving — survives a retry after a resume, and
-the episode closes `funded`. The one case with no exit is stated as accepted: a
-provider that refuses the delete indefinitely, on a machine that is out of runway, whose customer
-wants to pay. The machine bills the operator until the operator ends it another way, and no verb
-lifts the fence while the condition stands (*2026-09-09; `DOM-31` drew an `abandoned` exit from
-`stalled` that nothing provided, and it is deleted rather than supplied*).
+**Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`).** On a `stalled` episode the fence
+persists until a close under `OPS-48`. The operator's paths are `API-64` retry and `API-68`
+keep; an extension still meets `LDG-62`'s fence check. The earlier retry-driven revival and
+accepted no-exit residual are withdrawn. A provider refusing deletion indefinitely no longer
+leaves the operator without a way to admit a customer's later extension: keep supplies that
+explicit decision. It buys no runway; `API-68` owns the next-sweep consequence.
 
 *Both reviewers of 2026-08-31 rejected the ordering-only fix independently and converged on a fence;
 the shape here is the one that does not make extend-runway wait on the machine.*
@@ -1000,14 +999,13 @@ sweep enqueues nothing against it (`OPS-39`). Every attempt is an ordinary opera
 `failed` does not close the episode**: `failed` is a fact about the attempt, and the episode is
 still open, still billing, and waiting on a decision. The transitions are exactly these, keyed on
 how the current attempt settled — by the worker, by `OPS-27`'s evidence, or by `OPS-31`/`OPS-45`'s
-operator verb — and on the one operator verb the episode has:
+operator verb — and on the operator verbs on the episode (`API-64`, `API-68`):
 
 <!-- formal: Provisiond.Render.ops48Table -->
 | The attempt settled | The episode | `machines.destroy_committed` (the fence, `OPS-42`; exposure-reducing cancellations only) |
 |---|---|---|
 | `succeeded`, resource gone — including `OPS-11`'s goal-state row | `closed`, `close_reason: resource_gone`, in the terminal transaction | **Cleared**, same transaction |
 | `succeeded` recording that no mutation was required (`OPS-41`'s abort) | `closed`, `close_reason: funded`, in the terminal transaction: the condition has ended, and a later lapse opens a fresh episode | **Cleared**, same transaction |
-| No attempt settled — the exhaustion sweep finds the machine of a `stalled` episode funded under `OPS-41`'s predicate (a rate rise can do this with no caller action, and the fence forbids the caller's own) **and its tenant not suspended** at that read — `OPS-41`'s exemption governs this row as it governs the worker's re-check, since a suspended tenant's machine is not kept by being funded (*added 2026-09-09, `ADR-0021`*) | `closed`, `close_reason: funded`, in the sweep's transaction; no provider call is made, so `OPS-39`'s loop concern does not apply | **Cleared**, same transaction |
 | `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | `scheduled`; `closed`, `close_reason: resource_gone`, in the transaction that tombstones the machine at the effective date — that tombstone is the gone-write of the last row, and nothing tombstones by timer: `LDG-74` allows "A machine still present after its date" (*reason stated 2026-09-14; the row named none while every other close did*) | **Stays set**; **Cleared** by the tombstone, same transaction |
 | `failed` — deterministic; the provider did not act | `stalled` | **Stays set** |
 | `needs_reconciliation` | `uncertain`, until the attempt is resolved (`OPS-27`, `OPS-31`) and one of the rows below applies | **Stays set** |
@@ -1015,9 +1013,14 @@ operator verb — and on the one operator verb the episode has:
 | Resolved `applied` **with an `effective_cancellation_date`** (`WIR-35`) — the operator established the provider *scheduled* it | `scheduled`, as the third row | **Stays set** |
 | Resolved `not_applied` — the machine is still there | `stalled` | **Stays set** |
 | Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Cleared**, same transaction, so a later sweep may open a fresh episode and fence again |
-| `retry` (`API-64`) on a `stalled` episode | `attempting`, with a fresh attempt enqueued in the same transaction as the state change; admissible in no other state | **Stays set**, unchanged: the new attempt contends on the same episode id |
+| `retry` (`API-64`) on a `stalled` episode | `attempting`, with a fresh attempt enqueued in the same transaction as the state change; admissible in no other state; the attempt uses `OPS-41`'s retry branch | **Stays set**, unchanged: the new attempt contends on the same episode id |
+| `keep` (`API-68`) on a `stalled` episode | `closed`, `close_reason: kept`, in the keep transaction; admissible in no other state | **Cleared**, same transaction |
 | No attempt settled — **the machine is recorded gone** (`ADR-0021`): the write of `machines.state` to gone with `machines.state_observed_at` (`STO-48`), by any of `LDG-74`'s triggers — a refresh, a driver read during any operation, `OPS-32`'s complete pass — or by `API-63`'s termination; in any open state, `scheduled` included. Where that write and an attempt's terminal write are one transaction, as a delete's own "already gone" answer is, they are one close under the first row | `closed`, `close_reason: resource_gone`, in the transaction that records the gone state | **Cleared**, same transaction |
 <!-- /formal -->
+
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the automatic funded-close row is
+removed; retry and keep use the operator rows above. The earlier still-unfunded universal is
+withdrawn. No timer moves a stalled episode; the evidenced gone-write remains a close.*
 
 *The table is a marked region since 2026-09-15 (`ADR-0025`): its outcome tokens render `OPS-48`'s
 declaration, and the retry and scheduled rows' fence cells were reworded that day to carry the
@@ -1027,9 +1030,9 @@ verdict token, with no row's meaning changed.*
 attempt under a closed episode that later settles, or is resolved under `OPS-31`, changes the
 attempt and not the episode: `closed_at`, `close_reason` and the cleared fence stand, `STO-52`'s
 index admits a fresh episode, and a `not_applied` on such an attempt does not put a closed episode
-back in `stalled`. The two writes that could race a gone-write are guarded against it: `retry`'s
+back in `stalled`. The writes that could race a gone-write are guarded against it: `retry`'s
 `stalled → attempting` is a conditional write on `(id, state = stalled)` (`API-64`), and `OPS-42`'s
-fence write is guarded on the episode being open. The gone-write row keys on the **machine's** gone-write and never on the
+fence write is guarded on the episode being open; keep uses `API-68`'s conditional close. The gone-write row keys on the **machine's** gone-write and never on the
 account's status: a machine `OPS-36` attaches under a terminated account has been observed present,
 carries no gone-write, and its cleanup episode goes `stalled` — `API-63`: "That is the honest end
 for it". `OPS-25` still
@@ -1042,8 +1045,8 @@ rejection, but it is not deferred either: `rate_limited` is on neither of `OPS-1
 lists, so a throttled delete is `failed` under its delete row, nothing in this set returns it to
 `queued`, and the attempt stalls its episode like any other refusal (`F48` records why no deferral
 is specified). A `stalled` or `uncertain` episode is therefore the operator's to look at
-(`OPS-26`): its machine is still running, still billing and still unfunded, the exposure is
-unchanged and the episode is not over. The open episode is what keeps a later sweep from enqueuing
+(`OPS-26`): its machine may still be running and billing, and the episode is not over. A later
+rate can fund it without reversing the deletion decision. The open episode is what keeps a later sweep from enqueuing
 a **second** delete against the same machine, and the fence is what keeps `LDG-62` from selling
 runway on a machine the operator has already decided to destroy.
 
@@ -1516,11 +1519,9 @@ specifically every operation in `needs_reconciliation` (`API-23`). A design that
 operators to monitor a state and provides no way to list it is incomplete. See `DEF-8`.
 
 **AMENDED 2026-09-08 (`ADR-0017`) — a second thing must be listable, and it is the episode.**
-`OPS-48` leaves an episode `stalled` or `uncertain` on a machine that is still running and still
-billing, and nothing automatic will retry it — the exhaustion sweep may still close a `stalled`
-episode whose machine it finds funded, and a machine recorded gone closes its episode (`OPS-48`),
-but no timer opens another attempt: its only
-recovery is an operator's `retry` (`API-64`) or resolution of its attempt (`OPS-31`). Operators MUST be able to list open episodes by
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the automatic funded-close allowance is
+withdrawn.* Open episodes require operator attention. Their transitions are owned by `OPS-48`,
+with operator retry (`API-64`), keep (`API-68`) and attempt resolution (`OPS-31`). Operators MUST be able to list open episodes by
 state — `stalled` and `uncertain` in particular (`API-64`, `WIR-51`). Filtering operations by
 `status=failed` does not find them: it returns every failed operation the deployment has ever
 produced, most of them a caller's typo, and `STO-14` deletes the attempt while the episode stays

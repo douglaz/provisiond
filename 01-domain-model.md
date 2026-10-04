@@ -189,9 +189,10 @@ see `03-operation-lifecycle.md`.
 **DOM-31** An episode is one system-detected condition on one machine that provisiond must act on
 until it ends (`ADR-0017`). Fields: `id`, `machine_id`, `key` (`delete` for an exposure-reducing
 cancellation; the `system_reason` for every other trigger), `reasons` (set), `opened_at`,
-`current_operation_id` (nullable), `state`, `closed_at`, `close_reason`. States: `attempting`,
+`current_operation_id` (nullable), `state`, `closed_at`, `close_reason`, `kept_by`, `keep_evidence`. States: `attempting`,
 `uncertain`, `stalled`, `scheduled`, `closed`. Close reasons: `resource_gone`, `funded`,
-`abandoned`. At most one open episode per `(machine_id, key)`
+`abandoned`, `kept`. *Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): operator keep
+and its `STO-52` evidence; automatic funded close removed from the lifecycle.* At most one open episode per `(machine_id, key)`
 (`STO-52`). An episode's attempts are ordinary operations; an attempt settling `failed` does not
 close the episode. A machine recorded gone closes its open episode in the same transaction, and a
 close is permanent (`ADR-0021`). `OPS-48` is the lifecycle; this is its shape.
@@ -213,7 +214,7 @@ stateDiagram-v2
     uncertain --> closed : resolved abandoned
     uncertain --> closed : machine recorded gone
     stalled --> attempting : operator retry, API-64
-    stalled --> closed : sweep finds it funded, tenant not suspended
+    stalled --> closed : operator keep (API-68)
     stalled --> closed : machine recorded gone
     scheduled --> closed : machine recorded gone
     scheduled --> closed : tombstoned at its effective date

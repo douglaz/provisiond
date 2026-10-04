@@ -38,6 +38,7 @@ def CloseReason.name : CloseReason → String
   | .resourceGone => "resource_gone"
   | .funded => "funded"
   | .abandoned => "abandoned"
+  | .kept => "kept"
 
 /-- The episode column's tokens for a resulting state. -/
 def episodeTokens : Episode → String
@@ -55,7 +56,6 @@ row and its tombstone), one per open state where a row applies to all of them. -
 def ops48Rows : List (String × List (Episode × Event)) :=
   [ ("`succeeded`", [(.attempting, .settled .gone)]),
     ("`succeeded`", [(.attempting, .settled .noMutation)]),
-    ("`stalled`", [(.stalled, .sweepFunded false)]),
     ("`succeeded`", [(.attempting, .settled .scheduled), (.scheduled, .tombstone)]),
     ("`failed`", [(.attempting, .settled .failed)]),
     ("`needs_reconciliation`", [(.attempting, .settled .needsReconciliation)]),
@@ -64,6 +64,7 @@ def ops48Rows : List (String × List (Episode × Event)) :=
     ("`not_applied`", [(.uncertain, .resolved .notApplied false), (.uncertain, .resolved .notApplied true)]),
     ("`abandoned`", [(.uncertain, .resolved .abandoned false), (.uncertain, .resolved .abandoned true)]),
     ("`retry`", [(.stalled, .retry)]),
+    ("`keep`", [(.stalled, .keep)]),
     ("**the machine is recorded gone**",
       [(.attempting, .goneWrite), (.uncertain, .goneWrite), (.stalled, .goneWrite),
        (.scheduled, .goneWrite)]) ]
@@ -111,7 +112,7 @@ def Event.label : Event → String
   | .resolved .abandoned _ => "resolved abandoned"
   | .resolved .observed _ | .resolved .absent _ => "not a cancellation verb"
   | .retry => "operator retry, API-64"
-  | .sweepFunded _ => "sweep finds it funded, tenant not suspended"
+  | .keep => "operator keep (API-68)"
   | .goneWrite => "machine recorded gone"
   | .tombstone => "tombstoned at its effective date"
 

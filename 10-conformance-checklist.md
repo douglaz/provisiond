@@ -1621,8 +1621,7 @@ rather than acquiring a default.
       fresh one — there is no such verb on a `stalled` one; a machine **recorded gone** (`API-63`,
       `LDG-74`) closes an episode in any open state `resource_gone` and clears the fence in that
       write, and a later `OPS-31` resolution of its retained attempt leaves the closed episode
-      closed; and **no timer ever moves a `stalled` episode whose
-      machine is still unfunded** — run the clock out and assert it is still `stalled` with one
+      closed; and **no timer ever moves a `stalled` episode** — run the clock out and assert it is still `stalled` with one
       attempt, including where that attempt failed `rate_limited` (`F48`: a throttle is not deferred). **Then the row a reader
       will get wrong**: a cancellation the provider merely *scheduled* (`DOM-19`) settles
       `succeeded`, the episode is `scheduled`, and it and the fence both **stay** until the effective
@@ -1631,6 +1630,29 @@ rather than acquiring a default.
       `OPS-39` warns can alter or repeat the first's mutation. **The failure this catches is a
       sweep loop that settles `succeeded` forever while the machine bills forever.** (`OPS-48`,
       `DOM-31`, `OPS-42`, `OPS-39`, `OPS-26`, `API-64`, `LDG-62`)
+      **Added 2026-10-04 (`pv-gip.11`, `ADR-0032`): rate-funded stalls and explicit keep.**
+      After a deterministic failed delete, accept a favorable rate and re-derive future runway.
+      Sweep repeatedly: same stalled episode and attempt, same fence, extension refused. Let
+      that date lapse and sweep again: no new attempt. Retry the price-funded episode with a
+      fresh key and observe the provider call, not a funding abort; also try no rate before the
+      outage bound. The retry still defers under an open restore record with null/future original
+      grace end; once claimable, it uses the retry branch. A gone-write or permanent close before
+      its fence transaction still prevents the call. An ordinary funded attempt still aborts.
+      On a separate stalled fixture, keep: in one transaction observe `closed`/`kept`, cleared
+      fence, re-derived date, authenticated `kept_by` and the submitted `operator_ref` in
+      `keep_evidence`, and the durable receipt; no new operation, provider call or money movement.
+      An extension now succeeds with other admission conditions satisfied. Kill/restart at the
+      transaction boundary and after response loss: either no effects or all effects, and exact
+      receipt replay repeats none. Retire the old attempt under `STO-14`: episode evidence remains.
+      Use a new key on that closed episode, and exercise attempting, uncertain and scheduled
+      states: `409` state, unchanged. Race keep against retry and against a gone-write in both
+      orders; the losing conditional write cannot overwrite a close or clear the retry's fence,
+      and a gone-write after keep does not re-close the old episode. Replay keep after a new
+      episode opens: the original view returns and the new fence remains. Keep an unfunded
+      machine: no funds are added and the next sweep opens a fresh episode under the existing
+      predicate. With no rate keep retains the stored date; the sweep waits for rate under
+      `LDG-16`. Keep remains operator-only (customer/recovery cannot reach it), is synchronous,
+      and is not a spending or retry-ceiling verb. (`API-68`, `WIR-55`, `STO-52`, `WIR-24`)
 - [ ] **CNF-272** — **A suspension terminates even when a child cannot delete.** Suspend a tenant
       while the provider account's credential is rejected, so every child cancellation fails
       `authentication` — deterministic, and `OPS-11` sends it to `failed` rather than to
@@ -1646,16 +1668,12 @@ rather than acquiring a default.
       appends `tenant_suspended` to that episode's `reasons`, names its current attempt in
       `cancellations`, and enqueues nothing new — and that `OPS-41`'s re-check treats that delete as
       a suspension cancel even though the operation itself carries `exhausted`. **Then resume that
-      tenant (`WIR-41`), retry the episode, and assert the machine survives** — give the fixture
-      months of runway, since a suspension cancels regardless of funding, the fence forbids
-      extending it (`LDG-62`), and a `stalled` machine's date keeps moving while it bills (*this
-      step said "fund the machine" until 2026-09-09, which the fence refuses*): the
-      exemption reads the tenant's *current* state, and a build keyed on the episode's `reasons`
-      history destroys a machine its live tenant has paid for. *Added 2026-09-05: with a
-      pre-existing episode the pass could neither enqueue nor name the machine, so the parent never
-      settled; the resume case is the third rewrite of the exemption in one day.*
-      The operator listing is the entire remedy, which is why `OPS-48` never retries a `stalled`
-      episode by timer. *Corrected 2026-09-04: this item said "the machine keeps draining runway so
+      tenant (`WIR-41`), retry the funded stalled episode, and assert a provider delete is called**.
+      Retry does not re-check funding, including after resume. In a separate ordinary-attempt
+      arm, resume before its first claim and give it future runway: it aborts funded, so current
+      suspension still wins over historical episode reasons for that branch.
+      *Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): withdraw retry-driven survival.*
+      The operator paths are in `OPS-48`; its table supplies no timer retry. *Corrected 2026-09-04: this item said "the machine keeps draining runway so
       `LDG-13` reaches it unaided", one clause after asserting that a later pass enqueues nothing
       for exactly these machines. Both cannot hold, and a build could satisfy the item by
       implementing either.* Three wrong answers fail this item: a fan-out that never settles, one
