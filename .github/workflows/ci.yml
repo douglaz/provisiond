@@ -806,9 +806,8 @@ jobs:
                   assert path.read_bytes() == original
           PY
 
-      # A bare possessive compares only its direct quote. Each historical
-      # exemption is a complete signature: changing even that quote must fail.
-      - name: Prove the citation gate rejects a bare possessive and altered residue
+      # Direct ownership and nested punctuation preserve words in both comparisons.
+      - name: Prove the citation gate rejects a bare possessive and a nested misquote
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -836,19 +835,12 @@ jobs:
               path.write_bytes(original)
               assert path.read_bytes() == original
 
+          # The exact nested quote must pass before corrupting its words.
+          subprocess.run(['python3', 'tools/check_citations.py'], check=True)
           rows = [
-              ('11-open-findings.md', 'OPS-26',
-               b'nothing automatic will look at it again', b'nothing automatic will glance at it again',
-               'nothing automatic will glance at it again'),
-              ('11-open-findings.md', 'CNF-272',
-               b'resume the tenant, fund the machine, retry the', b'resume the tenant, freeze the machine, retry the',
-               'resume the tenant, freeze the machine, retry the episode, and assert the machine survives'),
-              ('11-open-findings.md', 'PRV-36',
-               b'MUST be widened\nby any observed sample', b'MUST be narrowed\nby any observed sample',
-               'must be narrowed by any observed sample that exceeds it'),
               ('tools/formal/Provisiond/Tables.lean', 'STO-8a',
-               b'"Succeeds" means the resource is gone', b'"Succeeds" means the resource is present',
-               '"succeeds" means the resource is present'),
+               b"'Succeeds' means the resource is gone", b"'Succeeds' means the resource is present",
+               "'succeeds' means the resource is present"),
           ]
           for filename, owner, before, after, diagnostic_quote in rows:
               path = Path(filename)
@@ -868,28 +860,15 @@ jobs:
                   path.write_bytes(original)
                   assert path.read_bytes() == original
               subprocess.run(['python3', 'tools/check_citations.py'], check=True)
-          # A new quotation under an already baselined file and owner gets no exemption.
-          path = Path('11-open-findings.md')
-          original = path.read_bytes()
-          try:
-              path.write_bytes(original + b'\n`OPS-26`\'s "a newly invented quotation without a source".\n')
-              result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
-              print(result.stdout)
-              assert result.returncode == 1, (result.returncode, result.stderr)
-              assert '11-open-findings.md attributes to OPS-26 a phrase OPS-26 does not contain:' in result.stdout
-              assert '"a newly invented quotation without a source"' in result.stdout
-          finally:
-              path.write_bytes(original)
-              assert path.read_bytes() == original
-          subprocess.run(['python3', 'tools/check_citations.py'], check=True)
           PY
 
-      # Each historical Markdown signature permits one finding, not unlimited
-      # copies of its wording. Removing another signature cannot free its allowance.
-      - name: Prove the citation gate rejects duplicates of exempted Markdown wording
+      # Derive standing cases from the baseline; temporary fixtures keep these
+      # controls effective when cleanup leaves one entry or none.
+      - name: Prove the citation gate rejects duplicates and altered exempted Markdown wording
         run: |
           python3 - <<'PY'
           from collections import Counter
+          from contextlib import contextmanager
           from pathlib import Path
           import json
           import subprocess
@@ -897,48 +876,208 @@ jobs:
           sys.path.insert(0, 'tools')
           import check_citations as c
 
-          docs, adrs, reqs = c.load()
-          baseline = json.loads(Path(c.BASELINE).read_text())['markdown_quoted_attributions']
-          standing = Counter(tuple(signature.split(':', 2)) for signature in baseline)
-          findings, _, compared = c.find(docs, adrs, reqs)
-          assert standing and Counter(findings) == standing, (findings, standing)
-          subprocess.run(['python3', 'tools/check_citations.py'], check=True)
-          for finding in standing:
-              filename, owner, quote = finding
+          baseline_path = Path(c.BASELINE)
+
+          @contextmanager
+          def restored():
+              # These controls only mutate existing root prose and the temporary baseline.
+              saved = {p: p.read_bytes() for p in [*Path('.').glob('*.md'), baseline_path]}
+              try:
+                  yield
+              finally:
+                  for path, original in saved.items():
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+
+
+          def gate():
+              result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+              print(result.stdout)
+              return result
+
+
+          def clean():
+              result = gate()
+              assert result.returncode == 0, (result.returncode, result.stderr)
+
+
+          def inventory():
+              docs, adrs, reqs = c.load()
+              findings, _, compared = c.find(docs, adrs, reqs)
+              # A usable real case has an isolated chunk we can remove without also
+              # removing another finding. Never assume another entry shares its file.
+              slots = {}
+              for filename, text in docs.items():
+                  wanted = {q for f, _, q in findings if f == filename}
+                  if not wanted:
+                      continue
+                  for chunk in c.chunks(text):
+                      if not wanted.intersection(c.norm(q) for _, q in c.quotations(chunk)):
+                          continue
+                      bad, _, count = c.find({filename: chunk}, adrs, reqs)
+                      if len(bad) == 1 and text.count(chunk) == 1:
+                          slots.setdefault(bad[0], (chunk, count))
+              return Counter(findings), compared, slots
+
+
+          def save_baseline(baseline):
+              baseline_path.write_text(json.dumps(baseline))
+
+
+          def fixture(baseline, owner, quote):
+              filename = '00-overview.md'
+              path = Path(filename)
+              path.write_bytes(path.read_bytes() + f'\n\n`{owner}`\'s "{quote}".\n'.encode())
+              finding = (filename, owner, quote)
+              baseline['markdown_quoted_attributions'][':'.join(finding)] = 'Temporary CI fixture only.'
+              save_baseline(baseline)
+              return finding
+
+
+          # Exercise cleanup in CI itself, not only on the day the last entry disappears.
+          for scenario in ['standing', 'empty', 'one']:
+              with restored():
+                  baseline = json.loads(baseline_path.read_text())
+                  entries = baseline['markdown_quoted_attributions']
+                  standing, _, slots = inventory()
+                  usable = [row for row in standing if ':'.join(row) in entries and row in slots]
+                  if scenario != 'standing':
+                      keep = usable[:1] if scenario == 'one' else []
+                      docs, adrs, reqs = c.load()
+                      for filename, text in docs.items():
+                          wanted = {q for f, _, q in standing if f == filename}
+                          if not wanted:
+                              continue
+                          for chunk in c.chunks(docs[filename]):
+                              if not wanted.intersection(c.norm(q) for _, q in c.quotations(chunk)):
+                                  continue
+                              bad, _, _ = c.find({filename: chunk}, adrs, reqs)
+                              if bad and bad != keep:
+                                  assert text.count(chunk) == 1
+                                  text = text.replace(chunk, '\n\n', 1)
+                          Path(filename).write_text(text)
+                      baseline['markdown_quoted_attributions'] = {
+                          ':'.join(row): entries[':'.join(row)] for row in keep
+                      }
+                      save_baseline(baseline)
+                      clean()
+                  standing, _, slots = inventory()
+                  usable = [row for row in standing
+                            if ':'.join(row) in baseline['markdown_quoted_attributions'] and row in slots]
+                  if not usable:
+                      usable = [fixture(baseline, 'OPS-29', 'citation fixture wording without any source')]
+                      print(f'FIXTURE: {scenario}: missing usable baseline entry')
+                  # An unrelated allowance must exist even with one usable real entry.
+                  # It may be in a different file; no next(...) same-file assumption.
+                  standing, _, slots = inventory()
+                  if len([row for row in standing if row in slots]) < 2:
+                      fixture(baseline, 'OPS-28', 'unrelated fixture wording without any source')
+                      print(f'FIXTURE: {scenario}: missing unrelated finding')
+                  clean()
+                  standing, compared, slots = inventory()
+                  for finding in usable:
+                      filename, owner, quote = finding
+                      other = next(row for row in standing if row != finding and row in slots)
+                      chunk, _ = slots[finding]
+                      wording = next(q for _, q in c.quotations(chunk) if c.norm(q) == quote)
+                      altered = c.norm(wording + ' citationprobe')
+                      fresh = 'a newly invented quotation without a source'
+                      for label in ['duplicate', 'duplicate with unrelated finding removed', 'altered', 'new']:
+                          with restored():
+                              path = Path(filename)
+                              original = path.read_text()
+                              removed = Counter()
+                              added = finding
+                              if label == 'altered':
+                                  replacement = chunk.replace(wording, wording + ' citationprobe', 1)
+                                  assert replacement != chunk and original.count(chunk) == 1
+                                  path.write_text(original.replace(chunk, replacement, 1))
+                                  removed = Counter([finding])
+                                  added = (filename, owner, altered)
+                              else:
+                                  added = (filename, owner, fresh) if label == 'new' else finding
+                                  suffix = f'\n\n`{owner}`\'s "{added[2]}".\n'
+                                  path.write_text(original + suffix)
+                                  assert path.read_text().endswith(suffix)
+                                  if label == 'duplicate with unrelated finding removed':
+                                      other_path = Path(other[0])
+                                      other_chunk, _ = slots[other]
+                                      text = other_path.read_text()
+                                      assert text.count(other_chunk) == 1
+                                      other_path.write_text(text.replace(other_chunk, '\n\n', 1))
+                                      removed = Counter([other])
+                              bad, count, _ = inventory()
+                              assert bad == standing + Counter([added]) - removed, (label, bad)
+                              if label in ['duplicate', 'new']:
+                                  assert count == compared + 1, (count, compared)
+                              result = gate()
+                              assert result.returncode == 1, (scenario, label, result.returncode, result.stderr)
+                              diagnostic = f'{filename} attributes to {owner} a phrase {owner} does not contain:'
+                              assert result.stdout.count(diagnostic) == 1, result.stdout
+                              assert f'"{added[2]}"' in result.stdout, result.stdout
+                              assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+                              print(f'PASS: {scenario}: {owner}: {label}: {count} comparisons, {sum(bad.values())} raw findings; exit 1 with named quote')
+                          clean()
+              clean()
+          PY
+
+      # Unpaired marks fail before attribution, historical skips or reach limits.
+      - name: Prove the citation gate rejects unpaired quotation marks at source lines
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          # The line assertion uses the actual inserted source, including all code before
+          # a Lean block. It must never be an offset in concatenated extracted prose.
+          for filename in ['00-overview.md', 'tools/formal/Provisiond/Tables.lean']:
               path = Path(filename)
               original = path.read_bytes()
-              duplicate = f'\n\n`{owner}`\'s "{quote}".\n'.encode()
-              # Drop a chunk carrying a different finding, leaving this signature's
-              # standing occurrence intact. The total residue count then stays level.
-              other = next(row for row in standing if row != finding and row[0] == filename)
-              chunk = next(text for text in c.chunks(docs[filename])
-                           if c.find({filename: text}, adrs, reqs)[0] == [other])
-              assert original.count(chunk.encode()) == 1
-              reduced = original.replace(chunk.encode(), b'', 1)
-              for label, base, removed in [
-                  ('duplicate', original, Counter()),
-                  ('duplicate with unrelated finding removed', reduced, Counter([other])),
+              lean = filename.endswith('.lean')
+              for label, paragraph, kind in [
+                  ('stray speech', '- A 3.5" drive is mentioned here.\n- `OPS-29` says "a correlator match must be approximate"', 'straight'),
+                  ('stray possessive', '- A 3.5" drive is mentioned here.\n- `OPS-29`\'s "a correlator match must be approximate"', 'straight'),
+                  ('curly opening', '“unclosed', 'curly'),
+                  ('curly closing', 'unopened”', 'curly'),
+                  ('curly reversed', '”reversed“', 'curly'),
+                  ('historical', 'Previously "unclosed', 'straight'),
+                  ('teaching', 'For example “unclosed', 'curly'),
+                  ('overlong', '"' + 'x' * 401, 'straight'),
+                  ('paragraph boundary', '"first\n\nsecond"', 'straight'),
+                  ('curly paragraph boundary', '“first\n\nsecond”', 'curly'),
               ]:
                   try:
-                      mutated = base + duplicate
-                      assert mutated != original and mutated.endswith(duplicate)
-                      path.write_bytes(mutated)
-                      assert path.read_bytes() == mutated
-                      mutated_docs, mutated_adrs, mutated_reqs = c.load()
-                      bad, _, count = c.find(mutated_docs, mutated_adrs, mutated_reqs)
-                      assert Counter(bad) == standing + Counter([finding]) - removed, bad
-                      if not removed:
-                          assert count == compared + 1, count
+                      prefix = '\n\n/--\n' if lean else '\n\n'
+                      suffix = '\n-/\n' if lean else '\n'
+                      inserted = original + (prefix + paragraph + suffix).encode()
+                      line = (original + prefix.encode()).count(b'\n') + 1
+                      path.write_bytes(inserted)
+                      assert path.read_bytes() == inserted
                       result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
                       print(result.stdout)
                       assert result.returncode == 1, (label, result.returncode, result.stderr)
-                      diagnostic = f'{filename} attributes to {owner} a phrase {owner} does not contain:'
-                      assert result.stdout.count(diagnostic) == 1, result.stdout
-                      assert f'"{quote}"' in result.stdout, result.stdout
-                      assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
-                      print(f'PASS: {owner}: {label}: {count} comparisons, {len(bad)} raw findings; exit 1 with named quote')
+                      assert f'{filename}:{line}: unpaired {kind} double quotation marks' in result.stdout, result.stdout
+                      assert 'FAIL:' in result.stdout and 'unpaired quotation mark finding(s)' in result.stdout
+                      assert 'attributes to' not in result.stdout and 'quotes a phrase found' not in result.stdout
+                      print(f'PASS: {filename}: {label}: source line {line}, mark guard exit 1')
                   finally:
                       path.write_bytes(original)
                       assert path.read_bytes() == original
-                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+              if lean:
+                  # Two docstrings must not supply closing marks for one another even
+                  # without a blank line between the source blocks.
+                  try:
+                      prefix = b'\n/-- '
+                      line = (original + prefix).count(b'\n') + 1
+                      path.write_bytes(original + prefix + b'"first -/\n/-- second" -/\n')
+                      result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                      print(result.stdout)
+                      assert result.returncode == 1, (result.returncode, result.stderr)
+                      for source_line in [line, line + 1]:
+                          assert f'{filename}:{source_line}: unpaired straight double quotation marks' in result.stdout
+                      assert 'FAIL: 2 unpaired quotation mark finding(s)' in result.stdout
+                  finally:
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
           PY
