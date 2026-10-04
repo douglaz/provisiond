@@ -687,11 +687,12 @@ at an unknown rate), **re-derivation** (MUST halt rather than under-reserve, and
 itself trigger exhaustion), **the exhaustion sweep** (MUST route no machine priced in that
 currency: `LDG-16` holds the predicate, and a funding cancellation already queued waits as
 `OPS-41` orders), and **the solvency check** (MUST continue over the terms it can value)", with
-"**The fifth row — metering — was missing, and it is the one that costs money**" answered by
+the metering row answered by
 `LDG-64`: "**meter in the provider's own currency**" for the duration, never as a deferred satoshi
 debit. Without `sweepRoutesNothingWithoutRate` the sweep's answer is the withdrawn row's,
 `continues`; without `solvencyUsesValuedTerms` the solvency answer is the withdrawn `failsClosed`.
-The latter row models no valuation and supplies no whole-pool solvency verdict.
+The latter row models no valuation and supplies no whole-pool solvency verdict. The 2026-10-04
+late-attach row is omitted: this matrix has no attach action or deficiency transaction.
 
 The extension is `LDG-40`'s own sentence: "With no rate for the machine's currency, an extension
 of runway MUST halt as a create does".

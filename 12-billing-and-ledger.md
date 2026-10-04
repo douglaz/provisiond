@@ -1142,7 +1142,17 @@ satoshis, therefore keeps top-ups halted until the rate returns. This does not e
 that the whole pool is solvent while a leg is unknown, change the reserve obligation, or add a
 public assurance.
 
-**The fifth row — metering — was missing, and it is the one that costs money** (`LDG-64`).
+**Metering** is `LDG-64`'s row.
+
+**Late attach without a rate** (*added 2026-10-04, `pv-gip.27`, `ADR-0029`*): a correlator
+match MUST attach the machine and open no commitment, regardless of available balance. The attach
+transaction MUST record the native wind-down floor as a `late_attach_cleanup` deficiency with a
+null rate and zero absorbed seconds; an applicable `unrecoverable_setup_fee` deficiency in that
+transaction likewise has a null rate and zero absorbed seconds. The attach, deficiencies and cleanup
+enqueue MUST commit atomically under the existing attach transaction. The cleanup follows
+`OPS-41`'s funding-cancellation order, including suspension and restore precedence and waiting
+before the rate returns or the outage bound. The meter's separate `rate_outage` row follows
+`STO-37`'s clipped start; `LDG-64` owns customer relief during that window.
 
 **With no rate for the machine's currency, an extension of runway MUST halt as a create does**: it
 is a purchase priced at an unknown rate too. `LDG-62` holds what the halted extension leaves untouched; `API-7` owns purchase-tail refusal
@@ -1336,10 +1346,11 @@ subtracting their seconds as well would relieve the customer twice for one event
 there is no satoshi figure to absorb and time is the only channel that works.
 **Nothing here is billable to a customer** — that is the whole point of calling it the operator's.
 
-**The rate is nullable and is required only for a cause that had one.** Where a rate existed when
-the deficiency was opened — the clamp overflow, the exception branch, an account loss, an unfunded
-wind-down, an unrecoverable setup fee — the record MUST carry it as `rate_num`/`rate_den` (`LDG-4`),
-because that is what the operator's loss was worth at the moment it was taken. A rate-outage
+**The opening rate is a per-record condition** (*amended 2026-10-04, `pv-gip.27`*).
+Except for a `rate_outage` record, the record MUST carry the rate in force when it opened as
+`rate_num`/`rate_den` (`LDG-4`), or null where no rate existed then. A record opened without a
+rate MUST keep it null permanently, including the late-attach wind-down and setup-fee records
+under `LDG-40`. A rate-outage
 deficiency (`LDG-64`) absorbs only time with no rate, so it carries none, ever, including one
 inserted after the rate returns, and nothing
 in this specification converts it: `absorbed_seconds` alone is what the meter needs.

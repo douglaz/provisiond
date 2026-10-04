@@ -45,7 +45,8 @@ read is evidence at any time and the model takes it at any time; `OPS-32`'s "wha
 gone-write's episode close and fence clear (`Provisiond.Fence`'s `gone`); `STO-54`'s two-pass rule
 after a restore (`Provisiond.Restore`); the imported-image and key sweeps; the unrecorded-machine
 report; `OPS-36`'s funding of the cancel, "bounded by the wind-down floor" — the model opens
-nothing; and the provider's `rate_limited` answer to a read — a read the engine issues while
+nothing, including `LDG-40`'s 2026-10-04 no-rate attach branch and its deficiency records;
+and the provider's `rate_limited` answer to a read — a read the engine issues while
 throttled is recorded as issued, not answered. -/
 
 namespace Provisiond.Reconcile

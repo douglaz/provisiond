@@ -47,7 +47,8 @@ Why it holds:
 **The sweep routes a funding cancellation only where the stored date has passed and the machine's
 currency has a rate.** The sweep opens no new funding episode during an outage, so nothing it
 routes piles up to be woken. `OPS-36`'s attach transaction is the exception: it enqueues a
-late-attach cleanup outside the sweep, and what it does with no rate is `pv-gip.27`'s.
+late-attach cleanup outside the sweep; `LDG-40` owns its no-rate branch (2026-10-04,
+`pv-gip.27`).
 
 **The original 2026-10-02 worker order**, before the paused-grace amendment below; `OPS-41`
 owns the current order. The decision was inside the fence transaction, not on its claim snapshot:
@@ -329,9 +330,7 @@ proof. The model's omissions in `Fence.lean` and `Restore.lean` remain unchanged
 The expected progress paths are continued no-rate step-5 processing that fences or settles the
 currency's machines, or a returned rate that allows accumulated time to finish. The no-rate create
 premise is `LDG-40`'s "**create** (MUST halt: it is a purchase priced at an unknown rate)".
-These paths are not unconditional process liveness. Late attach with no rate remains undecided
-in `pv-gip.27`; this decision does not establish that a later attach cannot introduce a live
-unfenced machine after the disposition condition held. That interaction is recorded on that task.
+These paths are not unconditional process liveness. The 2026-10-04 `pv-gip.27` amendment below addresses late attach before and after close.
 
 Rejected alternatives:
 
@@ -439,3 +438,16 @@ Rejected: accepting the lift as another outage cost. Starving one currency's win
 reopen funding despite `LDG-20`'s reason: "a customer could pay for a claim the operator had just
 computed it could not honour". Conformance is `CNF-306`; the formal transition and its guard witnesses
 check preservation without claiming to calculate monetary solvency.
+
+## Late attach without a rate — 2026-10-04
+
+The owner accepted Q9 (`pv-gip.27`). `LDG-40` owns the branch, `OPS-36` points to it,
+`LDG-66` and `STO-37` carry the opening-rate condition per record, and `STO-56` makes
+close-time disposition explicit. `CNF-308` exercises the transaction and both close orderings.
+
+Rejected: deferring the pricing decision. The attach atomicity rule requires "never neither and
+never both"; a pending decision would need a third attach state. Available balance supplies no
+conversion rate. The existing opportunity remains `OPS-36`'s "before the cleanup cancellation
+this transaction enqueued has written `OPS-42`'s fence"; this adds no general post-return grace.
+The reconciliation model omits wind-down funding and these records, explicitly; worker proofs
+remain about their supplied world, not about attachment atomicity or restore closure.

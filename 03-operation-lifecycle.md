@@ -530,7 +530,8 @@ released the commitment; it is an operator deficiency (`LDG-39`, `LDG-66`). **So
 number to test and one order to test it in**, and the ordering question dissolves rather than being
 answered.
 
-The machine is attached. Where available balance covers the wind-down floor, a commitment of that
+The machine is attached. *Amended 2026-10-04 (`pv-gip.27`): with no currency rate, use
+`LDG-40`'s late-attach row.* Where a rate exists and available balance covers the wind-down floor, a commitment of that
 size is opened; **where it does not, no commitment is opened at all** and the wind-down is carried
 as an operator deficiency (`LDG-66`) — a commitment the balance cannot fund is not a commitment,
 and `LDG-10` forbids pretending otherwise. The branch's own

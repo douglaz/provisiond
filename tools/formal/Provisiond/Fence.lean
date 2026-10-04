@@ -78,8 +78,8 @@ in flight (the model holds one attempt, and every enqueue waits for it); `OPS-31
 verbs on an `uncertain` episode (`Provisiond.Tables` has the rows); `LDG-62`'s sizing of the
 commitment it grows — `extend` takes the satoshis as given — and its wire answers (`API-7` owns collection and ordering; `Provisiond.Admission`
 checks that tail): every refusal here is the unchanged world, whichever test
-made it; the `late_attach_cleanup` reason (`OPS-36` is `pv-vwe.5`'s, and what its attach does with
-no rate is `pv-gip.27`'s); the two-clock replay of the outage's start over `STO-49`'s rows — what
+made it; the `late_attach_cleanup` reason and `LDG-40`'s no-rate attach transaction (2026-10-04,
+`pv-gip.27`); the two-clock replay of the outage's start over `STO-49`'s rows — what
 a changed staleness bound or window does to the replayed start belongs to `STO-37` and `OVR-19`,
 and history retention under a changed window remains outside this model (`pv-gip.28`);
 no event moves the start

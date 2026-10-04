@@ -870,8 +870,9 @@ read by `LDG-38` to
 apportion a window that straddles a period or increment boundary; `LDG-38` holds why `LDG-64`'s
 deadline cannot serve as its end),
 `rate_num`, `rate_den` (**nullable**; the rate in force
-when the record was opened, required only for a cause that had one and permanently null for a
-rate-outage deficiency, including one inserted after the rate returns — `LDG-64`),
+when the record was opened, required per record under `LDG-66`, not per cause; a record opened
+without a rate keeps null permanently, as does a rate-outage deficiency including one inserted
+after the rate returns — `LDG-64`; amended 2026-10-04, `pv-gip.27`),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
@@ -886,8 +887,7 @@ the machine.* **The row is the subject's, and the meter opens it.** One `rate_ou
 billable span of a machine or attachment within an outage — the table's own
 `subject_kind`/`subject_id`, and what `OPS-41` contends on, "**this machine's** open `rate_outage` deficiency record" — and nothing
 deployment-wide. Open means what `OPS-41`'s guard says: `absorbed_until IS NULL`; `resolved_at` is
-not that marker and stays null on this cause. The meter (`LDG-64`; `LDG-40`'s "fifth row —
-metering") MUST replay the history for every no-rate span intersecting a subject's clipped
+not that marker and stays null on this cause. The meter (`LDG-64`) MUST replay the history for every no-rate span intersecting a subject's clipped
 increment, including a completed outage when a rate exists at posting time. Its first posting
 that finds such a span without that subject's row for that outage and billable span, including
 an exit posting (`LDG-38`), opens it as a **conditional insert guarded on that absence**.
@@ -1169,6 +1169,11 @@ not discharge another's obligation. Closing at the original end alone MUST NOT d
 paused grace for a currency with a live unfenced machine. The gone-or-fenced alternative requires
 no outage-bound crossing and discharges only that currency's grace obligation, not the wall-clock
 or other incident obligations.
+
+*Amended 2026-10-04 (`pv-gip.27`).* The machine-disposition condition MUST be evaluated at the
+close, not latched from an earlier read: a late attach ordered before close can make it false
+again. An attach ordered after close MUST NOT reopen the incident and receives no restore grace;
+`OPS-41` owns the worker's no-open-record case. No general post-return survival interval is added.
 
 *Amended 2026-10-03 (`ADR-0029`): withdrawn — "or its outage has reached `LDG-64`'s bound. The
 bound discharges that currency's grace obligation even if its rate never returns: no funding

@@ -1245,6 +1245,34 @@ rather than acquiring a default.
 - [ ] **CNF-198** — Metering a period at a cadence that subdivides it posts every increment: no
       posting is deduplicated away by the idempotency key, and two billable attachments on one
       machine do not collide. (`LDG-8`, `LDG-38`)
+- [ ] **CNF-308** — **Late attach with no rate** (*added 2026-10-04, `pv-gip.27`*).
+      Release the create's commitment, then produce a correlator match during a currency outage,
+      with available balance above any plausible wind-down floor. Assert attachment, no commitment,
+      unchanged available balance, a native `late_attach_cleanup` deficiency with null rate and
+      zero absorbed seconds, and the applicable `unrecoverable_setup_fee` record with the same
+      null-rate/zero-seconds shape. Attach, deficiency records, fee settlement/parked-fee clearing
+      and cleanup enqueue are atomic: inject failure between effects and observe all or none.
+      Before the bound the cleanup short-defers with no fence or provider call; extension is
+      refused by the rate gate. The meter charges nothing and opens a separate outage row from
+      `max(currency outage start, attach seed)`, never absorbing pre-attach time.
+
+      Return the rate. In one ordering, extend before the cleanup fence: a commitment opens,
+      `runway_until` is re-derived, the wind-down deficiency's `resolved_at` is written, and the
+      cleanup aborts without provider mutation; the machine survives. In the other ordering, make
+      no extension: the cleanup cancels through the existing fence. The opening rates on the
+      native-only wind-down and setup-fee records remain null in both cases. No general interval
+      after the return delays cancellation. Separately keep the outage through its bound and
+      exercise cancellation, including an attach after the bound. Repeat under current suspension
+      and under an open restore to check the existing worker precedence.
+
+      With an open restore, satisfy its other close conditions and leave this currency's
+      rate-present grace unspent. First establish that all its machines are gone or fenced, then
+      attach before the close: close is refused while the new machine is live and unfenced.
+      Fence it, record it gone, or spend the remaining rate-present grace; each independently
+      permits that currency's close condition. Reverse the ordering: close first, then attach;
+      the incident stays closed and the cleanup receives no restore deferral. Check both
+      orderings at the close transaction, not just against a previously read inventory.
+      (`OPS-36`, `OPS-41`, `OPS-42`, `LDG-40`, `LDG-62`, `LDG-64`, `LDG-66`, `STO-37`, `STO-56`)
 - [ ] **CNF-199** — A late-attach cleanup on a tenant whose balance is **below** the wind-down floor
       opens **no commitment at all**, carries the **whole** wind-down as an operator deficiency
       rather than a shortfall against a partial one, still executes the cancel, and never drives
