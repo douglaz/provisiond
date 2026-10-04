@@ -594,6 +594,10 @@ or delete path at the storage layer.
 | `operator_ref` | text | opaque evidence reference under `WIR-50`'s constraint; corrected re-recording keeps the original provider reference here |
 | `created_at` | timestamp | server recording instant |
 
+*Amount validity clarified 2026-10-04 (`pv-gip.39`, T7):* zero invoices are permitted for a
+month with no provider document; a separate provider credit note is a negative invoice filed
+under the month it corrects. Coverage consequences belong to `LDG-75`.
+
 Unique `(provider_account, kind, provider_ref)` for non-null references, permanently, even after
 void. Voids have unique `voids_row_id`: a duplicate void under a fresh request key MUST fail
 `409` `conflict`/`state`, with no second removal. A void of a void or a target in another
@@ -603,7 +607,9 @@ Index `(provider_account, currency, billing_period)` for coverage and
 `(provider_account, created_at, id)` for reads. The insert and exact `STO-35` receipt MUST commit
 together. All native-cost subjects and attachment-to-machine-to-account links needed by
 `LDG-75` MUST remain resolvable through invoice coverage and voids, including tombstoned subjects;
-no cascade may erase cost attribution. Accrual has no row, counter or separate writer.
+no cascade may erase cost attribution. Deficiency attribution uses `STO-37`'s durable
+`provider_account`, including after deletion of a settled originating operation under `STO-14`
+(*amended 2026-10-04, `pv-gip.39`, J2*). Accrual has no row, counter or separate writer.
 
 ### `rate_observations`
 
@@ -914,7 +920,7 @@ so a tenant activated after a termination was assigned to the dead account — a
 a balance `ADR-0004` forbids refunding, on a tenant too new to appear in any `record-status`
 response.*
 
-**STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `native_minor`,
+**STO-37** **`operator_deficiencies`** — `id`, `subject_kind`, `subject_id`, `provider_account`, `native_minor`,
 `currency`, `clamped_sats` (**nullable**; required on a `clamp_overflow` and null on every other
 cause — the satoshi remainder `LDG-31`'s clamp wrote off, recorded directly because it *originated*
 in satoshis. *Added 2026-09-02: the record carried only `native_minor` plus a rate, and recovering
@@ -936,15 +942,24 @@ read by `LDG-38` to
 apportion a window that straddles a period or increment boundary; `LDG-38` holds why `LDG-64`'s
 deadline cannot serve as its end),
 `rate_num`, `rate_den` (**nullable**; the rate in force
-when the record was opened, required per record under `LDG-66`, not per cause; a record opened
-without a rate keeps null permanently, as does a rate-outage deficiency including one inserted
-after the rate returns — `LDG-64`; amended 2026-10-04, `pv-gip.27`),
+when the record was opened; per-record presence and permanent nullability are owned by
+`LDG-66`; pointer amended 2026-10-04, `pv-gip.39`, T8),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
 `idempotency_key` (unique), `opened_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 *Amended 2026-10-04 (`pv-gip.39`, `ADR-0031`): the deficiency-resolution timestamp is
 removed; `LDG-75` owns accrual classification and invoice coverage.*
+**Durable account provenance** (*added 2026-10-04, `pv-gip.39`, J2*): `provider_account`
+is required on every deficiency, written by its producer in the producing transaction from the
+cost's provider account. For machine/attachment costs the producer resolves the account through
+the subject; setup-fee production is specified in `LDG-39`. Subsequent account attribution MUST
+read this field, without depending on a retained operation or a machine for a machine-less create.
+A setup-fee deficiency with no machine uses `subject_kind: operation` and the originating
+operation's id as `subject_id`; that identifier remains evidence after `STO-14` retention,
+not a foreign key requiring that operation to survive. The row and its account link remain
+resolvable under `STO-57`.
+
 **The row is the subject's, and the meter opens it.** One `rate_outage` row per
 billable span of a machine or attachment within an outage — the table's own
 `subject_kind`/`subject_id`, and what `OPS-41` contends on, "**this machine's** open `rate_outage` deficiency record" — and nothing
@@ -962,7 +977,8 @@ extension halts (`LDG-40`), re-derivation "MUST halt rather than under-reserve",
 anything. Nor does the worker's `OPS-41` contend open
 one: `OPS-41`'s order holds what a write that affects no row means there. So a subject the meter
 has not posted for since the outage began has no row for that outage, including one already
-quarantined when it began. For closure of an existing row on a quarantined exit, see `LDG-72`.
+quarantined when it began. For closure of an existing quarantined subject row on return or exit, see `LDG-72`
+(*pointer amended 2026-10-04, `pv-gip.39`, S1*).
 **The currency outage start and the subject row start are distinct.** The currency outage start is
 the earliest instant of each maximal interval throughout which the window yielded no rate,
 ending at its replayed return or still continuing at the writer's posting. Both ongoing and

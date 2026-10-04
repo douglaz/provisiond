@@ -1393,8 +1393,8 @@ admitted during a solvency halt and without a currency rate: it is not bill-incr
 executes a payment, calls a provider, creates an operation or moves tenant balances. The `api`
 handler records through `ledger` (`OVR-9`); no importer is required. A duplicate provider reference
 under a fresh key MUST fail `409` `conflict`, `details.reason: "state"`, without another row or
-accounting effect. Invoice amounts MAY be zero, including where no provider document exists,
-or negative for credit notes. `STO-57` owns void validation and permanent reference reservation.
+accounting effect. `STO-57` owns amount/void validation, corrected re-recording and permanent
+reference reservation (*pointer amended 2026-10-04, `pv-gip.39`, T7*).
 Concurrent recording for one account/currency MUST serialize the invoice's reported true-up
 calculation and row/receipt commit, so concurrent invoices newly cover one month only once in
 those results. This serialization protects the reported number, not an order-dependent B.

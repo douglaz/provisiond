@@ -1229,7 +1229,9 @@ and scoped to the operator principal (`API-10`, `STO-35`). The body carries `STO
 `currency`, `amount_minor`, `provider_ref`, `billing_period`, `occurred_at`, `voids_row_id` and
 `operator_ref`; nullable fields are explicit. Validation follows `STO-57` and `WIR-1a`, including
 signed invoice amounts and null void amounts. The result contains `row` (the stored `STO-57`
-row) and `true_up_minor` (`LDG-75`'s signed invoice true-up, null for payment/void).
+row) and `true_up_minor` (`LDG-75`'s signed invoice true-up or null under its open-outage
+exception; also null for payment/void). Null is retained in the durable response after the
+cost is finalized (*amended 2026-10-04, `pv-gip.39`, S4*).
 Same key/fingerprint returns the exact stored status/body; a changed fingerprint is `409`
 `conflict`/`idempotency_mismatch`. Fresh-key import collisions and void errors are `API-66`/
 `STO-57`'s. Invoice request:

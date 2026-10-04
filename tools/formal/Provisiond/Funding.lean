@@ -114,7 +114,7 @@ modeled here. `LDG-74`'s observation is `Provisiond.Reconcile`'s `World.meterSto
 module that posts no money and that this one does not import. `LifecycleTrace` describes ordered
 lifecycles; `exitAndRelease` separately executes the release-order guard, including release before
 the closing post with the guard off. Release zeros the one remaining commitment; its opening and
-other ledger rules are in `Provisiond.Ledger`. Outage deficiency-row closure on a quarantined exit
+other ledger rules are in `Provisiond.Ledger`. Outage deficiency-row closure on a quarantined exit or qualifying rate return (2026-10-04)
 is outside this money/meter world, as are all outage rows. No one-subject theorem establishes an
 account-wide transaction. Omitted also:
 a second subject, and with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records

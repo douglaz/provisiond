@@ -888,14 +888,16 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       covered, separately by adding satoshis and by recording a payment (`WIR-53`). Assert the
       incomplete passing check retains the halt: a fresh deposit request
       is refused and the existing deposit read still reports `gate: "solvency"` and
-      `lightning.cancelled: true`. Restore the rate and cover the full stressed check; only then
+      `lightning.cancelled: true`. Restore the rate, post to close every open outage row in that
+      currency, and cover the full stressed check (*amended 2026-10-04, `pv-gip.39`, S3*); only then
       does the halt lift, a fresh deposit mint succeed, and the old read report `gate: null`
       while `lightning.cancelled` remains `true`. Also keep a complete-but-short check halted.
       Repeat independently with no prior halt: first remove the rate, then make the valued terms
       short, starting a halt during the outage. Cover those terms while the rate remains absent;
       assert the same retained halt and deposit results until every leg is valued and a complete
       check passes. This rejects remembering only a short complete check or only the current
-      shortfall. `CNF-138` owns no-rate-alone with no prior halt.
+      shortfall. `CNF-138` owns no-rate-alone with no prior halt. See `CNF-310` for
+      quarantine closure without posting (*pointer added 2026-10-04, `pv-gip.39`, S1*).
       (*Amended 2026-10-04, `pv-gip.42`.*)
       (`LDG-40`, `LDG-20`, `WIR-15`)
 - [ ] **CNF-307** — **Rich purchase-tail refusals.** Exercise create and extend-runway after
@@ -992,6 +994,22 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       an earlier valid meter stop), verify the full
       absorbed span split by month, and only then allow a complete passing check to lift the halt.
       Do not bound the absorbed span by the cancellation deadline.
+      **Invoice before closure** (*added 2026-10-04, `pv-gip.39`, S4*): record the invoiced
+      month while this account/currency's outage row is still open and touches that month.
+      The receipt returns `true_up_minor: null`, the invoice covers its month immediately,
+      and B follows the recorded invoice. Close/finalize the row, then replay recording with
+      the same key: the exact stored response still contains null. No deferred invoice or
+      recomputed response appears.
+      **Quarantine mid-outage** (*added 2026-10-04, `pv-gip.39`, S1*): with a halt in force,
+      open an outage row, then quarantine its subject and preserve mark/rounding-credit evidence.
+      Accept a qualifying rate return under `LDG-58` with no posting and no exit: the existing
+      row closes under `LDG-64`, finalizing seconds/native cost with no debit, commitment
+      decrement, meter repair, new cost writer or quarantine removal. With all other outage
+      rows closed, the currency becomes valued again; a complete passing stressed check lifts
+      the halt. Then choose held satoshis sufficient for float/other legs/stress but short only
+      when this currency's positive payable is included: the complete check fails, proving
+      the leg was not silently omitted.
+      Repeat with an earlier valid stop: it remains the end, never overwritten by the return.
 
       Exercise each cause in `LDG-75`'s table: included clamp remainder, closed outage cost and
       unrecoverable setup fee (observed, absent and abandoned-estimate branches); excluded
@@ -1000,7 +1018,12 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       both as reserved exposure and actual cost. A computed 100-sat debit with 30 sats remaining
       and 70 native cost produces native entry 21 plus deficiency 49, total 70; a full clamp
       carries all native cost in the deficiency, with no zero ledger row. Fee and attachment
-      attribution reach the correct account. Record an invoice replacing outage cost and payment
+      attribution reach the correct account. For each absent-but-charged and abandoned-estimate
+      setup-fee branch, create no machine row, check the producer copied `operations.provider_account`
+      into the deficiency, then delete the settled operation under `STO-14` retention. Read/check
+      accrual: the fee still belongs to that account/currency via its own row; an unrelated
+      account receives none. No invented machine or surviving-operation join is permitted.
+      (*Amended 2026-10-04, `pv-gip.39`, J2.*) Record an invoice replacing outage cost and payment
       covering it: no phantom payable, resolution flag or customer backcharge. Also pay accrued
       outage cost before invoicing, then invoice it: the replacement leaves no phantom payable.
 
@@ -1024,10 +1047,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       currency is omitted, never valued at its last rate; `complete` is false and the omitted
       currency is named. Repeat with a rated currency carrying an open outage row, even if other
       accounts in that currency have finalized costs: the currency remains omitted. Incomplete
-      headroom is not whole-pool assurance. Repeat `CNF-306` with recorded payment: an incomplete
-      pass cannot lift an existing halt, whereas `CNF-138` covers missing-rate-alone and starting
-      a halt from short valued terms. An incomplete cost alone likewise starts no halt; short
-      valued terms still do. (`LDG-75`, `LDG-17`, `LDG-20`, `LDG-40`, `LDG-53`, `WIR-53`,
+      headroom is not whole-pool assurance. See `CNF-306`.
+      (*Pointer amended 2026-10-04, `pv-gip.39`, T4.*) (`LDG-75`, `LDG-17`, `LDG-20`, `LDG-40`, `LDG-53`, `WIR-53`,
       `WIR-54`, `STO-57`)
 - [ ] **CNF-139** — No code path uses a rate past its newest observation's stamped bound
       (*amended 2026-10-04, `pv-gip.28`*), and there is no

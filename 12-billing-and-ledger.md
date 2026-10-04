@@ -275,7 +275,8 @@ authority it granted, and the remainder is recorded as an **operator deficiency*
 `LDG-63`. It MUST NOT be taken from available balance: that would be the automatic seizure
 `ADR-0011` exists to forbid, arriving through the meter instead of through re-derivation.
 
-**The clamp MUST split provider-native cost as it splits satoshis** (added 2026-10-04). For computed debit `D > 0`,
+**The clamp MUST split provider-native cost as it splits satoshis** (added 2026-10-04,
+`pv-gip.39`, `ADR-0031`). For computed debit `D > 0`,
 customer debit `d` after clamping, and provider cost `N` in native minor units, the entry carries
 `floor(N × d / D)` and the `clamp_overflow` carries the exact remainder `N − floor(N × d / D)`.
 Thus neither side carries the full cost a second time; with `d = 0` the deficiency carries all of
@@ -1015,10 +1016,14 @@ that, and they were found together:
   MUST alert, and MUST continue to admit cancellation and deletion — a machine nobody can bill is
   still a machine somebody is paying for. **A quarantined exit MUST record the stop and allow
   deletion to complete, but MUST post no usage debit or commitment decrement and MUST write no
-  meter state: both mark and `r` remain the evidence referenced by the alert.** It MUST close an
-  already-open subject `rate_outage` deficiency row with `absorbed_until` at the end `LDG-64`
-  gives; this deficiency-record closure is neither a meter-state write nor a usage debit or
-  commitment decrement. The unposted tail creates no new deficiency cause, catch-up debit or
+  meter state: both mark and `r` remain the evidence referenced by the alert.**
+  *Amended 2026-10-04 (`pv-gip.39`, S1):* an already-open quarantined subject's `rate_outage`
+  row MUST close on its exit or on `LDG-64`'s qualifying return; the return needs no posting
+  or exit.
+  Both return and exit closure use the end `LDG-64` gives, preserving an earlier valid stop;
+  the close finalizes the existing row's `absorbed_seconds` and `native_minor` under `STO-37`.
+  This deficiency-record closure is neither a meter-state write nor a usage debit or
+  commitment decrement: quarantine, mark and `r` remain unchanged. It opens no new row. The unposted tail creates no new deficiency cause, catch-up debit or
   meter repair. Re-entry uses `LDG-38`'s seed unchanged.
   *`LDG-20`'s deployment-wide solvency halt was cited here
   and is the wrong instrument: one subject's corrupted rounding credit is not evidence that the
@@ -1079,6 +1084,12 @@ unstated:
 | Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below. `LDG-67`'s parked obligation is settled either way, in `OPS-27`'s single resolution transaction* |
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider — **except where the provider's own transaction shows the order landed and a fee was charged for a machine that is nonetheless gone** (`OPS-27`'s direct read past the visibility window), in which case the fee is an **operator deficiency** (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged (*row added 2026-09-05*) |
 | Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
+
+*Amended 2026-10-04 (`pv-gip.39`, J2):* every setup-fee deficiency producer in this table
+MUST populate `STO-37.provider_account` from the originating `operations.provider_account`
+in the same transaction as the deficiency. This includes the absent-but-charged and
+abandoned-estimate branches with no machine row; `STO-37` owns their durable subject/provenance
+representation. Retaining the operation is not a condition of later cost attribution.
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
 a deterministic rejection or a resolved-absent create left the customer paying a non-refundable
@@ -1371,7 +1382,8 @@ key there. A deficiency MUST NOT alter any tenant balance. It records who bore a
 not whether a provider is still owed. `LDG-75` owns which incurred costs enter derived accrual;
 there is no unresolved-deficiency feed into solvency.
 
-**Absorbed time is zero for every cause but `rate_outage`** (amended 2026-09-02). The other causes record monetary cost or forward exposure, not an elapsed window to
+**Absorbed time is zero for every cause but `rate_outage`** (amended 2026-09-02).
+*Reasoning amended 2026-10-04 (`pv-gip.39`, T6):* the other causes record monetary cost or forward exposure, not an elapsed window to
 subtract from metering (`LDG-38`). A rate outage absorbs time because there was no rate: the window was never priceable, so
 there is no satoshi figure to absorb and time is the only channel that works.
 **Nothing here is billable to a customer** — that is the whole point of calling it the operator's.
@@ -1884,24 +1896,23 @@ held_sats ≥ float_sats + sum_over_valued_account_currency(ceil(max(0, B) at cu
 
 `STO-57` owns the append-only billing stream. An invoice or payment is effective exactly when
 no void names it. A void removes its target's amount and, for an invoice, its coverage; a void
-cannot itself be voided. Invoices are net of credits already applied by the provider; a separate
-provider credit note is a negative invoice under the month it corrects, not a new kind.
+is validated under `STO-57`. Invoices are net of credits already applied by the provider;
+`STO-57` owns admissible amounts and corrected re-recording (*ownership amended 2026-10-04,
+`pv-gip.39`, T7*).
 
 **Coverage is by `LDG-68` billing period, a UTC calendar month.** An invoice names the month it
 bills. A month is covered iff it has an effective non-negative invoice in this account/currency.
-Zero invoices are admitted, including for a month with recorded cost but no provider document.
 A negative invoice alone covers nothing; it adjusts the amount, and a separate effective
 non-negative invoice still supplies coverage. Recording order is irrelevant: an uninvoiced month
 stays accrued even when later months have invoices. Voiding the last non-negative invoice for a
-month restores that month's accrual. References remain reserved under `STO-57`, including after
-void; corrected re-recording uses a distinct reference with the provider's original reference in
-`operator_ref`.
+month restores that month's accrual. Reference validity and corrected re-recording belong
+to `STO-57`.
 
 Accrual MUST be derived at check/read time, never separately stored. Each eligible recorded
 provider cost belongs to a month:
 
-- A ledger entry belongs to its `billing_period`; a correction carries the corrected entry's
-  period, never the posting month. Where no period exists, use the month of `created_at`.
+- A ledger entry belongs to its `billing_period`; `LDG-38` owns correction-period assignment.
+  Where no period exists, use the month of `created_at` (*pointer amended 2026-10-04, `pv-gip.39`, T8*).
   Corrections keep the corrected cost's account/currency and signed native adjustment.
   A debit's native provider cost is positive here independently of its tenant-satoshi sign.
 - A non-outage deficiency belongs to its `opened_at` month.
@@ -1912,8 +1923,10 @@ provider cost belongs to a month:
   closing dates the whole straddling cost. An open row has no finalized cost; `LDG-40` owns the
   resulting incomplete currency leg. Neither an outage bound nor stalled cancellation closes it.
 
-Sum these eligible costs only for uncovered months, joining subjects to provider accounts
-(attachments through their machine; setup fees through `machine_id`). The classification below
+Sum these eligible costs only for uncovered months. Ledger entries join subjects to provider
+accounts (attachments through their machine; setup-fee entries through `machine_id`). Every
+deficiency takes its account from its own `STO-37.provider_account`, including machine-less
+setup fees after operation retention (*amended 2026-10-04, `pv-gip.39`, J2*). The classification below
 covers the cause inventory owned by `STO-37`; it does not add causes:
 
 | Cause | Accrual treatment and actual-charge path |
@@ -1927,10 +1940,13 @@ covers the cause inventory owned by `STO-37`; it does not add causes:
 
 Provider cost MUST count once whoever bore it: an exposure estimate and the charge realizing it
 MUST NOT both enter accrual. Deficiency resolution is not an input. On invoice recording,
-`true_up_minor` MUST be the signed invoice amount minus the accrual of the month it newly covers;
-if it newly covers no month, subtract zero. Serialization belongs to `API-66`. Coverage
+`true_up_minor` MUST be null if that account/currency has an open `rate_outage` row touching
+the invoiced month at recording time. Otherwise it MUST be the signed invoice amount minus
+the accrual of the month it newly covers; if it newly covers no month, subtract zero.
+This reporting exception does not defer invoice recording or change its coverage or B.
+*Amended 2026-10-04 (`pv-gip.39`, S4).* Serialization belongs to `API-66`. Coverage
 and B themselves depend on effective rows and month membership, not arrival order. Replays
-return the stored true-up even after more records arrive.
+return the stored true-up, including null, even after an outage closes or more records arrive.
 
 **Accepted accounting gaps:** costs absent from local charges — including `LDG-25` free
 operations, quarantine and resources provisiond did not create — remain missing until invoice
