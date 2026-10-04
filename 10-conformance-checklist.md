@@ -887,7 +887,11 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       `halted` (gate `solvency` or `rate_unavailable`); cap exceeded `400` `invalid_request`
       (`max_commitment_sats`, `required_sats`); balance short `402` `insufficient_balance`
       (`available_sats`, `required_sats`). Assert `WIR-9a`'s per-refusal retryability and required pacing, including each
-      recoverable account status and a terminated account.
+      recoverable account status (`true`) and a terminated account (`false`), each from the
+      collection snapshot. Repeat the unhealthy-account combinations below for
+      `account_unreachable`, `credentials_rejected` and `terminated`: the first two retain
+      envelope `retryable: true`; termination makes the envelope `retryable: false`.
+      (*Amended 2026-10-04, `pv-gip.26`, S2.*)
       No entry contains a nested list, no check/refusal repeats, and every refusing tail writes
       no commitment, balance, machine, operation or receipt and makes no provider call.
 
@@ -910,7 +914,7 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       healthy account, omitting the cap leaves balance evaluated and `not_checked: []`.
       (*Amended 2026-10-04, `pv-gip.26`, `ADR-0030`.*)
 
-      Clear faults and resend the exact request and key: admission succeeds, proving refusal
+      Clear recoverable faults and resend the exact request and key: admission succeeds, proving refusal
       left no replay receipt. Check singleton/no-rate `not_checked` as well as the empty list
       when priced checks ran. Authenticate, authorize, validate body/key, replay, suspend and
       exhaust the ceiling independently before the tail: retain the first early result with no

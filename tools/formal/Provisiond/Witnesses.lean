@@ -3209,7 +3209,7 @@ theorem without_native_split_cost_counts_twice :
 
 /-- The rich tail retains resource, pool and rate refusals together. -/
 def fencedHaltedNoRate (g : Admission.Guards) :=
-  purchaseTail g false true true true false true true true
+  purchaseTail g false .healthy true true false true true true
 
 @[req "API-7"]
 theorem rich_tail_retains_every_refusal :

@@ -1,4 +1,5 @@
 import Provisiond.Tables
+import Provisiond.AccountStatus
 /-! The decided policy spaces: `API-7`'s admission pipeline, `SEC-39`'s ceilings, `LDG-20`'s
 solvency halt and `LDG-40`'s matrix against rate availability.
 
@@ -1011,9 +1012,9 @@ theorem no_verb_reaches_the_system_cancellation :
 /-! ## Rich purchase tails
 
 Snapshot facts only. Prices, locks, receipts, HTTP serialization and actual writes are omitted.
-`API-7` owns evaluation purity; the list's Boolean inputs do not prove transaction isolation. -/
+`API-7` owns evaluation purity; the list's snapshot inputs do not prove transaction isolation. -/
 inductive TailRefusal
-  | account | fence | solvency | rate | cap | balance
+  | accountRecoverable | accountTerminated | fence | solvency | rate | cap | balance
   deriving DecidableEq, Repr
 
 inductive PricedCheck
@@ -1033,9 +1034,11 @@ structure TailResult where
 `API-7`: "collect every applicable refusal once". The guard retains the former single refusal
 as its off position. `cap` and `balance` are check failures, ignored when price is unavailable. -/
 @[req "API-7"]
-def purchaseTail (g : Guards) (create healthy fenced halted rate capPresent cap balance : Bool) : TailResult :=
+def purchaseTail (g : Guards) (create : Bool) (account : AccountStatus.Status) (fenced halted rate capPresent cap balance : Bool) : TailResult :=
+  let healthy := account == .healthy
   let priced := rate && (!create || healthy)
-  let refusals := (if create && !healthy then [.account] else []) ++
+  let refusals := (if create && !healthy then
+      [if account == .terminated then .accountTerminated else .accountRecoverable] else []) ++
     (if !create && fenced then [.fence] else []) ++
     (if halted then [.solvency] else []) ++ (if !rate then [.rate] else []) ++
     (if priced && capPresent && cap then [.cap] else []) ++ (if priced && balance then [.balance] else [])
@@ -1046,12 +1049,12 @@ def purchaseTail (g : Guards) (create healthy fenced halted rate capPresent cap 
       reasons.map (.balance, ·) }
 
 @[req "API-7"]
-def tailAdmitted (create healthy fenced halted rate capPresent cap balance : Bool) : Bool :=
-  (if create then healthy else !fenced) && !halted && rate && !(capPresent && cap) && !balance
+def tailAdmitted (create : Bool) (account : AccountStatus.Status) (fenced halted rate capPresent cap balance : Bool) : Bool :=
+  (if create then account == .healthy else !fenced) && !halted && rate && !(capPresent && cap) && !balance
 
 @[req "API-7"]
 def TailRefusal.rank : TailRefusal → Nat
-  | .account | .fence => 0
+  | .accountRecoverable | .accountTerminated | .fence => 0
   | .solvency => 1
   | .rate => 2
   | .cap => 3
@@ -1059,15 +1062,15 @@ def TailRefusal.rank : TailRefusal → Nat
 
 @[req "WIR-9a"]
 def TailRefusal.retryable : TailRefusal → Bool
-  | .account | .solvency | .rate => true
-  | .fence | .cap | .balance => false
+  | .accountRecoverable | .solvency | .rate => true
+  | .accountTerminated | .fence | .cap | .balance => false
 
 @[req "WIR-9b"]
 def envelopeRetryable (r : TailResult) : Bool := r.refusals.all TailRefusal.retryable
 
 @[req "API-7"]
 theorem empty_iff_admitted (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r q p b : Bool,
+    ∀ (c : Bool) (h : AccountStatus.Status) (f s r q p b : Bool),
       (purchaseTail g c h f s r q p b).refusals.isEmpty = tailAdmitted c h f s r q p b := by
   intro c h f s r q p b
   cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
@@ -1075,7 +1078,7 @@ theorem empty_iff_admitted (g : Guards) (hg : g.richTailCollection = true) :
 
 @[req "API-7"]
 theorem ordered_without_duplicates (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r q p b : Bool,
+    ∀ (c : Bool) (h : AccountStatus.Status) (f s r q p b : Bool),
       ((purchaseTail g c h f s r q p b).refusals.map TailRefusal.rank).Pairwise (· < ·) ∧
       (purchaseTail g c h f s r q p b).refusals.Nodup := by
   intro c h f s r q p b
@@ -1084,8 +1087,8 @@ theorem ordered_without_duplicates (g : Guards) (hg : g.richTailCollection = tru
 
 @[req "API-7"]
 theorem unpriced_checks_are_skipped (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r q p b : Bool,
-      (r = false ∨ (c = true ∧ h = false)) →
+    ∀ (c : Bool) (h : AccountStatus.Status) (f s r q p b : Bool),
+      (r = false ∨ (c = true ∧ h ≠ .healthy)) →
       (purchaseTail g c h f s r q p b).refusals.contains .cap = false ∧
       (purchaseTail g c h f s r q p b).refusals.contains .balance = false ∧
       (purchaseTail g c h f s r q p b).notChecked.any (fun x => x.1 == .commitmentCap) = q ∧
@@ -1097,7 +1100,7 @@ theorem unpriced_checks_are_skipped (g : Guards) (hg : g.richTailCollection = tr
 /-- Agreement is scoped to purchase actions after the common pipeline, not other verbs. -/
 @[req "LDG-40"]
 theorem tail_agrees_with_policy (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ c h f s r q p b : Bool,
+    ∀ (c : Bool) (h : AccountStatus.Status) (f s r q p b : Bool),
       ((purchaseTail g c h f s r q p b).refusals.contains .solvency = s) ∧
       ((purchaseTail g c h f s r q p b).refusals.contains .rate = !r) ∧
       underHalt g (.caller (if c then .create else .extendRunway)) = some .halted ∧
@@ -1111,6 +1114,20 @@ theorem tail_agrees_with_policy (g : Guards) (hg : g.richTailCollection = true) 
 theorem envelope_is_conjunction (r : TailResult) :
     envelopeRetryable r = true ↔ ∀ e ∈ r.refusals, e.retryable = true := by
   simp [envelopeRetryable]
+
+/-- Account status is read from the collection snapshot (2026-10-04, WIR-9a).
+Both recoverable statuses and termination are checked alone and with solvency/rate refusals.
+This does not model status persistence or the transaction collecting the snapshot. -/
+@[req "WIR-9a"]
+theorem account_retryability (g : Guards) (hg : g.richTailCollection = true) :
+    ∀ a ∈ [AccountStatus.Status.accountUnreachable, .credentialsRejected, .terminated],
+      ∀ combined : Bool,
+      envelopeRetryable (purchaseTail g true a false combined (!combined) true true true) =
+        (a != .terminated) := by
+  intro a ha combined
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
+  rcases ha with rfl | rfl | rfl <;> cases combined <;>
+    simp [purchaseTail, envelopeRetryable, TailRefusal.retryable, hg]
 
 @[req "API-66"]
 theorem billing_record_is_never_halted (g : Guards) (t : TenantState) :

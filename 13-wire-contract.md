@@ -153,10 +153,14 @@ the same request is safe and sensible":
 | Refusal | `retryable` | Reason |
 |---|---|---|
 | `halted` / `solvency` or `rate_unavailable` | `true` | The same purchase can succeed when the gate clears |
-| `conflict` / `state` on an unhealthy create account | `true` | Repeating is safe and can succeed after recovery of `account_unreachable` or `credentials_rejected` (`API-63`); it promises no recovery of a terminated account |
+| `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `account_unreachable` or `credentials_rejected` | `true` | The named account can recover |
+| `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `terminated` | `false` | The named account cannot recover |
 | `conflict` / `cancellation_committed` | `false` | The fence is permanent |
 | `invalid_request` for `max_commitment_sats` | `false` | The caller must revise its spend bound |
 | `insufficient_balance` | `false` | The caller must supply balance before purchasing |
+
+*Amended 2026-10-04 (`pv-gip.26`, S2): account retryability distinguishes permanent termination
+from recoverable status; kind and reason remain unchanged.*
 
 **Only on the `max_commitment_sats` refusal**, `invalid_request` carries
 `details.max_commitment_sats` (the supplied cap) and `details.required_sats` (the computed
@@ -738,8 +742,9 @@ AMENDED to include it — recorded there.
 including a commitment opened where none exists. If that computed amount exceeds the cap the
 request fails `invalid_request` before any commitment opens or grows; `WIR-9a` owns its details.
 *Amended 2026-10-04 (`ADR-0030`).* `API-7` owns the collection snapshot and ordering of
-tail refusals, including fence reporting, solvency and rate unavailability. `LDG-62` owns the
-conditional write on admission, including the re-derived `runway_until`.
+tail refusals. `LDG-62` owns the fence-reporting read and the conditional write on admission,
+including the re-derived `runway_until`.
+*Amended 2026-10-04 (`pv-gip.26`, T3): corrected the fence-reporting ownership pointer.*
 
 **WIR-25** `GET /v1/machines`, `GET /v1/machines/{id}` — machine views; the list is
 cursor-paginated (`WIR-32`): `{"machines": [], "next_cursor": null}`. The example shows an empty
