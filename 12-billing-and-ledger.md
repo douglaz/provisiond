@@ -102,9 +102,10 @@ tenant's period arithmetic is not a case any requirement here defines.
 **LDG-5** The ledger MUST be append-only. No update, no delete. A correction is a new entry
 naming the entry it corrects. **Balance is the sum of entries** and nothing else.
 
-**LDG-6** Every entry MUST carry: a stable id; the tenant; a per-tenant monotonic sequence number;
+**LDG-6** *Amended 2026-10-04 (`pv-gip.39`): remove the unwritable settlement-reference
+promise; provider billing references belong to `STO-57`.* Every entry MUST carry: a stable id; the tenant; a per-tenant monotonic sequence number;
 a kind; the signed satoshi amount; the running balance after it; and the ids of whatever caused
-it — operation, machine, commitment, and the provider-side settlement reference once known.
+it — operation, machine, commitment.
 Provider-denominated entries additionally carry `LDG-2`'s native amount and `LDG-4`'s conversion
 evidence.
 
@@ -273,6 +274,12 @@ commitment (`LDG-39`) — the commitment decrements to zero, the tenant is debit
 authority it granted, and the remainder is recorded as an **operator deficiency** in the manner of
 `LDG-63`. It MUST NOT be taken from available balance: that would be the automatic seizure
 `ADR-0011` exists to forbid, arriving through the meter instead of through re-derivation.
+
+**The clamp MUST split provider-native cost as it splits satoshis** (added 2026-10-04). For computed debit `D > 0`,
+customer debit `d` after clamping, and provider cost `N` in native minor units, the entry carries
+`floor(N × d / D)` and the `clamp_overflow` carries the exact remainder `N − floor(N × d / D)`.
+Thus neither side carries the full cost a second time; with `d = 0` the deficiency carries all of
+it and no zero-value ledger entry is invented (`STO-45`). `LDG-75` consumes that partition.
 
 Its effect on the ordinary path is unchanged — consumption leaves `available` **unchanged**,
 because spending what you already committed neither frees nor freezes anything:
@@ -1131,14 +1138,17 @@ route no machine priced in that currency: `LDG-16` holds the predicate, and a fu
 already queued waits as `OPS-41` orders), and **the solvency check** (MUST continue over the
 terms it can value). The check MUST evaluate `LDG-17`'s inequality and `LDG-20`'s stress using
 held satoshis and the float, which need no currency rate, and the payables and stress legs of
-currencies whose windows yield rates, valued at those rates. Asset treatment remains `LDG-53`'s
-and `LDG-20`'s. It MUST omit the unrated currency's non-negative payables and stress leg. A shortfall on the
-valued terms is a computed failure and MUST trigger `LDG-20`'s deployment-wide consequences. A
-missing rate alone MUST NOT start a solvency halt. *Amended 2026-10-04 (`pv-gip.42`,
+currencies whose windows yield rates and whose outage costs are finalized, valued at those rates.
+Asset treatment remains `LDG-53`'s and `LDG-20`'s. *Amended 2026-10-04 (`pv-gip.39`):*
+a currency leg with any open `rate_outage` row is not valued even if its rate exists. The check
+MUST omit that currency's non-negative payables and stress leg, as it does for an unrated currency.
+`STO-37` owns cost finalization; `LDG-64` owns valid closure. An incomplete cost alone, like a
+missing rate alone, MUST NOT start a solvency halt. A shortfall on the
+valued terms is a computed failure and MUST trigger `LDG-20`'s deployment-wide consequences. *Amended 2026-10-04 (`pv-gip.42`,
 `ADR-0029`):* An incomplete passing check MUST preserve
 the existing verdict; a halt in force MUST lift only when every leg can be valued and the full
 check passes. A shortfall cured during the outage, including by recording a payment or adding
-satoshis, therefore keeps top-ups halted until the rate returns. This does not establish
+satoshis, therefore keeps top-ups halted until every leg has a rate and finalized outage costs. This does not establish
 that the whole pool is solvent while a leg is unknown, change the reserve obligation, or add a
 public assurance.
 
@@ -1296,7 +1306,8 @@ usage cannot be converted to satoshis. A deployment MUST:
   withdrawn — "including when changed replay parameters yield a rate without a new accepted
   observation"; `ADR-0029` records the trap. Neither path may reopen a closed row or overwrite an
   earlier closure. No other event closes the window. The same write supplies
-  `absorbed_seconds` under `STO-37`'s column rule. The first observation accepted after an outage is not always
+  `absorbed_seconds` and `native_minor` under `STO-37`'s column rule (*amended 2026-10-04,
+  `pv-gip.39`: finalize native cost on close, including insertion already closed*). The first observation accepted after an outage is not always
   that one: after an outage longer than `LDG-58`'s window it leaves that window too thin to
   produce a rate (`LDG-59`) (*added 2026-09-23, `ADR-0027`, and reworded the same day out of the
   withdrawn per-pass quorum frame*);
@@ -1312,7 +1323,9 @@ usage cannot be converted to satoshis. A deployment MUST:
   replayed from moves it as well, through the backup; `STO-54` lists that among what a restore
   does not repair, and the report naming the lost window is what tells the operator the clock
   moved (*amended 2026-10-02, `ADR-0029`*);
-- **keep the outage deficiency native-only: it is never converted, at any later rate.** Its
+- **keep the outage deficiency's historical record native-only** (*amended 2026-10-04,
+  `pv-gip.39`*). Current payable valuation is
+  `LDG-75`'s; it creates no customer debit and stamps no rate on this record. Its
   `rate_num`/`rate_den` stay null for good (`LDG-66`), because there was no rate while it accrued
   and stamping it with the first one to return would price those hours at a number that did not
   exist during them — the retroactive bill this requirement exists to forbid. The meter still has
@@ -1341,24 +1354,15 @@ cancellation the outage delayed (`LDG-65`) can cost the operator one more period
 whose contract has a notice period or a billing granularity (`PRV-13c`).
 
 **LDG-66** **An operator deficiency is a durable record of its own, and it is NOT a ledger
-entry.** `LDG-7`'s entry kinds are closed and every one of them moves *tenant* satoshis, so the
-native-currency accruals this specification now creates in **six** places — `LDG-31`'s clamp overflow, `LDG-63`'s
-exception branch, `LDG-64`'s rate outage, `SEC-46`'s unconfirmed account loss, `OPS-36`'s
-unfunded wind-down and `LDG-39`'s unrecoverable setup fee —
-have nowhere legal to live — six sources, not the four an earlier draft counted. A deployment
-MUST persist them in a separate record (`STO-37`)
-carrying the machine or attachment, the provider-native amount and currency (`LDG-2`), **the
-elapsed billable time it absorbed** — without which the meter cannot remove that window from the
-charge at all (`LDG-38` subtracts it in seconds) — the cause, and an idempotency key; **while
-unresolved** they MUST feed provider payables in the solvency check (`LDG-17`) and MUST NOT alter
-any tenant balance. *"While unresolved" was added 2026-09-05: `STO-37` carried a `resolved_at`
-that nothing wrote, so the one cause that can be undone — `OPS-36`'s wind-down, once an extension
-funds the machine — stayed on the operator's books as a liability it no longer had.*
+entry.** *Amended 2026-10-04 (`pv-gip.39`): replace the unresolved-deficiency feed with
+`LDG-75`.* `STO-37` owns the cause enumeration and records. A deployment MUST persist the subject,
+provider-native amount and currency (`LDG-2`), elapsed billable time absorbed, cause and idempotency
+key there. A deficiency MUST NOT alter any tenant balance. It records who bore a cost or exposure,
+not whether a provider is still owed. `LDG-75` owns which incurred costs enter derived accrual;
+there is no unresolved-deficiency feed into solvency.
 
-**Absorbed time is zero for every cause but `rate_outage`** (amended 2026-09-02). The others absorb
-**satoshis** against consumption the customer was charged for up to the authority it granted, so
-subtracting their seconds as well would relieve the customer twice for one event (`LDG-38`,
-`LDG-31`). A rate outage absorbs time because there was no rate: the window was never priceable, so
+**Absorbed time is zero for every cause but `rate_outage`** (amended 2026-09-02). The other causes record monetary cost or forward exposure, not an elapsed window to
+subtract from metering (`LDG-38`). A rate outage absorbs time because there was no rate: the window was never priceable, so
 there is no satoshi figure to absorb and time is the only channel that works.
 **Nothing here is billable to a customer** — that is the whole point of calling it the operator's.
 
@@ -1368,8 +1372,9 @@ Except for a `rate_outage` record, the record MUST carry the rate in force when 
 rate MUST keep it null permanently, including the late-attach wind-down and setup-fee records
 under `LDG-40`. A rate-outage
 deficiency (`LDG-64`) absorbs only time with no rate, so it carries none, ever, including one
-inserted after the rate returns, and nothing
-in this specification converts it: `absorbed_seconds` alone is what the meter needs.
+inserted after the rate returns. `absorbed_seconds` alone is what the meter needs. Current
+valuation of the provider payable belongs to `LDG-75`, not to this historical rate evidence
+(*amended 2026-10-04, `pv-gip.39`*).
 
 **LDG-65** **During a rate outage a funding cancellation waits, for the rate or for `LDG-64`'s
 bound** (`ADR-0029`, which holds the argument). The stored `runway_until` stands through the outage,
@@ -1748,13 +1753,9 @@ lands after the fence keeps its satoshis rather than paying for a machine that i
 **In that same admitting transaction an extension MUST write the re-derived `runway_until` (`LDG-33`) to the
 machine row** (*withdrawn 2026-09-25, `ADR-0028`: "and clear the deadline — `LDG-16`'s
 `machines.destroy_not_before`, an extension being the authorized future-date write that ends the
-restore grace (`ADR-0026`)" — no machine carries a deadline; see `OPS-41` for restore grace*) **and, where it
-opens the commitment on a machine carrying an unresolved
-`late_attach_cleanup` deficiency (`OPS-36`, `STO-37`), write that record's `resolved_at`**, because
-the commitment it opens is sized with
-`protected_sats` and is what ends the operator's exposure; *the abort that follows only notices it
-(moved here from `OPS-41` on 2026-09-05 — resolving on the abort left a phantom liability across a
-crash, or forever where the funding re-check was skipped).* *Added 2026-09-05. The exhaustion sweep
+restore grace (`ADR-0026`)" — no machine carries a deadline; see `OPS-41` for restore grace*).
+*Amended 2026-10-04 (`pv-gip.39`): remove the deficiency-resolution write; `LDG-75` owns
+accrual classification. The commitment and stored runway write remain.* *Added 2026-09-05. The exhaustion sweep
 routes on the stored date (`05-persistence.md`'s index), and re-derivation runs on `PRV-13e`'s
 interval, not on events — so an extension that grew the commitment and wrote no date left the stored
 one in the past for up to a whole interval. Every sweep pass in that window opened a fresh episode,
@@ -1846,7 +1847,8 @@ past and destroy the disk within one sweep interval — the case `LDG-58`'s wind
 ## Solvency
 
 **LDG-17** **AMENDED — wording is load-bearing here.** The operator MUST maintain satoshi reserves
-at least equal to the float plus provider payables already incurred. Customer float is not
+at least equal to the float plus provider payables already incurred (`LDG-75`; amended
+2026-10-04, `pv-gip.39`). Customer float is not
 operating capital and MUST NOT be spent on operating costs.
 
 **AMENDED 2026-09-02 — the operator-account clause is deleted.** *It said the operator's own margin
@@ -1861,6 +1863,87 @@ on entries that already denormalise both (`LDG-2`, `LDG-24`). An operator accoun
 representation of a number the entries already answer, inside the one table `LDG-5` makes
 append-only and `LDG-22` exempts from retention — the most expensive place in the set to put a
 duplicate.
+
+**LDG-75** **Provider payables are recorded facts plus derived accrual** (*added 2026-10-04,
+`pv-gip.39`, `ADR-0031`*). For each `(provider_account, currency)`, derive one native balance:
+
+```
+B = sum(effective invoice amounts) − sum(effective payment amounts) + uncovered recorded cost
+held_sats ≥ float_sats + sum_over_valued_account_currency(ceil(max(0, B) at current rate)) + stress_sats
+```
+
+`STO-57` owns the append-only billing stream. An invoice or payment is effective exactly when
+no void names it. A void removes its target's amount and, for an invoice, its coverage; a void
+cannot itself be voided. Invoices are net of credits already applied by the provider; a separate
+provider credit note is a negative invoice under the month it corrects, not a new kind.
+
+**Coverage is by `LDG-68` billing period, a UTC calendar month.** An invoice names the month it
+bills. A month is covered iff it has an effective non-negative invoice in this account/currency.
+Zero invoices are admitted, including for a month with recorded cost but no provider document.
+A negative invoice alone covers nothing; it adjusts the amount, and a separate effective
+non-negative invoice still supplies coverage. Recording order is irrelevant: an uninvoiced month
+stays accrued even when later months have invoices. Voiding the last non-negative invoice for a
+month restores that month's accrual. References remain reserved under `STO-57`, including after
+void; corrected re-recording uses a distinct reference with the provider's original reference in
+`operator_ref`.
+
+Accrual MUST be derived at check/read time, never separately stored. Each eligible recorded
+provider cost belongs to a month:
+
+- A ledger entry belongs to its `billing_period`; a correction carries the corrected entry's
+  period, never the posting month. Where no period exists, use the month of `created_at`.
+  Corrections keep the corrected cost's account/currency and signed native adjustment.
+  A debit's native provider cost is positive here independently of its tenant-satoshi sign.
+- A non-outage deficiency belongs to its `opened_at` month.
+- A closed `rate_outage` row is apportioned across every UTC month its absorbed window touches,
+  using `LDG-38`'s billable seconds in each overlap and native provider pricing, with each month's
+  cost rounded up to native minor units. The close writer stores the sum as `native_minor`
+  (`STO-37`); the monthly shares are derived, not separate accrual rows. Neither opening nor
+  closing dates the whole straddling cost. An open row has no finalized cost; `LDG-40` owns the
+  resulting incomplete currency leg. Neither an outage bound nor stalled cancellation closes it.
+
+Sum these eligible costs only for uncovered months, joining subjects to provider accounts
+(attachments through their machine; setup fees through `machine_id`). The classification below
+covers the cause inventory owned by `STO-37`; it does not add causes:
+
+| Cause | Accrual treatment and actual-charge path |
+|---|---|
+| `clamp_overflow` | Include only the native remainder from `LDG-31`; the entry carries the covered part. |
+| `rate_outage` | Include the closed native cost recorded under `LDG-64`, without a tenant debit or a historical rate. |
+| `unrecoverable_setup_fee` | Include the fee obligation recorded under `LDG-39`, including its abandoned branch; it is not also a customer entry. The invoice replaces this estimate. |
+| `exception_branch` | Exclude the forward coverage shortfall from `LDG-63`. Subsequent metering supplies entries and any incurred clamp remainder; the invoice supplies anything missed. |
+| `account_loss` | Exclude `SEC-46`'s unconfirmed exposure. Include subsequent entries and incurred deficiencies through their own records; see `LDG-74` for the meter-stop rule. The invoice supplies anything missed. |
+| `late_attach_cleanup` | Exclude `OPS-36`'s wind-down floor. Actual charges subsequently carried by entries or incurred deficiencies count through those records; cost without such a record arrives on the invoice. Opening a commitment is not itself a provider charge. |
+
+Provider cost MUST count once whoever bore it: an exposure estimate and the charge realizing it
+MUST NOT both enter accrual. Deficiency resolution is not an input. On invoice recording,
+`true_up_minor` MUST be the signed invoice amount minus the accrual of the month it newly covers;
+if it newly covers no month, subtract zero. Serialization belongs to `API-66`. Coverage
+and B themselves depend on effective rows and month membership, not arrival order. Replays
+return the stored true-up even after more records arrive.
+
+**Accepted accounting gaps:** costs absent from local charges — including `LDG-25` free
+operations, quarantine and resources provisiond did not create — remain missing until invoice
+authority supplies them. The abandoned setup-fee obligation remains an estimate until invoiced.
+Provider local-time months can misplace cost by up to the UTC offset at each boundary. A deficiency
+dated in a later month than the provider charged it is missed only while an earlier invoice is
+unrecorded behind a later one. A month with two invoices counts as covered when only one is
+recorded. These limitations add no new cost writer, alarm or coverage machinery.
+
+Only held satoshis under `LDG-53`'s asset treatment count on the asset side; fiat, self-reported
+bank funds and provider credit MUST NOT count as assets. Floor B at zero separately per
+account/currency before current-rate valuation and summation, rounding each valuation up to
+satoshis; credit in one cannot cancel another's debt. `LDG-20` owns the additional stress leg;
+`LDG-40` owns omissions and halt transitions. The operator pays from business money, records
+payment, then draws satoshis. Drawing needed coverage first fails the check until the payment is
+recorded, subject to the retained halt. The accepted working-capital cost is about an invoice cycle.
+
+There is no staleness rule, stale-tab alarm or per-account customer block. An unrecorded invoice
+leaves that month's accrual standing in; an unrecorded payment does not extinguish the payable.
+Deployment-wide headroom is `max(0, held_sats − this check's right-hand side)`;
+`WIR-54` owns its read alongside completeness and halt status. Headroom MUST NOT be summed across account reads or,
+with an incomplete leg, presented as whole-pool assurance. It is an observation, not a reserved
+draw authorization; provisiond executes no draw or provider payment.
 
 **LDG-18** The float MUST NOT be pledged, lent, or posted as collateral (`ADR-0003`).
 
@@ -1900,10 +1983,11 @@ The internal obligation is untouched: `LDG-17` still requires the satoshis actua
 **This decision changes what is said, not what is done** — the operator remains fully reserved and
 simply declines to advertise it.
 
-**LDG-20** **AMENDED.** Solvency MUST be checked against stress: the provider-currency pair
+**LDG-20** **AMENDED** (*2026-10-04, `pv-gip.39`: scope due-time treatment to stress*). Solvency MUST be checked against stress: the provider-currency pair
 adverse by 15%, an inaccessible venue for seven days, no new top-ups, and every existing balance
-consumed with maximum provider cost through cancellation. An asset counts only if it can reach
-the provider's account before the liability falls due.
+consumed with maximum provider cost through cancellation. For the forward stress leg only, an
+asset counts only if it can reach the provider's account before the liability falls due.
+`LDG-75` owns recorded payable coverage; it has no due-date test.
 
 **On failure the system MUST halt top-ups first**, then refuse every bill-increasing operation,
 while continuing to permit cancellation and deletion. See `LDG-40` for a check during a currency's

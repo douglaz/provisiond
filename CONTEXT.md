@@ -374,7 +374,7 @@ _Avoid_: hot wallet limit, float cap, reserve (taken — see **Reserve**)
 **Provider payable**:
 What the operator owes one provider account in one currency: the invoices the operator recorded,
 less the payments recorded, plus the **accrual** — the provider cost carried by charges and
-operator deficiencies since the latest recorded invoice's period. The invoice is the authority;
+operator deficiencies for every month no recorded invoice covers (`LDG-75`). The invoice is the authority;
 the accrual only stands in until it arrives. It is paid with the operator's business money, never
 from the float, and satoshis are held against it until its payment is recorded.
 _Avoid_: tab, bill (a customer's), liability (too broad)

@@ -58,8 +58,8 @@ counter gave, and the counter, the interval and `WIR-9a`'s `retry_after_ms` are 
 replay rule needs.
 
 `LDG-20`'s "halt top-ups first" orders two responses in time; this is a matrix, so what it
-carries is that minting is refused and crediting is not. Valuation is not modelled: the inequality,
-asset treatment and stress set — "the provider-currency pair adverse by 15%, an inaccessible venue
+carries is that minting is refused and crediting is not. `Provisiond.Payables` carries the
+inequality over supplied balances/rates; asset treatment and the stress set — "the provider-currency pair adverse by 15%, an inaccessible venue
 for seven days" — are outside. A computed shortfall remains an input, passed to `nextHalt`; its result determines whether `underHalt` applies.
 Neither the transition nor the no-rate matrix computes that input or proves the
 monetary calculation. Its solvency row only records that the check continues over valued terms.
@@ -134,7 +134,7 @@ inductive Verb
   | revoke
   | retry | suspend | resume | resolve | attributeDeposit | releaseAttachment
   | assignProviderAccount | recordStatus | recordNetworkRestriction | reviseDeadline
-  | abuseOpen | abuseClose | abuseRecordTransmission
+  | abuseOpen | abuseClose | abuseRecordTransmission | recordBilling
   deriving DecidableEq, Repr
 
 def Verb.all : List Verb :=
@@ -143,7 +143,7 @@ def Verb.all : List Verb :=
    .revoke,
    .retry, .suspend, .resume, .resolve, .attributeDeposit, .releaseAttachment,
    .assignProviderAccount, .recordStatus, .recordNetworkRestriction, .reviseDeadline,
-   .abuseOpen, .abuseClose, .abuseRecordTransmission]
+   .abuseOpen, .abuseClose, .abuseRecordTransmission, .recordBilling]
 
 theorem Verb.mem_all (v : Verb) : v ∈ Verb.all := by cases v <;> decide
 
@@ -155,7 +155,7 @@ it -/
 
 /-- `WIR-34`'s list — resolve, suspend, resume, attribute, the abuse-case verbs,
 address-resolution, record-network-restriction and revise-deadline, assign-provider-account,
-record-status, the episode routes and the attachment routes — "MUST be served only on the operator
+record-status, record-billing, the episode routes and the attachment routes — "MUST be served only on the operator
 listener (`API-27`)". Everything else is the customer surface, `revoke` included: `WIR-38` is not
 in that list, which "is read as closed". No wildcard, so a verb added without a listener is a
 missing case. -/
@@ -165,7 +165,7 @@ def Verb.listener : Verb → Listener
   | .deposit | .extendRunway | .abuseStatement | .revoke => .customer
   | .retry | .suspend | .resume | .resolve | .attributeDeposit | .releaseAttachment
   | .assignProviderAccount | .recordStatus | .recordNetworkRestriction | .reviseDeadline
-  | .abuseOpen | .abuseClose | .abuseRecordTransmission => .operator
+  | .abuseOpen | .abuseClose | .abuseRecordTransmission | .recordBilling => .operator
 
 /-- Step 1, and only the credential's half of it: does this secret authenticate *this route*?
 
@@ -231,7 +231,7 @@ def Verb.ceilings (entersRescue : Bool) : Verb → List Ceiling
   | .recordStatus => [.statusRecordings]
   | .reverseDns | .refresh | .deposit | .abuseStatement | .revoke | .resume | .attributeDeposit
   | .releaseAttachment | .recordNetworkRestriction | .reviseDeadline | .abuseOpen | .abuseClose
-  | .abuseRecordTransmission => []
+  | .abuseRecordTransmission | .recordBilling => []
 
 /-- Whether this verb is counted at all. Read at the strategy that charges least, since a verb
 counted only when it enters rescue is still a counted verb. -/
@@ -397,7 +397,7 @@ def Verb.maintenance : Verb → Bool
   | .create | .power | .install | .reverseDns | .refresh | .rescueInventory | .deleteMachine
   | .deposit | .extendRunway | .abuseStatement | .retry | .suspend | .attributeDeposit
   | .releaseAttachment | .assignProviderAccount | .recordStatus | .recordNetworkRestriction
-  | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission => false
+  | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission | .recordBilling => false
 
 /-- `API-43`'s pending allowlist, restricted to the writes: "**`POST /v1/deposits`** — mint a
 funding destination" and "**`POST /v1/recovery/revoke`** (`API-56`)", amended 2026-09-02 to read
@@ -409,7 +409,7 @@ def Verb.pendingAllowed : Verb → Bool
   | .create | .power | .install | .reverseDns | .refresh | .rescueInventory | .deleteMachine
   | .extendRunway | .abuseStatement | .retry | .suspend | .resume | .resolve | .attributeDeposit
   | .releaseAttachment | .assignProviderAccount | .recordStatus | .recordNetworkRestriction
-  | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission => false
+  | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission | .recordBilling => false
 
 /-- Step 2: "**reject a tenant that has never been activated** — a `pending` tenant fails
 `not_activated` (`API-35`), **except** the `API-43` allowlist and the **maintenance actions**".
@@ -574,7 +574,7 @@ def Action.reducesExposure : Action → Bool
     | .create | .power | .install | .reverseDns | .refresh | .rescueInventory | .deposit
     | .extendRunway | .abuseStatement | .revoke | .suspend | .resume | .resolve
     | .attributeDeposit | .assignProviderAccount | .recordStatus | .recordNetworkRestriction
-    | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission => false
+    | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission | .recordBilling => false
   | .rederivation | .solvencyCheck | .metering => false
 
 /-- `LDG-20`: the "bill-increasing" operations. `LDG-9`'s create is one — the spending authority
@@ -590,7 +590,7 @@ def Action.billIncreasing : Action → Bool
     | .power | .install | .reverseDns | .refresh | .rescueInventory | .deleteMachine | .deposit
     | .abuseStatement | .revoke | .retry | .suspend | .resume | .resolve | .attributeDeposit
     | .releaseAttachment | .assignProviderAccount | .recordStatus | .recordNetworkRestriction
-    | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission => false
+    | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission | .recordBilling => false
   | .fundingCancellation | .suspensionCancellation | .boundCancellation | .rederivation
   | .exhaustionSweep | .solvencyCheck | .metering => false
 
@@ -607,7 +607,7 @@ def Action.mintsDestination : Action → Bool
     | .extendRunway | .abuseStatement | .revoke | .retry | .suspend | .resume | .resolve
     | .attributeDeposit | .releaseAttachment | .assignProviderAccount | .recordStatus
     | .recordNetworkRestriction | .reviseDeadline | .abuseOpen | .abuseClose
-    | .abuseRecordTransmission => false
+    | .abuseRecordTransmission | .recordBilling => false
   | .fundingCancellation | .suspensionCancellation | .boundCancellation | .rederivation
   | .exhaustionSweep | .solvencyCheck | .metering => false
 
@@ -732,7 +732,7 @@ def underNoRate (g : Guards) (t : TenantState) (a : Action) : RateAnswer :=
     | .power | .install | .reverseDns | .refresh | .rescueInventory | .deleteMachine | .deposit
     | .abuseStatement | .revoke | .retry | .suspend | .resume | .resolve | .attributeDeposit
     | .releaseAttachment | .assignProviderAccount | .recordStatus | .recordNetworkRestriction
-    | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission => .continues
+    | .reviseDeadline | .abuseOpen | .abuseClose | .abuseRecordTransmission | .recordBilling => .continues
 
 /-- The billing currencies a deployment prices in. `LDG-59`: "there is one rate, one quorum, one
 outage and one bound for each currency the deployment bills in, a subject's rate is its offer's
@@ -1111,5 +1111,13 @@ theorem tail_agrees_with_policy (g : Guards) (hg : g.richTailCollection = true) 
 theorem envelope_is_conjunction (r : TailResult) :
     envelopeRetryable r = true ↔ ∀ e ∈ r.refusals, e.retryable = true := by
   simp [envelopeRetryable]
+
+@[req "API-66"]
+theorem billing_record_is_never_halted (g : Guards) (t : TenantState) :
+    underHalt g (.caller .recordBilling) = none ∧
+    underNoRate g t (.caller .recordBilling) = .continues ∧
+    Verb.recordBilling.listener = .operator := by
+  simp [underHalt, underNoRate, Action.reducesExposure, Action.billIncreasing,
+    Action.mintsDestination, Verb.listener]
 
 end Provisiond.Admission

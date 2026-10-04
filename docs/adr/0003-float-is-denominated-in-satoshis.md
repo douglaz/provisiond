@@ -8,8 +8,8 @@ acquiring fiat to back it, **the balance is denominated in satoshis**, matching 
 the asset actually held.
 
 A customer deposits 100k sats and holds 100k sats of credit. Machines are priced in sats at spot
-each billing period. The operator holds sats and owes sats, and is matched at all times¹. Sats are
-sold only at the moment consumption creates a provider invoice.
+each billing period. The operator holds sats and owes sats, and is matched at all times¹. Provider-payable coverage and the payment/recording/draw sequence now belong to `LDG-75`
+(`ADR-0031`, 2026-10-04); the earlier sale-at-invoice sentence is superseded.
 
 ## Why this beats the alternatives
 
@@ -76,12 +76,12 @@ periods), and the scheduled-cancellation branch (`LDG-63`), where billing
 cannot be stopped before its effective date and a commitment that available cannot top leaves the
 gap with the operator, bounded per machine by `PRV-31`.
 
-**The rest are the operator deficiencies `LDG-66` enumerates, and that requirement is the canonical
+**The rest are the operator deficiencies `STO-37` enumerates, and that requirement is the canonical
 list rather than this footnote.** *There were four when `LDG-66` was written, six when it was last
 counted, and this footnote and `ADR-0011` both still said "two" — because they were counting the
 two they happened to know about and nothing pointed the count at the record.* A deficiency is
 precisely a place where the matching is delivered by the operator absorbing a gap rather than by the
-arithmetic, so the honest statement is: **`LDG-66`'s causes are the exceptions, plus the persistence
+arithmetic, so the honest statement is: **`STO-37`'s causes are the exceptions, plus the persistence
 window above.** Citing rather than enumerating is what stops this drifting a third time.
 
 Everywhere else the matching is delivered

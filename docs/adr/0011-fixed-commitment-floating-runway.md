@@ -63,7 +63,7 @@ rate reading can move a date but can never destroy a disk.
   its own stated interval rather than per billing period), the scheduled-cancellation branch,
   where billing cannot be stopped before the effective date and a commitment that cannot be
   topped from available leaves the gap with the operator — bounded per machine by `PRV-31`'s
-  declared worst case — **and every other cause `LDG-66` enumerates**, since an operator deficiency
+  declared worst case — **and every other cause in `STO-37`'s enumeration** (pointer amended 2026-10-04, `ADR-0031`), since an operator deficiency
   *is* a gap the operator absorbs rather than one the arithmetic closes. *Amended 2026-09-02: this
   bullet said "two exceptions" and `LDG-66` counted six, having grown twice since. The requirement
   is the list; this ADR cites it, which is the only arrangement that cannot drift again.*

@@ -1216,12 +1216,55 @@ Recording a status the driver itself reports is `conflict` with `details.reason:
 (`API-63`), and so is any attempt to move an account **out of** `terminated`, which is write-once
 because it has already released customer money.
 
+**WIR-53** `POST /v1/provider-accounts/{account}/actions/record-billing` (`API-66`) —
+*added 2026-10-04 (`pv-gip.39`, `ADR-0031`)*; operator-only on the operator listener,
+synchronous `200`, no operation. `{account}` follows `WIR-50`; `Idempotency-Key` is required
+and scoped to the operator principal (`API-10`, `STO-35`). The body carries `STO-57`'s `kind`,
+`currency`, `amount_minor`, `provider_ref`, `billing_period`, `occurred_at`, `voids_row_id` and
+`operator_ref`; nullable fields are explicit. Validation follows `STO-57` and `WIR-1a`, including
+signed invoice amounts and null void amounts. The result contains `row` (the stored `STO-57`
+row) and `true_up_minor` (`LDG-75`'s signed invoice true-up, null for payment/void).
+Same key/fingerprint returns the exact stored status/body; a changed fingerprint is `409`
+`conflict`/`idempotency_mismatch`. Fresh-key import collisions and void errors are `API-66`/
+`STO-57`'s. Invoice request:
+
+```json
+{"kind": "invoice", "currency": "USD", "amount_minor": 4200,
+ "provider_ref": "invoice-2026-09", "billing_period": "2026-09",
+ "occurred_at": "2026-10-02T00:00:00Z", "voids_row_id": null,
+ "operator_ref": "opref-billing-19"}
+```
+
+Void request:
+
+```json
+{"kind": "void", "currency": "USD", "amount_minor": null,
+ "provider_ref": null, "billing_period": null,
+ "occurred_at": "2026-10-03T00:00:00Z",
+ "voids_row_id": "0198c1c2-6b7a-7d3e-9f10-2a4c6e8b0d11",
+ "operator_ref": "opref-billing-20"}
+```
+
+**WIR-54** `GET /v1/provider-accounts/{account}/billing` (`API-67`) — operator-only,
+*added 2026-10-04 (`pv-gip.39`, `ADR-0031`)*. The body contains `provider_account`, `currencies`,
+`rows`, `next_cursor` (`WIR-32`) and `coverage`. Rows use `STO-57`'s shape. `currencies` includes
+every currency with billing rows, derived accrual or an open outage cost for this account.
+Each element contains `currency`, signed `balance_minor`, signed `accrual_minor`, and
+`accrued_months`, ordered by `billing_period`, each with `billing_period` and signed `amount_minor`
+for recorded eligible cost still accrued in that month. Calculations cover all rows, not just the
+returned page. Open outage costs are incomplete under `LDG-40`, not finalized zero amounts.
+`coverage` contains `held_sats`, `required_sats`, `headroom_sats`, `complete` (boolean),
+`omitted_currencies` (currency-code list, including rated currencies with open outage rows),
+`halt_in_force` (boolean) and `scope: "deployment"`. `LDG-75` owns headroom and its limits;
+`required_sats` is the check's right-hand side over valued terms, not assurance about omitted
+legs. All money integers follow `WIR-1a`. Account reads observe the same deployment pool.
+
 ## Listeners, limits and fixtures
 
-**WIR-34** **Operator-only routes** (`WIR-35` resolve, `WIR-39`
+**WIR-34** **Operator-only routes** (*amended 2026-10-04, `pv-gip.39`: billing routes*) (`WIR-35` resolve, `WIR-39`
 suspend, `WIR-41` resume, `WIR-42` attribute, `WIR-44`'s three abuse-case verbs, `WIR-46`
 address-resolution, `WIR-47`'s record-network-restriction and revise-deadline, `WIR-48`
-assign-provider-account, `WIR-50` record-status, `WIR-51`'s three episode routes, `WIR-52`'s two attachment routes, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
+assign-provider-account, `WIR-50` record-status, `WIR-51`'s three episode routes, `WIR-52`'s two attachment routes, `WIR-53` record-billing, `WIR-54` billing read, and the operator forms of `WIR-29`/`WIR-30`) MUST be served only on the operator listener (`API-27`), MUST NOT carry the
 customer CORS headers of `WIR-4a`, and MUST return `404` — never `authentication` — to a
 customer-authenticated request, so their existence is not customer-observable.
 

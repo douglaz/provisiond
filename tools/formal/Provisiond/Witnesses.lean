@@ -3196,6 +3196,17 @@ theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
         underNoRate Admission.current t .metering = .metersNative) := by
   constructor <;> decide
 
+/-- `LDG-31`'s partition, including the old full-cost-on-entry trap. -/
+def nativeClampTrace (g : Ledger.Guards) := Ledger.nativeSplit g 70 100 30
+
+@[req "LDG-31"]
+theorem native_clamp_counts_cost_once :
+    nativeClampTrace Ledger.current = (21, 49) := by decide
+
+@[req "LDG-31"]
+theorem without_native_split_cost_counts_twice :
+    nativeClampTrace { Ledger.current with nativeCostSplit := false } = (70, 49) := by decide
+
 /-- The rich tail retains resource, pool and rate refusals together. -/
 def fencedHaltedNoRate (g : Admission.Guards) :=
   purchaseTail g false true true true false true true true

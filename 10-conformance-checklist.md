@@ -845,8 +845,9 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       covered-float case. This rejects both deployment-wide failure from the missing rate and
       last-rate fallback, as well as a sweep or worker that halts across currencies.
 
-      **USD still unrated, valued terms short.** With EUR still rated, increase EUR payables or
-      the float beyond held coverage. Assert the deployment-wide computed-failure halt: EUR
+      **USD still unrated, valued terms short** (*amended 2026-10-04, `pv-gip.39`: exercise
+      payables rather than float*). With EUR still rated, increase recorded EUR payables
+      beyond held coverage. Assert the deployment-wide computed-failure halt: EUR
       create and `extend-runway` are refused `halted` with `gate: "solvency"`, deposit minting is
       refused `halted`, the unsettled Lightning invoice is cancelled, and the deposit read reports
       `gate: "solvency"` and `lightning.cancelled: true` with `expired: false`.
@@ -861,11 +862,12 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       isolate the no-prior-halt trace and defer combined refusal assertions to `CNF-307`.*)
       (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-17`, `LDG-20`, `LDG-53`, `LDG-62`, `LDG-65`,
       `OPS-41`, `WIR-15`, `WIR-24`)
-- [ ] **CNF-306** — **An incomplete pass cannot lift a computed halt.** With every leg
+- [ ] **CNF-306** — **An incomplete pass cannot lift a computed halt.**
+      (*Amended 2026-10-04, `pv-gip.39`: payment uses the recording verb.*) With every leg
       valued, induce a short check: top-up minting halts and an unexpired unsettled invoice is
       cancelled. Remove a currency's rate until its window yields no rate. Make the valued terms
-      covered, separately by adding satoshis and by recording a payment once that verb is
-      available. Assert the incomplete passing check retains the halt: a fresh deposit request
+      covered, separately by adding satoshis and by recording a payment (`WIR-53`). Assert the
+      incomplete passing check retains the halt: a fresh deposit request
       is refused and the existing deposit read still reports `gate: "solvency"` and
       `lightning.cancelled: true`. Restore the rate and cover the full stressed check; only then
       does the halt lift, a fresh deposit mint succeed, and the old read report `gate: null`
@@ -916,6 +918,94 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       existing shape. Race admission against the existing account/fence conditional-write guards;
       rich collection must not weaken either guard. (`API-7`, `API-63`, `WIR-9`, `WIR-9a`,
       `WIR-9b`, `WIR-4`, `WIR-17`, `WIR-24`, `WIR-30`, `LDG-35`, `LDG-62`, `STO-35`, `OPS-11`)
+- [ ] **CNF-309** — **Operator recording is idempotent accounting** (*added 2026-10-04,
+      `pv-gip.39`, `ADR-0031`*). Record an invoice, payment and void through `WIR-53`; assert
+      synchronous `200`, no operation/provider call/payment execution, and row plus exact result
+      receipt commit atomically. Lose each response and replay the same request/key: exact stored
+      body/status and one row. Change the fingerprint: `409` `conflict`/`idempotency_mismatch`.
+      Re-import the same `(provider_account, kind, provider_ref)` under a fresh key, also
+      concurrently and after void: `409` `conflict`/`state`, no duplicate cost. Corrected recording
+      with a distinct reference and the original provider reference in `operator_ref` succeeds.
+      Customer requests see `404` on either listener; neither record nor read is served on the
+      public listener or carries customer CORS headers. Record while the pool is halted and
+      without a currency rate: it succeeds, with no tenant balance or commitment change.
+      A fresh-key duplicate void fails `409` `conflict`/`state`; voiding a void or a target in
+      another account/currency fails `invalid_request`. Originals remain byte-identical and
+      storage refuses update/delete. Exercise `WIR-53`'s invoice/void fixtures, a positive payment,
+      a documentless zero invoice with an operator-made reference, and a negative credit note;
+      reject invalid field/null combinations and non-positive payments. (`API-66`, `API-67`,
+      `WIR-53`, `WIR-54`, `WIR-34`, `STO-57`, `STO-35`, `LDG-75`)
+- [ ] **CNF-310** — **Month coverage and derived accrual** (*added 2026-10-04, `pv-gip.39`,
+      `ADR-0031`*). With January cost 100 and February cost 180, record February's invoice 200
+      first: B is 300, January stays in `accrued_months`, and the true-up is +20. Then record
+      January's invoice 90: B is 290, January leaves accrual, and its true-up is −10. Reverse
+      arrival order and require the same final B and coverage. A documentless month's cost 50
+      stays accrued until a zero invoice covers it, with true-up −50; voiding that invoice
+      restores 50 and distinguishes withdrawn coverage from authoritative zero cost.
+
+      Post September usage in October: September's invoice covers it, while an October-only
+      invoice leaves it accrued. A later signed correction carries September's cost period and
+      account/currency, and follows the same coverage. An entry with no period follows its
+      `created_at` month. Non-outage deficiencies follow their `opened_at` month.
+      Concurrent invoices of 120 and 130 for one uncovered month with cost 100 produce true-ups
+      summing to 150 (20+130 or 120+30), B=250 and one covered month. Replay either after further
+      records: its stored true-up is unchanged. No arrival order removes accrual twice.
+
+      Void an invoice: its amount disappears and, absent another non-negative invoice, accrual
+      returns. With cost 100, a lone credit note −20 leaves B=80 and no coverage; adding invoice
+      90 covers the month and makes B=70. Void that invoice and B returns to 80. Void a payment
+      of 60 and B increases by 60, only once. Exercise permanent references and invalid voids
+      under `CNF-309`.
+
+      Close an outage spanning month end with 50 native units in each month: `native_minor` is
+      written as 100, with non-zero positive cost, and January's invoice 60 leaves only February's
+      50 accrued (B=110). Repeat by inserting an already-closed row and on a repeated posting;
+      no duplicate cost or changed closure. Choose fractional native costs to verify each month's
+      upward rounding. In a separate run, let cancellation stall across month end after the
+      outage bound. Neither the bound nor the stalled attempt closes the row or finalizes its
+      native cost. Hold a solvency halt and probe a rated check snapshot whose outage row is still
+      open: the currency stays omitted and the halt remains. This can be a seeded check fixture
+      if return and close commit atomically. Finalize on a qualifying return (or, in another run,
+      an earlier valid meter stop), verify the full
+      absorbed span split by month, and only then allow a complete passing check to lift the halt.
+      Do not bound the absorbed span by the cancellation deadline.
+
+      Exercise each cause in `LDG-75`'s table: included clamp remainder, closed outage cost and
+      unrecoverable setup fee (observed, absent and abandoned-estimate branches); excluded
+      exception-branch coverage, account-loss exposure and late-attach floor. Realize excluded
+      exposure through subsequent entries/incurred deficiencies and then invoice; it never counts
+      both as reserved exposure and actual cost. A computed 100-sat debit with 30 sats remaining
+      and 70 native cost produces native entry 21 plus deficiency 49, total 70; a full clamp
+      carries all native cost in the deficiency, with no zero ledger row. Fee and attachment
+      attribution reach the correct account. Record an invoice replacing outage cost and payment
+      covering it: no phantom payable, resolution flag or customer backcharge. Also pay accrued
+      outage cost before invoicing, then invoice it: the replacement leaves no phantom payable.
+
+      Demonstrate the accepted gaps in `LDG-75`: invoice authority supplies locally absent free
+      operation, quarantine and untracked-resource costs; provider local-month boundaries can
+      misplace cost up to the UTC offset; a later-dated deficiency can be missed while an earlier
+      invoice is unrecorded behind a later one; and recording only one of a month's two invoices
+      already covers that month. These are limitations, not alarms or new cost writers.
+      (`LDG-75`, `LDG-31`, `LDG-2`, `LDG-39`, `LDG-63`, `LDG-64`, `LDG-66`, `LDG-74`,
+      `OPS-36`, `SEC-46`, `STO-37`, `STO-57`, `WIR-53`, `WIR-54`)
+- [ ] **CNF-311** — **Separate payable floors, omission and pay/record/draw** (*added
+      2026-10-04, `pv-gip.39`, `ADR-0031`*). Give one account credit −100 and another debt +60 at
+      one satoshi per minor unit: the payable leg is 60, never zero. Repeat across currencies.
+      Use held 200, float 100, payable 60 and additional stress 20: headroom is 20. Drawing 60
+      first leaves 140 against required 180 and fails the check. In an independent run, pay 60
+      from business money, record it, then draw 60: required is now 120 and remaining held 140
+      passes. A paid-but-unrecorded amount remains payable; no fiat or provider credit is an
+      asset. Partial payment reduces only its own account/currency balance. The read's `coverage`
+      matches the same check and its headroom limits, independent of row pagination; reading
+      another account reports the same deployment pool, not additional draw capacity. An unrated
+      currency is omitted, never valued at its last rate; `complete` is false and the omitted
+      currency is named. Repeat with a rated currency carrying an open outage row, even if other
+      accounts in that currency have finalized costs: the currency remains omitted. Incomplete
+      headroom is not whole-pool assurance. Repeat `CNF-306` with recorded payment: an incomplete
+      pass cannot lift an existing halt, whereas `CNF-138` covers missing-rate-alone and starting
+      a halt from short valued terms. An incomplete cost alone likewise starts no halt; short
+      valued terms still do. (`LDG-75`, `LDG-17`, `LDG-20`, `LDG-40`, `LDG-53`, `WIR-53`,
+      `WIR-54`, `STO-57`)
 - [ ] **CNF-139** — No code path uses a rate past its newest observation's stamped bound
       (*amended 2026-10-04, `pv-gip.28`*), and there is no
       last-known-good fallback anywhere. Asserted by removing every source for longer than the
@@ -1266,7 +1356,8 @@ rather than acquiring a default.
       `max(currency outage start, attach seed)`, never absorbing pre-attach time.
 
       Return the rate. In one ordering, extend before the cleanup fence: a commitment opens,
-      `runway_until` is re-derived, the wind-down deficiency's `resolved_at` is written, and the
+      `runway_until` is re-derived (*amended 2026-10-04, `pv-gip.39`: no deficiency-resolution
+      bookkeeping*) and the
       cleanup aborts without provider mutation; the machine survives. In the other ordering, make
       no extension: the cleanup cancels through the existing fence. The opening rates on the
       native-only wind-down and setup-fee records remain null in both cases. No general interval
@@ -1664,7 +1755,8 @@ rather than acquiring a default.
       12:20–12:50 outage and 2/5 afterwards. Retain the history for replay and post nothing
       during the outage. Run independent ordinary-tick and exit fixtures at 13:00. Both
       conditionally insert one subject row already closed, `absorbed_from = 12:20`,
-      `absorbed_until = 12:50`, `absorbed_seconds = 1800`, null rate fields and `resolved_at`.
+      `absorbed_until = 12:50`, `absorbed_seconds = 1800`, null rate fields (*amended
+      2026-10-04, `pv-gip.39`: remove the obsolete deficiency-resolution field*).
       Assert debit/decrement 240 for [12:00,12:20), none for [12:20,12:50), and 240 for
       [12:50,13:00), total 480, final `r = 0`, mark 13:00; the exit releases only after
       posting. Repeat the tick and replay the exit: no extra row, debit, seconds or relief.
@@ -2077,9 +2169,8 @@ rather than acquiring a default.
       (`OPS-8`), makes no provider call, settles `succeeded`, and the episode closes (`OPS-48`).
       **Afterwards
       `machines.destroy_committed` is null, the stored `runway_until` is the re-derived future date,
-      a second `extend-runway` succeeds, and — where the episode was `OPS-36`'s late-attach cleanup —
-      the wind-down deficiency it booked carries `resolved_at` and no longer feeds the solvency
-      check** — a build that leaves the fence set passes the first
+      a second `extend-runway` succeeds** (*amended 2026-10-04, `pv-gip.39`: remove deficiency
+      resolution bookkeeping; survival and repeated extension remain covered*) — a build that leaves the fence set passes the first
       sentence and refuses every later extension forever, and one that leaves the stored date in
       the past is re-routed by the next sweep and loops. **Then the same with a `rate_outage_bound`
       cancellation** whose rate returns between enqueue and claim: the worker re-derives at the

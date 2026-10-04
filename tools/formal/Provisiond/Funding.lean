@@ -102,7 +102,8 @@ amount — `sats` here is the settled value; `LDG-48`'s confirmation depth, fold
 settlement event; `LDG-52`'s rail floor; `LDG-56`'s disclosure; `WIR-42`'s `operator_ref` and its
 `409` on a second tenant, which the model refuses silently; `LDG-66`'s "provider-native amount
 and currency (`LDG-2`)" and rate on the deficiency record — `Deficiency` carries the satoshi
-figure and the absorbed time only; `LDG-38`'s 2026-09-04 clause, "The subject's billability and its
+figure and the absorbed time only; `LDG-31`'s native split is checked separately in
+`Provisiond.Ledger.nativeSplit`, not composed with postings here; `LDG-38`'s 2026-09-04 clause, "The subject's billability and its
 stop boundary MUST be re-read inside the same `LDG-35` serialization that appends, and the increment
 clipped to them" — the lifecycle trace below assumes ordered, non-quarantined transitions and given
 stop boundaries, with a rate for every increment. Non-quarantine is an explicit initial-state

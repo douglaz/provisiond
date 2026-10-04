@@ -44,6 +44,8 @@
 | POST | `/v1/abuse-cases/{id}/actions/revise-deadline` | ✓ | Operator: extend `respond_by`, keeping the old value (`STO-44`, `WIR-47`) |
 | POST | `/v1/tenants/{tenant_id}/actions/assign-provider-account` | ✓ | Operator: add or replace a tenant's provider-account assignment (`API-62`, `WIR-48`) |
 | POST | `/v1/provider-accounts/{account}/actions/record-status` | ✓ | Operator: record an account unreachable, its credentials rejected, or its termination confirmed (`API-63`, `WIR-50`) |
+| POST | `/v1/provider-accounts/{account}/actions/record-billing` | ✓ | Operator: record an invoice, payment or void (`API-66`, `WIR-53`) |
+| GET | `/v1/provider-accounts/{account}/billing` | ✓ | Operator: billing rows, accrual and deployment headroom (`API-67`, `WIR-54`) |
 
 **The enrolment, funding and balance rows were absent until 2026-08-12** — enrolment shipped on
 2026-08-11 and funding earlier the same day as that note, and the recovery, resolve, suspend,
@@ -252,6 +254,7 @@ The tail then depends on what the endpoint does:
 | **extend-runway** | evaluate the rich purchase tail below; on admission, the guarded extension (`LDG-62`) and idempotency record commit together (`WIR-24`); synchronous `200` |
 | **abuse-case writes** | the tenant's statement (`WIR-43`) and the operator's five verbs (`API-60`, `API-61`) — synchronous, **no commitment, no spending gate, no provider mutation**; `201` on create and on a statement, `200` on the rest; each carries `Idempotency-Key` under `WIR-24`'s one-transaction rule. The statement write is a maintenance action and stays reachable while suspended (step 5b) |
 | **attribute** | operator-only (`WIR-42`); synchronous, `200`; posts ledger entries, so it **takes `LDG-35`'s serialization for both tenants, in ascending tenant-identifier order**, and the primitive must not require a live `tenants` row — the source tenant is normally already reaped |
+| **record billing** (*added 2026-10-04, `pv-gip.39`*) | operator-only (`API-66`, `WIR-53`); synchronous `200`; local row and receipt commit together; no provider mutation, commitment or spending gate |
 
 **Rich purchase tails (create and extend-runway only; amended 2026-10-04, `ADR-0030`).** After steps 1–5c, the tail MUST
 collect every applicable refusal once, from one read-only snapshot inside the existing `LDG-35`
@@ -281,8 +284,7 @@ those steps for their rationale. Deposit behavior and other tails are unchanged.
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a
 machine during a rate outage — the one action that would have stopped the bleeding.*
 
-**The last three rows were added 2026-08-31.** Seven write endpoints — `attribute` and the six
-abuse-case verbs — had joined `API-48`'s closed list and `WIR-34`'s operator-route list and been
+**The attribute and abuse-case rows were added 2026-08-31.** Those endpoints had joined `API-48`'s closed list and `WIR-34`'s operator-route list and been
 missed here, so a builder reached step 5b and the instructions stopped. `attribute` is the one that
 mattered: it appends ledger entries to two tenants and nothing said it serialized.
 
@@ -841,6 +843,8 @@ returns `202` and an operation" — the set `OVR-4` names as the closed set of s
     is `manual` (`API-65`, `WIR-52`) — it records that an operator did by hand what no driver can
     do, and there is no provider write to be asynchronous about; on an `api` row the same route
     is an ordinary `202`.
+20. `POST /v1/provider-accounts/{account}/actions/record-billing` (`API-66`, `WIR-53`; added
+    2026-10-04, `pv-gip.39`).
 
 Every member has the same justification: **none of them is itself a provider mutation**, so none
 needs a durable operation of its own. Any endpoint added later that *does* touch a provider MUST
@@ -1380,3 +1384,24 @@ account and `API-62`, which is a decision with a record.
 after, and the reason (`SEC-39`, `SEC-32`) — this is an operator verb that moves customer money, and
 `SEC-39` as amended assumes the operator principal is a program.
 
+**API-66** **The operator MUST be able to record a provider invoice, payment or void**
+(*added 2026-10-04, `pv-gip.39`, `ADR-0031`*).
+`WIR-53` owns the request and result; `STO-57` owns the append-only rows and import uniqueness.
+The verb follows the common `API-7` pipeline, skips tenant-state steps as an operator verb, and
+commits its row and exact synchronous result receipt together (`STO-35`, `WIR-3`). It MUST be
+admitted during a solvency halt and without a currency rate: it is not bill-increasing. It never
+executes a payment, calls a provider, creates an operation or moves tenant balances. The `api`
+handler records through `ledger` (`OVR-9`); no importer is required. A duplicate provider reference
+under a fresh key MUST fail `409` `conflict`, `details.reason: "state"`, without another row or
+accounting effect. Invoice amounts MAY be zero, including where no provider document exists,
+or negative for credit notes. `STO-57` owns void validation and permanent reference reservation.
+Concurrent recording for one account/currency MUST serialize the invoice's reported true-up
+calculation and row/receipt commit, so concurrent invoices newly cover one month only once in
+those results. This serialization protects the reported number, not an order-dependent B.
+No particular lock primitive is prescribed.
+
+**API-67** **The operator MUST be able to read each provider account's billing** (*added
+2026-10-04, `pv-gip.39`, `ADR-0031`*). `WIR-54` owns the rows, months still accrued,
+derived balances and deployment headroom. The read
+uses one consistent read-only snapshot, makes no provider call, and is operator-only under
+`WIR-34`. No read writes accrual or repairs bookkeeping.

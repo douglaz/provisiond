@@ -594,6 +594,7 @@ jobs:
           Admission|solvencyUsesValuedTerms|true|false|Action.solvencyCheck
           Admission|completeCheckToLift|true|false|incompletePassingTrace
           Admission|richTailCollection|true|false|fencedHaltedNoRate
+          Ledger|nativeCostSplit|true|false|nativeClampTrace
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
           Period|deploymentWide|true|false|lateSubjectTrace

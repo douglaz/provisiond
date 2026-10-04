@@ -525,6 +525,8 @@ working gets deleted by the first engineer who needs it, and then nothing is enf
 
 ### `ledger_entries`
 
+*Amended 2026-10-04 (`pv-gip.39`): remove `settlement_ref`; `STO-57` owns billing references.*
+
 **AMENDED 2026-08-15 — this section said only "Contents are specified by `LDG-5`–`LDG-8`", and
 those requirements name four fields no column list ever provided.** It is the `commitments` gap
 (below) and the `STO-34`–`STO-36` gap recurring a fourth time, on the one table `ADR-0002` makes
@@ -544,7 +546,6 @@ the authorization system.
 | `idempotency_key` | text | not null; unique within the tenant (`LDG-8`). Derived from the thing being billed or from the payment (`STO-31`), never from a count of what has been posted |
 | `operation_id`, `machine_id`, `commitment_id` | UUID | nullable; `LDG-6`'s causation ids |
 | `deposit_id` | UUID | nullable; **required on every `topup`** and on the `correction` pair `WIR-42` posts. `LDG-43` requires an unattributed credit to carry the deposit it arrived at, because the deposit id is the only handle a returning customer still holds (`WIR-14`'s disclosure) and `ADR-0005` retains nothing about the payer — so without this column `WIR-42` can find the credits it must move by no route at all. It is the operator's own binding (`LDG-49`, `STO-29`), not information about a counterparty, so it costs `LDG-21` nothing. *Added 2026-09-02; it was a MUST in `12-billing-and-ledger.md` with no column anywhere, which is `STO-38`'s failure class for the fourth time* |
-| `settlement_ref` | text | nullable; the provider-side settlement reference once known (`LDG-6`) |
 | `native_minor`, `native_currency` | integer, text | nullable; `LDG-2`'s provider-denominated amount, required on every provider-denominated entry |
 | `rate_num`, `rate_den`, `rate_source`, `rate_observed_at`, `haircut_bps`, `rounding_rule_version` | integer, integer, text, timestamp, integer, text | nullable; `LDG-4`'s conversion evidence, **denormalised onto the entry** so it survives any pruning of a rate table |
 | `created_at` | timestamp | |
@@ -571,6 +572,38 @@ requirements with no column, which is how
 
 **STO-22** `ledger_entries` MUST be append-only at the storage layer, not merely by convention —
 no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
+
+### `provider_billing`
+
+**STO-57** **Append-only provider billing records** (*added 2026-10-04, `pv-gip.39`,
+`ADR-0031`*), outside `ledger_entries`, with no operator tenant or tenant-ledger kind.
+`LDG-75` owns accounting; `API-66`/`WIR-53` own recording. Rows MUST be retained with no update
+or delete path at the storage layer.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | UUID | primary key |
+| `provider_account` | text | configured account identifier linked to `STO-47`, retained with billing history |
+| `currency` | text | explicit provider currency code |
+| `kind` | enum | `invoice` or `payment` or `void` |
+| `amount_minor` | signed integer | invoice amount (zero and negative admitted), positive payment amount, null for void |
+| `provider_ref` | text | required non-empty opaque invoice/payment reference, including an operator-made reference for documentless zero invoices; null for void; no secret/contact data |
+| `billing_period` | text | `LDG-68` UTC month (`YYYY-MM`), required for invoice, null for payment/void |
+| `occurred_at` | timestamp | issuance, payment or void instant, not a due date |
+| `voids_row_id` | UUID | required only for void, null otherwise; target MUST be an invoice or payment in the same account/currency |
+| `operator_ref` | text | opaque evidence reference under `WIR-50`'s constraint; corrected re-recording keeps the original provider reference here |
+| `created_at` | timestamp | server recording instant |
+
+Unique `(provider_account, kind, provider_ref)` for non-null references, permanently, even after
+void. Voids have unique `voids_row_id`: a duplicate void under a fresh request key MUST fail
+`409` `conflict`/`state`, with no second removal. A void of a void or a target in another
+account/currency MUST fail `invalid_request`. Corrected re-recording needs a distinct reference;
+re-importing the voided one remains `409`. No reference is freed by a void.
+Index `(provider_account, currency, billing_period)` for coverage and
+`(provider_account, created_at, id)` for reads. The insert and exact `STO-35` receipt MUST commit
+together. All native-cost subjects and attachment-to-machine-to-account links needed by
+`LDG-75` MUST remain resolvable through invoice coverage and voids, including tombstoned subjects;
+no cascade may erase cost attribution. Accrual has no row, counter or separate writer.
 
 ### `rate_observations`
 
@@ -873,12 +906,15 @@ in satoshis. *Added 2026-09-02: the record carried only `native_minor` plus a ra
 the satoshi figure meant reversing a `ceil`'d conversion, which is off by up to one. A deficiency
 that cannot state its own size in the unit it arose in is not a durable record of anything*),
 `absorbed_seconds` (the elapsed billable time absorbed, which is what `LDG-38`
-subtracts — in seconds, never converted; **zero for every cause but `rate_outage`**, since the
-others absorb satoshis against consumption the customer was already charged for and subtracting
-their seconds too would relieve it twice, `LDG-66`; an open outage row carries zero, and the write
+subtracts — in seconds, never converted; **zero for every cause but `rate_outage`**, `LDG-66` owns that distinction; an open outage row carries zero, and the write
 that sets `absorbed_until` MUST also write the elapsed billable length in seconds of the window
 placed by `absorbed_from` and `absorbed_until`, clipped to the subject's billable span, not the
-posting's wall-clock duration; an insertion already closed writes those seconds in that insertion),
+posting's wall-clock duration; an insertion already closed writes those seconds in that insertion).
+*Amended 2026-10-04 (`pv-gip.39`):* that same close write, including an insertion already closed,
+MUST also set `native_minor` to the absorbed window's native cost, computed by `LDG-75`'s monthly
+apportionment. An open row's `native_minor` is not a finalized cost; it MUST NOT count as one.
+The close MUST finalize positive absorbed native cost as non-zero, and neither a cancellation
+bound nor a stalled attempt is a close event. The remaining fields are
 `absorbed_from`, `absorbed_until` (**the
 placement of that absorbed window in time**, required wherever `absorbed_seconds` is non-zero and
 read by `LDG-38` to
@@ -890,19 +926,14 @@ without a rate keeps null permanently, as does a rate-outage deficiency includin
 after the rate returns — `LDG-64`; amended 2026-10-04, `pv-gip.27`),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
 `late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
-`idempotency_key` (unique), `opened_at`, `resolved_at`. `LDG-66`'s record. It is deliberately not
+`idempotency_key` (unique), `opened_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
-**`resolved_at` is written by the one event that ends an exposure this record carries — the
-`LDG-62` extension that opens a covering commitment on the machine, for `late_attach_cleanup`** —
-and by nothing else: every other cause is a loss
-the operator has already borne, not one that can be undone, and a null there is the truth. *Stated
-2026-09-05; the column had no writer at all, so `OPS-36`'s wind-down deficiency outlived the
-extension that funded it, and `LDG-20`'s solvency check carried a phantom liability for the life of
-the machine.* **The row is the subject's, and the meter opens it.** One `rate_outage` row per
+*Amended 2026-10-04 (`pv-gip.39`, `ADR-0031`): the deficiency-resolution timestamp is
+removed; `LDG-75` owns accrual classification and invoice coverage.*
+**The row is the subject's, and the meter opens it.** One `rate_outage` row per
 billable span of a machine or attachment within an outage — the table's own
 `subject_kind`/`subject_id`, and what `OPS-41` contends on, "**this machine's** open `rate_outage` deficiency record" — and nothing
-deployment-wide. Open means what `OPS-41`'s guard says: `absorbed_until IS NULL`; `resolved_at` is
-not that marker and stays null on this cause. The meter (`LDG-64`) MUST replay the history for every no-rate span intersecting a subject's clipped
+deployment-wide. Open means what `OPS-41`'s guard says: `absorbed_until IS NULL`. The meter (`LDG-64`) MUST replay the history for every no-rate span intersecting a subject's clipped
 increment, including a completed outage when a rate exists at posting time. Its first posting
 that finds such a span without that subject's row for that outage and billable span, including
 an exit posting (`LDG-38`), opens it as a **conditional insert guarded on that absence**.

@@ -9,8 +9,9 @@ on every trace, and `open_against_read_is_the_serialized_open` is where the read
 The operator deficiency `LDG-31`'s clamp writes is `Balances.deficiency`, a running satoshi total
 the balance never reads: `LDG-66` says it "is NOT a ledger entry" and "MUST NOT alter any tenant
 balance", and `deficiency_is_not_a_balance` is that sentence. `STO-37`'s record — the cause, the
-native amount, the absorbed seconds — is `Provisiond.Funding.Deficiency`; here only the satoshi
-figure `clamped_sats` is carried, in the unit the clamp arose in.
+absorbed seconds — is partly carried by `Provisiond.Funding.Deficiency`; native cost there is
+omitted. `nativeSplit` below checks the native partition in isolation; the ledger step carries
+only the satoshi figure `clamped_sats`, in the unit the clamp arose in.
 
 The guards are the fields of `Guards`, each carried as a parameter so that the alternative the text
 forbids is a one-token change with a witness. `clampAtAuthority`: `LDG-31`'s clamp paragraph, "the
@@ -48,6 +49,7 @@ not modelled. -/
 namespace Provisiond.Ledger
 
 structure Guards where
+  nativeCostSplit         : Bool
   clampAtAuthority        : Bool
   serializedAuthorization : Bool
   appendReadsLatest       : Bool
@@ -56,6 +58,7 @@ structure Guards where
 /-- The rules as they stand. One field per line: `ci.yml`'s controls flip one each. -/
 @[req "LDG-31"]
 def current : Guards := {
+    nativeCostSplit         := true,
     clampAtAuthority        := true,
     serializedAuthorization := true,
     appendReadsLatest       := true }
@@ -479,5 +482,22 @@ theorem open_against_read_is_the_serialized_open (g : Guards)
     (b : Balances) (hb : b.sum = (Book.empty.run g ps).sum) (n : Int) :
     openAgainst (Book.empty.run g ps).read b n = step g b (.openCommitment n) := by
   simp only [openAgainst, step, hs, ite_true, read_available_is_available g ha ps b hb]
+
+/-- `LDG-31`'s native split for a computed positive debit; the caller supplies the clamped
+customer debit. The 2026-10-04 guard retains a full native cost on the entry when disabled,
+which double-counts the deficiency remainder. The surrounding ledger model still omits native currency rows. The `min` only
+makes out-of-domain inputs total; when customer ≤ computed it leaves the formula unchanged. -/
+@[req "LDG-31"]
+def nativeSplit (g : Guards) (native computed customer : Nat) : Nat × Nat :=
+  let entry := min native (native * customer / computed)
+  (if g.nativeCostSplit then entry else native, native - entry)
+
+@[req "LDG-31"]
+theorem native_cost_is_partitioned (g : Guards) (hg : g.nativeCostSplit = true)
+    (n d c : Nat) :
+    (nativeSplit g n d c).1 + (nativeSplit g n d c).2 = n := by
+  simp only [nativeSplit, hg, ite_true]
+  have := Nat.min_le_left n (n * c / d)
+  omega
 
 end Provisiond.Ledger

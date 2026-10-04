@@ -390,8 +390,8 @@ The reasons:
   provider-currency pair adverse by 15%". Held satoshis and float need no currency rate.
   Omitting non-negative payables can only make that inequality easier to satisfy, so a shortfall
   even without them is evidence for the existing halt. The asset basis remains `LDG-53`'s
-  "channel balances and confirmed on-chain outputs", subject to `LDG-20`'s "An asset counts
-  only if it can reach the provider's account before the liability falls due."
+  "channel balances and confirmed on-chain outputs". `LDG-75` owns payable coverage;
+  `LDG-20` owns the forward stress leg's asset timing.
 
 Rejected alternatives:
 
@@ -424,8 +424,8 @@ The API write table gains a solvency pointer on `extend-runway`: `LDG-62` calls 
 like a purchase". `API-7` owns refusal ordering (`ADR-0030`). `CNF-138` holds the outage
 conformance cases. The admission guard's off position retains the withdrawn solvency row, and
 `.github/workflows/ci.yml` holds its regression control. Neither the matrix proof nor those
-conformance requirements are evidence about a running system. Provider-payable resolution
-(`pv-gip.39`) and the deposit-read schema (`pv-gip.40`) remain separate work.
+conformance requirements are evidence about a running system. Provider-payable accounting is now owned by `LDG-75` (`ADR-0031`, amended 2026-10-04); `WIR-15` owns the
+deposit-read schema.
 
 
 ## An incomplete pass preserves the verdict — 2026-10-04
