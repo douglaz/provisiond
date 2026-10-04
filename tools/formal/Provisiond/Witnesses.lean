@@ -242,11 +242,44 @@ theorem keep_writes_date_witness :
     w.episode.map (·.state) = some (.closed .kept) ∧
     w.m.commitment = 1 ∧ w.balance = 1000 := by decide
 
+/-- Retry wins the conditional-write race before keep. Pin all other controls used by
+this trace, especially the independent date write, to isolate eligibility. -/
+def keepEligibilityGuards (p : Params) : Params :=
+  operatorGuards { p with retryDeletes := true, keepWritesDate := true }
+
+def keepAfterRetry (p : Params) : World :=
+  let stalled := run p subSecondWorld priceFundedStall
+  retry p { stalled with m := { stalled.m with runwayUntil := 0 } }
+
+/-- `API-68`'s "admissible only in `stalled`": the losing keep is wholly inert. -/
+@[req "API-68"]
+theorem keep_eligibility_guarded :
+    let p := keepEligibilityGuards Fence.current
+    let before := keepAfterRetry p
+    before.episode.map (·.state) = some .attempting ∧
+    before.m.fence = some (.episode ⟨1⟩) ∧ before.m.runwayUntil = 0 ∧
+    keep p before = before := by decide
+
+/-- Without only the conditional write, keep overwrites the retry's attempting state,
+clears its fence and writes the date. The table must not silently reapply eligibility. -/
+@[req "API-68"]
+theorem keep_eligibility_unguarded :
+    let p := keepEligibilityGuards { Fence.current with keepGuard := false }
+    let before := keepAfterRetry p
+    let after := keep p before
+    before.episode.map (·.state) = some .attempting ∧
+    before.m.fence = some (.episode ⟨1⟩) ∧ before.m.runwayUntil = 0 ∧
+    after.episode.map (·.state) = some (.closed .kept) ∧
+    after.m.fence = none ∧ after.m.runwayUntil = 1 ∧
+    after.attempt = before.attempt ∧ after.m.commitment = before.m.commitment ∧
+    after.balance = before.balance := by decide
+
 /-- Timer stability across funding and another lapse, explicit retry after resume, and keep's
 unfunded route back. These traces pin the new guards; their removal is tested separately. -/
 @[req "OPS-48"]
 theorem operator_episode_cases :
-    let p := operatorGuards { Fence.current with retryDeletes := true, keepWritesDate := true }
+    let p := operatorGuards { Fence.current with
+      retryDeletes := true, keepWritesDate := true, keepGuard := true }
     let stalled := run p subSecondWorld priceFundedStall
     let swept := run p stalled [.sweep, .sweep, .advance 2, .sweep, .extend 100]
     let resumed := run p fundedWorld [.suspend, .claim, .fenceTxn,

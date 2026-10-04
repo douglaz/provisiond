@@ -523,8 +523,9 @@ jobs:
       # a count of 49 that no green run could satisfy), which is AGENTS.md's "cite the list; let
       # it hold the number" in a script.
       # Q11/Q12 (2026-10-04): retryDeletes restores retry-driven revival; keepWritesDate
-      # omits the synchronous keep date write. The automatic sweep-close row and its
-      # obsolete suspension-exemption witness were deleted with that policy.
+      # omits the synchronous keep date write; keepGuard admits keep after retry wins.
+      # The automatic sweep-close row and its obsolete suspension-exemption witness
+      # were deleted with that policy.
       - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status guard's removal, one witness each
         run: |
           set -uo pipefail
@@ -547,6 +548,7 @@ jobs:
           Fence|rederiveFirst|true|false|fundingOrderGuards Fence.current
           Fence|retryDeletes|true|false|priceFundedStall ++ tail
           Fence|keepWritesDate|true|false|operatorGuards Fence.current
+          Fence|keepGuard|true|false|keepEligibilityGuards Fence.current
           Fence|retryGuard|true|false|goneAfterStallTrace ++
           Fence|goneOrClosedFirst|true|false|goneMidOutageTrace
           Fence|noRateWaits|true|false|freshOutageTrace

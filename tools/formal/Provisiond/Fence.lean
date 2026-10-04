@@ -50,9 +50,10 @@ record, which are `LDG-64`'s and `STO-37`'s account of what an outage is and wit
 a parameter could return to; and the places of the suspension read and of the rate read in
 `OPS-41`'s order. The 2026-10-04 retry branch precedes the funding decision.
 `retryDeletes` restores the old funding re-check when disabled; `keepWritesDate` omits the
-operator keep's date write. Keep admission, durable operator evidence and idempotency receipt
-storage are outside this model. `Attempt.retried` abstracts the durable requested-by/episode
-origin specified by API-64, not a claim-local flag.
+operator keep's date write. `keepGuard` controls the stalled-only condition on the write.
+Operator authentication, durable operator evidence and idempotency receipt storage are outside
+this model. `Attempt.retried` abstracts the durable requested-by/episode origin specified by
+API-64, not a claim-local flag.
 
 Re-derivation consumes an optional per-currency acceptance order (`STO-49`); no observation is
 `LDG-40`'s halt. The caller supplies the date computed by `LDG-33`; source aggregation, currency
@@ -243,6 +244,8 @@ structure Params where
   retryDeletes : Bool
   /-- API-68 keep writes the derived date (2026-10-04). -/
   keepWritesDate : Bool
+  /-- `API-68`: "admissible only in `stalled`" (2026-10-04). -/
+  keepGuard : Bool
   recheckInsideFence   : Bool
   fenceHolds           : Holds
   fenceOnOpenEpisode   : Bool
@@ -273,6 +276,7 @@ per line: `ci.yml`'s controls flip one each. -/
 def current : Params := {
     retryDeletes        := true,
     keepWritesDate      := true,
+    keepGuard           := true,
     recheckInsideFence   := true,
     fenceHolds           := .episodeId,
     fenceOnOpenEpisode   := true,
@@ -838,15 +842,18 @@ def retry (p : Params) (w : World) : World :=
     else w
   | _, _, _ => w
 
-/-- Operator keep, after admission: one stalled-only close/fence/date transaction.
+/-- Operator keep, after authentication: one close/fence/date transaction.
+`API-68` requires "conditional-write on `(id, state = stalled)`". `keepGuard` controls that
+condition; the write uses the stalled table row, as `retry` does, so removing the condition
+actually admits the write rather than leaving a second eligibility check inside the table.
 No rate retains the stored date under LDG-65. Receipts and principal/evidence storage are
 not represented in this machine model; API-68 and STO-52 specify them. -/
 @[req "API-68"]
 def keep (p : Params) (w : World) : World :=
   match w.phase, w.episode with
   | .idle, some ep =>
-    if ep.state == .stalled then
-      let closed := applyRow w ep .keep
+    if !p.keepGuard || ep.state == .stalled then
+      let closed := applyRow w { ep with state := .stalled } .keep
       match w.rate with
       | some r => if p.keepWritesDate then
           writeAbortDate closed (w.now + runwaySeconds w.m.commitment w.prot r)
@@ -854,6 +861,29 @@ def keep (p : Params) (w : World) : World :=
       | none => closed
     else w
   | _, _ => w
+
+/-- `API-68`: "admissible only in `stalled`". Refusal preserves the whole world, including
+its episode, fence and stored date, independently of the date-write control. -/
+@[req "API-68"]
+theorem keep_only_from_stalled (p : Params) (hg : p.keepGuard = true) (w : World)
+    (ep : EpisodeRow) (hep : w.episode = some ep) (hs : ep.state ≠ .stalled) :
+    keep p w = w := by
+  simp only [keep, hep]
+  split <;> simp_all
+
+/-- Legal keep still takes precisely the current table row before the optional date write. -/
+@[req "API-68"]
+theorem keep_stalled_row (p : Params) (w : World) (ep : EpisodeRow)
+    (hep : w.episode = some ep) (hs : ep.state = .stalled) (hp : w.phase = .idle) :
+    keep p w =
+      let closed := applyRow w ep .keep
+      match w.rate with
+      | some r => if p.keepWritesDate then
+          writeAbortDate closed (w.now + runwaySeconds w.m.commitment w.prot r)
+        else closed
+      | none => closed := by
+  have he : { ep with state := .stalled } = ep := by cases ep; simp_all
+  simp [keep, hp, hep, hs, he]
 
 /-- The gone-write (`ADR-0021`): "the write of `machines.state` to gone with `state_observed_at`
 (`STO-48`), by any of `LDG-74`'s triggers ... or by `API-63`'s termination", which "closes its
@@ -1704,7 +1734,10 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
     split
     · rename_i ep hph hep
       split
-      · have hi := applyRow_inv w ep .keep hep hw
+      · have hi : Inv (applyRow w { ep with state := .stalled } .keep) := by
+          constructor
+          · simp [applyRow, episodeStep, close, fenceNamesOpenEpisode]
+          · simpa [idsFresh, applyRow, hep] using hw.2
         split
         · split
           · exact inv_same _ _ rfl rfl rfl hi
@@ -1756,8 +1789,8 @@ theorem fence_names_open_episode (p : Params) (hh : p.fenceHolds = .episodeId)
 
 /-- One step on a closed episode: it is untouched, or superseded by a fresh one opened
 `attempting` under the counter's next id. Nothing puts a closed episode back in an open state. -/
-theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : EpisodeRow)
-    (hep : w.episode = some ep) (r : CloseReason) (hc : ep.state = .closed r) (e : Event) :
+theorem closed_step (p : Params) (hg : p.retryGuard = true) (hkeep : p.keepGuard = true)
+    (w : World) (ep : EpisodeRow) (hep : w.episode = some ep) (r : CloseReason) (hc : ep.state = .closed r) (e : Event) :
     (step p w e).episode = some ep ∨
     ∃ r', (step p w e).episode = some { id := ⟨w.nextId⟩, state := .attempting, reasons := [r'] } := by
   have hnot : w.episodeOpen = false := by simp [World.episodeOpen, hep, hc, Episode.isOpen]
@@ -1813,7 +1846,7 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
       · exact hep
     · exact hep
   | keep =>
-    left; simp [step, keep, hep]
+    left; simp [step, keep, hep, hkeep]
     split <;> simp_all
   | goneWrite =>
     left; simp only [step]; unfold goneWrite
@@ -1846,16 +1879,20 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (w : World) (ep : Ep
 never changed under its id by any event: what carries that id afterwards is the same row. A
 later episode is a fresh row under a fresh id, so a stale attempt settling under the old one
 "changes the attempt and not the episode" (`OPS-48`). Needs `retryGuard`, the 2026-09-09
-conditional write: a plain `retry` write reopens a closed episode (`retry_guard_witness`). -/
+conditional write: a plain `retry` write reopens a closed episode (`retry_guard_witness`).
+Also needs `keepGuard`: `API-68`'s "conditional-write on `(id, state = stalled)`" prevents
+a later keep from replacing a permanent close reason. These hypotheses expose the eligibility
+rules under test; the current-policy conclusion is unchanged. -/
 @[req "OPS-48"]
 theorem closed_absorbing_in_lifecycle (p : Params) (hh : p.fenceHolds = .episodeId)
-    (ho : p.fenceOnOpenEpisode = true) (hg : p.retryGuard = true) (w0 : World) (h0 : Init w0)
+    (ho : p.fenceOnOpenEpisode = true) (hg : p.retryGuard = true) (hkeep : p.keepGuard = true)
+    (w0 : World) (h0 : Init w0)
     (es : List Event)
     (ep : EpisodeRow) (hep : (run p w0 es).episode = some ep) (r : CloseReason)
     (hc : ep.state = .closed r) (e : Event) (ep' : EpisodeRow)
     (hep' : (step p (run p w0 es) e).episode = some ep') (hid : ep'.id = ep.id) : ep' = ep := by
   have hfresh := (inv_run p hh ho w0 (inv_init w0 h0) es).2
-  rcases closed_step p hg _ ep hep r hc e with h | ⟨r', h⟩
+  rcases closed_step p hg hkeep _ ep hep r hc e with h | ⟨r', h⟩
   · rw [h] at hep'; exact (Option.some.inj hep').symm
   · rw [h] at hep'
     obtain rfl := Option.some.inj hep'

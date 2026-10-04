@@ -1049,6 +1049,13 @@ old attempt. It adds no funding, suspension or retry-ceiling gate to `API-7`'s o
 predicate**, opening a fresh episode under `OPS-39`; keep grants no grace or exclusion from
 that population. The close and evidence survive with the episode under `STO-52`.
 
+*Model verification note added 2026-10-04 (`pv-gip.11`):
+`Provisiond.Fence.keep_only_from_stalled` and `Provisiond.Fence.keep_stalled_row` check
+the transaction against its eligibility condition and table row.
+`Provisiond.Witnesses.keep_eligibility_guarded` and
+`Provisiond.Witnesses.keep_eligibility_unguarded` isolate the conditional-write control
+in a retry-wins race. These are model proofs, not running-service conformance (`ADR-0025`).*
+
 **API-65** **ADDED 2026-09-08 — the operator's half of `PRV-45`, which had no route.**
 `GET /v1/machines/{id}/attachments` (`WIR-52`) is **operator-only** (`WIR-34`) and lists the
 machine's `machine_attachments` rows. `POST /v1/machines/{id}/attachments/{attachment_id}/actions/release`
