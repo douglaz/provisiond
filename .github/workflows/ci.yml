@@ -806,8 +806,8 @@ jobs:
                   assert path.read_bytes() == original
           PY
 
-      # Direct ownership and nested punctuation preserve words in both comparisons.
-      - name: Prove the citation gate rejects a bare possessive and a nested misquote
+      # QUOTED preserves word-internal apostrophes while accepting nested delimiters.
+      - name: Prove the citation gate rejects bare possessive, apostrophe and nested misquotes
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -821,16 +821,26 @@ jobs:
           try:
               path.write_bytes(exact)
               subprocess.run(['python3', 'tools/check_citations.py'], check=True)
-              wrong = exact.replace(b'the greatest `increment end`', b'the smallest `increment end`')
-              assert wrong != exact and wrong.count(b'the smallest `increment end`') == 1
-              path.write_bytes(wrong)
-              result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
-              print(result.stdout)
-              assert result.returncode == 1, (result.returncode, result.stderr)
-              assert '00-overview.md attributes to LDG-72 a phrase LDG-72 does not contain:' in result.stdout
-              assert '"the smallest increment end among that subject\'s rows"' in result.stdout
-              path.write_bytes(exact)
-              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+              for before, after, quote in [
+                  (b'the greatest `increment end`', b'the smallest `increment end`',
+                   "the smallest increment end among that subject's rows"),
+                  (b"that subject's rows", b'that subjects rows',
+                   'the greatest increment end among that subjects rows'),
+              ]:
+                  assert exact.count(before) == 1
+                  wrong = exact.replace(before, after)
+                  assert wrong != exact and wrong.count(after) == 1
+                  path.write_bytes(wrong)
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, (quote, result.returncode, result.stderr)
+                  diagnostic = '00-overview.md attributes to LDG-72 a phrase LDG-72 does not contain:'
+                  assert result.stdout.count(diagnostic) == 1, result.stdout
+                  assert f'"{quote}"' in result.stdout
+                  assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+                  path.write_bytes(exact)
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  print(f'PASS: LDG-72: {quote}: exact -> named failure -> exact')
           finally:
               path.write_bytes(original)
               assert path.read_bytes() == original
@@ -860,6 +870,32 @@ jobs:
                   path.write_bytes(original)
                   assert path.read_bytes() == original
               subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          # Probe both comparison directions and norm()'s straight/curly typography.
+          # EXISTS intentionally retains its separate, apostrophe-insensitive behavior.
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          def attributed(source, quote):
+              return c.find({'probe.md': f'`OPS-41` says “{quote}”.'}, {},
+                            {'OPS-41': ('source.md', source)})
+
+          plain = 'the tenants balance remains positive'
+          for mark in ["'", '’', '‘']:
+              wording = f'the tenant{mark}s balance remains positive'
+              for source, quote in [(wording, plain), (plain, wording)]:
+                  expected = ([('probe.md', 'OPS-41', c.norm(quote))], [], 1)
+                  assert attributed(source, quote) == expected, (source, quote)
+                  assert c.exists({'probe.lean': f'“{quote}”'}, [source]) == ([], 1)
+              for other in ["'", '’', '‘']:
+                  assert attributed(wording, wording.replace(mark, other)) == ([], [], 1)
+          single = "'Succeeds' means the resource is gone"
+          double = '"Succeeds" means the resource is gone'
+          for source, quote in [(single, double), (double, single)]:
+              assert attributed(source, quote) == ([], [], 1)
+              wrong = quote.replace('gone', 'present')
+              assert attributed(source, wrong) == ([('probe.md', 'OPS-41', c.norm(wrong))], [], 1)
+          print('PASS: straight/curly apostrophes and nested delimiters in both directions; EXISTS unchanged')
           PY
 
       # Derive standing cases from the baseline; temporary fixtures keep these

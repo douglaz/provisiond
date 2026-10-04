@@ -64,6 +64,10 @@ FOUR RULES, deliberately narrow.
            Possessives require a straight apostrophe and whitespace immediately
            followed by the opening quote; intervening prose or markup is not
            this shape. Quotes below four words remain outside QUOTED.
+           Comparison drops double marks and single marks except apostrophes
+           between word characters after norm(): nested 'single' and "double"
+           delimiters match, but subject's and subjects remain distinct.
+           Signature identity still uses norm(), retaining all marks.
            A chunk shaped `X` says `Y`'s "four or more words" compares against
            both owners; no precedence rule was chosen. A nested example can
            gain a second attribution. An allowance is per full signature, not
@@ -79,10 +83,10 @@ FOUR RULES, deliberately narrow.
            a paired span of at most 400 characters containing at least four
            normalised words. Longer quotations are counted by neither rule,
            but their marks are consumed before scanning the next span.
-           Both QUOTED and EXISTS compare with comparison_text(), removing
-           ' and " after norm() on both sides, since a docstring
+           EXISTS removes every ' and " after norm() on both sides, since a docstring
            writes a nested quotation with single marks where the document has
-           double ones. Signature identity still uses norm(), retaining marks.
+           double ones. Unlike QUOTED, it also ignores word-internal apostrophes.
+           Signature identity still uses norm(), retaining marks.
            Chunks HISTORICAL or TEACHING match are skipped, as
            QUOTED skips them, and elisions split a quote into fragments
            matched one by one, as QUOTED's do; both spaced `...` and `…`
@@ -239,8 +243,8 @@ def norm(s):
 
 
 def comparison_text(s):
-    """Ignore nested quotation punctuation without changing baseline signatures."""
-    return norm(s).replace('"', "").replace("'", "")
+    """QUOTED: ignore nested marks, preserving apostrophes between word characters."""
+    return re.sub(r'''"|(?<!\w)'|'(?!\w)''', "", norm(s))
 
 
 def unpaired_marks(text, first_line=1):
@@ -408,8 +412,11 @@ def find(docs, adrs, reqs, corpus=None):
 def exists(lean, corpus):
     """EXISTS: return (absent_quotes, quotes_counted) over Lean docstrings.
 
-    Owner-free; uses the same nested-mark comparison as QUOTED."""
-    corpus = [comparison_text(t) for t in corpus]
+    Owner-free; retains its established removal of all single and double marks."""
+    def comparison(s):
+        return norm(s).replace('"', "").replace("'", "")
+
+    corpus = [comparison(t) for t in corpus]
     missing, total = [], 0
     for f, text in lean.items():
         for sent in chunks(text):
@@ -418,7 +425,7 @@ def exists(lean, corpus):
             if HISTORICAL.search(sent) or TEACHING.search(sent):
                 continue
             for q in quotes:
-                frags = fragments(comparison_text(q))
+                frags = fragments(comparison(q))
                 if not any(all(fr in c for fr in frags) for c in corpus):
                     missing.append((f, q))
     return missing, total
