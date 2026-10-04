@@ -805,3 +805,81 @@ jobs:
                   path.write_bytes(original)
                   assert path.read_bytes() == original
           PY
+
+      # A bare possessive compares only its direct quote. Each historical
+      # exemption is a complete signature: changing even that quote must fail.
+      - name: Prove the citation gate rejects a bare possessive and altered residue
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          # CNF-216's dated note remains HISTORICAL; exercise its quote in a
+          # current direct attribution without changing the historical policy.
+          path = Path('00-overview.md')
+          original = path.read_bytes()
+          exact = original + b'\n`LDG-72`\'s "the greatest `increment end` among that subject\'s rows".\n'
+          try:
+              path.write_bytes(exact)
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+              wrong = exact.replace(b'the greatest `increment end`', b'the smallest `increment end`')
+              assert wrong != exact and wrong.count(b'the smallest `increment end`') == 1
+              path.write_bytes(wrong)
+              result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+              print(result.stdout)
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert '00-overview.md attributes to LDG-72 a phrase LDG-72 does not contain:' in result.stdout
+              assert '"the smallest increment end among that subject\'s rows"' in result.stdout
+              path.write_bytes(exact)
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+
+          rows = [
+              ('11-open-findings.md', 'OPS-26',
+               b'nothing automatic will look at it again', b'nothing automatic will glance at it again',
+               'nothing automatic will glance at it again'),
+              ('11-open-findings.md', 'CNF-272',
+               b'resume the tenant, fund the machine, retry the', b'resume the tenant, freeze the machine, retry the',
+               'resume the tenant, freeze the machine, retry the episode, and assert the machine survives'),
+              ('11-open-findings.md', 'PRV-36',
+               b'MUST be widened\nby any observed sample', b'MUST be narrowed\nby any observed sample',
+               'must be narrowed by any observed sample that exceeds it'),
+              ('tools/formal/Provisiond/Tables.lean', 'STO-8a',
+               b'"Succeeds" means the resource is gone', b'"Succeeds" means the resource is present',
+               '"succeeds" means the resource is present'),
+          ]
+          for filename, owner, before, after, diagnostic_quote in rows:
+              path = Path(filename)
+              original = path.read_bytes()
+              try:
+                  assert original.count(before) == 1, filename
+                  mutated = original.replace(before, after)
+                  assert mutated != original and mutated.count(after) == 1
+                  path.write_bytes(mutated)
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, (filename, result.returncode, result.stderr)
+                  assert f'{filename} attributes to {owner} a phrase {owner} does not contain:' in result.stdout
+                  assert f'"{diagnostic_quote}"' in result.stdout
+                  print(f'PASS: {filename}:{owner}: applied mutation and named failure')
+              finally:
+                  path.write_bytes(original)
+                  assert path.read_bytes() == original
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          # A new quotation under an already baselined file and owner gets no exemption.
+          path = Path('11-open-findings.md')
+          original = path.read_bytes()
+          try:
+              path.write_bytes(original + b'\n`OPS-26`\'s "a newly invented quotation without a source".\n')
+              result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+              print(result.stdout)
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert '11-open-findings.md attributes to OPS-26 a phrase OPS-26 does not contain:' in result.stdout
+              assert '"a newly invented quotation without a source"' in result.stdout
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+          subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          PY

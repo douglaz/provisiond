@@ -377,7 +377,7 @@ cleared in that transaction. "The transitions are exactly these" — an event th
 key on changes nothing, and a closed episode is changed by nothing: "A close is permanent, and the
 rows above apply to an open episode only". The scheduled row closes "`close_reason:
 resource_gone`, in the transaction that tombstones the machine at the effective date", `STO-8a`'s
-"'Succeeds' means the resource is gone". -/
+“"Succeeds" means the resource is gone”. -/
 @[req "OPS-48"]
 def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
   let stay := (s, false)

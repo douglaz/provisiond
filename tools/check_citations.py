@@ -23,18 +23,23 @@ FOUR RULES, deliberately narrow.
            concatenated text of every ADR satisfied any attribution, which let
            `11-open-findings.md` attribute to `OPS-47` and `OPS-39` wording
            only `ADR-0019` and `ADR-0021` still hold (`pv-vwe.25`).
-           Hard failure: the quote either occurs there or it does not, so a
-           finding is provable and needs no judgement. Reads the Markdown
+           Unbaselined findings fail. Reads the root *.md Markdown
            documents and /-- ... -/ and /-! ... -/ docstrings under tools/formal/,
-           excluding .lake/. The Lean residue is ratcheted in
+           excluding .lake/. ADRs are sources, not QUOTED input. Standing
+           Markdown residue is keyed by file:id:quote with individual reasons
+           in citation-baseline.json's markdown_quoted_attributions. Lean
+           residue is ratcheted in
            citation-baseline.json's quoted_attributions, keyed by file:id:quote
            with the full normalized quote; its note owns the causes and exits.
            On 2026-09-15 a Lean docstring quoting withdrawn wording stayed green
            for a day, motivating the Lean QUOTED pass.
            REACH: a quote is checked only when its SPLIT chunk carries an
-           ATTRIB match (a speech verb, or `X`'s <noun> that) before it and the
-           chunk is neither HISTORICAL nor TEACHING. In Lean docstrings that is
-           the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
+           ATTRIB match (a speech verb, or `X`'s <noun> that) before it, or is
+           directly after a bare possessive (`X`'s "four or more words"). The
+           chunk must be neither HISTORICAL nor TEACHING. A bare possessive
+           owns only its immediately following quote; each such pair is checked,
+           even with multiple owners in a chunk. It never adds UNQUOTED input.
+           In Lean docstrings that was the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
            or more normalised words were compared. The gate prints both figures
            on every run; the numbers here are that day's reading, not a rule.
            Paired quotations stay in one chunk, including sentence enders and
@@ -46,6 +51,9 @@ FOUR RULES, deliberately narrow.
            This is a paired-mark scanner, not a Markdown or Lean prose parser.
            Historical/teaching heuristics apply to the whole resulting chunk;
            a word inside a quotation can therefore suppress its comparison.
+           Possessives require a straight apostrophe and whitespace immediately
+           followed by the opening quote; intervening prose or markup is not
+           this shape. Quotes below four words remain outside QUOTED.
 
   EXISTS   Every quote of four or more normalised words in a Lean docstring
            must appear somewhere in the corpus -- every root *.md plus
@@ -140,6 +148,10 @@ ATTRIB = re.compile(
     r"`((?:%s)-\d+[a-z]?)`(?:'s)?\s+(?:own\s+)?(%s)\b"
     r"|`((?:%s)-\d+[a-z]?)`'s\s+(?:own\s+)?(%s)\s+that\b" % (NS, SPEECH, NS, NOUN)
 )
+
+# A bare possessive owns its immediately following quotation, not subsequent
+# quotations in the chunk. Short quotes are ignored, never called UNQUOTED.
+POSSESSIVE = re.compile(r"`((?:%s)-\d+[a-z]?)`'s\s+(?=[\"“])" % NS)
 
 # "reads" is two verbs. "`WIR-9` reads \"...\"" attributes text; "`LDG-74` reads
 # it" and "`LDG-38` reads both from this record" mean CONSULTS, and consulting
@@ -290,40 +302,37 @@ def find(docs, adrs, reqs, corpus=None):
     nadrs = {a: norm(t) for a, t in adrs.items()}
     for f, text in docs.items():
         for sent in chunks(text):
-            m = ATTRIB.search(sent)
-            if not m or HISTORICAL.search(sent) or TEACHING.search(sent):
+            if HISTORICAL.search(sent) or TEACHING.search(sent):
                 continue
-            rid = m.group(1) or m.group(3)
-            verb = (m.group(2) or "").lower()
             quotes = list(quotations(sent))
-            # Only quotes AFTER the attribution verb: a quote earlier in the
-            # chunk belongs to whatever introduced it, not to this attribution.
-            # CNF-6's merge marker quotes its own withdrawn text and then
-            # CNF-107's, in that order, in one chunk.
-            quotes = [(p, q) for p, q in quotes
-                      if p > m.start()]
-            if not quotes:
-                if verb not in CONSULTS:
+            attributions = []
+            m = ATTRIB.search(sent)
+            if m:
+                rid = m.group(1) or m.group(3)
+                verb = (m.group(2) or "").lower()
+                # Preserve the speech-verb contract: the first attribution owns
+                # later quotes in its chunk, not quotes before its introduction.
+                later = [(p, q) for p, q in quotes if p > m.start()]
+                if later:
+                    attributions.append((rid, later))
+                elif verb not in CONSULTS:
                     unquoted.append((f, rid, " ".join(sent.split())[:100]))
-                continue
+            for possessive in POSSESSIVE.finditer(sent):
+                direct = [(p, q) for p, q in quotes if p == possessive.end()]
+                if direct:
+                    attributions.append((possessive.group(1), direct))
             # What the chunk cites by name joins the pool: a root document, or
             # one ADR's file. Never every ADR -- withdrawn wording an ADR records
             # must be cited as that ADR's, not passed off as the requirement's.
             docpool = [ndocs[d] for d in DOC.findall(sent) if d in ndocs]
             docpool += [nadrs[a] for a in ADR.findall(sent) if a in adrs]
-            for _pos, q in quotes:
-                # The quote belongs to whoever the attribution verb attaches to,
-                # NOT to the nearest citation before it: "`STO-43` says `STO-14`
-                # 'reaches settled operations'" is STO-43's sentence about
-                # STO-14, and blaming STO-14 for it inverts the claim. Bullet
-                # lists are handled by SPLIT instead, which is where that
-                # confusion actually came from.
-                owner = rid
+            for owner, attributed in attributions:
                 pool = [norm(reqs[owner][1])] if owner in reqs else []
                 pool += docpool
-                checked += 1
-                if not any(all(fr in p for fr in fragments(norm(q))) for p in pool):
-                    bad.append((f, owner, norm(q)))
+                for _pos, q in attributed:
+                    checked += 1
+                    if not any(all(fr in p for fr in fragments(norm(q))) for p in pool):
+                        bad.append((f, owner, norm(q)))
     return bad, unquoted, checked
 
 
@@ -373,6 +382,29 @@ def check_quotations():
             print(f'FAIL: {name}: exact={good}; corrupted={bad}, {missing}, {compared}, {total}')
             return 1
         print(f'PASS: {name}: exact quote passes; corruption reaches QUOTED and EXISTS')
+    return 0
+
+
+def check_possessives():
+    """Direct ownership must not collect a neighbour's quote or change UNQUOTED."""
+    reqs = {'OPS-41': ('probe.md', 'alpha beta gamma delta'),
+            'OPS-42': ('probe.md', 'epsilon zeta eta theta')}
+    cases = [
+        ("`OPS-41`'s \"alpha beta gamma delta\"", 1),
+        ("`OPS-41`'s “alpha beta gamma delta”", 1),
+        ("`OPS-41`'s \"now\"; `OPS-42`'s \"epsilon zeta eta theta\"", 1),
+        ("`OPS-41`'s \"alpha beta gamma delta\"; `OPS-42`'s \"epsilon zeta eta theta\"", 2),
+        ("`OPS-41`'s \"alpha beta gamma delta\"; another \"unattributed four word phrase\"", 1),
+        ("`OPS-41`'s \"just three words\"", 0),
+    ]
+    for text, expected in cases:
+        good = find({'probe': text}, {}, reqs)
+        wrong = text.replace('delta', 'WRONG').replace('theta', 'WRONG')
+        bad, unquoted, compared = find({'probe': wrong}, {}, reqs)
+        if good != ([], [], expected) or len(bad) != expected or unquoted or compared != expected:
+            print(f'FAIL: bare possessive: {text}: {good}, {bad}, {unquoted}, {compared}')
+            return 1
+    print('PASS: bare possessives: direct owner, adjacent owners, short spans, exact and corrupt quotes')
     return 0
 
 
@@ -456,10 +488,10 @@ def unresolved(docs, adrs):
 
 
 def main():
-    if check_docstrings() or check_quotations():
+    if check_docstrings() or check_quotations() or check_possessives():
         return 1
     docs, adrs, reqs = load()
-    bad, unquoted, _ = find(docs, adrs, reqs)
+    bad, unquoted, markdown_compared = find(docs, adrs, reqs)
     lean = load_lean_docstrings()
     lean_bad, _, compared = find(lean, adrs, reqs, corpus=docs)
     missing, total = exists(lean, list(docs.values()) + list(adrs.values()))
@@ -468,12 +500,16 @@ def main():
             baseline = json.load(source)
         quoted_base = set(baseline.get("quoted_attributions", []))
         exists_base = dict(baseline.get("quoted_existence", {}))
+        markdown_base = dict(baseline.get("markdown_quoted_attributions", {}))
     except (OSError, ValueError, TypeError, AttributeError):
         # Without a readable baseline there are no exemptions, so ratcheted residue
         # surfaces as findings and fails the gate before the unquoted initializer.
-        quoted_base, exists_base = set(), {}
+        quoted_base, exists_base, markdown_base = set(), {}, {}
     lean_new = [(f, rid, q) for f, rid, q in lean_bad
                 if f"{f}:{rid}:{q}" not in quoted_base]
+    markdown_bad = bad
+    bad = [(f, rid, q) for f, rid, q in markdown_bad
+           if f"{f}:{rid}:{q}" not in markdown_base]
     bad += lean_new
     for f, rid, q in bad:
         print(f"  {f} attributes to {rid} a phrase {rid} does not contain:")
@@ -487,7 +523,9 @@ def main():
               f"Lean docstring quote(s) found nowhere. Quote the requirement's own "
               f"words, or cite it without quoting.")
         return 1
-    print(f"quoted attributions verified: clean")
+    print("quoted attributions verified: no new findings")
+    print(f"Markdown quoted attributions: {markdown_compared} compared; {len(markdown_bad)}, "
+          f"none new against baseline {len(markdown_base)}")
     print(f"Lean quoted attributions: {len(lean_bad)}, none new against baseline {len(quoted_base)}")
     print(f"Lean docstring quotes: {total}; {compared} compared under QUOTED; EXISTS finds "
           f"{len(missing)} absent, none new against baseline {len(exists_base)}")
