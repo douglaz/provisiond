@@ -609,7 +609,7 @@ no cascade may erase cost attribution. Accrual has no row, counter or separate w
 
 **STO-49** **`rate_observations`** — `currency` (the provider-native currency this rate converts
 from — there is one rate per billing currency, EUR and USD on the launch set), `rate_num`,
-`rate_den` (`LDG-4`'s exact rational), `source`, `observed_at`, `acceptance_order`, `haircut_bps`,
+`rate_den` (`LDG-4`'s exact rational), `source`, `observed_at`, `accepted_at`, `acceptance_order`, `haircut_bps`,
 `rounding_version`, `staleness_bound_seconds` (the bound in force for this accepted observation),
 `window_rate_num`, `window_rate_den` (the accepting pass's computed window rate, both null if
 thin; otherwise `LDG-4`'s exact rational). *Amended 2026-10-04 (`pv-gip.28`, `ADR-0029`):*
@@ -620,12 +620,18 @@ unique on `(currency, observed_at)` and on `(currency, acceptance_order)`. Reade
 subject's currency. **One row per rate observation
 the deployment accepts** (`LDG-58`'s median of one pass's sources), **written before that rate is
 used for anything**, and retained at least until every subject **with an open increment** has closed
-one past its `observed_at` — an exiting subject retains its open increment through `LDG-38`'s
+one past its `accepted_at` — an exiting subject retains its open increment through `LDG-38`'s
 exit write; after that write a stopped subject closes no further increment and must not pin the
 table forever, including a quarantined exit under `LDG-72` — **and never less than one window per
 currency** (added 2026-09-23, `ADR-0027`): no
 row is pruned while its `observed_at` lies inside its currency's window (`LDG-58`), since the rate
-is taken over exactly those rows at an accepting pass.
+is taken over exactly those rows.
+*The retention the rate confirmation reference needed went with the reference, 2026-09-23
+(`ADR-0027`).*
+
+*Amended 2026-10-04 (`pv-gip.28`, `pv-gip.6`, Q13):* the window is evaluated at an
+accepting pass under `LDG-58`. Open-increment retention uses the acceptance boundary, not
+observation time; neither clock alone permits pruning history another floor below needs.
 
 **Stamped-history retention** (*amended 2026-10-04, `pv-gip.28`*): for each currency retain the
 last rate-yielding row and every row accepted since or observed later, and the newest-by-`observed_at`
@@ -637,20 +643,21 @@ since that edge needed to price and replay its spans. No pruning may change a hi
 outage result still needed by a reader. The live-rate floor of one current window and the
 open-increment obligation above both remain.
 
-**While a restore record is open**, retention MUST additionally preserve, for each currency, all
+**While a restore record is open** (*added 2026-10-02, `ADR-0029`; amended 2026-10-04,
+`pv-gip.28`, for stamped retention and acceptance-time replay*), retention MUST additionally preserve, for each currency, all
 stamped rows needed to recompute its accumulated rate-present time from step (3)'s instant
-(`OPS-41`): the last rate-yielding row at or before that left edge, its newest-observation
+(`OPS-41`): the last rate-yielding row accepted at or before that left edge, its newest-observation
 staleness input, and every subsequent accepted row or row observed later needed by that replay.
 If the left edge lies in an outage, preserve the earlier yielding state and all intervening rows;
 if none exists, retain the history from its beginning. This floor survives repeated returns and
 later yielding passes moving the ordinary floor forward. Step (3)'s instant is derived from
 `grace_ends_at`; no accumulated measure is stored.
 
-A smaller window permits pruning only outside **all** these floors; it MUST NOT alter replay.
-A larger window uses retained observations for subsequent accepting passes and fills forward;
-pruned observations MUST NOT be invented, and previous verdicts MUST NOT be recomputed.
-*The retention the rate confirmation reference needed went with the reference, 2026-09-23
-(`ADR-0027`).*
+*Amended 2026-10-04 (`pv-gip.28`):* a smaller window permits pruning only outside **all**
+these floors. A larger window uses retained observations for subsequent accepting passes and
+fills forward; pruned observations MUST NOT be invented. Historical verdicts are governed by
+`LDG-58`. All replay floors use its as-of selection, retaining predecessor verdict and freshness
+inputs even when observation and acceptance order disagree or acceptance timestamps tie.
 
 *Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
 self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
@@ -670,6 +677,14 @@ by acceptance order". *Its use was `LDG-16`'s rate confirmation, withdrawn 2026-
 (`ADR-0027`), which asked which observation the deployment accepted after the armed one: compared on
 the instant, a row written late would have discharged nothing, and the next real observation might
 have discharged on the observation that preceded it.*
+
+**Acceptance time** (*added 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*): `accepted_at` MUST
+be set to `max(the clock in the accepting transaction, the previous row's accepted_at for that
+currency)`, in the transaction allocating `acceptance_order`; for the first row use that
+transaction's clock. Equal timestamps are permitted: `acceptance_order` still selects the latest
+accepted verdict. Observation time remains evidence age, independent of this clock. `LDG-58`
+owns the verdict's effect, including historical selection. Retention MUST preserve the last
+accepted row needed for this clamp as well as the floors above.
 
 ### `meter_totals`
 
@@ -952,7 +967,7 @@ quarantined when it began. For closure of an existing row on a quarantined exit,
 the earliest instant of each maximal interval throughout which the window yielded no rate,
 ending at its replayed return or still continuing at the writer's posting. Both ongoing and
 completed intervals are computed by replaying `LDG-59`'s two clocks — staleness at every instant,
-thinness at each accepting pass — over `STO-49`'s stamped observations, using the actual stored
+thinness at each accepting pass under `LDG-58`'s effective-time rule — over `STO-49`'s stamped observations, using the actual stored
 window verdict and each newest observation's own stamped bound (`LDG-58`, `LDG-59`). The start
 is a function of that history alone, the same for every writer regardless of current settings or
 posting order; no writer reads a sibling row for it. *Amended 2026-10-04 (`pv-gip.28`,
@@ -962,7 +977,7 @@ replay MUST NOT accept or reject recorded observations retrospectively under a c
 When only one clock has fired inside the outage, the replay yields that clock's own instant:
 the newest observation's `observed_at` plus `LDG-59`'s
 stamped staleness bound when only staleness has — `LDG-59`: "The window's staleness is tested continuously,
-and no pass is needed for it to produce no rate" — and the `observed_at` of the `STO-49` row of the
+and no pass is needed for it to produce no rate" — and `LDG-58`'s effective boundary for the
 pass that found the window thin when only thinness has, since the newest observation is then still
 fresh and newest plus bound would date the start in the future. When the clocks cross inside one
 outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
@@ -976,6 +991,9 @@ replayed start for the same clipped span.
 Re-entry during the same currency outage can open a new row, whose `absorbed_from` is clipped to
 the re-entry seed. Neither row absorbs the nonbillable gap. The conditional-insert guard above
 applies to competing postings within each span. Re-entry changes the subject row start, not the replayed currency outage start.
+*Amended 2026-10-04 (`pv-gip.28`, `pv-gip.6`, Q13): replay uses `LDG-58`'s as-of
+selection for both clocks, including delayed thin verdicts; a later-accepted row supplies no
+earlier freshness input.*
 **The row holds no deadline**: `LDG-64` holds how the deadline is computed and which
 machines its bound reaches (*amended 2026-10-02, `ADR-0029`*). *Added 2026-09-25 (`ADR-0027`):
 before that day the set named every closer of

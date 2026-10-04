@@ -312,9 +312,10 @@ response. `last_install` is `DOM-29`'s, and is `null` on a machine nothing has i
 reading `bytes_verified_by_provisiond: false` is being told this system never saw what reached the
 disk, not that anything is wrong. `abuse_cases` (`WIR-43`) is absent when the machine has none.
 `rate_outage_deadline` is `LDG-64`'s computed deadline for the machine's currency: null while that
-currency has a rate, and otherwise the instant `LDG-64` computes; it is computed with the
-parameters in force, so it moves when one of them is changed (`OVR-19`) (*added 2026-10-02,
-`ADR-0029`*).
+currency has a rate, and otherwise the instant `LDG-64` computes (*added 2026-10-02,
+`ADR-0029`*). *Amended 2026-10-04 (`pv-gip.28`, T1):* the settings-change lever is the
+maximum tolerated outage: `OVR-19` says "The maximum tolerated rate outage is read at the value
+in force when `LDG-64`'s deadline is computed, for an outage already open too."
 
 **`install_strategies` is `DOM-30`'s, and it is the *machine's* frozen copy — not the offer's live
 list** (`WIR-30`, `05-persistence.md`). **The key is present on every machine**, unlike

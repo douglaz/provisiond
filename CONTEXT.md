@@ -328,8 +328,8 @@ The accepted **rate observations** whose `observed_at` lies inside the last wind
 the **pass** that computed the **rate**; the rate is their median, computed only when a pass
 accepts an observation, with that verdict stamped on its row; it holds until the next accepting
 pass while the newest observation remains within its own stamped bound — an observation ageing out of the window changes nothing on its own; the newest one going
-stale does (`LDG-59`). A settings change takes effect through later accepting passes, not historical
-recomputation (amended 2026-10-04, `ADR-0029`). Its length is stated per deployment and per billing currency, as the
+stale does (`LDG-59`). Settings and effective time: `LDG-58`/`LDG-59`
+(pointer corrected 2026-10-04, `pv-gip.28`, J3). Its length is stated per deployment and per billing currency, as the
 **quorum** is (`LDG-58`, `ADR-0027`). A window with no observation inside the staleness bound, or
 with fewer than three observations, is **no rate** (`LDG-59`).
 _Avoid_: history, buffer, lookback, average (a median is a selection, not a blend)

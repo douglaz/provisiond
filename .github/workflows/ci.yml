@@ -513,6 +513,8 @@ jobs:
       #   OPS-41, ADR-0029 (2026-10-03): paused deferral before re-derivation strands
       #   the price-cut-funded machine with its commitment unchanged --
       #   funded_during_paused_grace_witness. Other guards are pinned.
+      # Q13 (2026-10-04): Rate.acceptanceBoundary dates the verdict at acceptance;
+      # disabling it backdates delayedAcceptanceTrace to the observation, pricing an outage.
       # The loop reads its rows from stdin, so the build runs with stdin closed and the step
       # counts the rows it passed: a child that swallowed the rest of the list would otherwise
       # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
@@ -535,6 +537,7 @@ jobs:
           Fence|outageWrite|true|false|restoredRateTrace
           Fence|ownIdClause|true|false|fenceWorld retryTrace
           Fence|rateIsWindowMedian|true|false|poisonedPassTrace
+          Rate|acceptanceBoundary|true|false|delayedAcceptanceTrace
           Fence|graceAtClaim|true|false|graceTrace
           Fence|pauseFundingGrace|true|false|pausedGraceReturn
           Fence|pausedGraceInFence|true|false|pausedGraceRace

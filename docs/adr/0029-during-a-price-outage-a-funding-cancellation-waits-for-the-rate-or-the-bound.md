@@ -70,8 +70,8 @@ owns the current order. The decision was inside the fence transaction, not on it
 
 **The deadline is computed from history, not read from a record.** It is the outage's start plus
 `LDG-64`'s maximum tolerated outage. `STO-37` already defines the start as "a function of that
-history alone", replayed from `STO-49`, and `STO-49` keeps those rows so that "the snapshot it holds
-survives to the close". Any writer computes the same instant, including for a machine the meter
+history alone", replayed from `STO-49`; its stamped-history retention is the storage pointer
+(*corrected 2026-10-04, `pv-gip.28`, T2: removed the deleted retention quotation*). Any writer computes the same instant, including for a machine the meter
 never posted for. The 2026-10-04 amendment below narrows the setting-in-force rule to the
 maximum; `STO-37` owns stamped replay, and `OVR-19` owns the live maximum.
 
@@ -224,8 +224,8 @@ bound canceller from running.
 
 No new storage: step (3)'s transaction still writes `grace_ends_at` once. Subtract one
 re-derivation interval to recover the starting instant and use retained currency history on the
-same basis as the outage-start computation. `LDG-64` identifies the return as "the observation
-with which `LDG-58`'s window produces a rate again". A first arrival can leave a thin window;
+same basis as the outage-start computation. The return uses `LDG-58`'s effective-time rule
+(*pointer amended 2026-10-04, `pv-gip.6`, Q13*). A first arrival can leave a thin window;
 a subject's `absorbed_until` may be absent or precede the currency return at a meter stop.
 Neither is the source. Raw `observed_at` values are not assumed monotonic in acceptance order.
 Retention must span the whole open restore's needed history, including its left edge, even after
@@ -478,3 +478,19 @@ accepting pass's own result on its existing observation row.
 observation's bound, not current window/staleness arguments. Its median theorem is unchanged.
 Neither the snapshot model nor the effective outage spans in Fence prove historical replay,
 retention, or service conformance; the module omissions and checklist keep that distinction.
+
+
+## Acceptance dates a verdict — 2026-10-04 (Q13)
+
+The owner chose `accepted_at` (`pv-gip.28`, `pv-gip.6`). `LDG-58` owns effect and as-of
+selection; `STO-49` owns the clock clamp and retention. `LDG-64` owns subject closure and
+preservation of relief already given. `CNF-99`, `CNF-274`, `CNF-277` and `CNF-218` hold the
+acceptance and observation clock cases.
+
+Observation evidence and availability are different facts. An ordinal acceptance order could
+not date the interval while extensions had no usable rate; replay then billed that interval or
+spent restore grace. Retaining both clocks resolves that ambiguity without making old evidence
+fresh again. Rejected: redefining `observed_at` as acceptance (understates evidence age), deriving
+acceptance from existing fields (none dates it), and merely bounding the lag (still rewrites a
+past result). The median property is unchanged. The selector witness proves no database
+publication, complete replay, retention or running-service conformance.

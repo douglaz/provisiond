@@ -10,12 +10,13 @@ An observation contains a price, its `observed_at`, and its stamped staleness bo
 `LDG-58`'s window is selected at an accepting pass. `acceptPass` captures its computed verdict
 and its newest-by-observation-time staleness input. `rate` consumes that immutable snapshot,
 with no current window or staleness setting argument (amended 2026-10-04, `pv-gip.28`).
-A caller supplies the latest accepting pass in acceptance order; the newest observation within
-that snapshot need not be the observation accepted last. Settings affect future `acceptPass`
+A caller supplies snapshots in descending acceptance order. `rateAt` selects only snapshots
+accepted by the queried instant (2026-10-04, Q13); tied timestamps use that supplied order.
+The newest observation within a snapshot need not be the observation accepted last. Settings affect future `acceptPass`
 calls, never the held snapshot. Prices are whole satoshis per second, as in `Provisiond.Runway`.
 
 What the model omits: the source median, quorum and exclusions; per-currency storage; persistence
-of stamps and selection of the latest accepting pass from stored rows; `STO-37`'s full historical
+of stamps, transaction-clock publication and construction of the ordered snapshot list; `STO-37`'s full historical
 outage replay and `STO-49` retention, including restore left edges. `Provisiond.Fence` takes
 outage starts and effective spans as inputs and its pass takes an already selected price window.
 Neither module proves replay, retention, or database serialization.
@@ -108,10 +109,11 @@ def atPass (window : List Nat) : Option Nat :=
   if window.length < 3 then none else lowerMedian window
 
 /-- The latest accepting pass's immutable inputs to the live reader. `STO-49` stores the
-verdict and per-observation bounds; selection and persistence are outside this model. -/
+verdict, acceptance instant and per-observation bounds; persistence is outside this model. -/
 structure AcceptedPass where
   verdict : Option Nat
   newest : Option Observation
+  acceptedAt : Nat
   deriving DecidableEq, Repr
 
 /-- Newest by observation time, independently of the order the input rows were accepted. -/
@@ -123,9 +125,9 @@ def newestObservation (obs : List Observation) : Option Observation :=
 /-- Capture `LDG-58`'s verdict at acceptance, including a null thin-window verdict.
 `length` is the setting for this pass; existing observations already carry their own bounds. -/
 @[req "LDG-58"]
-def acceptPass (length passAt : Nat) (obs : List Observation) : AcceptedPass :=
+def acceptPass (length passAt acceptedAt : Nat) (obs : List Observation) : AcceptedPass :=
   let w := window length passAt obs
-  ⟨atPass (w.map (·.price)), newestObservation w⟩
+  ⟨atPass (w.map (·.price)), newestObservation w, acceptedAt⟩
 
 /-- `LDG-59`'s stamped pass verdict and newest observation's own bound. No invocation with
 current window/staleness settings can reinterpret a held verdict. -/
@@ -141,6 +143,40 @@ theorem thin_verdict_cannot_return (held : AcceptedPass) (h : held.verdict = non
 theorem fresh_reads_stamped_verdict (held : AcceptedPass) (now : Nat)
     (h : held.newest.any (fun o => now ≤ o.observedAt + o.staleness) = true) :
     rate held now = held.verdict := by simp [rate, h]
+
+/-- The accepting transaction clamps its clock against the preceding row, STO-49. -/
+@[req "STO-49"]
+def acceptanceTime (clock previous : Nat) : Nat := max clock previous
+
+@[req "STO-49"]
+theorem acceptance_time_never_regresses (clock previous : Nat) :
+    previous ≤ acceptanceTime clock previous := Nat.le_max_right _ _
+
+/-- Q13 (2026-10-04): the off position dates a verdict by its observation evidence instead. -/
+structure Guards where
+  acceptanceBoundary : Bool
+
+def current : Guards :=
+  {
+    acceptanceBoundary := true }
+
+/-- `LDG-58`: "every pass verdict MUST take effect at its row's `accepted_at`".
+History is supplied in descending acceptance order; no database publication is modelled. -/
+@[req "LDG-58"]
+def rateAt (g : Guards) (history : List AcceptedPass) (now : Nat) : Option Nat :=
+  match history with
+  | [] => none
+  | row :: rest =>
+    let effective := if g.acceptanceBoundary then row.acceptedAt
+      else (row.newest.map (·.observedAt)).getD 0
+    if effective ≤ now then rate row now else rateAt g rest now
+
+@[req "LDG-58"]
+theorem later_row_preserves_past (g : Guards) (hg : g.acceptanceBoundary = true)
+    (row : AcceptedPass) (history : List AcceptedPass) (now : Nat)
+    (later : now < row.acceptedAt) :
+    rateAt g (row :: history) now = rateAt g history now := by
+  simp [rateAt, hg, Nat.not_le.mpr later]
 
 /-! ## The promise -/
 
@@ -283,10 +319,10 @@ pass at `12` sees two too: below three is no rate whatever the instant. -/
 theorem two_clocks :
     let obs : List Observation := [⟨100, 0, 15⟩, ⟨104, 10, 15⟩, ⟨100, 20, 15⟩]
     (window 25 30 obs).length = 2 ∧
-    rate (acceptPass 25 20 obs) 30 = some 100 ∧
-    rate (acceptPass 25 20 obs) 36 = none ∧
-    rate (acceptPass 25 30 obs) 30 = none ∧
-    rate (acceptPass 25 12 obs) 12 = none := by decide
+    rate (acceptPass 25 20 20 obs) 30 = some 100 ∧
+    rate (acceptPass 25 20 20 obs) 36 = none ∧
+    rate (acceptPass 25 30 30 obs) 30 = none ∧
+    rate (acceptPass 25 12 12 obs) 12 = none := by decide
 
 /-- `LDG-59` keeps observation time distinct from acceptance order. The same history
 with a fourth row observed at `100` — `STO-49`'s "a pass that reads early and commits late" —
@@ -297,18 +333,18 @@ theorem late_row_keeps_nothing_alive :
     let obs : List Observation := [⟨100, 0, 15⟩, ⟨104, 10, 15⟩, ⟨100, 20, 15⟩]
     let late : List Observation := obs ++ [⟨100, 100, 15⟩]
     window 25 20 late = obs ∧
-    rate (acceptPass 25 20 late) 40 = none ∧
-    rate (acceptPass 25 20 obs) 40 = none ∧
-    rate (acceptPass 25 20 late) 30 = some 100 := by decide
+    rate (acceptPass 25 20 20 late) 40 = none ∧
+    rate (acceptPass 25 20 20 obs) 40 = none ∧
+    rate (acceptPass 25 20 20 late) 30 = some 100 := by decide
 
 /-- Actual rate verdict, not a thick/thin flag: a different subsequent window cannot change
 an existing snapshot. A new pass may compute a different verdict. -/
 @[req "LDG-58"]
 theorem settings_only_affect_a_new_pass :
     let obs : List Observation := [⟨100, 0, 60⟩, ⟨104, 10, 60⟩, ⟨100, 20, 60⟩]
-    let held := acceptPass 25 20 obs
+    let held := acceptPass 25 20 20 obs
     rate held 30 = some 100 ∧
-    rate (acceptPass 10 30 obs) 30 = none ∧
+    rate (acceptPass 10 30 30 obs) 30 = none ∧
     rate held 40 = some 100 := by decide
 
 /-- A later-accepted earlier observation does not supply the newest observation's bound. -/
@@ -316,7 +352,7 @@ theorem settings_only_affect_a_new_pass :
 theorem acceptance_and_observation_clocks_differ :
     let obs : List Observation := [⟨100, 0, 15⟩, ⟨104, 10, 15⟩,
       ⟨100, 20, 100⟩, ⟨100, 15, 1⟩]
-    rate (acceptPass 30 25 obs) 40 = some 100 ∧
-    rate (acceptPass 30 25 obs) 121 = none := by decide
+    rate (acceptPass 30 25 25 obs) 40 = some 100 ∧
+    rate (acceptPass 30 25 25 obs) 121 = none := by decide
 
 end Provisiond.Rate

@@ -1122,7 +1122,8 @@ def pausedGraceReturn : List Fence.Event :=
   [.rateLost 80, .advance 120, .pass [] 80, .claim, .fenceTxn,
    .pass [1, 1, 1] 80, .claim, .fenceTxn, .providerDelete true (some true)]
 
-/-- The historical defect: the first claim at the qualifying return destroys a machine whose
+/-- The pass event at 200 is the qualifying acceptance, even if the source was read earlier
+(Q13, 2026-10-04). The historical defect: the first claim at that return destroys a machine whose
 entire wall-clock grace was dark. Guarded, it short-defers without a fence, admits an extension,
 and settles funded before 60 rate-present units accumulate. Removing only the pause reproduces
 destruction. -/
@@ -3287,5 +3288,28 @@ theorem retained_until_terminated_witness :
   decide
 
 end AccountStatus
+
+/-- Minutes: observed at 14:00, accepted at 14:10 during an ongoing outage.
+The selector is queried at 14:05, after observation and before acceptance. -/
+def delayedAcceptanceTrace (g : Rate.Guards) : Option Nat :=
+  Rate.rateAt g [⟨some 100, some ⟨100, 840, 60⟩, 850⟩] 845
+
+@[req "LDG-58"]
+theorem delayed_acceptance_preserves_outage :
+    delayedAcceptanceTrace Rate.current = none := by decide
+
+@[req "LDG-58"]
+theorem observation_boundary_rewrites_outage :
+    delayedAcceptanceTrace { Rate.current with acceptanceBoundary := false } = some 100 := by decide
+
+/-- Expired evidence never yields a fictional returned interval; equal timestamps retain
+acceptance order, and a transaction clock rollback is clamped. These snapshots do not prove
+construction of a database history, its retention, or replay of subject meter rows. -/
+@[req "LDG-58"]
+theorem accepted_boundary_cases :
+    Rate.rateAt Rate.current [⟨some 100, some ⟨100, 840, 60⟩, 905⟩] 905 = none ∧
+    Rate.rateAt Rate.current [⟨none, some ⟨100, 840, 60⟩, 850⟩,
+      ⟨some 100, some ⟨100, 839, 60⟩, 850⟩] 850 = none ∧
+    Rate.acceptanceTime 845 850 = 850 := by decide
 
 end Provisiond.Witnesses

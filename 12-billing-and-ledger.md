@@ -726,19 +726,16 @@ mid-increment and a crash before the tick still split the increment where the de
 the rate. *Added 2026-09-05; without a durable record the rule below was unkeepable across a
 restart, which is the ordinary way a long-running meter ends an increment.*
 
-**The boundary is the rate's `rate_observed_at` (`LDG-4`, denormalised onto the entry), not the
-instant the market moved.** `LDG-4` records a rate's *observation* time and nothing records an effective time, because
-provisiond **polls a rate source rather than watching one** — the identical distinction `STO-48`
-draws for machine state, where `LDG-74` stops the meter at `state_observed_at` and never "at the
-unknown instant the provider acted". Splitting at an instant nobody recorded is not implementable;
-splitting at the instant the deployment learned the rate is, and it is the same honesty the rest of
-the set already applies to every other polled fact. A deployment that polls more often therefore
-tracks the market more closely — which is a real property, not an accounting artefact, and it does
-not reopen the re-pricing defect: every increment is still priced at a rate that held for the whole
-of it, as the deployment knew it. *An earlier form of this paragraph said the boundary was "the
-rate's own effective instant, which `LDG-4` already records". `LDG-4` records no such thing, and a
-builder would have gone looking for a column that does not exist. Written and corrected the same
-day, 2026-09-02.*
+**The split uses `LDG-58`'s effective-time rule and `STO-49`'s `accepted_at`.**
+*Amended 2026-10-04 (`pv-gip.28`, `pv-gip.6`, Q13).* The instant the deployment learned the
+rate is dated at acceptance. The ledger's `rate_observed_at` remains evidence of the price's
+age (`LDG-4`); no acceptance column is added to the entry, whose increment boundaries locate
+the split. This does not purport to date the market's unobserved move.
+
+*Withdrawn 2026-10-04:* "The boundary is the rate's `rate_observed_at`" (2026-09-02).
+A pass can read before it is accepted; splitting at that earlier instant billed elapsed time at
+a verdict no reader yet had. The earlier same-day correction also withdrew "the rate's own
+effective instant, which `LDG-4` already records": that field never recorded an effective time.
 
 *This is not a rounding refinement — it is what makes the sentence above true.* At 7 sats/hour
 doubling to 14 exactly at the half hour, one hourly increment charges **14** for the hour while a
@@ -1218,9 +1215,21 @@ rate is always a price some pass accepted.
 
 *Amended 2026-10-04 (`pv-gip.28`, `ADR-0029`).* Each accepting pass MUST stamp its computed
 window rate (or null for a thin window) on its `STO-49` row. Readers MUST use the latest
-accepting pass's stamped verdict in `acceptance_order`, subject to `LDG-59`'s staleness test.
+accepting pass's stamped verdict selected by the effective-time rule below, subject to
+`LDG-59`'s staleness test.
 A changed window length applies from the next accepted observation. Loading a setting alone
 MUST NOT recompute the held verdict or rewrite whether historical time had a rate.
+
+**Effective time** (*added 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*): every pass verdict
+MUST take effect at its row's `accepted_at`. At an instant `t`, readers MUST consider only rows
+with `accepted_at ≤ t`, select the latest applicable accepting pass by `acceptance_order`, and
+use that pass's stamped verdict. Equal acceptance timestamps are ordered by `acceptance_order`.
+A later-accepted row MUST NOT rewrite the rate history before its `accepted_at`. This is the
+common boundary for rate changes, qualifying returns and thin-window starts, including billing
+splits and restore-grace spans. Freshness still uses the newest applicable observation's
+`observed_at` plus its own stamped bound, over rows accepted by `t`: acceptance MUST NOT
+rejuvenate old evidence. A verdict already stale at acceptance creates no rate-present span;
+it neither interrupts the continuous outage nor restarts its deadline.
 
 **LDG-59** **Each source MUST carry a staleness bound, and a stale source MUST be excluded rather
 than used.** A deployment MUST state a **quorum**: the minimum number of live, non-excluded sources
@@ -1266,7 +1275,8 @@ exactly that pass".*
 *Amended 2026-10-04 (`pv-gip.28`, `ADR-0029`).* Raising or lowering the staleness bound
 applies only from the next accepted observation; changing it alone neither revives a stale feed
 nor expires an observation earlier. Quorum governs new acceptance only, never retrospective
-qualification of a stored row. Historical readers use `STO-37`'s stamped-history replay.
+qualification of a stored row. Historical readers use `STO-37`'s stamped-history replay
+and `LDG-58`'s effective-time rule (*amended 2026-10-04, `pv-gip.6`, Q13*).
 
 **A deployment MUST state its window and its pass cadence so that a full window holds at least three
 passes**, so the thin case is always an outage and never a configuration.
@@ -1293,24 +1303,24 @@ usage cannot be converted to satoshis. A deployment MUST:
   posted** — a customer would be billed for hours at a price that did not exist while it was
   consuming, uncapped and unforeseeable, which `WIR-17`'s `max_commitment_sats` cannot protect
   against because the commitment was already open;
-- **close the absorbed window at the observation with which `LDG-58`'s window produces a rate
-  again** — `STO-37`'s `absorbed_until` is written with that observation's instant, by that
-  observation's own write — **or with the subject's own meter-stop instant where that comes
-  first** (the exit writer is `LDG-38`'s), since a machine that died mid-outage absorbed nothing
-  after it died (*added 2026-09-05; the column was required by `LDG-38`'s apportioning and had no
-  writer, so the meter could neither end the window nor tell where billable time resumed*).
-  **The posting exception:** a posting discovering a completed outage inserts
-  the subject's row already closed at the replayed return, or at its earlier meter stop; the
-  first posting that computes a rate and finds the subject's row open MUST close it at that
-  replayed qualifying accepting pass (or earlier stop). *Amended 2026-10-04 (`pv-gip.28`):*
-  withdrawn — "including when changed replay parameters yield a rate without a new accepted
-  observation"; `ADR-0029` records the trap. Neither path may reopen a closed row or overwrite an
-  earlier closure. No other event closes the window. The same write supplies
-  `absorbed_seconds` and `native_minor` under `STO-37`'s column rule (*amended 2026-10-04,
-  `pv-gip.39`: finalize native cost on close, including insertion already closed*). The first observation accepted after an outage is not always
-  that one: after an outage longer than `LDG-58`'s window it leaves that window too thin to
-  produce a rate (`LDG-59`) (*added 2026-09-23, `ADR-0027`, and reworded the same day out of the
-  withdrawn per-pass quorum frame*);
+- **close the absorbed window on a qualifying rate return under `LDG-58`'s effective-time
+  rule** (*amended 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*). The accepting write MUST set
+  `STO-37`'s `absorbed_until` to `max(accepted_at, the subject's mark)`, or the subject's
+  valid meter-stop instant where that comes first (`LDG-38`), clipped to its billable span.
+  An exit while no qualifying return exists closes at its valid meter-stop instant.
+  This preserves relief actually given before the accepting write became visible.
+  **The posting exception:** a posting discovering a completed outage inserts the subject's
+  row already closed by that same rule, using the mark before the posting, or closes an
+  existing open row by it. Neither path may reopen a closed row or overwrite an earlier
+  closure. No other event closes the window. The same write supplies `absorbed_seconds` and
+  `native_minor` under `STO-37`'s column rule, including insertion already closed.
+  A thin or already-stale accepted verdict supplies no qualifying return (`LDG-58`, `LDG-59`).
+  *Withdrawn 2026-10-04:* "written with that observation's instant, by that observation's own
+  write" (2026-09-05) backdated a delayed return. Also withdrawn on 2026-10-04 (`pv-gip.28`):
+  "including when changed replay parameters yield a rate without a new accepted observation";
+  `ADR-0029` records the settings-only-return trap. The 2026-09-23 qualification remains:
+  the first observation after a long outage can leave the window too thin. Native-cost
+  finalization was added 2026-10-04 (`pv-gip.39`);
 - **compute the outage's deadline from history, and store it nowhere.** The deadline is the
   outage's start plus the maximum tolerated outage below. An instant reached has passed:
   the deadline counts as passed at equality as well as after it. The start is the currency outage

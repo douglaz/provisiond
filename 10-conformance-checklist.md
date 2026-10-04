@@ -434,9 +434,9 @@ not optional hardening — they are the only structural defence there is.
       rate, the same way. **Steady state at a window of exactly three passes never drops the rate
       between passes** (added 2026-09-23, `ADR-0027`, with the next case, for `LDG-59`'s two
       clocks): configure the window to hold exactly three passes — cadence × 3 = window length —
-      with a staleness bound longer than the cadence plus the read-to-commit lag — the interval
-      between a pass's observation `observed_at` and its row's commit, which `STO-49` allows to be
-      non-zero ("a pass that reads early and commits late") — and run in steady state, so the oldest
+      with a staleness bound longer than the cadence plus the read-to-acceptance lag — the
+      interval from `observed_at` to `accepted_at` — and negligible publication delay in this
+      fixture (*amended 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*) — and run in steady state, so the oldest
       observation ages out just before each new one arrives, each accepting pass running strictly
       after the oldest has aged out, so that a continuous count would read two in between; assert
       that at every instant between passes there is a rate and it is the one the last accepting pass
@@ -470,7 +470,7 @@ not optional hardening — they are the only structural defence there is.
       accepting pass — passes below `LDG-59`'s quorum accept nothing while older observations leave
       the window — so that pass finds it thin; post the meter for one machine metered in that
       currency and assert that the `STO-37` row it opens carries `absorbed_from` equal to that
-      pass's `observed_at`, not the newest observation's `observed_at` plus the staleness bound,
+      pass's `accepted_at` under `LDG-58`, not the newest observation's `observed_at` plus the staleness bound,
       which lies in the future. **An open row is preserved**: then let the newest observation age
       past the bound — a staleness computation would now yield a later start — post the meter again
       for the same machine, and assert that the row's `absorbed_from` did not move and no second row
@@ -479,8 +479,8 @@ not optional hardening — they are the only structural defence there is.
       and `LDG-64`'s bound `M` longer than `3c`, let passes at `t0−2c`, `t0−c` and `t0` each accept
       an observation, so that at `t0` the window holds three, the newest (`observed_at = t0`) is
       fresh, and there is a rate; the case starts from the pass at `t0` and asserts nothing before
-      it — any rows an earlier flap opened were closed at or before `t0` by `LDG-64`'s closer, the
-      "observation with which `LDG-58`'s window produces a rate again". Let the feed go silent, so
+      it — use `accepted_at = observed_at` for these passes, and close any earlier flap rows
+      at or before `t0` under `LDG-64`. Let the feed go silent, so
       that at `t0+b` the newest observation is stale and there is no rate, with no pass running
       (`LDG-59`). Post machine A's meter at some `tA` in `(t0+b, t0+3c)`; it finds no open row for A
       and opens A's row: assert `absorbed_from = t0+b` and, on A's view, `rate_outage_deadline =
@@ -539,6 +539,25 @@ not optional hardening — they are the only structural defence there is.
       its acceptance order selects the verdict, but freshness uses the newest observation's
       own stamp, not the latest accepted row's bound. Restart over unchanged stamped rows and
       verify the held verdict, start and all historical spans survive.
+      **Acceptance-time replay** (*added 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*).
+      Previous newest observation 10:50, stamped bound one hour; a non-thin pass reads at
+      11:45 and is accepted at 11:55. Post one subject at 11:52 and another only after
+      acceptance, both seeded before 11:50. Each row starts at 11:50 and closes at 11:55;
+      reverse posting order and omit the early posting: starts and charges are unchanged.
+      Acceptance cannot erase [11:50,11:55). For a delayed thin verdict, keep old evidence
+      fresh through acceptance, read at 11:45 and accept null at 11:55: the outage starts
+      at 11:55, not 11:45. Before 11:55 the earlier accepted non-null verdict still holds.
+      Repeat with a latest-accepted observation older than a previously accepted one:
+      acceptance order selects the verdict and observation order selects freshness, using
+      only rows accepted by the queried instant. With the previous `accepted_at = 11:55`,
+      roll the transaction clock back to 11:50: the next row is stamped 11:55 and a larger
+      acceptance order. At that tied timestamp use the later verdict; at 11:54 it has no
+      effect. Prune all eligible rows and restart, retaining the prior accepted row for
+      the clamp and the predecessor/freshness inputs for an open increment and an open
+      restore across repeated returns. Replay all tested boundaries unchanged, including
+      a delayed row whose `observed_at` is before an increment's left edge but whose
+      `accepted_at` is inside it. `CNF-277` owns the delayed-return billing/deadline cases;
+      `CNF-218` owns the usable-grace case.
       **Quorum changes acceptance, not replay.** With the needed history retained, raise
       the quorum from three to five while holding staleness and window fixed. Assert that
       recorded observations accepted from three sources remain replay inputs, and replayed
@@ -1641,13 +1660,16 @@ rather than acquiring a default.
 - [ ] **CNF-274** — **A rate move never re-prices time already billed — within an increment or
       across one.** Meter one subject across a period, move the rate **up** between two increments,
       and assert the second posting charges only the second increment's seconds at the new rate.
-      Move it **up mid-increment** and assert the increment **splits** at `rate_observed_at`, so the
+      Move it **up mid-increment** and assert the increment **splits** at `STO-49.accepted_at`, so the
       seconds before the move are charged at the old rate (`LDG-38`); an implementation that prices
       the whole increment at the closing rate fails here and is the defect `CNF-185` also catches.
       **Then the same mid-increment move followed by a process kill before the tick**: on restart
-      the increment still splits at the recorded `rate_observed_at`, read from `STO-49`'s
+      the increment still splits at the recorded `accepted_at`, read from `STO-49`'s
       `rate_observations` — a build that keeps the accepted rate in memory prices the whole
       increment at whichever rate restart finds first (2026-09-05).
+      Make `observed_at` precede `accepted_at`, with a posting between them: until acceptance
+      the old rate holds, including on replay after restart. The ledger retains observation
+      time as evidence. (*Amended 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13.*)
       Then move the rate **down** and assert the posting is a smaller positive figure and **never
       negative**: a positive `usage_debit` is undefined (`LDG-7`) and `LDG-31` would take it as a
       debit to pair with and **grow** the commitment, which is the automatic widening `ADR-0011`
@@ -1748,12 +1770,34 @@ rather than acquiring a default.
       rate return posts no catch-up debit. Repeat through the attachment release writers.
       **Rate returns before exit:** mark 12:00, outage 12:20–12:30, exit 12:40, within one
       period. First run with a no-rate posting at 12:25 to open the row while the outage is live;
-      the returning observation closes it at 12:30. Across that posting and the exit, price
+      the pass observed at 12:27 and accepted at 12:30 closes it at 12:30
+      (*amended 2026-10-04, `pv-gip.6`, Q13*). Across that posting and the exit, price
       [12:00,12:20) and [12:30,12:40) at their respective rates, absorb only [12:20,12:30),
       and leave `absorbed_until = 12:30` after exit, with mark 12:40. With `r = 0`, sufficient
       authority, 1/5 sat/s before the outage and 2/5 after it, expect total debit/decrement 480
       and final `r = 0`. The row was opened while the outage was live, so this checks its
       end independently of historical no-row replay; assert `absorbed_seconds = 600`.
+      **Delayed acceptance during an outage** (*added 2026-10-04, `pv-gip.28`, `pv-gip.6`,
+      Q13*): seed/mark 13:00, outage starts 13:20, `r = 0`, sufficient authority, customer
+      rate 1/5 sat/s before it. A pass reads at 14:00 and accepts at 14:10 with a still-fresh
+      non-null verdict giving 2/5 sat/s. Post through 14:20, once with an intervening 14:05
+      posting and once without: both debit 240 + 240 = 480 sats, final `r = 0`, one outage
+      row [13:20,14:10), `absorbed_seconds = 3000`, finalized native cost and null opening
+      rate. [14:00,14:10) is never priced retroactively; repeat and restart replay change
+      nothing. Check the no-row run's insertion already closed as well as closure of the
+      row opened at 14:05. In a separate no-restore run put the outage deadline at 14:05
+      and execute its cancellation then: the decision stands after acceptance at 14:10,
+      and replay still shows the deadline reached. Its valid meter stop at 14:05 closes
+      that subject's row there; the later return overwrites nothing.
+      Accept the 14:00 evidence only after its stamped bound has expired: no returned-rate
+      interval, no new outage or restarted deadline, no customer charge during the ongoing
+      outage. Finally hold the acceptance transaction after it stamps 14:10 while a no-rate
+      posting advances the subject mark to 14:12 (or seed these closing inputs if the
+      implementation serializes away that interleaving): on closure retain relief through 14:12,
+      `absorbed_until = 14:12`, 3120 absorbed seconds, and no retroactive debit. Repeat with
+      a valid stop at 14:11 and with a clipped billable-span seed; retain the earlier stop
+      and compute only billable overlap. Native finalization and per-increment/period
+      apportionment use the resulting window; an already-closed row is never rewritten.
       **Finished outage discovered at posting:** within one period, mark/seed 12:00,
       initial `r = 0`, sufficient authority, customer rates 1/5 sat/s before the history-derived
       12:20–12:50 outage and 2/5 afterwards. Retain the history for replay and post nothing
@@ -2262,17 +2306,18 @@ rather than acquiring a default.
       1h staleness bound, 1h re-derivation interval, 24h window and quorum three. Retain accepted
       observations at 08:00, 09:00 and 10:00, each from three independent live sources at the
       same price, with their stamped verdicts/bounds and the left edge needed for replay.
-      Step (3) is 11:00, original end 12:00. No observation is accepted before 14:00; the
+      Step (3) is 11:00, original end 12:00. No observation is accepted before 14:10; the
       10:00 observation expires at 11:00. Load a 6h staleness bound on restart: no return.
-      A qualifying pass at 14:00 yields a rate at the same price. Both relevant windows are
+      A qualifying pass reads at 14:00 and accepts at 14:10 at the same price
+      (*amended 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*). Both relevant windows are
       sufficiently populated, so thinness does not decide the trace. Keep the incident open,
       outage maximum later than the trace, active tenant, live unfenced machine, open funding
-      episode and eligible cancellation at 14:05 with no competing operation hold. Leave
+      episode and eligible cancellation at 14:15 with no competing operation hold. Leave
       commitment insufficient and admit no extension. At the fence transaction only
-      [14:00,14:05) contributes: 300 of 3600 seconds spent, 3300 remaining. Assert ordinary
-      short deferral, no fence/provider call and episode still open. No part of [11:00,14:00)
-      was usable grace. With continuous rate presence, eligible claims short-defer until 15:00;
-      the first at or after 15:00 may cancel. A further outage pauses the remaining measure.
+      [14:10,14:15) contributes: 300 of 3600 seconds spent, 3300 remaining. Assert ordinary
+      short deferral, no fence/provider call and episode still open. No part of [11:00,14:10)
+      was usable grace, including the read-to-acceptance interval. With continuous rate presence,
+      eligible claims short-defer until 15:10; the first at or after 15:10 may cancel. A further outage pauses the remaining measure.
       Prune and restart before re-claim: retain the stamped left-edge state and each intervening
       return/outage while the restore stays open, even when a later yielding pass moves the
       ordinary retention floor. This tests history replay; the effective-span model does not

@@ -67,7 +67,8 @@ row `queued`, the fence untouched and the episode open. Queue eligibility is not
 For the 2026-10-02 paused grace, `World.rateHistory` is replay's effective completed outage
 spans in natural time units, not a new persisted field. `rateRestored` appends an outage only
 when returning from no rate; a thin `pass` does not close it. A trace assumes its rate-return
-event occurs at the effective qualifying boundary. `Claim.rateTime` unions spans so overlap
+event occurs at LDG-58's qualifying acceptance boundary, not the source observation time
+(2026-10-04, Q13). A delayed pass contributes no rate-present time before that event. `Claim.rateTime` unions spans so overlap
 cannot double-count absence. This abstracts currency replay, not subject `absorbed_until`, and
 assumes no ordering of raw `observed_at` values. The model proves neither history retention nor
 replay correctness nor incident closure; those remain obligations of `STO-49` and `STO-56`.
@@ -398,10 +399,10 @@ def loseRate (w : World) (start : Nat) : World :=
   | none => w
   | some _ => { w with rate := none, outageStart := start }
 
-/-- The rate restored, at `r`: `LDG-64`'s "close the absorbed window at the observation with
-which `LDG-58`'s window produces a rate again", the record's `absorbed_until` "written with that
-observation's instant, by that observation's own write". The window that produced `r` is not
-carried here; `pass` is the event that carries one. -/
+/-- A qualifying return under LDG-58's effective-time rule: `w.now` is acceptance time.
+This currency span is not a subject's absorbed window; mark clipping and close writes are
+outside this model. The window yielding `r` is supplied by `pass`; evidence age was checked by
+its caller. A stale-at-acceptance verdict must not be supplied as this event (2026-10-04, Q13). -/
 @[req "LDG-64"]
 def rateRestored (w : World) (r : Nat) : World :=
   { w with rate := some r, outageOpen := false,
