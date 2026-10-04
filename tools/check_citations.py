@@ -37,33 +37,30 @@ FOUR RULES, deliberately narrow.
            the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
            or more normalised words were compared. The gate prints both figures
            on every run; the numbers here are that day's reading, not a rule.
-           What it cannot see: a quote QUOTE mispairs. QUOTE pairs marks in
-           order within a chunk, so any unpaired mark pairs with the next one
-           and the quotes after it are matched off by one: the prose between
-           two real quotes is taken for a quote, and the real ones go
-           uncounted by every rule. Two causes are known. A quoted span shorter
-           than QUOTE's 8 characters is not matched, so its closing mark opens
-           a false span. And SPLIT breaks on a sentence ender followed by
-           whitespace, inside a quotation as readily as outside it, so a
-           two-sentence quotation, or a `...` elision with a space after it,
-           leaves an unpaired mark in each chunk. An `...` with no whitespace
-           after it, or `…`, stays in one chunk and reaches fragments()
-           (`pv-vwe.35`).
+           Paired quotations stay in one chunk, including sentence enders and
+           spaced elisions. Marks are paired before length/word filtering, so a
+           short span cannot steal the next quote's opening mark (pv-vwe.35).
+           What it cannot see: unmatched or nested straight marks can still
+           pair with the wrong mark within a paragraph. Blank lines are hard
+           boundaries, including between separately extracted Lean docstrings.
+           This is a paired-mark scanner, not a Markdown or Lean prose parser.
+           Historical/teaching heuristics apply to the whole resulting chunk;
+           a word inside a quotation can therefore suppress its comparison.
 
   EXISTS   Every quote of four or more normalised words in a Lean docstring
            must appear somewhere in the corpus -- every root *.md plus
            docs/adr/*.md -- whether or not its chunk carries an attribution
            (`pv-vwe.25`, decided 2026-10-01). A quote is what QUOTE matches:
-           a paired span of 8 to 400 characters, so a four-word span shorter
-           or a quotation longer than that is counted by neither rule.
+           a paired span of at most 400 characters containing at least four
+           normalised words. Longer quotations are counted by neither rule,
+           but their marks are consumed before scanning the next span.
            Compared with norm() and, in this
            rule only, with ' and " removed from both sides, since a docstring
            writes a nested quotation with single marks where the document has
            double ones. Chunks HISTORICAL or TEACHING match are skipped, as
            QUOTED skips them, and elisions split a quote into fragments
-           matched one by one, as QUOTED's do, subject to the SPLIT limit
-           stated there (`...` followed by whitespace cuts the chunk; `…`
-           never does). Residue is ratcheted in
+           matched one by one, as QUOTED's do; both spaced `...` and `…`
+           remain inside the paired quotation. Residue is ratcheted in
            citation-baseline.json's quoted_existence, keyed by file:quote, each
            entry carrying its own reason; a finding not in it is exit 1.
            Lean docstrings only: Markdown is out of its scope by decision.
@@ -154,10 +151,34 @@ CONSULTS = {"reads", "read"}
 # and blank lines as well as sentence enders.
 SPLIT = re.compile(r"(?<=[.!?])\s+|\n\s*[-*]\s+|\n\s*\n|\n(?=\|)")
 
-# Paired quotes only. An unpaired quote character makes every span between two
-# of them look like a quotation, which reports the prose BETWEEN two real
-# quotes as a failed one.
-QUOTE = re.compile(r'“([^”]{8,400})”|"((?:[^"\n]|\n(?!\s*\n)){8,400})"')
+# Pair every span before filtering its length. A short or overlong span's closing
+# mark must never be recycled as the opening mark of the next quotation.
+QUOTE = re.compile(r'“((?:[^”\n]|\n(?!\s*\n))*)”|"((?:[^"\n]|\n(?!\s*\n))*)"')
+
+
+def chunks(text):
+    """Apply SPLIT only outside paired quotations, regardless of their length."""
+    spans = iter(QUOTE.finditer(text))
+    span = next(spans, None)
+    start = 0
+    for boundary in SPLIT.finditer(text):
+        while span and span.end() <= boundary.start():
+            span = next(spans, None)
+        if span and span.start() < boundary.start() < span.end():
+            continue
+        yield text[start:boundary.start()]
+        start = boundary.end()
+    yield text[start:]
+
+
+def quotations(text):
+    """Yield (position, wording) after pairing, then applying the reach limits."""
+    for match in QUOTE.finditer(text):
+        wording = match.group(1) or match.group(2) or ""
+        if len(wording) <= 400 and len(norm(wording).split()) >= 4:
+            yield match.start(), wording
+
+
 DOC = re.compile(r"`(\d\d-[a-z-]+\.md|README\.md|CONTEXT\.md|AGENTS\.md)`")
 ADR = re.compile(r"`(ADR-\d{4})`")
 LEAN = re.compile(r"`(Provisiond\.[A-Za-z0-9_.]+)`(?<!\.lean`)")  # `Provisiond.lean` is a file
@@ -268,20 +289,19 @@ def find(docs, adrs, reqs, corpus=None):
     ndocs = {f: norm(t) for f, t in (docs if corpus is None else corpus).items()}
     nadrs = {a: norm(t) for a, t in adrs.items()}
     for f, text in docs.items():
-        for sent in SPLIT.split(text):
+        for sent in chunks(text):
             m = ATTRIB.search(sent)
             if not m or HISTORICAL.search(sent) or TEACHING.search(sent):
                 continue
             rid = m.group(1) or m.group(3)
             verb = (m.group(2) or "").lower()
-            quotes = [(qm.start(), qm.group(1) or qm.group(2))
-                      for qm in QUOTE.finditer(sent)]
+            quotes = list(quotations(sent))
             # Only quotes AFTER the attribution verb: a quote earlier in the
             # chunk belongs to whatever introduced it, not to this attribution.
             # CNF-6's merge marker quotes its own withdrawn text and then
             # CNF-107's, in that order, in one chunk.
             quotes = [(p, q) for p, q in quotes
-                      if len(norm(q).split()) >= 4 and p > m.start()]
+                      if p > m.start()]
             if not quotes:
                 if verb not in CONSULTS:
                     unquoted.append((f, rid, " ".join(sent.split())[:100]))
@@ -317,9 +337,8 @@ def exists(lean, corpus):
     corpus = [unquoted(norm(t)) for t in corpus]
     missing, total = [], 0
     for f, text in lean.items():
-        for sent in SPLIT.split(text):
-            quotes = [norm(qm.group(1) or qm.group(2)) for qm in QUOTE.finditer(sent)]
-            quotes = [q for q in quotes if len(q.split()) >= 4]
+        for sent in chunks(text):
+            quotes = [norm(q) for _, q in quotations(sent)]
             total += len(quotes)
             if HISTORICAL.search(sent) or TEACHING.search(sent):
                 continue
@@ -328,6 +347,33 @@ def exists(lean, corpus):
                 if not any(all(fr in c for fr in frags) for c in corpus):
                     missing.append((f, q))
     return missing, total
+
+
+def check_quotations():
+    """Guard quote reach independently of the corpus's current wording."""
+    source = "alpha beta gamma delta. epsilon zeta eta theta"
+    cases = [
+        ('two sentences', f'"{source}"'),
+        ('spaced elision', '"alpha beta ... epsilon zeta eta theta"'),
+        ('short span first', f'"now"; "{source}"'),
+        ('empty span first', f'""; "{source}"'),
+        ('overlong span first', '"' + 'x' * 401 + f'"; "{source}"'),
+        ('curly marks', f'“now”; “{source}”'),
+        ('four short words', '"a b c d"'),
+    ]
+    for name, quotes in cases:
+        body = source + ' a b c d'
+        text = '`OPS-41` says ' + quotes
+        reqs = {'OPS-41': ('probe.md', body)}
+        good = find({'probe': text}, {}, reqs)
+        wrong = text.replace('epsilon', 'WRONG').replace('a b c d', 'a b c WRONG')
+        bad, _, compared = find({'probe': wrong}, {}, reqs)
+        missing, total = exists({'probe': wrong}, [body])
+        if good != ([], [], 1) or len(bad) != 1 or compared != 1 or len(missing) != 1 or total != 1:
+            print(f'FAIL: {name}: exact={good}; corrupted={bad}, {missing}, {compared}, {total}')
+            return 1
+        print(f'PASS: {name}: exact quote passes; corruption reaches QUOTED and EXISTS')
+    return 0
 
 
 def check_docstrings():
@@ -410,7 +456,7 @@ def unresolved(docs, adrs):
 
 
 def main():
-    if check_docstrings():
+    if check_docstrings() or check_quotations():
         return 1
     docs, adrs, reqs = load()
     bad, unquoted, _ = find(docs, adrs, reqs)

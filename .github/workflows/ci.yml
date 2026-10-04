@@ -767,3 +767,41 @@ jobs:
           grep -q '00-overview.md attributes to OVR-1 a phrase OVR-1 does not contain:' citations.log
           grep -q '"the promise was in prose and absent from the predicate"' citations.log
           echo "citation gate correctly rejected the attribution the ADR pool used to satisfy"
+
+      # Pair before splitting/filtering: both the real spaced-elision site and a
+      # short span preceding an explicit attribution must expose the corruption.
+      - name: Prove the citation gate rejects a spaced elision after a short quote
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          path = Path('tools/formal/Provisiond/Fence.lean')
+          original = path.read_bytes()
+          marker = b'`suspensionKey`: `OPS-41`, 2026-09-05,'
+          phrase = b"keyed on the tenant's current state ..."
+          assert original.count(marker) == original.count(phrase) == 1
+          for label, exact in [
+              ('spaced elision', original),
+              ('short span', original.replace(marker, b'`suspensionKey`: "now"; `OPS-41` says')),
+          ]:
+              try:
+                  path.write_bytes(exact)
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  wrong = exact.replace(phrase, b"keyed on the tenant's current posture ...")
+                  assert wrong != exact and wrong.count(b'current posture ...') == 1
+                  path.write_bytes(wrong)
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, (label, result.returncode, result.stderr)
+                  assert 'tools/formal/Provisiond/Fence.lean quotes a phrase found in no document or ADR:' in result.stdout
+                  assert '"keyed on the tenant\'s current posture ... and not on the episode\'s reasons set"' in result.stdout
+                  if label == 'short span':
+                      assert 'tools/formal/Provisiond/Fence.lean attributes to OPS-41 a phrase OPS-41 does not contain:' in result.stdout
+                  path.write_bytes(exact)
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  print(f'PASS: {label}: exact -> named failure -> exact')
+              finally:
+                  path.write_bytes(original)
+                  assert path.read_bytes() == original
+          PY
