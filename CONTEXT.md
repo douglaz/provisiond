@@ -370,8 +370,16 @@ system's reach. Lightning cannot be made cold, so this number *is* the blast rad
 compromise (`ADR-0009`).
 _Avoid_: hot wallet limit, float cap, reserve (taken — see **Reserve**)
 
+**Provider payable**:
+What the operator owes one provider account in one currency: the invoices the operator recorded,
+less the payments recorded, plus the **accrual** — the provider cost carried by charges and
+operator deficiencies since the latest recorded invoice's period. The invoice is the authority;
+the accrual only stands in until it arrives. It is paid with the operator's business money, never
+from the float, and satoshis are held against it until its payment is recorded.
+_Avoid_: tab, bill (a customer's), liability (too broad)
+
 **Solvency invariant**:
-The rule that satoshis actually held must cover the float. **Internal and unpublished on purpose**
+The rule that satoshis actually held must cover the float and the provider payables. **Internal and unpublished on purpose**
 (`LDG-19`): the operator maintains it and never advertises it, because every public phrasing
 drifts into the custody words `ADR-0004` §4 bans. The terms still state that a balance is an
 unsecured claim (`LDG-19a`) — silence about the ratio, not about the arrangement.
