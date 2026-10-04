@@ -6,32 +6,19 @@ theorem about the median over plain lists, not about the lifecycle; what makes i
 reader of the rate is that it is a property of the input every reader reads, which is why
 `Provisiond.Fence` takes its rate from here rather than carrying a second estimator.
 
-An observation is one `STO-49` row: its price, and its `observed_at`. The window as of a pass is
-`LDG-58`'s: "the rate observations for its currency — `STO-49`'s rows, one per pass — whose
-`observed_at` lies inside the last window-length before the pass that computed the rate". The
-rate is `LDG-58`'s lower median over that window: "the middle value of those observations in
-price order, or the lower of the two middle values where their count is even", so the rate is
-always a price some pass accepted. Prices are whole satoshis per second, as in
-`Provisiond.Runway`.
+An observation contains a price, its `observed_at`, and its stamped staleness bound.
+`LDG-58`'s window is selected at an accepting pass. `acceptPass` captures its computed verdict
+and its newest-by-observation-time staleness input. `rate` consumes that immutable snapshot,
+with no current window or staleness setting argument (amended 2026-10-04, `pv-gip.28`).
+A caller supplies the latest accepting pass in acceptance order; the newest observation within
+that snapshot need not be the observation accepted last. Settings affect future `acceptPass`
+calls, never the held snapshot. Prices are whole satoshis per second, as in `Provisiond.Runway`.
 
-`LDG-59`'s two no-rate cases are `rate`'s `none`, and they run on two clocks. Thinness, at the
-pass: `LDG-59` says "Fewer than three observations inside the window is no rate" and "Thinness is
-tested at the pass that computes the rate", so `atPass` decides it over the window as of that
-pass and `rate` holds its answer until the next pass. Staleness, continuously: `LDG-59` says "The
-window's staleness is tested continuously, and no pass is needed for it to produce no rate", so
-`rate` tests it at the instant asked about, `now`, over the window as of the last pass — "The
-staleness bound also applies to the window's newest observation — newest by `observed_at`, not
-by acceptance order" — and the instant no observation of that window lies inside the bound, there
-is no rate, whatever the last pass computed. The window is not re-filtered at `now`: `ADR-0027`
-refused a window measured from the present instant, which "would have changed the rate at an
-observation's expiry with no row to split an increment at"; a row observed after the pass is in no
-window yet, and keeps nothing alive (`late_row_keeps_nothing_alive`).
-
-What the model omits: `LDG-58`'s median of one pass's sources — an observation here is what a
-pass accepted; `LDG-59`'s quorum, which decides whether a pass accepts an observation at all;
-`LDG-60`'s exclusions; the per-currency dimension, since one list is one currency; and
-`STO-37`'s outage start replayed over the history (`absorbed_from`), which no module replays:
-`Provisiond.Fence` takes the start as a given input, and `pv-gip.28` holds what is undecided in it.
+What the model omits: the source median, quorum and exclusions; per-currency storage; persistence
+of stamps and selection of the latest accepting pass from stored rows; `STO-37`'s full historical
+outage replay and `STO-49` retention, including restore left edges. `Provisiond.Fence` takes
+outage starts and effective spans as inputs and its pass takes an already selected price window.
+Neither module proves replay, retention, or database serialization.
 The promise is bounded exactly as `ADR-0027`'s *What this does not promise* bounds it: a value
 carried by half the window confirms itself, one observation can still land the rate on its own
 value where that lies between two honest ones, and nothing here sizes a reserve to the window's
@@ -43,6 +30,7 @@ namespace Provisiond.Rate
 structure Observation where
   price      : Nat
   observedAt : Nat
+  staleness : Nat
   deriving DecidableEq, Repr
 
 /-- Insertion into a price-ordered list. Structural, so a witness closes by `decide`. -/
@@ -107,7 +95,7 @@ def lowerMedian (prices : List Nat) : Option Nat :=
 /-- `LDG-58`'s window as of a pass at `passAt`: the observations "whose `observed_at` lies inside
 the last window-length before the pass that computed the rate" — observed at or before the pass,
 and less than one window-length before it. A row observed after the pass (`STO-49`: "a pass that
-read early and committed late") is not in that pass's window. -/
+reads early and commits late") is not in that pass's window. -/
 @[req "LDG-58"]
 def window (length passAt : Nat) (obs : List Observation) : List Observation :=
   obs.filter fun o => o.observedAt ≤ passAt && passAt < o.observedAt + length
@@ -119,15 +107,40 @@ between passes". Otherwise the rate is the window's lower median. -/
 def atPass (window : List Nat) : Option Nat :=
   if window.length < 3 then none else lowerMedian window
 
-/-- The rate at instant `now`, computed by the last accepting pass at `passAt` and holding until
-the next (`LDG-58`), on `LDG-59`'s two clocks. Staleness is tested at `now`, continuously, over
-the window as of the pass: "The staleness bound also applies to the window's newest observation —
-newest by `observed_at`" and "Where none lies inside the bound there is **no rate**", "whether or
-not a pass has run". Thinness is `atPass`'s, tested over the same window. -/
-@[req "LDG-59"]
-def rate (length staleness passAt now : Nat) (obs : List Observation) : Option Nat :=
+/-- The latest accepting pass's immutable inputs to the live reader. `STO-49` stores the
+verdict and per-observation bounds; selection and persistence are outside this model. -/
+structure AcceptedPass where
+  verdict : Option Nat
+  newest : Option Observation
+  deriving DecidableEq, Repr
+
+/-- Newest by observation time, independently of the order the input rows were accepted. -/
+def newestObservation (obs : List Observation) : Option Observation :=
+  obs.foldl (fun newest o => match newest with
+    | none => some o
+    | some prev => if prev.observedAt < o.observedAt then some o else some prev) none
+
+/-- Capture `LDG-58`'s verdict at acceptance, including a null thin-window verdict.
+`length` is the setting for this pass; existing observations already carry their own bounds. -/
+@[req "LDG-58"]
+def acceptPass (length passAt : Nat) (obs : List Observation) : AcceptedPass :=
   let w := window length passAt obs
-  if w.any (fun o => now ≤ o.observedAt + staleness) then atPass (w.map (·.price)) else none
+  ⟨atPass (w.map (·.price)), newestObservation w⟩
+
+/-- `LDG-59`'s stamped pass verdict and newest observation's own bound. No invocation with
+current window/staleness settings can reinterpret a held verdict. -/
+@[req "LDG-59"]
+def rate (held : AcceptedPass) (now : Nat) : Option Nat :=
+  if held.newest.any (fun o => now ≤ o.observedAt + o.staleness) then held.verdict else none
+
+@[req "LDG-59"]
+theorem thin_verdict_cannot_return (held : AcceptedPass) (h : held.verdict = none) (now : Nat) :
+    rate held now = none := by simp [rate, h]
+
+@[req "LDG-59"]
+theorem fresh_reads_stamped_verdict (held : AcceptedPass) (now : Nat)
+    (h : held.newest.any (fun o => now ≤ o.observedAt + o.staleness) = true) :
+    rate held now = held.verdict := by simp [rate, h]
 
 /-! ## The promise -/
 
@@ -268,25 +281,42 @@ inside the bound: no rate at that pass is thinness, not staleness — thinness i
 pass at `12` sees two too: below three is no rate whatever the instant. -/
 @[req "LDG-59"]
 theorem two_clocks :
-    let obs : List Observation := [⟨100, 0⟩, ⟨104, 10⟩, ⟨100, 20⟩]
+    let obs : List Observation := [⟨100, 0, 15⟩, ⟨104, 10, 15⟩, ⟨100, 20, 15⟩]
     (window 25 30 obs).length = 2 ∧
-    rate 25 15 20 30 obs = some 100 ∧
-    rate 25 15 20 36 obs = none ∧
-    rate 25 15 30 30 obs = none ∧
-    rate 25 15 12 12 obs = none := by decide
+    rate (acceptPass 25 20 obs) 30 = some 100 ∧
+    rate (acceptPass 25 20 obs) 36 = none ∧
+    rate (acceptPass 25 30 obs) 30 = none ∧
+    rate (acceptPass 25 12 obs) 12 = none := by decide
 
-/-- `LDG-59`: "The staleness bound also applies to the window's newest observation — newest by
-`observed_at`, not by acceptance order, which can disagree with it (`STO-49`)". The same history
-with a fourth row observed at `100` — `STO-49`'s "a pass that read early and committed late" —
+/-- `LDG-59` keeps observation time distinct from acceptance order. The same history
+with a fourth row observed at `100` — `STO-49`'s "a pass that reads early and commits late" —
 which the pass at `20` does not see: at `40` that pass's window is stale, and the late row keeps
 its rate no more alive than its absence does. At `30` the same window is still fresh. -/
 @[req "LDG-59"]
 theorem late_row_keeps_nothing_alive :
-    let obs : List Observation := [⟨100, 0⟩, ⟨104, 10⟩, ⟨100, 20⟩]
-    let late : List Observation := obs ++ [⟨100, 100⟩]
+    let obs : List Observation := [⟨100, 0, 15⟩, ⟨104, 10, 15⟩, ⟨100, 20, 15⟩]
+    let late : List Observation := obs ++ [⟨100, 100, 15⟩]
     window 25 20 late = obs ∧
-    rate 25 15 20 40 late = none ∧
-    rate 25 15 20 40 obs = none ∧
-    rate 25 15 20 30 late = some 100 := by decide
+    rate (acceptPass 25 20 late) 40 = none ∧
+    rate (acceptPass 25 20 obs) 40 = none ∧
+    rate (acceptPass 25 20 late) 30 = some 100 := by decide
+
+/-- Actual rate verdict, not a thick/thin flag: a different subsequent window cannot change
+an existing snapshot. A new pass may compute a different verdict. -/
+@[req "LDG-58"]
+theorem settings_only_affect_a_new_pass :
+    let obs : List Observation := [⟨100, 0, 60⟩, ⟨104, 10, 60⟩, ⟨100, 20, 60⟩]
+    let held := acceptPass 25 20 obs
+    rate held 30 = some 100 ∧
+    rate (acceptPass 10 30 obs) 30 = none ∧
+    rate held 40 = some 100 := by decide
+
+/-- A later-accepted earlier observation does not supply the newest observation's bound. -/
+@[req "LDG-59"]
+theorem acceptance_and_observation_clocks_differ :
+    let obs : List Observation := [⟨100, 0, 15⟩, ⟨104, 10, 15⟩,
+      ⟨100, 20, 100⟩, ⟨100, 15, 1⟩]
+    rate (acceptPass 30 25 obs) 40 = some 100 ∧
+    rate (acceptPass 30 25 obs) 121 = none := by decide
 
 end Provisiond.Rate

@@ -577,7 +577,12 @@ no update or delete path may exist for it. Corrections are new rows (`LDG-5`).
 **STO-49** **`rate_observations`** — `currency` (the provider-native currency this rate converts
 from — there is one rate per billing currency, EUR and USD on the launch set), `rate_num`,
 `rate_den` (`LDG-4`'s exact rational), `source`, `observed_at`, `acceptance_order`, `haircut_bps`,
-`rounding_version`,
+`rounding_version`, `staleness_bound_seconds` (the bound in force for this accepted observation),
+`window_rate_num`, `window_rate_den` (the accepting pass's computed window rate, both null if
+thin; otherwise `LDG-4`'s exact rational). *Amended 2026-10-04 (`pv-gip.28`, `ADR-0029`):*
+these stamps MUST be written with the row before its verdict is used and MUST NOT be rewritten
+when settings change. The observation's own price and the pass's window verdict are distinct.
+The row is
 unique on `(currency, observed_at)` and on `(currency, acceptance_order)`. Readers select on the
 subject's currency. **One row per rate observation
 the deployment accepts** (`LDG-58`'s median of one pass's sources), **written before that rate is
@@ -587,22 +592,32 @@ exit write; after that write a stopped subject closes no further increment and m
 table forever, including a quarantined exit under `LDG-72` — **and never less than one window per
 currency** (added 2026-09-23, `ADR-0027`): no
 row is pruned while its `observed_at` lies inside its currency's window (`LDG-58`), since the rate
-is taken over exactly those rows. **And never the rows a replay of an outage's start would need**
-(added 2026-09-25, `ADR-0027`): for each currency, the rows that lay inside its window as of the
-last accepting pass that yielded its rate — that pass's own row and the rows within one window
-length before it — and every row of that currency accepted since or observed later (a pass that
-read early and committed late, `LDG-59`'s newest by `observed_at`) are not pruned, at all times. A
-later accepting pass that yields that currency's rate moves that snapshot forward and no longer
-holds the old one; an outage has no such pass, so the snapshot it holds survives to the close and
-`STO-37`'s replay always has its left edge. *The retention the rate confirmation reference needed
-went with the reference, 2026-09-23 (`ADR-0027`).*
+is taken over exactly those rows at an accepting pass.
+
+**Stamped-history retention** (*amended 2026-10-04, `pv-gip.28`*): for each currency retain the
+last rate-yielding row and every row accepted since or observed later, and the newest-by-`observed_at`
+row needed to evaluate that pass's staleness, even if it precedes the last yielding row in
+acceptance order. Before any yielding pass, retain all accepted rows. A later yielding pass moves
+this floor forward only when no other retention obligation still needs the older history.
+Retain also the stamped predecessor state at the left edge of every open increment, and all rows
+since that edge needed to price and replay its spans. No pruning may change a historical rate or
+outage result still needed by a reader. The live-rate floor of one current window and the
+open-increment obligation above both remain.
 
 **While a restore record is open**, retention MUST additionally preserve, for each currency, all
-rows needed to recompute its rate-present time from step (3)'s instant (`OPS-41`), including the
-window and outage-start history needed at that left edge. This obligation survives each outage's
-close and each later rate-producing pass moving the snapshot above forward: keeping only the
-current window or the current outage's snapshot is insufficient. Step (3)'s instant is derived
-from the record's single `grace_ends_at`; nothing new is stored. *Added 2026-10-02 (`ADR-0029`).*
+stamped rows needed to recompute its accumulated rate-present time from step (3)'s instant
+(`OPS-41`): the last rate-yielding row at or before that left edge, its newest-observation
+staleness input, and every subsequent accepted row or row observed later needed by that replay.
+If the left edge lies in an outage, preserve the earlier yielding state and all intervening rows;
+if none exists, retain the history from its beginning. This floor survives repeated returns and
+later yielding passes moving the ordinary floor forward. Step (3)'s instant is derived from
+`grace_ends_at`; no accumulated measure is stored.
+
+A smaller window permits pruning only outside **all** these floors; it MUST NOT alter replay.
+A larger window uses retained observations for subsequent accepting passes and fills forward;
+pruned observations MUST NOT be invented, and previous verdicts MUST NOT be recomputed.
+*The retention the rate confirmation reference needed went with the reference, 2026-09-23
+(`ADR-0027`).*
 
 *Added 2026-09-05. `LDG-4` denormalises the rate onto each ledger entry "so it remains
 self-explanatory after any rate table is pruned" — assuming a table nothing had specified. Between
@@ -893,8 +908,8 @@ that finds such a span without that subject's row for that outage and billable s
 an exit posting (`LDG-38`), opens it as a **conditional insert guarded on that absence**.
 The guard includes already closed rows: a repeat posting MUST NOT duplicate or reopen one.
 Concurrent postings for the same span use the same row, including one computing staleness and
-one after a pass found the window thin. For insertion already closed and for an open row whose
-rate returns without a new observation, see `LDG-64`'s close bullet.
+one after a pass found the window thin. For insertion already closed and for a posting discovering a qualifying return on stamped
+history, see `LDG-64`'s close bullet.
 No other row of `LDG-40`'s matrix opens one: the exhaustion sweep routes nothing while the currency
 has no rate (`LDG-16`); a create and the solvency check have no subject to open one for; an
 extension halts (`LDG-40`), re-derivation "MUST halt rather than under-reserve", and neither opens
@@ -906,27 +921,27 @@ quarantined when it began. For closure of an existing row on a quarantined exit,
 the earliest instant of each maximal interval throughout which the window yielded no rate,
 ending at its replayed return or still continuing at the writer's posting. Both ongoing and
 completed intervals are computed by replaying `LDG-59`'s two clocks — staleness at every instant,
-thinness at each accepting pass — over `STO-49`'s recorded observations. For one setting of the
-parameters it is replayed with — the staleness bound and window — it is a function of that
-history alone, so while those parameters are unchanged it is the same for every writer whatever the
-interleaving of postings and passes, and no writer reads any sibling row for it; `OVR-19` holds
-that they can change while an outage is open (*amended 2026-10-02, `ADR-0029`*).
+thinness at each accepting pass — over `STO-49`'s stamped observations, using the actual stored
+window verdict and each newest observation's own stamped bound (`LDG-58`, `LDG-59`). The start
+is a function of that history alone, the same for every writer regardless of current settings or
+posting order; no writer reads a sibling row for it. *Amended 2026-10-04 (`pv-gip.28`,
+`ADR-0029`): current-setting historical replay is withdrawn.*
 Quorum is an acceptance setting: `LDG-59` calls it what a pass needs "to accept an observation";
 replay MUST NOT accept or reject recorded observations retrospectively under a changed quorum.
 When only one clock has fired inside the outage, the replay yields that clock's own instant:
 the newest observation's `observed_at` plus `LDG-59`'s
-staleness bound when only staleness has — `LDG-59`: "The window's staleness is tested continuously,
+stamped staleness bound when only staleness has — `LDG-59`: "The window's staleness is tested continuously,
 and no pass is needed for it to produce no rate" — and the `observed_at` of the `STO-49` row of the
 pass that found the window thin when only thinness has, since the newest observation is then still
 fresh and newest plus bound would date the start in the future. When the clocks cross inside one
 outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
-the replay returns the first instant, which those per-writer formulas did not. With unchanged
-replay parameters, a late opening changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
+the replay returns the first instant, which those per-writer formulas did not. A late opening
+changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
 written. **The subject row starts at `max(currency outage start, billable-span seed)`.**
-Rows of one outage carry the same `absorbed_from` only where that maximum is the same, with the
-same replay parameters. For row closure at exit to nonbillable, see `LDG-38` and `LDG-72`.
-Changing a replay parameter MUST NOT move an already open row's `absorbed_from`; a subsequently
-opened row uses the replay parameters then in force.
+Rows of one outage MUST carry the same `absorbed_from` wherever that maximum is the same,
+regardless of posting order or current settings. For row closure at exit to nonbillable, see
+`LDG-38` and `LDG-72`. Settings changes move neither an existing row's start nor a later row's
+replayed start for the same clipped span.
 Re-entry during the same currency outage can open a new row, whose `absorbed_from` is clipped to
 the re-entry seed. Neither row absorbs the nonbillable gap. The conditional-insert guard above
 applies to competing postings within each span. Re-entry changes the subject row start, not the replayed currency outage start.

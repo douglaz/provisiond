@@ -72,9 +72,8 @@ owns the current order. The decision was inside the fence transaction, not on it
 `LDG-64`'s maximum tolerated outage. `STO-37` already defines the start as "a function of that
 history alone", replayed from `STO-49`, and `STO-49` keeps those rows so that "the snapshot it holds
 survives to the close". Any writer computes the same instant, including for a machine the meter
-never posted for, and a restart with unchanged parameters cannot move it. A restart that changes
-the bound, or the staleness bound or window the start is replayed with, does move it; see
-*The bound is the setting in force* below.
+never posted for. The 2026-10-04 amendment below narrows the setting-in-force rule to the
+maximum; `STO-37` owns stamped replay, and `OVR-19` owns the live maximum.
 
 **The bound's population is owned by `LDG-64`**, including its not-recorded-gone clause.
 The rejected scope was "a machine carrying such a record" (`OPS-41`); see `LDG-64` for
@@ -162,7 +161,9 @@ instant. The record keeps its billing fields. Further edits this owes:
   with their `STO-37` row" becomes the loss of `STO-49`'s rows the start is replayed from.
 
 **The bound is the setting in force** (decided 2026-10-02, after a four-model panel that voted for
-it unanimously). When the operator changes the maximum tolerated outage, or the staleness bound
+it unanimously). **Historical wording: the staleness/window portion and the associated edit list
+were superseded 2026-10-04 by *Only an accepting pass can return a rate* below; the maximum
+remains live.** When the operator changes the maximum tolerated outage, or the staleness bound
 or window the outage's start is replayed with, the deadline uses the value in force when it
 is computed, for open outages too. Lowering the bound below the time an outage has already run
 makes its cancellations eligible at the restart that loads it, with no further notice; that is the
@@ -186,7 +187,7 @@ is read as each currency's outage running its own clock against that one value. 
   time already elapsed.
 
 
-**Replay inputs corrected — 2026-10-03 (`pv-gip.28`).** The earlier replay lists included
+**Historical: replay inputs corrected — 2026-10-03 (`pv-gip.28`), superseded 2026-10-04 below.** The earlier replay lists included
 quorum. That would require rejudging accepted observations by how many sources each pass had, and
 `STO-49` stores one row per accepted observation with no source count. `STO-37` owns the
 acceptance/replay distinction and the old-row/new-row rule; `OVR-19` owns the settings in force,
@@ -276,13 +277,13 @@ paragraph above unchanged at that landing. The pending-cancellation question was
 `pv-gip.37`, resolved by *Close on grace spent or machine disposition* below.
 
 
-### Setting-in-force extension — 2026-10-03
+### Withdrawn 2026-10-04: setting-in-force extension — 2026-10-03
 
 The caller extended the setting rule to the paused measure; `OVR-19` owns that rule and
 `OPS-41` points to it. This extends the application of the owner's 2026-10-02 decision,
 *The bound is the setting in force*, above; it is not a new decision attributed to that owner.
 
-Accepted cost: raising the staleness bound or window during an open restore incident can
+**Withdrawn accepted cost** (2026-10-04, `pv-gip.28`): raising the staleness bound or window during an open restore incident can
 retroactively count outage time as rate-present time, spending paused grace. As with the
 bound, this is the operator's own parameter change. Freezing replay settings per incident
 was not requested. The mid-incident regression case is in `CNF-218`; it keeps the record open
@@ -451,3 +452,29 @@ conversion rate. The existing opportunity remains `OPS-36`'s "before the cleanup
 this transaction enqueued has written `OPS-42`'s fence"; this adds no general post-return grace.
 The reconciliation model omits wind-down funding and these records, explicitly; worker proofs
 remain about their supplied world, not about attachment atomicity or restore closure.
+
+## Only an accepting pass can return a rate — 2026-10-04
+
+The owner accepted Q8 (`pv-gip.28`), the stamped-row alternative from panel r13. `LDG-58`
+owns the pass verdict; `LDG-59` owns per-observation stamped staleness; `STO-49` owns storage and
+retention; `STO-37` owns replay. `OVR-19` keeps the maximum as the separate live loss-limit lever.
+The earlier old-row/new-row disagreement and settings-induced closer are withdrawn, along with
+the accepted cost of retroactively spending restore grace. `CNF-99` and `CNF-218` carry the
+revised traces.
+
+`LDG-59` says "Falling back to the last known rate MUST NOT happen." Raising a bound cannot
+revive a dead feed. Lowering it also waits for another accepted observation; a larger window
+fills from retained observations going forward. Storing the actual computed rate, rather than
+only a thin/thick flag, preserves the held price as well as availability. Acceptance order and
+newest observation time remain distinct, as in `STO-49`.
+
+Rejected: re-reading history under current settings, which bills already-relieved time and spends
+grace while extensions were refused; a settings history, which adds a second event stream and
+configuration-effective boundaries; and stored rate-state transitions, which require an event
+for silent-feed staleness and duplicate a history-derived boundary. The row stamps record the
+accepting pass's own result on its existing observation row.
+
+`Provisiond.Rate.rate` now consumes an accepting-pass snapshot with its stored verdict and newest
+observation's bound, not current window/staleness arguments. Its median theorem is unchanged.
+Neither the snapshot model nor the effective outage spans in Fence prove historical replay,
+retention, or service conformance; the module omissions and checklist keep that distinction.

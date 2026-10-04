@@ -744,7 +744,7 @@ time, summed across outages.** From step (3)'s instant, derived as `grace_ends_a
 re-derivation interval, accumulate only time in which the machine's currency has a rate. An outage
 MUST pause that measure, neither spending the remaining grace nor resetting what accumulated.
 Compute it from the retained per-currency `STO-49` history on the same history basis as `STO-37`'s
-outage-start replay; see `OVR-19` for the replay settings. The return boundary is `LDG-64`'s "the observation with which `LDG-58`'s
+outage-start replay, using the stamped verdicts and bounds (*amended 2026-10-04, `pv-gip.28`*). The return boundary is `LDG-64`'s "the observation with which `LDG-58`'s
 window produces a rate again", not the first arriving observation; a thin window may need more.
 Do not use a subject's `absorbed_until`, and do not assume `observed_at` increases in acceptance
 order. No accumulated measure or revised grace end is persisted.

@@ -80,14 +80,14 @@ commitment it grows — `extend` takes the satoshis as given — and its wire an
 checks that tail): every refusal here is the unchanged world, whichever test
 made it; the `late_attach_cleanup` reason and `LDG-40`'s no-rate attach transaction (2026-10-04,
 `pv-gip.27`); the two-clock replay of the outage's start over `STO-49`'s rows — what
-a changed staleness bound or window does to the replayed start belongs to `STO-37` and `OVR-19`,
-and history retention under a changed window remains outside this model (`pv-gip.28`);
+`STO-37` reconstructs from stamped verdicts and per-observation bounds (2026-10-04,
+`pv-gip.28`); retention under `STO-49` remains outside this model;
 no event moves the start
 of an outage already open, a restore that loses the rows it is replayed from included (`LDG-64`:
 "A restore that loses `STO-49` rows the start is replayed from moves it as well" — `restoreRecord`
 is `STO-56`'s record and nothing of `STO-49`'s); a second machine, tenant or currency, so that
 `LDG-59`'s per-currency rate, outage and bound are one currency's here; historical posting
-insertion and posting closure without a new observation (`STO-37`, `LDG-64`); and the record's close
+insertion and posting closure discovering an earlier qualifying return (`STO-37`, `LDG-64`); and the record's close
 at the meter stop. The exit's close is not modelled: `LDG-38` says "The exit closes an open
 subject outage row at that end". Here `goneWrite` and a settlement
 with the resource gone leave `World.outageOpen` as it was, so a machine recorded gone can still
@@ -352,7 +352,7 @@ def World.episodeOpen (w : World) : Bool := w.episode.any (·.state.isOpen)
 each use. `LDG-64` says "compute the outage's deadline from history, and store it nowhere". It is
 "the outage's start plus the maximum tolerated outage". Of the two terms the maximum is the one
 this model lets change; see `OVR-19` for the setting rule. The start is given, with no event
-that replays it under other parameters. -/
+that replays stored observations. -/
 @[req "LDG-64"]
 def World.deadline (w : World) : Nat := w.outageStart + w.maxOutage
 
@@ -1200,10 +1200,9 @@ theorem gone_or_closed_settles_without_a_date (p : Params) (hg : p.goneOrClosedF
 
 /-- While an outage is open its start is what history gave, and its deadline moves with the
 setting alone: across every event of this model but the restart that loads another maximum, a
-world with no rate keeps the start and the deadline it had. `LDG-64`: "With unchanged parameters
-any writer computes the same instant". The model's events change no replay parameter and lose no
-`STO-49` row — the module's omissions name both — so this is that sentence's case and says
-nothing of the two that move the start. A second no-rate input — `rateLost` again, or another
+world with no rate keeps the start and the deadline it had. `LDG-64`: "Any writer
+computes the same instant". The model does not replay or lose `STO-49` rows, so this proves
+transition preservation, not historical reconstruction. A second no-rate input — `rateLost` again, or another
 thin `pass` — restarts nothing: it falls inside the one interval `STO-37` dates the start from,
 "the earliest instant of each maximal interval throughout which the window yielded no rate".
 What ends the outage is a rate, and the next loss is the next

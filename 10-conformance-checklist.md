@@ -500,37 +500,45 @@ not optional hardening — they are the only structural defence there is.
       (added 2026-10-02, `ADR-0029`): mid-outage, restart the engine with every `OVR-19` value
       unchanged and assert each machine's `rate_outage_deadline` is the instant it was; restart it
       with the maximum tolerated outage changed to `M′` and assert each reads the outage's start
-      plus `M′`; restart it with the staleness bound changed and assert each reads the start
-      replayed under the new bound plus the maximum in force (`OVR-19`).
-      **Old rows stay fixed; new rows use the changed replay parameters.** Use a populated
-      window, newest observation at 12:00, a silent feed and a 20-minute staleness bound.
-      A was billable before 12:20 and posts at 12:25: assert its open row starts at 12:20,
-      `absorbed_until = null` and `absorbed_seconds = 0`. At 12:45 load a 30-minute bound;
-      post A again and first-post B, also billable before 12:20. Assert A's start is still
-      12:20 with no duplicate row, B's is 12:30, and both views use the replayed 12:30 start
-      plus the maximum in force for their deadline. A third subject seeded at 12:35 has
-      its new row clipped to 12:35. Return the rate at 12:50 with sufficient retained
-      observations: assert closures at 12:50 with seconds 1800, 1200 and 900 respectively,
-      and each subject's billing subtracts only its own row's overlap.
-      **A larger window yields a rate without a new observation.** Retain the whole history
-      needed by both windows, including their replay left edges; this case exercises no
-      pruning policy. Use a 30-minute window, 20-minute staleness bound, and accepted
-      observations at 11:40, 11:50 and 12:00, producing a rate at 12:00. Accept nothing
-      until a 12:50 observation: the outage starts at 12:20 and that pass leaves the old
-      window thin. With a seed/mark at 12:00 and sufficient authority, post at 12:25:
-      assert an open [12:20, null) row with zero seconds. At 12:55 load a two-hour window;
-      accept no new observation before the 13:00 posting. Replay now yields a return at
-      12:50. That first rate-present posting MUST close the existing row at 12:50 and write
-      `absorbed_seconds = 1800`, preserving `absorbed_from = 12:20`. Choose accepted prices
-      whose medians give customer rates 1/5 sat/s before the outage and 2/5 after return,
-      with no native-price or margin change and initial `r = 0`. Across both postings,
-      expect 240 sats for [12:00,12:20), none for [12:20,12:50), 240 for [12:50,13:00),
-      total debit/decrement 480, final `r = 0` and mark 13:00. Repeat the posting: no
-      duplicate row, changed closure, added seconds or debit. A subject first posted at
-      13:00 uses its own replay-derived start, clipped to its billable-span seed.
-      For the separate paused-grace case, see `CNF-218`: "A restart loads a 6h staleness
-      bound; a qualifying pass at 14:00 accepts an observation at that same price."
-      That accepting pass is not this no-new-observation closer.
+      plus `M′`, without changing the absorbed window. (*Amended 2026-10-04, `pv-gip.28`.*)
+      **Stamped rows preserve the outage across settings changes.** Use a populated window,
+      newest observation at 12:00 stamped with a 20-minute bound, and a silent feed. A was
+      billable before 12:20 and posts at 12:25: its row starts at 12:20, with null end and zero
+      stored absorbed seconds. At 12:30 load a 60-minute bound and post A again and first-post B,
+      also billable before 12:20, later: both starts stay 12:20 and neither closes. No duplicate
+      row or already-granted relief is lost; both deadlines remain 12:20 plus the maximum.
+      A third subject seeded at 12:35 clips its start to 12:35. At 12:50 an accepting pass with
+      sufficient retained observations actually yields a rate: closures are at 12:50 with
+      1800/1800/900 seconds respectively. Each subject subtracts its own row's overlap.
+      Reverse A/B posting order and omit A entirely: B's outcome is identical.
+      **Loading a larger window cannot end a thin verdict.** Retain observations at 11:40,
+      11:50 and 12:00 with a 30-minute window and 20-minute stamped bound; the 12:00 pass
+      produces a rate. Accept nothing until 12:50, whose pass is thin under that window and
+      stores null. The outage starts at 12:20. With seed/mark 12:00 and enough authority, post
+      at 12:25: row [12:20, null), stored seconds zero. Load a two-hour window at 12:55 and
+      accept nothing before posting at 13:00. The row remains open from 12:20; loading the
+      window supplies no return. With customer rate 1/5 sat/s before the outage, no price or
+      margin changes and initial `r = 0`, the two postings charge 1200 × 1/5 = 240 sats total,
+      none for [12:20,13:00), final `r = 0`, mark 13:00. Repeating the posting adds nothing.
+      A subject first posted at 13:00 gets the same outage start, clipped to its own seed.
+      At 13:05 accept a pass with enough retained observations to yield customer rate 2/5:
+      close at 13:05 with 2700 absorbed seconds. Posting through 13:10 then adds 300 × 2/5 =
+      120 sats (360 total), never charging the absorbed interval. In a separate run, make the
+      subsequent accepting pass thin too: no closure until a later pass actually yields a rate.
+      **Setting changes alone leave the verdict and stamped staleness unchanged.** Raise and
+      lower window length while a rate is held and while its latest verdict is null: neither
+      action changes the verdict or historical spans. A newest 12:00 observation stamped with
+      a 60-minute bound still supplies freshness at 12:30 after loading a 20-minute bound at
+      12:10 without a pass; it expires at 13:00. New observations use the new bound. Conversely
+      raising a bound never revives a stale observation. After shrinking a window, let the next
+      accepting pass find it thin while the newest observation is fresh: the outage starts at
+      that pass, not at configuration load. Prune everything now eligible under `STO-49`, then
+      first-post a subject seeded before that outage and assert the same start and relief.
+      Enlarge again: only retained observations enter future computations; no invented rows or
+      changed historical verdicts. Exercise an accepting row observed earlier than a prior row:
+      its acceptance order selects the verdict, but freshness uses the newest observation's
+      own stamp, not the latest accepted row's bound. Restart over unchanged stamped rows and
+      verify the held verdict, start and all historical spans survive.
       **Quorum changes acceptance, not replay.** With the needed history retained, raise
       the quorum from three to five while holding staleness and window fixed. Assert that
       recorded observations accepted from three sources remain replay inputs, and replayed
@@ -908,7 +916,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       existing shape. Race admission against the existing account/fence conditional-write guards;
       rich collection must not weaken either guard. (`API-7`, `API-63`, `WIR-9`, `WIR-9a`,
       `WIR-9b`, `WIR-4`, `WIR-17`, `WIR-24`, `WIR-30`, `LDG-35`, `LDG-62`, `STO-35`, `OPS-11`)
-- [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no
+- [ ] **CNF-139** — No code path uses a rate past its newest observation's stamped bound
+      (*amended 2026-10-04, `pv-gip.28`*), and there is no
       last-known-good fallback anywhere. Asserted by removing every source for longer than the
       staleness bound and confirming the system reports *no rate* rather than a number. (*Amended
       2026-09-23, `ADR-0027`, as `CNF-138`.*) (`LDG-59`)
@@ -2154,23 +2163,25 @@ rather than acquiring a default.
       (`STO-49`). Repeat for a live machine with no `rate_outage` record. Stop another subject
       in the same currency and write its `absorbed_until` before the currency returns: the
       live machine's grace is unchanged by that subject record.
-      *Replay setting changed during the incident* (`OVR-19`): use a 1h staleness bound,
-      a 1h re-derivation interval, a 24h window and quorum three. Retain accepted currency
-      observations at 08:00, 09:00 and 10:00, each from three independent, live, non-excluded
-      sources at the same price; retain the left edge needed for replay. Step (3) is at 11:00
-      and the original end is 12:00. Accept no further observation before 14:00: under the
-      original setting, the newest observation is still valid at exactly 11:00, but there
-      is no rate after 11:00 until 14:00. A restart loads a 6h staleness bound; a qualifying pass at 14:00
-      accepts an observation at that same price. The 10:00 and 14:00 windows are sufficiently populated,
-      so thinness does not decide this trace. Keep the restore record
-      open, the outage bound later than the trace, and the tenant active, machine live and
-      unfenced, funding episode open, and cancellation eligible at 14:05 with no competing
-      operation hold. Leave the commitment insufficient for a future re-derived date and
-      admit no extension. At the 14:05 fence transaction, assert replay with the setting now
-      in force counts 11:00–14:05 as rate-present: the accumulated interval is spent, and the
-      otherwise unfunded cancellation fences and proceeds to the provider call. Replaying
-      with the old bound would leave unspent grace and incorrectly short-defer. This is
-      a history-replay conformance case; the Lean effective-outage-span model does not prove it.
+      *Settings changed during the incident* (*amended 2026-10-04, `pv-gip.28`*): use a
+      1h staleness bound, 1h re-derivation interval, 24h window and quorum three. Retain accepted
+      observations at 08:00, 09:00 and 10:00, each from three independent live sources at the
+      same price, with their stamped verdicts/bounds and the left edge needed for replay.
+      Step (3) is 11:00, original end 12:00. No observation is accepted before 14:00; the
+      10:00 observation expires at 11:00. Load a 6h staleness bound on restart: no return.
+      A qualifying pass at 14:00 yields a rate at the same price. Both relevant windows are
+      sufficiently populated, so thinness does not decide the trace. Keep the incident open,
+      outage maximum later than the trace, active tenant, live unfenced machine, open funding
+      episode and eligible cancellation at 14:05 with no competing operation hold. Leave
+      commitment insufficient and admit no extension. At the fence transaction only
+      [14:00,14:05) contributes: 300 of 3600 seconds spent, 3300 remaining. Assert ordinary
+      short deferral, no fence/provider call and episode still open. No part of [11:00,14:00)
+      was usable grace. With continuous rate presence, eligible claims short-defer until 15:00;
+      the first at or after 15:00 may cancel. A further outage pauses the remaining measure.
+      Prune and restart before re-claim: retain the stamped left-edge state and each intervening
+      return/outage while the restore stays open, even when a later yielding pass moves the
+      ordinary retention floor. This tests history replay; the effective-span model does not
+      prove replay or retention.
       *Return between claim and fence transaction* (`pv-gip.35`): with no rate at the claim,
       the original end passed, and an unfunded re-derivation, commit a qualifying return before
       the fence transaction. Assert the transaction reads that return and its currency history,
@@ -2433,7 +2444,8 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       closed with `absorbed_seconds = 600`, and no absorption or billing for [12:30,12:40).
       Competing no-rate postings in either span create
       no duplicate open row. The currency outage start remains 12:20 and the computed deadline
-      is unchanged across re-entry with unchanged replay parameters and bound. Rate return at
+      is unchanged across re-entry with the same stamped history and maximum (amended 2026-10-04,
+      `pv-gip.28`). Rate return at
       13:00 does not extend either closed row. (`STO-37`, `LDG-64`, `LDG-38`)
 - [ ] **CNF-161** — A machine powered off for a full billing period is billed for it, and a machine
       in `cancellation_scheduled` is billed through its effective date. The meter stopping at

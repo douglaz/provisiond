@@ -1206,6 +1206,12 @@ parameters (`OVR-19`). The odd-count rule above is about the pass's sources. The
 whatever the passes produced, and the same principle picks the lower of two middle values, so the
 rate is always a price some pass accepted.
 
+*Amended 2026-10-04 (`pv-gip.28`, `ADR-0029`).* Each accepting pass MUST stamp its computed
+window rate (or null for a thin window) on its `STO-49` row. Readers MUST use the latest
+accepting pass's stamped verdict in `acceptance_order`, subject to `LDG-59`'s staleness test.
+A changed window length applies from the next accepted observation. Loading a setting alone
+MUST NOT recompute the held verdict or rewrite whether historical time had a rate.
+
 **LDG-59** **Each source MUST carry a staleness bound, and a stale source MUST be excluded rather
 than used.** A deployment MUST state a **quorum**: the minimum number of live, non-excluded sources
 a pass needs to accept an observation — **per billing currency**: there is one rate, one quorum, one
@@ -1233,7 +1239,10 @@ exactly that pass".*
 
 - **The staleness bound also applies to the window's newest observation** — newest by
   `observed_at`, not by acceptance order, which can disagree with it (`STO-49`). Where none lies
-  inside the bound there is **no rate**. **The window's staleness is tested continuously, and no
+  inside the bound there is **no rate**. *Amended 2026-10-04 (`pv-gip.28`):* that newest
+  observation uses its own stamped `STO-49` staleness bound, not the current setting or the bound
+  of a different row accepted later. The latest accepting pass's stored verdict must also be
+  non-null for a rate to exist. **The window's staleness is tested continuously, and no
   pass is needed for it to produce no rate**: the instant the newest observation is older than the
   bound there is no rate, whether or not a pass has run, so a feed that falls silent halts between
   passes rather than holding its last rate — `LDG-58`'s "the rate holds until the next such pass"
@@ -1243,6 +1252,11 @@ exactly that pass".*
   and not between passes, because at the minimum window of three passes the oldest observation
   ages out just before each new one arrives, and a continuous count would drop the rate between
   passes in steady state (*added 2026-09-23, `ADR-0027`*).
+
+*Amended 2026-10-04 (`pv-gip.28`, `ADR-0029`).* Raising or lowering the staleness bound
+applies only from the next accepted observation; changing it alone neither revives a stale feed
+nor expires an observation earlier. Quorum governs new acceptance only, never retrospective
+qualification of a stored row. Historical readers use `STO-37`'s stamped-history replay.
 
 **A deployment MUST state its window and its pass cadence so that a full window holds at least three
 passes**, so the thin case is always an outage and never a configuration.
@@ -1278,8 +1292,9 @@ usage cannot be converted to satoshis. A deployment MUST:
   **The posting exception:** a posting discovering a completed outage inserts
   the subject's row already closed at the replayed return, or at its earlier meter stop; the
   first posting that computes a rate and finds the subject's row open MUST close it at that
-  replayed return (or earlier stop), including when changed replay parameters yield a rate
-  without a new accepted observation. Neither path may reopen a closed row or overwrite an
+  replayed qualifying accepting pass (or earlier stop). *Amended 2026-10-04 (`pv-gip.28`):*
+  withdrawn — "including when changed replay parameters yield a rate without a new accepted
+  observation"; `ADR-0029` records the trap. Neither path may reopen a closed row or overwrite an
   earlier closure. No other event closes the window. The same write supplies
   `absorbed_seconds` under `STO-37`'s column rule. The first observation accepted after an outage is not always
   that one: after an outage longer than `LDG-58`'s window it leaves that window too thin to
@@ -1288,11 +1303,12 @@ usage cannot be converted to satoshis. A deployment MUST:
 - **compute the outage's deadline from history, and store it nowhere.** The deadline is the
   outage's start plus the maximum tolerated outage below. An instant reached has passed:
   the deadline counts as passed at equality as well as after it. The start is the currency outage
-  start `STO-37` defines, replayed from `STO-49`'s recorded observations. With unchanged parameters any writer
+  start `STO-37` defines, replayed from `STO-49`'s stamped observations. Any writer
   computes the same instant, for a subject the meter has opened no record for as for one it has,
   and a restart mid-outage does not reset the clock and quietly extend the exposure past
-  the bound, because `STO-49` keeps the rows the start is replayed from. A changed parameter does
-  move the deadline, and `OVR-19` holds that rule. A restore that loses `STO-49` rows the start is
+  the bound, because `STO-49` keeps the rows the start is replayed from. A changed maximum
+  tolerated outage moves the deadline under `OVR-19`; settings alone cannot change the start
+  (*amended 2026-10-04, `pv-gip.28`*). A restore that loses `STO-49` rows the start is
   replayed from moves it as well, through the backup; `STO-54` lists that among what a restore
   does not repair, and the report naming the lost window is what tells the operator the clock
   moved (*amended 2026-10-02, `ADR-0029`*);

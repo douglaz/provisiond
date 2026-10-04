@@ -406,14 +406,13 @@ marked human are procedures the deployment records rather than values the proces
 | Recovery directory | `RSC-20` | absolute path | yes |
 | Recovery-key inventory procedure | `RSC-21` | human | no |
 
-**The maximum tolerated rate outage, and the staleness bound and window an outage's start is
-replayed with (`STO-37`), are each read at the value in force when `LDG-64`'s deadline is computed,
-for an outage already open too; the staleness bound and window are likewise read at the
-value in force when `OPS-41`'s paused measure is computed, including during an open restore
-incident, so lowering the maximum below the time an outage has already run
-makes that outage's cancellations eligible at the restart that loads the new value, with no further
-notice** (*added 2026-10-02, `ADR-0029`, which holds why the value is not frozen per outage and
-what the offer says of it, `WIR-30`; extended to the paused measure 2026-10-03 by the caller*).
+**The maximum tolerated rate outage is read at the value in force when `LDG-64`'s deadline is
+computed, for an outage already open too.** Lowering it below the elapsed outage makes that
+outage's cancellations eligible at the restart loading it, with no further notice. `LDG-58`,
+`LDG-59` and `STO-37` own rate verdicts and historical replay. *Amended 2026-10-04
+(`pv-gip.28`, `ADR-0029`): the 2026-10-02 rule now applies to the maximum only; the
+2026-10-03 current-setting extension to paused grace is withdrawn. `ADR-0029` holds the
+rationale and `WIR-30` the offer disclosure.*
 
 ## Non-goals
 
