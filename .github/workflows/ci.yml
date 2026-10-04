@@ -883,3 +883,62 @@ jobs:
               assert path.read_bytes() == original
           subprocess.run(['python3', 'tools/check_citations.py'], check=True)
           PY
+
+      # Each historical Markdown signature permits one finding, not unlimited
+      # copies of its wording. Removing another signature cannot free its allowance.
+      - name: Prove the citation gate rejects duplicates of exempted Markdown wording
+        run: |
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          import json
+          import subprocess
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          docs, adrs, reqs = c.load()
+          baseline = json.loads(Path(c.BASELINE).read_text())['markdown_quoted_attributions']
+          standing = Counter(tuple(signature.split(':', 2)) for signature in baseline)
+          findings, _, compared = c.find(docs, adrs, reqs)
+          assert standing and Counter(findings) == standing, (findings, standing)
+          subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          for finding in standing:
+              filename, owner, quote = finding
+              path = Path(filename)
+              original = path.read_bytes()
+              duplicate = f'\n\n`{owner}`\'s "{quote}".\n'.encode()
+              # Drop a chunk carrying a different finding, leaving this signature's
+              # standing occurrence intact. The total residue count then stays level.
+              other = next(row for row in standing if row != finding and row[0] == filename)
+              chunk = next(text for text in c.chunks(docs[filename])
+                           if c.find({filename: text}, adrs, reqs)[0] == [other])
+              assert original.count(chunk.encode()) == 1
+              reduced = original.replace(chunk.encode(), b'', 1)
+              for label, base, removed in [
+                  ('duplicate', original, Counter()),
+                  ('duplicate with unrelated finding removed', reduced, Counter([other])),
+              ]:
+                  try:
+                      mutated = base + duplicate
+                      assert mutated != original and mutated.endswith(duplicate)
+                      path.write_bytes(mutated)
+                      assert path.read_bytes() == mutated
+                      mutated_docs, mutated_adrs, mutated_reqs = c.load()
+                      bad, _, count = c.find(mutated_docs, mutated_adrs, mutated_reqs)
+                      assert Counter(bad) == standing + Counter([finding]) - removed, bad
+                      if not removed:
+                          assert count == compared + 1, count
+                      result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                      print(result.stdout)
+                      assert result.returncode == 1, (label, result.returncode, result.stderr)
+                      diagnostic = f'{filename} attributes to {owner} a phrase {owner} does not contain:'
+                      assert result.stdout.count(diagnostic) == 1, result.stdout
+                      assert f'"{quote}"' in result.stdout, result.stdout
+                      assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+                      print(f'PASS: {owner}: {label}: {count} comparisons, {len(bad)} raw findings; exit 1 with named quote')
+                  finally:
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          PY

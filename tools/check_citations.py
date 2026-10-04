@@ -27,7 +27,9 @@ FOUR RULES, deliberately narrow.
            documents and /-- ... -/ and /-! ... -/ docstrings under tools/formal/,
            excluding .lake/. ADRs are sources, not QUOTED input. Standing
            Markdown residue is keyed by file:id:quote with individual reasons
-           in citation-baseline.json's markdown_quoted_attributions. Lean
+           in citation-baseline.json's markdown_quoted_attributions. Each entry
+           allows one finding only; further occurrences of that same signature
+           fail, even if a different historical finding disappears. Lean
            residue is ratcheted in
            citation-baseline.json's quoted_attributions, keyed by file:id:quote
            with the full normalized quote; its note owns the causes and exits.
@@ -508,8 +510,14 @@ def main():
     lean_new = [(f, rid, q) for f, rid, q in lean_bad
                 if f"{f}:{rid}:{q}" not in quoted_base]
     markdown_bad = bad
-    bad = [(f, rid, q) for f, rid, q in markdown_bad
-           if f"{f}:{rid}:{q}" not in markdown_base]
+    remaining = set(markdown_base)
+    bad = []
+    for f, rid, q in markdown_bad:
+        signature = f"{f}:{rid}:{q}"
+        if signature in remaining:
+            remaining.remove(signature)
+        else:
+            bad.append((f, rid, q))
     bad += lean_new
     for f, rid, q in bad:
         print(f"  {f} attributes to {rid} a phrase {rid} does not contain:")
