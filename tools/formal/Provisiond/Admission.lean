@@ -2,7 +2,7 @@ import Provisiond.Tables
 /-! The decided policy spaces: `API-7`'s admission pipeline, `SEC-39`'s ceilings, `LDG-20`'s
 solvency halt and `LDG-40`'s matrix against rate availability.
 
-These are not lifecycle transitions. Each is a table whose cells a requirement decided one at a
+The policy matrices are tables whose cells a requirement decided one at a
 time, and each has been wrong in the direction that costs the most: a pipeline whose "steps
 contained no ceiling check at all, so a builder following the pipeline literally shipped none of
 this"; a halt whose previous version "halted sales and left funding open"; and the sentence both
@@ -11,12 +11,13 @@ the check that fires because exposure is too high." Written as total functions o
 keys, with no wildcard, so halting the action that reduces exposure is a red build rather than a
 review finding.
 
-Three models. The pipeline (`API-7`, `WIR-34`, `API-55`, `API-56`): principal, tenant state,
+The pipeline (`API-7`, `WIR-34`, `API-55`, `API-56`): principal, tenant state,
 listener and verb decide one outcome and whether the request consumed a ceiling slot. The ceilings
 (`SEC-39`): which budget each verb counts against, and the two properties that make a ceiling a
 control rather than a field. The matrices (`LDG-20`, `LDG-40`, `LDG-59`, `LDG-64`, `LDG-65`): what
 a solvency failure and a rate outage do to each action, over an action space that includes the
-system activities no caller reaches.
+system activities no caller reaches. A small halt transition retains the previous verdict
+when a passing check is incomplete.
 
 What the model omits, beyond the parts of each requirement named below.
 
@@ -60,8 +61,8 @@ replay rule needs.
 `LDG-20`'s "halt top-ups first" orders two responses in time; this is a matrix, so what it
 carries is that minting is refused and crediting is not. Valuation is not modelled: the inequality,
 asset treatment and stress set — "the provider-currency pair adverse by 15%, an inaccessible venue
-for seven days" — are outside. A computed shortfall remains an input, represented by applying
-`underHalt`; the no-rate matrix does not compute that input or prove the
+for seven days" — are outside. A computed shortfall remains an input, passed to `nextHalt`; its result determines whether `underHalt` applies.
+Neither the transition nor the no-rate matrix computes that input or proves the
 monetary calculation. Its solvency row only records that the check continues over valued terms.
 `LDG-58`'s median, `LDG-59`'s quorum and `LDG-60`'s exclusions are the construction behind "no
 rate"; only its per-currency scope appears, in `rateAvailableFor`.
@@ -287,6 +288,7 @@ structure Guards where
   cancelUnsettledInvoices  : Bool
   exposureExemptUnderHalt  : Bool
   sweepRoutesNothingWithoutRate : Bool
+  completeCheckToLift     : Bool
   solvencyUsesValuedTerms  : Bool
   deriving DecidableEq, Repr
 
@@ -305,7 +307,33 @@ def current : Guards := {
     cancelUnsettledInvoices  := true,
     exposureExemptUnderHalt  := true,
     sweepRoutesNothingWithoutRate := true,
+    completeCheckToLift     := true,
     solvencyUsesValuedTerms  := true }
+
+/-- `LDG-40`, amended 2026-10-04: "An incomplete passing check MUST preserve
+the existing verdict". The guard's off position retains the defect: omitting a leg lifts a halt.
+`complete` and `short` are inputs from the check, not a valuation computed by this model. -/
+@[req "LDG-40"]
+def nextHalt (g : Guards) (prior complete short : Bool) : Bool :=
+  short || (g.completeCheckToLift && !complete && prior)
+
+@[req "LDG-40"]
+theorem incomplete_pass_preserves (g : Guards) (h : g.completeCheckToLift = true)
+    (prior : Bool) : nextHalt g prior false false = prior := by simp [nextHalt, h]
+
+@[req "LDG-40"]
+theorem a_halt_lifts_only_on_a_complete_pass (g : Guards)
+    (h : g.completeCheckToLift = true) (complete short : Bool) :
+    nextHalt g true complete short = false ↔ complete = true ∧ short = false := by
+  cases complete <;> cases short <;> simp [nextHalt, h]
+
+@[req "LDG-40"]
+theorem short_terms_start_a_halt (g : Guards) (prior complete : Bool) :
+    nextHalt g prior complete true = true := by simp [nextHalt]
+
+@[req "LDG-40"]
+theorem missing_rate_alone_starts_nothing (g : Guards) :
+    nextHalt g false false false = false := by simp [nextHalt]
 
 /-- One authenticated write as the pipeline reads it. `tenant` is the tenant steps 2 and 5b test —
 the principal's own, or the one an operator names. `admin` is `API-5`'s flag: "Each token maps to

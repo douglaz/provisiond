@@ -555,7 +555,7 @@ One closed set of error kinds, used by drivers, the rescue engine, and the API a
 | `internal` | Defect in this system | 500 |
 | `insufficient_balance` | Available balance cannot fund the required commitment (`LDG-9`) | 402 |
 | `not_activated` | Tenant exists but is still pending funding (`API-35`) | 403 |
-| `halted` | Refused because a solvency or rate-availability gate is failing (`LDG-20`, `LDG-40`) | 503 |
+| `halted` | Refused while a solvency halt is in force or a rate is unavailable (halt transitions: `LDG-40`; consequences: `LDG-20`) | 503 |
 | `gone` | Resource existed and was removed by retention (`STO-14`, `STO-33`) | 410 |
 | `suspended` | Tenant is suspended; only the maintenance actions remain (`API-58`) | 403 |
 | `ceiling_exceeded` | A per-principal ceiling for the current interval is exhausted (`SEC-39`) | 429 |

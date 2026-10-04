@@ -372,7 +372,8 @@ assurance. The formal admission matrix records the row, not the monetary calcula
 The reasons:
 
 - `LDG-20` explains its halt because "a customer could pay for a claim the operator had just
-  computed it could not honour". A missing rate computes no such insolvency. The withdrawn
+  computed it could not honour". A missing rate alone computes no new insolvency; it cannot disprove a previously
+  computed shortfall. The 2026-10-04 amendment below addresses that prior verdict. The withdrawn
   reading invoked "Cancel unsettled Lightning invoices on unexpired deposits" and made the
   deposit read report `gate: "solvency"` for what that requirement calls "a declared
   insolvency". `LDG-19`'s standard applies: "A statement a reader will misunderstand is worse
@@ -406,7 +407,7 @@ Rejected alternatives:
   solvency check. One rate, one home"; this decision does not create another estimator.
 
 **Accepted cost:** for as long as a currency has no rate, a shortfall lying wholly in that
-currency's leg (a move of the pair beyond the stress's 15%, plus the outage's native accrual under
+currency's leg arising while no halt is in force (a move of the pair beyond the stress's 15%, plus the outage's native accrual under
 `LDG-64`) goes undetected, and top-ups taken meanwhile cannot be refunded (`ADR-0004`: "No
 withdrawal of the balance in any form" and "no refunds, ever"). **It lasts as long as the outage,
 which the bound does not end: the bound cancels machines, it does not value payables.** `LDG-64`'s
@@ -414,7 +415,8 @@ words are "cancel machines at that bound if no rate has returned". The earlier p
 that this blind spot lasted only until the cancellation bound was not the accepted decision.
 
 **Single-currency consequence:** a deployment whose only currency has no rate checks held
-satoshis against the float alone, so top-ups continue through a rate outage; until now they halted.
+satoshis against the float alone. Top-ups can continue if no halt is already in force; the
+2026-10-04 amendment below governs a prior halt.
 A shortfall against that float still causes the computed-failure halt. That is a behavior change,
 not an assurance that the unknown leg is covered.
 
@@ -424,3 +426,16 @@ conformance cases. The admission guard's off position retains the withdrawn solv
 `.github/workflows/ci.yml` holds its regression control. Neither the matrix proof nor those
 conformance requirements are evidence about a running system. Provider-payable resolution
 (`pv-gip.39`) and the deposit-read schema (`pv-gip.40`) remain separate work.
+
+
+## An incomplete pass preserves the verdict — 2026-10-04
+
+`LDG-40` now owns the transition: "An incomplete passing check MUST preserve the existing
+verdict; a halt in force MUST lift only when every leg can be valued and the full check passes."
+The accepted cost is stated there, beside the rule. The preceding undetected-shortfall argument
+concerns a new shortfall during an outage; it does not justify forgetting a computed one.
+
+Rejected: accepting the lift as another outage cost. Starving one currency's window would then
+reopen funding after the operator had computed the claim could not be honoured, the very reason
+for `LDG-20`'s halt. Conformance is `CNF-306`; the formal transition and its guard witnesses
+check preservation without claiming to calculate monetary solvency.

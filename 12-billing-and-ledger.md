@@ -1134,7 +1134,10 @@ held satoshis and the float, which need no currency rate, and the payables and s
 currencies whose windows yield rates, valued at those rates. Asset treatment remains `LDG-53`'s
 and `LDG-20`'s. It MUST omit the unrated currency's non-negative payables and stress leg. A shortfall on the
 valued terms is a computed failure and MUST trigger `LDG-20`'s deployment-wide consequences. A
-missing rate alone MUST NOT cause a solvency halt. This does not establish
+missing rate alone MUST NOT start a solvency halt. An incomplete passing check MUST preserve
+the existing verdict; a halt in force MUST lift only when every leg can be valued and the full
+check passes. A shortfall cured during the outage, including by recording a payment or adding
+satoshis, therefore keeps top-ups halted until the rate returns. This does not establish
 that the whole pool is solvent while a leg is unknown, change the reserve obligation, or add a
 public assurance.
 
@@ -1870,7 +1873,7 @@ the provider's account before the liability falls due.
 
 **On failure the system MUST halt top-ups first**, then refuse every bill-increasing operation,
 while continuing to permit cancellation and deletion. See `LDG-40` for a check during a currency's
-rate outage.
+rate outage and for the transition that retains or lifts a halt.
 
 **AMENDED 2026-08-31 — "halt top-ups" halts minting, and only minting.** Every destination already
 handed out stays payable: a Lightning invoice until its own expiry, an on-chain address forever

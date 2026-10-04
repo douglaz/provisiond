@@ -822,7 +822,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       bill-increasing operation is refused. Caller cancellation and deletion remain permitted.
       This case selects no precedence between simultaneous extension refusals.
 
-      **USD unrated, EUR covered.** Bill in USD and EUR, remove only USD's rate, and keep EUR's
+      **USD unrated, EUR covered.** Start independently with no halt in force and a fresh
+      unsettled invoice; do not inherit the preceding short-float halt. Bill in USD and EUR, remove only USD's rate, and keep EUR's
       window yielding its rate. Held satoshis cover the float plus stressed EUR payables; arrange
       USD payables so that valuing them at the last pre-outage rate would make the check short.
       Assert that an EUR create and `extend-runway` are admitted, a deposit mints, no unsettled
@@ -849,6 +850,17 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       `LDG-40` keeps that withdrawn row.*)
       (`LDG-40`, `LDG-59`, `LDG-16`, `LDG-17`, `LDG-20`, `LDG-53`, `LDG-62`, `LDG-65`,
       `OPS-41`, `WIR-15`, `WIR-24`)
+- [ ] **CNF-306** — **An incomplete pass cannot lift a computed halt.** With every leg
+      valued, induce a short check: top-up minting halts and an unexpired unsettled invoice is
+      cancelled. Remove a currency's rate until its window yields no rate. Make the valued terms
+      covered, separately by adding satoshis and by recording a payment once that verb is
+      available. Assert the incomplete passing check retains the halt: a fresh deposit request
+      is refused and the existing deposit read still reports `gate: "solvency"` and
+      `lightning.cancelled: true`. Restore the rate and cover the full stressed check; only then
+      does the halt lift, a fresh deposit mint succeed, and the old read report `gate: null`
+      while `lightning.cancelled` remains `true`. Also keep a complete-but-short check halted.
+      `CNF-138` owns starting a halt from short valued terms and no-rate-alone with no prior halt.
+      (`LDG-40`, `LDG-20`, `WIR-15`)
 - [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no
       last-known-good fallback anywhere. Asserted by removing every source for longer than the
       staleness bound and confirming the system reports *no rate* rather than a number. (*Amended

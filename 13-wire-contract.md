@@ -499,7 +499,8 @@ invoice's own embedded expiry MUST equal `expires_at`. Both rails carry a `floor
 settled payment, `LDG-55` — plural on purpose), `"credited_sats"` (their sum), and
 `"expired": false`, plus a required top-level `"gate"` and a required boolean
 `"cancelled"` inside the existing `"lightning"` object. `gate` is `null` when there is no
-solvency halt and `"solvency"` during `LDG-20`'s halt. `lightning.cancelled` is `false` for an
+solvency halt and `"solvency"` during `LDG-20`'s halt, including the retained halt under
+`LDG-40`'s transition. `lightning.cancelled` is `false` for an
 invoice that has not been cancelled and `true` once it has been cancelled; the read MUST report
 the invoice's cancellation state even after the halt clears. Thus a normal, payable invoice
 reads `gate: null` and `lightning.cancelled: false`; an invoice cancelled during the halt reads

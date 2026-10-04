@@ -3196,6 +3196,24 @@ theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
         underNoRate Admission.current t .metering = .metersNative) := by
   constructor <;> decide
 
+/-- Complete short, incomplete pass, complete pass: `LDG-40`'s halt transition. -/
+def incompletePassingTrace (g : Admission.Guards) : Bool :=
+  nextHalt g (nextHalt g false true true) false false
+
+@[req "LDG-40"]
+theorem incomplete_pass_keeps_the_halt :
+    incompletePassingTrace Admission.current = true := by decide
+
+@[req "LDG-40"]
+theorem without_the_guard_omission_lifts_the_halt :
+    incompletePassingTrace { Admission.current with completeCheckToLift := false } = false := by
+  decide
+
+@[req "LDG-40"]
+theorem complete_pass_ends_the_trace :
+    nextHalt Admission.current (incompletePassingTrace Admission.current) true false = false := by
+  decide
+
 /-- Under the row `LDG-40`'s 2026-10-02 note withdrew, "**the exhaustion sweep** (MUST continue:
 it reduces exposure)", the sweep goes on routing with no rate — the note: "Continuing cancelled
 machines whose stored date passed during the outage". Stated over every tenant state, which

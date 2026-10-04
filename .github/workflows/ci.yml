@@ -592,6 +592,7 @@ jobs:
           Admission|exposureExemptUnderHalt|true|false|exposureReducingUnderHalt
           Admission|sweepRoutesNothingWithoutRate|true|false|exposureReducingWithoutRate
           Admission|solvencyUsesValuedTerms|true|false|Action.solvencyCheck
+          Admission|completeCheckToLift|true|false|incompletePassingTrace
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
           Period|deploymentWide|true|false|lateSubjectTrace
