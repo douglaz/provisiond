@@ -395,7 +395,7 @@ flowchart TD
     F --> F1{"Was the commitment<br/>already released by OPS-33?"}
     F1 -- "no" --> G["Attach. It becomes the<br/>machine's running commitment"]
     F1 -- "yes" --> H["OPS-36: attach, then route<br/>straight to exhaustion"]
-    H --> H1{"Does available cover<br/>the wind-down floor?"}
+    H --> H1{"Rate available (LDG-40) AND<br/>available covers wind-down floor?"}
     H1 -- "yes" --> H2["Open a wind-down commitment"]
     H1 -- "no" --> H3["No commitment at all.<br/>LDG-66 operator deficiency"]
     H2 --> I["Enqueue the cleanup cancellation<br/>in the SAME transaction"]
@@ -477,7 +477,7 @@ clearing of any parked `LDG-67` pending-fee record, and the commitment decrement
 is still open (`LDG-31`). They MUST commit together, under `LDG-35`'s per-tenant serialization
 because the debit reads the balance. **The late-attach entry point carries three further effects,
 and they commit in that same transaction**: the attach itself; *either* the wind-down commitment
-*or* the `LDG-66` operator deficiency that stands in for it where available cannot cover the floor,
+*or* the `LDG-66` operator deficiency, using `OPS-36` and `LDG-40` for the branch decision,
 never neither and never both; and the enqueue of the cleanup cancellation, which opens the
 machine's `delete` episode as it goes (`OPS-39`, `OPS-48`). A partial commit leaves a state
 nothing in the record can repair: a machine whose fee is still parked bills that setup a second
@@ -485,6 +485,9 @@ time when the obligation is next read, a debit without the machine row charges a
 machine no tenant owns, a machine row without its debit runs a create nobody paid for, and an
 attach whose cancellation never reached the queue is an unfunded machine billing with nothing
 scheduled to stop it.
+
+*Amended 2026-10-04 (`pv-gip.27`, J1): the flowchart and atomic attach include `LDG-40`'s
+no-rate branch, "open no commitment, regardless of available balance". Verification: `CNF-308`.*
 
 **Where the machine's tenant is suspended at the moment of the attach, that same transaction also
 enqueues a system cancellation** — `requested_by: system`, `system_reason: tenant_suspended`, under
