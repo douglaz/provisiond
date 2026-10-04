@@ -421,7 +421,7 @@ A shortfall against that float still causes the computed-failure halt. That is a
 not an assurance that the unknown leg is covered.
 
 The API write table gains a solvency pointer on `extend-runway`: `LDG-62` calls it "authorized
-like a purchase". Refusal ordering remains `pv-gip.26`'s question. `CNF-138` holds the outage
+like a purchase". `API-7` owns refusal ordering (`ADR-0030`). `CNF-138` holds the outage
 conformance cases. The admission guard's off position retains the withdrawn solvency row, and
 `.github/workflows/ci.yml` holds its regression control. Neither the matrix proof nor those
 conformance requirements are evidence about a running system. Provider-payable resolution

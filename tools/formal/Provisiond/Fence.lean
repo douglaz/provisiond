@@ -76,8 +76,8 @@ What the model omits: the first 2026-09-05 form of
 the suspension exemption, keyed on the attempt's own reason; a second attempt enqueued while one is
 in flight (the model holds one attempt, and every enqueue waits for it); `OPS-31`'s resolution
 verbs on an `uncertain` episode (`Provisiond.Tables` has the rows); `LDG-62`'s sizing of the
-commitment it grows — `extend` takes the satoshis as given — and its wire answers, with any order
-between its refusals (`pv-gip.26`): every refusal here is the unchanged world, whichever test
+commitment it grows — `extend` takes the satoshis as given — and its wire answers (`API-7` owns collection and ordering; `Provisiond.Admission`
+checks that tail): every refusal here is the unchanged world, whichever test
 made it; the `late_attach_cleanup` reason (`OPS-36` is `pv-vwe.5`'s, and what its attach does with
 no rate is `pv-gip.27`'s); the two-clock replay of the outage's start over `STO-49`'s rows — what
 a changed staleness bound or window does to the replayed start belongs to `STO-37` and `OVR-19`,

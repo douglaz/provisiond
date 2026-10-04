@@ -820,7 +820,7 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       Lightning invoice is cancelled, the deposit read reports `gate: "solvency"` and
       `lightning.cancelled: true` with `expired: false`, and every
       bill-increasing operation is refused. Caller cancellation and deletion remain permitted.
-      This case selects no precedence between simultaneous extension refusals.
+      `CNF-307` owns combined extension-refusal expectations.
 
       **USD unrated, EUR covered.** Start independently with no halt in force and a fresh
       unsettled invoice; do not inherit the preceding short-float halt. Bill in USD and EUR, remove only USD's rate, and keep EUR's
@@ -841,7 +841,7 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       refused `halted`, the unsettled Lightning invoice is cancelled, and the deposit read reports
       `gate: "solvency"` and `lightning.cancelled: true` with `expired: false`.
       Caller cancellation and deletion remain permitted. The EUR requests
-      have no competing refusal; this case establishes no extension-refusal ordering.
+      have no competing refusal; see `CNF-307` for combined refusals.
 
       (*Amended 2026-09-23, `ADR-0027`: a pass below quorum halts nothing (`LDG-59`), so the fault
       must outlast the bound; `CNF-99` holds the single pass.* *Amended 2026-10-02, `ADR-0029`;
@@ -861,6 +861,38 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       while `lightning.cancelled` remains `true`. Also keep a complete-but-short check halted.
       `CNF-138` owns starting a halt from short valued terms and no-rate-alone with no prior halt.
       (`LDG-40`, `LDG-20`, `WIR-15`)
+- [ ] **CNF-307** — **Rich purchase-tail refusals.** Exercise create and extend-runway after
+      the common pipeline, with a fresh key each time. For each fault alone assert a singleton
+      `details.refusals` containing exactly `kind`, `message`, `retryable`, `details`, matching
+      the headline and its HTTP status: unhealthy create account or fenced extension `409`
+      `conflict` (reason `state` or `cancellation_committed`); solvency halt or absent rate `503`
+      `halted` (gate `solvency` or `rate_unavailable`); cap exceeded `400` `invalid_request`
+      (`max_commitment_sats`, `required_sats`); balance short `402` `insufficient_balance`
+      (`available_sats`, `required_sats`). Preserve per-kind retryability and required pacing.
+      No entry contains a nested list, no check/refusal repeats, and every refusing tail writes
+      no commitment, balance, machine, operation or receipt and makes no provider call.
+
+      Fence + solvency + absent rate: HTTP `409`, entries fence/solvency/rate in that order;
+      cap and balance each unchecked because `rate_unavailable`; headline has no synthesized
+      pacing. Solvency + short balance with a rate: HTTP `503`, envelope `retryable: false`,
+      entries solvency (`retryable: true`) then balance (`retryable: false`), with the balance's
+      amounts and solvency's own pacing at the top level and in its entry. Give the subordinate
+      rate entry a longer delay in a solvency+rate case and assert headline pacing is unchanged.
+      Cap + short balance: HTTP `400`, cap before balance, envelope false and `not_checked: []`.
+      An unhealthy create account + solvency halt: `409`, state then solvency, cap and balance
+      unchecked because `provider_account_not_healthy`; repeat with no rate as well and require
+      the rate refusal and both reasons for each skipped check. A skipped check never appears
+      as a priced refusal or as passed. A fenced extension with a rate still evaluates cap and
+      balance; empty `not_checked` proves they ran even though the resource refused.
+
+      Clear faults and resend the exact request and key: admission succeeds, proving refusal
+      left no replay receipt. Check singleton/no-rate `not_checked` as well as the empty list
+      when priced checks ran. Authenticate, authorize, validate body/key, replay, suspend and
+      exhaust the ceiling independently before the tail: retain the first early result with no
+      rich list or extra ceiling slot. Deposit refusals and operation-view errors retain their
+      existing shape. Race admission against the existing account/fence conditional-write guards;
+      rich collection must not weaken either guard. (`API-7`, `API-63`, `WIR-9`, `WIR-9a`,
+      `WIR-9b`, `WIR-4`, `WIR-17`, `WIR-24`, `WIR-30`, `LDG-35`, `LDG-62`, `STO-35`, `OPS-11`)
 - [ ] **CNF-139** — No code path uses a rate older than the stated bound, and there is no
       last-known-good fallback anywhere. Asserted by removing every source for longer than the
       staleness bound and confirming the system reports *no rate* rather than a number. (*Amended

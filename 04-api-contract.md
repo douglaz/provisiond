@@ -240,7 +240,7 @@ The tail then depends on what the endpoint does:
 
 | Class | Tail |
 |---|---|
-| **create** | **refuse `conflict`/`state` where the named provider account is not `healthy`** (`STO-47`, `WIR-29`) — before any gate, since a dead account can take no order; then spending gates (`LDG-9`, `LDG-20`, `LDG-40`), then commitment + operation in one transaction (`LDG-11`), serialized per tenant (`LDG-35`), then `202` |
+| **create** | evaluate the rich purchase tail below; on admission, commitment + operation in one transaction (`LDG-11`, `LDG-35`), then `202` |
 | **power, install, reverse-DNS, refresh, rescue inventory** | enqueue an operation, then `202`. **No commitment**: they are not purchases, and they pass no spending gate |
 | **retry** | operator-only (`API-64`, `WIR-51`); synchronous, `200` with the episode view; the episode's state change, the enqueue of a fresh `delete_machine` attempt and the idempotency record commit in one transaction (`WIR-24`); **no commitment and no spending gate** — the attempt reduces exposure, on the delete row's reasoning |
 | **suspend** | operator-only; enqueue one cancellation per machine, then `202` (`API-58`) |
@@ -249,9 +249,37 @@ The tail then depends on what the endpoint does:
 | **resume, resolve** | **operator-only** (`WIR-41`, `WIR-35`, `WIR-34`); synchronous, `200`, no provider mutation (`API-48`). The recovery credential reaches **neither** — `API-55` confines it to `API-56`, and a recovered-after-theft credential that could resume its own tenant or resolve an uncertain provider mutation would undo the suspension that answered the theft |
 | **delete, cancel** | enqueue an operation, then `202`, and **bypass the rate and solvency gates entirely** — these reduce exposure, and refusing them because exposure is too high is the failure `LDG-20` already forbids |
 | **deposit** | synchronous; allowed while pending; **refused `halted` while `LDG-20`'s solvency halt is in force** — that halt stops top-ups *first*, and minting a destination invites exactly the payment it forbids; otherwise **mints a destination and writes NO ledger entry** — a deposit is not money until it settles (`LDG-47`) — plus an idempotency record, in one transaction; `200` |
-| **extend-runway** | synchronous; ledger write plus idempotency record in one transaction (`WIR-24`); `200`. **Fenced by `OPS-42`**: a conditional write on `machines.destroy_committed`, failing `conflict` where a cancellation already committed. **Refused `halted` where the machine's currency has no rate** (`LDG-40`; *added 2026-10-02, `ADR-0029`*). **Solvency refusal: `halted` (`LDG-20`)** (*added 2026-10-03, `ADR-0029`*) |
+| **extend-runway** | evaluate the rich purchase tail below; on admission, the guarded extension (`LDG-62`) and idempotency record commit together (`WIR-24`); synchronous `200` |
 | **abuse-case writes** | the tenant's statement (`WIR-43`) and the operator's five verbs (`API-60`, `API-61`) — synchronous, **no commitment, no spending gate, no provider mutation**; `201` on create and on a statement, `200` on the rest; each carries `Idempotency-Key` under `WIR-24`'s one-transaction rule. The statement write is a maintenance action and stays reachable while suspended (step 5b) |
 | **attribute** | operator-only (`WIR-42`); synchronous, `200`; posts ledger entries, so it **takes `LDG-35`'s serialization for both tenants, in ascending tenant-identifier order**, and the primitive must not require a live `tenants` row — the source tenant is normally already reaped |
+
+**Rich purchase tails (create and extend-runway only).** After steps 1–5c, the tail MUST
+collect every applicable refusal once, from one read-only snapshot inside the existing `LDG-35`
+transaction, without an extra lock, ceiling slot, write or provider call. `details.refusals`
+(`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
+against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
+`halted`/`solvency`; `halted`/`rate_unavailable`; the commitment-cap refusal (`WIR-17`, `WIR-24`);
+`insufficient_balance`. The named resource cannot accept the action; next the pool's halt stops
+funding (`LDG-40` owns retention of a prior halt), then the purchase cannot be priced, then the
+caller's explicit spend bound precedes affordability. Both halted entries may appear; no duplicate
+means no repeated refusal/check, not unique kind strings. The cap and balance checks MUST NOT
+run without a rate, nor for create against an unhealthy account: `WIR-30` says "an account whose
+`STO-47` status is not `healthy` `404`s on this route too". Each skipped check MUST appear in
+`details.not_checked` with every applicable reason, using `WIR-9a`'s enums; if all checks ran this
+list is empty. No missing refusal implies a skipped check passed. Each refusal is exactly
+`WIR-9`'s inner error object, with no nested refusal list. Entry 0 is the headline: HTTP status,
+`kind`, `message` and per-kind details MUST match it; top-level details additionally carry the
+aggregate keys. Only top-level `retryable` may differ, under `WIR-9b`. Pacing belongs to the
+headline: its `details.retry_after_ms` and `Retry-After` follow the existing per-kind rules and
+`WIR-4`; each entry keeps its own required pacing. No maximum is taken and a subordinate halted
+entry MUST NOT supply pacing to a headline kind that does not require it. A refused tail MUST
+commit nothing and write no `STO-35` receipt (`WIR-3`), so clearing faults and resending the same
+request/key evaluates afresh. Admission retains the conditional-write guards in `API-63` and
+`LDG-62`; collection does not replace them with read-only guards. These are admission refusals
+(`OPS-11`), never lists in operation views. Steps 1–5c still stop at their first refusal: the
+authentication and authorization steps protect disclosure; key/body validation precede evaluation;
+5a returns the stored replay; 5b follows replay; 5c precedes commitments and enqueue. Their reasons
+are in the steps above. Deposit behavior and other tails are unchanged.
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a
@@ -1278,7 +1306,7 @@ had already re-assigned its tenants off a failing account — the responsible th
 named none of the tenants it was in the act of stranding.*
 
 **It MUST also contend with admission on the account row itself, and that ordering comes first.**
-The create's health check MUST **conditional-write** `STO-47`'s row, guarded on
+The create's admitting path MUST **conditional-write** `STO-47`'s row, guarded on
 `status = healthy`, **in the transaction that opens the commitment**, and fail `conflict` with
 `details.reason: "state"` where that write affects no row — so a create admitted after a
 termination is impossible rather than merely unlikely, because the two contend on one row and one

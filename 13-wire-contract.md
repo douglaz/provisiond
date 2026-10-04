@@ -127,6 +127,17 @@ agent to parse English. Minimum keys:
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
 
+**On create and extend-runway tail refusals**, `details.refusals` is the ordered list of
+`WIR-9` inner objects and `details.not_checked` is a list of `{check, because}` objects; `API-7`
+owns collection, ordering and evaluation. `check` is exactly `commitment_cap` or `balance`;
+`because` is exactly `rate_unavailable` or `provider_account_not_healthy` (create only).
+When both reasons apply, each skipped check has an entry for each reason, in check order
+`commitment_cap`, `balance`, then reason order `provider_account_not_healthy`, `rate_unavailable`.
+**Only on the `max_commitment_sats` refusal**, `invalid_request` carries
+`details.max_commitment_sats` (the supplied cap) and `details.required_sats` (the computed
+commitment to open or additional satoshis to reserve); these keys are not required of other
+`invalid_request` errors.
+
 **On an `install` operation's error, `details.disk_effect` is required whatever the kind** (*added
 2026-09-15, `pv-x8r`*): `none` where this operation is established to have written nothing to the
 target disk — `OPS-45`'s write-started marker unset on `rootfs_via_rescue` or `raw_disk`, or a
@@ -155,7 +166,9 @@ operation the restore quarantine or the post-restore startup pass moved (`STO-54
 exactly those rows that "a null marker there does not mean the disk is untouched", and `none` on
 either key would tell the caller the opposite of what the operator is told about the same row.
 
-**WIR-9b** **`retryable` precedence.** When an error accompanies an operation view, the operation
+**WIR-9b** **`retryable` precedence.** For `API-7`'s rich purchase-tail refusal, the envelope's
+`retryable` MUST be true iff every refusal entry's `retryable` is true. Each entry retains its
+existing per-kind value; this aggregation does not amend `DOM-17`. When an error accompanies an operation view, the operation
 view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 `needs_reconciliation` and `gone` are **always** `retryable: false` — re-issuing either under a
 fresh idempotency key is a fresh operation, not a retry: a second purchase on a create, a second
@@ -571,7 +584,8 @@ the wind-down floor MUST be **rejected** `invalid_request` with `details.min_run
 silently raised — silently reserving more of a caller's money than it asked for is a money bug.
 `max_commitment_sats` (optional) caps spend: if the computed commitment exceeds it the request
 fails `invalid_request` (not `insufficient_balance`) **before** any commitment opens, so an agent
-can bound a purchase priced at an attacker-influenceable rate (`LDG-41`).
+can bound a purchase priced at an attacker-influenceable rate (`LDG-41`). `WIR-9a` owns its
+cap details; `API-7` owns tail combination and ordering.
 
 *`WIR-18` — `POST /v1/machines/adopt` — is withdrawn with adopt (`ADR-0020`). It returns as a
 synchronous operator route in `API-48`'s list, answering with the machine view.*
@@ -695,15 +709,12 @@ the same `(tenant, Idempotency-Key)` returns the stored body and reserves nothin
 different fingerprint under that key is `409` (`API-11`, `STO-25`). `API-48`'s closed list is
 AMENDED to include it — recorded there.
 
-**The same transaction conditional-writes `machines.destroy_committed`, guarded on it being null,
-and returns `409` `conflict` with `details.reason: "cancellation_committed"` where that affects no
-row** (`LDG-62`, `OPS-42`) — reserving nothing and moving no balance. **Where the machine's
-currency has no rate the extension is refused `halted` with `gate: "rate_unavailable"`** (`LDG-40`,
-`WIR-9a`), likewise reserving nothing and moving no balance (`LDG-62`; *added 2026-10-02,
-`ADR-0029`*). *Added 2026-09-02: this
-endpoint's own definition never mentioned the fence, so a builder reading only the wire contract and
-`LDG-62` shipped an extension that could take a customer's money for a machine already committed to
-destruction.*
+`max_commitment_sats` is optional and caps the additional satoshis reserved by this request,
+including a commitment opened where none exists. If that computed amount exceeds the cap the
+request fails `invalid_request` before any commitment opens or grows; `WIR-9a` owns its details.
+`API-7` owns collection and ordering of tail refusals, including solvency and rate unavailability.
+`LDG-62` owns the read used for fence reporting and the conditional write on admission, including
+the re-derived `runway_until`.
 
 **WIR-25** `GET /v1/machines`, `GET /v1/machines/{id}` — machine views; the list is
 cursor-paginated (`WIR-32`): `{"machines": [], "next_cursor": null}`. The example shows an empty

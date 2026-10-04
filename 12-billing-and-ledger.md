@@ -1144,7 +1144,8 @@ public assurance.
 **The fifth row — metering — was missing, and it is the one that costs money** (`LDG-64`).
 
 **With no rate for the machine's currency, an extension of runway MUST halt as a create does**: it
-is a purchase priced at an unknown rate too. `LDG-62` holds what the halted extension leaves untouched.
+is a purchase priced at an unknown rate too. `LDG-62` holds what the halted extension leaves untouched; `API-7` owns purchase-tail refusal
+collection and ordering.
 
 *The withdrawn wording asked whether each of these "proceeds on a stale rate or halts", which
 `LDG-59` removes as a choice — there is no proceeding on a stale rate. The matrix is now about
@@ -1700,10 +1701,13 @@ concurrent extends must not reserve twice.
 
 **With no rate for the machine's currency an extension halts, and `LDG-40` holds that rule and its
 reason** (*added 2026-10-02, `ADR-0029`*). The halted extension opens or grows no commitment and
-moves no balance, and `WIR-24` holds the refusal.
+moves no balance. `API-7` owns tail refusal collection and ordering; `WIR-24` owns the wire action.
 
 **It is fenced, and this requirement carries the obligation rather than merely being cited for it**
-(added 2026-09-02). In the same `LDG-35` transaction, an extension MUST **conditional-write the
+(added 2026-09-02). Refusal collection reads `destroy_committed` from the `API-7` snapshot;
+a non-null value contributes the fence refusal without writing the machine. Only an admitting
+extension, with a rate to re-derive `runway_until`, proceeds to the conditional write; a refusing
+path MUST write nothing. In the same `LDG-35` transaction, an admitted extension MUST **conditional-write the
 machine row guarded on `machines.destroy_committed IS NULL`**, and where that write affects no row
 it MUST fail `conflict` with `details.reason: "cancellation_committed"` (`WIR-9a`) — **opening or
 growing no commitment and moving no balance** — telling the tenant plainly that the machine is
@@ -1711,7 +1715,7 @@ already being cancelled. `OPS-42` holds the argument: the extension and an expos
 cancellation contend for one row so that one of them provably loses, and a customer whose payment
 lands after the fence keeps its satoshis rather than paying for a machine that is going.
 
-**In that same transaction an extension MUST write the re-derived `runway_until` (`LDG-33`) to the
+**In that same admitting transaction an extension MUST write the re-derived `runway_until` (`LDG-33`) to the
 machine row** (*withdrawn 2026-09-25, `ADR-0028`: "and clear the deadline — `LDG-16`'s
 `machines.destroy_not_before`, an extension being the authorized future-date write that ends the
 restore grace (`ADR-0026`)" — no machine carries a deadline; see `OPS-41` for restore grace*) **and, where it
@@ -1873,7 +1877,8 @@ the provider's account before the liability falls due.
 
 **On failure the system MUST halt top-ups first**, then refuse every bill-increasing operation,
 while continuing to permit cancellation and deletion. See `LDG-40` for a check during a currency's
-rate outage and for the transition that retains or lifts a halt.
+rate outage and for the transition that retains or lifts a halt. `API-7` owns purchase-tail
+refusal collection and ordering.
 
 **AMENDED 2026-08-31 — "halt top-ups" halts minting, and only minting.** Every destination already
 handed out stays payable: a Lightning invoice until its own expiry, an on-chain address forever

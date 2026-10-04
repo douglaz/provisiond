@@ -3196,6 +3196,19 @@ theorem the_rate_matrix_halts_the_purchase_and_nothing_else :
         underNoRate Admission.current t .metering = .metersNative) := by
   constructor <;> decide
 
+/-- The rich tail retains resource, pool and rate refusals together. -/
+def fencedHaltedNoRate (g : Admission.Guards) :=
+  purchaseTail g false true true true false true true
+
+@[req "API-7"]
+theorem rich_tail_retains_every_refusal :
+    (fencedHaltedNoRate Admission.current).refusals = [.fence, .solvency, .rate] := by decide
+
+@[req "API-7"]
+theorem without_collection_only_the_headline_remains :
+    (fencedHaltedNoRate { Admission.current with richTailCollection := false }).refusals =
+      [.fence] := by decide
+
 /-- Complete short, incomplete pass, complete pass: `LDG-40`'s halt transition. -/
 def incompletePassingTrace (g : Admission.Guards) : Bool :=
   nextHalt g (nextHalt g false true true) false false

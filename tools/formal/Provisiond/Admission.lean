@@ -35,11 +35,10 @@ operator", and step 5's deserialization all decide on a resource this model does
 is one Boolean, `replay`: "an equal fingerprint under the same `(principal, key)` returns the
 stored result", and what that stored result was is outside.
 
-The tail. `API-7`'s per-class tail is where the halt and the rate gates are applied, and the two
-matrices below are those gates; the commitment, the enqueue and the `202` belong to
-`Provisiond.Fence` and `Provisiond.Ledger`. The create row's earlier refusal — "refuse
-`conflict`/`state` where the named provider account is not `healthy`" — turns on a
-provider-account row this model has none of.
+The tail. `purchaseTail` carries `API-7`'s refusal collection over snapshot inputs; it does not
+read provider-account or machine rows, compute a price, serialize responses or execute a write.
+The commitment and enqueue belong to `Provisiond.Fence` and `Provisiond.Ledger`.
+The earlier pipeline and other verbs remain outside rich collection.
 
 The listener. `API-27` obliges a deployment to "expose *only* the customer-facing routes publicly,
 keeping operator and reconciliation routes on a separate listener or network", which is a property
@@ -288,6 +287,7 @@ structure Guards where
   cancelUnsettledInvoices  : Bool
   exposureExemptUnderHalt  : Bool
   sweepRoutesNothingWithoutRate : Bool
+  richTailCollection      : Bool
   completeCheckToLift     : Bool
   solvencyUsesValuedTerms  : Bool
   deriving DecidableEq, Repr
@@ -307,6 +307,7 @@ def current : Guards := {
     cancelUnsettledInvoices  := true,
     exposureExemptUnderHalt  := true,
     sweepRoutesNothingWithoutRate := true,
+    richTailCollection      := true,
     completeCheckToLift     := true,
     solvencyUsesValuedTerms  := true }
 
@@ -1005,5 +1006,108 @@ theorem no_verb_reaches_the_system_cancellation :
     ∀ v : Verb, Action.caller v ≠ Action.fundingCancellation ∧
       Action.caller v ≠ Action.suspensionCancellation ∧
       Action.caller v ≠ Action.boundCancellation := by decide
+
+/-! ## Rich purchase tails
+
+Snapshot facts only. Prices, locks, receipts, HTTP serialization and actual writes are omitted.
+`API-7` owns evaluation purity; the list's Boolean inputs do not prove transaction isolation. -/
+inductive TailRefusal
+  | account | fence | solvency | rate | cap | balance
+  deriving DecidableEq, Repr
+
+inductive PricedCheck
+  | commitmentCap | balance
+  deriving DecidableEq, Repr
+
+inductive UncheckedReason
+  | unhealthy | noRate
+  deriving DecidableEq, Repr
+
+structure TailResult where
+  refusals : List TailRefusal
+  notChecked : List (PricedCheck × UncheckedReason)
+  deriving DecidableEq, Repr
+
+/-- Only purchase tails reach this function; `create = false` denotes extend-runway.
+`API-7`: "collect every applicable refusal once". The guard retains the former single refusal
+as its off position. `cap` and `balance` are check failures, ignored when price is unavailable. -/
+@[req "API-7"]
+def purchaseTail (g : Guards) (create healthy fenced halted rate cap balance : Bool) : TailResult :=
+  let priced := rate && (!create || healthy)
+  let refusals := (if create && !healthy then [.account] else []) ++
+    (if !create && fenced then [.fence] else []) ++
+    (if halted then [.solvency] else []) ++ (if !rate then [.rate] else []) ++
+    (if priced && cap then [.cap] else []) ++ (if priced && balance then [.balance] else [])
+  let reasons := (if create && !healthy then [UncheckedReason.unhealthy] else []) ++
+    (if !rate then [.noRate] else [])
+  { refusals := if g.richTailCollection then refusals else refusals.take 1
+    notChecked := reasons.map (.commitmentCap, ·) ++ reasons.map (.balance, ·) }
+
+@[req "API-7"]
+def tailAdmitted (create healthy fenced halted rate cap balance : Bool) : Bool :=
+  (if create then healthy else !fenced) && !halted && rate && !cap && !balance
+
+@[req "API-7"]
+def TailRefusal.rank : TailRefusal → Nat
+  | .account | .fence => 0
+  | .solvency => 1
+  | .rate => 2
+  | .cap => 3
+  | .balance => 4
+
+@[req "WIR-9b"]
+def TailRefusal.retryable : TailRefusal → Bool
+  | .solvency | .rate => true
+  | .account | .fence | .cap | .balance => false
+
+@[req "WIR-9b"]
+def envelopeRetryable (r : TailResult) : Bool := r.refusals.all TailRefusal.retryable
+
+@[req "API-7"]
+theorem empty_iff_admitted (g : Guards) (hg : g.richTailCollection = true) :
+    ∀ c h f s r p b : Bool,
+      (purchaseTail g c h f s r p b).refusals.isEmpty = tailAdmitted c h f s r p b := by
+  intro c h f s r p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+    simp [purchaseTail, tailAdmitted, hg]
+
+@[req "API-7"]
+theorem ordered_without_duplicates (g : Guards) (hg : g.richTailCollection = true) :
+    ∀ c h f s r p b : Bool,
+      ((purchaseTail g c h f s r p b).refusals.map TailRefusal.rank).Pairwise (· < ·) ∧
+      (purchaseTail g c h f s r p b).refusals.Nodup := by
+  intro c h f s r p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+    simp [purchaseTail, TailRefusal.rank, hg]
+
+@[req "API-7"]
+theorem unpriced_checks_are_skipped (g : Guards) (hg : g.richTailCollection = true) :
+    ∀ c h f s r p b : Bool,
+      (r = false ∨ (c = true ∧ h = false)) →
+      (purchaseTail g c h f s r p b).refusals.contains .cap = false ∧
+      (purchaseTail g c h f s r p b).refusals.contains .balance = false ∧
+      (purchaseTail g c h f s r p b).notChecked.any (fun x => x.1 == .commitmentCap) = true ∧
+      (purchaseTail g c h f s r p b).notChecked.any (fun x => x.1 == .balance) = true := by
+  intro c h f s r p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+    simp [purchaseTail, hg]
+
+/-- Agreement is scoped to purchase actions after the common pipeline, not other verbs. -/
+@[req "LDG-40"]
+theorem tail_agrees_with_policy (g : Guards) (hg : g.richTailCollection = true) :
+    ∀ c h f s r p b : Bool,
+      ((purchaseTail g c h f s r p b).refusals.contains .solvency = s) ∧
+      ((purchaseTail g c h f s r p b).refusals.contains .rate = !r) ∧
+      underHalt g (.caller (if c then .create else .extendRunway)) = some .halted ∧
+      underNoRate g .active (.caller (if c then .create else .extendRunway)) = .halts := by
+  intro c h f s r p b
+  cases c <;> cases h <;> cases f <;> cases s <;> cases r <;> cases p <;> cases b <;>
+    simp [purchaseTail, hg, underHalt, underNoRate, Action.reducesExposure,
+      Action.billIncreasing, Action.mintsDestination]
+
+@[req "WIR-9b"]
+theorem envelope_is_conjunction (r : TailResult) :
+    envelopeRetryable r = true ↔ ∀ e ∈ r.refusals, e.retryable = true := by
+  simp [envelopeRetryable]
 
 end Provisiond.Admission
