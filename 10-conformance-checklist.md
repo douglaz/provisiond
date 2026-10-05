@@ -486,23 +486,29 @@ not optional hardening — they are the only structural defence there is.
       *Amended 2026-10-04 (`pv-gip.28`, Q13): that 2026-09-25 quotation is historical,
       superseded wording. Use `accepted_at = observed_at` for these passes and close earlier
       flap rows under current `LDG-64`; the quotation supplies no observation-time instruction.*
-      Let the feed go silent, so
+      Keep machines A and B in that currency continuously billable from `t0` through the last
+      tested posting, within one billing period. Each has an open increment starting at its seed
+      or prior high-water mark at `t0`, with no intervening posting before its specified posting
+      below. Let the feed go silent, so
       that at `t0+b` the newest observation is stale and there is no rate, with no pass running
-      (`LDG-59`). Post machine A's meter at some `tA` in `(t0+b, t0+3c)`; it finds no open row for A
+      (`LDG-59`). Post machine A's meter at some `tA` in `(t0+b, t0+c)`; it finds no open row for A
       and opens A's row: assert `absorbed_from = t0+b` and, on A's view, `rate_outage_deadline =
       t0+b+M`. Let the
       passes at `t0+c` and `t0+2c` fall below `LDG-59`'s quorum, accepting nothing and writing no
-      `STO-49` row, and assert that nothing changed. At `t0+3c` let a pass accept one observation
-      (`observed_at = t0+3c`): as of that pass the window holds at most two observations — `t0−2c`
+      `STO-49` row, and after each assert that A still has its one open outage row, no duplicate
+      has appeared, and `absorbed_from` remains `t0+b`. At `t0+3c` let a pass accept one observation
+      (`accepted_at = observed_at = t0+3c`): as of that pass the window holds at most two observations — `t0−2c`
       and `t0−c` are outside it and `t0` is at its edge — so on either side of that edge the window
-      is thin, and there is still no rate although the new observation is fresh. Post machine B's
-      meter at some `tB` after `t0+3c`; it finds no open row for B and opens B's row: assert
+      is thin, and there is still no rate although the new observation is fresh. Accept no further
+      observation before the tested postings finish. Post machine B's meter at some `tB` with
+      `t0+3c < tB < t0+b+M`; it finds no open row for B and opens B's row: assert
       `absorbed_from = t0+b`, equal to A's and not `t0+3c` (what the per-writer thin formula would
       give), `rate_outage_deadline = t0+b+M` on B's view, one deadline for both machines, and that
-      `[t0+b, t0+3c)`
-      lies inside B's absorbed window, so B's `LDG-38` apportioning charges nothing for it. Assert
-      also that B's write read no sibling row: the result is the same when A's row is opened after
-      B's, or never. **A restart does not move the deadline, and a changed parameter does**
+      `[t0+b, t0+3c)` lies inside both B's posting span and its absorbed window, so B's `LDG-38`
+      apportioning charges nothing for it. Assert also that B's write read no sibling row. For
+      that independence check, rerun with A's posting delayed until after B's but before `t0+b+M`,
+      or omitted, keeping B's billable span and starting mark unchanged: B's result is identical.
+      **A restart does not move the deadline, and a changed parameter does**
       (added 2026-10-02, `ADR-0029`): mid-outage, restart the engine with every `OVR-19` value
       unchanged and assert each machine's `rate_outage_deadline` is the instant it was; restart it
       with the maximum tolerated outage changed to `M′` and assert each reads the outage's start
@@ -618,7 +624,7 @@ not optional hardening — they are the only structural defence there is.
       clause is withdrawn with the construct it tested (`ADR-0011`). Until 2026-09-05 this item
       tested a behaviour with no column, no predicate and no reader behind it, and a build that
       routed on the date alone passed it by never being fed a poisoned reading.* (`PRV-13e`,
-      `LDG-16`, `LDG-58`, `LDG-59`, `LDG-64`, `STO-37`, `STO-49`, `STO-54`, `STO-56`, `OPS-41`,
+      `LDG-16`, `LDG-38`, `LDG-58`, `LDG-59`, `LDG-64`, `STO-37`, `STO-49`, `STO-54`, `STO-56`, `OPS-41`,
       `OVR-19`, `WIR-11`)
 - [ ] **CNF-100** — At end of runway, with a rate in force, the machine is cancelled and its disk
       destroyed — and the terms and API documentation state both that destruction and the outage
