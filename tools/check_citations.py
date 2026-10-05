@@ -196,10 +196,9 @@ def chunks(text):
     """Apply SPLIT only outside paired quotations, regardless of their length."""
     spans = iter(QUOTE.finditer(text))
     span = next(spans, None)
-    start = 0
-    for boundary in SPLIT.finditer(text):
-        if boundary.start() < start:
-            continue
+    start = pos = 0
+    while boundary := SPLIT.search(text, pos):
+        pos = boundary.end()
         cut = boundary.start('sentence') if boundary.group('sentence') else boundary.start()
         while span and span.end() <= cut:
             span = next(spans, None)
@@ -215,6 +214,9 @@ def chunks(text):
             structural = SPLIT.match(text, newline) if newline >= 0 else None
             if structural:
                 start = max(start, structural.end())
+        # Resume beyond everything consumed, so an overlapping match cannot
+        # swallow a later list or paragraph boundary.
+        pos = start
     yield text[start:]
 
 
@@ -492,6 +494,21 @@ def check_sentence_boundaries():
                 assert list(chunks(text)) == [text], text
         assert list(chunks('"Intro *ends.*\n\n- next"')) == ['"Intro *ends.*', 'next"']
         print(f'PASS: sentence boundaries: {name}: chunks, protection and comparisons')
+
+        for name, separator in [('consecutive empty list items', '\n-\n-\n- '),
+                                ('empty list items before paragraph', '\n- \n-\n\n')]:
+            text = 'Intro *ends.*' + separator + attribution
+            expected = ['Intro *ends.*', '-', attribution]
+            assert list(chunks(text)) == expected, (text, list(chunks(text)))
+            reqs = {'OPS-41': ('source.md', 'alpha beta gamma delta')}
+            assert find({'probe': text}, {}, reqs) == ([], [], 1), name
+            assert exists({'probe': text}, ['alpha beta gamma delta']) == ([], 1), name
+            wrong = text.replace('gamma', 'WRONG')
+            assert find({'probe': wrong}, {}, reqs) == (
+                [('probe', 'OPS-41', 'alpha beta wrong delta')], [], 1), name
+            assert exists({'probe': wrong}, ['alpha beta gamma delta']) == (
+                [('probe', 'alpha beta wrong delta')], 1), name
+            print(f'PASS: sentence boundaries: {name}: chunks, owners, counts and corruption')
 
         first = '`LDG-59` says "**Falling back to the last known rate MUST NOT happen.**"'
         later = 'A purchase is "authorized like a purchase".'
