@@ -57,8 +57,18 @@ FOUR RULES, deliberately narrow.
            spans outside the word/length limits. Each paragraph is checked
            independently; separately extracted Lean docstrings stay separate.
            What it cannot see: balanced nested or mispaired straight/curly
-           marks can still select the wrong span within a paragraph. Balancing
-           does not establish which quotation a mark belongs to. Blank lines
+           marks can still select the wrong span within a paragraph. Two stray
+           straight marks, such as inch marks surrounding a real quotation,
+           can pair with its marks and hide it, including in a Lean docstring:
+           A 3.5" drive. `OPS-29` says "A correlator match MUST be exact.". A 2.5" drive.
+           The quotation in that sentence gets no QUOTED or EXISTS comparison,
+           even if corrupted; Lean UNQUOTED findings are not enforced. Balancing
+           alone cannot identify the intended quotation boundaries. Prefer a
+           spelled-out unit (3.5 inch); the double-prime unit symbol (3.5″) also
+           avoids straight marks. Inline code spans and fenced code blocks do
+           not shield marks from the guard; a lone inch mark there still fails.
+           Curly double quotation marks are checked separately and are not a
+           substitute for the double-prime unit symbol. Blank lines
            are hard boundaries, including between separate Lean docstrings.
            This is a paired-mark scanner, not a Markdown or Lean prose parser.
            Historical/teaching heuristics apply to the whole resulting chunk;
@@ -467,11 +477,12 @@ def contains_quote(source, quote):
 
 
 def unpaired_marks(text, first_line=1):
-    """Yield (source line, mark kind) per malformed paragraph, before filtering.
+    """Yield (source line, mark kind) locations before filtering each paragraph.
 
-    Straight marks have no direction; report the first mark of an odd set.
-    Curly marks must balance in opening/closing order. Balanced nesting is not
-    parsed here and remains a limitation of QUOTE's flat pairing.
+    Straight marks have no direction: every distinct line containing a mark in
+    an odd set is a candidate, since we cannot identify which mark is unpaired.
+    Curly marks must balance in opening/closing order; report the first unmatched
+    mark's line. Balanced nesting remains a limitation of QUOTE's flat pairing.
     """
     offset = 0
     for paragraph in re.split(r'(\n\s*\n)', text):
@@ -486,10 +497,14 @@ def unpaired_marks(text, first_line=1):
                     curly.pop()
                 else:
                     unmatched.append(pos)
-        for kind, positions in [('straight', straight[:1] if len(straight) % 2 else []),
+        for kind, positions in [('straight', straight if len(straight) % 2 else []),
                                 ('curly', unmatched + curly)]:
             if positions:
-                yield first_line + text.count('\n', 0, offset + min(positions)), kind
+                if kind == 'curly':
+                    positions = [min(positions)]
+                lines = {first_line + text.count('\n', 0, offset + pos) for pos in positions}
+                for line in sorted(lines):
+                    yield line, kind
         offset += len(paragraph)
 
 
@@ -1109,9 +1124,12 @@ def main():
               "does not replace the source scan.")
         return 1
     for f, line, kind in mark_errors:
-        print(f"  {f}:{line}: unpaired {kind} double quotation marks")
+        if kind == 'straight':
+            print(f"  {f}:{line}: candidate line for odd set of straight double quotation marks")
+        else:
+            print(f"  {f}:{line}: unpaired {kind} double quotation marks")
     if mark_errors:
-        print(f"FAIL: {len(mark_errors)} unpaired quotation mark finding(s)")
+        print(f"FAIL: {len(mark_errors)} quotation mark source-line finding(s)")
         return 1
     bad, unquoted, markdown_compared = find(docs, adrs, reqs)
     lean_bad, _, compared = find(lean, adrs, reqs, corpus=docs)

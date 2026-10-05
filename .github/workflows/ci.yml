@@ -1365,6 +1365,8 @@ jobs:
               original = path.read_bytes()
               lean = filename.endswith('.lean')
               for label, paragraph, kind in [
+                  ('later stray', '`OPS-29` says "A correlator match MUST be exact."\nA second line.\nA 3.5" drive.', 'straight'),
+                  ('multiline quote then stray', '`OPS-29` says "A correlator match\nMUST be exact."\nA 3.5" drive.', 'straight'),
                   ('stray speech', '- A 3.5" drive is mentioned here.\n- `OPS-29` says "a correlator match must be approximate"', 'straight'),
                   ('stray possessive', '- A 3.5" drive is mentioned here.\n- `OPS-29`\'s "a correlator match must be approximate"', 'straight'),
                   ('curly opening', '“unclosed', 'curly'),
@@ -1386,10 +1388,19 @@ jobs:
                       result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
                       print(result.stdout)
                       assert result.returncode == 1, (label, result.returncode, result.stderr)
-                      assert f'{filename}:{line}: unpaired {kind} double quotation marks' in result.stdout, result.stdout
-                      assert 'FAIL:' in result.stdout and 'unpaired quotation mark finding(s)' in result.stdout
+                      lines = [line + offset for offset, text in enumerate(paragraph.splitlines())
+                               if ('"' in text if kind == 'straight' else any(mark in text for mark in '“”'))]
+                      # Check locations before wording: the old diagnostic must fail
+                      # for omitting the later stray line, even though it exits 1.
+                      for source_line in lines:
+                          assert f'{filename}:{source_line}:' in result.stdout, (label, source_line, result.stdout)
+                      for source_line in lines:
+                          diagnostic = ('candidate line for odd set of straight double quotation marks'
+                                        if kind == 'straight' else 'unpaired curly double quotation marks')
+                          assert f'{filename}:{source_line}: {diagnostic}' in result.stdout, (label, source_line, result.stdout)
+                      assert f'FAIL: {len(lines)} quotation mark source-line finding(s)' in result.stdout
                       assert 'attributes to' not in result.stdout and 'quotes a phrase found' not in result.stdout
-                      print(f'PASS: {filename}: {label}: source line {line}, mark guard exit 1')
+                      print(f'PASS: {filename}: {label}: source lines {lines}, mark guard exit 1')
                   finally:
                       path.write_bytes(original)
                       assert path.read_bytes() == original
@@ -1404,8 +1415,8 @@ jobs:
                       print(result.stdout)
                       assert result.returncode == 1, (result.returncode, result.stderr)
                       for source_line in [line, line + 1]:
-                          assert f'{filename}:{source_line}: unpaired straight double quotation marks' in result.stdout
-                      assert 'FAIL: 2 unpaired quotation mark finding(s)' in result.stdout
+                          assert f'{filename}:{source_line}: candidate line for odd set of straight double quotation marks' in result.stdout
+                      assert 'FAIL: 2 quotation mark source-line finding(s)' in result.stdout
                   finally:
                       path.write_bytes(original)
                       assert path.read_bytes() == original
