@@ -293,66 +293,106 @@ def span_edges(text, start, end):
 
 
 def double_pairs(text, start, end):
-    """Double-delimiter evidence in bounded context, including partial wrappers."""
+    """Double-delimiter evidence in bounded context, including nested edges."""
+    # comparison_text retains a sentence boundary after dots; an explicit
+    # elision is not a pairing boundary. Keep positions unchanged.
+    text = text.replace('...\n', '... ')
     left = max(0, start - 401, text.rfind('\n', 0, start) + 1)
     boundary = text.find('\n', end)
     right = min(len(text), end + 401, boundary if boundary >= 0 else len(text))
-    return [(left + pair.start(), left + pair.end() - 1)
-            for pair in re.finditer(r'''(?<![\w"'])"[^"\n]{0,400}"(?!\w)''', text[left:right])]
+    return [(left + pair.start(1), left + pair.end() - 1)
+            for pair in re.finditer(r'''(?<![\w"'])'*(")[^"\n]{0,400}"(?!\w)''', text[left:right])]
 
 
-def span_content(text, start, end, other, other_start, other_end):
-    """Content of one candidate; single marks never borrow an outside partner.
+def delimiter_edge(text, pos, role, roles):
+    """An adjacent mark is transparent only in an established matching role."""
+    step = -1 if role == 'open' else 1
+    outside = pos + step
+    while 0 <= outside < len(text) and roles.get(outside) == role:
+        outside += step
+    before = text[outside] if 0 <= outside < len(text) else ' '
+    inside = pos - step
+    return (not re.match(r'''[\w"']''', before) and 0 <= inside < len(text)
+            and not text[inside].isspace())
 
-    An opener follows neither a word nor another mark and precedes nonspace;
-    a closer follows nonspace and precedes neither a word nor another mark.
-    First use local double pairs on either side to establish corresponding
-    delimiter roles at the same mark-free offsets. Transferring a role to single
-    marks requires both endpoints inside both candidates and a lexical pair;
-    double marks may inherit a partial wrapper's role. Thus nested pairs remain
-    independent and a later possessive cannot replace an established closer.
-    Remaining openers pair with the last closer before the next opener
-    within a structural segment (at most 400 enclosed characters).
-    Double marks have no apostrophe role, so a locally paired double wrapper may
-    also enclose a partial candidate. Internal apostrophes can never be delimiters.
-    This bounded convention is not an English parser: ambiguous punctuation within
-    the candidate can still be mispaired; fragments cutting a single-delimiter
-    pair may be conservatively rejected. Elision fragments retain their full
-    quotation's double-pair context, but are still matched independently.
+
+def corresponding_roles(source, quote, candidates):
+    """Establish local pairs using endpoints aligned by fragment candidates.
+
+    Both endpoints of a transferred single pair must be present in candidate
+    alignments and enclose at most 400 characters without a structural boundary
+    (the whitespace after an explicit three-dot elision is not such a boundary).
+    They may come from different elision fragments; fragments still locate their
+    occurrences independently, without a contiguous or ordered whole-quote match.
+    Only established roles let adjacent nested marks pass the lexical edge check.
     """
-    marks = '\"\''
-    start, end = span_edges(text, start, end)
-    other_start, other_end = span_edges(other, other_start, other_end)
-    ignored = {p for pair in double_pairs(text, start, end) for p in pair}
+    texts = (source, quote)
+    roles = ({}, {})
+    maps = ({}, {})
+    pairs = (set(), set())
 
-    def mark_offsets(s, first, last):
-        offsets, offset = {}, 0
-        for pos in range(first, last):
-            if s[pos] in marks:
-                offsets[pos] = offset
+    def offsets(text, start, end):
+        result, offset = {}, 0
+        for pos in range(start, end):
+            if text[pos] in '\"\'':
+                result.setdefault(offset, []).append(pos)
             else:
                 offset += 1
-        return offsets
+        return result
 
-    offsets = mark_offsets(text, start, end)
-    other_offsets = mark_offsets(other, other_start, other_end)
-    for opening, closing in double_pairs(other, other_start, other_end):
-        # Matching double marks can use their source's enclosing context even
-        # when the candidate cuts the pair, as in a balanced partial quotation.
-        slots = {other_offsets[p] for p in (opening, closing) if p in other_offsets}
-        ignored.update(p for p, slot in offsets.items() if slot in slots and text[p] == '"')
-        if opening not in other_offsets or closing not in other_offsets:
-            continue
-        opens = [p for p, slot in offsets.items() if slot == other_offsets[opening]
-                 and text[p] == "'" and (not p or not re.match(r'[\w\"\']', text[p - 1]))
-                 and p + 1 < len(text) and not text[p + 1].isspace()]
-        closes = [p for p, slot in offsets.items() if slot == other_offsets[closing]
-                  and text[p] == "'" and p and not text[p - 1].isspace()
-                  and (p + 1 == len(text) or not re.match(r'[\w\"\']', text[p + 1]))]
-        if len(opens) == len(closes) == 1:
-            a, b = opens[0], closes[0]
-            if 0 < b - a <= 401 and '\n' not in text[a:b]:
-                ignored.update((a, b))
+    for start, end, qstart, qend in candidates:
+        spans = (span_edges(source, start, end), span_edges(quote, qstart, qend))
+        slots = [offsets(text, *span) for text, span in zip(texts, spans)]
+        for side in (0, 1):
+            for opening, closing in double_pairs(texts[side], *spans[side]):
+                pairs[side].add((opening, closing))
+                roles[side].update({opening: 'open', closing: 'close'})
+            for slot, positions in slots[side].items():
+                for pos in positions:
+                    maps[side].setdefault(pos, set()).update(slots[1 - side].get(slot, []))
+
+    # Double pairs are the evidence; transferred roles cannot seed new pairs.
+    changed = True
+    while changed:
+        changed = False
+        for side in (0, 1):
+            other_side = 1 - side
+            text, own = texts[side], roles[side]
+            for opening, closing in pairs[other_side]:
+                for endpoint, role in [(opening, 'open'), (closing, 'close')]:
+                    for pos in maps[other_side].get(endpoint, []):
+                        if text[pos] == '"' and pos not in own:
+                            own[pos] = role
+                            changed = True
+                opens = [p for p in maps[other_side].get(opening, [])
+                         if text[p] == "'" and delimiter_edge(text, p, 'open', own)]
+                closes = [p for p in maps[other_side].get(closing, [])
+                          if text[p] == "'" and delimiter_edge(text, p, 'close', own)]
+                for a in opens:
+                    # Multiple occurrences are independent candidates, but an
+                    # ambiguous local partner does not establish a delimiter.
+                    partners = [b for b in closes if 0 < b - a <= 401
+                                and '\n' not in text[a:b].replace('...\n', '... ')]
+                    if len(partners) == 1:
+                        b = partners[0]
+                        if a not in own or b not in own:
+                            own.update({a: 'open', b: 'close'})
+                            changed = True
+    return roles
+
+
+def span_content(text, start, end, roles):
+    """Compare content after established roles and remaining local lexical pairs.
+
+    Remaining openers pair with the last closer before the next opener, within
+    one structural segment and 400 enclosed characters. Internal apostrophes
+    remain content. This bounded convention is not an English parser; ambiguous
+    punctuation and truncated single pairs may still be conservatively rejected.
+    An outside single partner can contribute only through corresponding_roles(),
+    where both endpoints must align with a complete double pair.
+    """
+    start, end = span_edges(text, start, end)
+    ignored = set(roles)
     opener = closer = None
     for pos in range(start, end):
         mark = text[pos]
@@ -360,16 +400,14 @@ def span_content(text, start, end, other, other_start, other_end):
             if opener is not None and closer is not None:
                 ignored.update((opener, closer))
             opener = closer = None
-        elif mark in marks and pos not in ignored:
-            before = text[pos - 1] if pos else ' '
-            after = text[pos + 1] if pos + 1 < len(text) else ' '
-            if not (re.match(r'\w', before) or before in marks) and not after.isspace():
+        elif mark in '\"\'' and pos not in ignored:
+            if delimiter_edge(text, pos, 'open', roles):
                 if opener is not None and closer is not None:
                     ignored.update((opener, closer))
                 opener, closer = pos, None
             elif (opener is not None and mark == text[opener]
-                  and pos - opener - 1 <= 400 and not before.isspace()
-                  and not (re.match(r'\w', after) or after in marks)):
+                  and pos - opener - 1 <= 400
+                  and delimiter_edge(text, pos, 'close', roles)):
                 closer = pos
     if opener is not None and closer is not None:
         ignored.update((opener, closer))
@@ -377,27 +415,36 @@ def span_content(text, start, end, other, other_start, other_end):
 
 
 def contains_quote(source, quote):
-    """Find spans by mark-free text, then require equal local punctuation content.
+    """Find independent fragment spans, then compare their punctuation content.
 
-    Elision fragments remain independent and may occur anywhere in this source.
-    Removing marks is candidate discovery only, never an acceptance fallback.
+    Complete delimiter pairs retain evidence across elision splits. Removing
+    marks is candidate discovery only, never an acceptance fallback.
     """
     positions = [p for p, char in enumerate(source) if char not in '\"\'']
     plain = ''.join(source[p] for p in positions).replace('\n', ' ')
     quote = comparison_text(quote)
     quote_offset = 0
+    groups = []
     for fragment in fragments(quote):
         qstart = quote.index(fragment, quote_offset)
         qend = qstart + len(fragment)
         quote_offset = qend
         needle = fragment.replace('"', '').replace("'", '').replace('\n', ' ')
-        offset = 0
+        offset, candidates = 0, []
         while needle and (at := plain.find(needle, offset)) >= 0:
             start, end = positions[at], positions[at + len(needle) - 1] + 1
-            content = span_content(quote, qstart, qend, source, start, end)
-            if span_content(source, start, end, quote, qstart, qend) == content:
-                break
+            candidates.append((start, end, qstart, qend))
             offset = at + 1
+        if not candidates:
+            return False
+        groups.append(candidates)
+    source_roles, quote_roles = corresponding_roles(
+        source, quote, [candidate for group in groups for candidate in group])
+    for candidates in groups:
+        for start, end, qstart, qend in candidates:
+            content = span_content(quote, qstart, qend, quote_roles)
+            if span_content(source, start, end, source_roles) == content:
+                break
         else:
             return False
     return True
@@ -671,6 +718,47 @@ def check_quote_content():
     case('R4 partial wording', source, quote.replace('beta', 'WRONG'), False, False)
     case('R4 inserted possessive', source, quote.replace('beta', "beta'"), False)
     case('R4 omitted possessive', source.replace('beta', "beta'"), quote, False)
+    for elision in ['…', '...', 'and']:
+        pairs = [
+            (f"the price is 'an indicative quote {elision} binding is false', and the auction channel",
+             f'the price is "an indicative quote {elision} binding is false", and the auction channel'),
+            (f"'a \"the rows' values\" clause {elision} remains'",
+             f'"a \'the rows\' values\' clause {elision} remains"'),
+        ]
+        for single, double in pairs:
+            for source, quote in [(single, double), (double, single)]:
+                case('R5 elision pairs', source, quote, True)
+                case('R5 same style', source, source, True)
+                case('R5 enclosed wording', source, quote.replace('is false', 'is WRONG')
+                     if 'price' in quote else quote.replace('values', 'WRONG'), False, False)
+                if "rows'" in quote:
+                    missing = quote.replace("rows'", 'rows')
+                    case('R5 possessive omission', source, missing, False)
+                    case('R5 possessive insertion', missing, source, False)
+    pairs = [
+        ("'remain delta \"rows gamma\"' gone now", '\"remain delta \'rows gamma\'" gone now'),
+        ("'a clause \"the rows' values\"' remains here", '\"a clause \'the rows\' values\'" remains here'),
+        ("'\"the rows' values\" clause remains' here", '\"\'the rows\' values\' clause remains" here'),
+    ]
+    for single, double in pairs:
+        for source, quote in [(single, double), (double, single)]:
+            case('R6 shared edge', source, quote, True)
+            case('R6 same style', source, source, True)
+            case('R6 enclosed wording', source, quote.replace('rows', 'WRONG'), False, False)
+            if "rows'" in quote:
+                missing = quote.replace("rows'", 'rows')
+                case('R6 possessive omission', source, missing, False)
+                case('R6 possessive insertion', missing, source, False)
+    for single, double in [("'", '"'), ('"', "'")]:
+        source = single + "alpha first rows' values second omega" + single
+        quote = double + "alpha … second … first rows' values … omega" + double
+        case('R5 independent reordered pair fragments', source, quote, True)
+        case('R5 reordered possessive omission', source, quote.replace("rows'", 'rows'), False)
+        case('R5 reordered possessive insertion', source.replace("rows'", 'rows'), quote, False)
+    for source in ['\"the rows values\"\' remain here', '\'\"the rows values\" remain here',
+                   '\"the rows values\"\'\' remain here']:
+        case('R6 adjacent stray omission', source, source.replace("'", ''), False)
+        case('R6 adjacent stray insertion', source.replace("'", ''), source, False)
     source = "watch only the rows' values remain positive"
     case('trailing candidate edge', source, 'watch only the rows', False)
     case('exact trailing candidate edge', source, "watch only the rows'", True)
