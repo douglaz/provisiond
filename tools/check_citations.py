@@ -198,6 +198,8 @@ def chunks(text):
     span = next(spans, None)
     start = 0
     for boundary in SPLIT.finditer(text):
+        if boundary.start() < start:
+            continue
         cut = boundary.start('sentence') if boundary.group('sentence') else boundary.start()
         while span and span.end() <= cut:
             span = next(spans, None)
@@ -205,6 +207,14 @@ def chunks(text):
             continue
         yield text[start:cut]
         start = boundary.end()
+        if boundary.group('sentence') and boundary.start() < cut:
+            # A new cut after closers can consume the newline that used to
+            # start a list delimiter. Let the existing structural alternative
+            # consume that delimiter too; plain punctuation keeps its behavior.
+            newline = text.find('\n', cut, start)
+            structural = SPLIT.match(text, newline) if newline >= 0 else None
+            if structural:
+                start = max(start, structural.end())
     yield text[start:]
 
 
@@ -456,6 +466,32 @@ def check_sentence_boundaries():
             assert list(chunks(text)) == [text], text
         assert list(chunks('"alpha beta\n\ngamma delta"')) == ['"alpha beta', 'gamma delta"']
         print('PASS: sentence boundaries: closing markup and structural boundaries')
+
+        name = 'closing markup before list delimiters'
+        attribution = '`OPS-41` says "alpha beta gamma delta".'
+        for first in ['Intro *ends.*', 'Intro **ends!**', 'Intro `ends?`',
+                      'Intro [(*ends.*)]', 'Intro "ends."']:
+            for separator in ['\n- ', '\n* ', '\n  - ', '\n\t* ',
+                              '\n\n- ', '\n \n  * ']:
+                text = first + separator + attribution
+                assert list(chunks(text)) == [first, attribution], text
+                reqs = {'OPS-41': ('source.md', 'alpha beta gamma delta')}
+                assert find({'probe': text}, {}, reqs) == ([], [], 1), text
+                wrong = text.replace('gamma', 'WRONG')
+                assert find({'probe': wrong}, {}, reqs) == (
+                    [('probe', 'OPS-41', 'alpha beta wrong delta')], [], 1), text
+        assert list(chunks('Intro ends.\n- ' + attribution)) == [
+            'Intro ends.', '- ' + attribution]
+        for separator, second in [('\n|', '|next'), ('\n\n', 'next'),
+                                  ('\n \n', 'next')]:
+            assert list(chunks('Intro *ends.*' + separator + 'next')) == [
+                'Intro *ends.*', second]
+        for opening, closing in [('"', '"'), ('“', '”')]:
+            for wording in ['*ends.*\n- x', '*ends.*\n  * ' + 'x' * 401]:
+                text = opening + wording + closing
+                assert list(chunks(text)) == [text], text
+        assert list(chunks('"Intro *ends.*\n\n- next"')) == ['"Intro *ends.*', 'next"']
+        print(f'PASS: sentence boundaries: {name}: chunks, protection and comparisons')
 
         first = '`LDG-59` says "**Falling back to the last known rate MUST NOT happen.**"'
         later = 'A purchase is "authorized like a purchase".'
