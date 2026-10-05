@@ -549,7 +549,7 @@ jobs:
           Fence|pausedGraceInFence|true|false|pausedGraceRace
           Fence|rederiveFirst|true|false|fundingOrderGuards Fence.current
           Fence|retryDeletes|true|false|priceFundedStall ++ tail
-          Fence|retryNeedsFence|true|false|interruptedRetry
+          Fence|retryNeedsFence|true|false|fenceWorld interruptedRetry;
           Fence|keepWritesDate|true|false|operatorGuards Fence.current
           Fence|keepGuard|true|false|keepEligibilityGuards Fence.current
           Fence|retryGuard|true|false|goneAfterStallTrace ++

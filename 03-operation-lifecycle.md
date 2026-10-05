@@ -908,7 +908,8 @@ mutation was required, and close the episode per `OPS-48` where it is still open
 whether the *funding* test can send a worker down that path is step 2's exemption,
 including the tenant's **current** state — not the enqueue reason:
 a suspended tenant's machine cannot be found funded, and a
-resumed tenant's can, whatever reason the attempt was enqueued under (*this sentence said "for
+resumed tenant's can, whatever reason the attempt was enqueued under, unless step 2's
+fenced-retry exemption applies (*this sentence said "for
 exhaustion and late-attach cleanup it can, for a suspension it cannot" until 2026-09-09*). *In practice a suspension cancel loses that race only to another
 cancellation of the same machine, which `OPS-39`'s per-action episode key already prevents, and
 never to `LDG-62`, which `API-7` step 5b refuses for a suspended tenant. The path is therefore

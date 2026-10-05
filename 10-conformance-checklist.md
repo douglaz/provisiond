@@ -1682,9 +1682,12 @@ rather than acquiring a default.
       **Added 2026-10-05 (Q14):** `CNF-312` covers the interrupted, never-fenced prefix and
       its extension/fence orderings; retain this item's fenced, timer and keep controls.
 - [ ] **CNF-312** — **Interrupted cancellation before its fence (2026-10-05, `pv-gip.43`, Q14).**
-      Exercise `OPS-41` step 2 and `OPS-42` ordering with an active tenant, an available rate,
-      a healthy provider account, sufficient available balance and no other admission refusal.
-      At the deciding rate the machine starts unfunded; the chosen extension funds it.
+      Exercise `OPS-41` step 2 and `OPS-42` ordering on independent instances with an
+      available rate, a healthy provider account and no other admission refusal. Each starts
+      unfunded with an active tenant; the suspended row below changes that tenant's state.
+      For Orders A and B, provide sufficient available balance and choose an extension that
+      funds the machine at the deciding rate. The other rows use a favorable rate and
+      re-derivation to fund it, without an extension.
       **Route 1 prefix:** let the sweep enqueue the cancellation and the worker claim it, then
       kill the worker before its fence transaction. Restart: `OPS-15` requires "move every
       `running` operation to `needs_reconciliation`" and "MUST NOT move them back to `queued`".
@@ -1699,18 +1702,54 @@ rather than acquiring a default.
       drive route 1 alone. Do not inject a store error as a separate
       failed route: `OPS-49` requires "repeat the **whole transaction**" and on bound exhaustion
       "the engine MUST exit non-zero".
-      On independent instances, instrument the deciding fence transaction's read/commit boundary:
+      Orders A and B and the suspended/null-fence row each start from a fresh instance of
+      that route-1 stalled/null-fence prefix. The fenced rows use their own prefixes below.
+      Instrument the deciding fence transaction's read/commit boundary:
       retry enqueue alone establishes neither transaction order.
+
+      **Fenced, undispatched prefix:** drive a real cancellation through its unfunded fence
+      transaction and wait for commit, then kill the worker **before the dispatch-marker
+      write and provider call**. `OPS-42` says the worker "releases it before the provider
+      call".
+
+      `OPS-45`'s delete marker row says "the provider call is dispatched". Assert the
+      marker is still null at the injection boundary; a kill merely before the call does
+      not establish that. Restart through the same startup classification, then resolve
+      `not_applied` as operator. `OPS-45` says "an operation interrupted rather than classified
+      is `OPS-15`'s, whatever the markers hold"; `OPS-48`'s resolved-not-applied row is
+      `stalled` with the fence "**Unchanged**". Assert the original attempt `failed`, episode
+      `stalled`, fence still holding that episode's id, original attempt's `write_started_at`
+      null, and zero provider calls throughout this prefix.
+
+      **Suspension fan-out:** from the route-1 prefix, suspend the tenant. `API-58` says the
+      pass "MUST NOT enqueue" for an already-open delete episode, and must "append
+      `tenant_suspended` to that episode's `reasons` set" and "name its `current_operation_id`
+      in `cancellations`". Assert the same episode and its current failed attempt account for
+      the machine, the reason is appended, the parent terminates, and the fan-out enqueues
+      no new cancellation attempt.
 
       | Case | Required observations |
       |---|---|
       | Order A: extend, then retry | Extension admits and commits before the retry's fence transaction. The attempt settles `succeeded` with a no-mutation result; episode `closed`/`funded`; fence null; provider call count remains zero. The extension's commitment is kept: reconcile any legitimate metering independently and assert no cancellation-driven commitment release. |
       | Order B: retry's fence transaction commits unfunded, then extend | Observe the fence holding the episode id before submitting the extension; it returns `409` / `cancellation_committed`, with no balance movement or commitment growth attributable to that refused extension. The provider is called. |
       | Fenced control | Use `CNF-271`'s provider-failed stall after fencing, accept a favorable rate and re-derive future runway without clearing that fence. Retry still calls the provider again and does not close `funded` through a funding abort. |
+      | Fenced, undispatched control | Use the fenced, undispatched prefix above. Accept a favorable rate and re-derive funded runway without clearing the fence. Retry the same episode: observe a provider call and no funding-abort close to `funded`. The original attempt's `write_started_at` remains null; distinguish it from the fresh retry attempt's own initially unset marker. |
+      | Suspended, null fence | Use the route-1 prefix and suspension fan-out above. Accept a favorable rate and re-derive funded runway while suspension remains current; do not extend. Retry as operator and observe that the deciding transaction reads a null fence and a currently suspended tenant. Observe a provider call and no funding-abort close to `funded`. |
 
       These assertions discriminate unconditional retry bypass (Order A), a funding re-check
-      on every retry (fenced control), and a missing extension fence (Order B). Preserve
-      `CNF-271`'s timer and keep controls.
+      on every retry (fenced control), and a missing extension fence (Order B).
+      The **fenced, undispatched control** fails a build that keys retry bypass on the
+      **previous attempt's `write_started_at`** instead of the episode fence: it re-checks
+      funding and closes `funded`, violating both the provider-call and no-funding-abort
+      assertions. That build passes Order A and the dispatched/provider-failed controls.
+      The **suspended, null-fence row** fails a build that branches to the null-fence funding
+      path **before considering current suspension**: it closes the funded machine's episode
+      and omits the provider call, violating the same assertions. `OPS-41` step 2 instead
+      says "A retry reading the fence null decides from step 3 unless the tenant is suspended
+      now." Preserve `CNF-271`'s timer and keep controls and `CNF-272`'s fenced/resume controls.
+      These new rows specify implementation observations, not additional model results:
+      the existing Fence model's interrupt handles only the pre-fence holding phase and
+      carries no persisted dispatch-marker history.
       **Restore scope, inspected rather than rehearsed here:** `OPS-41` says "A claim made while
       a restore record is open and its `grace_ends_at` is null or in the future defers, and writes
       no fence" and "The rule applies whichever path enqueued the cancellation — a delete
