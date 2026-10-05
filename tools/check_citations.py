@@ -180,10 +180,12 @@ POSSESSIVE = re.compile(r"`((?:%s)-\d+[a-z]?)`'s\s+(?=[\"“])" % NS)
 # never carries a quote -- so the unquoted rule would fire on every one of them.
 # Checked when a quote is present, ignored when one is not.
 CONSULTS = {"reads", "read"}
-# Split on sentence enders, list markers and table rows only outside paired
-# spans: chunks() suppresses those boundaries inside quotations. Blank lines
-# remain hard boundaries because QUOTE cannot cross them.
-SPLIT = re.compile(r"(?<=[.!?])\s+|\n\s*[-*]\s+|\n\s*\n|\n(?=\|)")
+# Sentence enders may precede closing markup. The named group locates the
+# boundary AFTER all closers, retaining them in the preceding chunk. chunks()
+# tests that position (not the match start) against paired quotations, also for
+# list markers and table rows. Blank lines stay hard boundaries: QUOTE cannot
+# cross them.
+SPLIT = re.compile(r'(?<=[.!?])[*`"”)\]]*(?P<sentence>\s+)|\n\s*[-*]\s+|\n\s*\n|\n(?=\|)')
 
 # Pair every span before filtering its length. A short or overlong span's closing
 # mark must never be recycled as the opening mark of the next quotation.
@@ -196,11 +198,12 @@ def chunks(text):
     span = next(spans, None)
     start = 0
     for boundary in SPLIT.finditer(text):
-        while span and span.end() <= boundary.start():
+        cut = boundary.start('sentence') if boundary.group('sentence') else boundary.start()
+        while span and span.end() <= cut:
             span = next(spans, None)
-        if span and span.start() < boundary.start() < span.end():
+        if span and span.start() < cut < span.end():
             continue
-        yield text[start:boundary.start()]
+        yield text[start:cut]
         start = boundary.end()
     yield text[start:]
 
@@ -431,6 +434,81 @@ def exists(lean, corpus):
     return missing, total
 
 
+def check_sentence_boundaries():
+    """Keep closing marks, then protect paired spans at the actual cut position."""
+    name = 'closing markup'
+    try:
+        for ending in ['.', '!', '?']:
+            for opening, closing in [('', ''), ('*', '*'), ('**', '**'), ('`', '`'),
+                                     ('"', '"'), ('“', '”'), ('(', ')'), ('[', ']'),
+                                     ('[(*`“', '”`*)]'), ('*' * 25, '*' * 25)]:
+                first = f'The engine {opening}runs{ending}{closing}'
+                text = first + ' Another sentence.'
+                assert list(chunks(text)) == [first, 'Another sentence.'], text
+        for separator in ['\n- ', '\n* ', '\n\n', '\n \n', '\n|']:
+            text = 'first' + separator + 'second'
+            second = '|second' if separator == '\n|' else 'second'
+            assert list(chunks(text)) == ['first', second], text
+        # Even structural candidates inside a paired span remain protected;
+        # paragraphs and separate docstrings cannot form such a span.
+        for separator in ['\n- ', '\n* ', '\n|']:
+            text = '"alpha beta' + separator + 'gamma delta"'
+            assert list(chunks(text)) == [text], text
+        assert list(chunks('"alpha beta\n\ngamma delta"')) == ['"alpha beta', 'gamma delta"']
+        print('PASS: sentence boundaries: closing markup and structural boundaries')
+
+        first = '`LDG-59` says "**Falling back to the last known rate MUST NOT happen.**"'
+        later = 'A purchase is "authorized like a purchase".'
+        cases = [
+            ('LDG-59 ownership', [first, later],
+             {'LDG-59': '**Falling back to the last known rate MUST NOT happen.**',
+              'LDG-62': 'authorized like a purchase'},
+             [('LDG-59', '**Falling back to the last known rate MUST NOT happen.**')]),
+            ('distinct sentence owners',
+             ['`OPS-41` says "alpha beta gamma delta."',
+              '`OPS-42` says “epsilon zeta eta theta.”'],
+             {'OPS-41': 'alpha beta gamma delta.', 'OPS-42': 'epsilon zeta eta theta.'},
+             [('OPS-41', 'alpha beta gamma delta.'), ('OPS-42', 'epsilon zeta eta theta.')]),
+            ('inverted attribution', ['`OPS-41` says `OPS-42` "alpha beta gamma delta."'],
+             {'OPS-41': 'alpha beta gamma delta.', 'OPS-42': 'epsilon zeta eta theta.'},
+             [('OPS-41', 'alpha beta gamma delta.')]),
+            ('bare possessive owners',
+             ['`OPS-41`\'s "alpha beta gamma delta"; `OPS-42`\'s “epsilon zeta eta theta.”',
+              'Another "unattributed four word phrase".'],
+             {'OPS-41': 'alpha beta gamma delta', 'OPS-42': 'epsilon zeta eta theta.',
+              'OPS-43': 'unattributed four word phrase'},
+             [('OPS-41', 'alpha beta gamma delta'), ('OPS-42', 'epsilon zeta eta theta.')]),
+        ]
+        source = 'alpha *beta.* gamma delta. (epsilon.) zeta eta theta.'
+        for prefix in ['', '"now. yes"; ', '""; ', '"x.** ' + 'x' * 401 + '"; ']:
+            for quote in [source, 'alpha *beta.* ... zeta eta theta.',
+                          'alpha *beta.* … zeta eta theta.']:
+                text = '`OPS-41` says ' + prefix + f'“{quote}”'
+                cases.append(('paired span ' + repr(prefix[:12]), [text, 'Following prose.'],
+                              {'OPS-41': source}, [('OPS-41', quote)]))
+        for name, parts, sources, attributed in cases:
+            text = ' '.join(parts)
+            reqs = {rid: ('source.md', body) for rid, body in sources.items()}
+            assert list(chunks(text)) == parts, (name, list(chunks(text)))
+            # Equality checks include comparison counts: losing a closing mark
+            # must not make a valid quotation silently disappear.
+            assert find({'probe': text}, {}, reqs) == ([], [], len(attributed)), name
+            total = len(list(quotations(text)))
+            assert exists({'probe': text}, sources.values()) == ([], total), name
+            for owner, quote in attributed:
+                wrong_quote = quote.replace(' ', ' WRONG ', 1)
+                wrong = text.replace(quote, wrong_quote, 1)
+                expected = [('probe', owner, norm(wrong_quote))]
+                assert find({'probe': wrong}, {}, reqs) == (expected, [], len(attributed)), name
+                assert exists({'probe': wrong}, sources.values()) == (
+                    [('probe', norm(wrong_quote))], total), name
+            print(f'PASS: sentence boundaries: {name}: exact owners and counts; named QUOTED/EXISTS corruption')
+    except AssertionError as exc:
+        print(f'FAIL: sentence boundaries: {name}: {exc}')
+        return 1
+    return 0
+
+
 def check_quotations():
     """Guard quote reach independently of the corpus's current wording."""
     source = "alpha beta gamma delta. epsilon zeta eta theta"
@@ -564,7 +642,7 @@ def unresolved(docs, adrs):
 
 
 def main():
-    if check_docstrings() or check_quotations() or check_possessives():
+    if check_sentence_boundaries() or check_docstrings() or check_quotations() or check_possessives():
         return 1
     docs, adrs, reqs = load()
     mark_errors = [(f, line, kind) for f, text in docs.items()

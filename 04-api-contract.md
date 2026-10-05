@@ -815,8 +815,8 @@ The view MUST also expose what `LDG-15` already requires per machine — remaini
 aggregate, so a caller can see the whole fleet's exhaustion horizon without walking every machine.
 
 **API-48** **AMENDED 2026-09-08 — one list, no amendment trail.** **The synchronous endpoints are
-exactly these**, and they are the closed set of exemptions from `API-1`'s "every accepted write
-returns `202` and an operation" — the set `OVR-4` names as the closed set of synchronous writes:
+exactly these**, and they are the closed set of exemptions from `API-1`'s "MUST return
+`202 Accepted` with an operation view" — the set `OVR-4` names as the closed set of synchronous writes:
 
 1. every `GET`;
 2. `POST /v1/enrol/token` (`WIR-49`) — writes nothing; the only member that is deliberately *slow*;

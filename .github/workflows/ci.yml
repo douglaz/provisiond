@@ -1133,3 +1133,34 @@ jobs:
                       assert path.read_bytes() == original
               subprocess.run(['python3', 'tools/check_citations.py'], check=True)
           PY
+
+      # Reverting closer handling must fail the boundary fixtures, rather than
+      # silently dropping quotes or depending on the corpus retaining a misquote.
+      - name: Prove the citation gate rejects loss of closing-markup boundaries
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          path = Path('tools/check_citations.py')
+          original = path.read_bytes()
+          before = r'(?<=[.!?])[*`"”)\]]*(?P<sentence>\s+)'.encode()
+          after = r'(?<=[.!?])(?P<sentence>\s+)'.encode()
+          assert original.count(before) == 1 and after not in original
+          subprocess.run(['python3', str(path)], check=True)
+          try:
+              mutated = original.replace(before, after)
+              assert mutated != original and mutated.count(after) == 1
+              path.write_bytes(mutated)
+              result = subprocess.run(['python3', str(path)], capture_output=True, text=True)
+              print(result.stdout)
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert result.stdout.count('FAIL: sentence boundaries: closing markup:') == 1
+              assert 'The engine *runs.* Another sentence.' in result.stdout
+              assert 'Traceback' not in result.stderr
+              print('PASS: removed closing-markup boundaries: named regression failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+          subprocess.run(['python3', str(path)], check=True)
+          PY

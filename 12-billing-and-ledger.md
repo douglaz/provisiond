@@ -935,8 +935,7 @@ that believes it relies on the key alone.
 **AMENDED — the mark and the running sum are read from `LDG-72`'s record, not derived by query.**
 *The withdrawn wording said they were "a query over the ledger, not a stored column, and this
 requirement adds no schema", which was deliberate and was wrong: it makes tick `k` read `k−1` rows,
-so a period's metering cost is quadratic in its own tick count.* `LDG-72` states the replacement and
-the arithmetic that forced it.
+so a period's metering cost is quadratic in its own tick count.* See `LDG-72`.
 
 **`LDG-8` owns the key**; this requirement does not restate it. *A restatement here said `(subject, billing period, kind, posting index)` — the form `LDG-8` withdrew as unable to deduplicate — which is the duplication habit this set keeps paying for.*
 
