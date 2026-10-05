@@ -283,36 +283,76 @@ def comparison_text(s):
     return re.sub(r'[ \0]*\0[ \0]*', '\n', normalized).strip(' \n.,;:')
 
 
-def span_content(text, start, end):
+def span_edges(text, start, end):
+    """Include adjoining marks; a candidate edge is not a word edge."""
+    while start and text[start - 1] in '\"\'':
+        start -= 1
+    while end < len(text) and text[end] in '\"\'':
+        end += 1
+    return start, end
+
+
+def double_pairs(text, start, end):
+    """Double-delimiter evidence in bounded context, including partial wrappers."""
+    left = max(0, start - 401, text.rfind('\n', 0, start) + 1)
+    boundary = text.find('\n', end)
+    right = min(len(text), end + 401, boundary if boundary >= 0 else len(text))
+    return [(left + pair.start(), left + pair.end() - 1)
+            for pair in re.finditer(r'''(?<![\w"'])"[^"\n]{0,400}"(?!\w)''', text[left:right])]
+
+
+def span_content(text, start, end, other, other_start, other_end):
     """Content of one candidate; single marks never borrow an outside partner.
 
     An opener follows neither a word nor another mark and precedes nonspace;
     a closer follows nonspace and precedes neither a word nor another mark.
-    Within each structural segment, an opener pairs with the last same-kind
-    closer before the next opener (enclosing at most 400 characters). Intermediate
-    trailing apostrophes remain content, including inside a single-quoted phrase.
+    First use local double pairs on either side to establish corresponding
+    delimiter roles at the same mark-free offsets. Transferring a role to single
+    marks requires both endpoints inside both candidates and a lexical pair;
+    double marks may inherit a partial wrapper's role. Thus nested pairs remain
+    independent and a later possessive cannot replace an established closer.
+    Remaining openers pair with the last closer before the next opener
+    within a structural segment (at most 400 enclosed characters).
     Double marks have no apostrophe role, so a locally paired double wrapper may
     also enclose a partial candidate. Internal apostrophes can never be delimiters.
     This bounded convention is not an English parser: ambiguous punctuation within
     the candidate can still be mispaired; fragments cutting a single-delimiter
-    pair may be conservatively rejected.
+    pair may be conservatively rejected. Elision fragments retain their full
+    quotation's double-pair context, but are still matched independently.
     """
     marks = '\"\''
-    # Include immediately adjoining marks, even when the quote omitted them.
-    # Use the full text for lexical roles: a candidate edge is not a word edge.
-    while start and text[start - 1] in marks:
-        start -= 1
-    while end < len(text) and text[end] in marks:
-        end += 1
-    ignored = set()
-    # Bound double-wrapper context by structural boundaries and quotations()'s length
-    # limit. This permits a fragment of a quoted sentence without letting an
-    # outside single opener turn the fragment's possessive into formatting.
-    left = max(0, start - 401, text.rfind('\n', 0, start) + 1)
-    boundary = text.find('\n', end)
-    right = min(len(text), end + 401, boundary if boundary >= 0 else len(text))
-    for pair in re.finditer(r'''(?<![\w"'])"[^"\n]{0,400}"(?!\w)''', text[left:right]):
-        ignored.update((left + pair.start(), left + pair.end() - 1))
+    start, end = span_edges(text, start, end)
+    other_start, other_end = span_edges(other, other_start, other_end)
+    ignored = {p for pair in double_pairs(text, start, end) for p in pair}
+
+    def mark_offsets(s, first, last):
+        offsets, offset = {}, 0
+        for pos in range(first, last):
+            if s[pos] in marks:
+                offsets[pos] = offset
+            else:
+                offset += 1
+        return offsets
+
+    offsets = mark_offsets(text, start, end)
+    other_offsets = mark_offsets(other, other_start, other_end)
+    for opening, closing in double_pairs(other, other_start, other_end):
+        # Matching double marks can use their source's enclosing context even
+        # when the candidate cuts the pair, as in a balanced partial quotation.
+        slots = {other_offsets[p] for p in (opening, closing) if p in other_offsets}
+        ignored.update(p for p, slot in offsets.items() if slot in slots and text[p] == '"')
+        if opening not in other_offsets or closing not in other_offsets:
+            continue
+        opens = [p for p, slot in offsets.items() if slot == other_offsets[opening]
+                 and text[p] == "'" and (not p or not re.match(r'[\w\"\']', text[p - 1]))
+                 and p + 1 < len(text) and not text[p + 1].isspace()]
+        closes = [p for p, slot in offsets.items() if slot == other_offsets[closing]
+                  and text[p] == "'" and p and not text[p - 1].isspace()
+                  and (p + 1 == len(text) or not re.match(r'[\w\"\']', text[p + 1]))]
+        if len(opens) == len(closes) == 1:
+            a, b = opens[0], closes[0]
+            if 0 < b - a <= 401 and '\n' not in text[a:b]:
+                ignored.update((a, b))
     opener = closer = None
     for pos in range(start, end):
         mark = text[pos]
@@ -320,7 +360,7 @@ def span_content(text, start, end):
             if opener is not None and closer is not None:
                 ignored.update((opener, closer))
             opener = closer = None
-        elif mark in marks:
+        elif mark in marks and pos not in ignored:
             before = text[pos - 1] if pos else ' '
             after = text[pos + 1] if pos + 1 < len(text) else ' '
             if not (re.match(r'\w', before) or before in marks) and not after.isspace():
@@ -344,13 +384,18 @@ def contains_quote(source, quote):
     """
     positions = [p for p, char in enumerate(source) if char not in '\"\'']
     plain = ''.join(source[p] for p in positions).replace('\n', ' ')
-    for fragment in fragments(comparison_text(quote)):
+    quote = comparison_text(quote)
+    quote_offset = 0
+    for fragment in fragments(quote):
+        qstart = quote.index(fragment, quote_offset)
+        qend = qstart + len(fragment)
+        quote_offset = qend
         needle = fragment.replace('"', '').replace("'", '').replace('\n', ' ')
-        content = span_content(fragment, 0, len(fragment))
         offset = 0
         while needle and (at := plain.find(needle, offset)) >= 0:
             start, end = positions[at], positions[at + len(needle) - 1] + 1
-            if span_content(source, start, end) == content:
+            content = span_content(quote, qstart, qend, source, start, end)
+            if span_content(source, start, end, quote, qstart, qend) == content:
                 break
             offset = at + 1
         else:
@@ -586,6 +631,46 @@ def check_quote_content():
             case('pairing boundary', source, norm(source).replace("'", ''), False)
             if gap != '\n\n':  # QUOTE deliberately cannot span a paragraph.
                 case('exact structural content', source, source, True)
+    for phrase, variant in [('Succeeds', 'Succeeds'),
+                            ("the rows' values", "the rows' values"),
+                            ("Succeeds' and 'Fails", 'Succeeds" and "Fails')]:
+        tail = (" determine the tenants' balances" if 'rows' in phrase
+                else " means the deposits' addresses are gone")
+        single, double = f"'{phrase}'{tail}", f'"{variant}"{tail}'
+        for source, quote in [(single, double), (double, single)]:
+            case('R1 following possessive', source, quote, True)
+            case('R1 same style', source, source, True)
+            word = 'values' if 'rows' in phrase else 'Succeeds'
+            case('R1 enclosed wording', source, quote.replace(word, 'WRONG'), False, False)
+            for word in ['rows', 'tenants', 'deposits']:
+                if word + "'" in quote:
+                    missing = quote.replace(word + "'", word)
+                    case('R1 independent omission ' + word, source, missing, False)
+                    case('R1 independent insertion ' + word, missing, source, False)
+    single = "'a \"the rows' values\" clause remains'"
+    double = '"a \'the rows\' values\' clause remains"'
+    for source, quote in [(single, double), (double, single)]:
+        case('R2 nested pairs', source, quote, True)
+        case('R2 same style', source, source, True)
+        case('R2 enclosed wording', source, quote.replace('values', 'WRONG'), False, False)
+        missing = quote.replace("rows'", 'rows')
+        case('R2 possessive omission', source, missing, False)
+        case('R2 possessive insertion', missing, source, False)
+    for elision in ['…', '...']:
+        source = f'the price is "an indicative quote {elision} binding is false", and the auction channel'
+        case('R3 exact elision', source, source, True)
+        case('R3 elision wording', source, source.replace('binding', 'WRONG'), False, False)
+        marked = source.replace('quote ', "quotes' ")
+        case('R3 exact possessive elision', marked, marked, True)
+        missing = marked.replace("quotes'", 'quotes')
+        case('R3 possessive omission', marked, missing, False)
+        case('R3 possessive insertion', missing, marked, False)
+    source = '"alpha beta" and then "gamma delta"'
+    quote = 'alpha beta" and then "gamma'
+    case('R4 balanced partial doubles', source, quote, True)
+    case('R4 partial wording', source, quote.replace('beta', 'WRONG'), False, False)
+    case('R4 inserted possessive', source, quote.replace('beta', "beta'"), False)
+    case('R4 omitted possessive', source.replace('beta', "beta'"), quote, False)
     source = "watch only the rows' values remain positive"
     case('trailing candidate edge', source, 'watch only the rows', False)
     case('exact trailing candidate edge', source, "watch only the rows'", True)
@@ -618,6 +703,7 @@ def check_quote_content():
                 for filename in ['probe.md', 'probe.lean']:
                     text = ('\n\n'.join(docstrings('/-- ' + prose + ' -/'))
                             if filename.endswith('.lean') else prose)
+                    assert not list(unpaired_marks(text)), (name, text)
                     expected = [] if accepted else [(filename, 'OPS-41', norm(quote))]
                     actual = find({filename: text}, adrs, reqs, corpus=corpus)
                     assert actual == (expected, [], 1), (pool, filename, source, quote, actual)

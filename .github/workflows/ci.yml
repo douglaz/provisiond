@@ -956,7 +956,7 @@ jobs:
 
           path = Path('tools/check_citations.py')
           original = path.read_bytes()
-          before = b'if span_content(source, start, end) == content:'
+          before = b'if span_content(source, start, end, quote, qstart, qend) == content:'
           after = b'if True:  # temporary CI bypass of local content comparison'
           assert original.count(before) == 1 and after not in original
           try:
@@ -970,6 +970,33 @@ jobs:
               path.write_bytes(original)
               assert path.read_bytes() == original
           assert gate().returncode == 0
+          PY
+
+      - name: Prove the citation gate preserves equivalent nested delimiters
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          path = Path('tools/check_citations.py')
+          original = path.read_bytes()
+          before = b'for opening, closing in double_pairs(other, other_start, other_end):'
+          after = b'for opening, closing in []:  # temporary CI loss of corresponding pairs'
+          assert original.count(before) == 1 and after not in original
+          try:
+              path.write_bytes(original.replace(before, after))
+              result = subprocess.run(['python3', 'tools/check_citations.py'],
+                                      capture_output=True, text=True)
+              print(result.stdout)
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert 'Traceback' not in result.stderr, result.stderr
+              assert result.stdout.count('FAIL: quote content: R1 following possessive:') == 1
+              assert "[('probe.md', 'OPS-41'," in result.stdout
+              print('PASS: lost corresponding pairs: named R1 equivalence regression failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+          assert subprocess.run(['python3', 'tools/check_citations.py']).returncode == 0
           PY
 
       # Derive standing cases from the baseline; temporary fixtures keep these
