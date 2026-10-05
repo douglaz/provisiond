@@ -1033,7 +1033,7 @@ operator verb — and on the operator verbs on the episode (`API-64`, `API-68`):
 | Resolved `applied` **with an `effective_cancellation_date`** (`WIR-35`) — the operator established the provider *scheduled* it | `scheduled`, as the third row | **Unchanged** |
 | Resolved `not_applied` — the machine is still there | `stalled` | **Unchanged** |
 | Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Cleared**, same transaction, so a later sweep may open a fresh episode and fence again |
-| `retry` (`API-64`) on a `stalled` episode | `attempting`, with a fresh attempt enqueued in the same transaction as the state change; admissible in no other state; the attempt uses `OPS-41`'s retry branch | **Unchanged**: the new attempt contends on the same episode id |
+| `retry` (`API-64`) on a `stalled` episode | `attempting`, with a fresh attempt enqueued in the same transaction as the state change; admissible in no other state; the attempt follows `OPS-41`'s ordered decision | **Unchanged**: the new attempt contends on the same episode id |
 | `keep` (`API-68`) on a `stalled` episode | `closed`, `close_reason: kept`, in the keep transaction; admissible in no other state | **Cleared**, same transaction |
 | No attempt settled — **the machine is recorded gone** (`ADR-0021`): the write of `machines.state` to gone with `machines.state_observed_at` (`STO-48`), by any of `LDG-74`'s triggers — a refresh, a driver read during any operation, `OPS-32`'s complete pass — or by `API-63`'s termination; in any open state, `scheduled` included. Where that write and an attempt's terminal write are one transaction, as a delete's own "already gone" answer is, they are one close under the first row | `closed`, `close_reason: resource_gone`, in the transaction that records the gone state | **Cleared**, same transaction |
 <!-- /formal -->
@@ -1072,7 +1072,7 @@ is specified). A `stalled` or `uncertain` episode is therefore the operator's to
 (`OPS-26`): its machine may still be running and billing, and the episode is not over. A later
 rate can fund it; a deletion decision already recorded by a fence is not reversed by that rate. The open episode is what keeps a later sweep from enqueuing
 a **second** delete against the same machine, and a written fence is what keeps `LDG-62` from selling
-runway after the deletion decision. An unfenced episode uses step 2 of `OPS-41`.
+runway after the deletion decision. See `OPS-41`'s ordered decision for an unfenced episode's attempt.
 
 **`scheduled` is the row a reader will not expect.** `DOM-19` says "the machine is still running,
 the customer can still reach it, and the operator is still paying for it" until its effective
