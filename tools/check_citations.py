@@ -146,6 +146,7 @@ extractor case, 2 = the index is missing.
 """
 
 import glob
+import itertools
 import json
 import os
 import re
@@ -317,7 +318,7 @@ def delimiter_edge(text, pos, role, roles):
 
 
 def corresponding_roles(source, quote, candidates):
-    """Establish local pairs using endpoints aligned by fragment candidates.
+    """Establish local pairs for one consistent choice of fragment occurrences.
 
     Both endpoints of a transferred single pair must be present in candidate
     alignments and enclose at most 400 characters without a structural boundary
@@ -325,6 +326,9 @@ def corresponding_roles(source, quote, candidates):
     They may come from different elision fragments; fragments still locate their
     occurrences independently, without a contiguous or ordered whole-quote match.
     Only established roles let adjacent nested marks pass the lexical edge check.
+    Interior single closers need an aligned single mark or an established role.
+    Otherwise one may already close the opener in text omitted by an elision;
+    that ambiguity cannot justify deleting a later possessive.
     """
     texts = (source, quote)
     roles = ({}, {})
@@ -369,10 +373,14 @@ def corresponding_roles(source, quote, candidates):
                 closes = [p for p in maps[other_side].get(closing, [])
                           if text[p] == "'" and delimiter_edge(text, p, 'close', own)]
                 for a in opens:
-                    # Multiple occurrences are independent candidates, but an
-                    # ambiguous local partner does not establish a delimiter.
                     partners = [b for b in closes if 0 < b - a <= 401
-                                and '\n' not in text[a:b].replace('...\n', '... ')]
+                                and '\n' not in text[a:b].replace('...\n', '... ')
+                                and not any(
+                                    text[p] == "'" and p not in own
+                                    and delimiter_edge(text, p, 'close', own)
+                                    and not any(texts[other_side][q] == "'"
+                                                for q in maps[side].get(p, []))
+                                    for p in range(a + 1, b))]
                     if len(partners) == 1:
                         b = partners[0]
                         if a not in own or b not in own:
@@ -419,6 +427,8 @@ def contains_quote(source, quote):
 
     Complete delimiter pairs retain evidence across elision splits. Removing
     marks is candidate discovery only, never an acceptance fallback.
+    Each trial selects one occurrence per fragment; its roles and content checks
+    use only that selection. Fragments need not be contiguous or in source order.
     """
     positions = [p for p, char in enumerate(source) if char not in '\"\'']
     plain = ''.join(source[p] for p in positions).replace('\n', ' ')
@@ -438,16 +448,15 @@ def contains_quote(source, quote):
         if not candidates:
             return False
         groups.append(candidates)
-    source_roles, quote_roles = corresponding_roles(
-        source, quote, [candidate for group in groups for candidate in group])
-    for candidates in groups:
+    for candidates in itertools.product(*groups):
+        source_roles, quote_roles = corresponding_roles(source, quote, candidates)
         for start, end, qstart, qend in candidates:
             content = span_content(quote, qstart, qend, quote_roles)
-            if span_content(source, start, end, source_roles) == content:
+            if span_content(source, start, end, source_roles) != content:
                 break
         else:
-            return False
-    return True
+            return True
+    return False
 
 
 def unpaired_marks(text, first_line=1):
@@ -759,6 +768,37 @@ def check_quote_content():
                    '\"the rows values\"\'\' remain here']:
         case('R6 adjacent stray omission', source, source.replace("'", ''), False)
         case('R6 adjacent stray insertion', source.replace("'", ''), source, False)
+    for elision in ['…', '...']:
+        for source, quote in [
+            ("'rows unrelated the rows' values remain positive",
+             f'"rows" {elision} the rows values remain positive'),
+            ("A deployment 'deposits MUST watch only unexpired deposits' addresses",
+             f'A deployment {elision} "deposits" {elision} MUST watch only unexpired deposits addresses'),
+        ]:
+            case('R7a incompatible alternatives', source, quote, False)
+        for word, lead, omitted in [('settled', 'term', 'means'), ('clause', 'lead', 'clause')]:
+            source = f"the {lead} '{word} {omitted} \"{word}\"'"
+            quote = f"the {lead} '{word} {elision} \"{word}\"'"
+            case('R7b repeated same-style elision', source, quote, True)
+            case('R7b changed wording', source, quote.replace(word, 'WRONG'), False, False)
+        source = "'alpha beta gamma' and the rows' values remain"
+        quote = f'"alpha beta {elision} the rows"'
+        case('R8 already-closed opener', source, quote, False)
+        case('R8 same-style elision', source, quote.replace('"', "'"), True)
+        # A real pair can still span omitted words; only the apostrophe differs.
+        for source_mark, quote_mark in [("'", '"'), ('"', "'")]:
+            source = source_mark + 'alpha beta gamma and the rows' + source_mark + ' values remain'
+            quote = quote_mark + f'alpha beta {elision} the rows' + quote_mark
+            case('R8 complete pair across omitted words', source, quote, True)
+            case('R8 changed wording', source, quote.replace('beta', 'WRONG'), False, False)
+    single = "'Succeeds' means the deposits' addresses are gone"
+    double = '\"Succeeds\" means the deposits\' addresses are gone'
+    for valid, quote in [(single, double), (double, single)]:
+        invalid = valid.replace("deposits'", 'deposits')
+        for source in [valid, valid + '; ' + invalid, invalid + '; ' + valid]:
+            case('R7c valid alternative', source, quote, True)
+            case('R7c changed wording', source, quote.replace('gone', 'WRONG'), False, False)
+        case('R7c invalid alone', invalid, quote, False)
     source = "watch only the rows' values remain positive"
     case('trailing candidate edge', source, 'watch only the rows', False)
     case('exact trailing candidate edge', source, "watch only the rows'", True)
