@@ -686,6 +686,7 @@ by acceptance order". *Its use was `LDG-16`'s rate confirmation, withdrawn 2026-
 (`ADR-0027`), which asked which observation the deployment accepted after the armed one: compared on
 the instant, a row written late would have discharged nothing, and the next real observation might
 have discharged on the observation that preceded it.*
+For the current reader of `acceptance_order`, see `LDG-58`'s **Effective time**.
 
 **Acceptance time** (*added 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*): `accepted_at` MUST
 be set to `max(the clock in the accepting transaction, the previous row's accepted_at for that
@@ -1243,8 +1244,9 @@ mark, as step (3)'s instant plus one re-derivation interval — `STO-54` says "A
 not run again", so it is written once per incident. `OPS-41` owns its per-claim read and the
 funding-only paused check in the fence transaction; `STO-49` owns the history retained for that
 computation.
-The startup read above is taken once per process. `STO-54` says "the freeze lifts at
-`grace_ends_at`"; keeping this record open does not prolong that freeze.
+The startup read above is taken once per process, so it cannot see an instant written or passed
+later in the incident. `STO-54` says "the freeze lifts at `grace_ends_at`"; keeping this record
+open does not prolong that freeze.
 
 **The operator MUST NOT close the record until** step (3) is marked, `grace_ends_at` has passed,
 the account sweep's second pass is done, every waiting parent is confirmed or cancelled, and,
@@ -1458,11 +1460,10 @@ when the tenant can first act, not from the restore instant, and **a machine alr
 grace begins gets no extension from it** — its fence stayed set because the provider refused
 (`stalled`), because nobody yet knows what the provider did (`uncertain`) or because the provider
 accepted a cancellation for a future date (`scheduled`); its route back is `OPS-42`'s, and a retry's
-claim follows `OPS-41`'s grace rule like every claim — in `ADR-0028`'s words, "outside the grace" means
-no extension, not exemption from the wait, and clearing fences at restore was refused because it
-"engineers nothing for cases of which the set already calls one" accepted and "the others have their
-own resolution"*); the extension's satoshis are back in the tenant's balance, because the debit that
-paid for it rolled back with it, and the backward move of `runway_until` is visible to the caller on
+claim follows `OPS-41`'s grace rule like every claim — in `ADR-0028`'s words, “"outside the grace"
+means no extension, not exemption from the wait”; see that ADR for the rejected fence-clearing
+alternative and its reasoning*); the extension's satoshis are back in the tenant's balance, because
+the debit that paid for it rolled back with it, and the backward move of `runway_until` is visible to the caller on
 every machine read — the lost window is published to the operator, and **no notice reaches a tenant,
 by decision** (*2026-09-13: the caller is a program that already polls `runway_until`, the satoshis
 are back in its balance, and the harm is bounded to one interval, so a per-tenant channel this set

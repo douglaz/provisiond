@@ -737,10 +737,8 @@ tenant's. The deferral is the write `OPS-49` gives a waiting parent — `OPS-49`
 write as `OPS-8`'s defer, though nothing refused it", in a bullet `OPS-49` marks as `F51`'s. `OPS-8`
 itself covers an index refusal and a short delay — `OPS-8` says a refused claim "MUST return the
 operation to `queued` with a short delay" — which is why this paragraph states its own scope and
-duration rather than citing it. The read is a new duty: `STO-56` says "Both components read the open
-row before anything else they do", and that is the startup read, taken once per process, so it
-cannot see an instant written or passed later in the incident. `OPS-48` gains no row — a re-queued
-attempt has not settled.
+duration rather than citing it. For the startup-read distinction, see `STO-56`.
+`OPS-48` gains no row — a re-queued attempt has not settled.
 
 **Amended 2026-10-02 (`ADR-0029`): for a funding cancellation, the grace counts rate-present
 time, summed across outages.** From step (3)'s instant, derived as `grace_ends_at` minus one
