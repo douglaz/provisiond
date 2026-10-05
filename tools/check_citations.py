@@ -25,7 +25,12 @@ FOUR RULES, deliberately narrow.
            only `ADR-0019` and `ADR-0021` still hold (`pv-vwe.25`).
            Unbaselined findings fail. Reads the root *.md Markdown
            documents and /-- ... -/ and /-! ... -/ docstrings under tools/formal/,
-           excluding .lake/. ADRs are sources, not QUOTED input. Standing
+           excluding .lake/. check_docstrings() first runs fixture cases for
+           nested comments, literals and intact extraction of later docstrings;
+           a failed case prints FAIL and exits 1. An unterminated block comment
+           in real Lean source (doc or ordinary) prints FAIL with its filename
+           and cause and exits 1 without a traceback. ADRs are sources, not
+           QUOTED input. Standing
            Markdown residue is keyed by file:id:quote with individual reasons
            in citation-baseline.json's markdown_quoted_attributions. Each entry
            allows one finding only; further occurrences of that same signature
@@ -151,7 +156,8 @@ index and empty Lean exemption families. Files without docstrings still count.
 
 Exit 0 = clean, 1 = unpaired double marks, an unverifiable quote, a Lean docstring
 quote found nowhere, an unresolved name, a new finding or stale baseline entry,
-a damaged baseline, an empty Lean source scan or a failed extractor case,
+a damaged baseline, an empty Lean source scan, an unterminated Lean block comment
+or a failed extractor case,
 2 = the index is missing.
 """
 
@@ -555,7 +561,11 @@ def load_lean_docstrings(mark_errors=None):
                 with open(path) as source:
                     text = source.read()
                 filename = os.path.relpath(path, ROOT)
-                blocks = list(docstrings(text, with_offsets=True))
+                try:
+                    blocks = list(docstrings(text, with_offsets=True))
+                except ValueError as exc:
+                    print(f"FAIL: {filename}: {exc}")
+                    sys.exit(1)
                 if mark_errors is not None:
                     for start, body in blocks:
                         first_line = text.count('\n', 0, start) + 1

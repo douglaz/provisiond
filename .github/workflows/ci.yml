@@ -734,6 +734,57 @@ jobs:
           test "$(grep -c 'Fence.lean attributes to LDG-64 a phrase' citations.log)" -eq 1
           echo "citation gate correctly rejected the Lean docstring misquote"
 
+      # Exercise the standalone entry path with the normal baseline and the index
+      # from "Run all gates". Exit 1 alone also accepts the old Python traceback.
+      - name: Prove the citation gate names unterminated Lean block comments
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          assert c.read_index(), 'control needs the preexisting formal index'
+          inputs = {p: p.read_bytes() for p in (Path(c.BASELINE), Path(c.INDEX))}
+          path = Path('tools/formal/Provisiond/Req.lean')
+          original = path.read_bytes()
+
+          def gate(code):
+              result = subprocess.run(['python3', 'tools/check_citations.py'],
+                                      capture_output=True, text=True)
+              output = result.stdout + result.stderr
+              print(output)
+              assert result.returncode == code, (result.returncode, code, output)
+              return output
+
+          gate(0)
+          for label, unfinished, closing in [
+              ('doc comment', b'/-- never closed', b' -/'),
+              ('module comment', b'/-! never closed', b' -/'),
+              ('ordinary comment', b'/- never closed', b' -/'),
+              ('nested doc comment', b'/-- outer /- unfinished inner', b' -/ -/'),
+              ('nested ordinary comment', b'/- outer /- unfinished inner', b' -/ -/'),
+          ]:
+              try:
+                  path.write_bytes(original + b'\n' + unfinished + closing + b'\n')
+                  gate(0)
+                  path.write_bytes(original + b'\n' + unfinished + b'\n')
+                  output = gate(1)
+                  diagnostic = f'FAIL: {path}: unterminated Lean block comment'
+                  assert [line for line in output.splitlines() if line.startswith('FAIL:')] == [diagnostic], output
+                  assert 'Traceback' not in output, output
+                  path.write_bytes(original + b'\n' + unfinished + closing + b'\n')
+                  gate(0)
+                  print(f'PASS: {label}: valid -> named extraction failure without traceback -> valid')
+              finally:
+                  path.write_bytes(original)
+                  assert path.read_bytes() == original
+          for source, contents in inputs.items():
+              assert source.read_bytes() == contents, source
+          gate(0)
+          PY
+
       # EXISTS (pv-vwe.25, 2026-10-02): a Lean docstring quote in a chunk with no
       # attribution is outside QUOTED's reach, and this is the rule that sees it
       # corrupted. The chunk mutated here opens `API-11`: "..." -- a colon, no speech
