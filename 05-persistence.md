@@ -611,9 +611,8 @@ Index `(provider_account, currency, billing_period)` for coverage and
 `(provider_account, created_at, id)` for reads. The insert and exact `STO-35` receipt MUST commit
 together. All native-cost subjects and attachment-to-machine-to-account links needed by
 `LDG-75` MUST remain resolvable through invoice coverage and voids, including tombstoned subjects;
-no cascade may erase cost attribution. Deficiency attribution uses `STO-37`'s durable
-`provider_account`, including after deletion of a settled originating operation under `STO-14`
-(*amended 2026-10-04, `pv-gip.39`, J2*). Accrual has no row, counter or separate writer.
+no cascade may erase cost attribution. Deficiency account attribution belongs to `STO-37`
+(*ownership consolidated 2026-10-04, `pv-gip.39`, U2*). Accrual has no row, counter or separate writer.
 
 ### `rate_observations`
 
@@ -691,9 +690,9 @@ have discharged on the observation that preceded it.*
 **Acceptance time** (*added 2026-10-04, `pv-gip.28`, `pv-gip.6`, Q13*): `accepted_at` MUST
 be set to `max(the clock in the accepting transaction, the previous row's accepted_at for that
 currency)`, in the transaction allocating `acceptance_order`; for the first row use that
-transaction's clock. Equal timestamps are permitted: `acceptance_order` still selects the latest
-accepted verdict. Observation time remains evidence age, independent of this clock. `LDG-58`
-owns the verdict's effect, including historical selection. Retention MUST preserve the last
+transaction's clock. Equal timestamps are permitted. `LDG-58` owns selection at equal
+timestamps and the verdict's effect, including historical selection. Observation time remains
+evidence age, independent of this clock. *Ownership consolidated 2026-10-04 (`pv-gip.28`, U2).* Retention MUST preserve the last
 accepted row needed for this clamp as well as the floors above.
 
 ### `meter_totals`
@@ -957,7 +956,10 @@ removed; `LDG-75` owns accrual classification and invoice coverage.*
 **Durable account provenance** (*added 2026-10-04, `pv-gip.39`, J2*): `provider_account`
 is required on every deficiency, written by its producer in the producing transaction from the
 cost's provider account. For machine/attachment costs the producer resolves the account through
-the subject; setup-fee production is specified in `LDG-39`. Subsequent account attribution MUST
+the subject. Every setup-fee deficiency producer in `LDG-39` MUST populate this
+`provider_account` from the originating `operations.provider_account` in the same transaction
+as the deficiency, including the absent-but-charged and abandoned-estimate branches with no
+machine row. *Producer detail moved here 2026-10-04 (`pv-gip.39`, U2).* Subsequent account attribution MUST
 read this field, without depending on a retained operation or a machine for a machine-less create.
 A setup-fee deficiency with no machine uses `subject_kind: operation` and the originating
 operation's id as `subject_id`; that identifier remains evidence after `STO-14` retention,

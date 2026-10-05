@@ -900,14 +900,28 @@ to "settle as `OPS-41` requires", pointing at a requirement that, read whole, di
 entirely. **The abort-and-settle shape below applies to every exposure-reducing cancellation,
 whatever its reason**: make no provider call, settle `succeeded` with a result recording that no
 mutation was required, and close the episode per `OPS-48` where it is still open. What changes
-whether the *funding* test can send a worker down that path is the tenant's **current** state, per
-the paragraph above — not the reason: a suspended tenant's machine cannot be found funded, and a
+whether the *funding* test can send a worker executing an attempt **not enqueued by `API-64`**
+down that path is the tenant's **current** state, per the paragraph above — not the reason:
+a suspended tenant's machine cannot be found funded, and a
 resumed tenant's can, whatever reason the attempt was enqueued under (*this sentence said "for
 exhaustion and late-attach cleanup it can, for a suspension it cannot" until 2026-09-09*). *In practice a suspension cancel loses that race only to another
 cancellation of the same machine, which `OPS-39`'s per-action episode key already prevents, and
 never to `LDG-62`, which `API-7` step 5b refuses for a suspended tenant. The path is therefore
 expected to be unreachable — and it is specified anyway, because "unreachable" is a claim about
 today's rules and the abort instruction is written unconditionally.*
+
+*Amended 2026-10-04 (`pv-gip.11`, V2): the funding statement above applies only to
+attempts not enqueued by `API-64`; the general abort-and-settle shape remains unconditional.
+The retry decision is step 2's "regardless of the current rate or suspension". Verification:
+`CNF-272`.*
+
+*Model verification added 2026-10-04 (`pv-gip.11`, U3):
+`Provisiond.Fence.retry_has_episode_fence` derives retry fencing from unchanged initialization
+and lifecycle transitions, under episode-id fences and the stalled-only retry guard.
+`Provisiond.Fence.extension_first` uses that result and the gone/closed-first guard for
+`OPS-42`'s "Extension first: the worker's read sees the new commitment, `OPS-41` applies, and
+it makes no provider call at all." The proof covers reachable attempts, including retry;
+it does not establish database serialization, provider behavior or running-service conformance.*
 
 **OPS-42** **`OPS-41`'s re-check is not sufficient on its own, and a fence is what makes it work.**
 The window that decides whether a paying customer keeps its machine is **between the worker's read
@@ -1519,9 +1533,9 @@ specifically every operation in `needs_reconciliation` (`API-23`). A design that
 operators to monitor a state and provides no way to list it is incomplete. See `DEF-8`.
 
 **AMENDED 2026-09-08 (`ADR-0017`) — a second thing must be listable, and it is the episode.**
-*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the automatic funded-close allowance is
-withdrawn.* Open episodes require operator attention. Their transitions are owned by `OPS-48`,
-with operator retry (`API-64`), keep (`API-68`) and attempt resolution (`OPS-31`). Operators MUST be able to list open episodes by
+`OPS-48` leaves an episode `stalled` or `uncertain` on a machine that is still running and still
+billing, and nothing automatic will retry it — a machine recorded gone closes its episode (`OPS-48`),
+but no timer opens another attempt. Operators MUST be able to list open episodes by
 state — `stalled` and `uncertain` in particular (`API-64`, `WIR-51`). Filtering operations by
 `status=failed` does not find them: it returns every failed operation the deployment has ever
 produced, most of them a caller's typo, and `STO-14` deletes the attempt while the episode stays
@@ -1529,3 +1543,7 @@ open. `GET /v1/operations`'s `requested_by` and `system_reason` filters (`WIR-10
 remain, as the history of a machine's attempts. *A design that tells operators to monitor a
 **condition** and provides only a filter for a state it shares with everything else is `DEF-8`
 again, one predicate down; the episode is the condition, made a row.*
+
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the automatic funded-close allowance
+and the exclusive retry/resolution description are withdrawn. Current transitions: `OPS-48`;
+operator paths: `API-64` retry, `API-68` keep and `OPS-31` attempt resolution.*

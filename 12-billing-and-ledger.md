@@ -1085,11 +1085,8 @@ unstated:
 | Resolved *absent* | **Released in full**; no fee was incurred at the provider — **except where the provider's own transaction shows the order landed and a fee was charged for a machine that is nonetheless gone** (`OPS-27`'s direct read past the visibility window), in which case the fee is an **operator deficiency** (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged (*row added 2026-09-05*) |
 | Resolved *abandoned* (`OPS-31`) | **Never debited to the customer.** The commitment is closed and released in full (`LDG-32`), the parked obligation is cleared, and the fee becomes an **operator deficiency** (`LDG-66`, `LDG-67`) — the operator gave up establishing whether the order landed, and charging a customer for an outcome nobody established is not defensible |
 
-*Amended 2026-10-04 (`pv-gip.39`, J2):* every setup-fee deficiency producer in this table
-MUST populate `STO-37.provider_account` from the originating `operations.provider_account`
-in the same transaction as the deficiency. This includes the absent-but-charged and
-abandoned-estimate branches with no machine row; `STO-37` owns their durable subject/provenance
-representation. Retaining the operation is not a condition of later cost attribution.
+*Amended 2026-10-04 (`pv-gip.39`, J2; ownership consolidated for U2):* setup-fee
+deficiency `provider_account` production and durable account attribution follow `STO-37`.
 
 *Two defects are fixed here.* The withdrawn text debited the fee **before** the provider call, so
 a deterministic rejection or a resolved-absent create left the customer paying a non-refundable
@@ -1927,9 +1924,9 @@ provider cost belongs to a month:
   resulting incomplete currency leg. Neither an outage bound nor stalled cancellation closes it.
 
 Sum these eligible costs only for uncovered months. Ledger entries join subjects to provider
-accounts (attachments through their machine; setup-fee entries through `machine_id`). Every
-deficiency takes its account from its own `STO-37.provider_account`, including machine-less
-setup fees after operation retention (*amended 2026-10-04, `pv-gip.39`, J2*). The classification below
+accounts (attachments through their machine; setup-fee entries through `machine_id`).
+Deficiency account attribution follows `STO-37` (*amended 2026-10-04, `pv-gip.39`, J2;
+ownership consolidated for U2*). The classification below
 covers the cause inventory owned by `STO-37`; it does not add causes:
 
 | Cause | Accrual treatment and actual-charge path |

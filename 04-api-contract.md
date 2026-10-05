@@ -1322,10 +1322,12 @@ reason, that it has touched no provider (*added 2026-09-05: a create's commitmen
 dispatched against revoked credentials, the reply was ambiguous, and the customer's money sat frozen
 for `OPS-33`'s window — days on Robot*); **close every open episode on those machines
 `resource_gone` and clear their fences** (`OPS-48`'s gone-write row, `ADR-0021`), **and transition
-every `queued`, never-claimed system cancellation naming those machines straight to `failed`** —
-`conflict`, `details.reason: "account_terminated"` — on the create's reasoning, that it has touched
-no provider, by a conditional write guarded on `(id, status = queued, requested_by = system, the
-machine in that account)` in the manner of `STO-3`; a claimed one loses that race and settles as
+every `queued`, never-claimed system cancellation or `API-64` retry attempt naming those
+machines straight to `failed`** — `conflict`, `details.reason: "account_terminated"` — on the
+create's reasoning, that it has touched no provider, by a conditional write guarded on
+`(id, status = queued, claim_number = 0, kind = delete_machine, (requested_by = system OR
+(requested_by = operator AND episode_id IS NOT NULL)), the machine in that account)`
+in the manner of `STO-3`; a claimed one loses that race and settles as
 its own worker's write under an episode that is already closed (*added 2026-09-09: without the close, every episode open at the recording sat `stalled` in
 `OPS-26`'s listing forever — the outcome the paragraph below calls a failure, reached for the
 pre-existing episodes rather than the new ones*); tombstone what `STO-18`
@@ -1335,6 +1337,9 @@ set (*quoted rather than paraphrased since 2026-09-05: a paraphrase here read "t
 commitments it just released", which drops a tenant whose late-attached machine is metered and has
 no commitment — a tenant that then appeared in neither list*). Together those are `API-62`'s "MUST surface the affected tenants", now
 answered by the call that creates the situation rather than left for the operator to discover.
+*Amended 2026-10-04 (`pv-gip.11`, V3): the cancellation population and guard include
+`API-64` retries, identified by its durable origin stamp; unrelated operator operations are
+excluded. Queued eligibility still requires never claimed, including after a defer.*
 **They are different sets and both are needed**: the first is who lost money, the second is who
 `API-62` must move. *Until 2026-09-04 only the assignment list was returned, and a deployment that
 had already re-assigned its tenants off a failing account — the responsible thing to have done —

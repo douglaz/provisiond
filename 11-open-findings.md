@@ -170,9 +170,14 @@ reader — before anything was written, and both rejected it as decided, for the
 Two things one reviewer alone found are kept: Robot's documented rate-limit response may be a
 `403` rather than a `429` (unverified against the API, and `08-provider-notes.md` pins no throttle
 code for any provider), in which case a status-mapped driver never emits `rate_limited` on the one
-provider the mechanism was written for; and an overbroad description of automatic activity in `OPS-26`.
-*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the earlier funded-sweep correction is
-withdrawn with that row. `OPS-48` owns the current lifecycle and `CNF-271` tests timer stability.*
+provider the mechanism was written for; and `OPS-26`'s "nothing automatic will look at it again"
+was itself overbroad, since `OPS-48`'s third row lets the exhaustion sweep close a `stalled` episode
+it finds funded. The second is corrected alongside, with `CNF-271`'s "no timer ever moves a
+`stalled` episode" narrowed to an unfunded machine.
+
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the funded-sweep correction above is
+superseded with the removal of that row. The restored paragraph is historical reasoning,
+not a current obligation. Current lifecycle: `OPS-48`; timer-stability conformance: `CNF-271`.*
 
 **Decision: retract.** The three sentences now say the opposite, truthfully: a throttled attempt
 stalls its episode like any other `failed` one. No deferral is specified, under the set's own rule
@@ -207,9 +212,21 @@ Both reviewers confirmed deleting the edge orphans nothing — every other `aban
 the resolution row, which stays — and both rejected the brief's claim that "funding the machine is
 the other honest exit": `LDG-62` refuses an extension while the fence is set, so a customer cannot
 fund a fenced machine at all, and `CNF-272`'s "resume the tenant, fund the machine, retry the
-episode, and assert the machine survives" could not be executed as written. *Amended 2026-10-04 (`pv-gip.11`): the later retry-as-withdrawal argument and accepted
-no-exit residual are withdrawn by `ADR-0032`. The old suggestion to fund an already-fenced
-machine remains an unexecutable trap; `CNF-272` now tests the distinct operator decisions.*
+episode, and assert the machine survives" could not be executed as written. That was the strongest
+case for an `abandon` verb, and it dissolved on `OPS-41`: a suspension cancels regardless of
+funding, the re-check under a fresh attempt reads the tenant's *current* state, so `retry` after a
+resume finds a machine that still has runway, aborts without a provider call, and closes the episode
+`funded`. The word "fund" is removed from that step of `CNF-272`. The fresh read of the diff found
+that `OPS-41`'s scope sentence still listed three reasons while its 2026-09-05 paragraph keyed the
+exemption on the tenant's current state "not on the reason the operation was enqueued under" — the
+two could not both hold, `CNF-272` already asserted the later one, and the scope is amended to every
+exposure-reducing cancellation. The residual — a provider
+that refuses indefinitely, a machine out of runway, a customer who wants to pay — is stated in
+`OPS-42` as accepted, with no verb.
+
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the retry-survival argument and
+accepted no-exit residual above are superseded. The historical quotation is retained as recorded;
+current operator paths: `API-64` and `API-68`; conformance: `CNF-272`.*
 
 Both reviewers found the same second thing. `API-63` records every machine of a terminated account
 gone, and `OPS-39` said, in the wording `ADR-0021` keeps, "A tombstoned machine keeps any episode
@@ -233,11 +250,16 @@ the gone-write and the permanence rule makes the later settlement an attempt-onl
 by the first step of `OPS-41`'s order*); and
 `STO-3` lists four guarded writes while `API-63`'s administrative `failed` on a queued create — and
 now on a queued system cancellation, guarded on `status = queued` and `requested_by = system` —
-are guarded writes `STO-3` does not list. The same read found `retry`'s state change and the fence write needed guards against a
-concurrent gone-write. `OPS-48` owns those guards. *Amended 2026-10-04 (`pv-gip.11`,
-`ADR-0032`): the subsequent funded-sweep exemption correction is superseded with the removal
-of that row; the earlier retry-survival and no-exit reasoning in this finding is historical,
-not the current operator contract (`API-64`, `API-68`).*
+are guarded writes `STO-3` does not list. The same read found `retry`'s state change and `OPS-42`'s
+fence write unguarded against a gone-write committing between read and write; both now are. A
+second narrow read of the `OPS-41` scope change found that `OPS-48`'s sweep-close row applied the
+funding predicate with no suspension exemption, so a rate rise could un-fence a suspended tenant's
+stalled machine and leave it running with nothing accounting for it; the row now carries the
+exemption.
+
+*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): the funded-sweep exemption correction
+above is superseded with that row. Its reasoning and the guard-correction record are retained
+as history; current guards and lifecycle: `OPS-48`, `API-64` and `API-68`.*
 
 **F50. CLOSED 2026-09-12 — the tiers are withdrawn whole, and the question the finding asked no
 longer exists.** The four mechanical items below (1, 4, 5, 6) were fixed first — `CNF-238`'s

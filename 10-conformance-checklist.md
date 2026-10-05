@@ -470,8 +470,10 @@ not optional hardening — they are the only structural defence there is.
       accepting pass — passes below `LDG-59`'s quorum accept nothing while older observations leave
       the window — so that pass finds it thin; post the meter for one machine metered in that
       currency and assert that the `STO-37` row it opens carries `absorbed_from` equal to that
-      pass's `accepted_at` under `LDG-58`, not the newest observation's `observed_at` plus the staleness bound,
-      which lies in the future. **An open row is preserved**: then let the newest observation age
+      ~~pass's `observed_at`~~, not the newest observation's `observed_at` plus the staleness bound,
+      which lies in the future. *Amended 2026-10-04 (`pv-gip.28`, Q13): the struck-through
+      2026-09-25 boundary is withdrawn; assert the pass's `accepted_at` under `LDG-58`
+      instead, including when observation precedes acceptance.* **An open row is preserved**: then let the newest observation age
       past the bound — a staleness computation would now yield a later start — post the meter again
       for the same machine, and assert that the row's `absorbed_from` did not move and no second row
       opened. **The clocks cross inside one outage** (added 2026-09-25, `ADR-0027`, for the replayed
@@ -479,8 +481,12 @@ not optional hardening — they are the only structural defence there is.
       and `LDG-64`'s bound `M` longer than `3c`, let passes at `t0−2c`, `t0−c` and `t0` each accept
       an observation, so that at `t0` the window holds three, the newest (`observed_at = t0`) is
       fresh, and there is a rate; the case starts from the pass at `t0` and asserts nothing before
-      it — use `accepted_at = observed_at` for these passes, and close any earlier flap rows
-      at or before `t0` under `LDG-64`. Let the feed go silent, so
+      it — any rows an earlier flap opened were closed at or before `t0` by `LDG-64`'s closer, the
+      "observation with which `LDG-58`'s window produces a rate again".
+      *Amended 2026-10-04 (`pv-gip.28`, Q13): that 2026-09-25 quotation is historical,
+      superseded wording. Use `accepted_at = observed_at` for these passes and close earlier
+      flap rows under current `LDG-64`; the quotation supplies no observation-time instruction.*
+      Let the feed go silent, so
       that at `t0+b` the newest observation is stale and there is no rate, with no pass running
       (`LDG-59`). Post machine A's meter at some `tA` in `(t0+b, t0+3c)`; it finds no open row for A
       and opens A's row: assert `absorbed_from = t0+b` and, on A's view, `rate_outage_deadline =
@@ -1047,8 +1053,28 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       currency is omitted, never valued at its last rate; `complete` is false and the omitted
       currency is named. Repeat with a rated currency carrying an open outage row, even if other
       accounts in that currency have finalized costs: the currency remains omitted. Incomplete
-      headroom is not whole-pool assurance. See `CNF-306`.
-      (*Pointer amended 2026-10-04, `pv-gip.39`, T4.*) (`LDG-75`, `LDG-17`, `LDG-20`, `LDG-40`, `LDG-53`, `WIR-53`,
+      headroom is not whole-pool assurance. See `CNF-306` for the existing-halt case.
+      (*Pointer amended 2026-10-04, `pv-gip.39`, T4.*)
+      **No prior halt, incomplete cost with a rate** (*restored 2026-10-04, `pv-gip.39`, V1*):
+      in an independent run give both EUR and USD a fresh rate, but leave a USD outage-cost
+      row open. Seed this check snapshot if qualifying return and closure are atomic, as in
+      `CNF-310`. Keep the USD leg omitted, with `complete: false` and USD named as omitted.
+      Set held satoshis to 200, float to 100, finalized EUR payable to 60 sats at its current
+      rate, and additional valued EUR stress to 20 sats, with no other valued legs. Run the
+      check: required valued terms are 180, so no halt starts. A fresh deposit mint succeeds;
+      an existing unexpired deposit with an unsettled Lightning invoice still reports
+      `gate: null` and `lightning.cancelled: false`.
+      Keep the same USD incomplete-cost condition and held/float/stress, but raise the
+      independently finalized EUR payable to 100 sats. Run the check again: required valued
+      terms are 220, while float plus stress alone is only 120. Assert a deployment-wide halt:
+      fresh deposit minting is refused, the existing invoice is cancelled and its deposit read
+      reports `gate: "solvency"` and `lightning.cancelled: true`; bill-increasing operations
+      are refused while cancellation and deletion remain admitted. An on-chain payment to an
+      already-issued address and any Lightning payment settling concurrently with cancellation
+      are still credited. The open USD row is unchanged in both arms; no missing rate or prior
+      halt supplies either outcome. `LDG-40` says "An incomplete cost alone, like a missing rate
+      alone, MUST NOT start a solvency halt" and "A shortfall on the valued terms is a computed
+      failure and MUST trigger `LDG-20`'s deployment-wide consequences". (`LDG-75`, `LDG-17`, `LDG-20`, `LDG-40`, `LDG-53`, `WIR-53`,
       `WIR-54`, `STO-57`)
 - [ ] **CNF-139** — No code path uses a rate past its newest observation's stamped bound
       (*amended 2026-10-04, `pv-gip.28`*), and there is no
@@ -1907,7 +1933,20 @@ rather than acquiring a default.
       `needs_reconciliation` attempt, `stalled`, `scheduled` — and assert every one is `closed`
       `resource_gone` with its fence cleared in the recording transaction, the queued attempt is
       `failed` `account_terminated`, the `needs_reconciliation` attempt is still retained, and an
-      operator's later `not_applied` on it leaves the episode closed (`OPS-48`, `ADR-0021`). *Added 2026-09-04: the release was asserted and the
+      operator's later `not_applied` on it leaves the episode closed (`OPS-48`, `ADR-0021`).
+      **Queued operator retry** (*added 2026-10-04, `pv-gip.11`, V3*): stall a delete,
+      invoke `API-64`, and stop before its fresh attempt is claimed. Verify the new attempt
+      has `requested_by: operator` and non-null `episode_id`; terminate its provider account.
+      In that transaction the retry becomes `failed`, `conflict`,
+      `details.reason: "account_terminated"`, and its episode closes `resource_gone` with
+      the fence cleared. The settled old attempt is unchanged. A queued retry on a different
+      account and an unrelated queued operator operation remain unchanged by the cancellation
+      failure write. Race the new retry's claim against termination in both orders: termination
+      first prevents the claim; claim first defeats the administrative failure write, leaving
+      settlement to the worker under the closed episode with no provider call if its fence
+      transaction follows the close. Also short-defer a claimed retry to `queued` before
+      termination: its nonzero claim number excludes it from this never-claimed write.
+      *Added 2026-09-04: the release was asserted and the
       stop was not, so a build that closed the commitments and went on metering into the tenant's
       free balance passed this item.* **Then assert the account stops being sellable**: `GET
       /v1/providers` omits it for an assigned tenant, and a create naming it is `409` `state` —

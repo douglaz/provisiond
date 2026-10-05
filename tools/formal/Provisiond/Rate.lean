@@ -156,6 +156,7 @@ theorem acceptance_time_never_regresses (clock previous : Nat) :
 structure Guards where
   acceptanceBoundary : Bool
 
+@[req "LDG-58"]
 def current : Guards :=
   {
     acceptanceBoundary := true }

@@ -1071,44 +1071,6 @@ theorem fenceTxn_abort (p : Params) (w : World) (n : ClaimNumber) (a : Attempt)
     fenceTxn p w restored = { midTxn w restored with phase := .noMutation n d } := by
   simp [fenceTxn, hph, ha, hre]
 
-/-- `OPS-42`: "Extension first: the worker's read sees the new commitment, `OPS-41` applies, and
-it makes no provider call at all." With the read inside the fence transaction, an extension the
-store admitted before it is what the re-check reads; where that grown commitment funds the
-machine at the rate the transaction reads, it decides no mutation, writes no fence, and the
-provider call is inert for an ordinary attempt. The explicit retry bypass (2026-10-04)
-is excluded by `hordinary`; it deliberately carries out the deletion decision. The rate is the world's and not a claim snapshot's — `OPS-41`: "never on
-its claim snapshot" — and a machine recorded gone or under a closed episode is settled by the
-first step with no mutation either, so neither is a hypothesis. -/
-@[req "OPS-42"]
-theorem extension_first (p : Params) (w : World)
-    (n : ClaimNumber) (r : Nat) (a : Attempt) (hph : w.phase = .holding n) (hr : w.rate = some r)
-    (ha : w.attempt = some a) (hordinary : a.retried = false) (hs : w.suspended = false)
-    (hk : p.suspensionKey = .currentState) (sats : Nat) (hf : w.m.fence = none)
-    (hb : sats ≤ w.balance)
-    (hfunded : p.abort (w.m.commitment + sats) w.prot r = true) (restored : Option Nat) :
-    ∃ d, (fenceTxn p (extend p w sats) restored).phase = .noMutation n d ∧
-    (fenceTxn p (extend p w sats) restored).m.fence = none ∧
-    (fenceTxn p (extend p w sats) restored).m.commitment = w.m.commitment + sats ∧
-    ∀ applied reply,
-      providerDelete p (fenceTxn p (extend p w sats) restored) applied reply =
-        fenceTxn p (extend p w sats) restored := by
-  have hc : (extend p w sats).m.commitment = w.m.commitment + sats := by
-    unfold extend; simp only [extend_guard w sats hs hf hb, hr]; (repeat' split) <;> simp_all
-  obtain ⟨hph', ha', hs', hprot', hnow', hf', -, hr', -⟩ := extend_frame p w sats
-  have hmid := midTxn_of_rate (extend p w sats) r (hr'.trans hr) restored
-  have hre : ∃ d, recheck p (extend p w sats) a restored = .noMutation d := by
-    unfold recheck
-    split
-    · exact ⟨_, rfl⟩
-    · simp [exempt, hordinary, hk, hs', hs, hr'.trans hr, derive, hc, hprot', hfunded]
-  obtain ⟨d, hre⟩ := hre
-  have hft := fenceTxn_abort p (extend p w sats) n a restored d (hph'.trans hph) (ha'.trans ha) hre
-  rw [hmid] at hft
-  refine ⟨d, by rw [hft], ?_, ?_, ?_⟩
-  · rw [hft]; simpa using hf'.trans hf
-  · rw [hft]; simpa using hc
-  · intro applied reply; rw [hft]; simp [providerDelete]
-
 /-- `LDG-62`'s refusal: with the fence set, an extension changes nothing — no commitment, no
 balance, no date. -/
 @[req "LDG-62"]
@@ -1777,6 +1739,291 @@ theorem inv_run (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOpe
 
 theorem inv_init (w : World) (h0 : Init w) : Inv w :=
   ⟨by simp [fenceNamesOpenEpisode, h0.1], by simp [idsFresh, h0.2]⟩
+
+/-! ## Retry fencing: ordinary enqueue may be unfenced, retry may not -/
+
+/-- Phases reached only after writing the fence, while the episode remains open. -/
+def Phase.needsFence : Phase → Bool
+  | .fenced _ | .dispatched _ _ => true
+  | _ => false
+
+/-- An open episode has its own attempt. A non-attempting episode, a retry, or a worker
+past the fence write requires the episode's fence. Ordinary enqueue is deliberately excluded.
+The stronger intermediate cases let settlement establish the stalled case used by retry. -/
+def RetryFenceInv (w : World) : Prop :=
+  ∀ ep, w.episode = some ep → ep.state.isOpen = true →
+    ∃ a, w.attempt = some a ∧ a.ep = ep.id ∧
+      ((ep.state ≠ .attempting ∨ a.retried = true ∨ Phase.needsFence w.phase = true) →
+        w.m.fence = some (.episode ep.id))
+
+theorem retryFenceInv_init (w : World) (h : Init w) : RetryFenceInv w := by
+  intro ep he _
+  simp [h.2] at he
+
+theorem retryFenceInv_frame (w w' : World) (hf : w'.m.fence = w.m.fence)
+    (he : w'.episode = w.episode) (ha : w'.attempt = w.attempt)
+    (hp : Phase.needsFence w'.phase = true → Phase.needsFence w.phase = true) (h : RetryFenceInv w) : RetryFenceInv w' := by
+  intro ep hep ho
+  obtain ⟨a, haa, hi, hff⟩ := h ep (he.symm.trans hep) ho
+  exact ⟨a, ha.trans haa, hi, fun hh => hf.trans (hff (hh.imp_right (fun h => h.imp_right hp)))⟩
+
+theorem retryFenceInv_enqueue (w : World) (r : Reason) (h : RetryFenceInv w) : RetryFenceInv (enqueue w r) := by
+  unfold enqueue
+  split
+  · intro ep he ho
+    cases hw : w.episode with
+    | none => simp [hw] at he
+    | some old =>
+      simp only [hw, Option.map_some, Option.some.injEq] at he
+      subst ep
+      obtain ⟨a, ha, hi, hf⟩ := h old hw ho
+      exact ⟨a, ha, hi, hf⟩
+  · split
+    · rename_i hn hy
+      simp only [Bool.and_eq_true, beq_iff_eq] at hy
+      simp [RetryFenceInv, hy.1, Phase.needsFence]
+    · exact h
+
+-- updating only an attempt's row preserves origin and linkage, with no new post-fence phase.
+theorem retryFenceInv_row (w : World) (a : Attempt) (ha : w.attempt = some a) (row : Row)
+    (ph : Phase) (hp : Phase.needsFence ph = true → Phase.needsFence w.phase = true)
+    (h : RetryFenceInv w) : RetryFenceInv { w with attempt := some { a with row := row }, phase := ph } := by
+  intro ep he ho
+  obtain ⟨old, hold, hi, hf⟩ := h ep he ho
+  rw [ha] at hold
+  cases Option.some.inj hold
+  exact ⟨_, rfl, hi, fun hh => hf (hh.imp_right (fun h => h.imp_right hp))⟩
+
+theorem retryFenceInv_writeFence (p : Params) (hh : p.fenceHolds = .episodeId)
+    (w : World) (a : Attempt) (ha : w.attempt = some a) (n : ClaimNumber) (d : Option Nat)
+    (h : RetryFenceInv w) : RetryFenceInv (writeFence p w n a d) := by
+  unfold writeFence
+  split
+  · intro ep he ho
+    obtain ⟨old, hold, hi, _⟩ := h ep he ho
+    rw [ha] at hold
+    cases Option.some.inj hold
+    exact ⟨a, ha, hi, fun _ => by simp [Params.holder, hh, hi]⟩
+  · exact retryFenceInv_frame w _ rfl rfl rfl (by simp [Phase.needsFence]) h
+
+theorem retryFenceInv_finish (w : World) (a : Attempt) (ha : w.attempt = some a) (n : ClaimNumber)
+    (s : Settled) (wr : Written) (hp : s ≠ .noMutation → Phase.needsFence w.phase = true)
+    (h : RetryFenceInv w) : RetryFenceInv (finish w n a s wr) := by
+  unfold finish
+  split
+  · rename_i old hold
+    split
+    · intro ep he ho
+      simp only [applyRow, Option.some.injEq] at he
+      subst ep
+      cases hs : old.state <;> cases s <;>
+        simp_all [applyRow, episodeStep, close, Episode.isOpen]
+      all_goals
+        obtain ⟨aa, haa, hi, hf⟩ := h old hold (by simp [hs, Episode.isOpen])
+        rw [ha] at haa
+        cases Option.some.inj haa
+        simpa [hi] using hf (by simp_all)
+    · exact retryFenceInv_row w a ha _ .idle (by simp [Phase.needsFence]) h
+  · exact retryFenceInv_row w a ha _ .idle (by simp [Phase.needsFence]) h
+
+theorem retryFenceInv_retry (p : Params) (hg : p.retryGuard = true) (w : World)
+    (h : RetryFenceInv w) : RetryFenceInv (retry p w) := by
+  unfold retry
+  split
+  · rename_i a ep hp ha he
+    split
+    · rename_i hg'
+      simp only [hg, Bool.not_true, Bool.false_or, Bool.and_eq_true, beq_iff_eq] at hg'
+      have hs : ep.state = .stalled := hg'.2
+      obtain ⟨old, hold, hi, hf⟩ := h ep he (by simp [hs, Episode.isOpen])
+      have fenced := hf (Or.inl (by simp [hs]))
+      simp [RetryFenceInv, episodeStep, Episode.isOpen, fenced]
+    · exact h
+  · exact h
+
+/-- Preservation needs the episode-id fence and stalled-only retry guards. Other controls remain
+parameters: their negative witnesses must reach their own refutations. No transition is changed. -/
+theorem retryFenceInv_step (p : Params) (hh : p.fenceHolds = .episodeId)
+    (hg : p.retryGuard = true) (w : World) (h : RetryFenceInv w) (e : Event) : RetryFenceInv (step p w e) := by
+  cases e with
+  | advance seconds => exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | rederive d obs =>
+    simp only [step]; unfold rederive; (repeat' split) <;> exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | pass window start =>
+    simp only [step]; unfold pass rateRestored loseRate
+    (repeat' split) <;> exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | restoreRecord r => exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | sweep =>
+    simp only [step]; unfold sweep; split
+    · exact retryFenceInv_enqueue w _ h
+    · exact h
+  | claim =>
+    simp only [step]; unfold claimStep
+    split
+    · rename_i a hp ha
+      split
+      · split
+        · exact retryFenceInv_row w a ha _ _ (by simp [Phase.needsFence]) h
+        · exact retryFenceInv_row w a ha _ _ (by simp [Phase.needsFence]) h
+      · exact h
+    · exact h
+  | fenceTxn restored =>
+    have hm : RetryFenceInv (midTxn w restored) := by
+      obtain ⟨hm, _, hp, ha, he, _⟩ := midTxn_frame w restored
+      exact retryFenceInv_frame w _ (by rw [hm]) he ha (by rw [hp]; exact id) h
+    have ha' := (midTxn_frame w restored).2.2.2.1
+    simp only [step]; unfold fundingOrderTxn
+    split
+    · rename_i n a hp ha
+      split
+      · exact retryFenceInv_row _ a (ha'.trans ha) _ _ (by simp [Phase.needsFence]) hm
+      · unfold fenceTxn
+        simp only [hp, ha]
+        split
+        · exact retryFenceInv_row _ a (ha'.trans ha) _ _ (by simp [Phase.needsFence]) hm
+        · exact retryFenceInv_frame (midTxn w restored) _ rfl rfl rfl (by simp [Phase.needsFence]) hm
+        · split
+          · exact retryFenceInv_writeFence p hh _ a (ha'.trans ha) _ _ hm
+          · exact retryFenceInv_frame (midTxn w restored) _ rfl rfl rfl (by simp [Phase.needsFence]) hm
+    · unfold fenceTxn
+      split
+      · rename_i n a hp ha
+        exact False.elim (by apply ‹∀ n a, w.phase = .holding n → w.attempt = some a → False› n a hp ha)
+      · exact h
+  | fenceWrite =>
+    simp only [step]; unfold fenceWrite; split
+    · rename_i n d a _ _ ha
+      exact retryFenceInv_writeFence p hh w a ha n d h
+    · exact h
+  | extend s =>
+    obtain ⟨hp, ha, _, _, _, hf, he, _⟩ := extend_frame p w s
+    exact retryFenceInv_frame w _ hf he ha (by simpa only [step, hp] using (id : Phase.needsFence w.phase = true → Phase.needsFence w.phase = true)) h
+  | providerDelete applied reply =>
+    simp only [step]; unfold providerDelete; split
+    · rename_i n hp
+      split
+      · exact h
+      · exact retryFenceInv_frame w _ rfl rfl rfl (by simp [hp, Phase.needsFence]) h
+    · exact h
+  | settle =>
+    simp only [step]; unfold settle; split
+    · rename_i n d a hp ha
+      split
+      · exact retryFenceInv_frame _ _ rfl rfl rfl id (retryFenceInv_finish w a ha n _ _ (by simp) h)
+      · exact retryFenceInv_finish w a ha n _ _ (by simp) h
+    · rename_i n reply a hp ha
+      exact retryFenceInv_finish w a ha n _ _ (by simp [hp, Phase.needsFence]) h
+    · exact h
+  | retry => exact retryFenceInv_retry p hg w h
+  | keep =>
+    simp only [step]; unfold keep
+    split
+    · split
+      · unfold writeAbortDate applyRow
+        (repeat' split) <;> simp [RetryFenceInv, episodeStep, close, Episode.isOpen]
+      · exact h
+    · exact h
+  | goneWrite =>
+    simp only [step]; unfold goneWrite
+    split
+    · rename_i ep he
+      cases hs : ep.state <;> simp [RetryFenceInv, applyRow, episodeStep, currentRows, close, Episode.isOpen, hs]
+    · exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | suspend => exact retryFenceInv_enqueue _ _ (retryFenceInv_frame w _ rfl rfl rfl id h)
+  | resume => exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | rateLost start =>
+    simp only [step]; unfold rateLost loseRate
+    split <;> exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | rateRestored r => exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | meterOpens =>
+    simp only [step]; unfold meterOpens
+    split <;> exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | setMaxOutage b => exact retryFenceInv_frame w _ rfl rfl rfl id h
+  | outageBound =>
+    simp only [step]; unfold outageBound; split
+    · exact retryFenceInv_enqueue w _ h
+    · exact h
+
+theorem retryFenceInv_run (p : Params) (hh : p.fenceHolds = .episodeId) (hg : p.retryGuard = true)
+    (w : World) (h : RetryFenceInv w) (es : List Event) : RetryFenceInv (run p w es) := by
+  induction es generalizing w with
+  | nil => exact h
+  | cons e es ih => exact ih _ (retryFenceInv_step p hh hg w h e)
+
+/-- `OPS-48`'s retry row: "**Stays set**, unchanged: the new attempt contends on the same
+ episode id". Derived from initialization and lifecycle steps, not assumed on an arbitrary world.
+ Initialization still requires only no episode and no fence; no hidden phase restriction is added. -/
+@[req "OPS-42"]
+theorem retry_has_episode_fence (p : Params) (hh : p.fenceHolds = .episodeId) (hg : p.retryGuard = true)
+    (w0 : World) (h0 : Init w0) (es : List Event) (a : Attempt)
+    (ha : (run p w0 es).attempt = some a) (hr : a.retried = true)
+    (ep : EpisodeRow) (he : (run p w0 es).episode = some ep) (ho : ep.state.isOpen = true) :
+    (run p w0 es).m.fence = some (.episode a.ep) := by
+  obtain ⟨old, hold, hi, hf⟩ := retryFenceInv_run p hh hg w0 (retryFenceInv_init w0 h0) es ep he ho
+  rw [ha] at hold
+  cases Option.some.inj hold
+  simpa [hi] using hf (Or.inr (Or.inl hr))
+
+
+/-- `OPS-42`: "Extension first: the worker's read sees the new commitment, `OPS-41` applies, and
+it makes no provider call at all." With the read inside the fence transaction, an extension the
+store admitted before it is what the re-check reads; where that grown commitment funds the
+machine at the rate the transaction reads, it decides no mutation, writes no fence, and the
+provider call is inert. A reachable retry with its episode open already has that episode's fence
+(`retry_has_episode_fence`), contradicting the admitted extension's no-fence premise. A retry
+whose episode closed takes the gone/closed-first branch. The retry bypass therefore supplies no
+exception to extension-first ordering (proof repaired 2026-10-04). The rate is the world's and not a claim snapshot's — `OPS-41`: "never on
+its claim snapshot" — and a machine recorded gone or under a closed episode is settled by the
+first step with no mutation either, so neither is a hypothesis. -/
+@[req "OPS-42"]
+theorem extension_first (p : Params) (hh : p.fenceHolds = .episodeId)
+    (hg : p.retryGuard = true) (hfirst : p.goneOrClosedFirst = true)
+    (w0 : World) (h0 : Init w0) (es : List Event) (w : World) (hreach : w = run p w0 es)
+    (n : ClaimNumber) (r : Nat) (a : Attempt) (hph : w.phase = .holding n) (hr : w.rate = some r)
+    (ha : w.attempt = some a) (hs : w.suspended = false)
+    (hk : p.suspensionKey = .currentState) (sats : Nat) (hf : w.m.fence = none)
+    (hb : sats ≤ w.balance)
+    (hfunded : p.abort (w.m.commitment + sats) w.prot r = true) (restored : Option Nat) :
+    ∃ d, (fenceTxn p (extend p w sats) restored).phase = .noMutation n d ∧
+    (fenceTxn p (extend p w sats) restored).m.fence = none ∧
+    (fenceTxn p (extend p w sats) restored).m.commitment = w.m.commitment + sats ∧
+    ∀ applied reply,
+      providerDelete p (fenceTxn p (extend p w sats) restored) applied reply =
+        fenceTxn p (extend p w sats) restored := by
+  have hc : (extend p w sats).m.commitment = w.m.commitment + sats := by
+    unfold extend; simp only [extend_guard w sats hs hf hb, hr]; (repeat' split) <;> simp_all
+  obtain ⟨hph', ha', hs', hprot', hnow', hf', he', hr', -⟩ := extend_frame p w sats
+  have hmid := midTxn_of_rate (extend p w sats) r (hr'.trans hr) restored
+  have hre : ∃ d, recheck p (extend p w sats) a restored = .noMutation d := by
+    unfold recheck
+    split
+    · exact ⟨_, rfl⟩
+    · rename_i hnot
+      have hopen : ((extend p w sats).episode.any fun ep => ep.id == a.ep && ep.state.isOpen) = true := by
+        have h : (extend p w sats).m.gone = false ∧
+            ((extend p w sats).episode.any fun ep => ep.id == a.ep && ep.state.isOpen) = true := by
+          simpa [hfirst, settledFirst, Bool.or_eq_true, not_or] using hnot
+        exact h.2
+      have hord : a.retried = false := by
+        cases hretried : a.retried with
+        | false => rfl
+        | true =>
+          cases hep : w.episode with
+          | none => simp [he', hep] at hopen
+          | some ep =>
+            have ho : ep.state.isOpen = true := (by simpa [he', hep] using hopen : ep.id = a.ep ∧ ep.state.isOpen = true).2
+            have fenced := retry_has_episode_fence p hh hg w0 h0 es a
+              (hreach ▸ ha) hretried ep (hreach ▸ hep) ho
+            rw [← hreach, hf] at fenced
+            contradiction
+      simp [exempt, hord, hk, hs', hs, hr'.trans hr, derive, hc, hprot', hfunded]
+  obtain ⟨d, hre⟩ := hre
+  have hft := fenceTxn_abort p (extend p w sats) n a restored d (hph'.trans hph) (ha'.trans ha) hre
+  rw [hmid] at hft
+  refine ⟨d, by rw [hft], ?_, ?_, ?_⟩
+  · rw [hft]; simpa using hf'.trans hf
+  · rw [hft]; simpa using hc
+  · intro applied reply; rw [hft]; simp [providerDelete]
 
 /-- A set fence names an open episode with the same id, over every state reachable from an
 initial world, under `OPS-42`'s two guards: `fenceHolds = .episodeId` (2026-09-08) and
