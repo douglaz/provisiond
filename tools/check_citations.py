@@ -64,9 +64,11 @@ FOUR RULES, deliberately narrow.
            Possessives require a straight apostrophe and whitespace immediately
            followed by the opening quote; intervening prose or markup is not
            this shape. Quotes below four words remain outside QUOTED.
-           Comparison drops double marks and single marks except apostrophes
-           between word characters after norm(): nested 'single' and "double"
-           delimiters match, but subject's and subjects remain distinct.
+           Comparison locates candidate source spans without quotation marks,
+           then compares their content, including adjacent apostrophes. Only
+           locally paired delimiters are formatting; word-internal and unpaired
+           trailing apostrophes remain content. See comparison_text() and
+           span_content() for the bounds and ambiguous-punctuation limitation.
            Signature identity still uses norm(), retaining all marks.
            A chunk shaped `X` says `Y`'s "four or more words" compares against
            both owners; no precedence rule was chosen. A nested example can
@@ -258,8 +260,102 @@ def norm(s):
 
 
 def comparison_text(s):
-    """QUOTED: ignore nested marks, preserving apostrophes between word characters."""
-    return re.sub(r'''"|(?<!\w)'|'(?!\w)''', "", norm(s))
+    """Normalize QUOTED source context, retaining pairing boundaries as newlines.
+
+    These boundaries constrain delimiter pairing only, not substring reach.
+    Whitespace still matches whitespace across sentences, paragraphs, list items
+    and table rows. norm() and the finding signatures are deliberately unchanged.
+    """
+    def whitespace(m):
+        gap = m.group()
+        structural = ('\n' in gap and
+                      (re.search(r'\n[ \t]*\n', gap) or
+                       re.match(r'[-*]\s|\|', s[m.end():])))
+        before = m.start() - 1
+        while before >= 0 and s[before] in '*`"”)]':
+            before -= 1
+        sentence = before >= 0 and s[before] in '.!?'
+        return '\0' if structural or sentence else ' '
+
+    normalized = norm(re.sub(r'\s+', whitespace, s))
+    # norm() can remove a list's '*' between two whitespace runs. Collapse those
+    # runs together while retaining their boundary, just as norm() does without it.
+    return re.sub(r'[ \0]*\0[ \0]*', '\n', normalized).strip(' \n.,;:')
+
+
+def span_content(text, start, end):
+    """Content of one candidate; single marks never borrow an outside partner.
+
+    An opener follows neither a word nor another mark and precedes nonspace;
+    a closer follows nonspace and precedes neither a word nor another mark.
+    Within each structural segment, an opener pairs with the last same-kind
+    closer before the next opener (enclosing at most 400 characters). Intermediate
+    trailing apostrophes remain content, including inside a single-quoted phrase.
+    Double marks have no apostrophe role, so a locally paired double wrapper may
+    also enclose a partial candidate. Internal apostrophes can never be delimiters.
+    This bounded convention is not an English parser: ambiguous punctuation within
+    the candidate can still be mispaired; fragments cutting a single-delimiter
+    pair may be conservatively rejected.
+    """
+    marks = '\"\''
+    # Include immediately adjoining marks, even when the quote omitted them.
+    # Use the full text for lexical roles: a candidate edge is not a word edge.
+    while start and text[start - 1] in marks:
+        start -= 1
+    while end < len(text) and text[end] in marks:
+        end += 1
+    ignored = set()
+    # Bound double-wrapper context by structural boundaries and quotations()'s length
+    # limit. This permits a fragment of a quoted sentence without letting an
+    # outside single opener turn the fragment's possessive into formatting.
+    left = max(0, start - 401, text.rfind('\n', 0, start) + 1)
+    boundary = text.find('\n', end)
+    right = min(len(text), end + 401, boundary if boundary >= 0 else len(text))
+    for pair in re.finditer(r'''(?<![\w"'])"[^"\n]{0,400}"(?!\w)''', text[left:right]):
+        ignored.update((left + pair.start(), left + pair.end() - 1))
+    opener = closer = None
+    for pos in range(start, end):
+        mark = text[pos]
+        if mark == '\n':
+            if opener is not None and closer is not None:
+                ignored.update((opener, closer))
+            opener = closer = None
+        elif mark in marks:
+            before = text[pos - 1] if pos else ' '
+            after = text[pos + 1] if pos + 1 < len(text) else ' '
+            if not (re.match(r'\w', before) or before in marks) and not after.isspace():
+                if opener is not None and closer is not None:
+                    ignored.update((opener, closer))
+                opener, closer = pos, None
+            elif (opener is not None and mark == text[opener]
+                  and pos - opener - 1 <= 400 and not before.isspace()
+                  and not (re.match(r'\w', after) or after in marks)):
+                closer = pos
+    if opener is not None and closer is not None:
+        ignored.update((opener, closer))
+    return ''.join(text[p] for p in range(start, end) if p not in ignored).replace('\n', ' ')
+
+
+def contains_quote(source, quote):
+    """Find spans by mark-free text, then require equal local punctuation content.
+
+    Elision fragments remain independent and may occur anywhere in this source.
+    Removing marks is candidate discovery only, never an acceptance fallback.
+    """
+    positions = [p for p, char in enumerate(source) if char not in '\"\'']
+    plain = ''.join(source[p] for p in positions).replace('\n', ' ')
+    for fragment in fragments(comparison_text(quote)):
+        needle = fragment.replace('"', '').replace("'", '').replace('\n', ' ')
+        content = span_content(fragment, 0, len(fragment))
+        offset = 0
+        while needle and (at := plain.find(needle, offset)) >= 0:
+            start, end = positions[at], positions[at + len(needle) - 1] + 1
+            if span_content(source, start, end) == content:
+                break
+            offset = at + 1
+        else:
+            return False
+    return True
 
 
 def unpaired_marks(text, first_line=1):
@@ -419,7 +515,7 @@ def find(docs, adrs, reqs, corpus=None):
                 pool += docpool
                 for _pos, q in attributed:
                     checked += 1
-                    if not any(all(fr in p for fr in fragments(comparison_text(q))) for p in pool):
+                    if not any(contains_quote(p, q) for p in pool):
                         bad.append((f, owner, norm(q)))
     return bad, unquoted, checked
 
@@ -444,6 +540,101 @@ def exists(lean, corpus):
                 if not any(all(fr in c for fr in frags) for c in corpus):
                     missing.append((f, q))
     return missing, total
+
+
+def check_quote_content():
+    """Finite QUOTED comparisons through each existing input and source-pool path."""
+    cases = []
+
+    def case(name, source, quote, accepted, exists_ok=True):
+        cases.append((name, source, quote, accepted, exists_ok))
+
+    possessive = "the rows' values remain positive"
+    plain = possessive.replace("'", '')
+    case('trailing omission', possessive, plain, False)
+    case('trailing insertion', plain, possessive, False)
+    for marked in [possessive, "the tenant's balance remains positive"]:
+        for mark in ["'", '‘', '’']:
+            source = marked.replace("'", mark)
+            for other in ["'", '‘', '’']:
+                case('apostrophe typography', source, marked.replace("'", other), True)
+            case('apostrophe omission', source, marked.replace("'", ''), False)
+            case('apostrophe insertion', marked.replace("'", ''), source, False)
+    multiple = "the rows' values and tenants' balances remain positive"
+    for position in [multiple.index("'"), multiple.rindex("'")]:
+        missing = multiple[:position] + multiple[position + 1:]
+        case('independent possessive omission', multiple, missing, False)
+        case('independent possessive insertion', missing, multiple, False)
+    for phrase in ['Succeeds', 'rows', "the rows' values", "the tenant's balance"]:
+        single = f"'{phrase}' means the resource is gone"
+        double = f'"{phrase}" means the resource is gone'
+        for source, quote in [(single, double), (double, single)]:
+            case('nested delimiters', source, quote, True)
+            case('nested wording', source, quote.replace(phrase, 'WRONG'), False, False)
+            if "'" in phrase:
+                case('nested possessive omission', source,
+                     quote.replace(phrase, phrase.replace("'", '')), False)
+    for gap in [' ', '. ', '\n\n', '\n- ', '\n* ', '\n|']:
+        source = 'unrelated' + gap + possessive
+        case('whitespace reach across boundaries', source, norm(source), True)
+        case('outside opener before', "'unrelated" + gap + possessive, plain, False)
+        case('outside opener after', possessive + gap + "'unrelated", plain, False)
+        case('exact despite outside opener', "'unrelated" + gap + possessive,
+             possessive, True)
+        if gap != ' ':
+            source = "'unrelated" + gap + possessive
+            case('pairing boundary', source, norm(source).replace("'", ''), False)
+            if gap != '\n\n':  # QUOTE deliberately cannot span a paragraph.
+                case('exact structural content', source, source, True)
+    source = "watch only the rows' values remain positive"
+    case('trailing candidate edge', source, 'watch only the rows', False)
+    case('exact trailing candidate edge', source, "watch only the rows'", True)
+    case('leading candidate edge', source, "' values remain positive", True)
+    case('inserted edge apostrophe', plain, "'the rows values remain positive", False)
+    case('substring reach', possessive, "ows' values remain positive", True)
+    case('later valid candidate', plain + '; ' + possessive, possessive, True)
+    case('double wrapper prefix', '"' + possessive + '"', "the rows' values remain", True)
+    case('double wrapper suffix', '"prefix ' + possessive + '"', possessive, True)
+    case('independent elisions', "balances stay positive; watch only the rows' values",
+         "watch only the rows' ... balances stay positive", True)
+    case('elision edge omission', "watch only the rows' values; balances stay positive",
+         'watch only the rows ... balances stay positive', False)
+    case('elision insertion', 'watch only the rows values; balances stay positive',
+         "watch only the rows' … balances stay positive", False)
+    limit = 'rows values remain ' + 'x' * (400 - len('rows values remain '))
+    for mark in ["'", '"']:
+        case('delimiter content length limit', mark + limit + mark, limit, True)
+
+    name = ''
+    try:
+        for name, source, quote, accepted, exists_ok in cases:
+            for pool in ['requirement', 'document', 'ADR']:
+                cite = {'requirement': '', 'document': ', per `CONTEXT.md`',
+                        'ADR': ', per `ADR-0001`'}[pool]
+                prose = f'`OPS-41` says{cite} “{quote}”.'
+                reqs = {'OPS-41': ('source.md', source if pool == 'requirement' else '')}
+                corpus = {'CONTEXT.md': source} if pool == 'document' else {}
+                adrs = {'ADR-0001': source} if pool == 'ADR' else {}
+                for filename in ['probe.md', 'probe.lean']:
+                    text = ('\n\n'.join(docstrings('/-- ' + prose + ' -/'))
+                            if filename.endswith('.lean') else prose)
+                    expected = [] if accepted else [(filename, 'OPS-41', norm(quote))]
+                    actual = find({filename: text}, adrs, reqs, corpus=corpus)
+                    assert actual == (expected, [], 1), (pool, filename, source, quote, actual)
+                    missing = [] if exists_ok else [(filename, norm(quote))]
+                    assert exists({filename: text}, [source]) == (missing, 1), (name, pool)
+                    if pool != 'requirement':
+                        uncited = text.replace(cite, '')
+                        assert find({filename: uncited}, adrs, reqs, corpus=corpus) == (
+                            [(filename, 'OPS-41', norm(quote))], [], 1), (name, pool)
+        assert norm("“The rows’ values” and ‘tenant’s balance’") == (
+            '\"the rows\' values\" and \'tenant\'s balance\'')
+    except AssertionError as exc:
+        print(f'FAIL: quote content: {name}: {exc}')
+        return 1
+    print('PASS: quote content: apostrophes, local delimiters, boundaries, edges and elisions; '
+          'Markdown/Lean owners and cited pools; EXISTS and signatures unchanged')
+    return 0
 
 
 def check_sentence_boundaries():
@@ -695,7 +886,8 @@ def unresolved(docs, adrs):
 
 
 def main():
-    if check_sentence_boundaries() or check_docstrings() or check_quotations() or check_possessives():
+    if (check_sentence_boundaries() or check_docstrings() or check_quotations()
+            or check_possessives() or check_quote_content()):
         return 1
     docs, adrs, reqs = load()
     mark_errors = [(f, line, kind) for f, text in docs.items()

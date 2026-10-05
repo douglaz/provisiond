@@ -915,6 +915,63 @@ jobs:
           print('PASS: straight/curly apostrophes and nested delimiters in both directions; EXISTS unchanged')
           PY
 
+      # pv-muf: a trailing possessive is content, including at candidate edges.
+      # The built-in matrix covers both input kinds and every permitted pool.
+      - name: Prove the citation gate preserves trailing possessives and detects a bypass
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          def gate():
+              result = subprocess.run(['python3', 'tools/check_citations.py'],
+                                      capture_output=True, text=True)
+              print(result.stdout)
+              assert 'Traceback' not in result.stderr, result.stderr
+              return result
+
+          path = Path('00-overview.md')
+          original = path.read_bytes()
+          quote = "A deployment MUST watch only unexpired deposits' addresses"
+          fixture = f'\n\n`LDG-57` says “{quote}”.\n'.encode()
+          exact = original + fixture
+          try:
+              path.write_bytes(exact)
+              assert gate().returncode == 0
+              corrupt = fixture.replace(b"deposits'", b'deposits')
+              assert corrupt != fixture
+              path.write_bytes(original + corrupt)
+              result = gate()
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              diagnostic = '00-overview.md attributes to LDG-57 a phrase LDG-57 does not contain:'
+              assert result.stdout.count(diagnostic) == 1, result.stdout
+              assert '"a deployment must watch only unexpired deposits addresses"' in result.stdout
+              assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+              path.write_bytes(exact)
+              assert gate().returncode == 0
+              print('PASS: LDG-57 trailing possessive: exact -> named QUOTED failure -> exact')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+
+          path = Path('tools/check_citations.py')
+          original = path.read_bytes()
+          before = b'if span_content(source, start, end) == content:'
+          after = b'if True:  # temporary CI bypass of local content comparison'
+          assert original.count(before) == 1 and after not in original
+          try:
+              path.write_bytes(original.replace(before, after))
+              result = gate()
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert result.stdout.count('FAIL: quote content: trailing omission:') == 1
+              assert '([], [], 1)' in result.stdout  # corrupt quotation was reaccepted
+              print('PASS: bypassed content comparison: named trailing omission regression failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+          assert gate().returncode == 0
+          PY
+
       # Derive standing cases from the baseline; temporary fixtures keep these
       # controls effective when cleanup leaves one entry or none.
       - name: Prove the citation gate rejects duplicates and altered exempted Markdown wording
