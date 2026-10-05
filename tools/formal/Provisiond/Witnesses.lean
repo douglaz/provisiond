@@ -2184,31 +2184,32 @@ theorem credit_carried_across_the_boundary :
     posted p fs 0 = [(10, 1)] ∧ posted p fs 1 = [(11, 0)] := by
   decide +kernel
 
-/-- 2/5 at 5, then one increment from 9 to 11 across the boundary at 10. -/
+/-- 2/5 at 5, then one increment from 8 to 11 across the boundary at 10. -/
 def straddleTrace : List Increment :=
-  [{ startsAt := 5, closesAt := 6, rate := 2/5 }, { startsAt := 9, closesAt := 11, rate := 2/5 }]
+  [{ startsAt := 5, closesAt := 6, rate := 2/5 }, { startsAt := 8, closesAt := 11, rate := 2/5 }]
 
 /-- `LDG-38`'s split, the reset and the deployment's boundaries pinned: "An increment also closes
-at every period boundary", so the increment from 9 to 11 posts a piece in each period. Period 0's
-closes at the boundary instant, 10, and posts 0 against the 3/5 the increment at 5 left; period 1's
-closes at 11 and posts 1 from `r = 0`. -/
+at every period boundary", so the increment from 8 to 11 posts a piece in each period. Period 0's
+closes at 10 and posts `ceil(4/5 − 3/5) = 1` against the credit the increment at 5 left; period 1's
+closes at 11 and posts 1 from `r = 0`. The period sums are 2 and 1 satoshis. -/
 @[req "LDG-38"]
 theorem straddle_split_at_the_boundary :
     let p := { Period.current with resetAtBoundary := true, deploymentWide := true }
     let fs := file p deployment earlySubject straddleTrace
-    posted p fs 0 = [(6, 1), (10, 0)] ∧ posted p fs 1 = [(11, 1)] := by
+    posted p fs 0 = [(6, 1), (10, 1)] ∧ posted p fs 1 = [(11, 1)] ∧
+    (postings p fs 0).sum = 2 ∧ (postings p fs 1).sum = 1 := by
   with_unfolding_all decide
 
-/-- Filed whole under its closing month instead, the increment from 9 to 11 posts 1 in period 1
-and nothing in period 0. The total is 2 either way, which is why the guarded witness asserts each
-period's postings rather than their sum. -/
+/-- Filed whole under its closing month instead, the increment from 8 to 11 posts `ceil(6/5) = 2`
+in period 1 and nothing in period 0. The period sums are 1 and 2 satoshis: the total stays 3, but
+one satoshi moves from period 0 to period 1 compared with the split. -/
 @[req "LDG-38"]
 theorem straddle_filed_whole_under_its_closing_month :
     let p : Period.Params :=
       { resetAtBoundary := true, splitAtBoundary := false, deploymentWide := true }
     let fs := file p deployment earlySubject straddleTrace
-    posted p fs 0 = [(6, 1)] ∧ posted p fs 1 = [(11, 1)] ∧
-    (postings p fs 0).sum + (postings p fs 1).sum = 2 := by
+    posted p fs 0 = [(6, 1)] ∧ posted p fs 1 = [(11, 2)] ∧
+    (postings p fs 0).sum = 1 ∧ (postings p fs 1).sum = 2 := by
   decide +kernel
 
 /-- One increment from 19 to 21, across the deployment's boundary at 20. -/

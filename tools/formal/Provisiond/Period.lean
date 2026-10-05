@@ -31,7 +31,7 @@ The reset. `LDG-38`: the new period's "`meter_totals` row starts with `r = 0`". 
 `Meter.debits` over one period's charges, in order, from the credit `opening` gives the period:
 zero under `Params.resetAtBoundary`, and under its other value the credit the earlier periods
 left. `postings_from_zero` is the rule, and `postings_sum_is_ceil` follows from it by
-`Meter.debits_sum`. `LDG-72`'s record is "a running record per `(subject, billing period)`", and
+`Meter.debits_sum_is_ceil`. `LDG-72`'s record is "a running record per `(subject, billing period)`", and
 the credit is the part of it this module models.
 
 Omitted, and where: the civil calendar — the boundaries are a given, and the model does not
@@ -271,29 +271,14 @@ theorem postings_read_only_their_period (p : Params) (hp : p.resetAtBoundary = t
     postings p fs k = postings p fs' k := by
   rw [postings_from_zero p hp, postings_from_zero p hp, h]
 
-/-- From any credit in `[0, 1)`, the credit after a stream stays there:
-`Meter.nextCredit_nonneg` and `Meter.nextCredit_lt_one`, one increment at a time. -/
-theorem creditAfter_bounds (xs : List Rat) (r : Rat) (h0 : 0 ≤ r) (h1 : r < 1) :
-    0 ≤ Meter.creditAfter xs r ∧ Meter.creditAfter xs r < 1 := by
-  induction xs generalizing r with
-  | nil => exact ⟨h0, h1⟩
-  | cons x xs ih =>
-    exact ih _ (Meter.nextCredit_nonneg x r) (Meter.nextCredit_lt_one x r)
-
-/-- Under the reset, period `k` posts `ceil` of its exact sum: `Meter.debits_sum` from `r = 0`,
-with the credit it ends on in `[0, 1)` by `creditAfter_bounds`. -/
+/-- Under the reset, period `k` posts `ceil` of its exact sum, by
+`Meter.debits_sum_is_ceil` applied to its own charges. -/
 @[req "LDG-38"]
 theorem postings_sum_is_ceil (p : Params) (hp : p.resetAtBoundary = true)
     (fs : List (Nat × Increment)) (k : Nat) :
     (postings p fs k).sum = (charges fs k).sum.ceil := by
   rw [postings_from_zero p hp]
-  have hs := Meter.debits_sum (charges fs k) 0
-  have ⟨c0, c1⟩ := creditAfter_bounds (charges fs k) 0 (by decide) (by decide)
-  have hle : (charges fs k).sum.ceil ≤ (Meter.debits (charges fs k) 0).sum :=
-    Rat.ceil_le_iff.mpr (by grind)
-  have hlt : (Meter.debits (charges fs k) 0).sum - 1 < (charges fs k).sum.ceil :=
-    Rat.lt_ceil_iff.mpr (by rw [Rat.intCast_sub]; grind)
-  omega
+  exact Meter.debits_sum_is_ceil (charges fs k)
 
 /-- `LDG-68`: "Every tenant, every machine and every attachment share it". Under the
 deployment-wide boundaries an instant's period does not depend on the subject. -/

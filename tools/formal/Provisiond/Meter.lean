@@ -92,6 +92,15 @@ def creditAfter : List Rat → Rat → Rat
   | [], r => r
   | x :: xs, r => creditAfter xs (nextCredit x r)
 
+/-- From any credit in `[0, 1)`, the credit after a stream stays there:
+`nextCredit_nonneg` and `nextCredit_lt_one`, one increment at a time. -/
+theorem creditAfter_bounds (xs : List Rat) (r : Rat) (h0 : 0 ≤ r) (h1 : r < 1) :
+    0 ≤ creditAfter xs r ∧ creditAfter xs r < 1 := by
+  induction xs generalizing r with
+  | nil => exact ⟨h0, h1⟩
+  | cons x xs ih =>
+    exact ih _ (nextCredit_nonneg x r) (nextCredit_lt_one x r)
+
 /-- The invariant the cumulative-ceiling claim rests on: `Σ d = Σ x + (r_n − r_0)`, for every
 stream. With `r_0 = 0` and `0 ≤ r_n < 1`, the integer `Σ d` is `ceil(Σ x)`: the recurrence posts
 exactly what the withdrawn cumulative form posted, on every subdivision, without its unbounded
@@ -105,5 +114,18 @@ theorem debits_sum (xs : List Rat) (r : Rat) :
     simp only [debits, creditAfter, List.sum_cons, Rat.intCast_add, ih]
     unfold nextCredit
     grind
+
+/-- From zero credit, the recurrence posts the ceiling of the stream's exact sum,
+by `debits_sum` and `creditAfter_bounds`. -/
+@[req "LDG-38"]
+theorem debits_sum_is_ceil (xs : List Rat) :
+    (debits xs 0).sum = xs.sum.ceil := by
+  have hs := debits_sum xs 0
+  have ⟨c0, c1⟩ := creditAfter_bounds xs 0 (by decide) (by decide)
+  have hle : xs.sum.ceil ≤ (debits xs 0).sum :=
+    Rat.ceil_le_iff.mpr (by grind)
+  have hlt : (debits xs 0).sum - 1 < xs.sum.ceil :=
+    Rat.lt_ceil_iff.mpr (by rw [Rat.intCast_sub]; grind)
+  omega
 
 end Provisiond.Meter
