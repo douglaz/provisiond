@@ -48,7 +48,7 @@ def episodeTokens : Episode → String
 /-- The fence column's verdict: cleared in this transaction, or not. -/
 def fenceToken : Bool → String
   | true => "**Cleared**"
-  | false => "**Stays set**"
+  | false => "**Unchanged**"
 
 /-- `OPS-48`'s rows in the table's order: the first column's required tokens, and the `(state,
 event)` steps the row states — two where a row folds a later transition into itself (the scheduled

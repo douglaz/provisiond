@@ -524,6 +524,8 @@ jobs:
       # it hold the number" in a script.
       # Q11/Q12 (2026-10-04): retryDeletes restores retry-driven revival; keepWritesDate
       # omits the synchronous keep date write; keepGuard admits keep after retry wins.
+      # Q14 (2026-10-05): retryNeedsFence prevents an interrupted, never-fenced retry
+      # from deleting after an admitted extension; interruptedRetry isolates this guard.
       # The automatic sweep-close row and its obsolete suspension-exemption witness
       # were deleted with that policy.
       - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status guard's removal, one witness each
@@ -547,6 +549,7 @@ jobs:
           Fence|pausedGraceInFence|true|false|pausedGraceRace
           Fence|rederiveFirst|true|false|fundingOrderGuards Fence.current
           Fence|retryDeletes|true|false|priceFundedStall ++ tail
+          Fence|retryNeedsFence|true|false|interruptedRetry
           Fence|keepWritesDate|true|false|operatorGuards Fence.current
           Fence|keepGuard|true|false|keepEligibilityGuards Fence.current
           Fence|retryGuard|true|false|goneAfterStallTrace ++
@@ -675,9 +678,9 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo"
-          sed -i 's/^| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | \*\*Cleared\*\*, same transaction/| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Stays set**, same transaction/' \
+          sed -i 's/^| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | \*\*Cleared\*\*, same transaction/| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Unchanged**, same transaction/' \
             03-operation-lifecycle.md
-          grep -q 'in the resolution transaction | \*\*Stays set\*\*, same transaction' 03-operation-lifecycle.md
+          grep -q 'in the resolution transaction | \*\*Unchanged\*\*, same transaction' 03-operation-lifecycle.md
           if python3 tools/check_regions.py > regions.log 2>&1; then
             echo "::error::rendering gate passed a table row whose fence verdict contradicts its declaration"
             exit 1

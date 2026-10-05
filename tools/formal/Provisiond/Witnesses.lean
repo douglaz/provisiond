@@ -218,6 +218,48 @@ def operatorGuards (p : Params) : Params :=
     suspensionKey := .currentState, ownIdClause := true, retryGuard := true,
     goneOrClosedFirst := true, sweepNeedsRate := true }
 
+/-- Actual interrupted lifecycle prefix: no transition assumes a fence. -/
+def interruptedRetryPrefix : List Fence.Event :=
+  [.sweep, .claim, .interrupt, .resolve .notApplied]
+
+/-- Isolate the Q14 guard from the independent old guards. -/
+def interruptedRetryGuards (p : Params) : Params :=
+  { operatorGuards p with
+    retryDeletes := true, rederiveFirst := true, pausedGraceInFence := true,
+    extendNeedsRate := true, graceAtClaim := true }
+
+/-- The admitted extension wins before the retry's deciding transaction. -/
+def interruptedRetry : List Fence.Event :=
+  interruptedRetryPrefix ++ [.extend 100, .retry, .claim, .fenceTxn, .fenceWrite,
+    .providerDelete true (some true), .settle]
+
+/-- The withdrawn retry-fence invariant is false: open retry and null fence are reachable.
+The abstract worker failure supplies the same stalled shape without resolution. -/
+@[req "OPS-48"]
+theorem interrupted_retry_prefix_witness :
+    let p := { interruptedRetryGuards Fence.current with retryNeedsFence := true }
+    let stalled := run p fenceWorld interruptedRetryPrefix
+    let retried := retry p stalled
+    let failed := run p fenceWorld [.sweep, .claim, .failBeforeFence]
+    stalled.episode.map (·.state) = some .stalled ∧ stalled.m.fence = none ∧
+    stalled.attempt.map (·.row.status) = some .failed ∧ stalled.m.destroyed = false ∧
+    retried.episode.map (·.state) = some .attempting ∧ retried.m.fence = none ∧
+    retried.attempt.map (·.retried) = some true ∧
+    failed.episode.map (·.state) = some .stalled ∧ failed.m.fence = none := by decide
+
+@[req "OPS-41"]
+theorem interrupted_retry_guarded :
+    let w := run (interruptedRetryGuards Fence.current) fenceWorld interruptedRetry
+    w.m.destroyed = false ∧ w.m.fence = none ∧ w.m.commitment = 100 ∧
+    w.episode.map (·.state) = some (.closed .funded) ∧
+    w.attempt.map (·.row.status) = some .succeeded := by decide
+
+/-- Changing only retryNeedsFence reintroduces destruction of the funded machine. -/
+@[req "OPS-41"]
+theorem interrupted_retry_unguarded :
+    let p := { interruptedRetryGuards Fence.current with retryNeedsFence := false }
+    (run p fenceWorld interruptedRetry).m.destroyed = true := by decide
+
 /-- The funded stalled retry reaches the provider; removing the retry exemption revives it.
 The same trace after resume is below; ordinary attempts retain the suspension-key witness. -/
 @[req "API-64"]

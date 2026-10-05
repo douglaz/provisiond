@@ -1679,6 +1679,52 @@ rather than acquiring a default.
       predicate. With no rate keep retains the stored date; the sweep waits for rate under
       `LDG-16`. Keep remains operator-only (customer/recovery cannot reach it), is synchronous,
       and is not a spending or retry-ceiling verb. (`API-68`, `WIR-55`, `STO-52`, `WIR-24`)
+      **Added 2026-10-05 (Q14):** `CNF-312` covers the interrupted, never-fenced prefix and
+      its extension/fence orderings; retain this item's fenced, timer and keep controls.
+- [ ] **CNF-312** — **Interrupted cancellation before its fence (2026-10-05, `pv-gip.43`, Q14).**
+      Exercise `OPS-41` step 2 and `OPS-42` ordering with an active tenant, an available rate,
+      a healthy provider account, sufficient available balance and no other admission refusal.
+      At the deciding rate the machine starts unfunded; the chosen extension funds it.
+      **Route 1 prefix:** let the sweep enqueue the cancellation and the worker claim it, then
+      kill the worker before its fence transaction. Restart: `OPS-15` requires "move every
+      `running` operation to `needs_reconciliation`" and "MUST NOT move them back to `queued`".
+      Assert that operation state and episode `uncertain`. Resolve `not_applied` as operator:
+      assert the attempt `failed`, episode `stalled`, null `destroy_committed`, null
+      `write_started_at`, and zero provider calls throughout the prefix. Drive the actual
+      lifecycle; manually seeded stalled rows and startup requeue do not satisfy this case.
+      `OPS-45` says "This rule classifies a failure a worker recorded"; it orders no such failure
+      before this fence write.
+
+      `OPS-23`'s "before the driver is called" establishes no such ordering either. Therefore
+      drive route 1 alone. Do not inject a store error as a separate
+      failed route: `OPS-49` requires "repeat the **whole transaction**" and on bound exhaustion
+      "the engine MUST exit non-zero".
+      On independent instances, instrument the deciding fence transaction's read/commit boundary:
+      retry enqueue alone establishes neither transaction order.
+
+      | Case | Required observations |
+      |---|---|
+      | Order A: extend, then retry | Extension admits and commits before the retry's fence transaction. The attempt settles `succeeded` with a no-mutation result; episode `closed`/`funded`; fence null; provider call count remains zero. The extension's commitment is kept: reconcile any legitimate metering independently and assert no cancellation-driven commitment release. |
+      | Order B: retry's fence transaction commits unfunded, then extend | Observe the fence holding the episode id before submitting the extension; it returns `409` / `cancellation_committed`, with no balance movement or commitment growth attributable to that refused extension. The provider is called. |
+      | Fenced control | Use `CNF-271`'s provider-failed stall after fencing, accept a favorable rate and re-derive future runway without clearing that fence. Retry still calls the provider again and does not close `funded` through a funding abort. |
+
+      These assertions discriminate unconditional retry bypass (Order A), a funding re-check
+      on every retry (fenced control), and a missing extension fence (Order B). Preserve
+      `CNF-271`'s timer and keep controls.
+      **Restore scope, inspected rather than rehearsed here:** `OPS-41` says "A claim made while
+      a restore record is open and its `grace_ends_at` is null or in the future defers, and writes
+      no fence" and "The rule applies whichever path enqueued the cancellation — a delete
+      re-run by step (2), an operator's retry". That claim gate precedes this item's decision;
+      after it, step 2's null-fence path uses the same ordered funding decision as a re-run
+      delete, including step 3's "Only if the predicate would cancel" paused-grace check.
+      `STO-54` directs goal-state kinds to "re-run, since `OPS-11` classifies ‘already in the
+      target state’ as `succeeded`". Text inspection finds no retry/first-attempt exception when
+      the provider already deleted but restore rolled the fence back: both retain the claim
+      gate and ordered decision; a dispatched delete uses that existing goal-state result.
+      A funded abort can precede dispatch on either path while the restored row still says
+      present. This item does not drive route 2 or establish restore conformance; that remains
+      with `CNF-218` and `CNF-295`. (`OPS-15`, `OPS-31`, `OPS-41`, `OPS-42`, `OPS-48`, `API-64`,
+      `LDG-62`, `STO-54`)
 - [ ] **CNF-272** — **A suspension terminates even when a child cannot delete.** Suspend a tenant
       while the provider account's credential is rejected, so every child cancellation fails
       `authentication` — deterministic, and `OPS-11` sends it to `failed` rather than to
@@ -1695,7 +1741,8 @@ rather than acquiring a default.
       `cancellations`, and enqueues nothing new — and that `OPS-41`'s re-check treats that delete as
       a suspension cancel even though the operation itself carries `exhausted`. **Then resume that
       tenant (`WIR-41`), retry the funded stalled episode, and assert a provider delete is called**.
-      Retry does not re-check funding, including after resume. In a separate ordinary-attempt
+      Assert the episode fence remains set; that fenced retry does not re-check funding,
+      including after resume. In a separate ordinary-attempt
       arm, resume before its first claim and give it future runway: it aborts funded, so current
       suspension still wins over historical episode reasons for that branch.
       *Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): withdraw retry-driven survival.*

@@ -1025,9 +1025,10 @@ so a throttled delete is `failed`, and nothing in this set returns it to `queued
 episode, not the `failed` attempt row, is what
 outlives `STO-14`'s retention, which is why the verb is on the episode (`ADR-0017`).
 
-*Amended 2026-10-04 (`pv-gip.11`, `ADR-0032`): retry means delete. The new attempt is
+*Amended 2026-10-05 (`pv-gip.43`, Q14, `ADR-0032`): `OPS-41` step 2 owns the retry
+guard. The new attempt is
 stamped `requested_by: operator`, with its non-null `episode_id`, in the enqueue transaction;
-these fields identify its origin across claims and restarts. It uses `OPS-41`'s retry branch.
+these fields identify its origin across claims and restarts.
 Keeping the machine is the distinct `API-68` verb.*
 
 **API-68** **ADDED 2026-10-04 (`pv-gip.11`, `ADR-0032`) — keep a stalled machine.**
