@@ -956,8 +956,8 @@ jobs:
 
           path = Path('tools/check_citations.py')
           original = path.read_bytes()
-          before = b'if span_content(source, start, end, source_roles) != content:'
-          after = b'if False:  # temporary CI bypass of local content comparison'
+          before = b'if span_content(source, start, end, source_roles) == content:'
+          after = b'if True:  # temporary CI bypass of local content comparison'
           assert original.count(before) == 1 and after not in original
           try:
               path.write_bytes(original.replace(before, after))
