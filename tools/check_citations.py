@@ -140,9 +140,19 @@ The fourth rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
            index is written by `tools/check_formal.sh`, which `check-all.sh`
            runs first; a missing index is a red gate, not a skipped rule.
 
+The committed baseline is read-only input: every exemption-family key is required,
+including empty families. Missing keys or an unreadable baseline fail without
+initializing or rewriting it; restore the damaged baseline from version control.
+Every signature must still have a finding: stale entries fail and name the family
+and exact entry to remove. New findings and stale entries are reported together;
+one disappearing Markdown signature cannot pay for another signature's duplicate.
+A scan discovering no source .lean files outside .lake fails even with a valid
+index and empty Lean exemption families. Files without docstrings still count.
+
 Exit 0 = clean, 1 = unpaired double marks, an unverifiable quote, a Lean docstring
-quote found nowhere, an unresolved name, a rise above a baseline or a failed
-extractor case, 2 = the index is missing.
+quote found nowhere, an unresolved name, a new finding or stale baseline entry,
+a damaged baseline, an empty Lean source scan or a failed extractor case,
+2 = the index is missing.
 """
 
 import glob
@@ -1063,10 +1073,31 @@ def main():
     if (check_sentence_boundaries() or check_docstrings() or check_quotations()
             or check_possessives() or check_quote_content()):
         return 1
+    try:
+        with open(BASELINE) as source:
+            baseline = json.load(source)
+        base = set(baseline["unquoted_attributions"])
+        quoted_base = set(baseline["quoted_attributions"])
+        exists_base = dict(baseline["quoted_existence"])
+        markdown_base = dict(baseline["markdown_quoted_attributions"])
+    except KeyError as exc:
+        print(f"FAIL: {BASELINE}: missing exemption-family key {exc.args[0]!r}; "
+              f"restore this key and its committed exemptions from version control. "
+              f"Baseline left unchanged.")
+        return 1
+    except (OSError, ValueError, TypeError):
+        print(f"FAIL: {BASELINE}: cannot read citation baseline; restore the committed "
+              f"baseline from version control. Baseline left unchanged.")
+        return 1
     docs, adrs, reqs = load()
     mark_errors = [(f, line, kind) for f, text in docs.items()
                    for line, kind in unpaired_marks(text)]
     lean = load_lean_docstrings(mark_errors)
+    if not lean:
+        print("FAIL: no source .lean files discovered under tools/formal (excluding .lake); "
+              "restore the Lean sources and check the scan path. A preexisting index "
+              "does not replace the source scan.")
+        return 1
     for f, line, kind in mark_errors:
         print(f"  {f}:{line}: unpaired {kind} double quotation marks")
     if mark_errors:
@@ -1075,16 +1106,6 @@ def main():
     bad, unquoted, markdown_compared = find(docs, adrs, reqs)
     lean_bad, _, compared = find(lean, adrs, reqs, corpus=docs)
     missing, total = exists(lean, list(docs.values()) + list(adrs.values()))
-    try:
-        with open(BASELINE) as source:
-            baseline = json.load(source)
-        quoted_base = set(baseline.get("quoted_attributions", []))
-        exists_base = dict(baseline.get("quoted_existence", {}))
-        markdown_base = dict(baseline.get("markdown_quoted_attributions", {}))
-    except (OSError, ValueError, TypeError, AttributeError):
-        # Without a readable baseline there are no exemptions, so ratcheted residue
-        # surfaces as findings and fails the gate before the unquoted initializer.
-        quoted_base, exists_base, markdown_base = set(), {}, {}
     lean_new = [(f, rid, q) for f, rid, q in lean_bad
                 if f"{f}:{rid}:{q}" not in quoted_base]
     markdown_bad = bad
@@ -1108,13 +1129,13 @@ def main():
         print(f"\nFAIL: {len(bad)} unverifiable quoted attribution(s) and {len(missing_new)} "
               f"Lean docstring quote(s) found nowhere. Quote the requirement's own "
               f"words, or cite it without quoting.")
-        return 1
-    print("quoted attributions verified: no new findings")
-    print(f"Markdown quoted attributions: {markdown_compared} compared; {len(markdown_bad)}, "
-          f"none new against baseline {len(markdown_base)}")
-    print(f"Lean quoted attributions: {len(lean_bad)}, none new against baseline {len(quoted_base)}")
-    print(f"Lean docstring quotes: {total}; {compared} compared under QUOTED; EXISTS finds "
-          f"{len(missing)} absent, none new against baseline {len(exists_base)}")
+    else:
+        print("quoted attributions verified: no new findings")
+        print(f"Markdown quoted attributions: {markdown_compared} compared; {len(markdown_bad)}, "
+              f"none new against baseline {len(markdown_base)}")
+        print(f"Lean quoted attributions: {len(lean_bad)}, none new against baseline {len(quoted_base)}")
+        print(f"Lean docstring quotes: {total}; {compared} compared under QUOTED; EXISTS finds "
+              f"{len(missing)} absent, none new against baseline {len(exists_base)}")
 
     dangling = unresolved(docs, adrs)
     for f, n in dangling:
@@ -1122,23 +1143,11 @@ def main():
     if dangling:
         print(f"\nFAIL: {len(dangling)} Provisiond.* name(s) do not resolve against "
               f"tools/formal/.lake/index.jsonl. Cite the tagged declaration by its current name.")
-        return 1
-    print(f"Provisiond.* names resolved: "
-          f"{sum(len(LEAN.findall(t)) for t in list(docs.values()) + list(adrs.values()))}")
+    else:
+        print(f"Provisiond.* names resolved: "
+              f"{sum(len(LEAN.findall(t)) for t in list(docs.values()) + list(adrs.values()))}")
 
     sigs = sorted({f"{f}:{rid}" for f, rid, _ in unquoted})
-    try:
-        base = set(json.load(open(BASELINE))["unquoted_attributions"])
-    except Exception:
-        base = set(sigs)
-        json.dump({"unquoted_attributions": sigs,
-                   "note": "Sentences reporting what a requirement SAYS with no quote to "
-                           "check, as file:id signatures rather than a count -- a count "
-                           "cannot name which one is new. Every baseline in this file "
-                           "may shrink, never grow; remove an entry when its finding "
-                           "disappears. A real misquote is fixed, never entered here."},
-                  open(BASELINE, "w"), indent=2)
-        print(f"baseline written: {len(sigs)} signature(s)")
     new = [x for x in sigs if x not in base]
     if new:
         for sig in new:
@@ -1149,9 +1158,20 @@ def main():
         print(f"\nFAIL: {len(new)} new unquoted attribution(s). Carry the "
               f"requirement's own words, or use a summary verb and drop the claim "
               f"to report what it says.")
-        return 1
-    print(f"unquoted attributions: {len(sigs)}, none new against baseline {len(base)}")
-    return 0
+    else:
+        print(f"unquoted attributions: {len(sigs)}, none new against baseline {len(base)}")
+
+    stale = {
+        "unquoted_attributions": base - set(sigs),
+        "quoted_attributions": quoted_base - {f"{f}:{rid}:{q}" for f, rid, q in lean_bad},
+        "quoted_existence": set(exists_base) - {f"{f}:{q}" for f, q in missing},
+        "markdown_quoted_attributions": remaining,
+    }
+    for family, entries in stale.items():
+        for signature in sorted(entries):
+            print(f"FAIL: stale baseline entry in {family}: {signature!r}; "
+                  f"remove this entry from {BASELINE} (its finding disappeared).")
+    return int(bool(bad or missing_new or dangling or new or any(stale.values())))
 
 
 if __name__ == "__main__":

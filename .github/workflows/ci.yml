@@ -999,6 +999,142 @@ jobs:
           assert subprocess.run(['python3', 'tools/check_citations.py']).returncode == 0
           PY
 
+      # The committed baseline is input, never a bootstrap output. Exercise main()
+      # with temporary baselines; every call must leave their bytes unchanged.
+      - name: Prove the citation gate refuses damaged baselines, stale exemptions and an empty Lean scan
+        run: |
+          python3 - <<'PY'
+          from contextlib import redirect_stdout
+          from copy import deepcopy
+          from io import StringIO
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+          import json
+          import os
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          committed_path = Path(c.BASELINE)
+          committed_bytes = committed_path.read_bytes()
+          committed = json.loads(committed_bytes)
+          families = ('unquoted_attributions', 'quoted_attributions', 'quoted_existence',
+                      'markdown_quoted_attributions')
+          with TemporaryDirectory(prefix='citation-controls-') as directory:
+              baseline_path = Path(directory) / 'baseline.json'
+
+              def save(baseline):
+                  baseline_path.write_text(json.dumps(baseline))
+
+              def gate(code, *diagnostics):
+                  before = baseline_path.read_bytes()
+                  output = StringIO()
+                  with patch.object(c, 'BASELINE', str(baseline_path)), redirect_stdout(output):
+                      result = c.main()
+                  text = output.getvalue()
+                  print(text)
+                  assert baseline_path.read_bytes() == before, 'checker rewrote baseline'
+                  assert result == code, (result, code, text)
+                  for diagnostic in diagnostics:
+                      assert diagnostic in text, (diagnostic, text)
+                  return text
+
+              def add(baseline, family, signature):
+                  entries = baseline[family]
+                  if isinstance(entries, list):
+                      entries.append(signature)
+                  else:
+                      entries[signature] = 'Temporary CI fixture only.'
+
+              save(committed)
+              gate(0)  # Live historical exemptions and empty families remain valid.
+              for family in families:
+                  damaged = deepcopy(committed)
+                  del damaged[family]
+                  save(damaged)
+                  gate(1, f'missing exemption-family key {family!r}',
+                       'restore this key and its committed exemptions from version control',
+                       'Baseline left unchanged')
+                  print(f'PASS: missing {family}: named refusal, repair and unchanged bytes')
+
+                  signature = 'probe.md:OVR-1:nonexistent exemption signature'
+                  stale = deepcopy(committed)
+                  add(stale, family, signature)
+                  save(stale)
+                  gate(1, f'stale baseline entry in {family}: {signature!r}',
+                       f'remove this entry from {baseline_path}')
+                  save(committed)
+                  gate(0)
+                  print(f'PASS: stale {family}: exact entry refused; cleanup passes')
+
+              # New findings must remain visible alongside stale signatures, and
+              # an exemption is live only while its own finding remains present.
+              root = Path('00-overview.md')
+              lean = Path('tools/formal/Provisiond/Fence.lean')
+              saved = {p: p.read_bytes() for p in (root, lean)}
+              markdown_quote = 'citation probe phrase without a source'
+              lean_quote = 'lean citation probe phrase without a source'
+              fixtures = {
+                  'unquoted_attributions': f'{root}:OVR-1',
+                  'quoted_attributions': f'{lean}:OVR-1:{lean_quote}',
+                  'quoted_existence': f'{lean}:{lean_quote}',
+                  'markdown_quoted_attributions': f'{root}:OVR-1:{markdown_quote}',
+              }
+              try:
+                  root.write_bytes(saved[root] + (
+                      '\n\n`OVR-1` says the citation probe operates without evidence.\n\n'
+                      f'`OVR-1` says "{markdown_quote}".\n').encode())
+                  lean.write_bytes(saved[lean] + (
+                      f'\n\n/-! `OVR-1` says "{lean_quote}". -/\n').encode())
+                  stale = deepcopy(committed)
+                  for family in families:
+                      add(stale, family, 'probe.md:OVR-1:nonexistent exemption signature')
+                  save(stale)
+                  output = gate(1,
+                      f'{root} attributes to OVR-1 a phrase OVR-1 does not contain:',
+                      f'"{markdown_quote}"',
+                      f'{lean} attributes to OVR-1 a phrase OVR-1 does not contain:',
+                      f'"{lean_quote}"',
+                      f'{lean} quotes a phrase found in no document or ADR:',
+                      f'{root} reports what OVR-1 says without quoting it:')
+                  for family in families:
+                      assert f'stale baseline entry in {family}:' in output
+                  live = deepcopy(committed)
+                  for family, signature in fixtures.items():
+                      add(live, family, signature)
+                  save(live)
+                  gate(0)
+              finally:
+                  for path, original in saved.items():
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              output = gate(1)
+              for family, signature in fixtures.items():
+                  assert f'stale baseline entry in {family}: {signature!r}' in output
+              save(committed)
+              gate(0)
+              print('PASS: combined new/stale findings; live exemptions; removed findings; cleanup')
+
+              # Retain the real, valid index. Redirect only source discovery to a
+              # tree whose only .lean file is under .lake; pruning must exclude it.
+              assert c.read_index(), 'control needs the preexisting formal index'
+              index_bytes = Path(c.INDEX).read_bytes()
+              scan = Path(directory) / 'formal'
+              (scan / '.lake').mkdir(parents=True)
+              (scan / '.lake' / 'Ignored.lean').write_text('/-! ignored -/')
+              walk = os.walk
+              with patch.object(c.os, 'walk', side_effect=lambda _: walk(scan)):
+                  gate(1, 'no source .lean files discovered under tools/formal (excluding .lake)',
+                       'A preexisting index does not replace the source scan')
+                  (scan / 'Plain.lean').write_text('-- no docstrings\n')
+                  assert list(c.load_lean_docstrings().values()) == ['']
+                  gate(0)
+              assert Path(c.INDEX).read_bytes() == index_bytes
+              print('PASS: .lake-only discovery refused; source without docstrings accepted; index unchanged')
+          assert committed_path.read_bytes() == committed_bytes
+          PY
+
       # Derive standing cases from the baseline; temporary fixtures keep these
       # controls effective when cleanup leaves one entry or none.
       - name: Prove the citation gate rejects duplicates and altered exempted Markdown wording
@@ -1153,6 +1289,12 @@ jobs:
                               assert result.stdout.count(diagnostic) == 1, result.stdout
                               assert f'"{added[2]}"' in result.stdout, result.stdout
                               assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+                              # Removal also makes its exemption stale. Require both
+                              # failures: staleness must not stand in for the duplicate
+                              # or altered quote this row independently guards.
+                              for row in removed:
+                                  signature = ':'.join(row)
+                                  assert f'stale baseline entry in markdown_quoted_attributions: {signature!r}' in result.stdout
                               print(f'PASS: {scenario}: {owner}: {label}: {count} comparisons, {sum(bad.values())} raw findings; exit 1 with named quote')
                           clean()
               clean()
