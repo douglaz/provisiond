@@ -34,15 +34,26 @@ run() {
   return 0
 }
 
-# The formal gate runs first: the citations and regions gates read the index and
-# the regions it writes, and a stale index is a gate reading last week's truth.
+# Retained artifacts are not evidence of this invocation's formal success.
+# run returns zero to continue independent gates; use its recorded command status.
 run "formal       (Lean build, axiom policy, @[req] index, regions)" bash tools/check_formal.sh
+formal_rc=${CODES[0]}
 run "identifiers  (append-only, dangling, gaps, ADR refs)" python3 tools/check_ids.py
 run "fixtures     (WIR-37 JSON, WIR-1a, mermaid structure)" python3 tools/check_fixtures.py
 run "obligations  (a duty assigned to another requirement)" python3 tools/check_obligations.py
 run "coverage     (requirements exercised by CNF items)"   python3 tools/check_coverage.py
-run "citations    (a claim about what another requirement says; Provisiond.* names)" python3 tools/check_citations.py
-run "regions      (a marked region is what its declaration emits)" python3 tools/check_regions.py
+dependent() {
+  if [ "$formal_rc" -eq 0 ]; then
+    run "$@"
+  else
+    echo "FAIL: $1 -- blocked by formal failure (exit $formal_rc)"
+    NAMES+=("$1 -- blocked by formal failure")
+    CODES+=(1)
+    overall=1
+  fi
+}
+dependent "citations    (a claim about what another requirement says; Provisiond.* names)" python3 tools/check_citations.py
+dependent "regions      (a marked region is what its declaration emits)" python3 tools/check_regions.py
 
 echo
 echo "=============================================================="

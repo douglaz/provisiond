@@ -12,6 +12,15 @@
 #
 # Needs `lake` and `lean` on PATH: run under `nix develop` (flake.nix). A missing
 # toolchain is a failure, not a skip.
+#
+# Publication: stage both successful emitters in private files, then replace each
+# canonical file atomically. Identical-source/toolchain producers may overlap;
+# this is not a pair snapshot, source-edit lock, Lake build lock or crash-durability
+# guarantee. Deletion and differing revisions are outside this contract.
+# Direct consumers validate published data, not freshness or the latest standalone
+# generation's success. Old complete files survive failure; before first publication
+# missing files remain red. For fresh certification, check this script's success:
+# bash tools/check_formal.sh && python3 tools/check_citations.py && python3 tools/check_regions.py
 set -uo pipefail
 cd "$(dirname "$0")/formal" || exit 2
 
@@ -42,10 +51,26 @@ if [ -n "$hits" ]; then
 fi
 
 lake build || exit 1
-lake exe gate > .lake/index.jsonl
-rc=$?
-echo "index: $(wc -l < .lake/index.jsonl) tagged declarations -> tools/formal/.lake/index.jsonl"
-[ "$rc" -eq 0 ] || exit "$rc"
-# The marked regions (check_regions.py reads these; a render that fails is a red gate).
-lake exe render > .lake/regions.jsonl || exit 1
-echo "regions: $(wc -l < .lake/regions.jsonl) marked regions -> tools/formal/.lake/regions.jsonl"
+index_tmp=
+regions_tmp=
+cleanup() {
+  [ -z "$index_tmp" ] || rm -f "$index_tmp"
+  [ -z "$regions_tmp" ] || rm -f "$regions_tmp"
+}
+# Only this invocation's files; SIGKILL cannot run these traps.
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+index_tmp=$(mktemp .lake/index.jsonl.XXXXXX) || exit 1
+regions_tmp=$(mktemp .lake/regions.jsonl.XXXXXX) || exit 1
+lake exe gate > "$index_tmp" || exit "$?"
+lake exe render > "$regions_tmp" || exit "$?"
+index_count=$(wc -l < "$index_tmp")
+regions_count=$(wc -l < "$regions_tmp")
+# Check each rename explicitly: this shell deliberately does not use set -e.
+mv -f "$index_tmp" .lake/index.jsonl || exit 1
+mv -f "$regions_tmp" .lake/regions.jsonl || exit 1
+echo "index: $index_count tagged declarations -> tools/formal/.lake/index.jsonl"
+echo "regions: $regions_count marked regions -> tools/formal/.lake/regions.jsonl"

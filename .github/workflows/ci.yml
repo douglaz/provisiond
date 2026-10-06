@@ -30,6 +30,12 @@ jobs:
       - name: Run all gates
         run: nix develop --command bash tools/check-all.sh
 
+      - name: Prove formal publication survives overlap and failures
+        run: python3 tools/test_formal_publication.py
+
+      - name: Prove direct formal writes fail the publication interleaving regression
+        run: python3 tools/test_formal_publication.py --negative-control
+
       # Proving the gates can fail is the point of CNF-3 ("The test suite fails
       # when a test is deliberately broken -- verified once, by hand, so that
       # 'tests passed' means something"). This does it on every run, against a
