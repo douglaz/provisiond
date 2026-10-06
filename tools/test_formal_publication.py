@@ -200,6 +200,56 @@ class Fixture:
                                             if broken else 'distinct private files; readers see complete data'))
 
 
+def reused_publication(f, fail_second=False, broken=False):
+    # Force reuse after a checked real rename, before the publisher can exit.
+    # No random mktemp collision or timing-dependent second producer is needed.
+    real = shutil.which('mv')
+    assert real
+    record = f.root / 'reused-names.jsonl'
+    record.write_text('')
+    replacement = b'another producer owns this file\n'
+    shim = f.executable('mv', f'''#!{sys.executable}
+import json, subprocess, sys
+from pathlib import Path
+source, destination = map(Path, sys.argv[-2:])
+if {fail_second!r} and destination.name == 'regions.jsonl':
+    assert source.is_file(), 'unpublished regions temporary is missing'
+    print('injected second rename failure', file=sys.stderr)
+    sys.exit(74)
+subprocess.run([{real!r}, *sys.argv[1:]], check=True)
+with source.open('xb') as output:
+    output.write({replacement!r})
+with open({str(record)!r}, 'a') as log:
+    log.write(json.dumps(str(source.resolve())) + '\\n')
+''')
+    reused = []
+    try:
+        result = f.formal_run()
+        require(result, 1 if fail_second else 0,
+                'injected second rename failure' if fail_second else 'regions:')
+        reused = [Path(json.loads(line)) for line in record.read_text().splitlines()]
+        expected = ['index'] if fail_second else ['index', 'regions']
+        assert len(reused) == len(expected), (reused, result)
+        for path, name in zip(reused, expected):
+            assert path.parent == f.published.resolve() and path.name.startswith(f'{name}.jsonl.')
+        missing = [path for path in reused if not path.exists()]
+        if broken:
+            assert missing == reused, ('old cleanup did not delete the replacements', missing)
+        else:
+            assert not missing, ('cleanup deleted reused published temporary names', missing)
+            for path in reused:
+                assert path.read_bytes() == replacement, path
+    finally:
+        shim.unlink()
+        for path in reused:
+            path.unlink(missing_ok=True)
+    # In the failure case this also requires cleanup of the unpublished regions file.
+    f.unchanged()
+    print(f'PASS: reused temporary names after {"second rename failure" if fail_second else "normal exit"}: '
+          + ('Round-1 cleanup deleted the replacement files (intended failure)'
+             if broken else 'replacement files survive; unpublished files are cleaned'))
+
+
 def exercise(f):
     for emitter in ['gate', 'render']:
         f.overlap(emitter)
@@ -233,6 +283,9 @@ def exercise(f):
         finally:
             shim.unlink()
         print(f'PASS: {command} {target} failure is red with private cleanup')
+
+    for fail_second in [False, True]:
+        reused_publication(f, fail_second)
 
     with f.paused('gate') as (process, release, _):
         process.send_signal(signal.SIGTERM)
@@ -317,6 +370,23 @@ echo "regions: $(wc -l < .lake/regions.jsonl) marked regions -> tools/formal/.la
         path.write_bytes(original)
         assert path.read_bytes() == original
     print('PASS: production script restored after direct-write negative controls')
+
+    # Restore only Round-1's stale cleanup registrations in the fixture script.
+    old_cleanup = original
+    for name in ['index', 'regions']:
+        publication = f'mv -f "${name}_tmp" .lake/{name}.jsonl || exit 1\n'.encode()
+        start = old_cleanup.index(publication) + len(publication)
+        release = f'{name}_tmp=\n'.encode()
+        end = old_cleanup.index(release, start) + len(release)
+        old_cleanup = old_cleanup[:start] + old_cleanup[end:]
+    try:
+        path.write_bytes(old_cleanup)
+        for fail_second in [False, True]:
+            reused_publication(f, fail_second, broken=True)
+    finally:
+        path.write_bytes(original)
+        assert path.read_bytes() == original
+    print('PASS: production script restored after Round-1 cleanup negative controls')
 
 
 def main():

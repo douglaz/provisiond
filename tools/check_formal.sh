@@ -71,6 +71,9 @@ index_count=$(wc -l < "$index_tmp")
 regions_count=$(wc -l < "$regions_tmp")
 # Check each rename explicitly: this shell deliberately does not use set -e.
 mv -f "$index_tmp" .lake/index.jsonl || exit 1
+# The freed name may now belong to another producer; relinquish cleanup ownership.
+index_tmp=
 mv -f "$regions_tmp" .lake/regions.jsonl || exit 1
+regions_tmp=
 echo "index: $index_count tagged declarations -> tools/formal/.lake/index.jsonl"
 echo "regions: $regions_count marked regions -> tools/formal/.lake/regions.jsonl"
