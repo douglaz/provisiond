@@ -14,8 +14,12 @@ on:
 
 jobs:
   gates:
-    name: specification gates
+    name: specification gates (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -27,13 +31,26 @@ jobs:
       # toolchain is pinned, so CI enters the same shell a developer does.
       - uses: cachix/install-nix-action@v31
 
+      # The ROWS loop runs everywhere. Whole-step allocations below spread the
+      # standalone Lean builds across shards 1-3; shard 0 pays for the full gate
+      # and publication regressions. Citation regression loops are spread too.
+      # These are cost estimates, not measured timings for this matrix (pv-98i).
       - name: Run all gates
+        if: matrix.shard == 0
         run: nix develop --command bash tools/check-all.sh
 
+      # Every shard needs a successful build AND the published index/regions
+      # before controls copy or read tools/formal/.lake.
+      - name: Build the formal layer the controls copy
+        if: matrix.shard != 0
+        run: nix develop --command bash tools/check_formal.sh
+
       - name: Prove formal publication survives overlap and failures
+        if: matrix.shard == 0
         run: python3 tools/test_formal_publication.py
 
       - name: Prove direct formal writes fail the publication interleaving regression
+        if: matrix.shard == 0
         run: python3 tools/test_formal_publication.py --negative-control
 
       # Proving the gates can fail is the point of CNF-3 ("The test suite fails
@@ -41,6 +58,7 @@ jobs:
       # 'tests passed' means something"). This does it on every run, against a
       # scratch copy, so the green check above is evidence rather than decoration.
       - name: Prove the identifier gate can fail
+        if: matrix.shard == 0
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -59,6 +77,7 @@ jobs:
       # an outlier id and would be refused for that reason whether or not the tier
       # check existed, which is a control that cannot fail for the reason it tests.
       - name: Prove the identifier gate refuses a tiered conformance item
+        if: matrix.shard == 0
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -78,6 +97,7 @@ jobs:
       # CI checkout does not have it. So prove it synthetically here, and keep
       # `--selftest` for local runs in a full clone.
       - name: Prove the obligation gate can fail
+        if: matrix.shard == 0
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -95,6 +115,7 @@ jobs:
       # 13-wire-contract.md until 2026-09-03; `--selftest` reads it from history
       # and a shallow CI checkout does not have it. Prove it synthetically here.
       - name: Prove the citation gate can fail
+        if: matrix.shard == 0
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -117,6 +138,7 @@ jobs:
       # both sides of the comparison from one variable and was a tautology that
       # could never fail, which is why a control exists for this at all.
       - name: Prove the Lean build rejects the withdrawn OPS-41 predicate
+        if: matrix.shard == 1
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -135,6 +157,7 @@ jobs:
           echo "lake build correctly failed on abortDate_never_on_routed"
 
       - name: Prove the axiom gate rejects a sorry the build accepts
+        if: matrix.shard == 2
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -151,6 +174,7 @@ jobs:
           echo "axiom gate correctly rejected sorryAx while lake build stayed green"
 
       - name: Prove the axiom gate rejects native_decide outside Provisiond.Explore
+        if: matrix.shard == 3
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -180,6 +204,7 @@ jobs:
           echo "axiom gate correctly refused native_decide outside Explore and allowed it inside"
 
       - name: Prove the formal gate rejects a module the build never reads
+        if: matrix.shard == 1
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -194,6 +219,7 @@ jobs:
           echo "formal gate correctly rejected the orphaned module"
 
       - name: Prove the formal gate rejects a conformance identifier in the formal layer
+        if: matrix.shard == 2
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -215,6 +241,7 @@ jobs:
       # take the term as a hypothesis, so the module stays green and Witnesses.lean
       # is built; the red must come from the refused witness and nowhere else.
       - name: Prove the Lean build rejects the claim guard without its claim term
+        if: matrix.shard == 1
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -240,6 +267,7 @@ jobs:
       # enumeration's completeness theorem is by `cases`. The red must be Tables.lean's
       # own: a missing case, not a syntax error elsewhere.
       - name: Prove the Lean build rejects an error kind without a classification row
+        if: matrix.shard == 2
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -263,6 +291,7 @@ jobs:
       # change to `Provisiond.Tables.currentRules`, and the already-deleted witness must
       # go red on exactly that, with Tables.lean's own theorems staying green.
       - name: Prove the Lean build rejects the classification without its goal-state row
+        if: matrix.shard == 3
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -284,6 +313,7 @@ jobs:
       # migration is not a value of the type. The control writes one, in the Explore
       # namespace so nothing tagged is touched, and requires the type to refuse it.
       - name: Prove the migration type refuses a CONCURRENTLY build inside a transaction
+        if: matrix.shard == 3
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -536,6 +566,10 @@ jobs:
       # The automatic sweep-close row and its obsolete suspension-exemption witness
       # were deleted with that policy.
       - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status guard's removal, one witness each
+        env:
+          SHARD: ${{ matrix.shard }}
+          JOB_INDEX: ${{ strategy.job-index }}
+          JOB_TOTAL: ${{ strategy.job-total }}
         run: |
           set -uo pipefail
           fail=0
@@ -621,7 +655,48 @@ jobs:
           AccountStatus|retainUnlessTerminated|true|false|credentialsRejected
           ROWS
           )
-          expected=$(printf '%s\n' "$rows" | grep -c '|')
+          # No matrix condition on this step: a bad shard must reach the guard.
+          # Validate the assignments we will execute, retaining source occurrence
+          # identity even when two rows have the same file/field or full text.
+          selected=$(ROWS="$rows" python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          def require(condition, message):
+              if not condition:
+                  sys.exit(f"::error::row partition: {message}")
+
+          def integer(name):
+              value = os.environ.get(name, "")
+              require(re.fullmatch(r"[0-9]+", value), f"invalid {name}: {value!r}")
+              return int(value)
+
+          shard, job_index, total = (integer(name) for name in ("SHARD", "JOB_INDEX", "JOB_TOTAL"))
+          require(total == 4, f"expected four matrix jobs, got {total}")
+          require(0 <= shard < total and 0 <= job_index < total, "matrix context out of range")
+          # GitHub's job-index is zero-based; job-total is a count. This equality
+          # rejects a matrix that duplicates a residue or omits/reorders a shard.
+          require(shard == job_index, f"shard {shard} differs from job-index {job_index}")
+          source = os.environ["ROWS"].splitlines()
+          require(all(len(row.split("|")) == 5 for row in source), "malformed source row")
+          assignments = [
+              [(index, row) for index, row in enumerate(source) if index % total == residue]
+              for residue in range(total)
+          ]
+          indices = [index for assigned in assignments for index, _ in assigned]
+          require(sorted(indices) == list(range(len(source))),
+                  "assignments contain missing, duplicate or extra source indices")
+          require(all(assignments), "every shard must have at least one row")
+          for residue, assigned in enumerate(assignments):
+              require(all(source[index] == row for index, row in assigned), "source row changed")
+              print(f"shard {residue}: {len(assigned)} rows; source indices "
+                    + ",".join(str(index) for index, _ in assigned), file=sys.stderr)
+          # Execution consumes this guarded assignment, without selecting again.
+          print("\n".join(row for _, row in assignments[shard]))
+          PY
+          ) || exit 1
+          expected=$(printf '%s\n' "$selected" | grep -c '|')
           passed=0
           while IFS='|' read -r file field from to token; do
             tmp="$(mktemp -d)"
@@ -646,7 +721,7 @@ jobs:
             fi
             popd > /dev/null
             rm -rf "$tmp"
-          done <<<"$rows"
+          done <<<"$selected"
           if [ "$passed" -ne "$expected" ]; then
             echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status controls to pass, got $passed"; fail=1
           fi
@@ -654,9 +729,10 @@ jobs:
 
       # The rendering gate (pv-vwe.8, ADR-0025): a hand edit inside a marked region is
       # red for that region, and the same edit one line outside it is not. The scratch
-      # copy carries tools/formal/.lake from the "Run all gates" step above, which is
+      # copy carries tools/formal/.lake from this shard's formal preparation above, which is
       # what the gate reads; a missing index would be exit 2, not the red we assert.
       - name: Prove the rendering gate rejects a hand edit inside a rendered region
+        if: matrix.shard == 0
         run: |
           set -euo pipefail
           src="$PWD"
@@ -680,6 +756,7 @@ jobs:
       # A `match` region is diffed on its outcome tokens: flipping one row's fence verdict
       # is red for that row and column, while the prose beside it is free.
       - name: Prove the rendering gate rejects a flipped outcome in a diffed table
+        if: matrix.shard == 0
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -699,6 +776,7 @@ jobs:
       # The name resolver: a declaration renamed under a document that cites it is a
       # dangling citation, and the citations gate is where it goes red.
       - name: Prove the citation gate rejects a declaration name the index does not carry
+        if: matrix.shard == 1
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -714,11 +792,12 @@ jobs:
           grep -q 'cites `Provisiond.Witnesses.period_reset_witnes`, which the index does not carry' citations.log
           echo "citation gate correctly rejected the dangling declaration name"
 
-      # QUOTED also reads Lean docstrings. Carry the index from "Run all gates"
+      # QUOTED also reads Lean docstrings. Carry the index from this shard's formal preparation
       # and assert the named quote failure, not merely a nonzero exit. Since
       # 2026-10-02 EXISTS fires on this mutation too, with its own line; the step
       # asserts QUOTED's line and that line's count, which that addition leaves alone.
       - name: Prove the citation gate rejects a misquote in a Lean docstring
+        if: matrix.shard == 1
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -741,8 +820,9 @@ jobs:
           echo "citation gate correctly rejected the Lean docstring misquote"
 
       # Exercise the standalone entry path with the normal baseline and the index
-      # from "Run all gates". Exit 1 alone also accepts the old Python traceback.
+      # from this shard's formal preparation. Exit 1 alone also accepts the old Python traceback.
       - name: Prove the citation gate names unterminated Lean block comments
+        if: matrix.shard == 1
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -797,6 +877,7 @@ jobs:
       # verb -- so the step also asserts QUOTED stayed silent: a red from the wrong
       # rule would not be evidence of this one.
       - name: Prove the citation gate rejects a Lean docstring quote found nowhere
+        if: matrix.shard == 2
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -825,6 +906,7 @@ jobs:
       # c5e31be). The step asserts the phrase is in the ADR, so a red cannot come from a
       # phrase that never existed anywhere.
       - name: Prove the citation gate rejects an attribution only the ADR pool satisfied
+        if: matrix.shard == 2
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -845,6 +927,7 @@ jobs:
       # Pair before splitting/filtering: both the real spaced-elision site and a
       # short span preceding an explicit attribution must expose the corruption.
       - name: Prove the citation gate rejects a spaced elision after a short quote
+        if: matrix.shard == 2
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -882,6 +965,7 @@ jobs:
 
       # QUOTED preserves word-internal apostrophes while accepting nested delimiters.
       - name: Prove the citation gate rejects bare possessive, apostrophe and nested misquotes
+        if: matrix.shard == 3
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -975,6 +1059,7 @@ jobs:
       # pv-muf: a trailing possessive is content, including at candidate edges.
       # The built-in matrix covers both input kinds and every permitted pool.
       - name: Prove the citation gate preserves trailing possessives and detects a bypass
+        if: matrix.shard == 3
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1030,6 +1115,7 @@ jobs:
           PY
 
       - name: Prove the citation gate preserves equivalent nested delimiters
+        if: matrix.shard == 3
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1059,6 +1145,7 @@ jobs:
       # The committed baseline is input, never a bootstrap output. Exercise main()
       # with temporary baselines; every call must leave their bytes unchanged.
       - name: Prove the citation gate refuses damaged baselines, stale exemptions and an empty Lean scan
+        if: matrix.shard == 0
         run: |
           python3 - <<'PY'
           from contextlib import redirect_stdout
@@ -1195,6 +1282,7 @@ jobs:
       # Derive standing cases from the baseline; temporary fixtures keep these
       # controls effective when cleanup leaves one entry or none.
       - name: Prove the citation gate rejects duplicates and altered exempted Markdown wording
+        if: matrix.shard == 1
         run: |
           python3 - <<'PY'
           from collections import Counter
@@ -1359,6 +1447,7 @@ jobs:
 
       # Unpaired marks fail before attribution, historical skips or reach limits.
       - name: Prove the citation gate rejects unpaired quotation marks at source lines
+        if: matrix.shard == 2
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1432,6 +1521,7 @@ jobs:
       # Reverting closer handling must fail the boundary fixtures, rather than
       # silently dropping quotes or depending on the corpus retaining a misquote.
       - name: Prove the citation gate rejects loss of closing-markup boundaries
+        if: matrix.shard == 3
         run: |
           python3 - <<'PY'
           from pathlib import Path
