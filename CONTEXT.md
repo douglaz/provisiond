@@ -313,6 +313,13 @@ A provider's one-time charge for a dedicated machine. Non-refundable, passed to 
 cost, and the one component entirely lost if a customer vanishes immediately.
 _Avoid_: onboarding fee, installation fee, deposit
 
+**Billing unit**:
+The smallest span of machine time a provider charges for — on Hetzner one started hour, on
+DigitalOcean a second subject to a money floor. Declared per offer, never assumed. A machine's
+**first** billing unit is prepaid at the customer rate when the order lands and the **meter**
+starts where it ends (`ADR-0033`); after it, the meter charges elapsed seconds.
+_Avoid_: minimum charge, rounding unit, interval (the cadence is the interval), increment
+
 **Rate**:
 What a satoshi is worth in a provider's billing currency: the lower median of the **rate
 observations** accepted inside the **window** (`LDG-58`, `ADR-0027`) — a price some pass accepted,
