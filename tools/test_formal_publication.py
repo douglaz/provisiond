@@ -94,6 +94,8 @@ def require(result, code=0, *messages):
 
 class Fixture:
     def __init__(self, root):
+        # Rename handshakes report resolved paths; keep fixture comparisons consistent.
+        root = root.resolve()
         self.root = root
         self.tools = root / 'tools'
         self.formal = self.tools / 'formal'
@@ -511,7 +513,12 @@ def main():
     # /tmp may be RAM. Only this exact, owned temporary directory is removed.
     with tempfile.TemporaryDirectory(prefix='formal-publication-', dir='/var/tmp') as directory:
         print(f'fixture (removed on exit): {directory}', flush=True)
-        f = Fixture(Path(directory))
+        real = Path(directory) / 'real'
+        real.mkdir()
+        alias = Path(directory) / 'alias'
+        alias.symlink_to(real, target_is_directory=True)
+        # Run the existing matrix through a symlink, including both rename boundaries.
+        f = Fixture(alias)
         if sys.argv[1:] == ['--negative-control']:
             negative_control(f)
         else:
