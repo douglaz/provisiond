@@ -1130,8 +1130,8 @@ theorem grace_rebuilds_nothing :
 /-- The procedure end to end: the goal-state delete re-runs, a complete pass that lists the
 machine records nothing, the confirmed parent is claimed, the grace is written on the record,
 and every component runs — at step (3)'s mark, which is where this clockless model lifts the
-freeze (`Provisiond.Restore`'s docstring). The model refuses nothing vacuously. -/
-@[req "STO-54"]
+freeze (`Provisiond.Restore`'s docstring). This early lift is a model limitation: `STO-54` says
+"the freeze lifts at `grace_ends_at`". The model refuses nothing vacuously. -/
 theorem successful_restore_witness :
     let w := Restore.run Restore.current (bootRestore restoreTrace)
       (procedure ++ [.claim ⟨2⟩, .sweep true true, .confirmParents, .claim ⟨1⟩])
@@ -1168,9 +1168,14 @@ def restoredWorld : World :=
 /-- The re-run delete claims at the restore instant, `50`, while the record's instant is null;
 the clock reaches step (3)'s instant, `80`, and only then is the record it wrote installed; the
 tenant extends inside the grace; the clock reaches `grace_ends_at`, `140`; the delete is
-re-claimed. -/
+re-claimed. Under `current`, the first `fenceTxn`/`fenceWrite` pair is inert after the deferred
+claim, and the `providerDelete`/`settle` pair before re-claim is inert without a fence or dispatch.
+Those events let the withdrawn placement fence before the extension and destroy at the grace's
+end, exhibiting `ADR-0028`'s "A machine already fenced when the grace begins ... refuses
+`LDG-62`'s extension for the whole grace". -/
 def graceTrace : List Fence.Event :=
-  [.claim, .fenceTxn, .fenceWrite, .advance 30, .restoreRecord graceRecord, .extend 100,
+  [.claim, .fenceTxn, .fenceWrite, .advance (stepThreeAt - restoredWorld.now),
+   .restoreRecord graceRecord, .extend 100,
    .advance 60, .providerDelete true (some true), .settle,
    .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
 
@@ -1188,16 +1193,24 @@ theorem grace_at_claim_witness :
     let good := run Fence.current restoredWorld graceTrace
     let bad := run { Fence.current with graceAtClaim := false } restoredWorld graceTrace
     graceRecord = some { graceEndsAt := some 140 } ∧
+    (run Fence.current restoredWorld (graceTrace.take 4)).now = stepThreeAt ∧
+    (run Fence.current restoredWorld (graceTrace.take 6)).now < 140 ∧
+    (run Fence.current restoredWorld (graceTrace.take 9)).now = 140 ∧
     (run Fence.current restoredWorld [.claim]).phase = .idle ∧
     (run Fence.current restoredWorld [.claim]).m.fence = none ∧
+    (run Fence.current restoredWorld [.claim]).attempt.map (·.row.status) = some .queued ∧
+    (run Fence.current restoredWorld [.claim]).attempt.map (·.row.claim.n) = some 1 ∧
+    (run Fence.current restoredWorld [.claim]).attempt.map (·.row.availableAt) = some none ∧
     (run Fence.current restoredWorld
-      [.claim, .advance 30, .restoreRecord graceRecord, .claim]).attempt.map
+      [.claim, .advance (stepThreeAt - restoredWorld.now), .restoreRecord graceRecord,
+       .claim]).attempt.map
       (·.row.availableAt) = some (some 140) ∧
     good.m.destroyed = false ∧ good.m.commitment = 100 ∧ good.balance = 900 ∧
     good.m.fence = none ∧
     good.episode = some { id := ⟨1⟩, state := .closed .funded, reasons := [.exhausted] } ∧
     (run { Fence.current with graceAtClaim := false } restoredWorld
-      [.claim, .fenceTxn, .fenceWrite, .advance 30, .restoreRecord graceRecord,
+      [.claim, .fenceTxn, .fenceWrite, .advance (stepThreeAt - restoredWorld.now),
+       .restoreRecord graceRecord,
        .providerDelete true (some true)]).m.destroyed = false ∧
     bad.m.destroyed = true ∧ bad.m.commitment = 0 ∧ bad.balance = 1000 := by decide
 
