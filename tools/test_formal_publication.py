@@ -3,7 +3,8 @@
 
 Run after successful formal generation. Only scripts and reader inputs enter the
 small fixture; no repository or Lake build-tree copies. Socket handshakes hold
-emitters after a flushed incomplete JSON line. Every child is waited/reaped.
+emitters after a flushed incomplete JSON line and renames before the foreground
+shim returns. Every child is waited/reaped.
 """
 
 import contextlib
@@ -63,6 +64,26 @@ def run(args, *, cwd, env=None):
         return process.returncode, output
 
 
+def mv():
+    source, destination = map(Path, sys.argv[-2:])
+    if os.environ.get('FAIL_SECOND_RENAME') and destination.name == 'regions.jsonl':
+        assert source.is_file(), 'unpublished regions temporary is missing'
+        print('injected second rename failure', file=sys.stderr, flush=True)
+        sys.exit(74)
+    subprocess.run([os.environ['REAL_MV'], *sys.argv[2:]], check=True, timeout=TIMEOUT)
+    if os.environ.get('PAUSE_RENAME') != destination.stem:
+        return
+    assert not source.exists() and destination.is_file(), 'real rename did not finish'
+    print(f'renamed {destination.name}; shim has not returned', flush=True)
+    with socket.socket(fileno=int(os.environ['HANDSHAKE'])) as channel:
+        channel.settimeout(TIMEOUT)
+        channel.sendall(str(source.resolve()).encode() + b'\n')
+        assert channel.recv(1) == b'G'
+    if os.environ.get('RENAME_SIGNAL'):
+        os.kill(os.getppid(), int(os.environ['RENAME_SIGNAL']))
+        sys.exit(int(os.environ.get('RENAME_STATUS', '0')))
+
+
 def require(result, code=0, *messages):
     rc, output = result
     assert rc == code, (rc, code, output)
@@ -101,6 +122,7 @@ class Fixture:
         self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}',
                         SEED=str(self.seed), PYTHONDONTWRITEBYTECODE='1')
         self.serial = 0
+        self.logs = {}
         self.reset()
 
     def executable(self, name, source):
@@ -148,6 +170,7 @@ class Fixture:
                 env=dict(self.env, PAUSE_EMITTER=emitter, HANDSHAKE=str(child.fileno()), **env),
                 pass_fds=(child.fileno(),), stdout=output, stderr=output,
                 stdin=subprocess.DEVNULL, start_new_session=True)
+            self.logs[process.pid] = Path(output.name)
             child.close()
             try:
                 ready = b''
@@ -165,6 +188,10 @@ class Fixture:
                 log = output.read()
                 if process.returncode != 0:
                     print(f'producer exit {process.returncode}: {log.strip()}')
+
+    def finished(self, process, code=0, *messages):
+        rc = process.wait(timeout=TIMEOUT)
+        return require((rc, self.logs[process.pid].read_text()), code, *messages)
 
     def overlap(self, emitter, broken=False):
         self.reset()
@@ -200,7 +227,7 @@ class Fixture:
                                             if broken else 'distinct private files; readers see complete data'))
 
 
-def reused_publication(f, fail_second=False, broken=False):
+def reused_publication(f, fail_second=False, broken=False, signal_target=None):
     # Force reuse after a checked real rename, before the publisher can exit.
     # No random mktemp collision or timing-dependent second producer is needed.
     real = shutil.which('mv')
@@ -209,32 +236,37 @@ def reused_publication(f, fail_second=False, broken=False):
     record.write_text('')
     replacement = b'another producer owns this file\n'
     shim = f.executable('mv', f'''#!{sys.executable}
-import json, subprocess, sys
+import json, os, signal, subprocess, sys
 from pathlib import Path
 source, destination = map(Path, sys.argv[-2:])
 if {fail_second!r} and destination.name == 'regions.jsonl':
     assert source.is_file(), 'unpublished regions temporary is missing'
     print('injected second rename failure', file=sys.stderr)
     sys.exit(74)
-subprocess.run([{real!r}, *sys.argv[1:]], check=True)
+subprocess.run([{real!r}, *sys.argv[1:]], check=True, timeout={TIMEOUT})
 with source.open('xb') as output:
     output.write({replacement!r})
 with open({str(record)!r}, 'a') as log:
     log.write(json.dumps(str(source.resolve())) + '\\n')
+if destination.stem == {signal_target!r}:
+    print('injected SIGTERM after successful rename', flush=True)
+    os.kill(os.getppid(), signal.SIGTERM)
 ''')
     reused = []
     try:
         result = f.formal_run()
-        require(result, 1 if fail_second else 0,
+        require(result, 143 if signal_target else 1 if fail_second else 0,
+                'injected SIGTERM after successful rename' if signal_target else
                 'injected second rename failure' if fail_second else 'regions:')
         reused = [Path(json.loads(line)) for line in record.read_text().splitlines()]
-        expected = ['index'] if fail_second else ['index', 'regions']
+        expected = ['index'] if fail_second or signal_target == 'index' else ['index', 'regions']
         assert len(reused) == len(expected), (reused, result)
         for path, name in zip(reused, expected):
             assert path.parent == f.published.resolve() and path.name.startswith(f'{name}.jsonl.')
         missing = [path for path in reused if not path.exists()]
         if broken:
-            assert missing == reused, ('old cleanup did not delete the replacements', missing)
+            deleted = [reused[-1]] if signal_target else reused
+            assert missing == deleted, ('old cleanup did not delete the replacements', missing)
         else:
             assert not missing, ('cleanup deleted reused published temporary names', missing)
             for path in reused:
@@ -245,16 +277,66 @@ with open({str(record)!r}, 'a') as log:
             path.unlink(missing_ok=True)
     # In the failure case this also requires cleanup of the unpublished regions file.
     f.unchanged()
-    print(f'PASS: reused temporary names after {"second rename failure" if fail_second else "normal exit"}: '
-          + ('Round-1 cleanup deleted the replacement files (intended failure)'
+    print(f'PASS: reused temporary names after {signal_target + " rename SIGTERM" if signal_target else "second rename failure" if fail_second else "normal exit"}: '
+          + ('historical cleanup deleted another producer replacement (intended failure)'
              if broken else 'replacement files survive; unpublished files are cleaned'))
+
+
+def reserved_publication(f, target, *, fail_second=False, sig=None, mv_status=0):
+    # Pause after the actual rename, while the foreground mv shim is still alive.
+    # A real second publisher allocates its own namespace and holds staged bytes.
+    shim = f.executable('mv', f'#!{sys.executable}\nimport runpy, sys\n'
+                        f'sys.argv.insert(1, "--mv")\nrunpy.run_path({str(Path(__file__).resolve())!r}, run_name="__main__")\n')
+    sentinel = Path(tempfile.mkdtemp(prefix='publication.', dir=f.published))
+    sentinel_file = sentinel / 'index.jsonl'
+    sentinel_file.write_bytes(b'sibling staging sentinel\n')
+    identities = f.identities()
+    try:
+        with f.paused('', PAUSE_RENAME=target, REAL_MV=shutil.which('mv'),
+                      FAIL_SECOND_RENAME='1' if fail_second else '',
+                      RENAME_SIGNAL=str(sig) if sig else '', RENAME_STATUS=str(mv_status)) as (first, release, ready):
+            source = Path(ready.decode().strip())
+            staging = source.parent
+            assert staging.parent == f.published.resolve() and staging.is_dir(), 'staging directory was not reserved'
+            assert source.name == f'{target}.jsonl' and not source.exists()
+            assert (f.published / source.name).read_bytes() == f.expected[target]
+            if target == 'index':
+                assert (staging / 'regions.jsonl').read_bytes() == f.expected['regions']
+            with f.paused('gate', REAL_MV=shutil.which('mv')) as (second, release_second, _):
+                others = [p for p in f.published.iterdir() if p.is_dir() and p not in (staging, sentinel)]
+                assert len(others) == 1, ('second publisher needs its own staging directory', others)
+                second_staging = others[0]
+                second_file = second_staging / 'index.jsonl'
+                assert second_file.read_bytes() == b'{'
+                release.sendall(b'G')
+                f.finished(first, 128 + sig if sig else 1 if fail_second else 0,
+                           f'renamed {target}.jsonl; shim has not returned',
+                           'injected second rename failure' if fail_second else '')
+                assert not staging.exists(), 'first producer leaked its staging directory/children'
+                assert second_staging.is_dir() and second_file.read_bytes() == b'{', 'cleanup touched second producer'
+                assert sentinel_file.read_bytes() == b'sibling staging sentinel\n', 'cleanup touched sibling sentinel'
+                assert f.identities()['index'] != identities['index']
+                if fail_second or (sig and target == 'index'):
+                    assert f.identities()['regions'] == identities['regions']
+                require(f.reader('gate'))
+                require(f.reader('render'))
+                release_second.sendall(b'G')
+                f.finished(second, 0, 'regions:')
+                assert not second_staging.exists(), 'second producer leaked staging'
+    finally:
+        shim.unlink()
+        sentinel_file.unlink(missing_ok=True)
+        sentinel.rmdir()
+    f.unchanged()
+    print(f'PASS: reserved directories at {target} rename, signal={sig}, mv_status={mv_status}, '
+          f'fail_second={fail_second}: first cleaned; sibling sentinel and second producer survive and finish')
 
 
 def exercise(f):
     for emitter in ['gate', 'render']:
         f.overlap(emitter)
-    for emitter, mode in [('gate', 'empty'), ('gate', 'partial'),
-                          ('gate', 'complete'), ('render', 'partial')]:
+    for emitter, mode in [(emitter, mode) for emitter in ['gate', 'render']
+                          for mode in ['empty', 'partial', 'complete']]:
         identities = f.identities()
         require(f.formal_run(FAIL_EMITTER=emitter, EMIT_MODE=mode), 73)
         f.unchanged()
@@ -271,21 +353,30 @@ def exercise(f):
     f.unchanged()
     print('PASS: failed overlapping producer preserves successful publication')
 
-    for command, target in [('mktemp', 'index'), ('mktemp', 'regions'),
-                            ('mv', 'index'), ('mv', 'regions')]:
+    for command, target in [('mktemp', 'publication'), ('mv', 'index'), ('mv', 'regions')]:
         real = shutil.which(command)
         shim = f.executable(command, '#!/usr/bin/env bash\n'
-                            f'case "$*" in *{target}.jsonl*) echo "injected {command} failure" >&2; exit 74;; esac\n'
+                            f'case "$*" in *{target}.*)\n'
+                            f'  echo "injected {command} failure" >&2\n'
+                            '  [ -z "${SIGNAL_FAILED_RENAME:-}" ] || kill -TERM "$PPID"\n'
+                            '  exit 74;; esac\n'
                             f'exec "{real}" "$@"\n')
         try:
-            require(f.formal_run(), 1, f'injected {command} failure')
-            f.unchanged()
+            for terminate in [False, True] if command == 'mv' else [False]:
+                require(f.formal_run(SIGNAL_FAILED_RENAME='1' if terminate else ''),
+                        143 if terminate else 1, f'injected {command} failure',
+                        'FAIL: could not allocate formal staging directory' if command == 'mktemp' else '')
+                f.unchanged()
+                print(f'PASS: {command} {target} failure, signal={terminate}: red with private cleanup')
         finally:
             shim.unlink()
-        print(f'PASS: {command} {target} failure is red with private cleanup')
 
-    for fail_second in [False, True]:
-        reused_publication(f, fail_second)
+    for target in ['index', 'regions']:
+        reserved_publication(f, target)
+        for sig in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
+            reserved_publication(f, target, sig=sig)
+        reserved_publication(f, target, sig=signal.SIGTERM, mv_status=74)
+    reserved_publication(f, 'index', fail_second=True)
 
     with f.paused('gate') as (process, release, _):
         process.send_signal(signal.SIGTERM)
@@ -371,22 +462,49 @@ echo "regions: $(wc -l < .lake/regions.jsonl) marked regions -> tools/formal/.la
         assert path.read_bytes() == original
     print('PASS: production script restored after direct-write negative controls')
 
-    # Restore only Round-1's stale cleanup registrations in the fixture script.
-    old_cleanup = original
-    for name in ['index', 'regions']:
-        publication = f'mv -f "${name}_tmp" .lake/{name}.jsonl || exit 1\n'.encode()
-        start = old_cleanup.index(publication) + len(publication)
-        release = f'{name}_tmp=\n'.encode()
-        end = old_cleanup.index(release, start) + len(release)
-        old_cleanup = old_cleanup[:start] + old_cleanup[end:]
+    # Explicit historical tails: these controls must not depend on the current
+    # publisher retaining flat-file variable names or ownership-release statements.
+    flat = b'''index_tmp=
+regions_tmp=
+cleanup() {
+  [ -z "$index_tmp" ] || rm -f "$index_tmp"
+  [ -z "$regions_tmp" ] || rm -f "$regions_tmp"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+index_tmp=$(mktemp .lake/index.jsonl.XXXXXX) || exit 1
+regions_tmp=$(mktemp .lake/regions.jsonl.XXXXXX) || exit 1
+lake exe gate > "$index_tmp" || exit "$?"
+lake exe render > "$regions_tmp" || exit "$?"
+index_count=$(wc -l < "$index_tmp")
+regions_count=$(wc -l < "$regions_tmp")
+'''
+    round1 = flat + b'''mv -f "$index_tmp" .lake/index.jsonl || exit 1
+mv -f "$regions_tmp" .lake/regions.jsonl || exit 1
+'''
+    round2 = flat + b'''mv -f "$index_tmp" .lake/index.jsonl || exit 1
+index_tmp=
+mv -f "$regions_tmp" .lake/regions.jsonl || exit 1
+regions_tmp=
+'''
+    counts = b'''echo "index: $index_count tagged declarations -> tools/formal/.lake/index.jsonl"
+echo "regions: $regions_count marked regions -> tools/formal/.lake/regions.jsonl"
+'''
     try:
-        path.write_bytes(old_cleanup)
+        path.write_bytes(prefix + separator + round1 + counts)
         for fail_second in [False, True]:
             reused_publication(f, fail_second, broken=True)
+        path.write_bytes(prefix + separator + round2 + counts)
+        for fail_second in [False, True]:
+            reused_publication(f, fail_second)
+        for target in ['index', 'regions']:
+            reused_publication(f, broken=True, signal_target=target)
     finally:
         path.write_bytes(original)
         assert path.read_bytes() == original
-    print('PASS: production script restored after Round-1 cleanup negative controls')
+    print('PASS: production script restored after historical flat-staging cleanup controls')
 
 
 def main():
@@ -405,5 +523,7 @@ def main():
 if __name__ == '__main__':
     if sys.argv[1:2] == ['--lake']:
         lake()
+    elif sys.argv[1:2] == ['--mv']:
+        mv()
     else:
         main()

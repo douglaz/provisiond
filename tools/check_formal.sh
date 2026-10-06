@@ -13,7 +13,7 @@
 # Needs `lake` and `lean` on PATH: run under `nix develop` (flake.nix). A missing
 # toolchain is a failure, not a skip.
 #
-# Publication: stage both successful emitters in private files, then replace each
+# Publication: stage both successful emitters in a private directory, then replace each
 # canonical file atomically. Identical-source/toolchain producers may overlap;
 # this is not a pair snapshot, source-edit lock, Lake build lock or crash-durability
 # guarantee. Deletion and differing revisions are outside this contract.
@@ -51,29 +51,33 @@ if [ -n "$hits" ]; then
 fi
 
 lake build || exit 1
-index_tmp=
-regions_tmp=
+staging=
 cleanup() {
-  [ -z "$index_tmp" ] || rm -f "$index_tmp"
-  [ -z "$regions_tmp" ] || rm -f "$regions_tmp"
+  if [ -n "$staging" ]; then
+    rm -f "$staging/index.jsonl" "$staging/regions.jsonl"
+    rmdir "$staging"
+  fi
 }
-# Only this invocation's files; SIGKILL cannot run these traps.
+# Keep the parent namespace reserved while touching its known children, even if a
+# signal arrives after mv but before it reports success. Other producers allocate
+# their own directories. rmdir releases ours and is the final pathname operation.
+# SIGKILL, or a catchable signal before the shell captures mktemp's result, can
+# leave an unreferenced private directory. Readers ignore it; do not sweep it.
 trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-index_tmp=$(mktemp .lake/index.jsonl.XXXXXX) || exit 1
-regions_tmp=$(mktemp .lake/regions.jsonl.XXXXXX) || exit 1
-lake exe gate > "$index_tmp" || exit "$?"
-lake exe render > "$regions_tmp" || exit "$?"
-index_count=$(wc -l < "$index_tmp")
-regions_count=$(wc -l < "$regions_tmp")
+staging=$(mktemp -d .lake/publication.XXXXXX) || {
+  echo "FAIL: could not allocate formal staging directory" >&2
+  exit 1
+}
+lake exe gate > "$staging/index.jsonl" || exit "$?"
+lake exe render > "$staging/regions.jsonl" || exit "$?"
+index_count=$(wc -l < "$staging/index.jsonl")
+regions_count=$(wc -l < "$staging/regions.jsonl")
 # Check each rename explicitly: this shell deliberately does not use set -e.
-mv -f "$index_tmp" .lake/index.jsonl || exit 1
-# The freed name may now belong to another producer; relinquish cleanup ownership.
-index_tmp=
-mv -f "$regions_tmp" .lake/regions.jsonl || exit 1
-regions_tmp=
+mv -f "$staging/index.jsonl" .lake/index.jsonl || exit 1
+mv -f "$staging/regions.jsonl" .lake/regions.jsonl || exit 1
 echo "index: $index_count tagged declarations -> tools/formal/.lake/index.jsonl"
 echo "regions: $regions_count marked regions -> tools/formal/.lake/regions.jsonl"
