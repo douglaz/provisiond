@@ -8,7 +8,7 @@ Hetzner Cloud allows each project a bucket of requests: "The default limit is 36
 hour and per Project", refilling one per second (Cloud API reference, "Rate Limiting"). Every
 tenant on a provider account spends from that one bucket, and so does the system's own work.
 
-The second threat-model panel (2026-10-06, `/var/tmp/provisiond-panel-r19/`) found a cheap way to
+The second threat-model panel (2026-10-06, `docs/research/panels-2026-10/r19/`) found a cheap way to
 empty it. A tenant with one machine loops `refresh`. Refresh opens no commitment; `04-api-contract.md`
 says of it and its siblings "they are not purchases, and they pass no spending gate". It is on no
 `SEC-39` ceiling, and `API-29` says only that "The service SHOULD rate-limit per tenant". `OPS-8`

@@ -20,7 +20,7 @@ The set prices machine time only (`ADR-0007`), and nothing meters, caps or reser
 `PRV-13b` already says a reseller "MUST be able to bound its own exposure before taking money", and
 every offer with metered egress broke that MUST.
 
-A four-reader panel (`/var/tmp/provisiond-panel-r25/`) rejected charging for traffic 4–0. It split
+A four-reader panel (`docs/research/panels-2026-10/r25/`) rejected charging for traffic 4–0. It split
 2–2 between selling only offers with no overage and cancelling a machine at a disclosed allowance.
 
 ## Decision

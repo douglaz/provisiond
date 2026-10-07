@@ -16,7 +16,7 @@ back". Both of those are visibility, and `PRV-36` says "Visibility and billing-s
 measurements and MUST NOT be conflated". A provider's billing stop shows only on its invoice, weeks
 later, and on Hetzner in whole hours.
 
-A four-reader panel (`/var/tmp/provisiond-panel-r22/`) agreed the window should go.
+A four-reader panel (`docs/research/panels-2026-10/r22/`) agreed the window should go.
 Three of them rejected the replacement first put to the owner, "billing stops when the provider
 accepts the delete":
 - No provider places the stop at acceptance. Hetzner Cloud's delete returns an action that can

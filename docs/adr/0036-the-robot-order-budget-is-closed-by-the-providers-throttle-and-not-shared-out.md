@@ -12,8 +12,8 @@ resets by the calendar, or whether rejected and `test=true` requests count. `PRV
 capacity bound, but counted only two endpoints, called it both deployment-wide and per ordering
 account, and gave its refusal no kind on `OPS-11`'s admission-only list.
 
-The threat-model panel (`/var/tmp/provisiond-panel-r19/`, D1) asked whether one tenant could exhaust
-it. A fourth panel (`/var/tmp/provisiond-panel-r21/`, four readers, unanimous) answered.
+The threat-model panel (`docs/research/panels-2026-10/r19/`, D1) asked whether one tenant could exhaust
+it. A fourth panel (`docs/research/panels-2026-10/r21/`, four readers, unanimous) answered.
 
 - **Nobody loses money at exhaustion.** A refused create settles `failed` and releases its
   commitment. An attacker buys every accepted order's first unit at the customer rate (`ADR-0033`).
