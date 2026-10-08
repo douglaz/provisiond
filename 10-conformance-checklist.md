@@ -198,9 +198,11 @@ not optional hardening — they are the only structural defence there is.
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
       kind, with no implicit default. **Amended 2026-10-08 (`ADR-0035`):** vary known acceptance
       across both Boolean values for driver errors, and exercise unknown acceptance as null with
-      the mutating request's own mapped failure kind (`CNF-322`). Assert that a pre-send `network`
-      failure still takes the ambiguous row despite accepted false; null supplies no extra
-      classifier condition. Admission-only inputs remain pre-provider, with acceptance false.
+      the mutating request's own mapped failure kind (`CNF-322`). On `OPS-11`'s last row, which says
+      "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`", assert that a
+      pre-send `network` failure yields `needs_reconciliation` despite `details.accepted: false`;
+      null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
+      with acceptance false.
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
