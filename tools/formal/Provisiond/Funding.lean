@@ -327,7 +327,9 @@ structure World where
   charged        : List (Nat × Nat)
   /-- The subject quarantine from `LDG-72`; the audit that sets it is not modeled. -/
   quarantined    : Bool := false
-  /-- `PRV-44`'s `billing_unit.seconds` for the subject's offer (`ADR-0033`). Zero is no unit. -/
+  /-- `PRV-44`'s `billing_unit.seconds` for the subject's offer, as the create's snapshot carries
+  it (`LDG-67`; `ADR-0033`). Zero is `PRV-44`'s exact-elapsed-time offer, a unit of no length:
+  nothing is prepaid for time and a machine's first seed writes its mark at the seed instant. -/
   unitSeconds    : Nat := 0
   /-- Not a column: the interval the prepaid first unit bought — the machine's first seed instant
   to that instant plus the unit — written by that seed and by nothing else (`ADR-0033`). -/
@@ -1714,8 +1716,12 @@ theorem lifecycle_initial_invariant (p : Params) (hs : p.startsAtMark = true)
     have hmark := hmark.resolve_right (by rintro ⟨-, -, -, -, h⟩; cases h)
     exact ⟨hnq, Or.inl hmark, rest⟩
 
-/-- A world seeded before the trace records no unit through it: the first seed, the one
-`ADR-0033` offsets, is not in a trace that begins marked. -/
+/-- A world seeded before the trace, and recording no unit, records none through it: with a mark
+in place no seed in the trace is a first seed, so the world ends with the unit it began with.
+`initial.prepaid = none` is a modelling assumption and no consequence of the mark:
+`seed_prepays_the_first_unit` leaves a marked world with `prepaid = some u`, which this theorem
+and the three below do not reach; what they describe is a world rebuilt from the store, where
+`World.prepaid` is "Not a column" and starts empty. -/
 theorem marked_trace_records_no_unit (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
@@ -1732,8 +1738,9 @@ theorem marked_trace_records_no_unit (p : Params) (hs : p.startsAtMark = true)
     | some u => have := (hunit u h).1; rw [hm] at this; cases this
   exact ⟨hp, unitEnd_of_none w hp⟩
 
-/-- The marked-initial-state invariant, preserved as a specialization: with no first seed in the
-trace there is no unit, and the mark is at the cursor. -/
+/-- The marked-initial-state invariant, preserved as a specialization: on a world that begins
+marked and recording no unit (`marked_trace_records_no_unit`'s assumption) there is no unit, and
+the mark is at the cursor. -/
 theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
@@ -1759,9 +1766,10 @@ theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
 coverage is an equivalence (so nonbillable gaps are excluded), and pairwise disjointness rules out
 multiple occurrences. Hypotheses are the specified guards, a valid non-quarantined trace and a
 clean initial interval history with a consistent mark/key relation, on a world already marked and
-recording no unit — the first seed, which `ADR-0033` offsets, lies before such a trace, and
-`unmarked_lifecycle_coverage` is the statement that contains it. Rounding and clamp may still post
-zero satoshis. -/
+recording no unit — `marked_trace_records_no_unit`'s assumption, a world rebuilt from the store;
+the marked world `seed_prepays_the_first_unit` leaves, its unit still ahead, is not such a world,
+and `unmarked_lifecycle_coverage` is the statement that holds the first seed. Rounding and clamp
+may still post zero satoshis. -/
 @[req "LDG-38"]
 theorem lifecycle_coverage (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
@@ -1780,8 +1788,10 @@ theorem lifecycle_coverage (p : Params) (hs : p.startsAtMark = true)
   omega
 
 /-- Any admitted release follows an exit that already closed the meter at its stop boundary.
-This holds for arbitrary valid traces, including ticks and repeated exit/re-entry without release;
-`release` cannot itself advance the mark or append a priced interval. -/
+This holds for arbitrary valid traces, including ticks and repeated exit/re-entry without release,
+on a world already marked and recording no unit (`marked_trace_records_no_unit`'s assumption;
+`unmarked_release_follows_close` holds the first seed); `release` cannot itself advance the mark
+or append a priced interval. -/
 @[req "LDG-32", req "LDG-38"]
 theorem release_follows_close (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)

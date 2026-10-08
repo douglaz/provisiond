@@ -154,7 +154,8 @@ auction/market listing.
 | `min_runway_seconds`, `setup_fee_sats`, `first_unit_sats`, `billing_unit_seconds`, `max_rate_outage_seconds` | `PRV-13d`'s floor, `LDG-39`'s at-cost fee, the prepaid first billing unit's customer price in satoshis and its duration in seconds beside the fee (`ADR-0033`, `PRV-13b`; added 2026-10-08 — the unit's `native_floor` and native rate never reach the customer surface, `LDG-26`), and `LDG-64`'s disclosed bound — the operator's current limit, which can change (`WIR-30`) |
 | `metadata` | Raw provider payload |
 
-*The six rows after the prices were added 2026-09-02.* Every one of them is required on the wire by
+*The six rows after the prices were added 2026-09-02; the two unit fields in the limits row,
+2026-10-08 (`ADR-0033`).* Every one of them is required on the wire by
 `WIR-30` and load-bearing somewhere — `install_strategies` is a **safety gate** whose absence
 authorizes a disk-wiping install (`05-persistence.md`), `max_rate_outage_seconds` discloses a second
 trigger that destroys a machine — and none was in the entity this document defines. A caller reading

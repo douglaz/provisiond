@@ -21,10 +21,11 @@ argued tiers and are not kept. `tools/check_ids.py` now refuses a tag on an item
 asserts was changed by the cut.
 
 **Seeds in the items below** (2026-10-08, `ADR-0033`): a machine's first seed writes its mark at
-the seed instant plus the offer's `billing_unit.seconds` (`LDG-38`). An item that seeds a machine
-at an instant and asserts its mark or its first increment there runs on an offer whose
-`billing_unit.seconds` is zero, or on a seed that is not the machine's first; the first seed under
-a non-zero unit is `CNF-318`'s.
+the seed instant plus the `billing_unit.seconds` the create snapshotted (`LDG-38`). An item that
+seeds a machine at an instant and asserts its mark or its first increment there runs on an offer
+whose `billing_unit.seconds` is zero — `PRV-44`'s exact-elapsed-time offer, a unit of no length,
+under which nothing is prepaid for time — or on a seed that is not the machine's first; the first
+seed under a unit of some seconds is `CNF-318`'s.
 
 ## Build and gate
 
@@ -691,15 +692,19 @@ the fee's shape were amended the same day to stay true for both obligations.
       `OPS-33`'s release debits both against the commitment as two entries of their own kinds;
       after the release each becomes its own operator deficiency — `unrecoverable_setup_fee` and
       `unrecoverable_first_unit`, two records with distinct `idempotency_key`s, the unit's
-      `native_minor` its provider-native cost including the floor and without the margin, rate
-      null, absorbed seconds zero, `provider_account` copied from `operations.provider_account`,
-      `subject_kind: operation` where no machine row exists — both in `OPS-27`'s single
-      resolution transaction (kill between them and neither survives), and a wind-down commitment
-      `OPS-36` opened is decremented by neither. On resolved-absent with a provider transaction
-      showing the fee charged and not the unit, only the fee's record is produced; showing both,
-      both. Abandoned produces both records and clears both parked obligations. Available balance
-      never moves on any row. (`LDG-39`, `LDG-67`, `LDG-66`, `STO-37`, `LDG-75`, `OPS-27`,
-      `OPS-31`, `OPS-33`, `OPS-36`, `LDG-31`)
+      `native_minor` its provider-native cost including the floor and without the margin, its
+      opening rate the one in force when the record opened, as the fee's is — null only where no
+      rate existed then, `CNF-308`'s case (`LDG-66`) — absorbed seconds zero, `provider_account`
+      copied from `operations.provider_account`, `subject_kind: operation` where no machine row
+      exists — both in `OPS-27`'s single resolution transaction (kill between them and neither
+      survives), and a wind-down commitment `OPS-36` opened is decremented by neither. On
+      resolved-absent with a provider transaction showing the fee charged and not the unit, only
+      the fee's record is produced; showing the unit charged and not the fee, only the unit's;
+      showing both, both. Abandoned produces both records and clears both parked obligations. No
+      row debits available balance: a paired debit leaves it unchanged, a release raises it by
+      exactly the commitment's remaining amount (`LDG-32`, `LDG-9`), and a deficiency moves it not
+      at all. (`LDG-39`, `LDG-67`, `LDG-66`, `STO-37`, `LDG-75`, `OPS-27`, `OPS-31`, `OPS-33`,
+      `OPS-36`, `LDG-31`, `LDG-32`, `LDG-9`)
 - [ ] **CNF-318** — **The first seed is offset by the unit, and nothing inside the unit is
       metered.** On an offer with a 60-second unit at 1/5 sat/s, record a machine billable at 30:
       its mark is 90, no entry was written and `r` is unchanged. A tick at 60 and an exit at 80
@@ -709,10 +714,13 @@ the fee's shape were amended the same day to stay true for both obligations.
       ending at 120, six satoshis. Exit at 150 and re-enter at 200: the mark is 200, with no
       offset and no second prepaid debit. Seed a billable attachment of the same machine: its mark
       is its seed instant. Repeat the first seed on a floor-priced offer: the mark is still the
-      seed plus `seconds`. The wrong builds: one that seeds at the instant charges the customer
-      the unit and the seconds; one that offsets every seed hands the customer a unit on each
-      re-entry; one that offsets an attachment meters nothing it should. (`LDG-38`, `STO-45`,
-      `LDG-72`, `PRV-44`)
+      seed plus `seconds`. Re-list the offer with a 3600-second unit between a create accepted at
+      60 seconds and the machine's first seed: the mark is still 90, read from the create's
+      `request_summary` copy and never from the live offer. The wrong builds: one that seeds at
+      the instant charges the customer the unit and the seconds; one that offsets every seed hands
+      the customer a unit on each re-entry; one that offsets an attachment meters nothing it
+      should; one that reads the live offer at the seed meters a unit nobody prepaid, or prepays
+      one it never meters. (`LDG-38`, `STO-45`, `LDG-72`, `PRV-44`, `LDG-67`, `WIR-30`)
 - [ ] **CNF-319** — **`runway_until` counts from the later of now and the machine's mark, in
       every writer.** A machine seeded at 0 on an hour's unit, with ten seconds of usable runway,
       has `runway_until` 3610 after re-derivation at 100 (`PRV-13e`), after an extension at 100
@@ -722,13 +730,16 @@ the fee's shape were amended the same day to stay true for both obligations.
       now. The wrong build routes the machine at 110 while its prepaid hour runs: assert the
       sweep does not route it before 3610. (`LDG-33`, `LDG-72`, `PRV-13e`, `LDG-62`, `OPS-41`,
       `LDG-16`)
-- [ ] **CNF-320** — **An outage row starts no earlier than the mark the seed wrote.** Begin a
+- [ ] **CNF-320** — **An outage row starts no earlier than the subject's latest mark.** Begin a
       currency outage at 10 for a machine seeded at 30 on a 60-second unit, and tick at 60 and at
       120 with no rate: the tick at 60 opens nothing; the tick at 120 opens the subject's
       `rate_outage` row with `absorbed_from` 90, never 30 or 10; an attachment seeded at 30 in
       the same outage opens one from 30. Return the rate at 200: the close is
-      `max(accepted_at, the subject's mark)` as before and absorbs 90–200 for the machine. No
-      deficiency carries the unit's time. (`STO-37`, `LDG-38`, `LDG-64`, `LDG-75`)
+      `max(accepted_at, the subject's mark)` as before and absorbs 90–200 for the machine.
+      Separately, exit at 80 and re-enter at 85, inside the unit and still without a rate, then
+      tick at 120: the row the re-entry can open has `absorbed_from` 90, never 85 — the re-entry
+      wrote no mark, and the subject's latest is the unit's end. No deficiency carries the unit's
+      time. (`STO-37`, `LDG-38`, `LDG-72`, `LDG-64`, `LDG-75`)
 - [ ] **CNF-321** — **The rounding past the first unit is an accepted gap, not an alarm.** On an
       hourly provider, run a machine for 61 minutes and delete it; record the invoice showing two
       hours. Local charges hold one `first_unit_debit` and sixty seconds of `usage_debit`; the

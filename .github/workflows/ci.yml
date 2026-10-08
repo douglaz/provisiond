@@ -144,15 +144,22 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo/tools/formal"
-          sed -i 's/^def abortDate (reserved prot rate : Nat) : Bool := runwaySeconds reserved prot rate > 0$/def abortDate (reserved prot _rate : Nat) : Bool := usableSats reserved prot > 0/' \
+          # Since 2026-10-08 (ADR-0033) the predicate reads LDG-33's derivation from now and the
+          # mark, so the signature stays and only the body is swapped for the withdrawn form.
+          sed -i \
+            -e 's/^def abortDate (p : Params) (now : Nat) (mark : Option Nat) (reserved prot rate : Nat) : Bool :=$/def abortDate (_p : Params) (_now : Nat) (_mark : Option Nat) (reserved prot _rate : Nat) : Bool :=/' \
+            -e 's/^  runwayUntil p now mark reserved prot rate > now$/  usableSats reserved prot > 0/' \
             Provisiond/Runway.lean
-          grep -q 'def abortDate (reserved prot _rate : Nat) : Bool := usableSats' Provisiond/Runway.lean
+          grep -q '^def abortDate (_p : Params) (_now : Nat) (_mark : Option Nat) (reserved prot _rate : Nat) : Bool :=$' Provisiond/Runway.lean
+          grep -q '^  usableSats reserved prot > 0$' Provisiond/Runway.lean
           if nix develop --command lake build > build.log 2>&1; then
             echo "::error::lake build passed with the withdrawn predicate in abortDate"
             exit 1
           fi
-          # Lean names the line, not the theorem: the unsolved goal is in Runway.lean,
-          # and nothing else in that file can fail on this mutation.
+          # Lean names the line, not the theorem: the unsolved goal is in Runway.lean, in
+          # abortDate_never_on_routed, and nothing else in that file reads abortDate's body
+          # (not_routed_inside_the_unit reads routed alone; the witnesses are downstream).
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
           grep -q 'error: Provisiond/Runway.lean:.*unsolved goals' build.log
           echo "lake build correctly failed on abortDate_never_on_routed"
 

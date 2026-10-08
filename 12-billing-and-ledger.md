@@ -115,9 +115,10 @@ included `hold`, `hold_adjustment`, `hold_release` and `expiry`; the first three
 because a reservation is no longer a ledger entry (`LDG-30`), and `expiry` is withdrawn because
 the closing section of this document prohibits the only behaviour it could have described.
 
-A setup fee MUST be its own kind and MUST NOT be folded into usage, because it is the one
-non-refundable component and a caller asking "why did I not get that back" deserves a row that
-answers it.
+A setup fee MUST be its own kind and MUST NOT be folded into usage, because it is a
+non-refundable component (one of two since 2026-10-08, the prepaid first unit below being the
+other, `ADR-0033`) and a caller asking "why did I not get that back" deserves a row that answers
+it.
 
 `first_unit_debit` is the prepaid first billing unit (`ADR-0033`, added 2026-10-08): machine time
 the customer buys when the order lands, at the customer rate (`PRV-13b`), on the setup fee's
@@ -278,8 +279,9 @@ name**, and both independent reviewers found it.*
 
 **The decrement clamps at zero and the excess is the operator's.** Where a debit exceeds the
 commitment's remaining amount — reachable through the wind-down window, the rate window's lag
-(`LDG-58`; amended 2026-09-23, `ADR-0027`) and a resolved-observed setup fee or prepaid first unit
-against a still-open commitment (`LDG-39`) — the commitment decrements to zero, the tenant is debited only up to the
+(`LDG-58`; amended 2026-09-23, `ADR-0027`) and a resolved-observed setup fee — or, since
+2026-10-08, prepaid first unit (`ADR-0033`) — against a still-open commitment (`LDG-39`) — the
+commitment decrements to zero, the tenant is debited only up to the
 authority it granted, and the remainder is recorded as an **operator deficiency** in the manner of
 `LDG-63`. It MUST NOT be taken from available balance: that would be the automatic seizure
 `ADR-0011` exists to forbid, arriving through the meter instead of through re-derivation.
@@ -359,9 +361,8 @@ unit — in the ADR's words, "or every machine routes up to one unit early". Bef
 there is no mark and the derivation counts from now, as it always did: the stored date is then
 early by up to the unit plus the order-to-seed lag, until the first re-derivation after the seed
 moves it, and no debit lands before the seed, so the early date routes nothing the unoffset
-derivation would not have routed. All three writers of `runway_until` — re-derivation (`PRV-13e`),
-an extension (`LDG-62`) and `OPS-41`'s no-mutation abort — compute this formula, an extension
-inside the unit included.
+derivation would not have routed. Every writer of `runway_until` the `machines` row names
+(`05-persistence.md`) computes this formula, an extension inside the unit included.
 
 **The two date terms are not additive.** Where both an effective cancellation date (`DOM-19`) and
 an earliest cancellation date still in the future (`PRV-13c`) apply to the same machine, the
@@ -877,7 +878,7 @@ that hides a wrong conclusion for a month.
 
 **The subject's high-water mark is the greatest `increment end` already closed for it** — or,
 before any has closed, the mark its seed wrote, which for a machine's first seed lies ahead of now
-at the prepaid unit's end (below; `ADR-0033`) — and
+at the prepaid unit's end (below; `ADR-0033`, 2026-10-08) — and
 **an increment whose end instant is at or before that mark MUST be discarded, not posted** — a
 re-meter after restart re-observes elapsed time it has already charged. **The mark, the cumulative
 sum and the insert MUST occur in one serialized transaction** (`LDG-35`): computing them outside
@@ -885,7 +886,8 @@ it lets two concurrent runs both read the same prior total and both post. **Obse
 an operational choice; it MUST NOT be a pricing input.**
 
 **Every transition of a subject into billable MUST write that subject's high-water mark at its
-seed instant** — as an empty increment through `STO-45`'s no-entry path, in the same transaction
+seed instant** — except a machine's first seed, below (`ADR-0033`, 2026-10-08) — as an empty
+increment through `STO-45`'s no-entry path, in the same transaction
 as the write that records the subject billable and under `LDG-35`'s per-tenant serialization. For a
 machine, this is the first write that records it billable — its row insert where the deployment
 bills from creation, or its later first entry into billable — and any later re-entry into a
@@ -898,9 +900,16 @@ at or before the subject's latest mark is discarded under the discard rule above
 carries no seconds and posts nothing: a period row it creates starts with `r = 0`, and an existing
 row's `r` is untouched.
 
-**A machine's first seed writes the mark at the seed instant plus the offer's
-`billing_unit.seconds`, not at the seed instant** (`ADR-0033`, added 2026-10-08; formalized as
-`Provisiond.Funding.seed`). The customer prepaid that unit as machine time when the order landed —
+**A machine's first seed writes the mark at the seed instant plus the `billing_unit.seconds` the
+create's `request_summary` carries, not at the seed instant** (`ADR-0033`, added 2026-10-08;
+formalized as `Provisiond.Funding.seed`). The seconds are read from the copy the create took — the
+unit's record `LDG-67` parks beside the fee, the copy an attached machine takes being `OPS-13`'s —
+and never from the live offer, for the reason `WIR-30` gives the install gate: "The gate reads the
+copy the machine took at create — `machines.install_strategies` (`05-persistence.md`) — not the
+offer as it stands at install time, because an offer is a live listing that can change or disappear
+between the two"; the seed can be days after the create (`OPS-33`'s window, `OPS-36`'s late
+attach), and the duration is not recoverable from the unit's money under a floor. The customer
+prepaid that unit as machine time when the order landed —
 `first_unit_debit`, on `LDG-39`'s lifecycle — so the meter starts where the unit ends; and
 `native_floor` moves no instant: it prices the unit (`PRV-13b`), and the mark is at the seed plus
 `seconds` whatever the floor did. Only that seed is offset. A re-entry inside the unit is a seed at
@@ -1130,9 +1139,11 @@ paired under `LDG-31` like the fee. Where a row names the fee it names the unit 
 differences. On the three deficiency rows the unit produces a **second record, separate from the
 fee's**, with its own cause, `unrecoverable_first_unit` (`STO-37`), its own `idempotency_key`, and
 `native_minor` the unit's provider-native cost including any `native_floor` and without margin, a
-deficiency being the operator's cost (`LDG-66`); the rate null and the absorbed seconds zero, the
-`provider_account` and `subject_kind` as `STO-37` has them, and both records produced in `OPS-27`'s
-single resolution transaction. On the absent row the unit's trigger is the provider's own
+deficiency being the operator's cost (`LDG-66`); its opening rate under `LDG-66`'s per-record rule
+exactly as the fee's — "the record MUST carry the rate in force when it opened as
+`rate_num`/`rate_den` (`LDG-4`), or null where no rate existed then" — and the absorbed seconds
+zero, the `provider_account` and `subject_kind` as `STO-37` has them, and both records produced in
+`OPS-27`'s single resolution transaction. On the absent row the unit's trigger is the provider's own
 transaction showing **the unit** was charged, applied to the unit on its own; the fee's trigger
 stays the fee's.
 
@@ -1691,13 +1702,14 @@ attempt**, so a resolution that debits the fee debits what the customer actually
 than a re-conversion at whatever the rate has since become — **which is the case where the create's
 own commitment is still open**; once `OPS-33` has released it the fee is not debited at all
 (`LDG-39`, amended 2026-09-02) and that figure is what the operator deficiency records instead.
-**The prepaid first billing unit is parked beside the fee with the same pair** (`ADR-0033`, added
-2026-10-08): its native amount — the greater of `billing_unit.seconds` at the offer's recurring
-price and `native_floor` (`PRV-44`) — and the satoshi amount authorized at the create at the
-customer rate (`PRV-13b`), so that the acceptance debit of `first_unit_debit` is that authorized
-amount and never a re-conversion: a re-pricing at acceptance is the shortfall `ADR-0033` rejects,
-whose clamp "would turn the shortfall into an operator deficiency, and an attacker can choose that
-path".
+**The prepaid first billing unit is parked beside the fee with the same pair, and with its
+duration** (`ADR-0033`, added 2026-10-08): its native amount and the satoshi amount authorized at
+the create — `PRV-13b` prices it — so that the acceptance debit of `first_unit_debit` is that
+authorized amount and never a re-conversion: a re-pricing at acceptance is the shortfall `ADR-0033`
+rejects, whose clamp "would turn the shortfall into an operator deficiency, and an attacker can
+choose that path"; and the `billing_unit.seconds` the offer declared when the create was accepted
+(`PRV-44`), because the machine's first seed reads the unit's duration from this copy and never
+from the live offer (`LDG-38`), and the duration is not recoverable from the money under a floor.
 **The outstanding obligation is the latest attempt's entry, and resolution debits the matched
 attempt's.** *Until 2026-09-05 `operations` also carried three scalar columns as "the copy of the
 latest attempt's fee" — a second representation of a figure the entries already held, and the same
@@ -1996,7 +2008,8 @@ provider cost belongs to a month:
   resulting incomplete currency leg. Neither an outage bound nor stalled cancellation closes it.
 
 Sum these eligible costs only for uncovered months. Ledger entries join subjects to provider
-accounts (attachments through their machine; setup-fee and first-unit entries through `machine_id`).
+accounts (attachments through their machine; setup-fee entries — and first-unit entries, since
+2026-10-08, `ADR-0033` — through `machine_id`).
 Deficiency account attribution follows `STO-37` (*amended 2026-10-04, `pv-gip.39`, J2;
 ownership consolidated for U2*). The classification below
 covers the cause inventory owned by `STO-37`; it does not add causes:

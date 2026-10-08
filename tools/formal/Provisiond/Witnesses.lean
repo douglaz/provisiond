@@ -112,11 +112,12 @@ theorem clamp_leaves_credit_witness :
     debits [100, 50] 0 = [100, 50] ∧ Ledger.clamp 30 100 = (30, 70) := by
   decide +kernel
 
-/-- `OPS-41` (2026-09-04): the withdrawn `usable_sats > 0` predicate on the historical input. -/
+/-- `OPS-41` (2026-09-04): the withdrawn `usable_sats > 0` predicate on the historical input, a
+machine with no mark whose date is now. -/
 @[req "OPS-41"]
 theorem sub_second_runway_witness :
     Runway.runwaySeconds 1 0 2 = 0 ∧ Runway.abortSats 1 0 2 = true ∧
-    Runway.abortDate 1 0 2 = false := by
+    Runway.abortDate Runway.current 0 none 1 0 2 = false := by
   decide
 
 /-! ## The cancellation fence
@@ -1983,7 +1984,12 @@ theorem remeter_charged_twice_without_the_start_rule :
     w.roundingCredit = 3/5 ∧ w.mark = some 10 ∧
     (Funding.post p markedAtTen 540 630 (1/5)).charged = [(540, 630)] := by decide +kernel
 
-/-- A subject nothing has marked, in a period that opened at 60. -/
+/-- A machine nothing has marked, in a period that opened at 60, on an offer whose
+`billing_unit.seconds` is zero — `PRV-44`'s exact-elapsed-time offer, a unit of no length, under
+which nothing is prepaid for time and a machine's first seed writes its mark at the seed instant
+(`LDG-38`, `ADR-0033`). The witnesses that seed it and assert the mark or the first increment at
+the seed instant run under that zero unit; the first seed under a unit of some seconds is
+`unitWorld`'s below. -/
 def seedWorld : Funding.World := { fundWorld with mark := none, periodStart := 60 }
 
 /-- The subject is recorded billable at 30, before the period opened, and the first tick closes an
@@ -1994,9 +2000,10 @@ def seedTrace : List Funding.Event := [.billable 30, .post 60 90 (1/5)]
 def startOn : Funding.Params := { Funding.current with startsAtMark := true }
 
 /-- `LDG-38`'s seed, the start rule pinned: "Every transition of a subject into billable MUST write
-that subject's high-water mark at its seed instant", so the seed leaves the mark at 30, and the
-first increment is priced from 30: sixty seconds, the one entry of 12. (The split of those seconds
-at the period boundary is `Provisiond.Period`'s.) -/
+that subject's high-water mark at its seed instant", so the seed leaves the mark at 30 — a machine's
+first seed, under `seedWorld`'s zero unit, which offsets it by nothing — and the first increment is
+priced from 30: sixty seconds, the one entry of 12. (The split of those seconds at the period
+boundary is `Provisiond.Period`'s.) -/
 @[req "LDG-38"]
 theorem seed_starts_the_first_increment :
     let w := Funding.run startOn seedWorld seedTrace
@@ -2007,7 +2014,8 @@ theorem seed_starts_the_first_increment :
 /-- Without the seed the subject has no mark at its first tick: `LDG-38`'s trap, "A start at the
 metering period's first instant, for a subject not yet marked, forfeits every billable second before
 that boundary and makes the tick's timing a pricing input". The increment is priced from 60, and
-the thirty billable seconds before the boundary are never charged. -/
+the thirty billable seconds before the boundary are never charged. Under `seedWorld`'s zero unit
+the seed, had it been written, would have been at 30 and nothing prepaid. -/
 @[req "LDG-38"]
 theorem first_increment_from_the_period_start_without_the_seed :
     let p := { Funding.current with startsAtMark := true, seedOnBillable := false }
@@ -2017,7 +2025,8 @@ theorem first_increment_from_the_period_start_without_the_seed :
 
 /-- `LDG-38`: the seed is written at "any later re-entry into a billable state", and "an existing
 row's `r` is untouched". Exit at 100 closes the ten seconds left after `seedTrace`'s tick;
-re-entry at 200 moves only the mark. All guards here are pinned for control isolation. -/
+re-entry at 200 moves only the mark. All guards here are pinned for control isolation. The first
+seed is `seedWorld`'s, under its zero unit; the re-entry is never offset whatever the unit. -/
 @[req "LDG-38"]
 theorem reentry_seeds_the_mark_and_nothing_else :
     let p := { Funding.current with startsAtMark := true, seedOnBillable := true,
@@ -2097,8 +2106,9 @@ theorem unmarked_short_life_is_valid (p : Funding.Params) :
     Funding.LifecycleTrace p seedWorld 0 (unmarkedShortLife p) 34 none [(30,34)] (some 34) := by
   exact .exit (.enter (.initial rfl) 30 (by decide)) 34 (1/5) (by decide) (by decide +kernel)
 
-/-- Execute the first seed and close. All relevant guards are pinned: this additional witness
-is not a second target for any guard-removal control. -/
+/-- Execute the first seed — a machine's, under `seedWorld`'s zero unit, so at its instant — and
+close. All relevant guards are pinned: this additional witness is not a second target for any
+guard-removal control. -/
 @[req "LDG-38", req "LDG-32"]
 theorem unmarked_short_life_closes :
     let p := { exitGuards Funding.current with exitPosts := true }
@@ -2110,7 +2120,8 @@ theorem unmarked_short_life_closes :
 
 /-- Apply the general unmarked-world proofs to this executable trace: its first span is covered
 without overlap, and the close precedes release. No partition is supplied as a premise.
-`seedWorld`'s offer declares no unit, so the seed records none and the coverage is the plain one. -/
+`seedWorld`'s offer declares a zero unit, so the seed records none and the coverage is the plain
+one. -/
 @[req "LDG-38", req "LDG-32"]
 theorem unmarked_short_life_covered_before_release :
     let p := { exitGuards Funding.current with exitPosts := true }
@@ -2138,9 +2149,11 @@ theorem unmarked_short_life_covered_before_release :
 
 /-! ### The prepaid first billing unit (`ADR-0033`, 2026-10-08)
 
-`LDG-38`: "the machine's first seed places its mark at the seed instant plus one unit", and the
-meter starts where the unit ends. The unit here is sixty seconds, DigitalOcean's declared one; its
-floor prices the unit (`PRV-13b`) and moves no instant. -/
+`ADR-0033`: "the machine's first seed places its mark at the seed instant plus one unit", and the
+meter starts where the unit ends; `LDG-38` carries it: a machine's first seed "writes the mark at
+the seed instant plus the `billing_unit.seconds` the create's `request_summary` carries". The unit
+here is sixty seconds, DigitalOcean's declared one; its floor prices the unit (`PRV-13b`) and moves
+no instant. -/
 
 /-- `seedWorld`'s unmarked machine, on an offer whose `billing_unit.seconds` is 60. -/
 def unitWorld : Funding.World := { seedWorld with unitSeconds := 60 }
@@ -2273,22 +2286,29 @@ def insideTheUnitDate (p : Runway.Params) : Nat := Runway.runwayUntil p 100 (som
 
 /-- With the start at the mark the date is 3610, the unit's end plus the ten seconds. A machine
 past its unit, its mark a closed increment end at 50, counts from now, 110; so does one with no mark
-yet. -/
-@[req "LDG-33"]
+yet. And the same machine with nothing left to spend — the twenty satoshis protected — is still
+inside its hour: its date is 3600, and `OPS-41` aborts the cancellation rather than deleting a
+machine whose prepaid unit runs. -/
+@[req "LDG-33", req "OPS-41"]
 theorem runway_counts_from_the_unit_end :
     insideTheUnitDate Runway.current = 3610 ∧
     Runway.runwayUntil Runway.current 100 (some 50) 20 0 2 = 110 ∧
-    Runway.runwayUntil Runway.current 100 none 20 0 2 = 110 := by decide
+    Runway.runwayUntil Runway.current 100 none 20 0 2 = 110 ∧
+    Runway.abortDate Runway.current 100 (some 3600) 20 20 2 = true := by decide
 
 /-- Without it the same machine's date is 110: 3500 seconds early, the whole of the unit that has
-not elapsed — `ADR-0033`'s "every machine routes up to one unit early" — and `LDG-16`'s sweep routes
-it at 110 while the customer's prepaid hour runs. -/
-@[req "LDG-33"]
+not elapsed — `ADR-0033`'s "every machine routes up to one unit early". At 120, past that date,
+`LDG-16`'s sweep has the machine routed on the flipped derivation's stored date while the customer's
+prepaid hour runs, and not routed on the rule's, whose date is 3610 — the rule pinned on here, so
+that the control flipping `Runway.current` refutes `runway_counts_from_the_unit_end` alone. -/
+@[req "LDG-33", req "LDG-16"]
 theorem runway_early_without_the_start :
-    insideTheUnitDate { Runway.current with startAtMark := false } = 110 ∧
-    Runway.routed 20 0 2 = False ∧ 3610 - 110 = 3600 - 100 := by
-  refine ⟨by decide, ?_, by decide⟩
-  simp [Runway.routed, Runway.runwaySeconds, Runway.usableSats]
+    let flipped := { Runway.current with startAtMark := false }
+    let withRule := { Runway.current with startAtMark := true }
+    insideTheUnitDate flipped = 110 ∧
+    Runway.routed flipped 100 120 (some 3600) 20 0 2 ∧
+    ¬ Runway.routed withRule 100 120 (some 3600) 20 0 2 := by
+  refine ⟨by decide, ?_, ?_⟩ <;> unfold Runway.routed <;> decide
 
 /-! ## The billing period
 

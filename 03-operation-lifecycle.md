@@ -448,9 +448,9 @@ Robot order reports `ready` with a server number before the server API lists the
 read inside that window is not evidence of absence. **Where it returns `not_found` past the
 window, the operation resolves *absent* — the second row's outcome, reached without waiting for
 `OPS-33`'s negative window, because a direct read past the visibility window is authoritative
-where a listing was not**: no machine is attached and the commitment is released in full — with one addition to `LDG-39`, that a setup fee or prepaid first unit the provider's own
-transaction shows was charged becomes the deficiency `LDG-39`'s absent row names for it rather than
-being pretended away.
+where a listing was not**: no machine is attached and the commitment is released in full — with one addition to `LDG-39`, that a setup fee or prepaid first unit (*the unit since 2026-10-08,
+`ADR-0033`*) the provider's own transaction shows was charged becomes the deficiency `LDG-39`'s
+absent row names for it rather than being pretended away.
 *Added 2026-09-05, and corrected the same day: a first form invented an "accepted-but-gone"
 outcome, which had no value in `WIR-35`'s closed `resolution` set, no settled status, no `LDG-39`
 row, and ignored the visibility window — so the ordinary Robot create resolved as gone and came
@@ -527,8 +527,8 @@ re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring th
 `ADR-0011` abolished, reappearing through reconciliation.
 
 **The wind-down floor is tested against available balance with the setup fee — and the prepaid
-first unit, which `LDG-39` sends the same way — taken out of the question** (amended 2026-09-02;
-the unit added 2026-10-08, `ADR-0033`). `LDG-39` used to debit the late fee from available on this same
+first unit, of which `LDG-39` says "Where a row names the fee it names the unit as well" — taken
+out of the question** (amended 2026-09-02; the unit added 2026-10-08, `ADR-0033`). `LDG-39` used to debit the late fee from available on this same
 branch, which left "does available cover the floor" with two defensible answers and no rule: with
 100 sats available, a 70-sat fee and a 70-sat floor, fee-first charges 70 and makes the whole
 wind-down an operator loss, while reserve-first ultimately charges the customer 100 — both preserve
@@ -617,7 +617,9 @@ bound.
 Before any ordering call the worker MUST re-read the offer's current price **in the provider's own
 currency** and compare it with the native price the commitment was sized from — **carried on the
 operation's `request_summary`, which MUST hold the accepted recurring price, its
-currency and its period, and the accepted setup fee and prepaid first unit** (`LDG-2`, `LDG-67`; *the
+currency and its period, and the accepted setup fee and prepaid first unit, the unit with its
+`billing_unit.seconds`** (`LDG-2`, `LDG-67`; *the unit and its seconds added 2026-10-08,
+`ADR-0033`, because the machine's first seed reads them, `LDG-38`*; *the
 fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment
 row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
 provider

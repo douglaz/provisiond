@@ -63,8 +63,11 @@ check and on every `GET /v1/providers`.
 `billing_stop_window` of the same shape (`PRV-13b`), `order_budget` `{limit, per}` (`PRV-40`),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
 `billing_unit` per offer (`ADR-0033`, added 2026-10-08) — `{seconds, native_floor}`: the provider's
-smallest charged span of machine time, in seconds, and the money minimum on its price, a string in
-the offer's currency as `DOM-9` carries every price and null where the offer has none; it is the
+smallest charged span of machine time, in seconds — zero exactly where the provider charges exact
+elapsed time with no minimum, a unit of no length under which the arithmetic is unchanged: nothing
+is prepaid for time, `first_unit` is the floor alone or nothing (`PRV-13b`), and a machine's first
+seed writes its mark at the seed instant (`LDG-38`) — and the money minimum on its price, a string
+in the offer's currency as `DOM-9` carries every price and null where the offer has none; it is the
 per-contract fact `PRV-13c` lists as billing granularity, and like the bound it MAY be reported on
 the offer instead —
 `rescue_address_family` (`RSC-45`), and `surviving_attachments` (the kinds that survive deletion,
@@ -201,8 +204,9 @@ to spend, and since `customer_rate ≥ provider_rate` by construction, committin
 price also covers the operator's exposure. Using provider cost here would under-commit every
 machine by exactly the margin. **The setup fee is committed at cost and debited only on confirmed
 acceptance (`LDG-39`)**, because `ADR-0006` passes it through unmarked — the operator does not
-profit from a fee it did not earn — and it is also the one term that is entirely lost once the
-order lands, so it MUST be **fully committed before the order is placed**. *Both withdrawn
+profit from a fee it did not earn — and it is also one of the two terms that are entirely lost once
+the order lands (the prepaid first unit, below, is the other; *reworded 2026-10-08, `ADR-0033`*), so
+it MUST be **fully committed before the order is placed**. *Both withdrawn
 readings — "fully collected before the order" and "debited before the order is placed" — charged
 the customer for a fee the operator never incurred whenever the provider rejected the order
 outright or the create resolved absent.*
