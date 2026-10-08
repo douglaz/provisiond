@@ -72,3 +72,26 @@ refresh be answered from it.
 - Not covered here: a throttle that reaches an admitted operation after its mutating request was
   sent (the throttled-poll defect), Robot's per-endpoint limits beyond orders, and the provider
   quota (D3).
+
+## Amendment — 2026-10-08: the per-machine bound covers successful observations (owner decision Q10)
+
+An rloop Manager blocked `pv-ucs.2` on a gap in Decision 1, and a four-reader panel
+(`docs/research/panels-2026-10/r26/`, unanimous) settled it. `OPS-11`'s refresh row is "Always
+`failed`. It is read-only; a failure changed nothing", and `state_observed_at` records only an
+authoritative read. So a refresh whose provider read fails leaves the cache stale, and the next
+refresh reads again.
+
+- **The bound counts successful observations only.** A machine whose provider answers costs at most
+  one read per window. A read that fails moves nothing, and the next refresh reads again, one at a
+  time under `OPS-8`, from the tenant share. Decision 1's "however fast a caller loops" and the
+  Consequences' "needs many paid machines, not one" hold while the provider answers. During a
+  provider read failure the residual is one paid machine's refresh loop against the tenant share,
+  never the reserve. It is accepted, as tenant-share exhaustion already is.
+- **The cache check runs when a worker claims the refresh, not when it is enqueued.** Otherwise
+  refreshes queued against a stale machine each read in turn.
+- **The machine view exposes `state_observed_at`.** The Consequences' "The caller already reads its
+  age from `state_observed_at`" was false: `WIR-11` carried no such field.
+
+Rejected: counting failed attempts and answering from the cache (it reports success after a refresh
+that learned nothing, and needs a new timestamp because no dispatch time is recorded); counting them
+and refusing the refresh (a legitimate retry after one provider error waits a whole window).
