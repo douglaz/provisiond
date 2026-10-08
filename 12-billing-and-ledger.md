@@ -354,14 +354,13 @@ runway_until   = max(now, mark) + floor(usable_sats / current_customer_rate)
 2026-10-08; formalized as `Provisiond.Runway.runwayUntil`). `mark` is the machine subject's latest
 high-water mark as `LDG-72` holds it — "The mark is the greatest `increment end` among that
 subject's rows" — one read on `meter_totals`' key prefix for `subject_kind = machine`, never an
-attachment's. Under `ADR-0033` the machine's first seed writes that mark at the prepaid unit's end
-(`LDG-38`), and no other mark is ever ahead of now, so `max(now, mark)` is the later of now and the
-unit's end on every input; counted from `now` alone the date was wrong on every machine inside its
+attachment's. `LDG-38` supplies the bound: "No mark is ever written ahead of now except an
+eligible first seed's mark at the paid unit's end" (`ADR-0033`, 2026-10-08). Thus `max(now, mark)`
+counts any remaining paid time; counted from `now` alone the date was wrong on every machine inside its
 unit — in the ADR's words, "or every machine routes up to one unit early". Before the seed exists
-there is no mark and the derivation counts from now, as it always did: the stored date is then
-early by up to the unit plus the order-to-seed lag, until the first re-derivation after the seed
-moves it, and no usage debit lands before the seed — the `first_unit_debit` does, at successful settlement after acceptance
-(`LDG-39`) — so the early date routes nothing the unoffset derivation would not have routed. Where
+there is no mark and the derivation counts from now, as it always did. For a paid unit the stored
+date is early by up to the unit plus the order-to-seed lag, until the first re-derivation after
+the seed moves it. The early date routes nothing the unoffset derivation would not have routed. Where
 that stored date passes after the seed and before the next re-derivation, `LDG-16`'s sweep routes
 on it under `LDG-16`'s predicate — "MUST route a machine where its stored `runway_until` has passed
 and its currency has a rate (`LDG-59`) and it is not recorded gone" — and `OPS-41`'s re-check
@@ -886,8 +885,8 @@ the sub-section was not wrong, it was *unnecessary*, and unnecessary correct mac
 that hides a wrong conclusion for a month.
 
 **The subject's high-water mark is the greatest `increment end` already closed for it** — or,
-before any has closed, the mark its seed wrote, which for a machine's first seed lies ahead of now
-at the prepaid unit's end (below; `ADR-0033`, 2026-10-08) — and
+before any has closed, the mark its seed wrote, which for an eligible machine's first seed lies
+ahead of now at the paid unit's end (below; `ADR-0033`, 2026-10-08) — and
 **an increment whose end instant is at or before that mark MUST be discarded, not posted** — a
 re-meter after restart re-observes elapsed time it has already charged. **The mark, the cumulative
 sum and the insert MUST occur in one serialized transaction** (`LDG-35`): computing them outside
@@ -895,7 +894,7 @@ it lets two concurrent runs both read the same prior total and both post. **Obse
 an operational choice; it MUST NOT be a pricing input.**
 
 **Every transition of a subject into billable MUST write that subject's high-water mark at its
-seed instant** — except a machine's first seed, below (`ADR-0033`, 2026-10-08) — as an empty
+seed instant** — except an eligible machine's first seed, below (`ADR-0033`, 2026-10-08) — as an empty
 increment through `STO-45`'s no-entry path, in the same transaction
 as the write that records the subject billable and under `LDG-35`'s per-tenant serialization. For a
 machine, this is the first write that records it billable — its row insert where the deployment
@@ -907,12 +906,18 @@ stops at the observation instant, not at the unknown instant the provider acted"
 and the observation (`LDG-38`)". **A seed
 at or before the subject's latest mark is discarded under the discard rule above.** This seed
 carries no seconds and posts nothing: a period row it creates starts with `r = 0`, and an existing
-row's `r` is untouched.
+row's `r` is untouched. Row placement belongs to `LDG-72`.
 
-**A machine's first seed writes the mark at the seed instant plus the `billing_unit.seconds` the
-machine's own row carries, not at the seed instant** (`ADR-0033`, added 2026-10-08; the reader
-re-pointed from the create's snapshot to the machine's copy the same day; formalized as
-`Provisiond.Funding.seed`). The seconds are read from `machines.billing_unit_seconds`, which
+**A machine's first seed is eligible for an offset only if its first unit was actually debited
+to the customer. An eligible seed MUST write the mark at the seed instant plus the
+`billing_unit.seconds` the machine's own row carries; an unpaid first seed MUST write it at the seed instant** (`ADR-0033`,
+amended 2026-10-08; formalized as `Provisiond.Funding.seed`). A released create commitment,
+a parked obligation, a provider charge and a positive duration are not evidence of a customer
+debit. A zero `first_unit` earns no offset, even with positive declared seconds at a zero price;
+a zero duration adds no time even if a money floor was debited. Eligibility is read from
+`machines.first_unit_debit_id`; for establishing that reference, see `LDG-39`. Its retained
+ledger entry makes the fact available after the create operation has been purged.
+The seconds are read from `machines.billing_unit_seconds`, which
 `05-persistence.md`'s `machines` row says is "copied from the create's `request_summary` snapshot"
 at create or at attach, "in the same transaction as `offer_id`", with a null that "MUST be read as
 zero" — never from the live offer, for the reason `WIR-30` gives the install gate: "The gate reads
@@ -922,22 +927,19 @@ between the two"; and never from the snapshot itself, the create's record `LDG-6
 fee, because `STO-14` removes settled operations "older than a configured age", an age unrelated to
 the create-to-billable lag, while the seed can be days after the create (`OPS-33`'s window,
 `OPS-36`'s late attach) — a rule whose input may have been purged is not a rule — and the duration
-is not recoverable from the unit's money under a floor. The customer
-prepaid that unit as machine time when the order landed —
-`first_unit_debit`, on `LDG-39`'s lifecycle — so the meter starts where the unit ends; and
-`native_floor` moves no instant: it prices the unit (`PRV-13b`), and the mark is at the seed plus
-`seconds` whatever the floor did. Only that seed is offset. A re-entry inside the unit is a seed at
+is not recoverable from the unit's money under a floor. The floor's pricing argument belongs to
+`PRV-13b`. Only an eligible first seed is offset. A re-entry inside the unit is a seed at
 or before the subject's latest mark and is discarded under the sentence above; a re-entry after the
 unit writes its own instant, with no offset and no second prepaid debit — the provider's rounding
 there is the gap `LDG-75` accepts. A billable attachment's seed is never offset: the ADR prepays
 "the provider's first billing unit of every machine" and nothing else. An exit inside the unit has
 its stop boundary at or before the mark, so the increment it would close is discarded — `STO-45`:
 "An increment `LDG-38` discards moves nothing — no row write, `r` and the mark where they were, no
-deficiency, no entry" — and the prepaid debit stands, which is the point of the decision. **No mark
-is ever written ahead of now except this one, at the unit's end**: every other mark is an
+deficiency, no entry" — and the prepaid debit stands, which is the point of the decision.
+**No mark is ever written ahead of now except an eligible first seed's mark at the paid unit's end**: every other mark is an
 `increment end` the meter closed at or before its posting, an exit's included, since an exit closes
-at its stop boundary and never later. `LDG-33` counts from the later of now and this mark on the
-strength of that sentence.
+at its stop boundary and never later. `LDG-33` applies this bound: "The derivation counts from the
+later of now and the machine's mark".
 
 **Every transition of a subject out of billable MUST close that subject's increment at its stop
 boundary, in the write that records the exit, holding that subject's tenant's `LDG-35` primitive,
@@ -1027,7 +1029,7 @@ defect and the fix was not carried across.** It is carried across now, on the sa
 
 - The record MUST carry the **rounding credit** `r` as an exact rational (`LDG-4`; `LDG-1`'s
   no-floating-point rule reaches it) and the **greatest `increment end` closed** for that
-  `(subject, billing period)`. Both MUST be written inside the same serialized transaction that
+  `(subject, billing period)`, or the admitted seed's mark assigned to that row below. Both MUST be written inside the same serialized transaction that
   closes the increment — the one that appends the debit where one posts (`LDG-35`, `STO-45`).
 - `LDG-38` reads both from this record, and neither read depends on cadence or on how far into the
   period the tick falls. **The mark is the greatest `increment end` among that subject's rows**,
@@ -1039,8 +1041,19 @@ defect and the fix was not carried across.** It is carried across now, on the sa
   updates, see `LDG-38`. *Amended 2026-10-02: until then the mark was read from the current period's
   row only, which on a period's first tick holds none; `LDG-38`'s start rule needs the subject's
   latest.*
-- For the seed, see `LDG-38` — including a machine's first seed, the one mark written ahead of now,
-  at the prepaid unit's end (`ADR-0033`, 2026-10-08), which `LDG-33` reads through this record.
+- **Seed placement (amended 2026-10-08, `ADR-0033`).** An admitted seed MUST write its mark
+  into the row keyed by the seed instant's UTC month, even when the mark lies in a later month.
+  It MUST NOT eagerly create a row for that later month. Midnight alone changes neither row nor
+  mark, and the seed-month row MUST be retained while it supplies the subject's latest mark.
+  Apply the cross-row latest-mark discard before creating or updating any row: a tick, exit or
+  re-entry ending at or before that mark leaves all meter rows unchanged. A seed exactly at a
+  month boundary belongs to the new month; a seed before the boundary whose mark lands on it
+  remains in the earlier month's row. The first actual increment after the mark uses the credit
+  of each piece's own period, initialized to zero if absent, never the seed row's credit from
+  another period. `LDG-38` owns the seed value and no-entry transaction: "This seed carries no
+  seconds and posts nothing", and "an existing row's `r` is untouched". Actual increment
+  allocation, rounding and first-unit debit attribution are unchanged. The high-water check
+  below is one-sided; it imposes no same-period timestamp constraint on the mark.
 - A `correction` does **not** touch this record. It moves the balance and leaves `r` alone
   (`LDG-38`), so there is nothing to keep in step and no second channel to keep honest.
 
@@ -1149,8 +1162,8 @@ unstated:
 table.** It is an order-landed term of `PRV-13b` — committed at the customer rate, where the fee
 is committed at cost — parked beside the fee where `LDG-67` parks it, and debited at settlement after acceptance as
 its own kind, `first_unit_debit` (`LDG-7`), for the satoshi amount authorized at the create and
-paired under `LDG-31` like the fee. Where a row names the fee it names the unit as well, with two
-differences. On the three deficiency rows the unit produces a **second record, separate from the
+paired under `LDG-31` like the fee. Where a row names the fee it names the unit as well, with
+the distinctions below. On the deficiency rows of the table below the unit produces a **second record, separate from the
 fee's**, with its own cause, `unrecoverable_first_unit` (`STO-37`), its own `idempotency_key`, and
 `native_minor` the unit's provider-native cost including any `native_floor` and without margin, a
 deficiency being the operator's cost (`LDG-66`); its opening rate under `LDG-66`'s per-record rule
@@ -1163,12 +1176,19 @@ stays the fee's. **Where `first_unit` is zero** — whatever made it so: `PRV-44
 with a null floor, where "`first_unit` is the floor alone or nothing", or a positive `seconds` at a
 zero recurring price with a null floor — **there is no obligation: the create MUST NOT commit,
 park, debit or record anything for the unit**, because `LDG-7` says "**Every entry moves real money.**"
-and `STO-45` says "a zero-value ledger row is not legal". The seed's offset keys on `seconds`, not on
-the amount: with zero `seconds` the machine's first seed is `PRV-44`'s unoffset one, at the seed
-instant (`LDG-38`); with positive `seconds` at a zero price the first seed is offset as `LDG-38`
-says, "the seed instant plus the `billing_unit.seconds` the machine's own row carries", prepaying
-nothing, and the unit meters nothing either way. *Added 2026-10-08, `ADR-0033`; the two conditions
-separated the same day.*
+and `STO-45` says "a zero-value ledger row is not legal". For the seed, `LDG-38` requires:
+"an unpaid first seed MUST write it at the seed instant".
+*Amended 2026-10-08, `ADR-0033`.*
+
+**The settlement transaction MUST record the actual customer debit on the machine as
+`first_unit_debit_id`**, a reference to that machine's nonzero `first_unit_debit` ledger entry,
+when it posts that entry. It remains null on every path without that debit, including the
+released-before-attach and zero-`first_unit` paths. If settlement also records the machine billable,
+the seed reads this transaction's debit reference. A delayed first seed reads the same retained
+reference after operation retention has run; neither a pending obligation nor a deficiency sets
+it. The reference and debit MUST commit atomically, including when resolution attaches the
+machine. This records eligibility without a live-offer lookup or a dependency on a retained
+operation. (`ADR-0033`, 2026-10-08.)
 
 **Amended 2026-10-08 (`ADR-0035`): an accepted but unresolved create MUST take the
 `needs_reconciliation` pending-obligation row below, ahead of the accepted/debited row, until
@@ -1732,9 +1752,8 @@ than a re-conversion at whatever the rate has since become — **which is the ca
 own commitment is still open**; once `OPS-33` has released it the fee is not debited at all
 (`LDG-39`, amended 2026-09-02) and that figure is what the operator deficiency records instead.
 **The prepaid first billing unit, where `first_unit` is not zero (`LDG-39`), is parked beside the
-fee with the same pair, and with its duration** (`ADR-0033`, added 2026-10-08; the zero case and
-the duration's reader stated the same day): its native amount and the satoshi amount authorized at
-the create — `PRV-13b` prices it — so that the acceptance debit of `first_unit_debit` is that
+fee with the same pair, and with its duration** (`ADR-0033`, added 2026-10-08): its native amount
+and the satoshi amount authorized at the create — `PRV-13b` prices it — so that the acceptance debit of `first_unit_debit` is that
 authorized amount and never a re-conversion: a re-pricing at acceptance is the shortfall `ADR-0033`
 rejects, whose clamp "would turn the shortfall into an operator deficiency, and an attacker can
 choose that path"; and the `billing_unit.seconds` the offer declared when the create was accepted

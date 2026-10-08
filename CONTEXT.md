@@ -8,6 +8,8 @@ are exposed as automated, configurable API operations rather than support ticket
 This file is a glossary. It contains no design decisions — those live in `docs/adr/` — and no
 requirements — those live in the numbered specification documents.
 
+*Debit, Increment and Setup fee terminology amended 2026-10-08 under `ADR-0033`.*
+
 ## Language
 
 ### People and boundaries
@@ -278,8 +280,9 @@ record that results from it.
 _Avoid_: buffer, deposit, collateral, margin
 
 **Debit**:
-Moving satoshis out of a balance permanently, because compute was consumed or a non-refundable
-provider fee was incurred. Distinct from a **commitment**, which is released if unused.
+Moving satoshis out of a balance permanently, for consumed compute, prepaid machine time or a
+non-refundable provider fee. Entry kinds belong to `LDG-7`, order settlement to `LDG-39`.
+Distinct from a **commitment**, whose unused release belongs to `LDG-32`.
 _Avoid_: charge, capture, settle
 
 **Meter**:
@@ -288,10 +291,10 @@ absence is what made the first version of the ledger unimplementable.
 _Avoid_: usage tracker, billing loop
 
 **Increment**:
-One span of a subject's billable time that the **meter** prices and posts as one debit, closing
-at its increment end. Where an increment starts and ends is `LDG-38`'s. Every entry into
-billable starts one and every exit ends one, so no billable time falls outside an increment,
-except a quarantined exit (`LDG-72`).
+One span of a subject's billable time that the **meter** prices in a posting transaction,
+closing at its increment end. Boundaries and treatment of prepaid machine time belong to `LDG-38`;
+the quarantined-exit exception belongs to `LDG-72`. Prepaid time is accounted for by its own
+entry kind (`LDG-7`, `LDG-39`).
 _Avoid_: tick, interval (the cadence is the interval), chunk
 
 **Runway**:
@@ -310,7 +313,7 @@ _Avoid_: tag, label, marker, reference
 
 **Setup fee**:
 A provider's one-time charge for a dedicated machine. Non-refundable, passed to the customer at
-cost, and the one component entirely lost if a customer vanishes immediately.
+cost. Its lifecycle belongs to `LDG-39`, and its reserve treatment to `PRV-13b`.
 _Avoid_: onboarding fee, installation fee, deposit
 
 **Billing unit**:

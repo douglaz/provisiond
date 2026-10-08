@@ -2161,14 +2161,14 @@ theorem unmarked_short_life_covered_before_release :
 /-! ### The prepaid first billing unit (`ADR-0033`, 2026-10-08)
 
 `ADR-0033`: "the machine's first seed places its mark at the seed instant plus one unit", and the
-meter starts where the unit ends; `LDG-38` carries it: a machine's first seed "writes the mark at
-the seed instant plus the `billing_unit.seconds` the machine's own row carries" —
+meter starts where the unit ends; `LDG-38` carries eligibility: "A machine's first seed is eligible
+for an offset only if its first unit was actually debited to the customer". The copied duration is
 `machines.billing_unit_seconds`, `World.unitSeconds` here. The unit
-here is sixty seconds, DigitalOcean's declared one; its floor prices the unit (`PRV-13b`) and moves
-no instant. -/
+here is sixty seconds. The actual debit is an assumed input to Funding, whose transitions omit
+settlement; these witnesses check eligibility and metering, not the establishment of that fact. -/
 
-/-- `seedWorld`'s unmarked machine, on an offer whose `billing_unit.seconds` is 60. -/
-def unitWorld : Funding.World := { seedWorld with unitSeconds := 60 }
+/-- `seedWorld`'s unmarked machine with a copied 60-second unit and an assumed actual debit of 12. -/
+def unitWorld : Funding.World := { seedWorld with unitSeconds := 60, firstUnitDebitSats := 12 }
 
 /-- The machine is recorded billable at 30, so its unit runs to 90, and the meter ticks at 60,
 inside it, at 1/5 sat a second. -/
@@ -2176,7 +2176,8 @@ def unitTrace : List Funding.Event := [.billable 30, .post 30 60 (1/5)]
 
 /-- `Funding.current` with every other meter guard pinned, as `exitGuards` pins them, so that
 `prepaidFirstUnit` alone decides the pair below. -/
-def unitGuards (p : Funding.Params) : Funding.Params := { exitGuards p with exitPosts := true }
+def unitGuards (p : Funding.Params) : Funding.Params :=
+  { exitGuards p with exitPosts := true, offsetRequiresDebit := true }
 
 /-- The guard pinned on as well, for the lifecycle witnesses: they are not a second target for the
 control that flips it. -/
@@ -2209,6 +2210,60 @@ theorem unit_seconds_charged_without_the_offset :
     (Funding.run p unitWorld (unitTrace.take 1)).mark = some 30 ∧ w.prepaid = none ∧
     w.charged = [(30, 60)] ∧ x.charged = [(30, 60), (60, 80)] ∧
     x.entries.map (·.sats) = [-6, -4] := by
+  with_unfolding_all decide
+
+/-- Pin every other guard, including the offset and runway start: only customer-debit eligibility
+can change the late-attach witness. Acceptance settlement is outside Funding's transitions. -/
+def debitGuards (p : Funding.Params) : Funding.Params :=
+  { unitOn with offsetRequiresDebit := p.offsetRequiresDebit }
+
+/-- Released create, then first attachment at 30; copied duration remains 60, actual debit is zero.
+Release alone does not erase a paid debit: this trace starts with no such debit. -/
+def unpaidLateSeed (p : Funding.Params) : Funding.World :=
+  Funding.seed (debitGuards p)
+    (Funding.release { unitWorld with firstUnitDebitSats := 0 }) 30
+
+/-- The seed's output mark feeds both derivation and abort. Zero usable sats at a valid rate
+cannot buy an unpaid unit; the re-derived date at 60 is now, so no funding abort. -/
+@[req "LDG-38", req "LDG-33", req "OPS-41"]
+theorem unpaid_late_attach_cannot_abort :
+    let seeded := unpaidLateSeed Funding.current
+    let rp : Runway.Params := { startAtMark := true }
+    seeded.mark = some 30 ∧ seeded.prepaid = none ∧
+    Runway.runwayUntil rp 60 seeded.mark seeded.remaining.toNat 0 1 = 60 ∧
+    Runway.abortDate rp 60 seeded.mark seeded.remaining.toNat 0 1 = false := by
+  with_unfolding_all decide
+
+/-- Remove only eligibility: the identical released, unpaid trace now admits a funding abort. -/
+@[req "LDG-38", req "LDG-33", req "OPS-41"]
+theorem unpaid_late_attach_aborts_without_debit_guard :
+    let seeded := unpaidLateSeed { Funding.current with offsetRequiresDebit := false }
+    let rp : Runway.Params := { startAtMark := true }
+    seeded.mark = some 90 ∧ seeded.prepaid = some (30, 90) ∧
+    Runway.runwayUntil rp 60 seeded.mark seeded.remaining.toNat 0 1 = 90 ∧
+    Runway.abortDate rp 60 seeded.mark seeded.remaining.toNat 0 1 = true := by
+  with_unfolding_all decide
+
+/-- Successful paid execution of the same seed-to-abort composition: a real debit protects the
+unit even with zero remaining authority. Guard pinned on to isolate the negative control above. -/
+@[req "LDG-38", req "LDG-33", req "OPS-41"]
+theorem paid_late_seed_protects_unit :
+    let seeded := Funding.seed unitOn (Funding.release unitWorld) 30
+    let rp : Runway.Params := { startAtMark := true }
+    seeded.mark = some 90 ∧
+    Runway.runwayUntil rp 60 seeded.mark seeded.remaining.toNat 0 1 = 90 ∧
+    Runway.abortDate rp 60 seeded.mark seeded.remaining.toNat 0 1 = true := by
+  with_unfolding_all decide
+
+/-- A zero first_unit at positive declared seconds supplies no debit; the ordinary seed meters
+from 30 if a later rate is positive. A paid money floor with zero duration still adds no time. -/
+@[req "LDG-38"]
+theorem zero_first_unit_has_no_offset :
+    let zeroPrice := { unitWorld with firstUnitDebitSats := 0 }
+    let seeded := Funding.seed unitOn zeroPrice 30
+    seeded.mark = some 30 ∧ seeded.prepaid = none ∧
+    (Funding.post unitOn seeded 30 60 (1/5)).charged = [(30, 60)] ∧
+    (Funding.seed unitOn { unitWorld with unitSeconds := 0 } 30).mark = some 30 := by
   with_unfolding_all decide
 
 /-- A whole lifecycle under the rule: the first seed at 30, a tick at 60 inside the unit, a tick at
@@ -2314,7 +2369,7 @@ not elapsed — `ADR-0033`'s "every machine routes up to one unit early". At 120
 prepaid hour runs, and not routed on the rule's, whose date is 3610 — the rule pinned on here, so
 that the control flipping `Runway.current` refutes `runway_counts_from_the_unit_end` alone. -/
 @[req "LDG-33", req "LDG-16"]
-theorem runway_early_without_the_start :
+theorem runway_early_without_the_start_witness :
     let flipped := { Runway.current with startAtMark := false }
     let withRule := { Runway.current with startAtMark := true }
     insideTheUnitDate flipped = 110 ∧

@@ -264,7 +264,8 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**. Nullable, for a machine that bore none when adopt returns (`ADR-0020`). *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
-| `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
+| `first_unit_debit_id` | UUID | nullable reference to the retained `ledger_entries` row for this machine's `first_unit_debit`; settlement writer and eligibility fact owned by `LDG-39`, seed reader by `LDG-38`. *Added 2026-10-08, `ADR-0033`* |
+| `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`), by `OPS-41`'s no-mutation abort, and by a stalled-episode keep (`API-68`)** — `API-68`: "write the `LDG-33` re-derived `runway_until` using the transaction's rate and clock" (*list repaired 2026-10-08, `ADR-0033`*) — extension and abort added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
 | *`destroy_not_before`* | — | **Withdrawn 2026-09-25 (`ADR-0028`).** *It was `ADR-0026`'s destruction deadline, a wall-clock instant the exhaustion sweep's predicate and the cancelling worker's provider call read (`LDG-16`); it delayed a destruction, where `destroy_committed` below, `OPS-42`'s fence, orders two writers against each other. Written only by `STO-54`'s restore, as the restore instant plus one re-derivation interval; cleared by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort; discharged by no observation, because a restore moved the date backward by something other than consumption. The restore grace's unpaused end is one instant on the restore record, `STO-56`'s `grace_ends_at`, used at each claim under `OPS-41`, and no machine carries a deadline. With `rate_confirmation_ref`, withdrawn 2026-09-23 (`ADR-0027`), it replaced `exhausted_since` (2026-09-05 to 2026-09-21), which carried the confirmation wait and the restore grace on one clock and whose horizon half could never fire — `ADR-0026`. A conformance item, `CNF-99`, tested the behaviour for three weeks with no mechanism behind it, and then passed over the dead branch for sixteen days more* |
 | `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
 | `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
@@ -364,7 +365,7 @@ filters out deleted rows.
 | `provider_account` | text | nullable |
 | `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (`ADR-0014`): a create has one attempt and one correlator. Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create. *`F36` and `ADR-0014` record what the withdrawn per-attempt list cost* |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted — the create's record of the unit's duration, from which `machines.billing_unit_seconds` takes the copy the machine's first seed reads, at create or at attach (`LDG-67`, `LDG-39`, `LDG-38`; *re-pointed 2026-10-08, `ADR-0033`*). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted — the create's record of the unit's duration, from which `machines.billing_unit_seconds` takes the copy the machine's first seed reads, at create or at attach (`LDG-67`, `LDG-39`, `LDG-38`; `ADR-0033`, 2026-10-08). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
@@ -707,7 +708,7 @@ accepted row needed for this clamp as well as the floors above.
 | `subject_kind`, `subject_id` | enum, UUID | `machine` \| `attachment` — `LDG-8`'s subject, the same one `ledger_entries` carries. A machine and each of its billable attachments are separately metered (`STO-38`) and so are separately totalled |
 | `billing_period` | text | `LDG-68`'s calendar month in UTC |
 | `rounding_credit_num`, `rounding_credit_den` | integer, integer | `LDG-38`'s `r`: how far the last posting's `ceil` ran **ahead** of the exact charge, as an exact rational (`LDG-4`, `LDG-1`). **The invariant `0 ≤ r < 1` is the whole of this table's integrity story** — `LDG-72` checks it by inspection, and an in-range value that is nonetheless wrong costs the subject at most one satoshi for the life of the period. *Five columns stood here until 2026-09-02: `charged_magnitude`, `exact_charge_num`/`den` and three cumulative seconds figures. They are withdrawn together and the trap behind them is worth keeping — see `STO-45`* |
-| `high_water_increment_end` | timestamp | See `LDG-72` |
+| `high_water_increment_end` | timestamp | See `LDG-72`, including seed row placement: "even when the mark lies in a later month" (`ADR-0033`, 2026-10-08) |
 | `version` | integer | for the conditional write, in the manner of `LDG-34` |
 | `updated_at` | timestamp | |
 
@@ -1012,25 +1013,23 @@ outage — the newest goes stale, and a later pass accepts one observation into 
 the replay returns the first instant, which those per-writer formulas did not. A late opening
 changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
 written. **The subject row starts at `max(currency outage start, the subject's latest mark)`**
-(`LDG-72`; amended 2026-10-08 from the billable-span seed, `ADR-0033`; the gloss corrected the same
-day). The latest mark is what `LDG-38` defines, "the greatest `increment end` already closed for
-it", wherever an increment has closed since the span's seed — an attachment seeded at 30 whose
-increment 30–60 closed has its latest mark at 60, and a row started at 30 would count that
-increment's time twice; where nothing has closed since the seed it is the mark standing from the
-span's or an earlier seed: the seed instant for an attachment and for a machine's later seed, and
-the prepaid unit's end for a machine's first seed and for a re-entry inside the unit, a seed
-`LDG-38` discards and that writes no mark of its own, leaving the first seed's standing. The
-unit's provider cost is already in the prepaid entry and `LDG-75` says "Provider cost MUST count
-once whoever bore it: an exposure estimate and the charge realizing it MUST NOT both enter
-accrual"; nothing opens a row inside the unit in any case, a posting inside it being one `LDG-38`
-discards. The maximum is the later of that mark and the outage start either way.
+(`LDG-72`; amended 2026-10-08, `ADR-0033`). For the seed value, `LDG-38` owns the rule:
+"an unpaid first seed MUST write it at the seed instant" and "No mark is ever written ahead of
+now except an eligible first seed's mark at the paid unit's end". For example, with a currency
+outage starting at 10, an unpaid machine attached and seeded at 30 has mark 30: a tick at 60
+opens a row from 30, absorbing eligible post-attach time. A paid 60-second unit seeded at 30
+instead has mark 90: the tick at 60 is discarded and a tick at 120 opens a row from 90. An
+attachment seeded at 30 whose increment 30–60 closed has mark 60 and opens from 60. These
+examples apply the maximum above; no row absorbs pre-attach time. Provider cost attribution
+remains `LDG-75`'s: "Provider cost MUST count once whoever bore it: an exposure estimate and the
+charge realizing it MUST NOT both enter accrual".
 Rows of one outage MUST carry the same `absorbed_from` wherever that maximum is the same,
 regardless of posting order or current settings. For row closure at exit to nonbillable, see
 `LDG-38` and `LDG-72`. Settings changes move neither an existing row's start nor a later row's
 replayed start for the same clipped span.
 Re-entry during the same currency outage can open a new row, whose `absorbed_from` is clipped to
 no earlier than the subject's latest mark — the re-entry seed where that seed wrote it, the
-prepaid unit's end where the re-entry fell inside the unit (*amended 2026-10-08, `ADR-0033`*).
+paid unit's end where the re-entry fell inside the unit (*amended 2026-10-08, `ADR-0033`*).
 Neither row absorbs the nonbillable gap. The conditional-insert guard above
 applies to competing postings within each span. Re-entry changes the subject row start, not the replayed currency outage start.
 *Amended 2026-10-04 (`pv-gip.28`, `pv-gip.6`, Q13): replay uses `LDG-58`'s as-of

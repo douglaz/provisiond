@@ -597,6 +597,8 @@ jobs:
       # The runway derivation's start (pv-ucs.1, ADR-0033), Runway.current.startAtMark:
       #   LDG-33, 2026-10-08: the derivation counts from now inside the prepaid unit and the
       #   stored date is one unit early -- runway_counts_from_the_unit_end on insideTheUnitDate.
+      # Customer-debit eligibility (pv-ucs.1, ADR-0033): offsetRequiresDebit refuses the unpaid
+      # late-attach funding abort; removal refutes unpaid_late_attach_cannot_abort alone.
       # The billing period (pv-vwe.17), Period.current:
       #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
       #     the new period's first 2/5 posts 0 against what the old one left --
@@ -699,6 +701,7 @@ jobs:
           Funding|exitPosts|true|false|exitCases Funding.current
           Funding|closeBeforeRelease|true|false|releaseOrderTail Funding.current
           Funding|prepaidFirstUnit|true|false|unitTrace
+          Funding|offsetRequiresDebit|true|false|unpaidLateSeed Funding.current
           Runway|startAtMark|true|false|insideTheUnitDate
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow

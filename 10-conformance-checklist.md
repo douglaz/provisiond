@@ -20,10 +20,11 @@ question meant. `11-open-findings.md`'s `F50` holds the withdrawal; the panel's 
 argued tiers and are not kept. `tools/check_ids.py` now refuses a tag on an item. Nothing an item
 asserts was changed by the cut.
 
-**Seeds in the items below** (2026-10-08, `ADR-0033`): a machine's first seed writes its mark at
-the seed instant plus the `billing_unit.seconds` the machine's row copied from the create's
-snapshot (`LDG-38`). An item that
-seeds a machine at an instant and asserts its mark or its first increment there runs on an offer
+**Seeds in the items below** (2026-10-08, `ADR-0033`): eligibility and seed value belong to
+`LDG-38`: "A machine's first seed is eligible for an offset only if its first unit was actually
+debited to the customer". An item that
+seeds a machine at an instant and asserts its mark or its first increment there, without specifying
+a debit-eligibility case, runs on an offer
 whose `billing_unit.seconds` is zero — `PRV-44`'s exact-elapsed-time offer, a unit of no length,
 under which nothing is prepaid for time — or on a seed that is not the machine's first; the first
 seed under a unit of some seconds is `CNF-318`'s.
@@ -695,7 +696,12 @@ the fee's shape were amended the same day to stay true for both obligations.
       and neither survives); `available` does not move. A machine that lives ten seconds has paid
       the whole unit, and the meter has posted nothing for it. Accept an order on an offer whose
       `first_unit` is zero: no `first_unit_debit` and no entry of any kind is posted for the unit,
-      and no deficiency is ever recorded for it (2026-10-08, `ADR-0033`). (`LDG-39`, `LDG-67`,
+      and no deficiency is ever recorded for it (2026-10-08, `ADR-0033`). Assert the machine
+      reference identifies its own nonzero debit on paid settlement and remains null on the
+      zero case. Inject failure between debit, decrement, reference and same-transaction seed:
+      all or none persist; replay creates no duplicate. Repeat with settlement by resolution
+      and with a delayed first seed after purging the operation: eligibility still reads the
+      retained reference and entry, never the purged operation or the live offer. (`LDG-39`, `LDG-67`,
       `LDG-31`, `LDG-7`, `LDG-38`, `STO-45`)
 - [ ] **CNF-317** — **The unit follows every row of `LDG-39`'s table, as a record of its own.**
       Drive each row with a setup fee and a prepaid unit on the same create. Deterministic
@@ -717,9 +723,10 @@ the fee's shape were amended the same day to stay true for both obligations.
       exactly the commitment's remaining amount (`LDG-32`, `LDG-9`), and a deficiency moves it not
       at all. (`LDG-39`, `LDG-67`, `LDG-66`, `STO-37`, `LDG-75`, `OPS-27`, `OPS-31`, `OPS-33`,
       `OPS-36`, `LDG-31`, `LDG-32`, `LDG-9`)
-- [ ] **CNF-318** — **The first seed is offset by the unit, and nothing inside the unit is
-      metered.** On an offer with a 60-second unit at 1/5 sat/s, record a machine billable at 30:
-      its mark is 90, no entry was written and `r` is unchanged. A tick at 60 and an exit at 80
+- [ ] **CNF-318** — **A paid first seed is offset by the unit, and nothing inside the unit is
+      metered.** On an offer with a 60-second unit at 1/5 sat/s, actually debit the first unit
+      at settlement, then record the machine billable at 30: its mark is 90,
+      no entry was written by the seed and `r` is unchanged. A tick at 60 and an exit at 80
       each post nothing and move nothing — no entry, no decrement, no deficiency, `r` and the mark
       where they were — and the prepaid debit stands. Re-enter at 85, inside the unit: the mark
       stays 90. Tick at 120: the increment is priced over 90–120 under the key of the increment
@@ -731,23 +738,34 @@ the fee's shape were amended the same day to stay true for both obligations.
       `machines.billing_unit_seconds`, the copy written with `offer_id` at create or at attach,
       and never from the live offer; remove the settled create under `STO-14` before the seed and
       the mark is still 90; null the copy and the mark is the seed instant, never the live offer's
-      unit (2026-10-08, `ADR-0033`). The wrong builds: one that seeds at
+      unit (2026-10-08, `ADR-0033`). With positive seconds but zero `first_unit`, assert a null
+      `first_unit_debit_id`, mark 30 and no prepaid interval; also assert no offset where the
+      create commitment was released and only a provider charge or parked obligation exists.
+      With zero seconds and a paid money floor the mark is still 30. The wrong builds: one that seeds at
       the instant charges the customer the unit and the seconds; one that offsets every seed hands
       the customer a unit on each re-entry; one that offsets an attachment meters nothing it
       should; one that reads the live offer at the seed meters a unit nobody prepaid, or prepays
       one it never meters; one that reads the snapshot at the seed has nothing to read once
       `STO-14` has run. (`LDG-38`, `STO-45`, `LDG-72`, `PRV-44`, `LDG-67`, `WIR-30`, `STO-14`)
-- [ ] **CNF-319** — **`runway_until` counts from the later of now and the machine's mark, in
-      every writer.** A machine seeded at 0 on an hour's unit, with ten seconds of usable runway,
-      has `runway_until` 3610 after re-derivation at 100 (`PRV-13e`), after an extension at 100
-      (`LDG-62`) — the extension's seconds are added to 3600, not to 100 — and after `OPS-41`'s
-      no-mutation abort at 100; a machine whose mark is a closed increment end at 50 has 110 from
-      each; an attachment's mark is never read. Before the seed exists the derivation counts from
-      now. The wrong build routes the machine at 110 while its prepaid hour runs: assert the
-      sweep does not route it before 3610. (`LDG-33`, `LDG-72`, `PRV-13e`, `LDG-62`, `OPS-41`,
-      `LDG-16`)
+- [ ] **CNF-319** — **Every runway writer uses the mark** (amended 2026-10-08, `ADR-0033`).
+      Take the writer inventory from `05-persistence.md`'s `machines.runway_until` row; exercise
+      every listed writer under its own preconditions. On independent copies of a machine whose
+      first unit was actually debited and whose first seed at 0 wrote mark 3600, derive at 100
+      with ten seconds of usable runway: each writer stores 3610. For an ordinary past mark 50,
+      each stores 110; an attachment's mark is never read. Arrange the extension's resulting
+      commitment to have those ten usable seconds and a null destruction fence. For the abort,
+      queue a funding cancellation on an earlier stored date, then let the re-check read these
+      funded inputs; assert no provider mutation and the corrected stored date. For the keep,
+      use an operator request on a genuinely stalled episode with its own fence, a valid rate,
+      and no concurrent winner: it closes `kept`, clears the fence and writes the date atomically
+      with the receipt, leaving commitment and balance unchanged. A paid future mark may coexist
+      with a stall caused independently of funding. Before any seed, each admissible writer
+      derives 110 from now; create the stalled state independently for that keep case, without
+      inventing a funding gate. Assert the sweep does not route the paid future-mark fixture
+      before 3610. (`LDG-33`, `LDG-72`, `API-68`, `LDG-16`)
 - [ ] **CNF-320** — **An outage row starts no earlier than the subject's latest mark.** Begin a
-      currency outage at 10 for a machine seeded at 30 on a 60-second unit, and tick at 60 and at
+      currency outage at 10 for a machine whose 60-second first unit was actually debited,
+      seeded at 30, and tick at 60 and at
       120 with no rate: the tick at 60 opens nothing; the tick at 120 opens the subject's
       `rate_outage` row with `absorbed_from` 90, never 30 or 10; an attachment seeded at 30 in
       the same outage opens one from 30. Return the rate at 200: the close is
@@ -755,7 +773,12 @@ the fee's shape were amended the same day to stay true for both obligations.
       Separately, exit at 80 and re-enter at 85, inside the unit and still without a rate, then
       tick at 120: the row the re-entry can open has `absorbed_from` 90, never 85 — the re-entry
       wrote no mark, and the subject's latest is the unit's end. No deficiency carries the unit's
-      time. (`STO-37`, `LDG-38`, `LDG-72`, `LDG-64`, `LDG-75`)
+      time in these paid cases. Repeat with the create commitment released and no customer
+      unit debit: attach at 30 with declared duration 60, assert mark 30; the tick at 60 opens
+      a row from 30 and the return at 200 absorbs 30–200, with no pre-attach time. Repeat with
+      positive seconds and zero `first_unit`: the same unoffset mark and clipped start. Where
+      a provider charge became a first-unit deficiency, assert cost enters accrual only once
+      under the existing attribution rule. (`STO-37`, `LDG-38`, `LDG-72`, `LDG-64`, `LDG-75`)
 - [ ] **CNF-321** — **The rounding past the first unit is an accepted gap, not an alarm.** On an
       hourly provider, run a machine for 61 minutes and delete it; record the invoice showing two
       hours. Local charges hold one `first_unit_debit` and sixty seconds of `usage_debit`; the
@@ -1556,32 +1579,25 @@ rather than acquiring a default.
       null-rate/zero-seconds shape. Attach, deficiency records, fee settlement/parked-fee clearing
       and cleanup enqueue are atomic: inject failure between effects and observe all or none.
       Before the bound the cleanup short-defers with no fence or provider call; extension is
-      refused by the rate gate. The meter charges nothing, and it opens the subject's outage row
-      only where the outage outlasts the attach seed's mark, from that mark: `STO-37` opens one
-      for "every no-rate span intersecting a subject's clipped increment", starting at
-      `max(currency outage start, the subject's latest mark)`, and says "nothing opens a row
-      inside the unit in any case, a posting inside it being one `LDG-38` discards" — so the
-      inside-the-unit run below opens none, and no row absorbs pre-attach time.
+      refused by the rate gate. With declared duration 60, attach at 30 without any customer
+      first-unit debit: assert `first_unit_debit_id` null and mark 30. The meter charges nothing;
+      a no-rate tick at 60 opens an outage row from 30, absorbing eligible post-attach time and
+      no pre-attach time. `STO-37` owns the start: "The subject row starts at
+      `max(currency outage start, the subject's latest mark)`".
 
-      Return the rate. In one ordering, extend before the cleanup fence: a commitment opens,
-      `runway_until` is re-derived (*amended 2026-10-04, `pv-gip.39`: no deficiency-resolution
-      bookkeeping*) and the
-      cleanup aborts without provider mutation; the machine survives. In the other ordering, make
-      no extension, and run it twice (2026-10-08, `ADR-0033`): with the rate returning **after the
-      unit's end** — the attach seed's mark, at the attach instant plus `billing_unit.seconds`
-      (`LDG-38`) — the re-derived date is not in the future, failing `OPS-41`'s test, "puts
-      **`runway_until` strictly in the future**", and the cleanup cancels through the existing
-      fence; with the rate returning **inside the unit**, the re-derived date is the unit's end, so
-      `OPS-41`'s step 3 — "If funded, it performs the no-mutation abort" — aborts the cleanup and
-      writes that date, `OPS-41`'s "write that re-derived `runway_until` to the machine row". That
-      cleanup never cancels: `OPS-41` says "settle the operation `succeeded` with a result
-      recording that no mutation was required". When the written date passes, `LDG-16`'s sweep
-      routes the machine — "MUST route a machine where its stored `runway_until` has passed and
-      its currency has a rate (`LDG-59`) and it is not recorded gone" — and the fresh system
-      cancellation that route enqueues, `OPS-39`'s "`requested_by: system` with a stated reason",
-      the reason `exhausted` from `OPS-39`'s list, is what cancels. The opening
-      rates on the native-only wind-down, setup-fee and first-unit records remain null in every
-      case. No general interval after the return delays cancellation beyond the unit's end.
+      Return the rate at 60. In one ordering, extend before the cleanup fence: a commitment
+      opens, `runway_until` is re-derived (*amended 2026-10-04, `pv-gip.39`: no deficiency-resolution
+      bookkeeping*) and the cleanup aborts without provider mutation; the machine survives.
+      In the other ordering, make no extension: with zero usable sats and a valid rate,
+      `max(60, 30) + 0 = 60`, which is not strictly in the future. Cleanup proceeds through
+      the existing fence, absent an existing independent deferral; there is no automatic survival
+      to 90. Repeat with a rate present at attach and re-check at 60: the same mark and result.
+      Pair this with a machine whose first-unit customer debit actually landed before its seed
+      at 30: mark 90, and at 60 the re-derived date 90 permits the funding abort. This paid
+      fixture is a separate settlement path, not a debit manufactured after release. Keep
+      `CNF-318`'s duration/null cases. The opening rates on the native-only wind-down, setup-fee
+      and first-unit records remain null after the outage case's return. *Amended 2026-10-08,
+      `ADR-0033`: the unpaid inside-unit abort expectation is withdrawn.*
       Separately keep the outage through its bound and
       exercise cancellation, including an attach after the bound. Repeat under current suspension
       and under an open restore to check the existing worker precedence.
@@ -3118,3 +3134,27 @@ Beyond the checklist, a deployment must state every parameter on `OVR-19`'s regi
 items (the `needs_reconciliation` rota, the recovery-key inventory) included — and startup must
 refuse to run on a missing or out-of-range startup-validated row. *This section carried its own list
 of thirteen until 2026-09-08; it was a second copy of the register, and it had drifted.*
+
+- [ ] **CNF-330** — **A seed's month owns its row, even with a later mark** (added 2026-10-08,
+      `ADR-0033`). With a first unit actually debited and copied duration 3600, seed at
+      2026-01-31 23:30Z: only the `2026-01` row is written, its mark 2026-02-01 00:30Z.
+      January is created with `r = 0`. No February row is created by the seed or by midnight.
+      Retention keeps January while it supplies the latest mark. Tick at 23:50 and 00:10, exit at 00:20,
+      and re-enter at 00:25: each is discarded, all rows and credit unchanged; also test an
+      exit/re-entry exactly at 00:30. The global latest-mark read still returns January's 00:30,
+      and the mark never moves backwards. A tick at 01:00 prices only 00:30–01:00 in February,
+      initializing February's `r = 0` if absent, without importing January's credit. At 1/5
+      sat/s this posts 360 sats and leaves February credit zero, January unchanged. Separately,
+      exercise an ordinary later re-entry into a month whose row already has credit 1/3 from
+      earlier increments: the seed preserves that credit and a later integer-charge increment
+      uses and preserves it, never importing another month's credit. The seed writes no entry,
+      no deficiency and no seconds; the prepaid debit's attribution is unchanged, its covered time and the metered seconds neither overlap nor
+      leave a billable second uncovered. For the exit/re-entry variant, nonbillable time is
+      excluded from metering without refunding the unit, and the paid interval still ends at
+      00:30. A seed at Feb 1 00:00 instead writes February with mark 01:00. A Jan 31 23:00 seed whose paid mark lands exactly
+      at Feb 1 00:00 still writes January; a tick at 00:05 uses February credit for only
+      00:00–00:05. Delay the first real tick beyond another month boundary and assert the
+      existing split and per-piece credit allocation. Do not reject a mark merely because
+      it lies outside its row's month; the one-sided high-water check still passes. Neither
+      the one-row Funding model nor the mark-free Period model proves this storage placement;
+      these are running-implementation obligations. (`LDG-72`, `LDG-38`, `LDG-68`, `STO-45`)

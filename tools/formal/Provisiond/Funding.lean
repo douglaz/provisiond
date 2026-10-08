@@ -72,7 +72,11 @@ provider's first billing unit of a machine is prepaid machine time, `LDG-39`'s l
 "the machine's first seed places its mark at the seed instant plus one unit" and the meter starts
 where the unit ends. The unit is `World.unitSeconds`, `PRV-44`'s `billing_unit.seconds` for the
 subject's offer as the machine's row copied it (`LDG-38`), and `firstUnit` is the seed it applies
-to: the subject is a machine, it has no mark yet, and the unit has seconds. `World.prepaid`
+to: the subject is a machine, it has no mark yet, the unit has seconds and a customer debit
+exists. `Params.offsetRequiresDebit` isolates this eligibility guard (`ADR-0033`, 2026-10-08).
+`World.firstUnitDebitSats` is the actual debit magnitude supplied from the durable reference,
+not a provider charge or an obligation; zero includes a released create and a zero-priced unit.
+`World.prepaid`
 records the interval that seed bought, as `charged` records what each posting priced; it is not a
 column. A later seed, an attachment's seed and a unit of no seconds are the plain rule, and the
 floor on the unit's price (`native_floor`) moves no instant. `World.mark` stays an `Option`
@@ -107,8 +111,11 @@ leaves the meter's state untouched" on the composed model.
 Omitted, and where: `LDG-35`'s serialization and the two-tenant lock order of an attribution
 (`Provisiond.Ledger` carries the stale read); `LDG-7`'s two fee kinds and the prepaid first unit's
 `first_unit_debit`, which pair like the usage debit — `Kind` lists them, nothing here constructs
-them: the unit's debit is `LDG-39`'s acceptance write, outside this model, and `World.prepaid`
-records only the interval it bought; `LDG-47`'s received-versus-requested
+them: the unit's debit is `LDG-39`'s settlement write, outside this model.
+`World.firstUnitDebitSats` is an assumed input, not a conclusion about settlement. The guarded
+seed proves how that input controls eligibility; it does not prove that a debit established it
+or that the durable reference survives retention. `World.prepaid` records only the eligible
+interval; `LDG-47`'s received-versus-requested
 amount — `sats` here is the settled value; `LDG-48`'s confirmation depth, folded into the
 settlement event; `LDG-52`'s rail floor; `LDG-56`'s disclosure; `WIR-42`'s `operator_ref` and its
 `409` on a second tenant, which the model refuses silently; `LDG-66`'s "provider-native amount
@@ -269,7 +276,9 @@ observation takes itself to have begun. `seedOnBillable`: `LDG-38`, 2026-10-02, 
 `closeBeforeRelease`: `LDG-38`, "before any `LDG-32` close"; `false` releases authority before
 posting the tail in `exitAndRelease`. `prepaidFirstUnit`: `ADR-0033`, 2026-10-08, "the machine's
 first seed places its mark at the seed instant plus one unit"; `false` writes a machine's first seed
-at its instant like any other, the rule as it stood before that day. -/
+at its instant like any other, the rule as it stood before that day.
+`offsetRequiresDebit`: `LDG-38`, 2026-10-08, only an actual customer debit earns the offset;
+`false` admits the unpaid late-attach defect. -/
 structure Params where
   keyFrom             : KeySource
   correctionPrefix    : Bool
@@ -282,6 +291,7 @@ structure Params where
   exitPosts           : Bool
   closeBeforeRelease  : Bool
   prepaidFirstUnit    : Bool
+  offsetRequiresDebit : Bool
   deriving DecidableEq, Repr
 
 /-- The rules as they stand. One field per line: `ci.yml`'s controls flip one each. -/
@@ -297,7 +307,8 @@ def current : Params := {
     seedOnBillable      := true,
     exitPosts           := true,
     closeBeforeRelease  := true,
-    prepaidFirstUnit    := true }
+    prepaidFirstUnit    := true,
+    offsetRequiresDebit := true }
 
 structure World where
   now           : Nat
@@ -334,6 +345,10 @@ structure World where
   no length, and the row's null: nothing is prepaid for time and a machine's first seed writes its
   mark at the seed instant. -/
   unitSeconds    : Nat := 0
+  /-- Magnitude of the actual customer debit referenced by machines.first_unit_debit_id
+  (`LDG-39`); zero means absent. Supplied initial fact: this model has no acceptance/settlement
+  transition establishing it, so a proof using it does not prove settlement or persistence. -/
+  firstUnitDebitSats : Nat := 0
   /-- Not a column: the interval the prepaid first unit bought — the machine's first seed instant
   to that instant plus the unit — written by that seed and by nothing else (`ADR-0033`). -/
   prepaid        : Option (Nat × Nat) := none
@@ -455,19 +470,22 @@ def charge (p : Params) (w : World) (observedFrom incrementEnd : Nat) (rate : Ra
   Period.Increment.exact ⟨start p w observedFrom, incrementEnd, rate⟩
 
 /-- `ADR-0033`'s prepaid first unit, as the interval a seed at `at_` buys: the subject is a
-machine with no mark yet — its first seed — under the guard, on an offer whose unit has seconds.
+machine with no mark yet — its first seed — under the offset guard, with positive copied seconds
+and, under the eligibility guard, a nonzero actual customer debit.
 `none` for every other seed: a re-entry, an attachment's seed (the ADR prepays "the provider's
 first billing unit of every machine" and nothing else), a unit of no seconds, or the guard off. -/
 @[req "LDG-38"]
 def firstUnit (p : Params) (w : World) (at_ : Nat) : Option (Nat × Nat) :=
   match w.subject, w.mark with
   | .machine _, none =>
-    if p.prepaidFirstUnit && w.unitSeconds != 0 then some (at_, at_ + w.unitSeconds) else none
+    if p.prepaidFirstUnit && w.unitSeconds != 0 &&
+       (!p.offsetRequiresDebit || w.firstUnitDebitSats != 0)
+    then some (at_, at_ + w.unitSeconds) else none
   | _, _ => none
 
 /-- `LDG-38`'s seed: `at_` is the seed instant, a given here (the module's omissions). It writes
 "an empty increment through `STO-45`'s no-entry path" — no entry, no seconds, `r` where it was —
-and a mark already at or past it stays. A machine's first seed under `ADR-0033` writes the mark at
+and a mark already at or past it stays. An eligible machine's first seed under `ADR-0033` writes the mark at
 the unit's end instead, `firstUnit`, and records the unit; "the meter starts where the unit ends".
 -/
 @[req "LDG-38"]
@@ -489,7 +507,7 @@ theorem firstUnit_some (p : Params) (w : World) (at_ : Nat) (u : Nat × Nat)
   split at h
   · rename_i hc
     simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at hc
-    exact ⟨rfl, (Option.some.inj h).symm, hc.2, hc.1⟩
+    exact ⟨rfl, (Option.some.inj h).symm, hc.1.2, hc.1.1⟩
   · cases h
 
 /-- A seed on a marked subject is never a first seed. -/
@@ -502,18 +520,36 @@ theorem firstUnit_none_of_attachment (p : Params) (w : World) (at_ : Nat) (a : A
     (hs : w.subject = .attachment a) : firstUnit p w at_ = none := by
   unfold firstUnit; cases w.mark <;> simp [hs]
 
-/-- `ADR-0033`: a machine's first seed, under the guard and a unit of some seconds, writes the mark
+/-- `ADR-0033`: a machine's first seed, with an assumed actual customer debit, under the offset
+guard and a unit of some seconds, writes the mark
 at "the seed instant plus one unit" and records the unit's interval; `r`, the entries and the
 deficiencies are where they were. -/
 @[req "LDG-38"]
 theorem seed_prepays_the_first_unit (p : Params) (hs : p.seedOnBillable = true)
     (hu : p.prepaidFirstUnit = true) (w : World) (m : MachineId) (hm : w.subject = .machine m)
-    (hn : w.mark = none) (hz : w.unitSeconds ≠ 0) (at_ : Nat) :
+    (hn : w.mark = none) (hz : w.unitSeconds ≠ 0) (paid : w.firstUnitDebitSats ≠ 0) (at_ : Nat) :
     seed p w at_ = { w with mark := some (at_ + w.unitSeconds),
                             prepaid := some (at_, at_ + w.unitSeconds) } := by
   have hf : firstUnit p w at_ = some (at_, at_ + w.unitSeconds) := by
-    unfold firstUnit; simp [hm, hn, hu, hz]
+    unfold firstUnit; simp [hm, hn, hu, hz, paid]
   simp [seed, hs, hf]
+
+/-- Eligibility under the guard is a debit fact, never inferred from positive duration. -/
+@[req "LDG-38"]
+theorem firstUnit_requires_customer_debit (p : Params) (hguard : p.offsetRequiresDebit = true)
+    (w : World) (at_ : Nat) (u : Nat × Nat) (h : firstUnit p w at_ = some u) :
+    w.firstUnitDebitSats ≠ 0 := by
+  intro unpaid
+  unfold firstUnit at h
+  cases hs : w.subject <;> cases hm : w.mark <;> simp_all
+
+/-- A released or zero-priced unit has no customer debit: even positive seconds cannot offset it. -/
+@[req "LDG-38"]
+theorem seed_unpaid_unoffset (p : Params) (hs : p.seedOnBillable = true)
+    (hg : p.offsetRequiresDebit = true) (w : World) (hn : w.mark = none)
+    (unpaid : w.firstUnitDebitSats = 0) (at_ : Nat) :
+    seed p w at_ = { w with mark := some at_ } := by
+  cases hsub : w.subject <;> simp [seed, firstUnit, hs, hg, hn, unpaid, hsub]
 
 /-- A later seed is unchanged by the guard: with a mark, the seed writes the greater of the mark and
 its instant and records no unit — `LDG-38`'s "any later re-entry into a billable state" is not
@@ -1721,7 +1757,8 @@ theorem lifecycle_initial_invariant (p : Params) (hs : p.startsAtMark = true)
 
 /-- A world seeded before the trace, and recording no unit, records none through it: with a mark
 in place no seed in the trace is a first seed, so the world ends with the unit it began with.
-`initial.prepaid = none` is a modelling assumption and no consequence of the mark:
+`initial.prepaid = none` is an added hypothesis that narrows the earlier domain, not a
+consequence of the mark. The 2026-10-08 formal-scope note in `ADR-0033` owns the limitation:
 `seed_prepays_the_first_unit` leaves a marked world with `prepaid = some u`, which this theorem
 and the three below do not reach; what they describe is a world rebuilt from the store, where
 `World.prepaid` is "Not a column" and starts empty. -/
@@ -1741,9 +1778,11 @@ theorem marked_trace_records_no_unit (p : Params) (hs : p.startsAtMark = true)
     | some u => have := (hunit u h).1; rw [hm] at this; cases this
   exact ⟨hp, unitEnd_of_none w hp⟩
 
-/-- The marked-initial-state invariant, preserved as a specialization: on a world that begins
+/-- The marked-initial-state invariant, narrowed as recorded in the 2026-10-08 formal-scope note
+in `ADR-0033`: on a world that begins
 marked and recording no unit (`marked_trace_records_no_unit`'s assumption) there is no unit, and
 the mark is at the cursor. -/
+@[req "LDG-38"]
 theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
@@ -1769,7 +1808,8 @@ theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
 coverage is an equivalence (so nonbillable gaps are excluded), and pairwise disjointness rules out
 multiple occurrences. Hypotheses are the specified guards, a valid non-quarantined trace and a
 clean initial interval history with a consistent mark/key relation, on a world already marked and
-recording no unit — `marked_trace_records_no_unit`'s assumption, a world rebuilt from the store;
+recording no unit — `marked_trace_records_no_unit`'s assumption and the narrowing recorded in
+`ADR-0033`'s 2026-10-08 formal-scope note;
 the marked world `seed_prepays_the_first_unit` leaves, its unit still ahead, is not such a world,
 and `unmarked_lifecycle_coverage` is the statement that holds the first seed. Rounding and clamp
 may still post zero satoshis. -/
@@ -1792,7 +1832,8 @@ theorem lifecycle_coverage (p : Params) (hs : p.startsAtMark = true)
 
 /-- Any admitted release follows an exit that already closed the meter at its stop boundary.
 This holds for arbitrary valid traces, including ticks and repeated exit/re-entry without release,
-on a world already marked and recording no unit (`marked_trace_records_no_unit`'s assumption;
+on a world already marked and recording no unit (`marked_trace_records_no_unit`'s assumption,
+a narrowing recorded in `ADR-0033`'s 2026-10-08 formal-scope note;
 `unmarked_release_follows_close` holds the first seed); `release` cannot itself advance the mark
 or append a priced interval. -/
 @[req "LDG-32", req "LDG-38"]
@@ -1811,7 +1852,7 @@ theorem release_follows_close (p : Params) (hs : p.startsAtMark = true)
 
 /-- Coverage from an initially unmarked subject, including its first completed span, under
 `ADR-0033`. The trace executes the existing seed on first entry — for a machine on an offer with a
-unit, the seed that prepays it — and admits arbitrary later ticks, exits, re-entries and releases.
+debited unit, the seed that records its interval — and admits arbitrary later ticks, exits, re-entries and releases.
 Empty initial history, no recorded unit and a consistent key relation are premises; coverage is
 derived: the meter prices exactly the span seconds outside the prepaid unit, so every second of
 every completed span is priced once — by a charged interval, or by the unit the customer paid for

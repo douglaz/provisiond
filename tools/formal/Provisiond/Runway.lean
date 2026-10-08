@@ -12,8 +12,10 @@ from the later of now and the prepaid unit's end, or every machine routes up to 
 `LDG-33` now reads `runway_until = max(now, mark) + floor(usable_sats / current_customer_rate)`.
 The unit's end is read as the machine subject's latest high-water mark — `LDG-72`: "The mark is the
 greatest `increment end` among that subject's rows" — which the first seed writes there
-(`Provisiond.Funding.seed`) and which every later posting leaves at or before now, so the two maxima
-agree on every input. `Params.startAtMark` carries the rule; `runwayStart` is the term;
+(`Provisiond.Funding.seed`, only with actual customer debit eligibility). `LDG-38`: "No mark is
+ever written ahead of now except an eligible first seed's mark at the paid unit's end", so the maxima
+agree for specified marks. Runway takes the mark as an input and does not establish its origin;
+the debit-eligibility witnesses compose it with Funding's seed. `Params.startAtMark` carries the rule; `runwayStart` is the term;
 `runway_not_before_the_unit_end` and `runway_early_without_the_start` are the pair. Before the seed
 there is no mark and the derivation counts from now, as it always did. `routed` and `abortDate` read
 the date this derivation yields, so that `LDG-16`'s sweep and `OPS-41`'s abort agree with the
@@ -84,10 +86,9 @@ def abortDate (p : Params) (now : Nat) (mark : Option Nat) (reserved prot rate :
 predicate and it aborts machines the sweep will route again on the next pass, forever. -/
 def abortSats (reserved prot _rate : Nat) : Bool := usableSats reserved prot > 0
 
-/-- The date predicate never aborts a machine the sweep routes on the date the abort itself
-derives, so an abort is always a fixed point: the date it writes is one the next pass will not
-route until it passes, inside the prepaid unit as anywhere else. This is the general form of what
-`tools/check_arithmetic.py` sampled over an 11×40×40 box. -/
+/-- The date predicate cannot abort when routing uses the same re-derived date at the same
+instant and with the same inputs. The premise is not routing on an earlier stored date; this
+theorem does not claim stability across changing time, rates or commitments. -/
 @[req "OPS-41"]
 theorem abortDate_never_on_routed (p : Params) (now : Nat) (mark : Option Nat)
     (reserved prot rate : Nat) (h : routed p now now mark reserved prot rate) :

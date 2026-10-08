@@ -234,7 +234,8 @@ customer rate and not cost.** The customer receives that hour." Like the fee it 
 once the order lands, so it MUST be **fully committed before the order is placed**, and like the fee
 it is debited at successful settlement after acceptance, as its own kind and for the satoshi amount authorized
 here (`LDG-39`, `LDG-67`). On a floor-priced offer the floor prices the unit and moves no instant:
-the meter starts at the seed plus `seconds` (`LDG-38`), so a machine that outlives `seconds` but not
+`LDG-38` places an eligible first seed at "the seed instant plus the `billing_unit.seconds` the
+machine's own row carries". A customer whose unit was debited and whose machine outlives `seconds` but not
 what the floor's money bought at the provider pays the floor and then its metered seconds; the
 difference is bounded by the floor and falls on the customer, never on the operator, so it is
 priced and not amplified.
