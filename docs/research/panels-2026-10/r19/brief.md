@@ -11,7 +11,7 @@ too, and verify every fact I state below before relying on it.
 
 ## How we got here
 
-A previous four-reader round (`/var/tmp/provisiond-panel-r19/r18-synthesis.md`, read it) asked who
+A previous four-reader round (`docs/research/panels-2026-10/r18/synthesis.md`, read it) asked who
 pays the rest of a provider's started billing unit when a machine leaves billable (Hetzner Cloud and
 Robot round partial hours up; DigitalOcean bills per second with a 60 s / $0.01 floor). All four
 said **A: the operator absorbs it; the customer keeps exact elapsed seconds**, and rejected charging

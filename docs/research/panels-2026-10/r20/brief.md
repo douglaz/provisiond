@@ -18,7 +18,7 @@ before relying on it.
   admitted operation is never refused locally.
 - Retrying a throttled operation on a timer stays rejected (`F48`).
 
-## The defect (found by the previous panel, `/var/tmp/provisiond-panel-r19/synthesis.md`, "T1")
+## The defect (found by the previous panel, `docs/research/panels-2026-10/r19/synthesis.md`, "T1")
 
 Hetzner Cloud: the worker sends `POST /servers`; the provider creates the server and returns its id
 and a create action. The worker polls the action; that read gets `429` (bucket empty: an attacker

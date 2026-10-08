@@ -23,7 +23,8 @@ My recommendation (B) was rejected by every reader, independently.
 ## Defects in my framing
 
 1. "Fifty minutes nobody is charged for" — loss is (1 − (1+m)·t) units; 10 min at 20% = 0.8 unit.
-2. "The provider's price IS one hour" — ignores the monthly cap (Hetzner) and 672 h cap (DO).
+2. "The provider's price IS one hour" — ignores the monthly cap (Hetzner) and the 672 h cap
+   (DigitalOcean, bundled-plan CPU Droplets only; v5 Droplets have none).
 3. "Target market" — ADR-0007's "bursty and unattended" sits inside a rejected alternative;
    ADR-0010 makes Robot the product, where PRV-40 caps orders at 20/day per endpoint (P:875).
 4. Research note: DO "minimum binds only under a minute" is false — the $0.01 floor binds up to an

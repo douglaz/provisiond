@@ -15,7 +15,7 @@ relying on it.
 - `ADR-0033`: a machine's first billing unit is prepaid machine time at the customer rate.
 - `ADR-0034`: refresh from cache; reverse-DNS ceilinged; provider request budget with a system reserve.
 - `ADR-0035`: a failure after the provider accepted a mutation is ambiguous.
-- Context: `/var/tmp/provisiond-panel-r19/synthesis.md` (threat model; this is its D1).
+- Context: `docs/research/panels-2026-10/r19/synthesis.md` (threat model; this is its D1).
 
 ## The threat
 

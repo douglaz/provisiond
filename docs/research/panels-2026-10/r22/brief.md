@@ -14,7 +14,7 @@ before relying on it.
 `ADR-0033` (first billing unit prepaid; the operator absorbs the final partial unit after it as an
 accepted residual), `ADR-0034` (provider request budget with a system reserve), `ADR-0035` (a failure
 after the provider accepted a mutation is ambiguous; drivers report `details.accepted`), `ADR-0036`
-(Robot order budget). Background: `/var/tmp/provisiond-panel-r18/synthesis.md` — the first panel
+(Robot order budget). Background: `docs/research/panels-2026-10/r18/synthesis.md` — the first panel
 found `STO-53`'s `billing_stop` sample conflates visibility with billing stop.
 
 ## The question

@@ -9,8 +9,8 @@ and dissolves machinery rather than tuning it; check this framing too, and verif
 
 ## Round 1
 
-Read `/var/tmp/provisiond-panel-r24/r23-synthesis.md` and the three answers beside it
-(`r23-sol.md`, `r23-astra.md`, `r23-opus.md`; a fourth reader was unavailable). All three rejected
+Read `docs/research/panels-2026-10/r23/synthesis.md` and the three answers beside it
+(`docs/research/panels-2026-10/r23/sol.md`, `astra.md`, `opus.md`; a fourth reader was unavailable). All three rejected
 my original options and proposed the core: **the field carries positive evidence only; `none` is
 deleted.** That core is not under review unless you find it wrong.
 

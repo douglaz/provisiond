@@ -10,7 +10,7 @@ framing too, and verify every fact I state before relying on it.
 
 Settled today (do not re-litigate): ADR-0033 (first billing unit prepaid at the customer rate),
 ADR-0034 (request budget with system reserve), ADR-0035, ADR-0036, ADR-0037 (wind-down sized to the
-gone-write), ADR-0038. Threat-model context: `/var/tmp/provisiond-panel-r19/synthesis.md` (X2).
+gone-write), ADR-0038. Threat-model context: `docs/research/panels-2026-10/r19/synthesis.md` (X2).
 
 ## The threat
 
