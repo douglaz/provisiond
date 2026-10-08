@@ -304,7 +304,7 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo/tools/formal"
-          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true }/' \
+          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true, acceptanceRule := true }/' \
             Provisiond/Tables.lean
           grep -q 'goalStateRow := false, markerRule := true' Provisiond/Tables.lean
           if nix develop --command lake build > build.log 2>&1; then
@@ -315,6 +315,65 @@ jobs:
           grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
           grep -A6 'proved that the proposition' build.log | grep -q 'deleteMachine'
           echo "lake build correctly failed on already_deleted_witness"
+
+      # ADR-0035: disable one amendment guard at a time. Require a refuted
+      # witness, never a syntax error. One in-repository copy serves both rows.
+      - name: Prove accepted failures and in-progress orders survive only with their guards
+        if: matrix.shard == 0
+        run: |
+          python3 - <<'PYCONTROL'
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import tempfile
+
+          root = Path.cwd()
+          with tempfile.TemporaryDirectory(prefix='.acceptance-control-', dir=root) as directory:
+              copy = Path(directory)
+              files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+              for name in filter(None, files):
+                  source = root / name
+                  target = copy / name
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(source, target)
+              shutil.copytree(root / 'tools/formal/.lake', copy / 'tools/formal/.lake')
+              formal = copy / 'tools/formal'
+              for module, old, new, witness in [
+                  ('Tables', 'acceptanceRule := true', 'acceptanceRule := false',
+                   'accepted_read_failure_witness'),
+                  ('Reconcile', 'negativeOnly       := true', 'negativeOnly       := false',
+                   'in_progress_order_witness'),
+              ]:
+                  path = formal / f'Provisiond/{module}.lean'
+                  original = path.read_bytes()
+                  assert original.count(old.encode()) == 1
+                  try:
+                      path.write_bytes(original.replace(old.encode(), new.encode()))
+                      result = subprocess.run(['nix', 'develop', '--command', 'bash', '-c',
+                                               'cd "$1" && lake build', 'acceptance-control', str(formal)],
+                                              cwd=root, capture_output=True, text=True)
+                      output = result.stdout + result.stderr
+                      print(output)
+                      assert result.returncode != 0
+                      lines = (formal / 'Provisiond/Witnesses.lean').read_text().splitlines()
+                      start = next(i + 1 for i, line in enumerate(lines)
+                                   if line.startswith(f'theorem {witness} :'))
+                      end = next(i + 1 for i in range(start, len(lines)) if not lines[i].strip())
+                      errors = [line for line in output.splitlines()
+                                if line.startswith('error: Provisiond/')]
+                      assert len(errors) == 1, errors
+                      assert 'error: Provisiond/Witnesses.lean:' in errors[0], errors
+                      location = int(errors[0].split(':')[2])
+                      assert start <= location <= end, errors
+                      assert 'proved that the proposition' in errors[0], errors
+                      print(f'PASS: removing only {module} guard refutes {witness}', flush=True)
+                  finally:
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              subprocess.run(['nix', 'develop', '--command', 'bash', '-c',
+                              'cd "$1" && lake build', 'acceptance-control', str(formal)],
+                             cwd=root, check=True)
+          PYCONTROL
 
       # The migration-plan type (STO-12): a CONCURRENTLY build inside a transactional
       # migration is not a value of the type. The control writes one, in the Explore

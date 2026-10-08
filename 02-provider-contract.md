@@ -33,7 +33,19 @@ govern them.
 to `timeout`, provider non-2xx responses to `provider` (or the more specific
 `authentication`, `not_found`, `conflict`, `rate_limited` where the status warrants it),
 and MUST attach the upstream HTTP status code to `details.status`. The lifecycle
-classifier reads that field to decide whether a failure was ambiguous (`OPS-11`).
+classifier uses `OPS-11`'s ambiguity rule.
+
+**Amended 2026-10-08 (`ADR-0035`): every driver error MUST carry `details.accepted`.**
+It is `true` once the provider answered successfully to the request performing this operation's
+mutation, and `false` where the driver establishes that request was not accepted (including a
+read-only operation with no mutation). For create this is the ordering request associated with
+its correlator (`PRV-26`), never a preceding key upload. Other mutations need no correlator:
+`PRV-26` says "This applies to create and to nothing else."
+A driver that cannot determine acceptance MUST report `internal` with `details.accepted: null`;
+it MUST NOT omit the field or substitute `false` for unknown acceptance. Known acceptance MUST
+remain `true` on every later error, whatever its kind. Robot's `403 RATE_LIMIT_EXCEEDED` MUST
+map to `rate_limited`, retaining `details.status: 403`. The status and redaction obligations
+above and in `PRV-7` still apply.
 
 **PRV-6** A driver MUST NOT interpolate a caller-controlled value into a provider URL
 path without encoding it. Path segments MUST be percent-encoded, and the driver MUST
@@ -121,7 +133,9 @@ is configured to allow ordering. Both, not either.
 **PRV-11** Ordering is generally not idempotent at the provider. Where create polls an
 order transaction to completion, timing out MUST produce a `timeout` error whose message
 states that the order may still be pending and MUST NOT be blindly repeated, and whose
-details carry the transaction identifier.
+details carry the transaction identifier. *Amended 2026-10-08 (`ADR-0035`): after acceptance this
+is an instance of `OPS-11`'s "the operation's mutating request was accepted by the provider",
+with `details.accepted` from `PRV-5`.*
 
 ### Get machine
 
@@ -202,8 +216,9 @@ what produced it". Deleted rather than tombstoned: nobody re-adds a zero term by
 **`customer_rate`, not provider cost.** The reserve must cover what the *customer* is committing
 to spend, and since `customer_rate ≥ provider_rate` by construction, committing the customer
 price also covers the operator's exposure. Using provider cost here would under-commit every
-machine by exactly the margin. **The setup fee is committed at cost and debited only on confirmed
-acceptance (`LDG-39`)**, because `ADR-0006` passes it through unmarked — the operator does not
+machine by exactly the margin. **The setup fee is committed at cost and debited at successful
+settlement after acceptance** (`LDG-39`: "an accepted but unresolved create MUST take the
+`needs_reconciliation` pending-obligation row", amended 2026-10-08, `ADR-0035`), because `ADR-0006` passes it through unmarked — the operator does not
 profit from a fee it did not earn — and it is also a term that is entirely lost once the order
 lands (the prepaid first unit, below, is another; *reworded 2026-10-08, `ADR-0033`*), so
 it MUST be **fully committed before the order is placed**. *Both withdrawn
@@ -217,7 +232,7 @@ price and `native_floor` (`PRV-44`), with the margin `LDG-24` applies — "The m
 applied to machine time only (`ADR-0007`)" — because it is machine time; `ADR-0033`: "**Why the
 customer rate and not cost.** The customer receives that hour." Like the fee it is entirely lost
 once the order lands, so it MUST be **fully committed before the order is placed**, and like the fee
-it is debited only on confirmed acceptance, as its own kind and for the satoshi amount authorized
+it is debited at successful settlement after acceptance, as its own kind and for the satoshi amount authorized
 here (`LDG-39`, `LDG-67`). On a floor-priced offer the floor prices the unit and moves no instant:
 the meter starts at the seed plus `seconds` (`LDG-38`), so a machine that outlives `seconds` but not
 what the floor's money bought at the provider pays the floor and then its metered seconds; the
@@ -460,8 +475,12 @@ with the resource gone and a release that failed ambiguously are two facts, and 
 cannot carry two statuses — the shape `ADR-0017` corrected on the episode. It holds the machine
 under `OPS-8`, MUST be safe to call twice — a provider answering "already deleted" is reporting
 the goal state, which `OPS-11` classifies as success — and its failures classify under `OPS-11`'s
-delete row. A successful release writes the row's `released_at` in its terminal transaction; a
-`manual` row is released only by an operator. For the exit write, see `LDG-38`.
+delete row. A successful release MUST write the row's `released_at` in its terminal transaction,
+including the resolution transaction when resolved `applied` (`OPS-31`). An unresolved release
+or one resolved `not_applied` or `abandoned` MUST NOT write `released_at` as an applied release.
+A `manual` row is released only by an operator. For the exit write, see `LDG-38`.
+*Amended 2026-10-08 (`ADR-0035`): successful resolution has the same attachment-row effect as
+ordinary success; it does not record the machine gone.*
 
 ### Power
 

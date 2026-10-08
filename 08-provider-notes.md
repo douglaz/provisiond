@@ -134,8 +134,9 @@ the Robot cancellation guide, 2026-08-08]**
 
 Consequences for a reseller: the delete-stops-cost arrow that hourly metering depends on
 genuinely exists here, so no separate term SKU is needed. The **setup fee** is the real prepaid
-exposure — commonly charged on standard servers, undocumented as refundable, so treat it as non-refundable, **commit it before ordering and debit it only on confirmed
-acceptance** (`LDG-39`). Auction servers carry no setup fee.
+exposure — commonly charged on standard servers, undocumented as refundable, so treat it as non-refundable. For commitment and settlement, see `LDG-39`, including "an accepted but
+unresolved create MUST take the `needs_reconciliation` pending-obligation row" (amended
+2026-10-08, `ADR-0035`). Auction servers carry no setup fee.
 
 **Measured against the live API 2026-09-04, because `LDG-39` calls the fee "unrecoverable" and the
 set never stated a size.** Standard catalogue setup fees range **€59 to €1349 net** across 29

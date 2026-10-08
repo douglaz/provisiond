@@ -177,8 +177,11 @@ not optional hardening — they are the only structural defence there is.
       consequently listed in two of them; the split stands on the two stakes. Identifier retained rather than
       reused, per the append-only convention in the README.
 - [ ] **CNF-31a** — The rows of `OPS-11` where a misclassification causes a repeated provider
-      mutation. A create failing with a provider 4xx is `failed`; a create failing with a
-      provider 5xx, a network error, or a timeout is `needs_reconciliation`; every install
+      mutation. **Amended 2026-10-08 (`ADR-0035`):** a create rejected by a provider 4xx
+      before acceptance is `failed`; after acceptance a provider 4xx failure is
+      `needs_reconciliation`. The former blanket 4xx assertion required the defect.
+      A create failing with a provider 5xx, a network error, or a timeout is
+      `needs_reconciliation`, including without known acceptance; every install
       failure that is not a deterministic caller error **and that `OPS-45`'s markers do not clear**
       is `needs_reconciliation`. Getting these
       wrong invites the caller to retry a mutation that already happened. **AMENDED 2026-09-02 —
@@ -192,7 +195,9 @@ not optional hardening — they are the only structural defence there is.
       marker.*
 - [ ] **CNF-31b** — The remaining rows of `OPS-11`, for exhaustiveness — including that the table
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
-      kind, with no implicit default.
+      kind, with no implicit default. **Amended 2026-10-08 (`ADR-0035`):** vary known acceptance
+      across both Boolean values for driver errors, and exercise unknown acceptance through the
+      `internal` fallback. Admission-only inputs remain pre-provider, with acceptance false.
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
@@ -681,8 +686,9 @@ the fee's shape were amended the same day to stay true for both obligations.
       commitment carries no unit term and the ambiguous row parks nothing for the unit
       (2026-10-08, `ADR-0033`). (`PRV-13b`, `PRV-44`,
       `LDG-12`, `LDG-24`, `LDG-39`)
-- [ ] **CNF-316** — **Acceptance debits the authorized amount as its own kind, paired with the
-      decrement.** Move the rate between the create and the provider's acceptance. The entry is a
+- [ ] **CNF-316** — **Successful settlement after acceptance debits the authorized amount as its
+      own kind, paired with the decrement** (amended 2026-10-08, `ADR-0035`). Move the rate
+      between the create and the provider's acceptance. The entry is a
       `first_unit_debit`, never a `usage_debit`, for exactly the satoshi amount
       `operations.request_summary` carries as authorized and not a re-conversion; the commitment
       is decremented by the same amount in the same transaction (kill the process between them
@@ -1237,7 +1243,7 @@ rather than acquiring a default.
 - [ ] **CNF-147** — **AMENDED 2026-09-02 — it required a scheduled cancellation on a product that
       cancels immediately.** The dedicated path is exercised end to end against a real Hetzner Robot
       machine: a setup fee and the prepaid first billing unit — Robot's hour, with no floor —
-      committed before the order and debited on confirmed acceptance (`LDG-39`, `ADR-0033`,
+      committed before the order and debited at successful settlement after acceptance (`LDG-39`, `ADR-0033`, `ADR-0035`,
       2026-10-08), the machine's first seed writing its mark at the seed plus 3600 seconds
       (`LDG-38`), and a commitment sized to include cost through the machine's **read**
       `earliest_cancellation_date`. The cancellation is then asserted **against what the machine
@@ -1777,10 +1783,10 @@ rather than acquiring a default.
 - [ ] **CNF-271** — **AMENDED 2026-09-08 (`ADR-0017`) — the episode is the unit, and `failed` is a
       fact about an attempt.** Walk `OPS-48`'s transitions against a real row. Drive an
       exposure-reducing cancellation whose provider call fails after the fence is written — once
-      with a 5xx, once with a deterministic `authentication`, and once with `rate_limited` — and
-      assert: the attempt settles
-      `needs_reconciliation` and the episode is `uncertain`, or the attempt settles `failed` and the
-      episode is `stalled`; in both, the episode stays open, `destroy_committed` still holds its id,
+      with a 5xx, once with `authentication`, and once with `rate_limited` — both before
+      and after acceptance. Assert: 5xx is `needs_reconciliation`/`uncertain` in either case;
+      the other kinds are `failed`/`stalled` before acceptance and
+      `needs_reconciliation`/`uncertain` after acceptance (amended 2026-10-08, `ADR-0035`); in both, the episode stays open, `destroy_committed` still holds its id,
       `LDG-62` is still refused `conflict`, and the `stalled` episode appears in the operator
       listing `OPS-26` requires. `retry` on the `stalled` one enqueues a fresh attempt that **runs
       the provider call again** rather than aborting into a false `succeeded`, and the episode is
@@ -1792,7 +1798,7 @@ rather than acquiring a default.
       `LDG-74`) closes an episode in any open state `resource_gone` and clears the fence in that
       write, and a later `OPS-31` resolution of its retained attempt leaves the closed episode
       closed; and **no timer ever moves a `stalled` episode** — run the clock out and assert it is still `stalled` with one
-      attempt, including where that attempt failed `rate_limited` (`F48`: a throttle is not deferred). **Then the row a reader
+      attempt, including a `rate_limited` refusal before acceptance (`ADR-0035`; `F48` retains the deferral history). **Then the row a reader
       will get wrong**: a cancellation the provider merely *scheduled* (`DOM-19`) settles
       `succeeded`, the episode is `scheduled`, and it and the fence both **stay** until the effective
       date passes and the machine is tombstoned — closing there lets the next exhaustion sweep open
@@ -2907,7 +2913,7 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       charges 10:04–10:05, and cancellation acceptance posts no future consumption.
       (`LDG-37`, `DOM-19`, `LDG-38`, `LDG-74`)
 - [ ] **CNF-162** — **REWRITTEN.** The setup fee and the prepaid first unit each follow `LDG-39`'s
-      table (the unit since 2026-10-08, `ADR-0033`): each debited **on confirmed acceptance** as
+      table (the unit since 2026-10-08, `ADR-0033`): each debited **at successful settlement after acceptance** (`ADR-0035`, 2026-10-08) as
       its own kind and the commitment decremented in the **same transaction** (kill the process
       between them and neither survives); **released in full** on deterministic rejection and on
       resolved-absent — **except a fee the provider's transaction shows was charged for a matched
@@ -3026,6 +3032,61 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       clause. Identifier retained rather than reused, and not a checkbox.
 - [ ] **CNF-115** — Balances and commitments are answerable with every provider unreachable.
       (`SEC-47`)
+
+## Added 2026-10-08 (`ADR-0035`)
+
+- [ ] **CNF-322** — **Acceptance belongs to the operation's mutation.** Exercise each driver
+      error with acceptance known true, known false, and unknown. Assert `details.accepted`
+      is always present; unknown is explicitly null and kind `internal`, never omitted or
+      defaulted to false. Accept a create's key upload, refuse the order, and assert false.
+      Accept the order, then fail a read, and assert true. Repeat for the non-create mutations
+      in `OPS-11`'s last row without requiring a correlator. Inject Robot's
+      `403 RATE_LIMIT_EXCEEDED`: assert `rate_limited`, `details.status: 403`, and retained
+      acceptance. Check upstream status retention and redaction on these errors. (`PRV-5`,
+      `PRV-7`, `PRV-26`, `DOM-18`)
+- [ ] **CNF-323** — **A refused read does not erase an accepted mutation.** For every kind in
+      `OPS-11`'s last row, accept the mutation, then inject each of `rate_limited`, `not_found`,
+      `authentication`, and a provider 4xx. Assert `needs_reconciliation`, no automatic repeat,
+      and `retryable: false`. Separately supply the goal-state answer on a goal-state mutation and assert `succeeded`.
+      Contrast rejection before acceptance, including the ancillary-key case in `CNF-322`,
+      with transport failure and unknown acceptance: deterministic rejection is `failed`, while
+      transport failure and the `internal` fallback remain ambiguous. Run the other classifier
+      rows through `CNF-31a`/`CNF-31b` and retain the install-marker demonstrations.
+      Timeout polling an accepted order: assert kind `timeout`, acceptance true, the transaction
+      identifier retained and the message warning that the order may remain pending and must
+      not be repeated. (`OPS-11`, `OPS-12`, `API-51`, `PRV-5`, `PRV-11`)
+- [ ] **CNF-324** — **Accepted creates settle only on one verified resource.** After acceptance,
+      exercise settle-time searches across every ordering channel with zero, one and many exact
+      matches, a failed search, and a non-authoritative search. Only one resource confirmed by a
+      direct read settles `succeeded`; every other case stays `needs_reconciliation`, with no
+      automatic attachment of duplicates. Fail the confirming read inside the visibility window
+      and retain the later direct-read and resolution demonstrations in `CNF-286`.
+      Return a matched order still in progress; advance beyond the configured negative window
+      and assert no release or absent resolution from that window. Contrast a genuinely negative
+      search that releases under its window, continuing to search afterwards. (`OPS-27`,
+      `OPS-29`, `OPS-33`, `OPS-38`, `PRV-36`, `PRV-38`)
+- [ ] **CNF-325** — **Accepted but unresolved creates keep their obligations pending.** With a
+      setup fee and a nonzero prepaid unit, accept the order then fail its read or settle-time
+      search. Assert no debit yet, both amounts still reserved and both obligations parked.
+      Resolve observed with the create's commitment open: assert both debits and paired
+      decrements, the machine/terminal writes and clearing both parked obligations commit
+      atomically. Repeat after negative-window release: assert the separate operator deficiencies
+      and no charge to available balance or a wind-down commitment. Exercise absent with and
+      without provider evidence of each charge, and abandoned; retain the zero-unit exceptions
+      in `CNF-315`/`CNF-316`. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-32`, `LDG-66`, `OPS-27`, `OPS-33`)
+- [ ] **CNF-326** — **Applied release resolution ends that attachment's meter.** Accept a release,
+      fail its follow-up read, and resolve it `applied`. Assert the attachment's `released_at`
+      and the applicable `LDG-38` exit write commit with the resolution; inject a transaction
+      failure to demonstrate no partial effects. Preserve meter exit exceptions, machine state,
+      other attachments and the episode/fence outcomes of `OPS-48`. Contrast unresolved,
+      `not_applied`, and `abandoned`: none records an applied release. (`PRV-45`, `OPS-31`,
+      `OPS-48`, `LDG-38`)
+- [ ] **CNF-327** — **Retry-after can accompany a non-retryable operation.** Read a
+      `needs_reconciliation` create whose error is `rate_limited`: assert `details.retry_after_ms`
+      and `retryable: false` together, with the per-kind keys retained and no mutation repeated
+      when the interval expires. Separately throttle a GET of its operation view: the read error
+      does not change or stand in for the operation outcome. (`API-51`, `API-50`, `WIR-9a`,
+      `WIR-9b`, `OPS-12`)
 
 ## Before production
 

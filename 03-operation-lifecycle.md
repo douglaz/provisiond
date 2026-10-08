@@ -253,8 +253,17 @@ A failure is **ambiguous** when:
 - the error kind is `conflict` *and* it arose from the worker being cut off mid-flight
   (`OPS-21`) rather than from a provider-reported state conflict; or
 - the error kind is `provider` *and* the upstream status was 5xx, or no upstream status
-  was recorded at all. A 4xx generally means the provider rejected the request and did not act; a
-  5xx means it may have acted and then failed to say so.
+  was recorded at all. A 4xx rejection of the mutating request itself means the provider did not
+  accept that request; a 5xx means it may have acted and then failed to say so; or
+- the operation's mutating request was accepted by the provider (`details.accepted: true`,
+  `PRV-5`), whatever the later error kind or status.
+
+**Amended 2026-10-08 (`ADR-0035`): acceptance is an additional ambiguity condition for the
+last row.** A later `rate_limited`, `not_found`, `authentication`, or provider 4xx error MUST NOT
+classify that accepted mutation `failed`. The goal-state success rule below still takes
+precedence. The refresh, parent, install/rescue-inventory and admission-only rows are unchanged;
+pre-provider admission has no accepted mutation. Unknown acceptance follows `PRV-5`'s
+"MUST report `internal` with `details.accepted: null`", never an implicit default.
 
 **AMENDED 2026-08-31 — "a 4xx means the provider did not act" is false, and believing it strands a
 customer's money.** For a **goal-state mutation** — delete, power on, power off, end rescue — a
@@ -392,7 +401,10 @@ flowchart TD
     B -- "yes" --> D["Search the correlator on<br/>EVERY ordering channel, PRV-38.<br/>Union over channels"]
     D --> E{"How many resources?"}
 
-    E -- "exactly one" --> F["Resolved-observed"]
+    E -- "exactly one" --> V{"Direct read, OPS-27 / PRV-36"}
+    V -- "present" --> F["Resolved-observed"]
+    V -- "not_found inside window<br/>or failed read" --> WAIT
+    V -- "not_found past<br/>visibility window" --> K
     F --> F1{"Was the commitment<br/>already released by OPS-33?"}
     F1 -- "no" --> G["Attach. It becomes the<br/>machine's running commitment"]
     F1 -- "yes" --> H["OPS-36: attach, then route<br/>straight to exhaustion"]
@@ -403,8 +415,9 @@ flowchart TD
     H3 --> I
     I --> J["Tenant may still extend-runway subject to LDG-40<br/>LDG-62, until OPS-42's fence"]
 
-    E -- "zero, authoritative,<br/>past the negative window" --> K["Resolved-absent.<br/>Close and release in full"]
-    E -- "zero, window not elapsed" --> WAIT
+    E -- "zero, matched order<br/>still in progress, OPS-33" --> WAIT
+    E -- "zero, no in-progress match,<br/>authoritative, past the negative window" --> K["Resolved-absent.<br/>Close and release in full"]
+    E -- "zero, no in-progress match,<br/>window not elapsed" --> WAIT
     E -- "more than one" --> L["Duplicate. MUST NOT auto-attach either.<br/>OPS-38, operator remediates"]
     E -- "cannot be made<br/>authoritative" --> M["Unresolved. OPS-31's verbs<br/>are the only road"]
 
@@ -460,15 +473,24 @@ reconciliation attached, metered and fee-settled a ghost.*
 **A create MUST NOT settle `succeeded` on the strength of the reply in hand alone.** Before the
 terminal write the system MUST search the correlator across every ordering channel the driver
 reaches (`PRV-38`) and MUST settle `succeeded` only where that search yields exactly one
-resource. A create settles exactly one machine, so **more** than one is `OPS-38`'s many-case: it
+resource, confirmed by the direct read above. **After acceptance, zero or many resources, a
+failed search, or any non-authoritative search MUST leave the create in `needs_reconciliation`**;
+a failed confirming read likewise cannot establish success or settle-time absence. Later
+resolution follows the rows above. A create settles exactly one machine, so **more** than one is
+`OPS-38`'s many-case: it
 MUST NOT auto-attach either, and it goes to an operator (`OPS-31`), never to `succeeded`. An order
 that lands *after* the search was taken is beyond what any settle-time search can see, and
 `OPS-32`'s account sweep is the backstop for it. *Until 2026-09-05 the search was over several
 attempts' correlators; `ADR-0014` removed the second attempt, and what has to be searched is
 several channels, which `PRV-38` found was never covered.*
 
+*Amended 2026-10-08 (`ADR-0035`): the settle-time outcomes above include every unsuccessful
+search after acceptance. A matched order still in progress stays unresolved; `OPS-33` owns the
+negative-window qualification.*
+
 **A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
-This is one rule with **three entry points** — the provider **accepting the order in its reply**,
+This is one rule with **three entry points** — successful settle-time verification after the
+provider **accepting the order in its reply**,
 `OPS-27` **resolving-observed** a create whose reply was lost, and `OPS-36`'s **late attach** of a
 machine whose commitment `OPS-33` had already released — because each writes a set of effects a
 partial commit of which is unrepairable. Those effects are: the terminal write on
@@ -1070,11 +1092,14 @@ retains the unresolved attempt; the termination establishes that the resource is
 call made it so.
 
 **A `stalled` episode is never retried by a timer.** A deterministic rejection repeated
-automatically is the loop `OPS-39` exists to prevent. A provider throttle is not a deterministic
-rejection, but it is not deferred either: `rate_limited` is on neither of `OPS-11`'s ambiguity
-lists, so a throttled delete is `failed` under its delete row, nothing in this set returns it to
-`queued`, and the attempt stalls its episode like any other refusal (`F48` records why no deferral
-is specified). A `stalled` or `uncertain` episode is therefore the operator's to look at
+automatically is the loop `OPS-39` exists to prevent. A throttle refusing the mutation before
+acceptance is `failed` and stalls the episode;
+a throttle after acceptance is `needs_reconciliation` and makes it `uncertain`, under `OPS-11`'s
+"the operation's mutating request was accepted by the provider" condition. Neither returns the
+attempt to `queued` (`F48` records the rejected deferral).
+*Amended 2026-10-08 (`ADR-0035`): the earlier blanket throttled-delete failure description is
+withdrawn; the table consumes the classification and its episode/fence effects are unchanged.*
+A `stalled` or `uncertain` episode is therefore the operator's to look at
 (`OPS-26`): its machine may still be running and billing, and the episode is not over. A later
 rate can fund it; a deletion decision already recorded by a fence is not reversed by that rate. The open episode is what keeps a later sweep from enqueuing
 a **second** delete against the same machine, and a written fence is what keeps `LDG-62` from selling
@@ -1148,6 +1173,12 @@ difference between a rule and its opposite: on every other kind `OPS-45` sets th
 provider call is **dispatched**, so the refusal covered every operation an operator could ever be
 asked to resolve. `WIR-35` carries the same rule for the wire; this sentence is the engine's copy of
 it, and the first correction reached only the wire.*
+
+*Amended 2026-10-08 (`ADR-0035`): for a release resolved `applied`, `PRV-45` owns the
+attachment effect: "A successful release MUST write the row's `released_at` in its terminal
+transaction, including the resolution transaction when resolved `applied`". `LDG-38` owns the
+exit write; the release does not mark its machine gone. Episode and fence transitions, where
+applicable, remain `OPS-48`'s.*
 
 **And an operator MUST NOT be the first resort here.** `OPS-45` requires the engine's own record of
 whether a write began to be consulted before any of this: most install failures never reached a
@@ -1390,6 +1421,11 @@ negative window has elapsed, the commitment MUST be closed and released in full 
 operation remains open, and `OPS-32`'s account sweep MUST continue searching for the correlator
 indefinitely afterwards. `OPS-36` governs what happens if the machine then appears.
 
+**Amended 2026-10-08 (`ADR-0035`): the negative window MUST NOT run against a matched order
+that is still in progress.** That positive match is not a negative search, even before it yields
+a resource for a direct read. While it remains in progress, the create stays unresolved and this
+window cannot release its commitment. This adds no timeout on an in-progress order.
+
 **Where a provider channel has no verified correlator** (`PRV-33` — Hetzner Robot's **standard**
 channel is the live case after `PRV-30` disqualified its `comment` field; its auction channel
 passed `CNF-180` on 2026-09-04), the window MUST still be bounded and the commitment
@@ -1416,7 +1452,7 @@ takes the visible loss.
 The window MUST be recorded per provider and MUST be derived from measurement rather than
 assumed. For the robot-style ordering shape it interacts with the transaction listing window
 (`08-provider-notes.md`): past that horizon automatic resolution is impossible and `OPS-31` is
-the only road, but the commitment was released long before.
+the only road, but a negative search releases its commitment under the bounded window above.
 
 ## Worker algorithm
 

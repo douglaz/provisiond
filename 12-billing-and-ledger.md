@@ -360,7 +360,7 @@ unit's end on every input; counted from `now` alone the date was wrong on every 
 unit — in the ADR's words, "or every machine routes up to one unit early". Before the seed exists
 there is no mark and the derivation counts from now, as it always did: the stored date is then
 early by up to the unit plus the order-to-seed lag, until the first re-derivation after the seed
-moves it, and no usage debit lands before the seed — the `first_unit_debit` does, at acceptance
+moves it, and no usage debit lands before the seed — the `first_unit_debit` does, at successful settlement after acceptance
 (`LDG-39`) — so the early date routes nothing the unoffset derivation would not have routed. Where
 that stored date passes after the seed and before the next re-derivation, `LDG-16`'s sweep routes
 on it under `LDG-16`'s predicate — "MUST route a machine where its stored `runway_until` has passed
@@ -1141,13 +1141,13 @@ conclusion for the balance read, one quantity earlier).
 
 **LDG-39** **AMENDED — the setup fee has a lifecycle, not a single moment.** It is committed at
 create as part of `PRV-13b`'s sizing, and it becomes a debit **only when the order is known to
-have landed**, at which point `LDG-31` decrements the commitment by the same amount so
+have landed and the create settles**, at which point `LDG-31` decrements the commitment by the same amount so
 `available` does not move. The full table, because every row was previously either wrong or
 unstated:
 
 **Amended 2026-10-08 (`ADR-0033`): the prepaid first billing unit follows every row of this
 table.** It is an order-landed term of `PRV-13b` — committed at the customer rate, where the fee
-is committed at cost — parked beside the fee where `LDG-67` parks it, and debited on acceptance as
+is committed at cost — parked beside the fee where `LDG-67` parks it, and debited at settlement after acceptance as
 its own kind, `first_unit_debit` (`LDG-7`), for the satoshi amount authorized at the create and
 paired under `LDG-31` like the fee. Where a row names the fee it names the unit as well, with two
 differences. On the three deficiency rows the unit produces a **second record, separate from the
@@ -1170,9 +1170,15 @@ says, "the seed instant plus the `billing_unit.seconds` the machine's own row ca
 nothing, and the unit meters nothing either way. *Added 2026-10-08, `ADR-0033`; the two conditions
 separated the same day.*
 
+**Amended 2026-10-08 (`ADR-0035`): an accepted but unresolved create MUST take the
+`needs_reconciliation` pending-obligation row below, ahead of the accepted/debited row, until
+settlement.** Acceptance alone does not bypass that row. The setup fee and nonzero prepaid unit
+remain reserved and are parked under `LDG-67`; settlement is the atomic transaction in `OPS-27`,
+with the existing release and deficiency paths below and no new debit from available balance.
+
 | Outcome | Setup fee — and, since 2026-10-08, the prepaid first unit |
 |---|---|
-| Order accepted by the provider | **Debited**, commitment decremented in the same transaction |
+| Order accepted by the provider and settle-time verification succeeds | **Debited**, commitment decremented in the same transaction |
 | Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`) |
 | Ambiguous — `needs_reconciliation` | **Remains reserved in the commitment**, and is *additionally* recorded as a pending fee obligation on the operation (`LDG-67`). The record exists because `OPS-33` releases the commitment in full at the negative window while the operation stays open — so the obligation must survive that release, not replace the reservation before it |
 | Resolved *observed* (`OPS-27`) | **Debited against the commitment where one is still open; otherwise never debited to the customer at all.** `OPS-27` can resolve *before* `OPS-33`'s negative window elapses, in which case the create's own commitment is still open and still holds the fee: debit against it, decrementing per `LDG-31`. **Once `OPS-33` has released that commitment, the fee is an operator deficiency (`LDG-66`, cause `unrecoverable_setup_fee`) and the customer is not charged.** *The prepaid unit likewise, as its own record, cause `unrecoverable_first_unit` (`ADR-0033`).* Where `OPS-36`'s late-attach branch has since opened a wind-down commitment on the same machine, that commitment belongs to a different operation and MUST NOT be decremented by this fee — it was sized to end the exposure, not to carry the create's obligations. *Asserting one source was the first defect; taking the second from available balance was the next, and it is corrected below. `LDG-67`'s parked obligation is settled either way, in `OPS-27`'s single resolution transaction* |
@@ -1191,8 +1197,8 @@ debiting without decrementing is `LDG-31`'s double-count.
 
 **The original concern still holds and is still answered:** the fee must not be a *reversible*
 reservation on the accepted path, or a create-then-delete cycle costs the tenant nothing and the
-operator the whole fee. Acceptance is the trigger; reversal happens only where the provider never
-charged.
+operator the whole fee. Acceptance followed by successful settlement is the debit trigger; unresolved acceptance and
+resolution use the table above.
 
 **AMENDED 2026-09-02 — the late fee is the operator's, and the set said so in two places out of
 three.** The withdrawn row debited it **from available balance** once `OPS-33` had released the

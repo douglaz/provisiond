@@ -1456,6 +1456,16 @@ theorem release_waits_for_negative_window :
     (Reconcile.run Reconcile.current (attachedWorld true)
       [.advance 2000, .release]).commitment = .open := by decide
 
+/-- `ADR-0035`: an in-progress order remains positively matched after the negative-window
+clock would otherwise expire. Removing only the exclusion releases its commitment. -/
+@[req "OPS-33"]
+theorem in_progress_order_witness :
+    let w := { unknownWorld true with matchedOrderInProgress := true }
+    let events : List Reconcile.Event := [.advance 2000, .release]
+    (Reconcile.run Reconcile.current w events).commitment = .open ∧
+    (Reconcile.run { Reconcile.current with negativeOnly := false } w events).commitment =
+      .closed := by decide
+
 /-- `OPS-27`'s 2026-09-05 sentence: the match on a gone Robot machine — "the listing outlives the
 machine" — records that the order landed and observes nothing; the read is what attaches. -/
 @[req "OPS-27"]
@@ -2424,7 +2434,7 @@ is `failed`; under the install row as it stood — the kind column alone — it 
 `needs_reconciliation`, "an operator-resolved loss". -/
 @[req "OPS-11"]
 theorem host_key_abort_witness :
-    let abort : Failure := ⟨.integrity, false, .unrecorded, false⟩
+    let abort : Failure := ⟨.integrity, false, .unrecorded, false, false⟩
     classify currentRules .install abort ⟨false, true⟩ = some .failed ∧
     classify { currentRules with markerRule := false } .install abort ⟨false, true⟩ =
       some .needsReconciliation := by decide
@@ -2435,10 +2445,33 @@ was "the provider rejected the request and did not act" and the delete that succ
 `failed` — and `LDG-32` then never closed the commitment. -/
 @[req "OPS-11"]
 theorem already_deleted_witness :
-    let rejection : Failure := ⟨.provider, false, .status4xx, true⟩
+    let rejection : Failure := ⟨.provider, false, .status4xx, true, false⟩
     classify currentRules .deleteMachine rejection ⟨true, true⟩ = some .succeeded ∧
     classify { currentRules with goalStateRow := false } .deleteMachine rejection ⟨true, true⟩ =
       some .failed := by decide
+
+/-- `ADR-0035`: an accepted mutation followed by a refused read. With acceptance every
+last-row kind remains unresolved; without only that rule each of these reads records a
+false deterministic failure. The marker and goal-state rules are retained. -/
+@[req "OPS-11"]
+theorem accepted_read_failure_witness :
+    ∀ (k : Kind), k.lastRow = true →
+      ∀ e ∈ [ErrorKind.rateLimited, .notFound, .authentication, .provider],
+        let f : Failure := ⟨e, false, .status4xx, false, true⟩
+        classify currentRules k f ⟨true, true⟩ = some .needsReconciliation ∧
+        classify { currentRules with acceptanceRule := false } k f ⟨true, true⟩ =
+          some .failed := by decide
+
+/-- `PRV-5`: "never a preceding key upload". A key uploaded before the order's rejection
+confers no acceptance on the create; transport ambiguity still stands without acceptance. -/
+@[req "OPS-11"]
+theorem rejected_order_witness :
+    classify currentRules .createMachine ⟨.provider, false, .status4xx, false, false⟩
+      ⟨true, true⟩ = some .failed ∧
+    classify currentRules .createMachine ⟨.network, false, .unrecorded, false, false⟩
+      ⟨true, true⟩ = some .needsReconciliation ∧
+    classify currentRules .createMachine ⟨.internal, false, .unrecorded, false, false⟩
+      ⟨false, true⟩ = some .needsReconciliation := by decide
 
 /-- `ADR-0021`'s first hole: a machine recorded gone under `API-63`'s termination, its episode
 `stalled` with the fence set. With the gone-write row the episode closes `resource_gone` and the

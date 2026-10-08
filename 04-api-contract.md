@@ -1019,9 +1019,10 @@ gone-write closed the episode after the operator read it (`OPS-48`, `ADR-0021`) 
 the idempotency record commit together — and it counts against `SEC-39`'s operator retry ceiling
 (`API-7` step 5c). **A `stalled` episode is never retried by a timer** (`OPS-48`): the attempt
 settled `failed` because the provider rejected it and did not act, and repeating a deterministic
-rejection automatically is the loop `OPS-39` exists to prevent. A throttled attempt reaches
-`stalled` too, for a different reason: `rate_limited` is on neither of `OPS-11`'s ambiguity lists,
-so a throttled delete is `failed`, and nothing in this set returns it to `queued` (`F48`). The
+rejection automatically is the loop `OPS-39` exists to prevent. *Amended 2026-10-08 (`ADR-0035`):* throttle classification follows `OPS-11`'s
+"the operation's mutating request was accepted by the provider" condition, and episode effects
+follow `OPS-48`: a pre-acceptance refusal can stall; post-acceptance ambiguity is `uncertain`,
+where this retry verb is inadmissible. `F48` retains the rejected automatic-deferral history. The
 episode, not the `failed` attempt row, is what
 outlives `STO-14`'s retention, which is why the verb is on the episode (`ADR-0017`).
 
@@ -1220,6 +1221,12 @@ something*). `OPS-12` forbids the *system* from retrying an ambiguous mutation, 
 the *customer's* agent from buying the duplicate server `OPS-27` exists to prevent — `SEC-39`'s
 per-principal ceiling is the backstop, and this
 field is the signal. This is the single most expensive way for "finding out" to go wrong.
+
+*Amended 2026-10-08 (`ADR-0035`):* a `needs_reconciliation` create with error kind
+`rate_limited` MUST retain `details.retry_after_ms` alongside `retryable: false`. Retry-after
+reports the throttle interval; it does not authorize reissuing the mutation. `WIR-9a` owns the
+per-kind keys and `WIR-9b` their retryability precedence. A failure to poll the operation view
+is a read failure, distinct from the underlying operation's outcome (`API-50`).
 
 **API-52** **A pending tenant MUST be able to observe its own activation without attempting a
 purchase.** `API-43` owns the reachable-while-pending set and this requirement does not restate

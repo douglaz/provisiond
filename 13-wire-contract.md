@@ -205,6 +205,13 @@ view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 fresh idempotency key is a fresh operation, not a retry: a second purchase on a create, a second
 destructive write on an install (`API-51`).
 
+*Amended 2026-10-08 (`ADR-0035`):* `API-51` requires a reconciliation-pending rate-limited
+create to "retain `details.retry_after_ms` alongside `retryable: false`". The `rate_limited` row
+in `WIR-9a` still supplies its keys; retry-after does not authorize another mutation. A throttled
+GET of the operation view carries "no information about any operation's outcome" (`API-50`).
+`PRV-5` requires "every driver error MUST carry `details.accepted`"; the existing redaction
+rules still apply.
+
 ## Views
 
 **WIR-10** The **operation view** (`API-20`):

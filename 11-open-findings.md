@@ -76,7 +76,8 @@ closed: `adopt` classified "Always `failed`" under `OPS-11` while `WIR-35` and `
 `resolution` column admitted `observed`, `absent` and `abandoned` for it and `CNF-179` (BLOCKING)
 tested them — **`F47`, closed by `ADR-0020`**. Another is closed: three places said transient
 cases "are deferred rather than failed (`OPS-11`)" and `OPS-11` defers nothing, so a provider
-throttle on a delete stalls an episode a human must clear — **`F48`, closed by retraction on
+throttle refusing a delete before acceptance stalls an episode a human must clear
+(post-acceptance classification amended 2026-10-08, `ADR-0035`) — **`F48`, closed by retraction on
 2026-09-09**. The third was `DOM-31` drawing
 `stalled --> closed : abandoned` with no verb providing it — **`F49`, closed by `ADR-0021`** the
 same day. The rest were
@@ -131,6 +132,16 @@ lists, so a throttled delete settles `failed`, `OPS-48` moves the episode to `st
 operator's `retry` is the only way out. The only deferral in the set is `OPS-8`'s return-to-`queued`
 on an index refusal, and nothing routes a throttle there.
 
+**Amended 2026-10-08 (`ADR-0035`): the blanket throttled-delete account above is historical.**
+Current classification is `OPS-11`'s "the operation's mutating request was accepted by the
+provider" condition; driver evidence is `PRV-5`'s "every driver error MUST carry
+`details.accepted`". `OPS-48` owns the episode effects. The earlier refusal of automatic deferral
+stands; acceptance does not authorize a repeated mutation. The proposed dispatch-based driver
+shape and change inventory below remain rejected history, not implementation instructions.
+Settlement and the negative-window qualification live in `OPS-27`/`OPS-33`, attachment release in
+`PRV-45`, and pending-obligation precedence in `LDG-39`. Conformance: the `ADR-0035` section in
+`10-conformance-checklist.md` and the amendments to `CNF-31a` and `CNF-271`.
+
 The first decision was to specify the mechanism: one rule at the worker returning any
 `rate_limited` outcome to `queued` with `available_at` set, on every operation kind, bounded by the
 `attempts` counter. It was put to two independent reviews of one brief — Codex and a fresh Claude
@@ -179,7 +190,7 @@ it finds funded. The second is corrected alongside, with `CNF-271`'s "no timer e
 superseded with the removal of that row. The restored paragraph is historical reasoning,
 not a current obligation. Current lifecycle: `OPS-48`; timer-stability conformance: `CNF-271`.*
 
-**Decision: retract.** The three sentences now say the opposite, truthfully: a throttled attempt
+**Decision on 2026-09-09: retract.** The replacement sentences then said: a throttled attempt
 stalls its episode like any other `failed` one. No deferral is specified, under the set's own rule
 that a mechanism depending on provider behaviour is "derived from measurement rather than assumed"
 (`OPS-33`'s window) — nobody has measured what a throttle looks like on Robot or Hetzner Cloud down
@@ -187,7 +198,7 @@ to the status code. The operational cost is accepted and bounded: a fleet-sized 
 mass-cancellation event, `SEC-39` already gives operator retries an incident override, and `OPS-26`
 lists the stalled episodes.
 
-*The shape both reviewers converged on, kept for when it is measured:* a **driver** obligation in
+*The shape both reviewers converged on in 2026-09-09, retained as rejected deferral history:* a **driver** obligation in
 `PRV-5` to emit `rate_limited` only where no mutating request of the operation has been sent, with a
 throttle after one mapped as `PRV-11`'s shape with identifiers; a **worker** rule returning that kind
 alone to `queued`, as a fifth `STO-3` guarded write on `(id, status = running)`; a **wall-clock**

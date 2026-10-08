@@ -46,6 +46,9 @@ in for an entity the model lacked.
   the transient cases are already deferred rather than failed (`OPS-11`). *That last clause was
   false when written and is retracted (2026-09-09, `F48`): `OPS-11` defers nothing, and a throttled
   attempt stalls its episode like any other `failed` one. The decision above stands without it.*
+  *Amended 2026-10-08 (`ADR-0035`): that retraction's blanket throttle description is historical.
+  Current classification: `OPS-11`'s "the operation's mutating request was accepted by the
+  provider" condition. Episode effects: `OPS-48`; no automatic deferral is introduced.*
 - **Operation states are untouched.** `failed` stays terminal *for the attempt*; `needs_reconciliation`
   keeps meaning "unknown". What the episode carries is the third thing the operation could not:
   *known, and not done*.
