@@ -677,8 +677,9 @@ the fee's shape were amended the same day to stay true for both obligations.
       the order: no order is placed (`LDG-12`). With a balance that covers every other term but
       not the unit, the create is refused before any provider call. On a floor-priced offer the
       term is the floor with the margin, not `seconds` at the rate. On an offer whose `first_unit`
-      is zero — zero `seconds` and a null floor — the commitment carries no unit term and the
-      ambiguous row parks nothing for the unit (2026-10-08, `ADR-0033`). (`PRV-13b`, `PRV-44`,
+      is zero — zero `seconds` and a null floor, or a zero recurring price and a null floor — the
+      commitment carries no unit term and the ambiguous row parks nothing for the unit
+      (2026-10-08, `ADR-0033`). (`PRV-13b`, `PRV-44`,
       `LDG-12`, `LDG-24`, `LDG-39`)
 - [ ] **CNF-316** — **Acceptance debits the authorized amount as its own kind, paired with the
       decrement.** Move the rate between the create and the provider's acceptance. The entry is a
@@ -1547,9 +1548,12 @@ rather than acquiring a default.
       null-rate/zero-seconds shape. Attach, deficiency records, fee settlement/parked-fee clearing
       and cleanup enqueue are atomic: inject failure between effects and observe all or none.
       Before the bound the cleanup short-defers with no fence or provider call; extension is
-      refused by the rate gate. The meter charges nothing and opens a separate outage row from
-      `max(currency outage start, the subject's latest mark)` (`STO-37`), never absorbing
-      pre-attach time.
+      refused by the rate gate. The meter charges nothing, and it opens the subject's outage row
+      only where the outage outlasts the attach seed's mark, from that mark: `STO-37` opens one
+      for "every no-rate span intersecting a subject's clipped increment", starting at
+      `max(currency outage start, the subject's latest mark)`, and says "nothing opens a row
+      inside the unit in any case, a posting inside it being one `LDG-38` discards" — so the
+      inside-the-unit run below opens none, and no row absorbs pre-attach time.
 
       Return the rate. In one ordering, extend before the cleanup fence: a commitment opens,
       `runway_until` is re-derived (*amended 2026-10-04, `pv-gip.39`: no deficiency-resolution
@@ -1557,11 +1561,17 @@ rather than acquiring a default.
       cleanup aborts without provider mutation; the machine survives. In the other ordering, make
       no extension, and run it twice (2026-10-08, `ADR-0033`): with the rate returning **after the
       unit's end** — the attach seed's mark, at the attach instant plus `billing_unit.seconds`
-      (`LDG-38`) — the re-derived date has passed and the cleanup cancels through the existing
+      (`LDG-38`) — the re-derived date is not in the future, failing `OPS-41`'s test, "puts
+      **`runway_until` strictly in the future**", and the cleanup cancels through the existing
       fence; with the rate returning **inside the unit**, the re-derived date is the unit's end, so
       `OPS-41`'s step 3 — "If funded, it performs the no-mutation abort" — aborts the cleanup and
-      writes that date, `OPS-41`'s "write that re-derived `runway_until` to the machine row", and
-      the sweep routes the machine again when it passes and the cleanup then cancels. The opening
+      writes that date, `OPS-41`'s "write that re-derived `runway_until` to the machine row". That
+      cleanup never cancels: `OPS-41` says "settle the operation `succeeded` with a result
+      recording that no mutation was required". When the written date passes, `LDG-16`'s sweep
+      routes the machine — "MUST route a machine where its stored `runway_until` has passed and
+      its currency has a rate (`LDG-59`) and it is not recorded gone" — and the fresh system
+      cancellation that route enqueues, `OPS-39`'s "`requested_by: system` with a stated reason",
+      the reason `exhausted` from `OPS-39`'s list, is what cancels. The opening
       rates on the native-only wind-down, setup-fee and first-unit records remain null in every
       case. No general interval after the return delays cancellation beyond the unit's end.
       Separately keep the outage through its bound and

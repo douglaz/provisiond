@@ -256,7 +256,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `kind` | enum | `virtual` \| `bare_metal` |
 | `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null only for a machine that came from no offer, which no v1 machine is (`ADR-0020`) |
 | `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means **no install is permitted on this machine** — the offer allowed none. A null value MUST be read as empty, never as a fall-back to `DOM-10`'s account capabilities |
-| `billing_unit_seconds` | integer | nullable; the `seconds` of `PRV-44`'s `billing_unit` for the offer this machine was created from, **copied from the create's `request_summary` snapshot** — at create, or at attach where the machine is attached by resolution instead (`OPS-13`) — **in the same transaction as `offer_id`**, and never re-resolved afterwards: `LDG-38`'s first seed reads this copy, as the install gate reads `install_strategies`. The snapshot stays the create's record, but it is `STO-14`'s to remove — "A retention job MUST remove **settled** operations older than a configured age" — and that age is unrelated to the create-to-billable lag, so the first seed can find no snapshot to read. **A null value MUST be read as zero** — `PRV-44`'s exact-elapsed-time unit, a first seed at its instant — **never as a fall-back to the live offer**. *Added 2026-10-08, `ADR-0033`* |
+| `billing_unit_seconds` | integer | nullable; the `seconds` of `PRV-44`'s `billing_unit` for the offer this machine was created from, **copied from the create's `request_summary` snapshot** — at create, or at attach where the machine is attached by resolution instead (`OPS-13`) — **in the same transaction as `offer_id`**, and never re-resolved afterwards. `LDG-38`: "The seconds are read from `machines.billing_unit_seconds`", as the install gate reads `install_strategies`; `LDG-38` holds why the seed reads this copy and neither the create's snapshot nor the live offer. **A null value MUST be read as zero** — `PRV-44`'s exact-elapsed-time unit, a first seed at its instant — **never as a fall-back to the live offer**. *Added 2026-10-08, `ADR-0033`* |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
@@ -1016,13 +1016,14 @@ written. **The subject row starts at `max(currency outage start, the subject's l
 day). The latest mark is what `LDG-38` defines, "the greatest `increment end` already closed for
 it", wherever an increment has closed since the span's seed — an attachment seeded at 30 whose
 increment 30–60 closed has its latest mark at 60, and a row started at 30 would count that
-increment's time twice; where nothing has closed since the seed it is the mark that seed wrote: the
-seed instant for an attachment and for a machine's later seed, and the prepaid unit's end for a
-machine's first seed and for a re-entry inside the unit, a seed `LDG-38` discards and that writes
-no mark of its own. The unit's provider cost is already in the prepaid entry and `LDG-75` says
-"Provider cost MUST count once whoever bore it: an exposure estimate and the charge realizing it
-MUST NOT both enter accrual"; nothing opens a row inside the unit in any case, a posting inside it
-being one `LDG-38` discards. The maximum is the later of that mark and the outage start either way.
+increment's time twice; where nothing has closed since the seed it is the mark standing from the
+span's or an earlier seed: the seed instant for an attachment and for a machine's later seed, and
+the prepaid unit's end for a machine's first seed and for a re-entry inside the unit, a seed
+`LDG-38` discards and that writes no mark of its own, leaving the first seed's standing. The
+unit's provider cost is already in the prepaid entry and `LDG-75` says "Provider cost MUST count
+once whoever bore it: an exposure estimate and the charge realizing it MUST NOT both enter
+accrual"; nothing opens a row inside the unit in any case, a posting inside it being one `LDG-38`
+discards. The maximum is the later of that mark and the outage start either way.
 Rows of one outage MUST carry the same `absorbed_from` wherever that maximum is the same,
 regardless of posting order or current settings. For row closure at exit to nonbillable, see
 `LDG-38` and `LDG-72`. Settings changes move neither an existing row's start nor a later row's

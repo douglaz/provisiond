@@ -116,7 +116,8 @@ because a reservation is no longer a ledger entry (`LDG-30`), and `expiry` is wi
 the closing section of this document prohibits the only behaviour it could have described.
 
 A setup fee MUST be its own kind and MUST NOT be folded into usage, because it is a
-non-refundable component (the prepaid first unit below is another, `ADR-0033`) and a caller
+non-refundable component (the prepaid first unit below is another, `ADR-0033`; *reworded
+2026-10-08*) and a caller
 asking "why did I not get that back" deserves a row that answers it.
 
 `first_unit_debit` is the prepaid first billing unit (`ADR-0033`, added 2026-10-08): machine time
@@ -362,10 +363,13 @@ early by up to the unit plus the order-to-seed lag, until the first re-derivatio
 moves it, and no usage debit lands before the seed — the `first_unit_debit` does, at acceptance
 (`LDG-39`) — so the early date routes nothing the unoffset derivation would not have routed. Where
 that stored date passes after the seed and before the next re-derivation, `LDG-16`'s sweep routes
-on it — "MUST route a machine where its stored `runway_until` has passed" — and `OPS-41`'s re-check
-re-derives with the mark, aborts, and writes the corrected date, `OPS-41`'s "write that re-derived
-`runway_until` to the machine row"; that abort is the existing mechanism and it is enough, and no
-writer is added for the case (*stated 2026-10-08, `ADR-0033`*). Every writer of `runway_until` the
+on it under `LDG-16`'s predicate — "MUST route a machine where its stored `runway_until` has passed
+and its currency has a rate (`LDG-59`) and it is not recorded gone" — and `OPS-41`'s re-check
+re-derives with the mark: where the re-derived date is in the future — `OPS-41`'s test, "puts
+**`runway_until` strictly in the future**" — it aborts and writes the corrected date, `OPS-41`'s
+"write that re-derived `runway_until` to the machine row", and otherwise it proceeds, on a date
+that is now correct; that re-check is the existing mechanism and it is enough, and no writer is
+added for the case (*stated 2026-10-08, `ADR-0033`*). Every writer of `runway_until` the
 `machines` row names (`05-persistence.md`) computes this formula, an extension inside the unit
 included.
 
@@ -1142,7 +1146,7 @@ have landed**, at which point `LDG-31` decrements the commitment by the same amo
 unstated:
 
 **Amended 2026-10-08 (`ADR-0033`): the prepaid first billing unit follows every row of this
-table.** It is `PRV-13b`'s second order-landed term — committed at the customer rate, where the fee
+table.** It is an order-landed term of `PRV-13b` — committed at the customer rate, where the fee
 is committed at cost — parked beside the fee where `LDG-67` parks it, and debited on acceptance as
 its own kind, `first_unit_debit` (`LDG-7`), for the satoshi amount authorized at the create and
 paired under `LDG-31` like the fee. Where a row names the fee it names the unit as well, with two
@@ -1155,11 +1159,16 @@ exactly as the fee's — "the record MUST carry the rate in force when it opened
 zero, the `provider_account` and `subject_kind` as `STO-37` has them, and both records produced in
 `OPS-27`'s single resolution transaction. On the absent row the unit's trigger is the provider's own
 transaction showing **the unit** was charged, applied to the unit on its own; the fee's trigger
-stays the fee's. **Where `first_unit` is zero** — `PRV-44`'s zero `seconds` with a null floor,
-"`first_unit` is the floor alone or nothing" — **there is no obligation: the create MUST NOT commit,
+stays the fee's. **Where `first_unit` is zero** — whatever made it so: `PRV-44`'s zero `seconds`
+with a null floor, where "`first_unit` is the floor alone or nothing", or a positive `seconds` at a
+zero recurring price with a null floor — **there is no obligation: the create MUST NOT commit,
 park, debit or record anything for the unit**, because `LDG-7` says "**Every entry moves real money.**"
-and `STO-45` says "a zero-value ledger row is not legal"; the machine's first seed is then `PRV-44`'s
-unoffset one, at the seed instant (`LDG-38`). *Added 2026-10-08, `ADR-0033`.*
+and `STO-45` says "a zero-value ledger row is not legal". The seed's offset keys on `seconds`, not on
+the amount: with zero `seconds` the machine's first seed is `PRV-44`'s unoffset one, at the seed
+instant (`LDG-38`); with positive `seconds` at a zero price the first seed is offset as `LDG-38`
+says, "the seed instant plus the `billing_unit.seconds` the machine's own row carries", prepaying
+nothing, and the unit meters nothing either way. *Added 2026-10-08, `ADR-0033`; the two conditions
+separated the same day.*
 
 | Outcome | Setup fee — and, since 2026-10-08, the prepaid first unit |
 |---|---|
