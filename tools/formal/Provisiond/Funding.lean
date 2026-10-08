@@ -71,13 +71,14 @@ else — except a machine's first seed. `Params.prepaidFirstUnit` is `ADR-0033`,
 provider's first billing unit of a machine is prepaid machine time, `LDG-39`'s lifecycle, so
 "the machine's first seed places its mark at the seed instant plus one unit" and the meter starts
 where the unit ends. The unit is `World.unitSeconds`, `PRV-44`'s `billing_unit.seconds` for the
-subject's offer, and `firstUnit` is the seed it applies to: the subject is a machine, it has no mark
-yet, and the unit has seconds. `World.prepaid` records the interval that seed bought, as `charged`
-records what each posting priced; it is not a column. A later seed, an attachment's seed and a unit
-of no seconds are the plain rule, and the floor on the unit's price (`native_floor`) moves no
-instant. `World.mark` stays an `Option` because the seed's absence is a value of the model: in the
-specified system "There is no case without a mark", and `none` is reachable here only from a world
-that was never seeded, where `start` falls back on `World.periodStart` — `LDG-38`'s trap:
+subject's offer as the machine's row copied it (`LDG-38`), and `firstUnit` is the seed it applies
+to: the subject is a machine, it has no mark yet, and the unit has seconds. `World.prepaid`
+records the interval that seed bought, as `charged` records what each posting priced; it is not a
+column. A later seed, an attachment's seed and a unit of no seconds are the plain rule, and the
+floor on the unit's price (`native_floor`) moves no instant. `World.mark` stays an `Option`
+because the seed's absence is a value of the model: in the specified system "There is no case
+without a mark", and `none` is reachable here only from a world that was never seeded, where
+`start` falls back on `World.periodStart` — `LDG-38`'s trap:
 "A start at the metering period's first instant, for a subject not yet marked, forfeits every
 billable second before that boundary and makes the tick's timing a pricing input".
 `Meter.postedDebit` computes the debit, `Ledger.clamp` splits it, and `r` advances by the computed
@@ -327,9 +328,11 @@ structure World where
   charged        : List (Nat × Nat)
   /-- The subject quarantine from `LDG-72`; the audit that sets it is not modeled. -/
   quarantined    : Bool := false
-  /-- `PRV-44`'s `billing_unit.seconds` for the subject's offer, as the create's snapshot carries
-  it (`LDG-67`; `ADR-0033`). Zero is `PRV-44`'s exact-elapsed-time offer, a unit of no length:
-  nothing is prepaid for time and a machine's first seed writes its mark at the seed instant. -/
+  /-- `PRV-44`'s `billing_unit.seconds` for the subject's offer, as the machine's own row carries
+  it — `machines.billing_unit_seconds`, the copy the row takes from the create's snapshot and
+  `LDG-38`'s first seed reads (`ADR-0033`). Zero is `PRV-44`'s exact-elapsed-time offer, a unit of
+  no length, and the row's null: nothing is prepaid for time and a machine's first seed writes its
+  mark at the seed instant. -/
   unitSeconds    : Nat := 0
   /-- Not a column: the interval the prepaid first unit bought — the machine's first seed instant
   to that instant plus the unit — written by that seed and by nothing else (`ADR-0033`). -/

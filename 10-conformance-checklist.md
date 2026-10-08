@@ -21,7 +21,8 @@ argued tiers and are not kept. `tools/check_ids.py` now refuses a tag on an item
 asserts was changed by the cut.
 
 **Seeds in the items below** (2026-10-08, `ADR-0033`): a machine's first seed writes its mark at
-the seed instant plus the `billing_unit.seconds` the create snapshotted (`LDG-38`). An item that
+the seed instant plus the `billing_unit.seconds` the machine's row copied from the create's
+snapshot (`LDG-38`). An item that
 seeds a machine at an instant and asserts its mark or its first increment there runs on an offer
 whose `billing_unit.seconds` is zero — `PRV-44`'s exact-elapsed-time offer, a unit of no length,
 under which nothing is prepaid for time — or on a seed that is not the machine's first; the first
@@ -675,16 +676,20 @@ the fee's shape were amended the same day to stay true for both obligations.
       customer rate and the setup fee at cost. Kill the process between the commitment's open and
       the order: no order is placed (`LDG-12`). With a balance that covers every other term but
       not the unit, the create is refused before any provider call. On a floor-priced offer the
-      term is the floor with the margin, not `seconds` at the rate. (`PRV-13b`, `PRV-44`,
-      `LDG-12`, `LDG-24`)
+      term is the floor with the margin, not `seconds` at the rate. On an offer whose `first_unit`
+      is zero — zero `seconds` and a null floor — the commitment carries no unit term and the
+      ambiguous row parks nothing for the unit (2026-10-08, `ADR-0033`). (`PRV-13b`, `PRV-44`,
+      `LDG-12`, `LDG-24`, `LDG-39`)
 - [ ] **CNF-316** — **Acceptance debits the authorized amount as its own kind, paired with the
       decrement.** Move the rate between the create and the provider's acceptance. The entry is a
       `first_unit_debit`, never a `usage_debit`, for exactly the satoshi amount
       `operations.request_summary` carries as authorized and not a re-conversion; the commitment
       is decremented by the same amount in the same transaction (kill the process between them
       and neither survives); `available` does not move. A machine that lives ten seconds has paid
-      the whole unit, and the meter has posted nothing for it. (`LDG-39`, `LDG-67`, `LDG-31`,
-      `LDG-7`, `LDG-38`)
+      the whole unit, and the meter has posted nothing for it. Accept an order on an offer whose
+      `first_unit` is zero: no `first_unit_debit` and no entry of any kind is posted for the unit,
+      and no deficiency is ever recorded for it (2026-10-08, `ADR-0033`). (`LDG-39`, `LDG-67`,
+      `LDG-31`, `LDG-7`, `LDG-38`, `STO-45`)
 - [ ] **CNF-317** — **The unit follows every row of `LDG-39`'s table, as a record of its own.**
       Drive each row with a setup fee and a prepaid unit on the same create. Deterministic
       rejection and resolved-absent release both in full. Ambiguous parks both on the operation,
@@ -715,12 +720,16 @@ the fee's shape were amended the same day to stay true for both obligations.
       offset and no second prepaid debit. Seed a billable attachment of the same machine: its mark
       is its seed instant. Repeat the first seed on a floor-priced offer: the mark is still the
       seed plus `seconds`. Re-list the offer with a 3600-second unit between a create accepted at
-      60 seconds and the machine's first seed: the mark is still 90, read from the create's
-      `request_summary` copy and never from the live offer. The wrong builds: one that seeds at
+      60 seconds and the machine's first seed: the mark is still 90, read from
+      `machines.billing_unit_seconds`, the copy written with `offer_id` at create or at attach,
+      and never from the live offer; remove the settled create under `STO-14` before the seed and
+      the mark is still 90; null the copy and the mark is the seed instant, never the live offer's
+      unit (2026-10-08, `ADR-0033`). The wrong builds: one that seeds at
       the instant charges the customer the unit and the seconds; one that offsets every seed hands
       the customer a unit on each re-entry; one that offsets an attachment meters nothing it
       should; one that reads the live offer at the seed meters a unit nobody prepaid, or prepays
-      one it never meters. (`LDG-38`, `STO-45`, `LDG-72`, `PRV-44`, `LDG-67`, `WIR-30`)
+      one it never meters; one that reads the snapshot at the seed has nothing to read once
+      `STO-14` has run. (`LDG-38`, `STO-45`, `LDG-72`, `PRV-44`, `LDG-67`, `WIR-30`, `STO-14`)
 - [ ] **CNF-319** — **`runway_until` counts from the later of now and the machine's mark, in
       every writer.** A machine seeded at 0 on an hour's unit, with ten seconds of usable runway,
       has `runway_until` 3610 after re-derivation at 100 (`PRV-13e`), after an extension at 100
@@ -1539,16 +1548,23 @@ rather than acquiring a default.
       and cleanup enqueue are atomic: inject failure between effects and observe all or none.
       Before the bound the cleanup short-defers with no fence or provider call; extension is
       refused by the rate gate. The meter charges nothing and opens a separate outage row from
-      `max(currency outage start, the mark the attach seed wrote)`, never absorbing pre-attach
-      time.
+      `max(currency outage start, the subject's latest mark)` (`STO-37`), never absorbing
+      pre-attach time.
 
       Return the rate. In one ordering, extend before the cleanup fence: a commitment opens,
       `runway_until` is re-derived (*amended 2026-10-04, `pv-gip.39`: no deficiency-resolution
       bookkeeping*) and the
       cleanup aborts without provider mutation; the machine survives. In the other ordering, make
-      no extension: the cleanup cancels through the existing fence. The opening rates on the
-      native-only wind-down, setup-fee and first-unit records remain null in both cases. No general interval
-      after the return delays cancellation. Separately keep the outage through its bound and
+      no extension, and run it twice (2026-10-08, `ADR-0033`): with the rate returning **after the
+      unit's end** — the attach seed's mark, at the attach instant plus `billing_unit.seconds`
+      (`LDG-38`) — the re-derived date has passed and the cleanup cancels through the existing
+      fence; with the rate returning **inside the unit**, the re-derived date is the unit's end, so
+      `OPS-41`'s step 3 — "If funded, it performs the no-mutation abort" — aborts the cleanup and
+      writes that date, `OPS-41`'s "write that re-derived `runway_until` to the machine row", and
+      the sweep routes the machine again when it passes and the cleanup then cancels. The opening
+      rates on the native-only wind-down, setup-fee and first-unit records remain null in every
+      case. No general interval after the return delays cancellation beyond the unit's end.
+      Separately keep the outage through its bound and
       exercise cancellation, including an attach after the bound. Repeat under current suspension
       and under an open restore to check the existing worker precedence.
 

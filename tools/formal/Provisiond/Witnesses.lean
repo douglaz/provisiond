@@ -2100,7 +2100,8 @@ theorem reentered_life_is_valid (p : Funding.Params) :
 def unmarkedShortLife (p : Funding.Params) : Funding.World :=
   Funding.exitSubject p (Funding.seed p seedWorld 30) 34 (1/5)
 
-/-- Validity starts with `mark = none` and uses the existing seed, without assuming coverage. -/
+/-- Validity starts with `mark = none` and uses the existing seed, without assuming coverage — a
+machine's first seed under `seedWorld`'s zero unit, so at its instant, 30, and recording no unit. -/
 @[req "LDG-38"]
 theorem unmarked_short_life_is_valid (p : Funding.Params) :
     Funding.LifecycleTrace p seedWorld 0 (unmarkedShortLife p) 34 none [(30,34)] (some 34) := by
@@ -2151,7 +2152,8 @@ theorem unmarked_short_life_covered_before_release :
 
 `ADR-0033`: "the machine's first seed places its mark at the seed instant plus one unit", and the
 meter starts where the unit ends; `LDG-38` carries it: a machine's first seed "writes the mark at
-the seed instant plus the `billing_unit.seconds` the create's `request_summary` carries". The unit
+the seed instant plus the `billing_unit.seconds` the machine's own row carries" —
+`machines.billing_unit_seconds`, `World.unitSeconds` here. The unit
 here is sixty seconds, DigitalOcean's declared one; its floor prices the unit (`PRV-13b`) and moves
 no instant. -/
 

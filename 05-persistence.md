@@ -256,6 +256,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `kind` | enum | `virtual` \| `bare_metal` |
 | `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null only for a machine that came from no offer, which no v1 machine is (`ADR-0020`) |
 | `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means **no install is permitted on this machine** — the offer allowed none. A null value MUST be read as empty, never as a fall-back to `DOM-10`'s account capabilities |
+| `billing_unit_seconds` | integer | nullable; the `seconds` of `PRV-44`'s `billing_unit` for the offer this machine was created from, **copied from the create's `request_summary` snapshot** — at create, or at attach where the machine is attached by resolution instead (`OPS-13`) — **in the same transaction as `offer_id`**, and never re-resolved afterwards: `LDG-38`'s first seed reads this copy, as the install gate reads `install_strategies`. The snapshot stays the create's record, but it is `STO-14`'s to remove — "A retention job MUST remove **settled** operations older than a configured age" — and that age is unrelated to the create-to-billable lag, so the first seed can find no snapshot to read. **A null value MUST be read as zero** — `PRV-44`'s exact-elapsed-time unit, a first seed at its instant — **never as a fall-back to the live offer**. *Added 2026-10-08, `ADR-0033`* |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
@@ -363,7 +364,7 @@ filters out deleted rows.
 | `provider_account` | text | nullable |
 | `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (`ADR-0014`): a create has one attempt and one correlator. Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create. *`F36` and `ADR-0014` record what the withdrawn per-attempt list cost* |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted, the copy the machine's first seed reads instead of the live offer (`LDG-67`, `LDG-39`, `LDG-38`). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted — the create's record of the unit's duration, from which `machines.billing_unit_seconds` takes the copy the machine's first seed reads, at create or at attach (`LDG-67`, `LDG-39`, `LDG-38`; *re-pointed 2026-10-08, `ADR-0033`*). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
@@ -1011,14 +1012,17 @@ outage — the newest goes stale, and a later pass accepts one observation into 
 the replay returns the first instant, which those per-writer formulas did not. A late opening
 changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
 written. **The subject row starts at `max(currency outage start, the subject's latest mark)`**
-(`LDG-72`; amended 2026-10-08 from the billable-span seed, `ADR-0033`). For an attachment, and for
-a machine whose span's seed came after its prepaid unit, that mark is the span's seed instant, as
-before; for a machine's first seed it is the prepaid unit's end, and so it is for a re-entry inside
-the unit, a seed `LDG-38` discards and that writes no mark of its own (`LDG-38`), because the
-unit's provider cost is already in the prepaid entry and `LDG-75` says
+(`LDG-72`; amended 2026-10-08 from the billable-span seed, `ADR-0033`; the gloss corrected the same
+day). The latest mark is what `LDG-38` defines, "the greatest `increment end` already closed for
+it", wherever an increment has closed since the span's seed — an attachment seeded at 30 whose
+increment 30–60 closed has its latest mark at 60, and a row started at 30 would count that
+increment's time twice; where nothing has closed since the seed it is the mark that seed wrote: the
+seed instant for an attachment and for a machine's later seed, and the prepaid unit's end for a
+machine's first seed and for a re-entry inside the unit, a seed `LDG-38` discards and that writes
+no mark of its own. The unit's provider cost is already in the prepaid entry and `LDG-75` says
 "Provider cost MUST count once whoever bore it: an exposure estimate and the charge realizing it
 MUST NOT both enter accrual"; nothing opens a row inside the unit in any case, a posting inside it
-being one `LDG-38` discards.
+being one `LDG-38` discards. The maximum is the later of that mark and the outage start either way.
 Rows of one outage MUST carry the same `absorbed_from` wherever that maximum is the same,
 regardless of posting order or current settings. For row closure at exit to nonbillable, see
 `LDG-38` and `LDG-72`. Settings changes move neither an existing row's start nor a later row's

@@ -17,8 +17,11 @@ agree on every input. `Params.startAtMark` carries the rule; `runwayStart` is th
 `runway_not_before_the_unit_end` and `runway_early_without_the_start` are the pair. Before the seed
 there is no mark and the derivation counts from now, as it always did. `routed` and `abortDate` read
 the date this derivation yields, so that `LDG-16`'s sweep and `OPS-41`'s abort agree with the
-Markdown inside the unit too: a machine there is never routed and its cancellation is aborted
-(`abortDate_never_on_routed`, `not_routed_inside_the_unit`). -/
+Markdown inside the unit too: a machine there is never routed (`not_routed_inside_the_unit`) and
+its cancellation is aborted — `runway_not_before_the_unit_end`'s date is past now there, which the
+fourth conjunct of `Provisiond.Witnesses.runway_counts_from_the_unit_end` executes;
+`abortDate_never_on_routed` is the converse, that a machine routed on the date it would re-derive
+is never aborted. -/
 
 namespace Provisiond.Runway
 

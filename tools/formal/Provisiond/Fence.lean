@@ -57,6 +57,13 @@ Operator authentication, durable operator evidence and idempotency receipt stora
 this model. `Attempt.retried` abstracts the durable requested-by/episode origin specified by
 API-64, not a claim-local flag.
 
+`Fence`'s machine carries no mark: `derive`, `extend`, `extend_admitted` and the `writeAbortDate`
+sites compute `now + runwaySeconds`, which is `LDG-33`'s derivation before the machine's first seed
+— "Before the seed exists there is no mark and the derivation counts from now" —
+`Provisiond.Runway.runway_from_now_before_the_seed`'s instance. The prepaid unit's offset
+(`ADR-0033`, 2026-10-08) is `Provisiond.Runway.runwayStart`'s and `Provisiond.Funding.seed`'s, and
+nothing here reads a mark.
+
 Re-derivation consumes an optional per-currency acceptance order (`STO-49`); no observation is
 `LDG-40`'s halt. The caller supplies the date computed by `LDG-33`; source aggregation, currency
 selection and rate arithmetic are outside this transition. The rate the worker reads is

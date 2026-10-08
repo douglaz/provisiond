@@ -116,9 +116,8 @@ because a reservation is no longer a ledger entry (`LDG-30`), and `expiry` is wi
 the closing section of this document prohibits the only behaviour it could have described.
 
 A setup fee MUST be its own kind and MUST NOT be folded into usage, because it is a
-non-refundable component (one of two since 2026-10-08, the prepaid first unit below being the
-other, `ADR-0033`) and a caller asking "why did I not get that back" deserves a row that answers
-it.
+non-refundable component (the prepaid first unit below is another, `ADR-0033`) and a caller
+asking "why did I not get that back" deserves a row that answers it.
 
 `first_unit_debit` is the prepaid first billing unit (`ADR-0033`, added 2026-10-08): machine time
 the customer buys when the order lands, at the customer rate (`PRV-13b`), on the setup fee's
@@ -360,9 +359,15 @@ unit's end on every input; counted from `now` alone the date was wrong on every 
 unit — in the ADR's words, "or every machine routes up to one unit early". Before the seed exists
 there is no mark and the derivation counts from now, as it always did: the stored date is then
 early by up to the unit plus the order-to-seed lag, until the first re-derivation after the seed
-moves it, and no debit lands before the seed, so the early date routes nothing the unoffset
-derivation would not have routed. Every writer of `runway_until` the `machines` row names
-(`05-persistence.md`) computes this formula, an extension inside the unit included.
+moves it, and no usage debit lands before the seed — the `first_unit_debit` does, at acceptance
+(`LDG-39`) — so the early date routes nothing the unoffset derivation would not have routed. Where
+that stored date passes after the seed and before the next re-derivation, `LDG-16`'s sweep routes
+on it — "MUST route a machine where its stored `runway_until` has passed" — and `OPS-41`'s re-check
+re-derives with the mark, aborts, and writes the corrected date, `OPS-41`'s "write that re-derived
+`runway_until` to the machine row"; that abort is the existing mechanism and it is enough, and no
+writer is added for the case (*stated 2026-10-08, `ADR-0033`*). Every writer of `runway_until` the
+`machines` row names (`05-persistence.md`) computes this formula, an extension inside the unit
+included.
 
 **The two date terms are not additive.** Where both an effective cancellation date (`DOM-19`) and
 an earliest cancellation date still in the future (`PRV-13c`) apply to the same machine, the
@@ -901,14 +906,19 @@ carries no seconds and posts nothing: a period row it creates starts with `r = 0
 row's `r` is untouched.
 
 **A machine's first seed writes the mark at the seed instant plus the `billing_unit.seconds` the
-create's `request_summary` carries, not at the seed instant** (`ADR-0033`, added 2026-10-08;
-formalized as `Provisiond.Funding.seed`). The seconds are read from the copy the create took — the
-unit's record `LDG-67` parks beside the fee, the copy an attached machine takes being `OPS-13`'s —
-and never from the live offer, for the reason `WIR-30` gives the install gate: "The gate reads the
-copy the machine took at create — `machines.install_strategies` (`05-persistence.md`) — not the
+machine's own row carries, not at the seed instant** (`ADR-0033`, added 2026-10-08; the reader
+re-pointed from the create's snapshot to the machine's copy the same day; formalized as
+`Provisiond.Funding.seed`). The seconds are read from `machines.billing_unit_seconds`, which
+`05-persistence.md`'s `machines` row says is "copied from the create's `request_summary` snapshot"
+at create or at attach, "in the same transaction as `offer_id`", with a null that "MUST be read as
+zero" — never from the live offer, for the reason `WIR-30` gives the install gate: "The gate reads
+the copy the machine took at create — `machines.install_strategies` (`05-persistence.md`) — not the
 offer as it stands at install time, because an offer is a live listing that can change or disappear
-between the two"; the seed can be days after the create (`OPS-33`'s window, `OPS-36`'s late
-attach), and the duration is not recoverable from the unit's money under a floor. The customer
+between the two"; and never from the snapshot itself, the create's record `LDG-67` parks beside the
+fee, because `STO-14` removes settled operations "older than a configured age", an age unrelated to
+the create-to-billable lag, while the seed can be days after the create (`OPS-33`'s window,
+`OPS-36`'s late attach) — a rule whose input may have been purged is not a rule — and the duration
+is not recoverable from the unit's money under a floor. The customer
 prepaid that unit as machine time when the order landed —
 `first_unit_debit`, on `LDG-39`'s lifecycle — so the meter starts where the unit ends; and
 `native_floor` moves no instant: it prices the unit (`PRV-13b`), and the mark is at the seed plus
@@ -1145,7 +1155,11 @@ exactly as the fee's — "the record MUST carry the rate in force when it opened
 zero, the `provider_account` and `subject_kind` as `STO-37` has them, and both records produced in
 `OPS-27`'s single resolution transaction. On the absent row the unit's trigger is the provider's own
 transaction showing **the unit** was charged, applied to the unit on its own; the fee's trigger
-stays the fee's.
+stays the fee's. **Where `first_unit` is zero** — `PRV-44`'s zero `seconds` with a null floor,
+"`first_unit` is the floor alone or nothing" — **there is no obligation: the create MUST NOT commit,
+park, debit or record anything for the unit**, because `LDG-7` says "**Every entry moves real money.**"
+and `STO-45` says "a zero-value ledger row is not legal"; the machine's first seed is then `PRV-44`'s
+unoffset one, at the seed instant (`LDG-38`). *Added 2026-10-08, `ADR-0033`.*
 
 | Outcome | Setup fee — and, since 2026-10-08, the prepaid first unit |
 |---|---|
@@ -1702,14 +1716,16 @@ attempt**, so a resolution that debits the fee debits what the customer actually
 than a re-conversion at whatever the rate has since become — **which is the case where the create's
 own commitment is still open**; once `OPS-33` has released it the fee is not debited at all
 (`LDG-39`, amended 2026-09-02) and that figure is what the operator deficiency records instead.
-**The prepaid first billing unit is parked beside the fee with the same pair, and with its
-duration** (`ADR-0033`, added 2026-10-08): its native amount and the satoshi amount authorized at
+**The prepaid first billing unit, where `first_unit` is not zero (`LDG-39`), is parked beside the
+fee with the same pair, and with its duration** (`ADR-0033`, added 2026-10-08; the zero case and
+the duration's reader stated the same day): its native amount and the satoshi amount authorized at
 the create — `PRV-13b` prices it — so that the acceptance debit of `first_unit_debit` is that
 authorized amount and never a re-conversion: a re-pricing at acceptance is the shortfall `ADR-0033`
 rejects, whose clamp "would turn the shortfall into an operator deficiency, and an attacker can
 choose that path"; and the `billing_unit.seconds` the offer declared when the create was accepted
-(`PRV-44`), because the machine's first seed reads the unit's duration from this copy and never
-from the live offer (`LDG-38`), and the duration is not recoverable from the money under a floor.
+(`PRV-44`) — the create's record of the unit's duration, from which the machine's row copies
+`machines.billing_unit_seconds` (`05-persistence.md`), the copy its first seed reads; `LDG-38` holds
+why the seed reads that copy and neither the live offer nor this record.
 **The outstanding obligation is the latest attempt's entry, and resolution debits the matched
 attempt's.** *Until 2026-09-05 `operations` also carried three scalar columns as "the copy of the
 latest attempt's fee" — a second representation of a figure the entries already held, and the same
@@ -2019,7 +2035,7 @@ covers the cause inventory owned by `STO-37`; it does not add causes:
 | `clamp_overflow` | Include only the native remainder from `LDG-31`; the entry carries the covered part. |
 | `rate_outage` | Include the closed native cost recorded under `LDG-64`, without a tenant debit or a historical rate. |
 | `unrecoverable_setup_fee` | Include the fee obligation recorded under `LDG-39`, including its abandoned branch; it is not also a customer entry. The invoice replaces this estimate. |
-| `unrecoverable_first_unit` | Include the prepaid first unit's obligation recorded under `LDG-39`, including its abandoned branch, at the unit's provider-native cost including its floor; it is not also a customer entry. The invoice replaces this estimate. (`ADR-0033`, 2026-10-08) |
+| `unrecoverable_first_unit` | Include the prepaid first unit's obligation recorded under `LDG-39`, including its abandoned branch; it is not also a customer entry. The invoice replaces this estimate. (`ADR-0033`, 2026-10-08) |
 | `exception_branch` | Exclude the forward coverage shortfall from `LDG-63`. Subsequent metering supplies entries and any incurred clamp remainder; the invoice supplies anything missed. |
 | `account_loss` | Exclude `SEC-46`'s unconfirmed exposure. Include subsequent entries and incurred deficiencies through their own records; see `LDG-74` for the meter-stop rule. The invoice supplies anything missed. |
 | `late_attach_cleanup` | Exclude `OPS-36`'s wind-down floor. Actual charges subsequently carried by entries or incurred deficiencies count through those records; cost without such a record arrives on the invoice. Opening a commitment is not itself a provider charge. |

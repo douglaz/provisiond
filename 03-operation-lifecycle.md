@@ -619,7 +619,8 @@ currency** and compare it with the native price the commitment was sized from �
 operation's `request_summary`, which MUST hold the accepted recurring price, its
 currency and its period, and the accepted setup fee and prepaid first unit, the unit with its
 `billing_unit.seconds`** (`LDG-2`, `LDG-67`; *the unit and its seconds added 2026-10-08,
-`ADR-0033`, because the machine's first seed reads them, `LDG-38`*; *the
+`ADR-0033`, because the machine's row copies the seconds for its first seed, `LDG-38`,
+`05-persistence.md`*; *the
 fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment
 row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
 provider
