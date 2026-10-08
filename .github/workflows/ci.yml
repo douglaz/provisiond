@@ -641,7 +641,9 @@ jobs:
       # from deleting after an admitted extension; interruptedRetry isolates this guard.
       # The automatic sweep-close row and its obsolete suspension-exemption witness
       # were deleted with that policy.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status guard's removal, one witness each
+      # ADR-0034 (2026-10-08): ProviderTraffic's cache, PTR evidence and request
+      # admission guards, and Admission's reverse-DNS ceiling, have isolated witnesses.
+      - name: Prove the Lean build rejects each listed guard's removal, one witness each
         env:
           SHARD: ${{ matrix.shard }}
           JOB_INDEX: ${{ strategy.job-index }}
@@ -727,11 +729,23 @@ jobs:
           Admission|solvencyUsesValuedTerms|true|false|Action.solvencyCheck
           Admission|completeCheckToLift|true|false|incompletePassingTrace
           Admission|richTailCollection|true|false|fencedHaltedNoRate
+          Admission|reverseDnsCeiling|true|false|reverseDnsAdmission
+          ProviderTraffic|reuseFresh|true|false|freshClaim
+          ProviderTraffic|checkAtClaim|true|false|queuedRefreshes
+          ProviderTraffic|preserveAge|true|false|ageClaim
+          ProviderTraffic|successfulOnly|true|false|failedRefreshes
+          ProviderTraffic|reverseDnsNoop|true|false|establishedPtrNoop
+          ProviderTraffic|establishedOnly|true|false|uncertainPtrNoop
+          ProviderTraffic|sharedScope|true|false|scopeGuards
+          ProviderTraffic|protectReserve|true|false|reserveGuards
+          ProviderTraffic|admitOnce|true|false|continuationGuards
+          ProviderTraffic|accountEveryRequest|true|false|accountingGuards
           Ledger|nativeCostSplit|true|false|nativeClampTrace
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
           Period|deploymentWide|true|false|lateSubjectTrace
           AccountStatus|retainUnlessTerminated|true|false|credentialsRejected
+          ProviderTraffic|invalidatePtr|true|false|ptrAfterDifferingDispatch
           ROWS
           )
           # No matrix condition on this step: a bad shard must reach the guard.
@@ -802,7 +816,7 @@ jobs:
             rm -rf "$tmp"
           done <<<"$selected"
           if [ "$passed" -ne "$expected" ]; then
-            echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status controls to pass, got $passed"; fail=1
+            echo "::error::expected $expected listed guard controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

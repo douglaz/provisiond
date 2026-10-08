@@ -14,6 +14,7 @@ import Provisiond.Rescue
 import Provisiond.Rehost
 import Provisiond.Admission
 import Provisiond.AccountStatus
+import Provisiond.ProviderTraffic
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -2723,7 +2724,7 @@ no machine; tenant 2 gets the view, without the provider columns. -/
 theorem foreign_machine_witness :
     machineLookup ⟨1⟩ (some machineOfTenantTwo) = machineLookup ⟨1⟩ none ∧
       machineLookup ⟨1⟩ (some machineOfTenantTwo) = .notFound ∧
-      machineLookup ⟨2⟩ (some machineOfTenantTwo) = .ok { id := ⟨9⟩, name := "worker-1" } := by
+      machineLookup ⟨2⟩ (some machineOfTenantTwo) = .ok { id := ⟨9⟩, name := "worker-1", stateObservedAt := none } := by
   decide
 
 end Wire
@@ -3694,5 +3695,171 @@ theorem accepted_boundary_cases :
     Rate.rateAt Rate.current [⟨none, some ⟨100, 840, 60⟩, 850⟩,
       ⟨some 100, some ⟨100, 839, 60⟩, 850⟩] 850 = none ∧
     Rate.acceptanceTime 845 850 = 850 := by decide
+
+section ProviderTraffic
+open Provisiond.ProviderTraffic
+
+def freshObservation : Cache := ⟨some 100, 1, true⟩
+def freshClaim (g : ProviderTraffic.Guards) : Cache :=
+  claimRefresh { g with checkAtClaim := true, preserveAge := true } 60 110 none true freshObservation
+
+def ageClaim (g : ProviderTraffic.Guards) : Cache :=
+  claimRefresh { g with reuseFresh := true, checkAtClaim := true } 60 110 none true freshObservation
+
+@[req "DOM-8"]
+theorem fresh_refresh_has_no_call : (freshClaim ProviderTraffic.current).reads = 1 := by decide
+@[req "DOM-8"]
+theorem without_reuse_fresh_refresh_calls :
+    (freshClaim { ProviderTraffic.current with reuseFresh := false }).reads = 2 := by decide
+
+@[req "DOM-8"]
+theorem cache_answer_does_not_rejuvenate :
+    (ageClaim ProviderTraffic.current).observed = some 100 := by decide
+@[req "DOM-8"]
+theorem without_age_guard_cache_rejuvenates :
+    (ageClaim { ProviderTraffic.current with preserveAge := false }).observed = some 110 := by decide
+
+/-- Every request queued with no observation; only the row at each claim learns the last read. -/
+def queuedRefreshes (g : ProviderTraffic.Guards) : Cache :=
+  [100, 110, 120].foldl (fun s now => claimRefresh { g with reuseFresh := true, preserveAge := true } 60 now none true s) {}
+
+@[req "DOM-8"]
+theorem queued_refreshes_share_one_read :
+    (queuedRefreshes ProviderTraffic.current).reads = 1 ∧
+    (queuedRefreshes ProviderTraffic.current).observed = some 100 := by decide
+@[req "DOM-8"]
+theorem enqueue_check_spends_three_reads :
+    (queuedRefreshes { ProviderTraffic.current with checkAtClaim := false }).reads = 3 := by decide
+
+/-- A stale observed row, a failed read, then a fresh operation while tenant capacity permits.
+The caller gets failure on each failed read, never success from an invented observation. -/
+def failedRefreshes (g : ProviderTraffic.Guards) : Cache × Cache :=
+  let g := { g with reuseFresh := true, checkAtClaim := true, preserveAge := true }
+  let first := claimRefresh g 60 100 (some 0) false ⟨some 0, 0, false⟩
+  (first, claimRefresh g 60 101 (some 0) false first)
+
+@[req "DOM-8"]
+theorem failed_refresh_can_read_again :
+    failedRefreshes ProviderTraffic.current =
+      (⟨some 0, 1, false⟩, ⟨some 0, 2, false⟩) := by decide
+@[req "DOM-8"]
+theorem counting_failures_hides_the_next_failure :
+    (failedRefreshes { ProviderTraffic.current with successfulOnly := false }).2 =
+      ⟨some 100, 1, true⟩ := by decide
+
+@[req "DOM-8"]
+theorem stale_and_unobserved_read :
+    (claimRefresh ProviderTraffic.current 60 160 none true freshObservation).reads = 2 ∧
+    (claimRefresh ProviderTraffic.current 60 0 none true {}).reads = 1 := by decide
+
+def establishedPtr : Option Ptr := some ⟨"host.example", true⟩
+def establishedPtrNoop (g : ProviderTraffic.Guards) : Bool :=
+  ptrNoop { g with establishedOnly := true } establishedPtr "host.example"
+@[req "PRV-25"]
+theorem identical_ptr_is_local :
+    establishedPtrNoop ProviderTraffic.current = true := by decide
+@[req "PRV-25"]
+theorem without_ptr_noop_identical_ptr_calls :
+    establishedPtrNoop { ProviderTraffic.current with reverseDnsNoop := false } = false := by decide
+
+/-- A differing dispatched write made the old value uncertain. Asking for the old value
+must reach the provider, even though its text remains in the invalidated entry. -/
+def invalidatedPtr : Option Ptr :=
+  beforePtrDispatch { ProviderTraffic.current with invalidatePtr := true } establishedPtr
+
+def uncertainPtrNoop (g : ProviderTraffic.Guards) : Bool :=
+  ptrNoop { g with reverseDnsNoop := true } invalidatedPtr "host.example"
+@[req "PRV-25"]
+theorem uncertain_ptr_is_not_equality :
+    uncertainPtrNoop ProviderTraffic.current = false ∧
+    ptrNoop ProviderTraffic.current none "host.example" = false := by decide
+@[req "PRV-25"]
+theorem without_evidence_guard_old_ptr_falsely_succeeds :
+    uncertainPtrNoop { ProviderTraffic.current with establishedOnly := false } = true := by decide
+
+def ptrAfterDifferingDispatch (g : ProviderTraffic.Guards) : Bool :=
+  ptrNoop { g with reverseDnsNoop := true, establishedOnly := true }
+    (beforePtrDispatch g establishedPtr) "host.example"
+@[req "PRV-25"]
+theorem differing_dispatch_invalidates_ptr :
+    ptrAfterDifferingDispatch ProviderTraffic.current = false := by decide
+@[req "PRV-25"]
+theorem missing_invalidation_falsely_succeeds :
+    ptrAfterDifferingDispatch { ProviderTraffic.current with invalidatePtr := false } = true := by decide
+
+def smallBudget : Budget := ⟨2, 1⟩
+def firstTenant : ProviderTraffic.Request := ⟨10, 7, .tenant 1⟩
+def secondTenant : ProviderTraffic.Request := ⟨11, 7, .tenant 2⟩
+def reserveOnly (g : ProviderTraffic.Guards) : Traffic := dispatch g smallBudget firstTenant {}
+def newTenantAtReserve (g : ProviderTraffic.Guards) : Traffic :=
+  dispatch g smallBudget secondTenant (reserveOnly g)
+
+def scopeGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
+  { g with protectReserve := true, accountEveryRequest := true }
+def reserveGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
+  { g with sharedScope := true, accountEveryRequest := true }
+
+@[req "PRV-46"]
+theorem reserve_refuses_tenant_witness :
+    (newTenantAtReserve (reserveGuards ProviderTraffic.current)).calls = 1 ∧
+    (newTenantAtReserve (reserveGuards ProviderTraffic.current)).spent.length = 1 := by with_unfolding_all decide
+@[req "PRV-46"]
+theorem unprotected_reserve_admits_tenant_witness :
+    (newTenantAtReserve { reserveGuards ProviderTraffic.current with protectReserve := false }).calls = 2 := by with_unfolding_all decide
+
+@[req "PRV-46"]
+theorem another_tenant_cannot_reset_scope :
+    (newTenantAtReserve (scopeGuards ProviderTraffic.current)).calls = 1 := by with_unfolding_all decide
+@[req "PRV-46"]
+theorem per_tenant_accounting_exposes_reserve :
+    (newTenantAtReserve { scopeGuards ProviderTraffic.current with sharedScope := false }).calls = 2 := by with_unfolding_all decide
+
+/-- Pin other guards: each CI mutation refutes exactly its own witness. -/
+def continuationGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
+  { g with sharedScope := true, protectReserve := true, accountEveryRequest := true }
+def continuedOperation (g : ProviderTraffic.Guards) : Traffic :=
+  let s := reserveOnly g
+  let s := dispatch g smallBudget firstTenant s
+  dispatch g smallBudget firstTenant s
+
+@[req "PRV-46"]
+theorem subsequent_requests_are_not_new_admissions :
+    (continuedOperation (continuationGuards ProviderTraffic.current)).calls = 3 := by with_unfolding_all decide
+@[req "PRV-46"]
+theorem repeated_admission_refuses_the_continuation :
+    (continuedOperation { continuationGuards ProviderTraffic.current with admitOnce := false }).calls = 1 := by with_unfolding_all decide
+
+def accountingGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
+  { g with sharedScope := true, protectReserve := true, admitOnce := true }
+@[req "PRV-46"]
+theorem subsequent_requests_still_spend :
+    (continuedOperation (accountingGuards ProviderTraffic.current)).spent.length = 3 ∧
+    (continuedOperation (accountingGuards ProviderTraffic.current)).alarms = [7] := by with_unfolding_all decide
+@[req "PRV-46"]
+theorem without_accounting_calls_spend_nothing :
+    (continuedOperation { accountingGuards ProviderTraffic.current with accountEveryRequest := false }).spent = [] := by with_unfolding_all decide
+
+@[req "PRV-46"]
+theorem system_paths_at_reserve_witness :
+    ∀ origin ∈ [Origin.fundingCancellation, .systemEpisode, .automaticResolution, .accountSweep],
+      (dispatch ProviderTraffic.current smallBudget ⟨12, 7, origin⟩
+        (reserveOnly ProviderTraffic.current)).calls = 2 := by with_unfolding_all decide
+
+def reverseDnsAdmission (g : Admission.Guards) : Option Admission.Outcome :=
+  Admission.admit { g with ceilingStep := true }
+    { freshCreate with verb := .reverseDns, atCeiling := true }
+
+@[req "SEC-39"]
+theorem reverse_dns_ceiling_reaches_pipeline :
+    reverseDnsAdmission Admission.current =
+      some { verdict := .refused .ceilingExceeded, slotSpent := false } ∧
+    (Admission.admit Admission.current { freshCreate with verb := .refresh, atCeiling := true }).map
+      Admission.Outcome.verdict = some .admitted := by decide
+@[req "SEC-39"]
+theorem without_reverse_dns_ceiling_pipeline_admits :
+    (reverseDnsAdmission { Admission.current with reverseDnsCeiling := false }).map
+      Admission.Outcome.verdict = some .admitted := by decide
+
+end ProviderTraffic
 
 end Provisiond.Witnesses

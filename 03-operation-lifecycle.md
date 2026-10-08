@@ -215,6 +215,11 @@ buying anything.*
 
 This is `OVR-5` made concrete.
 
+For local successful settlement, see `DOM-8` (refresh) and `PRV-25` (reverse-DNS).
+The failure classifier below begins "On failure"; a successful local settlement is not a
+failure classification. Asynchronous surface: `API-7`; result bodies: `WIR-10`.
+*Amended 2026-10-08 (`ADR-0034`).*
+
 **OPS-11** On failure, the system MUST classify the error into `failed` or
 `needs_reconciliation` using the operation kind and the error kind:
 

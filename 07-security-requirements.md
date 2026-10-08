@@ -210,8 +210,13 @@ A deployment whose callers are autonomous MUST therefore enforce **server-side c
 principal** — the interval is a stated deployment parameter, **default one hour**, and each
 ceiling is a stated integer (`F18`, `OVR-19`) — at minimum machines destroyed per interval, machines
 created per interval,
-images written per interval, **rescue entries per interval** and **power cycles per interval**,
+images written per interval, **rescue entries per interval**, **power cycles per interval**,
+and **reverse-DNS writes per interval**,
 plus a spend ceiling where the deployment prices its own resources.
+
+*Amended 2026-10-08 (`ADR-0034`): reverse-DNS joins the minimum set above; refresh gains no
+per-principal ceiling here. `API-7` step 5c is the enforcement path, including requests that later
+settle locally under `PRV-25`.*
 
 **AMENDED 2026-08-31 — rescue entries and power cycles were uncapped, and one of them reboots a
 running machine.** `RSC-38`'s rescue inventory boots a machine into the provider's rescue system to

@@ -260,6 +260,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
+| `reverse_dns` | map of address to text | provider-established PTR values; empty initially. Recording, invalidation and eligibility for no-op are owned by `PRV-25`. *Added 2026-10-08 (`ADR-0034`)* |
 | `metadata` | json | redacted (`DOM-6`) |
 | `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**. Nullable, for a machine that bore none when adopt returns (`ADR-0020`). *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
 | `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |

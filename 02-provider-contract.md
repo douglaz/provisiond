@@ -73,6 +73,8 @@ check and on every `GET /v1/providers`.
 `PRV-33`, `PRV-38`, and `offer_is_resource: true | false`, `PRV-42`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
 `order_budget` `{limit, per}` (`PRV-40`),
+`request_budget` `{scope, limit, per}` (`PRV-46`; provider credential scope identifier,
+positive integer request limit, finite positive period),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
 `billing_unit` per offer (`ADR-0033`, added 2026-10-08) — `{seconds, native_floor}`: the provider's
 smallest charged span of machine time, in seconds — zero exactly where the provider charges exact
@@ -88,7 +90,8 @@ each with `cleanup: api | manual`, `PRV-13a`). A field with nothing to declare s
 commentary on why a descriptor says what it says (`ADR-0018`). `WIR-29` exposes a subset of it.
 `CNF-18` iterates its fields as it iterates capabilities: a declared value has a working code path
 behind it.
-*Amended 2026-10-08 (`ADR-0037`): the billing-stop window is withdrawn.*
+*Amended 2026-10-08 (`ADR-0037`): the billing-stop window is withdrawn.
+Amended 2026-10-08 (`ADR-0034`): the request-budget declaration is added.*
 
 ### List offers
 
@@ -611,6 +614,20 @@ refuses for a machine whose cost cannot be stopped.
 to the machine before the driver is called (`API-16`). The driver MUST still encode it
 into the request path safely (`PRV-6`).
 
+After the ordinary authorization, capability and `API-16` validation, the worker MUST compare
+the requested PTR value with the machine's recorded value for that address under `OPS-8`'s
+serialization. An identical established value MUST settle `succeeded` without a provider call.
+Result shape: `WIR-10`. A missing or unknown value is not equality.
+
+The machine's `reverse_dns` map records provider-established values by address. Drivers MUST
+report those values when their machine read observes them, and the engine MUST store them;
+unknown or unobserved values are absent. A confirmed completed write or authoritative resolution
+MUST also record the established value. Enqueue, dispatch and acceptance alone MUST NOT establish it.
+Before dispatching a differing write, the engine MUST invalidate the prior entry; uncertainty
+MUST NOT leave that entry eligible for the no-op. Only provider evidence re-establishes it.
+An address removed from `public_ips` loses its entry. For a request that reaches the provider,
+classification remains under `OPS-11`: "On failure, the system MUST classify the error". *Amended 2026-10-08 (`ADR-0034`).*
+
 ### Carrying a correlator
 
 This is not an operation. It is an obligation on **create**, and it is what makes automated
@@ -941,6 +958,30 @@ deterministically, before any provider call, once the budget is exhausted. `OPS-
 shape: such a refusal is decided "before any driver call" and classifies `failed` for every
 operation kind, so nothing ambiguous is created and no reconciliation is owed. **A limit first
 encountered during an incident is encountered exactly when creates are being placed fastest.**
+
+**PRV-46** A driver MUST declare the provider's request limit per credential scope in
+`PRV-44`'s `request_budget`; for Hetzner Cloud the scope is the project. The deployment MUST
+share that budget across every tenant and configured provider account using that scope, and
+MUST account for each provider request before dispatch, including reads, polling, and subsequent
+requests of an operation. It MAY lower the declared limit and MUST NOT raise it; the period and
+scope remain the declaration's. This request budget is additional to `PRV-40`'s order capacity.
+
+The deployment MUST state a system reserve share of the effective request budget, expressed
+as a number of whole requests (`OVR-19`).
+That capacity is reserved for funding cancellations and other system-detected episodes (`OPS-39`),
+automatic resolution (`OPS-27`) and the account sweep (`OPS-32`). It is provider-request capacity,
+separate from a customer's monetary reserve and `SEC-39`'s per-principal ceilings.
+
+Admission MUST be decided once per operation, before its first provider call. A new tenant-initiated
+operation MUST be refused deterministically with `rate_limited` when only the system reserve
+remains, before any provider call. The named system paths MUST retain access to that reserve.
+A second tenant using the same credential scope receives no fresh budget. A later request of an admitted operation
+MUST NOT be refused locally by this budget; each such request still spends budget before dispatch.
+Admission does not promise that the provider will not throttle an admitted operation.
+Local cache settlements make no provider request and need no request-budget admission.
+
+The deployment MUST emit a monitorable alarm on tenant-share exhaustion, identifying the credential
+scope. *Added 2026-10-08 (`ADR-0034`).*
 
 **PRV-41** **An authentication failure MUST NOT be retried against a provider that locks out on
 repeated failures.** Hetzner Robot blocks the **source IP for ten minutes after three failed login

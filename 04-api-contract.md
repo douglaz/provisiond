@@ -10,7 +10,7 @@
 | GET | `/v1/machines` | ✓ | List the caller's machines |
 | POST | `/v1/machines` | | Create a machine |
 | GET | `/v1/machines/{id}` | ✓ | Read one machine |
-| POST | `/v1/machines/{id}/actions/refresh` | | Re-read from the provider |
+| POST | `/v1/machines/{id}/actions/refresh` | | Refresh the machine cache (`DOM-8`) |
 | POST | `/v1/machines/{id}/actions/power` | | Power on/off, reboot, hard reset |
 | POST | `/v1/machines/{id}/actions/rescue-inventory` | | Boot rescue and report the disks, before a destructive write (`RSC-38`, `WIR-40`) |
 | POST | `/v1/machines/{id}/actions/install` | | Install an image (`WIR-20`, `DOM-13`) |
@@ -959,6 +959,10 @@ from any other option.*
 **API-16** A reverse-DNS request MUST be rejected unless the supplied address is present
 in the machine's recorded address list, and the hostname MUST be 1–253 characters with no
 CR or LF.
+
+The refresh and reverse-DNS endpoints retain `API-7`'s "enqueue an operation, then `202`".
+Local successful settlement: `DOM-8` and `PRV-25`. Result bodies: `WIR-10`.
+*Amended 2026-10-08 (`ADR-0034`).*
 
 ## Authorization
 

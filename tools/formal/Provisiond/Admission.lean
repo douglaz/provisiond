@@ -193,14 +193,15 @@ def authenticates : Principal → Verb → Bool
 /-! ## `SEC-39`'s ceilings -/
 
 /-- The budgets `SEC-39` names: "machines destroyed per interval, machines created per interval,
-images written per interval, **rescue entries per interval** and **power cycles per interval**,
+images written per interval, **rescue entries per interval**, **power cycles per interval**,
+and **reverse-DNS writes per interval**,
 plus a spend ceiling where the deployment prices its own resources", and for an operator principal
 "retries (`API-64`), resolutions, suspensions, provider-account re-assignments **and
 provider-account status recordings**". Whether a deployment prices its own resources is a
 deployment fact and not a key here, so the `spend` rows below name the budget rather than assert it
 is configured. -/
 inductive Ceiling
-  | machinesDestroyed | machinesCreated | imagesWritten | rescueEntries | powerCycles | spend
+  | machinesDestroyed | machinesCreated | imagesWritten | rescueEntries | powerCycles | reverseDnsWrites | spend
   | retries | resolutions | suspensions | reassignments | statusRecordings
   deriving DecidableEq, Repr
 
@@ -230,7 +231,8 @@ def Verb.ceilings (entersRescue : Bool) : Verb → List Ceiling
   | .suspend => [.suspensions]
   | .assignProviderAccount => [.reassignments]
   | .recordStatus => [.statusRecordings]
-  | .reverseDns | .refresh | .deposit | .abuseStatement | .revoke | .resume | .attributeDeposit
+  | .reverseDns => [.reverseDnsWrites]
+  | .refresh | .deposit | .abuseStatement | .revoke | .resume | .attributeDeposit
   | .releaseAttachment | .recordNetworkRestriction | .reviseDeadline | .abuseOpen | .abuseClose
   | .abuseRecordTransmission | .recordBilling | .keepEpisode => []
 
@@ -282,6 +284,7 @@ structure Guards where
   stepTwoReadsSuspension   : Bool
   maintenanceCarveOut      : Bool
   statementWhileSuspended  : Bool
+  reverseDnsCeiling        : Bool
   ceilingStep              : Bool
   replayBeforePolicy       : Bool
   haltMintsOnly            : Bool
@@ -302,6 +305,7 @@ def current : Guards := {
     stepTwoReadsSuspension   := false,
     maintenanceCarveOut      := true,
     statementWhileSuspended  := true,
+    reverseDnsCeiling        := true,
     ceilingStep              := true,
     replayBeforePolicy       := true,
     haltMintsOnly            := true,
@@ -448,7 +452,8 @@ for a genuine incident is the operator's, recorded as the uncapped thing" — `l
 that is uncapped, and this is the step that reads it. -/
 @[req "API-7"]
 def stepFiveC (g : Guards) (r : Request) : Option ErrorKind :=
-  if g.ceilingStep && !r.override && r.verb.counted && r.atCeiling then some .ceilingExceeded
+  if g.ceilingStep && !r.override && r.verb.counted &&
+      (r.verb != .reverseDns || g.reverseDnsCeiling) && r.atCeiling then some .ceilingExceeded
   else none
 
 /-- The surface itself, under the disclosure rule rather than in front of it. `WIR-34`'s routes are
@@ -795,9 +800,11 @@ theorem a_caller_cannot_set_its_own_ceiling (deployment : Nat) (supplied : Optio
 
 /-- `SEC-39`: the override is "recorded as the uncapped thing", and `API-7` 5c makes it the only
 exemption that reaches this pipeline. So it is the only thing that admits a counted verb standing
-at its limit. -/
+at its limit. ADR-0034 adds the reverse-DNS ceiling; this statement assumes that amendment
+is enabled, just as its refusal clause assumes the ceiling step is enabled. -/
 @[req "SEC-39"]
-theorem only_the_override_is_uncapped (g : Guards) (r : Request) :
+theorem only_the_override_is_uncapped (g : Guards) (r : Request)
+    (hr : g.reverseDnsCeiling = true) :
     (∀ n : Nat, limitUnder true n = none ∧ limitUnder false n = some n) ∧
       (r.override = true → stepFiveC g r = none) ∧
       (g.ceilingStep = true → r.override = false → r.verb.counted = true →

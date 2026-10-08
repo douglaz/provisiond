@@ -298,6 +298,7 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
 {
   "id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20",
   "name": "worker-1", "kind": "virtual", "state": "running",
+  "state_observed_at": "2026-08-12T15:03:00Z",
   "region": "fsn1",
   "public_ips": ["203.0.113.7"],
   "provider_account": "hetzner-cloud-1",
@@ -312,6 +313,11 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
   "created_at": "2026-08-12T14:03:00Z", "updated_at": "2026-08-12T15:03:00Z"
 }
 ```
+
+The machine view MUST include `state_observed_at`, the stored nullable timestamp (`STO-48`,
+`05-persistence.md`): "when `state` was last established by an authoritative read of the provider".
+Timestamp format: `WIR-1`. An unobserved machine carries `"state_observed_at": null`,
+never an omitted key or `updated_at` in its place. *Amended 2026-10-08 (`ADR-0034`, Q10).*
 
 `runway_until` floats with the rate (`LDG-15`, `LDG-33`); the first `public_ips` entry is the
 rescue address. `external_id` and raw provider metadata are **absent** on the customer surface

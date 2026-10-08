@@ -75,6 +75,7 @@ provider-side `external_id`.
 | `state` | See below |
 | `region` | Provider-defined location string, nullable |
 | `public_ips` | Ordered; the first entry is the address used for rescue SSH |
+| `reverse_dns` | Provider-established PTR values by address (`PRV-25`); an absent entry is unknown |
 | `metadata` | Redacted provider payload, for operator debugging |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -135,6 +136,18 @@ the sentence above — the state is still a cache and still not authorization fo
 *defect*: a machine created and never refreshed had no route by which the system could learn the
 provider had destroyed it, and its owner's commitment drained regardless. **A reader MUST take the
 staleness bound from `state_observed_at` rather than from the fact of a caller having asked.**
+
+A deployment MUST state a finite, positive refresh freshness window (`OVR-19`). When a worker
+claims a refresh, it MUST check the machine's current `state_observed_at`: a non-null observation
+whose age is less than that window MUST settle the operation `succeeded` without a provider call.
+A null timestamp supplies no fresh observation; an observation at or beyond the window is stale.
+A cache answer MUST NOT advance `state_observed_at`. A failed provider read MUST leave it unchanged;
+a fresh subsequent operation can read again, subject to `PRV-46` and `OPS-8`.
+
+Refreshes queued while stale and claimed in turn within the window after a successful observation
+reuse that observation. The per-machine read bound therefore holds while the provider answers;
+during provider read failure, a single paid machine can repeatedly consume the tenant share.
+`ADR-0034` accepts that residual. *Amended 2026-10-08 (`ADR-0034`, owner decision Q10).*
 
 ### Offer
 

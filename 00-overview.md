@@ -352,6 +352,9 @@ says a deployment MUST state is listed here, with the requirement that mandates 
 validate every startup-validated row and refuse to run on a missing or out-of-range value; the rows
 marked human are procedures the deployment records rather than values the process reads.
 
+*Amended 2026-10-08 (`ADR-0034`): refresh freshness, provider request budget and system reserve
+share are registered below.*
+
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
 | Rate source set | `LDG-61` | list of sources | yes |
@@ -369,6 +372,9 @@ marked human are procedures the deployment records rather than values the proces
 | Re-derivation interval | `PRV-13e` | duration | yes |
 | Account-sweep interval | `OPS-32`, `LDG-74` | duration | yes |
 | Worst-case operation hold, per product | `PRV-13b` | duration | yes |
+| Refresh freshness window | `DOM-8` | finite, positive duration | yes |
+| Provider request budget, per credential scope | `PRV-46`, `PRV-44` | `{scope, limit, per}` — nonempty scope; positive integer limit no greater than the driver's declaration; same finite, positive period as declared | yes |
+| System request reserve share, per credential scope | `PRV-46` | positive integer requests no greater than the effective request limit | yes |
 | Provider-call deadline | `OVR-19` | finite, positive duration | yes |
 | Margin | `LDG-24` | basis points | yes |
 | Runway floor | `PRV-13d` | duration | yes |
