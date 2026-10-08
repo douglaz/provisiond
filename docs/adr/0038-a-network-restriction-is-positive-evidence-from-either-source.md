@@ -22,8 +22,8 @@ notice in hand. `WIR-11`'s example already renders `{"status": "none", "source":
 The harm lands hardest where a rebuild works without the network, on Cloud and DigitalOcean,
 because there a reinstall loop wipes the disk.
 
-Two panels decided it (`/var/tmp/provisiond-panel-r23/`, three readers;
-`/var/tmp/provisiond-panel-r24/`, four readers, unanimous on every point below).
+Two panels decided it (`docs/research/panels-2026-10/r23/`, three readers;
+`docs/research/panels-2026-10/r24/`, four readers, unanimous on every point below).
 
 ## Decision
 
