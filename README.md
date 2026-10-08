@@ -259,6 +259,10 @@ written by nothing, read by nothing, and left over from the `holds` model `LDG-3
 `CNF-5` left this table 2026-09-09: it survives in the checklist as a marker bullet, which is the
 retained-trap case above, not a deletion.*
 
+*Amended 2026-10-08 (`ADR-0037`, accepted 2026-10-06): `provider_observations.kind` is dropped
+with the billing-stop sample kind. See `STO-53` for the amended table. Columns carry no
+requirement identifier.*
+
 ## Language and runtime
 
 Nothing in this specification assumes a particular language or HTTP framework, and

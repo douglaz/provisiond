@@ -2072,6 +2072,10 @@ invoiced. The provider's rounding past the prepaid first unit — the final part
 and a life straddling an undocumented grid boundary, which can cost two units — is a cost absent
 from local charges that the invoice supplies: in `ADR-0033`'s words, "priced, not amplified", and
 an accepted gap here, not a deficiency cause and not an alarm (added 2026-10-08).
+Provider tails after the gone-write are the operator's (`ADR-0037`): alongside that final partial
+unit, this includes Robot add-ons billed per day or part thereof and DigitalOcean's seconds
+between the delete reply and destroy. These are accepted gaps supplied by invoice authority,
+with no customer debit or new deficiency cause. *Provider tails added 2026-10-08 (`ADR-0037`).*
 Provider local-time months can misplace cost by up to the UTC offset at each boundary. A deficiency
 dated in a later month than the provider charged it is missed only while an earlier invoice is
 unrecorded behind a later one. A month with two invoices counts as covered when only one is

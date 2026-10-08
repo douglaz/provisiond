@@ -466,19 +466,19 @@ those references.
 
 ### `provider_observations`
 
-**STO-53** **ADDED 2026-09-08 (`ADR-0018`).** The observed half of a measured window. `PRV-36`
-and `PRV-13b` declare a window in the descriptor (`PRV-44`); this table holds what the engine has
-actually seen, and the effective window is the larger of the two by `PRV-36`'s rule.
+**STO-53** **ADDED 2026-09-08 (`ADR-0018`).** The observed half of the visibility window.
+This table holds what the engine has actually seen; `PRV-36` owns the measurement procedure and
+"the effective window is `max(declared, max(observed))`".
 
 | Column | Type | Notes |
 |---|---|---|
 | `provider_account` | text | not null |
-| `kind` | enum | `visibility` \| `billing_stop` |
 | `operation_id` | UUID | not null; the mutation the sample was taken from |
 | `dispatched_at` | timestamp | not null; when the mutation was dispatched to the provider |
 | `observed_at` | timestamp | not null; when the engine first observed its effect |
 
-Primary key `(operation_id, kind)`; index on `(provider_account, kind)` for the aggregate.
+Primary key `(operation_id)`; index on `(provider_account)` for the aggregate.
+*Amended 2026-10-08 (`ADR-0037`): the billing-stop sample kind and the `kind` column are dropped.*
 
 **Append-only, and written as a by-product.** The engine writes a row when a resolution (`OPS-27`)
 establishes when a resource became visible, and when an ordinary mutation's effect is first read

@@ -1335,10 +1335,10 @@ rather than acquiring a default.
       row is written with that `dispatched_at` and `observed_at` (`STO-53`); then dispatch another
       create, lose its reply, and assert resolution takes no read before *n + k* has elapsed — the
       effective window is `max(declared, max(observed))` and the process was not restarted between
-      the two. Assert the descriptor value itself is unchanged, and that the same holds for
-      `billing_stop_window` (`PRV-13b`). A build that reads the window from driver source
-      resolves the second create `absent`, releases the commitment, and the machine arrives with
-      nobody paying. (`PRV-36`, `PRV-44`, `STO-53`, `ADR-0018`)
+      the two. Assert the descriptor value itself is unchanged. A build that reads the window from
+      driver source resolves the second create `absent`, releases the commitment, and the machine arrives with
+      nobody paying. *Amended 2026-10-08 (`ADR-0037`): billing-stop-window assertion withdrawn.*
+      (`PRV-36`, `PRV-44`, `STO-53`, `ADR-0018`)
 - [ ] **CNF-293** — **An attachment is released by an operator through a route, and
       the route is what opens the tombstone gate.** Delete a machine on a driver whose descriptor
       declares a surviving attachment kind and whose *list attachments* returns one `billable: true`,
@@ -1346,13 +1346,15 @@ rather than acquiring a default.
       enqueued a `release_attachment` carrying the delete's own `requested_by` and `system_reason`;
       settle it `failed`, then call `POST .../attachments/{id}/actions/release` as an operator and
       assert a `202` with a fresh `release_attachment` operation, `requested_by: operator`, whose
-      success writes `released_at`, after which `STO-18` no longer forbids the tombstone and
+      completed-release success with no future effective date writes `released_at`, after which
+      `STO-18` no longer forbids the tombstone and
       `LDG-74`'s "the row is tombstoned when `STO-18` allows" is what performs it. For a `manual`
       row: assert the same route answers `200` synchronously with `released_at` set and no operation
       minted (`API-48`). Assert a second release of either row is `409` `state`, and that
       `GET .../attachments` shows every row with its `cleanup` and `released_at`. A build without
       the route leaves every machine with a `manual` attachment un-tombstoned forever. (`API-65`,
-      `WIR-52`, `PRV-45`, `STO-18`, `LDG-74`)
+      `WIR-52`, `PRV-45`, `STO-18`, `LDG-74`) *Completed-release premise qualified 2026-10-08
+      (`ADR-0037`).*
 - [ ] **CNF-288** — **AMENDED 2026-09-08 (`ADR-0017`) — the verb it tested is deleted,
       so the item asserts its absence.** **No settled operation of any kind re-enters `queued`.**
       For every operation kind, drive an operation to each failure outcome `OPS-11`'s table can
@@ -3074,19 +3076,41 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       and no charge to available balance or a wind-down commitment. Exercise absent with and
       without provider evidence of each charge, and abandoned; retain the zero-unit exceptions
       in `CNF-315`/`CNF-316`. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-32`, `LDG-66`, `OPS-27`, `OPS-33`)
-- [ ] **CNF-326** — **Applied release resolution ends that attachment's meter.** Accept a release,
-      fail its follow-up read, and resolve it `applied`. Assert the attachment's `released_at`
+- [ ] **CNF-326** — **Applied completed-release resolution ends that attachment's meter.** Accept a
+      release, fail its follow-up read, and resolve it `applied` on evidence of completed release
+      with no future effective date. Assert the attachment's `released_at`
       and the applicable `LDG-38` exit write commit with the resolution; inject a transaction
       failure to demonstrate no partial effects. Preserve meter exit exceptions, machine state,
       other attachments and the episode/fence outcomes of `OPS-48`. Contrast unresolved,
       `not_applied`, and `abandoned`: none records an applied release. (`PRV-45`, `OPS-31`,
-      `OPS-48`, `LDG-38`)
+      `OPS-48`, `LDG-38`) *Completed-release premise qualified 2026-10-08 (`ADR-0037`).*
 - [ ] **CNF-327** — **Retry-after can accompany a non-retryable operation.** Read a
       `needs_reconciliation` create whose error is `rate_limited`: assert `details.retry_after_ms`
       and `retryable: false` together, with the per-kind keys retained and no mutation repeated
       when the interval expires. Separately throttle a GET of its operation view: the read error
       does not change or stand in for the operation outcome. (`API-51`, `API-50`, `WIR-9a`,
       `WIR-9b`, `OPS-12`)
+
+- [ ] **CNF-328** — **A future-date release leaves the attachment billable.** Return a successful
+      release result carrying a future effective date for an unreleased, normally metered billable
+      attachment.
+      Assert `released_at` remains null, its meter stays open, no commitment is released on that
+      basis, and the attachment still prevents tombstoning. Repeat through resolution `applied`
+      with the same future-date evidence. Preserve machine state and other attachments. Contrast
+      a completed release with no future effective date and demonstrate its atomic release/exit
+      write through `CNF-326` and its tombstone effect through `CNF-293`. This case asserts no
+      transition at the future date. *Added 2026-10-08 (`ADR-0037`).* (`PRV-45`, `LDG-38`,
+      `LDG-32`, `STO-18`)
+- [ ] **CNF-329** — **A provider call that never replies has a deadline.** Configure a finite,
+      positive deadline and dispatch a provider call whose reply never arrives; assert the wait
+      ends at the configured bound. Repeat with a mutation whose outcome remains unknown:
+      expiry alone proves neither success nor non-application nor billing stop, and no
+      automatic replay occurs; classification and evidence-based resolution retain their existing
+      rules without assuming acceptance from elapsed time. Show wind-down sizing covers the
+      configured deadline and the effective visibility window, including when either is larger,
+      with the machine-wait term retained. Refuse startup with a missing, zero, negative,
+      non-finite or malformed deadline. *Added 2026-10-08 (`ADR-0037`).* (`OVR-19`, `PRV-13b`,
+      `PRV-36`, `PRV-5`, `OPS-11`, `OPS-12`)
 
 ## Before production
 

@@ -541,18 +541,20 @@ on the client.
 **Consequence.** `SEC-43` remains "a belief, not a defence" (`SEC-44`'s words). Only a written provider
 answer can settle it; no test on an account can show what a provider will do.
 
-## 3. `PRV-13b` — when billing stops after deletion
+## 3. Billing units and provider tails after deletion
 
-**The main point for the requirement.** `billing_stop_window` is a latency in seconds from request to
-billing stop. Hetzner (Cloud and Robot) rounds partial hours up, and Robot bills add-ons per day "or
-part thereof". On those products a delete at any latency still pays for the rest of the started unit:
-up to an hour, or up to a day. That is a property of the unit, so a twenty-sample latency measurement
-cannot reveal it. The reserve's wind-down term therefore needs the rounding unit as well as the latency.
+**Interpretation amended 2026-10-08 (`ADR-0037`, `ADR-0033`).** Wind-down sizing belongs to
+`PRV-13b`: "Wind-down's latency term is the effective visibility window owned by `PRV-36`".
+The measurement procedure is `PRV-36`'s; invoices check billing units and how the provider counts
+them. They do not provide a second latency for reserve sizing. For the prepaid first unit see
+`ADR-0033` and `PRV-44`'s `billing_unit`; for the remaining provider tails see `LDG-75`'s
+accepted accounting gaps. `ADR-0037` records the distinction: "What the provider bills after the
+gone-write is the operator's".
 
-DigitalOcean bills per second, so its post-delete cost is the latency itself. Its 60-second/$0.01
-minimum binds only on Droplets that live less than a minute.
-
-The units come from the documents below. The latencies still need `F18`'s measurement.
+The unit and grid evidence below remains useful: Hetzner rounds partial hours up and Robot
+bills add-ons per day "or part thereof". DigitalOcean bills per second subject to its
+60-second/$0.01 minimum; the money floor can bind beyond a minute. The quotations and table
+below are provider evidence, not deployment settings or values the engine reads.
 
 | Provider | Granularity (documented) | Stops at | Survives deletion and keeps billing | Not documented |
 |---|---|---|---|---|
@@ -664,8 +666,10 @@ because no account action can settle them.
 8. Add labels to the server one at a time until the API rejects one. Record the count and the error
    (V5).
 9. Delete the server. Note the UTC times of the `DELETE` and of the `deleting` → `404` transition.
-10. When the next invoice's usage statement arrives (up to 28 days after month end), read the server's
-    billed hours (`PRV-13b`).
+10. When the next invoice's usage statement arrives (up to 28 days after month end), check the
+    server's billing unit and how started hours are counted, including any visible grid boundary.
+    Do not derive a billing-stop latency from the invoice (`ADR-0037`, `ADR-0033`; amended
+    2026-10-08).
 
 **Batch B — Hetzner Robot (one auction order, about €0.08, ordering enabled)**
 1. `POST /key` with `name=pv-<uuid>` (V9). Read it back.
@@ -683,7 +687,9 @@ because no account action can settle them.
    response, then `GET /boot/{n}/rescue`.
 9. `POST /server/{n}/cancellation` with `cancellation_date=now`. Record the UTC time. Check `GET /ip`
    for whether the add-on IPv4 outlives the server.
-10. On the next invoice, read the hours billed for the server and the days for any add-on (`PRV-13b`).
+10. On the next invoice, check the server's hourly unit and how its hours are counted, and any
+    add-on's day unit and part-day counting. Record what the invoice establishes about the grid,
+    not a billing-stop latency (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
 
 **Batch C — DigitalOcean (one `s-1vcpu-512mb` Droplet, under $0.01)**
 1. Create a key named `pv-<uuid>`. Create a Droplet with it and tag `pv:<uuid>`. Record the time of the
@@ -694,8 +700,9 @@ because no account action can settle them.
 5. `GET /v2/droplets/{id}/destroy_with_associated_resources`. Record the keys and `cost` values
    (`PRV-13a`).
 6. `DELETE /v2/droplets/{id}`. Record the UTC time.
-7. Repeat steps 1–6 twenty times for `F18`'s billing-stop sample. Read each Droplet's line on the
-   invoice (`PRV-13b`).
+7. Read the Droplet's invoice line to check per-second counting and the 60-second/$0.01 minimum.
+   Record how the provider counts the unit and applies the floor, not a billing-stop latency;
+   no invoice-latency sample campaign is required (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
 
 **Batch D — Cherry Servers (one hourly server; out of v1, so lowest priority)**
 1. Create a key with `label=pv-<uuid>`. `POST` a server on the hourly cycle with the key and

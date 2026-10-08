@@ -1,10 +1,9 @@
 # 08 — Provider adapter notes
 
-**This document carries no value the engine reads.** Every declaration the engine turns on —
-capabilities, ordering channels and their correlators, evidence sources, the visibility and
-billing-stop windows, the order budget, the cancellation bound, the rescue address family, the
-attachments that survive deletion — lives in the driver's descriptor (`PRV-44`), and a driver
-that declares it here and not there has declared nothing (`ADR-0018`). What lives here is why a
+**This document carries no value the engine reads.** The declaration list belongs to `PRV-44`:
+"A value the engine reads MUST come from here and never from `08-provider-notes.md`". A driver
+that declares a value here and not in its descriptor has declared nothing (`ADR-0018`).
+*Descriptor pointer amended 2026-10-08 (`ADR-0037`).* What lives here is why a
 descriptor says what it says: the provider facts that shaped the architecture and are worth
 carrying forward. **Provenance is per fact, not per document**: many notes were read out of a
 reference implementation's adapters and never checked, several have since been verified against
@@ -246,10 +245,12 @@ filterable server-side via `ListByTag`. Encode the operation UUID as a single st
 prefix. The permitted character set is **[verify]** before a separator is chosen.
 **[observed — `godo`]**
 
-**Deletion** — believed immediate destroy with billing stopping at deletion, the cloud shape.
-**[verify]** — and specifically **[verify]** what survives: volumes, snapshots and reserved IPs
-are separately billable resources on this provider, so `PRV-13a`'s attachment model is likely to
-matter *more* here than on Hetzner Cloud, not less.
+**Deletion** — the delete reply and destroy are distinct; provider billing stops at destroy.
+**[documented 2026-10-06 — `docs/research/provider-verify-2026-10.md`, V17 and §3]**
+For customer meter boundaries see `LDG-38`/`LDG-74`; for accepted provider tails see `LDG-75`
+and `ADR-0037`. **[verify]** what survives: volumes, snapshots and reserved IPs are separately
+billable resources on this provider; attachment treatment belongs to `PRV-13a`.
+*Billing interpretation amended 2026-10-08 (`ADR-0037`).*
 
 **Rescue** — **SETTLED 2026-08-31: there is no API to enter it. The driver MUST NOT declare
 `rescue_ssh`, `install_rootfs_via_rescue` or `install_raw_disk_via_rescue`.** **[observed —
@@ -302,11 +303,11 @@ usable as `OPS-32`'s correlator. The image polls `NEW → pending → available`
 
 **Delete visibility — read-after-write is eventually consistent.** **[observed — n=1, 2026-08-31]**
 `DELETE /v2/droplets/{id}` returned `204`; a `GET` 8 s later returned `200 "active"` with a live
-address; `404` by the next poll, so the window was under ~25 s. **`PRV-36` governs**, and this is a
-**visibility** sample only — `PRV-13b`'s delete-to-billing-stop figure for this provider is still
-unmeasured and still owed. One sample is not a bound: the descriptor's `visibility_window` and
-`billing_stop_window` (`PRV-44`) hold the declared values, conservative and marked unmeasured
-until twenty samples exist, and `STO-53` holds the samples the engine collects afterwards.
+address; `404` by the next poll, so this observation was under ~25 s. This is a **visibility**
+sample only, not a measured bound or a billing-stop sample. The procedure belongs to `PRV-36`:
+"the worst observed request-to-observation latency over at least twenty real mutations"; the
+descriptor is `PRV-44` and observations are `STO-53`.
+*Amended 2026-10-08 (`ADR-0037`): the separate billing-stop measurement obligation is withdrawn.*
 
 **Image delete is not idempotent, and disagrees with the read path.** **[observed, 2026-08-31]**
 First `DELETE /v2/images/{id}` → `204`. Second, immediately and again 2.5 minutes later → `422

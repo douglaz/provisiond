@@ -1611,7 +1611,7 @@ demanding an attestation nothing could check. `SEC-16` AMENDED to `DOM-14`'s sco
 what the system writes — with the out-of-reach cases stated as out of reach rather than implied
 covered.
 
-**F18. CLOSED 2026-08-12.** Each vague MUST now carries units and a procedure in place:
+**F18. CLOSED 2026-08-12.** At closure, each vague MUST was given units and a procedure in place:
 "measured" = worst observed over ≥20 real deletions, recorded with sample size and date, with a
 declared conservative bound until then (`PRV-13b`); "materially in the future" = beyond one
 re-derivation period plus wind-down (`PRV-13c`); `SEC-39`'s interval defaults to one hour with
@@ -1623,6 +1623,11 @@ the future" (`PRV-13c`), ceilings "per interval" (`SEC-39`), "enforce what it ca
 "a sane range" (`API-26`), "controlled, immutable storage" (`RSC-30`). No units, thresholds,
 measurement procedure or pass/fail boundary. `PRV-13b`'s formula also leaves ambiguous whether
 the FX haircut multiplies the whole reserve or only part of it.
+
+*Amended 2026-10-08 (`ADR-0037`, accepted 2026-10-06): the billing-stop measurement obligation
+recorded above is retired. The surviving visibility procedure now belongs to `PRV-36`: "the worst
+observed request-to-observation latency over at least twenty real mutations", with its sample
+size/date and conservative unmeasured bound. The finding's other resolutions remain in place.*
 
 **F19. CLOSED 2026-08-12 — see `F23`.** *Original:* In ~2,600 lines there is exactly one JSON example —
 the error envelope. No request or response body for any endpoint. The idempotency header is

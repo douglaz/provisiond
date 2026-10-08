@@ -1175,10 +1175,12 @@ asked to resolve. `WIR-35` carries the same rule for the wire; this sentence is 
 it, and the first correction reached only the wire.*
 
 *Amended 2026-10-08 (`ADR-0035`): for a release resolved `applied`, `PRV-45` owns the
-attachment effect: "A successful release MUST write the row's `released_at` in its terminal
-transaction, including the resolution transaction when resolved `applied`". `LDG-38` owns the
-exit write; the release does not mark its machine gone. Episode and fence transitions, where
-applicable, remain `OPS-48`'s.*
+attachment effect: "A successful release with no future effective date MUST write the row's
+`released_at` in its terminal transaction, including the resolution transaction when resolved
+`applied`". The future-date restriction is also there: "A release whose result carries a future
+effective date MUST NOT write `released_at`, including when resolved `applied`" (`ADR-0037`,
+quote amended 2026-10-08). `LDG-38` owns the exit write; the release does not mark its machine
+gone. Episode and fence transitions, where applicable, remain `OPS-48`'s.*
 
 **And an operator MUST NOT be the first resort here.** `OPS-45` requires the engine's own record of
 whether a write began to be consulted before any of this: most install failures never reached a

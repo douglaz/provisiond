@@ -72,7 +72,7 @@ check and on every `GET /v1/providers`.
 `ordering_channels` (each with `correlator: operation_id | per_order_key | none`, `PRV-32`,
 `PRV-33`, `PRV-38`, and `offer_is_resource: true | false`, `PRV-42`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
-`billing_stop_window` of the same shape (`PRV-13b`), `order_budget` `{limit, per}` (`PRV-40`),
+`order_budget` `{limit, per}` (`PRV-40`),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
 `billing_unit` per offer (`ADR-0033`, added 2026-10-08) — `{seconds, native_floor}`: the provider's
 smallest charged span of machine time, in seconds — zero exactly where the provider charges exact
@@ -88,6 +88,7 @@ each with `cleanup: api | manual`, `PRV-13a`). A field with nothing to declare s
 commentary on why a descriptor says what it says (`ADR-0018`). `WIR-29` exposes a subset of it.
 `CNF-18` iterates its fields as it iterates capabilities: a declared value has a working code path
 behind it.
+*Amended 2026-10-08 (`ADR-0037`): the billing-stop window is withdrawn.*
 
 ### List offers
 
@@ -182,14 +183,13 @@ operator procedure, and those are the `manual` ones. A control plane that report
 deleted while its storage continues to accrue cost is reporting a falsehood.
 
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
-exposure before taking money. That requires, per product: an API path to stop the cost, a
-**measured** worst-case delay before cost actually stops, and cleanup for every billable
-attachment (`PRV-13a`, `PRV-45`). *"Measured" has a procedure (`F18`): the worst observed
-request-to-billing-stop latency over at least twenty real deletions on that product, in seconds,
-declared in the descriptor's `billing_stop_window` with its sample size and date (`PRV-44`) —
-re-declared when the provider changes the API. Until twenty samples exist, the driver MUST carry a
-declared conservative bound instead, marked as unmeasured.* The effective value is `PRV-36`'s
-`max(declared, max(observed))` over `STO-53`'s `billing_stop` samples.
+exposure before taking money. That requires, per product: an API path to stop the cost, a bound
+on the time until the customer's meter stops, and cleanup for every billable attachment
+(`PRV-13a`, `PRV-45`). Wind-down's latency term is the effective visibility window owned by
+`PRV-36`: "the effective window is `max(declared, max(observed))`" — dispatch to the recorded
+gone. The provider's unit remainder is a different cost, absorbed by the operator under
+`ADR-0033`; the accepted accounting gaps belong to `LDG-75`. The provider-call deadline is on
+`OVR-19`. *Amended 2026-10-08 (`ADR-0037`).*
 
 The reserve is computed **in the provider's billing currency** and converted once, when the
 commitment is opened or re-sized, into the ledger unit:
@@ -262,13 +262,12 @@ nothing written provider-side, so there is no correlator to search for. That mis
 because the claim was used to shrink a number every machine's reserve depends on — a
 reconciliation error propagating into systematic under-reserving across the whole fleet.
 
-What is actually true is narrower and is now stated as `PRV-29`: a cancellation's outcome is
-recoverable **if and only if** the driver can read enough provider state to distinguish
-*rejected*, *accepted-pending*, *scheduled for a future date* and *complete*. Where it can, size
-`wind_down_cost` as **detection interval + measured confirmed-cancellation latency + margin**.
-**Where it cannot, the pager-latency figure stands** — and `PRV-13c`'s exception branch is
-exactly where it cannot, because a scheduled cancellation's cost runs to its effective date
-regardless.
+The criterion is `PRV-29`'s "bound the time after which its evidence is truthful". Where the
+driver can, size `wind_down_cost` as **detection interval + `PRV-36`'s effective visibility
+window + margin**, subject to the provider-call deadline in `OVR-19` and the machine-wait term
+below. **Where it cannot, the pager-latency figure stands.** Scheduled-cancellation protection
+remains the reserve formula's `cost_through_earliest_cancellation_date` (`PRV-13c`); see that
+requirement for the exception branch.
 
 **PRV-29** **AMENDED 2026-08-31 — the test is bounded freshness of evidence, not richness of
 state.** For any ambiguous mutation **other than create**, resolution MUST proceed by reading
@@ -300,8 +299,12 @@ the window bounds, so the old wording put the provider with the **fastest** dele
 post before buying anything.*
 
 **Mutation complete, resource absent, and billing stopped are three different facts** and MUST be
-evidenced separately. An action reporting `completed` does not establish that billing stopped, which
-is `LDG-32`'s test and `PRV-13a`'s attachments' as well.
+evidenced separately. For the customer's meter, the billing-stop evidence is the gone-write for
+a machine, `released_at` for an attachment, and the effective date for a scheduled cancellation.
+Meter boundaries remain with `LDG-38` and `LDG-74` ("Billing stops at the observation instant").
+An action reporting `completed` does not establish that billing stopped.
+*Amended 2026-10-08 (`ADR-0037`): wind-down sizing above uses the effective visibility window;
+billing-stop evidence is named here.*
 
 **AMENDED 2026-08-15 — `wind_down_cost` MUST include the time the cancellation spends waiting for
 the machine.** Both sizings above measure from the moment the provider is *called*, and
@@ -475,12 +478,15 @@ with the resource gone and a release that failed ambiguously are two facts, and 
 cannot carry two statuses — the shape `ADR-0017` corrected on the episode. It holds the machine
 under `OPS-8`, MUST be safe to call twice — a provider answering "already deleted" is reporting
 the goal state, which `OPS-11` classifies as success — and its failures classify under `OPS-11`'s
-delete row. A successful release MUST write the row's `released_at` in its terminal transaction,
-including the resolution transaction when resolved `applied` (`OPS-31`). An unresolved release
+delete row. A successful release with no future effective date MUST write the row's `released_at`
+in its terminal transaction, including the resolution transaction when resolved `applied`
+(`OPS-31`). A release whose result carries a future effective date MUST NOT write `released_at`,
+including when resolved `applied`. An unresolved release
 or one resolved `not_applied` or `abandoned` MUST NOT write `released_at` as an applied release.
 A `manual` row is released only by an operator. For the exit write, see `LDG-38`.
 *Amended 2026-10-08 (`ADR-0035`): successful resolution has the same attachment-row effect as
-ordinary success; it does not record the machine gone.*
+ordinary success; it does not record the machine gone. Amended 2026-10-08 (`ADR-0037`): both
+paths are qualified by the future-effective-date prohibition.*
 
 ### Power
 
@@ -852,9 +858,11 @@ A stronger source, when consulted, overrides a weaker one. A weaker source never
 stronger one.
 
 **For the resource read the driver MUST declare a measured visibility window** in seconds, with
-sample size and date, under `PRV-13b`'s procedure — the worst observed request-to-observation
-latency over at least twenty real mutations — carrying a declared conservative bound marked
-**unmeasured** until twenty samples exist. **AMENDED 2026-09-08 (`ADR-0018`) — the effective
+sample size and date: the worst observed request-to-observation latency over at least twenty real
+mutations, re-declared when the provider changes the API — carrying a declared conservative bound
+marked **unmeasured** until twenty samples exist. *Procedure owned here from 2026-10-08
+(`ADR-0037`).*
+**AMENDED 2026-09-08 (`ADR-0018`) — the effective
 window is a max, not the declaration.** The declared value lives in the descriptor's
 `visibility_window` (`PRV-44`), immutable. The engine writes every ordinary mutation and every
 resolution as an observed sample to `provider_observations` (`STO-53`), and the effective window
@@ -872,10 +880,12 @@ the mutation as *not applied*.
 surfaced, it widens future sizing through `STO-53`, and it MUST NOT authorize a replay — `OPS-12`
 is untouched by this requirement.
 
-**Visibility and billing-stop are separate measurements and MUST NOT be conflated.** `PRV-13b`'s
-delete-to-billing-stop latency asks a different question, overlaps this one in time, and is still
-owed for every launch driver. *The 2026-08-31 DigitalOcean sample is a visibility sample, n=1,
-recorded as such in `08-provider-notes.md`; it is not a billing-stop sample.*
+*Trap retained 2026-10-08 (`ADR-0037`, accepted 2026-10-06): this paragraph formerly required a
+second measurement, delete-to-billing-stop latency, "still owed for every launch driver". That
+obligation is withdrawn. The 2026-08-31 DigitalOcean observation in `08-provider-notes.md` is a
+visibility sample, n=1; it did not establish when the provider stopped billing. Reading it as a
+billing-stop sample was the trap; removing the second measurement does not change what the
+observation established.*
 
 **PRV-38** **A provider with more than one ordering channel has more than one transaction listing,
 and a search of one is not a search of the provider.** Hetzner Robot's standard catalogue and
