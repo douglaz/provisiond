@@ -957,6 +957,8 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
   "id": "standard:cx32", "name": "CX32", "kind": "virtual", "regions": ["fsn1"],
   "recurring_price": {"amount_sats": 120, "period": "hour"},
   "setup_fee_sats": 0,
+  "first_unit_sats": 120,
+  "billing_unit_seconds": 3600,
   "min_runway_seconds": 3600,
   "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
   "max_rate_outage_seconds": 21600,
@@ -1002,7 +1004,11 @@ speaks to the price only, and for a machine the authoritative instant is its vie
 `rate_outage_deadline` (`WIR-11`) (*added 2026-10-02, `ADR-0029`*). Prices are integers of
 satoshis, already margined by
 the one pricing function (`LDG-23`, `LDG-24`)
-at the same rounding as commitment creation. **An offer price is an indicative quote converted at
+at the same rounding as commitment creation. `first_unit_sats` is the prepaid first billing unit's
+customer price and `billing_unit_seconds` its duration (`ADR-0033`, added 2026-10-08; `PRV-13b`
+prices it and `LDG-39` holds its lifecycle), disclosed beside the setup fee — a quote under the
+same `binding: false` as the recurring price; the unit's `native_floor` is a provider figure and
+does not appear. **An offer price is an indicative quote converted at
 read time; `binding` is `false` and the commitment is priced at accept time (`LDG-27`) and MAY
 differ** — a caller bounding spend uses `WIR-17`'s `max_commitment_sats`, not the quote. The
 provider's currency, price string and raw metadata MUST NOT appear.

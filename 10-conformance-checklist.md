@@ -20,6 +20,12 @@ question meant. `11-open-findings.md`'s `F50` holds the withdrawal; the panel's 
 argued tiers and are not kept. `tools/check_ids.py` now refuses a tag on an item. Nothing an item
 asserts was changed by the cut.
 
+**Seeds in the items below** (2026-10-08, `ADR-0033`): a machine's first seed writes its mark at
+the seed instant plus the offer's `billing_unit.seconds` (`LDG-38`). An item that seeds a machine
+at an instant and asserts its mark or its first increment there runs on an offer whose
+`billing_unit.seconds` is zero, or on a seed that is not the machine's first; the first seed under
+a non-zero unit is `CNF-318`'s.
+
 ## Build and gate
 
 - [ ] **CNF-1** — CI builds the project from a clean checkout, with no network-dependent
@@ -638,9 +644,97 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-104** — Customer price is produced by exactly one function; no call site reads a
       provider price string directly. (`LDG-23`)
 - [ ] **CNF-105** — Privileged operations are metered although they are free. (`LDG-25`)
-- [ ] **CNF-106** — The reserve commits **customer** price for machine time and the setup fee **at
-      cost** — a reserve computed from provider cost under-commits by exactly the margin.
-      (`PRV-13b`)
+- [ ] **CNF-106** — The reserve commits **customer** price for machine time — the prepaid first
+      billing unit included, since it is machine time (2026-10-08, `ADR-0033`) — and the setup fee
+      **at cost** — a reserve computed from provider cost under-commits by exactly the margin.
+      (`PRV-13b`, `LDG-24`)
+
+### The prepaid first billing unit (2026-10-08, `ADR-0033`)
+
+A machine's first provider billing unit is prepaid machine time at the customer rate, on the setup
+fee's lifecycle, and the meter starts where it ends. One item per new MUST; the items that assert
+the fee's shape were amended the same day to stay true for both obligations.
+
+- [ ] **CNF-313** — **The billing unit is declared per offer, floor or no floor.** Each launch
+      driver's descriptor declares `billing_unit` `{seconds, native_floor}` per offer, or reports
+      it on the offer: Hetzner Cloud and Robot an hour and a null floor, DigitalOcean 60 seconds
+      and a `"0.01"` floor carried as a string. The engine reads the unit from the descriptor or
+      the offer and from nowhere else: a build that takes it from `08-provider-notes.md` or from
+      a constant fails, and so does one that sells an offer whose field is missing. (`PRV-44`,
+      `PRV-13c`, `DOM-9`)
+- [ ] **CNF-314** — **The unit is disclosed beside the setup fee, with no native figure.**
+      `GET /v1/providers/{account}/offers` carries `first_unit_sats` and `billing_unit_seconds`
+      on every offer: the first is the greater of `billing_unit.seconds` at the offer's recurring
+      price and `native_floor`, margined and converted as the recurring price is; the second is
+      `seconds`. Assert on a floor-priced offer that `first_unit_sats` is the floor's price with
+      the margin, and on every offer that neither `native_floor`, the native rate nor a currency
+      string appears. (`DOM-9`, `WIR-30`, `LDG-26`, `PRV-13b`)
+- [ ] **CNF-315** — **The unit is committed at the customer rate before the order is placed.**
+      Create against an offer with a non-zero unit: the commitment includes `first_unit` at the
+      customer rate and the setup fee at cost. Kill the process between the commitment's open and
+      the order: no order is placed (`LDG-12`). With a balance that covers every other term but
+      not the unit, the create is refused before any provider call. On a floor-priced offer the
+      term is the floor with the margin, not `seconds` at the rate. (`PRV-13b`, `PRV-44`,
+      `LDG-12`, `LDG-24`)
+- [ ] **CNF-316** — **Acceptance debits the authorized amount as its own kind, paired with the
+      decrement.** Move the rate between the create and the provider's acceptance. The entry is a
+      `first_unit_debit`, never a `usage_debit`, for exactly the satoshi amount
+      `operations.request_summary` carries as authorized and not a re-conversion; the commitment
+      is decremented by the same amount in the same transaction (kill the process between them
+      and neither survives); `available` does not move. A machine that lives ten seconds has paid
+      the whole unit, and the meter has posted nothing for it. (`LDG-39`, `LDG-67`, `LDG-31`,
+      `LDG-7`, `LDG-38`)
+- [ ] **CNF-317** — **The unit follows every row of `LDG-39`'s table, as a record of its own.**
+      Drive each row with a setup fee and a prepaid unit on the same create. Deterministic
+      rejection and resolved-absent release both in full. Ambiguous parks both on the operation,
+      each with its native amount and its authorized satoshis (`LDG-67`). Resolved-observed before
+      `OPS-33`'s release debits both against the commitment as two entries of their own kinds;
+      after the release each becomes its own operator deficiency — `unrecoverable_setup_fee` and
+      `unrecoverable_first_unit`, two records with distinct `idempotency_key`s, the unit's
+      `native_minor` its provider-native cost including the floor and without the margin, rate
+      null, absorbed seconds zero, `provider_account` copied from `operations.provider_account`,
+      `subject_kind: operation` where no machine row exists — both in `OPS-27`'s single
+      resolution transaction (kill between them and neither survives), and a wind-down commitment
+      `OPS-36` opened is decremented by neither. On resolved-absent with a provider transaction
+      showing the fee charged and not the unit, only the fee's record is produced; showing both,
+      both. Abandoned produces both records and clears both parked obligations. Available balance
+      never moves on any row. (`LDG-39`, `LDG-67`, `LDG-66`, `STO-37`, `LDG-75`, `OPS-27`,
+      `OPS-31`, `OPS-33`, `OPS-36`, `LDG-31`)
+- [ ] **CNF-318** — **The first seed is offset by the unit, and nothing inside the unit is
+      metered.** On an offer with a 60-second unit at 1/5 sat/s, record a machine billable at 30:
+      its mark is 90, no entry was written and `r` is unchanged. A tick at 60 and an exit at 80
+      each post nothing and move nothing — no entry, no decrement, no deficiency, `r` and the mark
+      where they were — and the prepaid debit stands. Re-enter at 85, inside the unit: the mark
+      stays 90. Tick at 120: the increment is priced over 90–120 under the key of the increment
+      ending at 120, six satoshis. Exit at 150 and re-enter at 200: the mark is 200, with no
+      offset and no second prepaid debit. Seed a billable attachment of the same machine: its mark
+      is its seed instant. Repeat the first seed on a floor-priced offer: the mark is still the
+      seed plus `seconds`. The wrong builds: one that seeds at the instant charges the customer
+      the unit and the seconds; one that offsets every seed hands the customer a unit on each
+      re-entry; one that offsets an attachment meters nothing it should. (`LDG-38`, `STO-45`,
+      `LDG-72`, `PRV-44`)
+- [ ] **CNF-319** — **`runway_until` counts from the later of now and the machine's mark, in
+      every writer.** A machine seeded at 0 on an hour's unit, with ten seconds of usable runway,
+      has `runway_until` 3610 after re-derivation at 100 (`PRV-13e`), after an extension at 100
+      (`LDG-62`) — the extension's seconds are added to 3600, not to 100 — and after `OPS-41`'s
+      no-mutation abort at 100; a machine whose mark is a closed increment end at 50 has 110 from
+      each; an attachment's mark is never read. Before the seed exists the derivation counts from
+      now. The wrong build routes the machine at 110 while its prepaid hour runs: assert the
+      sweep does not route it before 3610. (`LDG-33`, `LDG-72`, `PRV-13e`, `LDG-62`, `OPS-41`,
+      `LDG-16`)
+- [ ] **CNF-320** — **An outage row starts no earlier than the mark the seed wrote.** Begin a
+      currency outage at 10 for a machine seeded at 30 on a 60-second unit, and tick at 60 and at
+      120 with no rate: the tick at 60 opens nothing; the tick at 120 opens the subject's
+      `rate_outage` row with `absorbed_from` 90, never 30 or 10; an attachment seeded at 30 in
+      the same outage opens one from 30. Return the rate at 200: the close is
+      `max(accepted_at, the subject's mark)` as before and absorbs 90–200 for the machine. No
+      deficiency carries the unit's time. (`STO-37`, `LDG-38`, `LDG-64`, `LDG-75`)
+- [ ] **CNF-321** — **The rounding past the first unit is an accepted gap, not an alarm.** On an
+      hourly provider, run a machine for 61 minutes and delete it; record the invoice showing two
+      hours. Local charges hold one `first_unit_debit` and sixty seconds of `usage_debit`; the
+      second hour's remainder is absent from local charges until the invoice supplies it, enters
+      accrual once, writes no deficiency and raises no alarm. Repeat with a life that straddles
+      the provider's grid boundary and costs two units: the same. (`LDG-75`, `LDG-38`)
 
 ## Funding
 
@@ -1023,18 +1117,19 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       the leg was not silently omitted.
       Repeat with an earlier valid stop: it remains the end, never overwritten by the return.
 
-      Exercise each cause in `LDG-75`'s table: included clamp remainder, closed outage cost and
-      unrecoverable setup fee (observed, absent and abandoned-estimate branches); excluded
+      Exercise each cause in `LDG-75`'s table: included clamp remainder, closed outage cost,
+      unrecoverable setup fee and unrecoverable first unit (each on its observed, absent and
+      abandoned-estimate branches, as separate records; `ADR-0033`, 2026-10-08); excluded
       exception-branch coverage, account-loss exposure and late-attach floor. Realize excluded
       exposure through subsequent entries/incurred deficiencies and then invoice; it never counts
       both as reserved exposure and actual cost. A computed 100-sat debit with 30 sats remaining
       and 70 native cost produces native entry 21 plus deficiency 49, total 70; a full clamp
       carries all native cost in the deficiency, with no zero ledger row. Fee and attachment
       attribution reach the correct account. For each absent-but-charged and abandoned-estimate
-      setup-fee branch, create no machine row, check the producer copied `operations.provider_account`
-      into the deficiency, then delete the settled operation under `STO-14` retention. Read/check
-      accrual: the fee still belongs to that account/currency via its own row; an unrelated
-      account receives none. No invented machine or surviving-operation join is permitted.
+      setup-fee and first-unit branch, create no machine row, check the producer copied
+      `operations.provider_account` into each deficiency, then delete the settled operation under
+      `STO-14` retention. Read/check accrual: the fee and the unit each still belong to that
+      account/currency via their own rows; an unrelated account receives none. No invented machine or surviving-operation join is permitted.
       (*Amended 2026-10-04, `pv-gip.39`, J2.*) Record an invoice replacing outage cost and payment
       covering it: no phantom payable, resolution flag or customer backcharge. Also pay accrued
       outage cost before invoicing, then invoice it: the replacement leaves no phantom payable.
@@ -1042,8 +1137,9 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       Demonstrate the accepted gaps in `LDG-75`: invoice authority supplies locally absent free
       operation, quarantine and untracked-resource costs; provider local-month boundaries can
       misplace cost up to the UTC offset; a later-dated deficiency can be missed while an earlier
-      invoice is unrecorded behind a later one; and recording only one of a month's two invoices
-      already covers that month. These are limitations, not alarms or new cost writers.
+      invoice is unrecorded behind a later one; recording only one of a month's two invoices
+      already covers that month; and the provider's rounding past the prepaid first unit is
+      supplied by the invoice (`CNF-321`). These are limitations, not alarms or new cost writers.
       (`LDG-75`, `LDG-31`, `LDG-2`, `LDG-39`, `LDG-63`, `LDG-64`, `LDG-66`, `LDG-74`,
       `OPS-36`, `SEC-46`, `STO-37`, `STO-57`, `WIR-53`, `WIR-54`)
 - [ ] **CNF-311** — **Separate payable floors, omission and pay/record/draw** (*added
@@ -1119,8 +1215,10 @@ rather than acquiring a default.
       (`OVR-16`, `OVR-2`)
 - [ ] **CNF-147** — **AMENDED 2026-09-02 — it required a scheduled cancellation on a product that
       cancels immediately.** The dedicated path is exercised end to end against a real Hetzner Robot
-      machine: a setup fee committed before the order and debited on confirmed acceptance
-      (`LDG-39`), and a commitment sized to include cost through the machine's **read**
+      machine: a setup fee and the prepaid first billing unit — Robot's hour, with no floor —
+      committed before the order and debited on confirmed acceptance (`LDG-39`, `ADR-0033`,
+      2026-10-08), the machine's first seed writing its mark at the seed plus 3600 seconds
+      (`LDG-38`), and a commitment sized to include cost through the machine's **read**
       `earliest_cancellation_date`. The cancellation is then asserted **against what the machine
       actually says**, which is `PRV-13c`'s read-and-branch: where that date is today — the normal
       case for a newly ordered current-generation server, per `08-provider-notes.md` — cancellation
@@ -1424,19 +1522,21 @@ rather than acquiring a default.
       Release the create's commitment, then produce a correlator match during a currency outage,
       with available balance above any plausible wind-down floor. Assert attachment, no commitment,
       unchanged available balance, a native `late_attach_cleanup` deficiency with null rate and
-      zero absorbed seconds, and the applicable `unrecoverable_setup_fee` record with the same
+      zero absorbed seconds, and the applicable `unrecoverable_setup_fee` and
+      `unrecoverable_first_unit` records (`ADR-0033`, 2026-10-08) with the same
       null-rate/zero-seconds shape. Attach, deficiency records, fee settlement/parked-fee clearing
       and cleanup enqueue are atomic: inject failure between effects and observe all or none.
       Before the bound the cleanup short-defers with no fence or provider call; extension is
       refused by the rate gate. The meter charges nothing and opens a separate outage row from
-      `max(currency outage start, attach seed)`, never absorbing pre-attach time.
+      `max(currency outage start, the mark the attach seed wrote)`, never absorbing pre-attach
+      time.
 
       Return the rate. In one ordering, extend before the cleanup fence: a commitment opens,
       `runway_until` is re-derived (*amended 2026-10-04, `pv-gip.39`: no deficiency-resolution
       bookkeeping*) and the
       cleanup aborts without provider mutation; the machine survives. In the other ordering, make
       no extension: the cleanup cancels through the existing fence. The opening rates on the
-      native-only wind-down and setup-fee records remain null in both cases. No general interval
+      native-only wind-down, setup-fee and first-unit records remain null in both cases. No general interval
       after the return delays cancellation. Separately keep the outage through its bound and
       exercise cancellation, including an attach after the bound. Repeat under current suspension
       and under an open restore to check the existing worker precedence.
@@ -1488,10 +1588,11 @@ rather than acquiring a default.
       `API-34`)
 - [ ] **CNF-211** — **REWRITTEN 2026-09-02 — it tested the seizure `LDG-31` forbids.** An ambiguous
       create that resolves *observed* **while its commitment is still open** debits the setup fee
-      against that commitment and decrements it in the same transaction. Resolving *after* `OPS-33`
-      released it debits the customer **nothing**: the fee becomes an operator deficiency
-      (`LDG-66`, cause `unrecoverable_setup_fee`), `LDG-67`'s parked obligation is cleared in the
-      same resolution transaction, available balance does not move, and a wind-down commitment
+      and the prepaid first unit against that commitment, as two entries of their own kinds
+      (`ADR-0033`, 2026-10-08), and decrements it by both in the same transaction. Resolving
+      *after* `OPS-33` released it debits the customer **nothing**: each becomes its own operator
+      deficiency (`LDG-66`, causes `unrecoverable_setup_fee` and `unrecoverable_first_unit`),
+      `LDG-67`'s parked obligations are cleared in the same resolution transaction, available balance does not move, and a wind-down commitment
       `OPS-36` opened on the same machine is **not** decremented. Both halves, and the second is the
       one three requirements disagreed about. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-66`, `OPS-33`)
 - [ ] **CNF-212** — **AMENDED 2026-09-08 (`ADR-0017`) — the dedup is a row, not a JSON entry.** Two
@@ -2713,7 +2814,9 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       the mark charges 09:00–10:00 a second time, and one that discards it whole because it
       overlaps the mark never charges 10:00–10:30. (`LDG-38`, `LDG-72`, `LDG-8`)
 - [ ] **CNF-305** — **The mark is seeded when a subject becomes billable, and the first increment
-      starts there.** A machine recorded billable at Jan 31 23:59:30Z whose first tick is Feb 1
+      starts there.** *Run on an offer whose `billing_unit.seconds` is zero, or on a seed that is
+      not the machine's first; the first seed under a non-zero unit is `CNF-318`'s (2026-10-08,
+      `ADR-0033`).* A machine recorded billable at Jan 31 23:59:30Z whose first tick is Feb 1
       00:00:30Z is charged thirty seconds under January's `meter_totals` row and key and thirty
       under February's. The wrong builds: one that starts a never-marked subject's first
       increment at the period's start never charges January's thirty seconds, and one that files
@@ -2766,11 +2869,13 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       write discards its attempt and changes neither meter state nor entries. Neither case
       charges 10:04–10:05, and cancellation acceptance posts no future consumption.
       (`LDG-37`, `DOM-19`, `LDG-38`, `LDG-74`)
-- [ ] **CNF-162** — **REWRITTEN.** The setup fee follows `LDG-39`'s table: debited **on confirmed
-      acceptance** and the commitment decremented in the **same transaction** (kill the process
+- [ ] **CNF-162** — **REWRITTEN.** The setup fee and the prepaid first unit each follow `LDG-39`'s
+      table (the unit since 2026-10-08, `ADR-0033`): each debited **on confirmed acceptance** as
+      its own kind and the commitment decremented in the **same transaction** (kill the process
       between them and neither survives); **released in full** on deterministic rejection and on
       resolved-absent — **except a fee the provider's transaction shows was charged for a matched
-      order whose machine is gone, which becomes an `unrecoverable_setup_fee` deficiency in the
+      order whose machine is gone, which becomes an `unrecoverable_setup_fee` deficiency — and the
+      unit, on its own evidence, an `unrecoverable_first_unit` one — in the
       resolution's own transaction** (2026-09-05; kill the process between them and neither
       survives); **held** through `needs_reconciliation`. Assert `available` never goes
       negative across the whole sequence — that is the bug this item missed by testing only the

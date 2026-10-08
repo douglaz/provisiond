@@ -294,8 +294,9 @@ rather than the offer. It is terms, not secrets, so it survives the purge exactl
 account does — and it is retained as **evidence**, not as a comparison field.
 
 **One snapshot, because there is one attempt** (`ADR-0014`, `ADR-0017`). `request_summary` carries
-the create's correlator, its offer snapshot and its at-cost setup fee (`LDG-67`,
-`05-persistence.md`), and resolution reads them without choosing.
+the create's correlator, its offer snapshot, its at-cost setup fee and its prepaid first unit
+(`LDG-67`, `05-persistence.md`; the unit since 2026-10-08, `ADR-0033`), and resolution reads them
+without choosing.
 
 *Withdrawn 2026-09-05, and the two sentences are kept verbatim because `F36` quotes them and a
 finding whose quotes resolve to nothing is worthless. They read: "`request_summary` holds a list
@@ -447,8 +448,9 @@ Robot order reports `ready` with a server number before the server API lists the
 read inside that window is not evidence of absence. **Where it returns `not_found` past the
 window, the operation resolves *absent* — the second row's outcome, reached without waiting for
 `OPS-33`'s negative window, because a direct read past the visibility window is authoritative
-where a listing was not**: no machine is attached and the commitment is released in full — with one addition to `LDG-39`, that a setup fee the provider's own transaction
-shows was charged becomes an `unrecoverable_setup_fee` deficiency rather than being pretended away.
+where a listing was not**: no machine is attached and the commitment is released in full — with one addition to `LDG-39`, that a setup fee or prepaid first unit the provider's own
+transaction shows was charged becomes the deficiency `LDG-39`'s absent row names for it rather than
+being pretended away.
 *Added 2026-09-05, and corrected the same day: a first form invented an "accepted-but-gone"
 outcome, which had no value in `WIR-35`'s closed `resolution` set, no settled status, no `LDG-39`
 row, and ignored the visibility window — so the ordinary Robot create resolved as gone and came
@@ -470,10 +472,11 @@ This is one rule with **three entry points** — the provider **accepting the or
 `OPS-27` **resolving-observed** a create whose reply was lost, and `OPS-36`'s **late attach** of a
 machine whose commitment `OPS-33` had already released — because each writes a set of effects a
 partial commit of which is unrepairable. Those effects are: the terminal write on
-the operation (`STO-19`'s write-once columns), the machine row, the **settlement of the setup fee**
-— a debit where a commitment is still open, an `LDG-66` operator deficiency where `OPS-33` has
-released it (`LDG-39`, amended 2026-09-02; it is never taken from available balance) — the
-clearing of any parked `LDG-67` pending-fee record, and the commitment decrement where a commitment
+the operation (`STO-19`'s write-once columns), the machine row, the **settlement of the setup fee
+and of the prepaid first unit** (`ADR-0033`, 2026-10-08) — each a debit where a commitment is still
+open, each an `LDG-66` operator deficiency where `OPS-33` has released it (`LDG-39`, amended
+2026-09-02; neither is ever taken from available balance) — the clearing of any parked `LDG-67`
+record, and the commitment decrement where a commitment
 is still open (`LDG-31`). They MUST commit together, under `LDG-35`'s per-tenant serialization
 because the debit reads the balance. **The late-attach entry point carries three further effects,
 and they commit in that same transaction**: the attach itself; *either* the wind-down commitment
@@ -523,13 +526,14 @@ re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring th
 `max_commitment_sats` cap the original create may have set. That is precisely the surface
 `ADR-0011` abolished, reappearing through reconciliation.
 
-**The wind-down floor is tested against available balance with the setup fee taken out of the
-question** (amended 2026-09-02). `LDG-39` used to debit the late fee from available on this same
+**The wind-down floor is tested against available balance with the setup fee — and the prepaid
+first unit, which `LDG-39` sends the same way — taken out of the question** (amended 2026-09-02;
+the unit added 2026-10-08, `ADR-0033`). `LDG-39` used to debit the late fee from available on this same
 branch, which left "does available cover the floor" with two defensible answers and no rule: with
 100 sats available, a 70-sat fee and a 70-sat floor, fee-first charges 70 and makes the whole
 wind-down an operator loss, while reserve-first ultimately charges the customer 100 — both preserve
-`LDG-10` and the set chose neither. The fee is now never debited to the customer once `OPS-33` has
-released the commitment; it is an operator deficiency (`LDG-39`, `LDG-66`). **So there is one
+`LDG-10` and the set chose neither. Neither the fee nor the unit is debited to the customer once
+`OPS-33` has released the commitment; each is an operator deficiency (`LDG-39`, `LDG-66`). **So there is one
 number to test and one order to test it in**, and the ordering question dissolves rather than being
 answered.
 
@@ -613,7 +617,7 @@ bound.
 Before any ordering call the worker MUST re-read the offer's current price **in the provider's own
 currency** and compare it with the native price the commitment was sized from — **carried on the
 operation's `request_summary`, which MUST hold the accepted recurring price, its
-currency and its period, and the accepted setup fee** (`LDG-2`; *the
+currency and its period, and the accepted setup fee and prepaid first unit** (`LDG-2`, `LDG-67`; *the
 fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment
 row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
 provider

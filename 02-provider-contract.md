@@ -62,6 +62,11 @@ check and on every `GET /v1/providers`.
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
 `billing_stop_window` of the same shape (`PRV-13b`), `order_budget` `{limit, per}` (`PRV-40`),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
+`billing_unit` per offer (`ADR-0033`, added 2026-10-08) — `{seconds, native_floor}`: the provider's
+smallest charged span of machine time, in seconds, and the money minimum on its price, a string in
+the offer's currency as `DOM-9` carries every price and null where the offer has none; it is the
+per-contract fact `PRV-13c` lists as billing granularity, and like the bound it MAY be reported on
+the offer instead —
 `rescue_address_family` (`RSC-45`), and `surviving_attachments` (the kinds that survive deletion,
 each with `cleanup: api | manual`, `PRV-13a`). A field with nothing to declare says so explicitly.
 **A value the engine reads MUST come from here and never from `08-provider-notes.md`**, which is
@@ -174,6 +179,8 @@ commitment is opened or re-sized, into the ledger unit:
 
 ```
 reserve_native = setup_fee                              # at cost, no markup (ADR-0006)
+               + first_unit                             # the prepaid first billing unit, at the
+                                                        # customer rate (ADR-0033; defined below)
                + requested_runway × customer_rate       # PRV-13d, customer-chosen
                + wind_down_cost                         # see below
                + billable_attachments                   # PRV-13a
@@ -199,6 +206,19 @@ order lands, so it MUST be **fully committed before the order is placed**. *Both
 readings — "fully collected before the order" and "debited before the order is placed" — charged
 the customer for a fee the operator never incurred whenever the provider rejected the order
 outright or the create resolved absent.*
+
+**The prepaid first billing unit is at the customer rate, where the fee is at cost** (`ADR-0033`,
+added 2026-10-08). `first_unit` is the greater of `billing_unit.seconds` at the offer's recurring
+price and `native_floor` (`PRV-44`), with the margin `LDG-24` applies — "The margin is a percentage
+applied to machine time only (`ADR-0007`)" — because it is machine time; `ADR-0033`: "**Why the
+customer rate and not cost.** The customer receives that hour." Like the fee it is entirely lost
+once the order lands, so it MUST be **fully committed before the order is placed**, and like the fee
+it is debited only on confirmed acceptance, as its own kind and for the satoshi amount authorized
+here (`LDG-39`, `LDG-67`). On a floor-priced offer the floor prices the unit and moves no instant:
+the meter starts at the seed plus `seconds` (`LDG-38`), so a machine that outlives `seconds` but not
+what the floor's money bought at the provider pays the floor and then its metered seconds; the
+difference is bounded by the floor and falls on the customer, never on the operator, so it is
+priced and not amplified.
 
 **`F18` fixed: there is one haircut and it belongs to the conversion, not to the sum.** The
 earlier text trailed `× fx_haircut` after the formula without saying whether it multiplied the
@@ -395,7 +415,8 @@ clause was false while it stood, since the commitment opened at enqueue.*
 **PRV-13c** **A deployment MUST NOT encode any provider's current commercial terms as
 constants.** Minimum term, notice period, cancellation immediacy and billing granularity are
 per-contract facts that change, differ between a provider's own product lines, and differ
-between one contract and the next.
+between one contract and the next. Billing granularity is declared per offer as `PRV-44`'s
+`billing_unit` (`ADR-0033`, 2026-10-08).
 
 The required shape is read-and-branch: order, then **read** the provider's per-machine
 cancellation constraint, and branch to the exception path when it is **materially in the

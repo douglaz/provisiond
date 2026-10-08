@@ -22,7 +22,7 @@ How a proof here may be trusted is `ADR-0025`'s trust policy, enforced by `Gate.
 open Std
 
 namespace Provisiond.Witnesses
-open Provisiond.Meter Provisiond.Runway Provisiond.Claim Provisiond.Tables
+open Provisiond.Meter Provisiond.Claim Provisiond.Tables
 
 /-! ## The claim model -/
 
@@ -115,7 +115,8 @@ theorem clamp_leaves_credit_witness :
 /-- `OPS-41` (2026-09-04): the withdrawn `usable_sats > 0` predicate on the historical input. -/
 @[req "OPS-41"]
 theorem sub_second_runway_witness :
-    runwaySeconds 1 0 2 = 0 ∧ abortSats 1 0 2 = true ∧ abortDate 1 0 2 = false := by
+    Runway.runwaySeconds 1 0 2 = 0 ∧ Runway.abortSats 1 0 2 = true ∧
+    Runway.abortDate 1 0 2 = false := by
   decide
 
 /-! ## The cancellation fence
@@ -2108,11 +2109,13 @@ theorem unmarked_short_life_closes :
   decide +kernel
 
 /-- Apply the general unmarked-world proofs to this executable trace: its first span is covered
-without overlap, and the close precedes release. No partition is supplied as a premise. -/
+without overlap, and the close precedes release. No partition is supplied as a premise.
+`seedWorld`'s offer declares no unit, so the seed records none and the coverage is the plain one. -/
 @[req "LDG-38", req "LDG-32"]
 theorem unmarked_short_life_covered_before_release :
     let p := { exitGuards Funding.current with exitPosts := true }
     let w := unmarkedShortLife p
+    w.prepaid = none ∧
     (∀ t, Funding.Covered w.charged t ↔ Funding.Covered [(30,34)] t) ∧
     w.charged.Pairwise (fun a b => ∀ t, ¬ (Funding.Inside t a ∧ Funding.Inside t b)) ∧
     w.mark = some 34 ∧ (Funding.release w).mark = w.mark ∧
@@ -2123,9 +2126,113 @@ theorem unmarked_short_life_covered_before_release :
     cases he
   have trace := unmarked_short_life_is_valid p
   have coverage := Funding.unmarked_lifecycle_coverage p rfl rfl rfl rfl rfl seedWorld 0
-    rfl hc rfl trace
-  exact ⟨coverage.1, coverage.2, Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
-    seedWorld 0 rfl hc rfl trace⟩
+    rfl hc rfl rfl trace
+  have release := Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
+    seedWorld 0 rfl hc rfl rfl trace
+  have hp : (unmarkedShortLife p).prepaid = none := by decide +kernel
+  have hnp : ∀ t, ¬ Funding.Prepaid (unmarkedShortLife p) t := by
+    rintro t ⟨u, hu, -⟩; rw [hp] at hu; cases hu
+  refine ⟨hp, fun t => ?_, coverage.2.2.2, ?_, release.2.1, release.2.2.1, release.2.2.2⟩
+  · rw [coverage.1 t]; simp [hnp t]
+  · rw [release.1, Funding.unitEnd_of_none _ hp]; rfl
+
+/-! ### The prepaid first billing unit (`ADR-0033`, 2026-10-08)
+
+`LDG-38`: "the machine's first seed places its mark at the seed instant plus one unit", and the
+meter starts where the unit ends. The unit here is sixty seconds, DigitalOcean's declared one; its
+floor prices the unit (`PRV-13b`) and moves no instant. -/
+
+/-- `seedWorld`'s unmarked machine, on an offer whose `billing_unit.seconds` is 60. -/
+def unitWorld : Funding.World := { seedWorld with unitSeconds := 60 }
+
+/-- The machine is recorded billable at 30, so its unit runs to 90, and the meter ticks at 60,
+inside it, at 1/5 sat a second. -/
+def unitTrace : List Funding.Event := [.billable 30, .post 30 60 (1/5)]
+
+/-- `Funding.current` with every other meter guard pinned, as `exitGuards` pins them, so that
+`prepaidFirstUnit` alone decides the pair below. -/
+def unitGuards (p : Funding.Params) : Funding.Params := { exitGuards p with exitPosts := true }
+
+/-- The guard pinned on as well, for the lifecycle witnesses: they are not a second target for the
+control that flips it. -/
+def unitOn : Funding.Params := { unitGuards Funding.current with prepaidFirstUnit := true }
+
+/-- Refused with the guard: the seed leaves the mark at 90 and records the unit as 30 to 90; the
+tick inside the unit charges nothing and leaves the world — `r`, the entries, the deficiencies —
+exactly as the seed left it; an exit inside the unit, at 80, moves nothing either, so the prepaid
+debit stands; and the first increment past the unit is priced from the unit's end, 90 to 120 at
+1/5, the one entry of 6. -/
+@[req "LDG-38"]
+theorem first_unit_is_prepaid :
+    let p := unitGuards Funding.current
+    let seeded := Funding.run p unitWorld (unitTrace.take 1)
+    let w := Funding.run p unitWorld unitTrace
+    seeded.mark = some 90 ∧ seeded.prepaid = some (30, 90) ∧ w = seeded ∧
+    Funding.exitSubject p w 80 (1/5) = w ∧ w.roundingCredit = 0 ∧ w.entries = [] ∧
+    (Funding.post p w 30 120 (1/5)).charged = [(90, 120)] ∧
+    (Funding.post p w 30 120 (1/5)).entries.map (·.sats) = [-6] := by
+  with_unfolding_all decide
+
+/-- Admitted without it: the seed leaves the mark at 30 and records no unit, the tick charges 30 to
+60 — six satoshis for seconds the prepaid unit already bought — and the exit at 80 charges 60 to 80
+as well: the customer pays the unit and the seconds. -/
+@[req "LDG-38"]
+theorem unit_seconds_charged_without_the_offset :
+    let p := { unitGuards Funding.current with prepaidFirstUnit := false }
+    let w := Funding.run p unitWorld unitTrace
+    let x := Funding.exitSubject p w 80 (1/5)
+    (Funding.run p unitWorld (unitTrace.take 1)).mark = some 30 ∧ w.prepaid = none ∧
+    w.charged = [(30, 60)] ∧ x.charged = [(30, 60), (60, 80)] ∧
+    x.entries.map (·.sats) = [-6, -4] := by
+  with_unfolding_all decide
+
+/-- A whole lifecycle under the rule: the first seed at 30, a tick at 60 inside the unit, a tick at
+120 past it, exit at 150. -/
+def unitLife (p : Funding.Params) : Funding.World :=
+  Funding.exitSubject p (Funding.run p unitWorld [.billable 30, .post 30 60 (1/5),
+    .post 60 120 (1/5)]) 150 (1/5)
+
+/-- The lifecycle is admitted by the general trace relation, with its one completed span 30 to 150. -/
+@[req "LDG-38"]
+theorem unit_life_is_valid (p : Funding.Params) :
+    Funding.LifecycleTrace p unitWorld 0 (unitLife p) 150 none [(30, 150)] (some 150) := by
+  exact .exit (.tick (.tick (.enter (.initial rfl) 30 (by decide)) 60 (1/5) (by decide)
+    (by decide +kernel)) 120 (1/5) (by decide) (by decide +kernel)) 150 (1/5) (by decide)
+    (by decide +kernel)
+
+/-- The successful execution, computed: the unit recorded as 30 to 90, two metered increments — 90
+to 120 and 120 to 150 — of six satoshis each, `r` at 0, the mark at 150, 18 of the 30 committed
+left, and release leaving the meter where the exit put it. -/
+@[req "LDG-38", req "LDG-32"]
+theorem first_unit_lifecycle_witness :
+    let w := unitLife unitOn
+    w.prepaid = some (30, 90) ∧ w.charged = [(90, 120), (120, 150)] ∧
+    w.entries.map (·.sats) = [-6, -6] ∧ w.roundingCredit = 0 ∧ w.mark = some 150 ∧
+    w.remaining = 18 ∧ w.deficiencies = [] ∧ (Funding.release w).remaining = 0 := by
+  with_unfolding_all decide
+
+/-- The same lifecycle under the general theorems: every second of the span 30 to 150 is priced
+once — inside the unit by the prepaid unit, after it by exactly one charged interval — no second
+by both, and the mark at release is the boundary. -/
+@[req "LDG-38", req "LDG-32"]
+theorem first_unit_lifecycle_covered :
+    let p := unitOn
+    let w := unitLife p
+    (∀ t, Funding.Covered w.charged t ↔ Funding.Covered [(30, 150)] t ∧ ¬ Funding.Prepaid w t) ∧
+    (∀ t, Funding.Covered [(30, 150)] t → Funding.Covered w.charged t ∨ Funding.Prepaid w t) ∧
+    (∀ t, Funding.Prepaid w t → ¬ Funding.Covered w.charged t) ∧
+    w.charged.Pairwise (fun a b => ∀ t, ¬ (Funding.Inside t a ∧ Funding.Inside t b)) ∧
+    w.mark = some (max 150 w.unitEnd) := by
+  let p := unitOn
+  have hc : unitWorld.markCovers := by
+    intro e he
+    cases he
+  have trace := unit_life_is_valid p
+  have coverage := Funding.unmarked_lifecycle_coverage p rfl rfl rfl rfl rfl unitWorld 0
+    rfl hc rfl rfl trace
+  have release := Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
+    unitWorld 0 rfl hc rfl rfl trace
+  exact ⟨coverage.1, coverage.2.1, coverage.2.2.1, coverage.2.2.2, release.1⟩
 
 /-- Pin the posting guards so release order alone determines this witness. -/
 def releaseOrderGuards (p : Funding.Params) : Funding.Params :=
@@ -2154,6 +2261,34 @@ theorem release_before_close_loses_debit :
     w.charged = [(10,14)] := by decide +kernel
 
 end Funding
+
+/-! ## The runway derivation's start
+
+`LDG-33`: `runway_until = max(now, mark) + floor(usable_sats / current_customer_rate)`, with the
+mark the machine subject's latest (`ADR-0033`, 2026-10-08). -/
+
+/-- A machine a hundred seconds into an hour's prepaid unit — seeded at 0 on a 3600-second unit, so
+its mark is 3600 — with 20 usable satoshis at 2 a second: ten seconds of runway. -/
+def insideTheUnitDate (p : Runway.Params) : Nat := Runway.runwayUntil p 100 (some 3600) 20 0 2
+
+/-- With the start at the mark the date is 3610, the unit's end plus the ten seconds. A machine
+past its unit, its mark a closed increment end at 50, counts from now, 110; so does one with no mark
+yet. -/
+@[req "LDG-33"]
+theorem runway_counts_from_the_unit_end :
+    insideTheUnitDate Runway.current = 3610 ∧
+    Runway.runwayUntil Runway.current 100 (some 50) 20 0 2 = 110 ∧
+    Runway.runwayUntil Runway.current 100 none 20 0 2 = 110 := by decide
+
+/-- Without it the same machine's date is 110: 3500 seconds early, the whole of the unit that has
+not elapsed — `ADR-0033`'s "every machine routes up to one unit early" — and `LDG-16`'s sweep routes
+it at 110 while the customer's prepaid hour runs. -/
+@[req "LDG-33"]
+theorem runway_early_without_the_start :
+    insideTheUnitDate { Runway.current with startAtMark := false } = 110 ∧
+    Runway.routed 20 0 2 = False ∧ 3610 - 110 = 3600 - 100 := by
+  refine ⟨by decide, ?_, by decide⟩
+  simp [Runway.routed, Runway.runwaySeconds, Runway.usableSats]
 
 /-! ## The billing period
 

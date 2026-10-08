@@ -151,7 +151,7 @@ auction/market listing.
 | `install_strategies` | The offer's subset of `DOM-13`'s strategies, which **gates** them (`WIR-30`). Present on every offer; empty means no install is available for it |
 | `max_image_bytes` | The ceiling `RSC-40` enforces against a caller-supplied image stream |
 | `guest_requirements` | Prose the caller relays to whoever built the image; null where the strategy imposes none, non-null for `provider_catalogue` (`RSC-43`, `WIR-30`) |
-| `min_runway_seconds`, `setup_fee_sats`, `max_rate_outage_seconds` | `PRV-13d`'s floor, `LDG-39`'s at-cost fee, and `LDG-64`'s disclosed bound — the operator's current limit, which can change (`WIR-30`) |
+| `min_runway_seconds`, `setup_fee_sats`, `first_unit_sats`, `billing_unit_seconds`, `max_rate_outage_seconds` | `PRV-13d`'s floor, `LDG-39`'s at-cost fee, the prepaid first billing unit's customer price in satoshis and its duration in seconds beside the fee (`ADR-0033`, `PRV-13b`; added 2026-10-08 — the unit's `native_floor` and native rate never reach the customer surface, `LDG-26`), and `LDG-64`'s disclosed bound — the operator's current limit, which can change (`WIR-30`) |
 | `metadata` | Raw provider payload |
 
 *The six rows after the prices were added 2026-09-02.* Every one of them is required on the wire by

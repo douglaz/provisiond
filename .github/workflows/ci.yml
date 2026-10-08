@@ -523,6 +523,14 @@ jobs:
       #   LDG-38, 2026-10-03: exit without posting loses a sub-interval life and the tails
       #   around re-entry -- exit_closes_each_tail on exitCases Funding.current. Other
       #   Funding guards are pinned so each row still refutes exactly one witness.
+      # The prepaid first billing unit (pv-ucs.1, ADR-0033), Funding.current.prepaidFirstUnit:
+      #   LDG-38, 2026-10-08: the machine's first seed is written at its instant instead of the
+      #   unit's end, and the tick inside the unit charges seconds the customer prepaid --
+      #   first_unit_is_prepaid on unitTrace. Other Funding guards are pinned, and the lifecycle
+      #   witness pins this one, so the row refutes exactly one witness.
+      # The runway derivation's start (pv-ucs.1, ADR-0033), Runway.current.startAtMark:
+      #   LDG-33, 2026-10-08: the derivation counts from now inside the prepaid unit and the
+      #   stored date is one unit early -- runway_counts_from_the_unit_end on insideTheUnitDate.
       # The billing period (pv-vwe.17), Period.current:
       #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
       #     the new period's first 2/5 posts 0 against what the old one left --
@@ -624,6 +632,8 @@ jobs:
           Funding|seedOnBillable|true|false|seedTrace
           Funding|exitPosts|true|false|exitCases Funding.current
           Funding|closeBeforeRelease|true|false|releaseOrderTail Funding.current
+          Funding|prepaidFirstUnit|true|false|unitTrace
+          Runway|startAtMark|true|false|insideTheUnitDate
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat

@@ -363,7 +363,7 @@ filters out deleted rows.
 | `provider_account` | text | nullable |
 | `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (`ADR-0014`): a create has one attempt and one correlator. Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create. *`F36` and `ADR-0014` record what the withdrawn per-attempt list cost* |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** (native minor units, currency, and the satoshi amount authorized at the create, `LDG-67`, `LDG-39`). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and that fee as the amount `LDG-39` settles — debited against a still-open commitment, or absorbed as an operator deficiency where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create (`LDG-67`, `LDG-39`). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
@@ -409,7 +409,8 @@ purge exists. The contents are:
   (`OPS-35`), and what `OPS-13` requires: what was attempted, and any provider-side identifiers
   that were created.
 - **For a create** — the correlator, the offer snapshot and the at-cost setup fee enumerated on the
-  `request_summary` row below.
+  `request_summary` row below, and since 2026-10-08 the prepaid first unit beside the fee
+  (`ADR-0033`).
 - **For the kinds `OPS-45` governs** (*it names six; this said "five" until 2026-09-16*) — the two markers, `write_started_at` and `rescue_exited_cleanly`,
   copied from their columns as that row already requires.
 
@@ -541,7 +542,7 @@ the authorization system.
 | `id` | UUID | primary key |
 | `tenant_id` | text | not null; **no foreign key** (`STO-26`) |
 | `seq` | integer | not null; the per-tenant monotonic sequence of `LDG-6` |
-| `kind` | enum | `topup` \| `usage_debit` \| `setup_fee_debit` \| `operation_fee_debit` \| `correction` — closed by `LDG-7` |
+| `kind` | enum | `topup` \| `usage_debit` \| `setup_fee_debit` \| `operation_fee_debit` \| `first_unit_debit` \| `correction` — closed by `LDG-7` |
 | `amount_sats` | integer | **signed** (`LDG-1`); a debit is negative. *Until 2026-09-02 this read "which is what makes `LDG-38`'s netting come out right" — `LDG-38` no longer nets over entries at all, and the sign rule stands on `LDG-1` alone* |
 | `balance_after` | integer | the running balance after this entry (`LDG-6`); authoritative for reads per `LDG-70` |
 | `subject_kind`, `subject_id` | enum, UUID | nullable; `machine` \| `attachment` — **`LDG-8`'s *subject*.** Required on every `usage_debit`, because a machine and each of its billable attachments (`PRV-13a`, `machine_attachments`) are separately metered subjects and `LDG-38` carries a rounding credit and a high-water mark **per subject** (`STO-45`). Carrying only `machine_id` merges them into one meter, and the merge under-bills by whichever subject is not the one being posted |
@@ -949,7 +950,8 @@ deadline cannot serve as its end),
 when the record was opened; per-record presence and permanent nullability are owned by
 `LDG-66`; pointer amended 2026-10-04, `pv-gip.39`, T8),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
-`late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
+`late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`) |
+`unrecoverable_first_unit` (`LDG-39`'s rows for the prepaid first unit, `ADR-0033`, added 2026-10-08)),
 `idempotency_key` (unique), `opened_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 *Amended 2026-10-04 (`pv-gip.39`, `ADR-0031`): the deficiency-resolution timestamp is
@@ -957,13 +959,15 @@ removed; `LDG-75` owns accrual classification and invoice coverage.*
 **Durable account provenance** (*added 2026-10-04, `pv-gip.39`, J2*): `provider_account`
 is required on every deficiency, written by its producer in the producing transaction from the
 cost's provider account. For machine/attachment costs the producer resolves the account through
-the subject. Every setup-fee deficiency producer in `LDG-39` MUST populate this
-`provider_account` from the originating `operations.provider_account` in the same transaction
-as the deficiency, including the absent-but-charged and abandoned-estimate branches with no
-machine row. *Producer detail moved here 2026-10-04 (`pv-gip.39`, U2).* Subsequent account attribution MUST
+the subject. Every producer in `LDG-39` of a deficiency for an order-landed obligation it parks —
+the setup fee's, the prepaid first unit's (*reworded over both 2026-10-08, `ADR-0033`*) — MUST
+populate this `provider_account` from the originating `operations.provider_account` in the same
+transaction as the deficiency, including the absent-but-charged and abandoned-estimate branches
+with no machine row. *Producer detail moved here 2026-10-04 (`pv-gip.39`, U2).* Subsequent account attribution MUST
 read this field, without depending on a retained operation or a machine for a machine-less create.
-A setup-fee deficiency with no machine uses `subject_kind: operation` and the originating
-operation's id as `subject_id`; that identifier remains evidence after `STO-14` retention,
+A deficiency for such an obligation with no machine uses `subject_kind: operation` and the
+originating operation's id as `subject_id`, one record per obligation and cause under its own
+`idempotency_key`; that identifier remains evidence after `STO-14` retention,
 not a foreign key requiring that operation to survive. The row and its account link remain
 resolvable under `STO-57`.
 
@@ -1006,7 +1010,13 @@ fresh and newest plus bound would date the start in the future. When the clocks 
 outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
 the replay returns the first instant, which those per-writer formulas did not. A late opening
 changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
-written. **The subject row starts at `max(currency outage start, billable-span seed)`.**
+written. **The subject row starts at `max(currency outage start, the mark the billable span's
+seed wrote)`.** For an attachment that mark is its seed instant, as before; for a machine's first
+seed it is the prepaid unit's end (`LDG-38`, `ADR-0033`; amended 2026-10-08 from the billable-span
+seed), because the unit's provider cost is already in the prepaid entry and `LDG-75` says
+"Provider cost MUST count once whoever bore it: an exposure estimate and the charge realizing it
+MUST NOT both enter accrual"; nothing opens a row inside the unit in any case, a posting inside it
+being one `LDG-38` discards.
 Rows of one outage MUST carry the same `absorbed_from` wherever that maximum is the same,
 regardless of posting order or current settings. For row closure at exit to nonbillable, see
 `LDG-38` and `LDG-72`. Settings changes move neither an existing row's start nor a later row's
