@@ -197,8 +197,10 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-31b** — The remaining rows of `OPS-11`, for exhaustiveness — including that the table
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
       kind, with no implicit default. **Amended 2026-10-08 (`ADR-0035`):** vary known acceptance
-      across both Boolean values for driver errors, and exercise unknown acceptance through the
-      `internal` fallback. Admission-only inputs remain pre-provider, with acceptance false.
+      across both Boolean values for driver errors, and exercise unknown acceptance as null with
+      the mutating request's own mapped failure kind (`CNF-322`). Assert that a pre-send `network`
+      failure still takes the ambiguous row despite accepted false; null supplies no extra
+      classifier condition. Admission-only inputs remain pre-provider, with acceptance false.
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
@@ -3055,9 +3057,17 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
 
 - [ ] **CNF-322** — **Acceptance belongs to the operation's mutation.** Exercise each driver
       error with acceptance known true, known false, and unknown. Assert `details.accepted`
-      is always present; unknown is explicitly null and kind `internal`, never omitted or
-      defaulted to false. Accept a create's key upload, refuse the order, and assert false.
-      Accept the order, then fail a read, and assert true. Repeat for the non-create mutations
+      is always present and never defaulted: before any mutating-request byte is sent it is
+      false; after a request was sent but no reply arrives, inject both a connection failure
+      and a timeout and assert `network` or `timeout` respectively with explicit null. Return
+      a 5xx to the mutating request with acceptance unknown: assert `provider`, retained
+      `details.status`, and null. Return an unreadable reply whose failure has no mapping:
+      assert `internal` and null. After a known successful 2xx mutation response, fail to parse
+      its body: assert `internal` but accepted true. For each unknown case assert the driver
+      reports the mutating request's own failure, even if a later request also fails, never
+      substituting the later kind or status, omitting the field, or reporting false. Accept a
+      create's key upload, refuse the order, and assert false. Accept the order, then fail a
+      read, and assert true on that and every later error. Repeat for the non-create mutations
       in `OPS-11`'s last row without requiring a correlator. Inject Robot's
       `403 RATE_LIMIT_EXCEEDED`: assert `rate_limited`, `details.status: 403`, and retained
       acceptance. Check upstream status retention and redaction on these errors. (`PRV-5`,
@@ -3067,8 +3077,10 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       `authentication`, and a provider 4xx. Assert `needs_reconciliation`, no automatic repeat,
       and `retryable: false`. Separately supply the goal-state answer on a goal-state mutation and assert `succeeded`.
       Contrast rejection before acceptance, including the ancillary-key case in `CNF-322`,
-      with transport failure and unknown acceptance: deterministic rejection is `failed`, while
-      transport failure and the `internal` fallback remain ambiguous. Run the other classifier
+      with transport failure and unknown acceptance under `PRV-5`'s mapped-cause rule:
+      deterministic rejection is `failed`, while a pre-send `network` failure remains ambiguous
+      despite accepted false, and an unknown-acceptance `network`, `timeout`, `provider` 5xx or
+      unmapped `internal` failure remains ambiguous. Run the other classifier
       rows through `CNF-31a`/`CNF-31b` and retain the install-marker demonstrations.
       Timeout polling an accepted order: assert kind `timeout`, acceptance true, the transaction
       identifier retained and the message warning that the order may remain pending and must

@@ -268,7 +268,8 @@ last row.** A later `rate_limited`, `not_found`, `authentication`, or provider 4
 classify that accepted mutation `failed`. The goal-state success rule below still takes
 precedence. The refresh, parent, install/rescue-inventory and admission-only rows are unchanged;
 pre-provider admission has no accepted mutation. Unknown acceptance follows `PRV-5`'s
-"MUST report `internal` with `details.accepted: null`", never an implicit default.
+"MUST report `details.accepted: null` with the mutating request's own failure mapped as above",
+never an implicit default.
 
 **AMENDED 2026-08-31 — "a 4xx means the provider did not act" is false, and believing it strands a
 customer's money.** For a **goal-state mutation** — delete, power on, power off, end rescue — a

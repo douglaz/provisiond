@@ -15,11 +15,15 @@ says of it and its siblings "they are not purchases, and they pass no spending g
 lets one operation hold a machine at a time, so one machine's loop runs about one read a second,
 which is the whole bucket.
 
-The harm lands on the operator's money. A throttled delete is `failed`, and `OPS-48` says
-"nothing in this set returns it to `queued`", so every exhaustion delete in flight stalls for
-an operator while its machine bills the operator. The account sweep cannot record an absence while
-throttled either. Retrying throttles on a timer was rejected in `F48` ("every operation is several
-requests") and stays rejected.
+The harm lands on the operator's money. A throttle refusing a delete before acceptance is
+`failed` (`OPS-48`: "A throttle refusing the mutation before acceptance is `failed` and stalls the
+episode"); `OPS-48` also says "Neither returns the attempt to `queued`". An exhaustion delete
+can therefore leave an episode for an operator while its machine bills the operator. The account
+sweep cannot record an absence while throttled either. Retrying throttles on a timer was rejected
+in `F48` ("every operation is several requests") and stays rejected.
+
+*Context qualified 2026-10-08 (`ADR-0035`): `OPS-48` owns the accepted-mutation case as well as
+the pre-acceptance case quoted above.*
 
 The machine record is already a cache with its age. `DOM-8`: "A reader MUST take the staleness
 bound from `state_observed_at` rather than from the fact of a caller having asked." Nothing let a

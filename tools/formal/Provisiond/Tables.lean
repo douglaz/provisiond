@@ -89,8 +89,8 @@ instance {p : Upstream → Prop} [DecidablePred p] : Decidable (∀ u, p u) :=
 and goal-state rule turn on. `cutOff` is a `conflict` that "arose from the worker being cut off
 mid-flight (`OPS-21`)"; `goalStateHeld` is the driver's mapping of "a provider rejection whose
 meaning is 'already in the target state'". Acceptance is the `PRV-5` fact for the operation's
-mutation, not an ancillary request. Unknown acceptance is an `internal` error; this Boolean
-records known acceptance and does not model the wire's null separately. -/
+mutation, not an ancillary request. Unknown acceptance retains the mutating request's mapped
+failure kind; this Boolean records known acceptance and does not model the wire's null separately. -/
 structure Failure where
   kind          : ErrorKind
   cutOff        : Bool

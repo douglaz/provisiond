@@ -909,7 +909,9 @@ carries no seconds and posts nothing: a period row it creates starts with `r = 0
 row's `r` is untouched. Row placement belongs to `LDG-72`.
 
 **A machine's first seed is eligible for an offset only if its first unit was actually debited
-to the customer. An eligible seed MUST write the mark at the seed instant plus the
+to the customer.** The debit timing belongs to `LDG-39`: "only when the order is known to
+have landed and the create settles" (amended 2026-10-08, `ADR-0035`); `ADR-0033` introduced
+the prepaid unit. **An eligible seed MUST write the mark at the seed instant plus the
 `billing_unit.seconds` the machine's own row carries; an unpaid first seed MUST write it at the seed instant** (`ADR-0033`,
 amended 2026-10-08; formalized as `Provisiond.Funding.seed`). A released create commitment,
 a parked obligation, a provider charge and a positive duration are not evidence of a customer
@@ -1154,14 +1156,15 @@ conclusion for the balance read, one quantity earlier).
 
 **LDG-39** **AMENDED — the setup fee has a lifecycle, not a single moment.** It is committed at
 create as part of `PRV-13b`'s sizing, and it becomes a debit **only when the order is known to
-have landed and the create settles**, at which point `LDG-31` decrements the commitment by the same amount so
-`available` does not move. The full table, because every row was previously either wrong or
-unstated:
+have landed and the create settles** (timing amended 2026-10-08, `ADR-0035`), at which point
+`LDG-31` decrements the commitment by the same amount so `available` does not move. The full
+table follows, because every row was previously either wrong or unstated:
 
 **Amended 2026-10-08 (`ADR-0033`): the prepaid first billing unit follows every row of this
 table.** It is an order-landed term of `PRV-13b` — committed at the customer rate, where the fee
-is committed at cost — parked beside the fee where `LDG-67` parks it, and debited at settlement after acceptance as
-its own kind, `first_unit_debit` (`LDG-7`), for the satoshi amount authorized at the create and
+is committed at cost — parked beside the fee where `LDG-67` parks it, and debited at settlement
+after acceptance (timing amended 2026-10-08, `ADR-0035`) as its own kind, `first_unit_debit`
+(`LDG-7`), for the satoshi amount authorized at the create and
 paired under `LDG-31` like the fee. Where a row names the fee it names the unit as well, with
 the distinctions below. On the deficiency rows of the table below the unit produces a **second record, separate from the
 fee's**, with its own cause, `unrecoverable_first_unit` (`STO-37`), its own `idempotency_key`, and

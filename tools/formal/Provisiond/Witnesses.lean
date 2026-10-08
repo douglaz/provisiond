@@ -2519,14 +2519,15 @@ theorem accepted_read_failure_witness :
           some .failed := by decide
 
 /-- `PRV-5`: "never a preceding key upload". A key uploaded before the order's rejection
-confers no acceptance on the create; transport ambiguity still stands without acceptance. -/
+confers no acceptance on the create; transport ambiguity stands without known acceptance, and
+an unknown-acceptance 5xx keeps the mutating request's mapped `provider` kind. -/
 @[req "OPS-11"]
 theorem rejected_order_witness :
     classify currentRules .createMachine ⟨.provider, false, .status4xx, false, false⟩
       ⟨true, true⟩ = some .failed ∧
     classify currentRules .createMachine ⟨.network, false, .unrecorded, false, false⟩
       ⟨true, true⟩ = some .needsReconciliation ∧
-    classify currentRules .createMachine ⟨.internal, false, .unrecorded, false, false⟩
+    classify currentRules .createMachine ⟨.provider, false, .status5xx, false, false⟩
       ⟨false, true⟩ = some .needsReconciliation := by decide
 
 /-- `ADR-0021`'s first hole: a machine recorded gone under `API-63`'s termination, its episode
