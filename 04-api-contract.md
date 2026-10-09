@@ -288,7 +288,8 @@ those steps for their rationale. Deposit behavior and other tails are unchanged.
 *Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): an unsellable offer is a
 create-only tail refusal after account health. It suppresses cap and balance evaluation,
 while independent solvency and rate refusals remain collectible. A refused tail still
-commits nothing, including no operation, machine, balance write, receipt or provider call.*
+commits nothing, including no operation, machine, balance write, receipt or provider call.
+The subordinate-entry pacing rule applies to every subordinate refusal.*
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a

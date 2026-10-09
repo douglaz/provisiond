@@ -127,7 +127,7 @@ agent to parse English. Minimum keys:
 | kind | `details` |
 |---|---|
 | `insufficient_balance` | `available_sats`, `required_sats` |
-| `invalid_request` / `offer_not_sellable` on create | `reason: "offer_not_sellable"`; no price-derived amount is required |
+| `invalid_request` / `offer_not_sellable` on create | `reason: "offer_not_sellable"`; no cap or balance result or amount derived from the withheld offer's price |
 | `not_activated` | `activation_minimum_sats` |
 | `rate_limited` | `retry_after_ms` |
 | `ceiling_exceeded` | `ceiling` (which one, from `SEC-39`'s stated set), `limit`, `interval_seconds`, `retry_after_ms` (to the end of the current interval) |
@@ -146,7 +146,8 @@ owns refusal collection, refusal ordering and evaluation. `check` is exactly `co
 or `offer_not_sellable` (create only).
 An unsellable-offer refusal is HTTP `400`, kind `invalid_request`, with
 `details.reason: "offer_not_sellable"`; it is not a cap refusal and carries no
-invented commitment or balance amounts.
+cap or balance result. Its response MUST NOT publish cap or balance amounts derived
+from the withheld offer's price, in either the headline details or a refusal entry.
 Every genuinely skipped check MUST appear with every applicable reason; an absent refusal does
 not imply that check passed. `commitment_cap` applies only when the request supplied
 `max_commitment_sats`; without it there is no cap check to skip. Balance is always a check.
@@ -231,7 +232,7 @@ rules still apply.
   "tenant": "agent-7", "status": "running", "terminal": false,
   "revision": 4, "retryable": false,
   "requested_by": "caller", "system_reason": null, "episode_id": null,
-  "machine_id": null, "provider_account": "hetzner-cloud-1",
+  "machine_id": null, "provider_account": "hetzner-robot-1",
   "idempotency_key": "agent-7:create:2026-08-12T14",
   "committed_sats": 72000,
   "result": null, "error": null,
@@ -306,15 +307,15 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
 ```json
 {
   "id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20",
-  "name": "worker-1", "kind": "virtual", "state": "running",
+  "name": "worker-1", "kind": "bare_metal", "state": "running",
   "state_observed_at": "2026-08-12T15:03:00Z",
   "region": "fsn1",
   "public_ips": ["203.0.113.7"],
-  "provider_account": "hetzner-cloud-1",
+  "provider_account": "hetzner-robot-1",
   "committed_sats": 71900,
   "runway_until": "2026-09-11T14:00:00Z",
   "network_restriction": {"status": "none", "source": "provider_api", "observed_at": "2026-08-12T15:03:00Z"},
-  "install_strategies": ["provider_native", "raw_disk"],
+  "install_strategies": ["rootfs_via_rescue", "raw_disk"],
   "last_install": {"strategy": "raw_disk", "bytes_verified_by_provisiond": true, "at": "2026-08-12T14:40:00Z"},
   "rate_outage_deadline": null,
   "effective_cancellation_date": null,
@@ -613,8 +614,8 @@ billable machines including `cancellation_scheduled`, and is `null` when there a
 
 ```json
 {
-  "provider_account": "hetzner-cloud-1",
-  "offer": "standard:cx32",
+  "provider_account": "hetzner-robot-1",
+  "offer": "market:12345",
   "region": "fsn1",
   "hostname": "worker-1",
   "image": null,
@@ -627,6 +628,11 @@ billable machines including `cancellation_scheduled`, and is `null` when there a
   "provider_options": {}
 }
 ```
+
+This create uses `WIR-30`'s `"market:12345"` Robot default-uplink offer; the
+running operation (`WIR-10`) and resulting machine (`WIR-11`) show the same
+purchase at later stages. `WIR-30` says "the commitment is priced at accept
+time"; its earlier listing quote is indicative.
 
 `ssh_public_keys` MUST be non-empty (`PRV-8`, `API-13`). `acknowledge_purchase` MUST be literal
 `true` (`API-15`, `PRV-10`). `image` (nullable, a catalog identifier), `user_data` (nullable,
@@ -977,12 +983,12 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
 ```json
 {"offers": [{
   "id": "market:12345", "name": "Auction dedicated server", "kind": "bare_metal", "regions": ["fsn1"],
-  "recurring_price": {"amount_sats": 120, "period": "hour"},
+  "recurring_price": {"amount_sats": 90, "period": "hour"},
   "setup_fee_sats": 0,
-  "first_unit_sats": 120,
+  "first_unit_sats": 90,
   "billing_unit_seconds": 3600,
   "min_runway_seconds": 3600,
-  "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
+  "quoted_at": "2026-08-12T13:59:00Z", "binding": false,
   "max_rate_outage_seconds": 21600,
   "traffic_bound": "unlimited",
   "install_strategies": ["rootfs_via_rescue", "raw_disk"],
@@ -1040,8 +1046,10 @@ provider's currency, price string and raw metadata MUST NOT appear.
 This customer listing follows `DOM-9`'s sale filter and MUST disclose the
 `PRV-44` `traffic_bound` of every listed offer: `"unlimited"` or, following
 conditional re-admission under `ADR-0039`, `{ "limit_bytes": nonnegative integer }` for
-the declared allowance less headroom. This is a traffic limit, not a second
-customer price. For remembered IDs, see `API-7`'s create-tail
+the declared allowance less headroom. For that conditional allowance branch, the
+listing MUST disclose before purchase that crossing `limit_bytes` causes an
+exposure-reducing cancellation that destroys the machine. This is a traffic
+limit, not a second customer price. For remembered IDs, see `API-7`'s create-tail
 "`invalid_request`/`offer_not_sellable` when the named offer is not sellable
 under `PRV-13b` or `PRV-31`".
 *Amended 2026-10-09 (`ADR-0039`).*

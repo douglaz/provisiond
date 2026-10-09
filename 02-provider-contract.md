@@ -212,7 +212,8 @@ created by this amendment. Wind-down's latency term is the effective visibility 
 `PRV-36`: "the effective window is `max(declared, max(observed))`" — dispatch to the recorded
 gone. The provider's unit remainder is a different cost, absorbed by the operator under
 `ADR-0033`; the accepted accounting gaps belong to `LDG-75`. The provider-call deadline is on
-`OVR-19`. *Amended 2026-10-08 (`ADR-0037`).*
+`OVR-19`. *Amended 2026-10-08 (`ADR-0037`). Amended 2026-10-09 (`ADR-0039`):
+traffic exposure, the sale gate and conditional re-admission.*
 
 The reserve is computed **in the provider's billing currency** and converted once, when the
 commitment is opened or re-sized, into the ledger unit:
@@ -350,8 +351,6 @@ machine's burn for one install's duration — bounded, priceable, and cheaper th
 destroys an in-flight install to save it. `OPS-39`'s "pacing MAY delay such a cancellation
 briefly" is what this term prices; *briefly* is the install's length, and the reserve must say so.
 
-**Where billing is capped per period, that cap is a catastrophe bound worth having.**
-
 **PRV-13d** A create MAY carry a caller-requested **runway** — how long the machine should be
 guaranteed to run before an exhausted balance can cancel it. The deployment MUST enforce a floor
 equal to `wind_down_cost`'s duration (`OVR-19`), below which the operator is not covered, and MUST reject a
@@ -444,6 +443,8 @@ window median is that control now.*
 sellable offer.** Only where traffic cannot add an unbounded charge does total failure to
 cancel cost at most `setup_fee + one period cap` per machine; record that bound: the
 reserve above is the expected case, and the cap is the provable upper bound.
+*Amended 2026-10-09 (`ADR-0039`): the exposure and cap claims are qualified to
+sellable offers.*
 
 **PRV-31** **A driver MUST declare, per offer and before any order, a worst-case cancellation
 bound** — the latest `earliest_cancellation_date` a machine bought from that offer can carry —
