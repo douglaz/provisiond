@@ -127,6 +127,7 @@ agent to parse English. Minimum keys:
 | kind | `details` |
 |---|---|
 | `insufficient_balance` | `available_sats`, `required_sats` |
+| `invalid_request` / `offer_not_sellable` on create | `reason: "offer_not_sellable"`; no price-derived amount is required |
 | `not_activated` | `activation_minimum_sats` |
 | `rate_limited` | `retry_after_ms` |
 | `ceiling_exceeded` | `ceiling` (which one, from `SEC-39`'s stated set), `limit`, `interval_seconds`, `retry_after_ms` (to the end of the current interval) |
@@ -141,12 +142,17 @@ agent to parse English. Minimum keys:
 **On create and extend-runway tail refusals** (*amended 2026-10-04, `ADR-0030`*), `details.refusals` is the ordered list of
 `WIR-9` inner objects and `details.not_checked` is a list of `{check, because}` objects; `API-7`
 owns refusal collection, refusal ordering and evaluation. `check` is exactly `commitment_cap` or `balance`;
-`because` is exactly `rate_unavailable` or `provider_account_not_healthy` (create only).
+`because` is exactly `rate_unavailable`, `provider_account_not_healthy` (create only),
+or `offer_not_sellable` (create only).
+An unsellable-offer refusal is HTTP `400`, kind `invalid_request`, with
+`details.reason: "offer_not_sellable"`; it is not a cap refusal and carries no
+invented commitment or balance amounts.
 Every genuinely skipped check MUST appear with every applicable reason; an absent refusal does
 not imply that check passed. `commitment_cap` applies only when the request supplied
 `max_commitment_sats`; without it there is no cap check to skip. Balance is always a check.
 When no checks were skipped, the list MUST be empty. Entries MUST be in check order
-`commitment_cap`, `balance`, then reason order `provider_account_not_healthy`, `rate_unavailable`.
+`commitment_cap`, `balance`, then reason order `provider_account_not_healthy`,
+`offer_not_sellable`, `rate_unavailable`.
 Purchase-tail entries MUST use these `retryable` values, applying `DOM-17`'s "whether repeating
 the same request is safe and sensible":
 
@@ -155,6 +161,7 @@ the same request is safe and sensible":
 | `halted` / `solvency` or `rate_unavailable` | `true` | The same purchase can succeed when the gate clears |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `account_unreachable` or `credentials_rejected` | `true` | The named account can recover |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `terminated` | `false` | The named account cannot recover |
+| `invalid_request` / `offer_not_sellable` on create | `false` | The offer cannot be bought on the same request |
 | `conflict` / `cancellation_committed` | `false` | Repeating does not revoke a committed cancellation (`API-68` is a separate decision) |
 | `invalid_request` for `max_commitment_sats` | `false` | The caller must revise its spend bound |
 | `insufficient_balance` | `false` | The caller must supply balance before purchasing |
@@ -163,11 +170,13 @@ the same request is safe and sensible":
 
 *Amended 2026-10-04 (`pv-gip.26`, S2): account retryability distinguishes permanent termination
 from recoverable status; kind and reason remain unchanged.*
+*Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): the offer refusal and
+unchecked reason join create tails; cap and balance amounts are withheld for that offer.*
 
 **Only on the `max_commitment_sats` refusal**, `invalid_request` carries
 `details.max_commitment_sats` (the supplied cap) and `details.required_sats` (the computed
 commitment to open or additional satoshis to reserve); these keys are not required of other
-`invalid_request` errors.
+`invalid_request` errors, including `offer_not_sellable`.
 
 **On an `install` operation's error, `details.disk_effect` is required whatever the kind** (*added
 2026-09-15, `pv-x8r`*): `none` where this operation is established to have written nothing to the
@@ -967,7 +976,7 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
 
 ```json
 {"offers": [{
-  "id": "standard:cx32", "name": "CX32", "kind": "virtual", "regions": ["fsn1"],
+  "id": "market:12345", "name": "Auction dedicated server", "kind": "bare_metal", "regions": ["fsn1"],
   "recurring_price": {"amount_sats": 120, "period": "hour"},
   "setup_fee_sats": 0,
   "first_unit_sats": 120,
@@ -975,7 +984,8 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
   "min_runway_seconds": 3600,
   "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
   "max_rate_outage_seconds": 21600,
-  "install_strategies": ["provider_native", "raw_disk"],
+  "traffic_bound": "unlimited",
+  "install_strategies": ["rootfs_via_rescue", "raw_disk"],
   "max_image_bytes": 107374182400,
   "guest_requirements": null
 }]}
@@ -984,9 +994,10 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
 **`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them.** The
 account's `capabilities` (`WIR-29`) say what the driver can do at all; eligibility for a
 rescue-based install is a property of the **offer**, because an auction listing and a standard
-product at the same provider can differ on it. The fixture above is a cloud VPS, which is why it
-omits `rootfs_via_rescue`: no cloud product in the reference set offers one
-(`08-provider-notes.md`). An install naming a strategy absent from its
+product at the same provider can differ on it. The fixture shows a Robot
+default-uplink offer, currently sellable under `ADR-0039`; the earlier Cloud
+fixture was removed because its traffic overage keeps it off the customer
+listing. An install naming a strategy absent from its
 machine's recorded list MUST be rejected as `invalid_request` before the operation is enqueued,
 exactly as an invalid pairing is. The list MUST be present on every offer; an empty list means no
 install is available for that offer. **The gate reads the copy the machine took at create —
@@ -1025,6 +1036,15 @@ does not appear. **An offer price is an indicative quote converted at
 read time; `binding` is `false` and the commitment is priced at accept time (`LDG-27`) and MAY
 differ** — a caller bounding spend uses `WIR-17`'s `max_commitment_sats`, not the quote. The
 provider's currency, price string and raw metadata MUST NOT appear.
+
+This customer listing follows `DOM-9`'s sale filter and MUST disclose the
+`PRV-44` `traffic_bound` of every listed offer: `"unlimited"` or, following
+conditional re-admission under `ADR-0039`, `{ "limit_bytes": nonnegative integer }` for
+the declared allowance less headroom. This is a traffic limit, not a second
+customer price. For remembered IDs, see `API-7`'s create-tail
+"`invalid_request`/`offer_not_sellable` when the named offer is not sellable
+under `PRV-13b` or `PRV-31`".
+*Amended 2026-10-09 (`ADR-0039`).*
 
 **WIR-31** `GET /healthz` — `200 {"status": "ok"}`, unauthenticated but rate-limited (`API-29`),
 and MUST NOT disclose version, uptime, queue depth or anything else a caller can fingerprint.

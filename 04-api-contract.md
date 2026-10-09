@@ -263,24 +263,32 @@ collect every applicable refusal once, from one read-only snapshot inside the ex
 transaction, without an extra lock, ceiling slot, write or provider call. `details.refusals`
 (`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
 against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
+then, on create only, `invalid_request`/`offer_not_sellable` when the named offer is
+not sellable under `PRV-13b` or `PRV-31`;
 `halted`/`solvency`; `halted`/`rate_unavailable`; the commitment-cap refusal (`WIR-17`, `WIR-24`);
 `insufficient_balance`. See `ADR-0030` for the order's rationale and `LDG-40` for halt retention.
 Both halted entries may appear; no duplicate
 means no repeated refusal/check, not unique kind strings. The cap and balance checks MUST NOT
-run without a rate, nor for create against an unhealthy account: `WIR-30` says "an account whose
+run without a rate, nor for create against an unhealthy account or unsellable offer:
+`WIR-30` says "an account whose
 `STO-47` status is not `healthy` `404`s on this route too". `WIR-9a` owns `not_checked`,
 including cap presence, reasons and ordering. Each refusal is exactly
 `WIR-9`'s inner error object, with no nested refusal list. Entry 0 is the headline: HTTP status,
 `kind`, `message` and per-kind details MUST match it; top-level details additionally carry the
 aggregate keys. Only top-level `retryable` may differ, under `WIR-9b`. Pacing belongs to the
 headline: its `details.retry_after_ms` and `Retry-After` follow the existing per-kind rules and
-`WIR-4`; each entry keeps its own required pacing. No maximum is taken and a subordinate halted
+`WIR-4`; each entry keeps its own required pacing. No maximum is taken and a subordinate
 entry MUST NOT supply pacing to a headline kind that does not require it. A refused tail MUST
 commit nothing and write no `STO-35` receipt (`WIR-3`), so clearing faults and resending the same
 request/key evaluates afresh. Admission retains the conditional-write guards in `API-63` and
 `LDG-62`; collection does not replace them with read-only guards. These are admission refusals
 (`OPS-11`), never lists in operation views. Steps 1–5c still stop at their first refusal; see
 those steps for their rationale. Deposit behavior and other tails are unchanged.
+
+*Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): an unsellable offer is a
+create-only tail refusal after account health. It suppresses cap and balance evaluation,
+while independent solvency and rate refusals remain collectible. A refused tail still
+commits nothing, including no operation, machine, balance write, receipt or provider call.*
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a

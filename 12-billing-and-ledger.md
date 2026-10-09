@@ -2098,6 +2098,10 @@ Provider tails after the gone-write are the operator's (`ADR-0037`): alongside t
 unit, this includes Robot add-ons billed per day or part thereof and DigitalOcean's seconds
 between the delete reply and destroy. These are accepted gaps supplied by invoice authority,
 with no customer debit or new deficiency cause. *Provider tails added 2026-10-08 (`ADR-0037`).*
+Residual traffic that reaches the provider invoice, including traffic after the last
+counter reading and through deletion, is another accepted gap supplied by invoice
+authority. It creates no byte meter, customer traffic debit or deficiency cause.
+*Amended 2026-10-09 (`ADR-0039`).*
 Provider local-time months can misplace cost by up to the UTC offset at each boundary. A deficiency
 dated in a later month than the provider charged it is missed only while an earlier invoice is
 unrecorded behind a later one. A month with two invoices counts as covered when only one is

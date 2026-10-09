@@ -79,6 +79,12 @@ check and on every `GET /v1/providers`.
 `request_budget` `{scope, limit, per}` (`PRV-46`; provider credential scope identifier,
 positive integer request limit, finite positive period),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
+`traffic_bound` per offer (`ADR-0039`) — `unlimited`,
+`{allowance_bytes, headroom_bytes}` with nonnegative integer allowance bytes and
+`0 < headroom_bytes ≤ allowance_bytes`; the resulting limit is
+`allowance_bytes − headroom_bytes`, or explicit `null` where no bound is
+declared. Like `cancellation_bound`, it MAY be
+reported on the offer instead —
 `billing_unit` per offer (`ADR-0033`, added 2026-10-08) — `{seconds, native_floor}`: the provider's
 smallest charged span of machine time, in seconds — zero exactly where the provider charges exact
 elapsed time with no minimum, a unit of no length under which the arithmetic is unchanged: nothing
@@ -94,7 +100,9 @@ commentary on why a descriptor says what it says (`ADR-0018`). `WIR-29` exposes 
 `CNF-18` iterates its fields as it iterates capabilities: a declared value has a working code path
 behind it.
 *Amended 2026-10-08 (`ADR-0037`): the billing-stop window is withdrawn.
-Amended 2026-10-08 (`ADR-0034`): the request-budget declaration is added.*
+Amended 2026-10-08 (`ADR-0034`): the request-budget declaration is added.
+Amended 2026-10-09 (`ADR-0039`): the per-offer traffic bound is added. An allowance
+declaration alone does not make an offer sellable; the live-evidence condition is below.*
 
 ### List offers
 
@@ -191,7 +199,16 @@ deleted while its storage continues to accrue cost is reporting a falsehood.
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
 exposure before taking money. That requires, per product: an API path to stop the cost, a bound
 on the time until the customer's meter stops, and cleanup for every billable attachment
-(`PRV-13a`, `PRV-45`). Wind-down's latency term is the effective visibility window owned by
+(`PRV-13a`, `PRV-45`). Traffic overage is operator exposure too. Under `ADR-0039`, an offer
+with `traffic_bound: unlimited` is sellable on this dimension; an allowance-bearing offer
+MUST NOT be sold until a live test establishes counter freshness and bounds traffic after
+the last reading through deletion under `ADR-0033`'s "priced, not amplified" criterion.
+An offer with no declared traffic bound MUST NOT be sold. An allowance-bearing offer
+that passes the live gate declares allowance less headroom; see `WIR-30` for the
+before-purchase disclosure. Crossing it would open an exposure-reducing cancellation
+with future reason `traffic_allowance` beside `rate_outage_bound` (`OPS-39`, `STO-52`);
+this path is deferred until re-admission, and no active reason or Fence branch is
+created by this amendment. Wind-down's latency term is the effective visibility window owned by
 `PRV-36`: "the effective window is `max(declared, max(observed))`" — dispatch to the recorded
 gone. The provider's unit remainder is a different cost, absorbed by the operator under
 `ADR-0033`; the accepted accounting gaps belong to `LDG-75`. The provider-call deadline is on
@@ -221,7 +238,8 @@ what produced it". Deleted rather than tombstoned: nobody re-adds a zero term by
 
 **`customer_rate`, not provider cost.** The reserve must cover what the *customer* is committing
 to spend, and since `customer_rate ≥ provider_rate` by construction, committing the customer
-price also covers the operator's exposure. Using provider cost here would under-commit every
+price also covers the operator's time-price exposure on sellable offers; the traffic sale gate
+above is separately required. Using provider cost here would under-commit every
 machine by exactly the margin. **The setup fee is committed at cost and debited at successful
 settlement after acceptance** (amended 2026-10-08, `ADR-0035`; `LDG-39`: "an accepted but unresolved
 create MUST take the `needs_reconciliation` pending-obligation row"), because `ADR-0006` passes it
@@ -422,8 +440,9 @@ The note that followed, calling the derivation-count persistence rule "the contr
 is retired 2026-09-23 (`ADR-0027`): a count of derivations measured the wrong unit, and `LDG-58`'s
 window median is that control now.*
 
-**Where billing is capped per period, that cap is a catastrophe bound worth having.** If total
-failure to cancel costs at most `setup_fee + one period cap` per machine, record it: the
+**Where billing is capped per period, that cap is a catastrophe bound worth having for a
+sellable offer.** Only where traffic cannot add an unbounded charge does total failure to
+cancel cost at most `setup_fee + one period cap` per machine; record that bound: the
 reserve above is the expected case, and the cap is the provable upper bound.
 
 **PRV-31** **A driver MUST declare, per offer and before any order, a worst-case cancellation
@@ -441,13 +460,21 @@ the descriptor's `cancellation_bound` (`PRV-44`), or reported on the offer. In p
 dedicated servers have no minimum term and a new machine's date is normally today
 (`08-provider-notes.md`). *A clause here said adoption never needs the bound because an adopted
 machine's date is read before its commitment opens; adopt is withdrawn (`ADR-0020`), and the
-clause was false while it stood, since the commitment opened at enqueue.*
+clause was false while it stood, since the commitment opened at enqueue.* A missing declared
+cancellation bound is a descriptor-decidable unsellable offer. Its pre-order refusal is
+`API-7`'s create-tail "`invalid_request`/`offer_not_sellable` when the named offer is
+not sellable under `PRV-13b` or `PRV-31`". This does not move a provider failure or a term
+learned after ordering into admission. *Amended 2026-10-09 (`ADR-0039`, Q12).*
 
 **PRV-13c** **A deployment MUST NOT encode any provider's current commercial terms as
-constants.** Minimum term, notice period, cancellation immediacy and billing granularity are
+constants.** Minimum term, notice period, cancellation immediacy, billing granularity,
+traffic allowance and traffic overage price are
 per-contract facts that change, differ between a provider's own product lines, and differ
 between one contract and the next. Billing granularity is declared per offer as `PRV-44`'s
 `billing_unit` (`ADR-0033`, 2026-10-08).
+The driver MUST read allowance and overage price from current provider terms, declaring the
+per-offer `traffic_bound` through `PRV-44`; `08-provider-notes.md` is evidence, not runtime
+configuration. *Amended 2026-10-09 (`ADR-0039`).*
 
 The required shape is read-and-branch: order, then **read** the provider's per-machine
 cancellation constraint, and branch to the exception path when it is **materially in the

@@ -1064,7 +1064,9 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       the common pipeline, with a fresh key each time. For each fault alone assert a singleton
       `details.refusals` whose singleton is exactly a `WIR-9` inner object, matching
       the headline and its HTTP status: unhealthy create account or fenced extension `409`
-      `conflict` (reason `state` or `cancellation_committed`); solvency halt or absent rate `503`
+      `conflict` (reason `state` or `cancellation_committed`); unsellable create offer
+      `400` `invalid_request` (`reason: offer_not_sellable`, no cap or balance amount);
+      solvency halt or absent rate `503`
       `halted` (gate `solvency` or `rate_unavailable`); cap exceeded `400` `invalid_request`
       (`max_commitment_sats`, `required_sats`); balance short `402` `insufficient_balance`
       (`available_sats`, `required_sats`). Assert `WIR-9a`'s per-refusal retryability and required pacing, including each
@@ -1090,6 +1092,18 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       as a priced refusal or as passed. A fenced extension with a rate still evaluates cap and
       balance; empty `not_checked` proves they ran even though the resource refused.
 
+      On an unsellable create with a healthy account and available rate, assert a
+      singleton offer refusal, false retryability, and both priced checks skipped for
+      `offer_not_sellable` when a cap is supplied. Omit the cap and assert only balance
+      is skipped. Even if cap and balance would fail at a hidden price, neither refusal
+      nor monetary amount may appear. Combine a recoverable account, unsellable offer,
+      solvency halt and absent rate: order account, offer, solvency, rate; headline
+      `409`/`state`, envelope retryability false, and every applicable skip reason
+      appears once per present check in account, offer, rate order. Repeat with
+      healthy and terminated accounts, rate available and absent, and a supplied and
+      omitted cap. A priced extension retains its existing checks; the create-only
+      sale guard never refuses it.
+
       Repeat absent-rate and unhealthy-account cases without `max_commitment_sats`: only balance
       appears in `not_checked`, with every applicable reason and no cap refusal. With a rate and
       healthy account, omitting the cap leaves balance evaluated and `not_checked: []`.
@@ -1102,7 +1116,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       rich list or extra ceiling slot. Deposit refusals and operation-view errors retain their
       existing shape. Race admission against the existing account/fence conditional-write guards;
       rich collection must not weaken either guard. (`API-7`, `API-63`, `WIR-9`, `WIR-9a`,
-      `WIR-9b`, `WIR-4`, `WIR-17`, `WIR-24`, `WIR-30`, `LDG-35`, `LDG-62`, `STO-35`, `OPS-11`)
+      `WIR-9b`, `WIR-4`, `WIR-17`, `WIR-24`, `WIR-30`, `PRV-13b`, `PRV-31`,
+      `LDG-35`, `LDG-62`, `STO-35`, `OPS-11`)
 - [ ] **CNF-309** — **Operator recording is idempotent accounting** (*added 2026-10-04,
       `pv-gip.39`, `ADR-0031`*). Record an invoice, payment and void through `WIR-53`; assert
       synchronous `200`, no operation/provider call/payment execution, and row plus exact result
@@ -2956,10 +2971,11 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       and why the others are believed spurious. (`OPS-38`, `OPS-31`)
 
 - [ ] **CNF-166** — A create against an offer with no declared cancellation bound is refused
-      before any provider call, and a create against one with a bound opens a commitment sized to
+      as `400 invalid_request` with `details.reason: offer_not_sellable` in the purchase
+      tail before any provider call, and a create against one with a bound opens a commitment sized to
       that bound, which the machine's actual date then **lowers `protected_sats` against rather
       than resizing** (`PRV-31`, `LDG-33`). (`PRV-31`,
-      `PRV-13c`, `LDG-12`)
+      `PRV-13c`, `LDG-12`, `API-7`, `WIR-9a`)
 
 - [ ] **CNF-167** — A rate halving increases **no** commitment anywhere in the fleet, except
       machines on the scheduled-cancellation branch. What moves is every affected machine's
@@ -3236,3 +3252,28 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       a changed declaration period, or a reserve above the effective limit refuse
       startup. A valid lower limit and a valid share start successfully and govern dispatch.
       (`OVR-19`, `DOM-8`, `PRV-44`, `PRV-46`)
+
+## Traffic sale scope (`ADR-0039`, added 2026-10-09)
+
+- [ ] **CNF-340** — **Only traffic-safe offers are advertised and sold.** For the
+      currently documented provider products, assert a Robot default unlimited-traffic
+      offer is listed with `traffic_bound: "unlimited"` and can reach purchase admission.
+      Assert Cloud, DigitalOcean and Robot 10 Gbit allowance offers are omitted, including
+      from a direct account offers route. A numeric allowance or missing traffic bound is
+      insufficient. For each withheld offer, create using a remembered ID and assert the
+      `offer_not_sellable` tail response from `CNF-307`, before any provider call or write.
+      An offer lacking a declared cancellation bound follows the same refusal (`CNF-166`).
+      An unassigned or unhealthy account still takes its existing listing response.
+      Check the listed offer's customer price and install strategies remain governed by
+      their existing contracts. Vary the provider feed's allowance and overage price;
+      the descriptor follows the current terms rather than a compiled constant or
+      `08-provider-notes.md` value. (`DOM-9`, `WIR-30`, `PRV-13b`, `PRV-31`, `PRV-44`,
+      `PRV-13c`, `API-7`)
+- [ ] **CNF-341** — **Conditional allowance re-admission needs measured evidence.** A
+      driver declaring an allowance and headroom without a live counter-freshness bound
+      does not list or sell that offer. Evidence for a future re-admission must bound
+      traffic after the last reading through deletion under `ADR-0033`'s "priced, not
+      amplified" criterion, and the bound must appear before purchase. Until an offer
+      passes that condition, no `traffic_allowance` cancellation reason is active.
+      A provider invoice may carry residual traffic cost without a customer byte debit
+      or new deficiency cause. (`PRV-13b`, `PRV-44`, `DOM-9`, `WIR-30`, `LDG-75`)

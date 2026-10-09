@@ -48,6 +48,15 @@ load-bearing rather than decorative.
 
 ## Cloud VPS providers (Hetzner Cloud shape)
 
+**Traffic allowance and overage** — **[documented 2026-10-07 — `ADR-0039`'s
+provider-document and account-price reading; live counter freshness [verify]]**.
+The included outbound allowance depends on location: the cited EU account price has
+20 TiB, US locations at least 1 TB and AP locations at least 0.5 TB. Hetzner
+charges overage in 100 MB blocks; the cited EU account price was $1.20/TB.
+The counter's update interval is undocumented. These are documentary readings,
+not live observations or permission to sell a Cloud offer. `ADR-0039` owns the
+sale decision and the live-evidence condition.
+
 **Auth** — bearer token. **[observed]**
 
 **Key material at create time** — SSH keys must exist as account-level resources and are
@@ -83,6 +92,15 @@ deleting / rebuilding / unknown. Map to `DOM-7`. **[observed]**
 ---
 
 ## Dedicated servers, robot-style (Hetzner Robot shape)
+
+**Traffic by uplink** — **[documented 2026-10-07 — `ADR-0039`;
+counter behavior [verify] live]**. Robot's default dedicated 1 Gbit uplink
+comes with unlimited traffic; its 10 Gbit uplink has a traffic allowance
+(20 TB in the cited product reading) and cannot currently be sold under
+`ADR-0039`. The documented counter counts a TCP stream only after it
+disconnects. A held stream could therefore outrun a reading; live testing
+must establish a usable freshness bound before an allowance offer is
+re-admitted. No such test is claimed here.
 
 **Auth** — HTTP basic. Request bodies are form-encoded, not JSON. **[observed]** Note
 that this means the HTTP client needs URL-encoded form support; check that the
@@ -229,6 +247,14 @@ disk and RAID options passed through. **[observed]**
 ---
 
 ## Cloud VPS, tag-based (DigitalOcean shape)
+
+**Traffic pool and metrics** — **[documented 2026-10-07 — `ADR-0039`;
+provider counter freshness and attribution [verify] live]**. DigitalOcean
+pools included transfer at team level and quotes $0.01/GiB overage. Its
+per-Droplet public metric is an Mbps time series, not a byte counter
+attributed to that Droplet's share of the pool. Those documentary facts
+do not establish how fresh a bound-enforcing counter would be. The
+Droplet offers stay withheld under `ADR-0039` pending the live test.
 
 **Added 2026-08-13, and its absence was a finding.** `ADR-0010` made DigitalOcean a **mandatory
 launch driver** and this document had no section for it — while Cherry, which the same ADR cut

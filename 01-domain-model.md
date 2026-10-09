@@ -165,6 +165,7 @@ auction/market listing.
 | `max_image_bytes` | The ceiling `RSC-40` enforces against a caller-supplied image stream |
 | `guest_requirements` | Prose the caller relays to whoever built the image; null where the strategy imposes none, non-null for `provider_catalogue` (`RSC-43`, `WIR-30`) |
 | `min_runway_seconds`, `setup_fee_sats`, `first_unit_sats`, `billing_unit_seconds`, `max_rate_outage_seconds` | `PRV-13d`'s floor, `LDG-39`'s at-cost fee, the prepaid first billing unit's customer price in satoshis and its duration in seconds beside the fee (`ADR-0033`, `PRV-13b`; added 2026-10-08 — the unit's `native_floor` and native rate never reach the customer surface, `LDG-26`), and `LDG-64`'s disclosed bound — the operator's current limit, which can change (`WIR-30`) |
+| `traffic_bound` | The offer's declared traffic limit, disclosed as `unlimited` for currently sellable offers (`PRV-44`, `WIR-30`); an allowance with headroom is conditional on `ADR-0039`'s live evidence gate |
 | `metadata` | Raw provider payload |
 
 *The six rows after the prices were added 2026-09-02; the two unit fields in the limits row,
@@ -177,6 +178,12 @@ fields with no entity behind them.
 
 **DOM-9** Prices MUST be carried as strings exactly as the provider returned them.
 Parsing them into floating point loses money.
+
+The customer offer listing MUST include only offers sellable under `PRV-13b` and
+`PRV-31`. See `WIR-30` for disclosure of the listed offer's bound. The listing is
+advisory: a remembered ID still meets `API-7`'s create tail, which says "then, on
+create only, `invalid_request`/`offer_not_sellable` when the named offer is
+not sellable under `PRV-13b` or `PRV-31`". *Amended 2026-10-09 (`ADR-0039`).*
 
 **An offer carries exactly one recurring price and one setup fee, and where a provider prices per
 location the driver MUST emit one offer per priced location, with a singleton `regions` and a

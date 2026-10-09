@@ -670,6 +670,14 @@ because no account action can settle them.
     server's billing unit and how started hours are counted, including any visible grid boundary.
     Do not derive a billing-stop latency from the invoice (`ADR-0037`, `ADR-0033`; amended
     2026-10-08).
+11. **Deferred traffic re-admission test (`ADR-0039`; not run):** in each candidate location,
+    sample the provider traffic counter with timestamps while a controlled outbound stream
+    stays open, then stop it and sample again. Repeat with a server created mid-month and
+    compare the displayed allowance, consumption and next invoice; include the provider's
+    100 MB overage blocks. Evidence must bound the counter's worst observed age and the
+    bytes that can leave between its last reading and confirmed deletion, with headroom
+    sufficient for `ADR-0033`'s "priced, not amplified" criterion. Counter freshness,
+    location accounting and the deletion residual remain unverified.
 
 **Batch B — Hetzner Robot (one auction order, about €0.08, ordering enabled)**
 1. `POST /key` with `name=pv-<uuid>` (V9). Read it back.
@@ -690,6 +698,14 @@ because no account action can settle them.
 10. On the next invoice, check the server's hourly unit and how its hours are counted, and any
     add-on's day unit and part-day counting. Record what the invoice establishes about the grid,
     not a billing-stop latency (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
+11. **Deferred 10 Gbit traffic re-admission test (`ADR-0039`; not run):** compare the Robot
+    traffic counter with a controlled held TCP stream before disconnect, after disconnect,
+    and at intervals until the reading changes. Include a mid-month server with a known
+    allowance and a deletion after the last reading. Evidence must bound how long bytes
+    can remain invisible and the residual through cancellation/deletion against declared
+    headroom. A disconnected-only count cannot by itself bound a held stream; freshness
+    and the residual remain unverified. The default unlimited uplink needs no allowance
+    counter for this sale criterion.
 
 **Batch C — DigitalOcean (one `s-1vcpu-512mb` Droplet, under $0.01)**
 1. Create a key named `pv-<uuid>`. Create a Droplet with it and tag `pv:<uuid>`. Record the time of the
@@ -703,6 +719,13 @@ because no account action can settle them.
 7. Read the Droplet's invoice line to check per-second counting and the 60-second/$0.01 minimum.
    Record how the provider counts the unit and applies the floor, not a billing-stop latency;
    no invoice-latency sample campaign is required (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
+8. **Deferred traffic re-admission test (`ADR-0039`; not run):** hold a controlled outbound
+   stream, timestamp the per-Droplet Mbps samples and any account/team transfer reading,
+   then end the stream and destroy the Droplet. Repeat with a mid-month Droplet and other
+   team traffic present to test the pooled allowance. Evidence must identify a counter
+   attributable to the usable team pool, bound its freshness and the bytes after the last
+   reading through destroy, and show sufficient headroom under `ADR-0033`. An Mbps time
+   series alone is not that counter; pooling and residual attribution remain unverified.
 
 **Batch D — Cherry Servers (one hourly server; out of v1, so lowest priority)**
 1. Create a key with `label=pv-<uuid>`. `POST` a server on the hourly cycle with the key and

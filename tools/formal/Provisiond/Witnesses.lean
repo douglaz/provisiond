@@ -3595,7 +3595,7 @@ theorem without_native_split_cost_counts_twice :
 
 /-- The rich tail retains resource, pool and rate refusals together. -/
 def fencedHaltedNoRate (g : Admission.Guards) :=
-  purchaseTail g false .healthy true true false true true true
+  purchaseTail g false .healthy true true true false true true true
 
 @[req "API-7"]
 theorem rich_tail_retains_every_refusal :
@@ -3605,6 +3605,27 @@ theorem rich_tail_retains_every_refusal :
 theorem without_collection_only_the_headline_remains :
     (fencedHaltedNoRate { Admission.current with richTailCollection := false }).refusals =
       [.fence] := by decide
+
+/-- `ADR-0039`'s sale guard rejects a remembered unsellable offer, withholds its price checks,
+and still collects the independent solvency and unavailable-rate refusals. -/
+def unsellableCreate (g : Admission.Guards) :=
+  purchaseTail { g with richTailCollection := true }
+    true .accountUnreachable false false true false true true true
+
+@[req "API-7"]
+theorem unsellable_offer_is_refused_with_independent_faults :
+    (unsellableCreate Admission.current).refusals =
+      [.accountRecoverable, .offerNotSellable, .solvency, .rate] ∧
+    (unsellableCreate Admission.current).notChecked =
+      [(.commitmentCap, .unhealthy), (.commitmentCap, .unsellable),
+       (.commitmentCap, .noRate), (.balance, .unhealthy),
+       (.balance, .unsellable), (.balance, .noRate)] ∧
+    Admission.envelopeRetryable (unsellableCreate Admission.current) = false := by decide
+
+@[req "API-7"]
+theorem without_sale_guard_unsellable_offer_is_admitted :
+    (purchaseTail { Admission.current with offerSaleGuard := false }
+      true .healthy false false false true true false false).refusals = [] := by decide
 
 /-- Complete short, incomplete pass, complete pass: `LDG-40`'s halt transition. -/
 def incompletePassingTrace (g : Admission.Guards) : Bool :=
