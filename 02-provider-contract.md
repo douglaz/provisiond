@@ -73,9 +73,9 @@ check and on every `GET /v1/providers`.
 
 **PRV-44** The descriptor is a typed, immutable value: `account`, `kind`, `capabilities`,
 `ordering_channels` (each with `correlator: operation_id | per_order_key | none`, `PRV-32`,
-`PRV-33`, `PRV-38`, and `offer_is_resource: true | false`, `PRV-42`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
+`PRV-33`, `PRV-38`, `offer_is_resource: true | false`, `PRV-42`, and
+`order_budget: {limit, per}`, `PRV-40`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
-`order_budget` `{limit, per}` (`PRV-40`),
 `request_budget` `{scope, limit, per}` (`PRV-46`; provider credential scope identifier,
 positive integer request limit, finite positive period),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
@@ -103,6 +103,8 @@ behind it.
 Amended 2026-10-08 (`ADR-0034`): the request-budget declaration is added.
 Amended 2026-10-09 (`ADR-0039`): the per-offer traffic bound is added. An allowance
 declaration alone does not make an offer sellable; the live-evidence condition is below.*
+*Amended 2026-10-09 (`ADR-0036`): `order_budget` is declared within each
+`ordering_channels[]` entry, not once at descriptor top level.*
 
 ### List offers
 
@@ -144,6 +146,11 @@ driver itself saw the failure. The image import carries the correlator for the s
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request's provider options carry an explicit purchase acknowledgement, *and* the account
 is configured to allow ordering. Both, not either.
+
+**PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before sending a create order request,
+the driver MUST validate every value it forwards to the provider, including provider options,
+and MUST reject invalid values without sending that order request. This validation is in the
+driver, after the API's body validation, because the driver knows the provider's accepted values.
 
 **PRV-11** Ordering is generally not idempotent at the provider. Where create polls an
 order transaction to completion, timing out MUST produce a `timeout` error whose message
@@ -975,21 +982,22 @@ an error status to report a non-error — and its rule reaches only mutations, b
 as "A provider rejection whose meaning is "already in the target state" MUST classify `succeeded`."
 Nothing is mutated here, so that rule does not reach it.*
 
-**PRV-40** **A driver MUST declare its provider's ordering rate limit, and the deployment MUST
-treat it as a capacity bound rather than discover it mid-order.** Hetzner Robot documents **20
-requests per day** on each of its two order endpoints, and 200 per hour on cancellation.
-**[observed 2026-09-04]**
+**PRV-40** **Amended 2026-10-09 (`ADR-0036`).** A driver MUST declare the provider's
+ordering limit in each ordering-channel descriptor entry (`PRV-44`). Robot documents 20
+requests per day on each of `server`, `server_market` and `server_addon`; its
+`403 RATE_LIMIT_EXCEEDED` reports `max_request` and `interval` (`08-provider-notes.md`).
+The declaration documents capacity and supplies an alarm threshold. It MUST NOT be used
+as a locally counted substitute for Robot's accounting, whose credential scope, window
+reset and treatment of rejected or test requests are unverified.
 
-This is a ceiling on how many machines the whole deployment can provision in a day, shared across
-every tenant, and two things spend from it that nothing in this set counts: an ordinary create and
-every conformance run that places an order, including a simulated one.
-
-The limit is declared in the descriptor's `order_budget` `{limit, per}` (`PRV-44`); the deployment
-MAY lower it and MUST NOT raise it (`OVR-19`). The deployment MUST refuse a create
-deterministically, before any provider call, once the budget is exhausted. `OPS-11` requires that
-shape: such a refusal is decided "before any driver call" and classifies `failed` for every
-operation kind, so nothing ambiguous is created and no reconciliation is owed. **A limit first
-encountered during an incident is encountered exactly when creates are being placed fastest.**
+After Robot reports `403 RATE_LIMIT_EXCEEDED` for an account and ordering channel,
+the deployment MUST retain a closure for the reported `interval` and refuse subsequent
+creates on that account and channel before any provider call, with `rate_limited` and
+`retry_after_ms` for the remaining interval. It MUST raise a monitorable exhaustion alarm
+identifying the account and channel. A closure on one account or channel MUST NOT alone
+close another. This local isolation is a choice for admission, not a claim about Robot's
+undocumented upstream counter scope. A provider throttle encountered after an accepted
+mutation remains subject to `OPS-11`'s acceptance rule.
 
 **PRV-46** A driver MUST declare the provider's request limit per credential scope in
 `PRV-44`'s `request_budget`; for Hetzner Cloud the scope is the project. The deployment MUST
@@ -1042,6 +1050,16 @@ channel the two are the same number: offer `3068756` provisioned as server `3068
 `3068758` as server `3068758`, each leaving the offer feed on purchase. **[observed 2026-09-04,
 twice]** That market lists *specific physical machines*; the standard catalogue lists products, and
 there the server number is unknown until the order is filled.
+
+**Amended 2026-10-09 (`ADR-0036`).** At most one create may be in flight per
+`offer_is_resource` offer, across tenants. The create's admitting transaction MUST acquire
+a conditional-write claim on the account, channel and offer before opening a commitment
+or operation; a snapshot read alone does not enforce this. An unresolved create retains
+the claim until its outcome is known. If the claim fails, the create MUST refuse with
+`conflict`/`state`, without a commitment, operation or receipt. Catalogue products do
+not take this claim. The driver MUST confirm the named offer is still listed before
+sending the order request; a missing offer MUST NOT be ordered. This is a dispatch
+check, not a provider lookup during `API-7`'s read-only tail collection.
 
 Where the identity holds, an ambiguous create resolves by reading the resource directly:
 

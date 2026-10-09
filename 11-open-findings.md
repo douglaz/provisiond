@@ -157,8 +157,8 @@ reader — before anything was written, and both rejected it as decided, for the
   be persisted". The eligibility that would make deferral safe is "no
   mutating request of this operation has been sent", which is a fact only the driver has (`PRV-5`),
   and no requirement obliges a driver to report it.
-- **The bound was shaped for the wrong throttle.** `DOM-20`'s "clears in milliseconds under the
-  deployment's own control" describes this deployment's limits on its callers. Robot's are 20 orders
+- **The bound was shaped for the wrong throttle.** A deployment's caller-throughput pacing
+  and a provider-shared ordering limit have different intervals (`DOM-20`). Robot documents 20 order requests
   a day and 200 cancellations an hour (`PRV-40`); a handful of short waits expires inside one quota
   window and stalls anyway, and capping a provider's retry-after downwards sends a request before the
   provider said to. The bound would have to be wall-clock, added to `PRV-13b`'s reserve term — which

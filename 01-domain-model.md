@@ -616,8 +616,9 @@ rejection.
 
 **It is not `rate_limited`, and the difference is exactly the argument this requirement already
 makes.** Both say "not now", and an agent's response to each is genuinely different: a rate limit is
-about *load* and clears in milliseconds under the deployment's own control, so backing off is the
-whole answer; a ceiling is about *authority* over a stated interval — an hour by default — and
+about *capacity* and its delay follows the source of the throttle, including a provider-shared
+ordering channel whose interval the deployment does not control (`PRV-40`); a ceiling is about
+*authority* over a stated interval — an hour by default — and
 clears only when the interval rolls, however gently the caller asks. Collapsing them means an agent
 that has hit its destruction ceiling retries a delete every few seconds for an hour, and an operator
 reading `429` cannot tell a busy server from a principal that has spent its budget. "Wait a moment"
@@ -626,10 +627,13 @@ are. The HTTP status is shared with `rate_limited` because 429 is what both mean
 intermediary; the **kind** is what the agent branches on, which is the whole point of `DOM-17`
 carrying one.
 
+*Amended 2026-10-09 (`ADR-0036`): the capacity delay may come from the
+provider-shared channel and is not necessarily controlled by the deployment.*
+
 **ADDED 2026-09-12 — a seventh row, `overloaded`, and it is not `rate_limited` either.** `STO-55`
 makes the connection pool the bound on `api` concurrency and refuses a request that obtains no
 connection within the checkout bound. That refusal is about the *replica's* capacity, not the
-caller's rate. `API-50` allows a non-rate `429` that "MUST say so in its `kind`", and `503` was
+caller's rate. `API-50` says "Every `429` MUST identify an exhausted principal allowance as `ceiling_exceeded`", and `503` was
 chosen over that because an intermediary reads `429` as the caller's doing and `503` as the
 server's, which is what this is; and it is not `halted`, which `WIR-9a` reserves for the solvency
 and rate gates. It is admission-only (`OPS-11`): nothing was written and the refusal leaves no

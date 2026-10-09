@@ -706,6 +706,18 @@ because no account action can settle them.
     headroom. A disconnected-only count cannot by itself bound a held stream; freshness
     and the residual remain unverified. The default unlimited uplink needs no allowance
     counter for this sale criterion.
+12. **Deferred order-limit experiment (`ADR-0036`; not run):** run only after the real-order
+    work above, on a test account whose ordering capacity can be spent without invalidating
+    this batch. This experiment may consume a full day of ordering capacity on that account;
+    reserve that capacity and do not interleave it with the real auction order. On
+    `POST /order/server_market/transaction`, send twenty invalid requests, then one
+    `test=true` request. On `POST /order/server/transaction`, send twenty `test=true`
+    requests, then one more. Continue requests after the first `403 RATE_LIMIT_EXCEEDED`
+    on each endpoint to learn whether they move the window. Record endpoint, UTC timestamp,
+    response code and any `max_request` and `interval` for every request. The account/user/IP
+    scope, rolling versus calendar reset, rejected-request and test-request counting, and
+    post-403 window behavior remain unsettled until measured. Never infer them from this
+    written procedure alone.
 
 **Batch C — DigitalOcean (one `s-1vcpu-512mb` Droplet, under $0.01)**
 1. Create a key named `pv-<uuid>`. Create a Droplet with it and tag `pv:<uuid>`. Record the time of the

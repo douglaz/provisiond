@@ -730,6 +730,7 @@ jobs:
           Admission|completeCheckToLift|true|false|incompletePassingTrace
           Admission|richTailCollection|true|false|fencedHaltedNoRate
           Admission|offerSaleGuard|true|false|offerNotSellable
+          Admission|channelClosureGuard|true|false|channelClosed
           Admission|reverseDnsCeiling|true|false|reverseDnsAdmission
           ProviderTraffic|reuseFresh|true|false|freshClaim
           ProviderTraffic|checkAtClaim|true|false|queuedRefreshes

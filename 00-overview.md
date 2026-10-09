@@ -353,7 +353,8 @@ validate every startup-validated row and refuse to run on a missing or out-of-ra
 marked human are procedures the deployment records rather than values the process reads.
 
 *Amended 2026-10-08 (`ADR-0034`): refresh freshness, provider request budget and system reserve
-share are registered below.*
+share are registered below. Amended 2026-10-09 (`ADR-0036`): the order declaration is per
+account and channel, and the activation funding minimum is registered.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -384,7 +385,8 @@ share are registered below.*
 | Autonomous per-principal ceilings and their interval | `SEC-39` | integers, duration | yes |
 | Operator-principal ceilings | `SEC-39` | integers | yes |
 | Lightning ceiling | `SEC-49` | satoshis | yes |
-| Order budget, per ordering account | `PRV-40` | `{limit, per}` — declared by the driver (`PRV-44`); the deployment may lower it | yes |
+| Order budget declaration, per provider account and ordering channel | `PRV-40`, `PRV-44` | `{limit, per}` — positive limit and finite, positive period in each channel descriptor; documentation and alarm threshold, not a local admission counter | yes |
+| Activation funding minimum | `API-35`, `LDG-44` | satoshis, large enough to purchase something | yes |
 | Enrolment per-source concurrency | `API-36` | integer | yes |
 | Pending-tenant ceiling | `API-41` | integer | yes |
 | Rescue timeouts | `RSC-35` | durations | yes |

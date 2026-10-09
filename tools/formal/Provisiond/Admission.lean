@@ -38,6 +38,8 @@ stored result", and what that stored result was is outside.
 
 The tail. `purchaseTail` carries `API-7`'s refusal collection over snapshot inputs; it does not
 read provider-account or machine rows, compute a price, serialize responses or execute a write.
+Its closed-channel Boolean is for the named create's account and channel. It does not prove
+account/channel isolation, clock expiry, a database race, HTTP serialization or Robot's behavior.
 The commitment and enqueue belong to `Provisiond.Fence` and `Provisiond.Ledger`.
 The earlier pipeline and other verbs remain outside rich collection.
 
@@ -293,6 +295,8 @@ structure Guards where
   sweepRoutesNothingWithoutRate : Bool
   richTailCollection      : Bool
   offerSaleGuard          : Bool
+  /-- `ADR-0036` (2026-10-09): a stored channel closure refuses only a create. -/
+  channelClosureGuard     : Bool
   completeCheckToLift     : Bool
   solvencyUsesValuedTerms  : Bool
   deriving DecidableEq, Repr
@@ -315,6 +319,7 @@ def current : Guards := {
     sweepRoutesNothingWithoutRate := true,
     richTailCollection      := true,
     offerSaleGuard          := true,
+    channelClosureGuard     := true,
     completeCheckToLift     := true,
     solvencyUsesValuedTerms  := true }
 
@@ -1023,7 +1028,8 @@ theorem no_verb_reaches_the_system_cancellation :
 Snapshot facts only. Prices, locks, receipts, HTTP serialization and actual writes are omitted.
 `API-7` owns evaluation purity; the list's snapshot inputs do not prove transaction isolation. -/
 inductive TailRefusal
-  | accountRecoverable | accountTerminated | fence | offerNotSellable | solvency | rate | cap | balance
+  | accountRecoverable | accountTerminated | fence | offerNotSellable | channelClosed
+  | solvency | rate | cap | balance
   deriving DecidableEq, Repr
 
 inductive PricedCheck
@@ -1042,10 +1048,11 @@ structure TailResult where
 /-- Only purchase tails reach this function; `create = false` denotes extend-runway.
 `API-7`: "collect every applicable refusal once". The collection guard retains the former
 single refusal as its off position. The sale guard's off position omits the offer refusal.
-`cap` and `balance` are check failures, ignored when price is unavailable. -/
+`cap` and `balance` are check failures, ignored when price is unavailable.
+`channelClosed` is the stored local closure, not a fresh provider call. -/
 @[req "API-7"]
 def purchaseTail (g : Guards) (create : Bool) (account : AccountStatus.Status)
-    (offerSellable fenced halted rate capPresent cap balance : Bool) : TailResult :=
+    (offerSellable channelClosed fenced halted rate capPresent cap balance : Bool) : TailResult :=
   let healthy := account == .healthy
   let saleBlocked := create && g.offerSaleGuard && !offerSellable
   let priced := rate && (!create || (healthy && !saleBlocked))
@@ -1053,6 +1060,7 @@ def purchaseTail (g : Guards) (create : Bool) (account : AccountStatus.Status)
       [if account == .terminated then .accountTerminated else .accountRecoverable] else []) ++
     (if !create && fenced then [.fence] else []) ++
     (if saleBlocked then [.offerNotSellable] else []) ++
+    (if create && g.channelClosureGuard && channelClosed then [.channelClosed] else []) ++
     (if halted then [.solvency] else []) ++ (if !rate then [.rate] else []) ++
     (if priced && capPresent && cap then [.cap] else []) ++ (if priced && balance then [.balance] else [])
   let reasons := (if create && !healthy then [UncheckedReason.unhealthy] else []) ++
@@ -1064,32 +1072,43 @@ def purchaseTail (g : Guards) (create : Bool) (account : AccountStatus.Status)
 
 @[req "API-7"]
 def tailAdmitted (g : Guards) (create : Bool) (account : AccountStatus.Status)
-    (offerSellable fenced halted rate capPresent cap balance : Bool) : Bool :=
-  (if create then account == .healthy && (!g.offerSaleGuard || offerSellable) else !fenced) &&
+    (offerSellable channelClosed fenced halted rate capPresent cap balance : Bool) : Bool :=
+  (if create then account == .healthy && (!g.offerSaleGuard || offerSellable) &&
+      (!g.channelClosureGuard || !channelClosed) else !fenced) &&
     !halted && rate && !(capPresent && cap) && !balance
 
-/-- Extend-runway has no offer sale check, regardless of its unused offer input. -/
+/-- Extend-runway has no offer sale or ordering-channel check. -/
 @[req "API-7"]
 theorem extension_ignores_offer_sellability (g : Guards) (a : AccountStatus.Status)
-    (f s r q p b : Bool) :
-    purchaseTail g false a true f s r q p b =
-      purchaseTail g false a false f s r q p b ∧
-    tailAdmitted g false a true f s r q p b =
-      tailAdmitted g false a false f s r q p b := by
+    (x y f s r q p b : Bool) :
+    purchaseTail g false a true x f s r q p b =
+      purchaseTail g false a false y f s r q p b ∧
+    tailAdmitted g false a true x f s r q p b =
+      tailAdmitted g false a false y f s r q p b := by
   simp [purchaseTail, tailAdmitted]
+
+/-- A channel closure contributes no skipped-price reason. This compares the same
+create snapshot with only its stored channel-closure input changed. -/
+@[req "API-7"]
+theorem channel_closure_keeps_skipped_checks (g : Guards) (a : AccountStatus.Status)
+    (o f s r q p b : Bool) :
+    (purchaseTail g true a o true f s r q p b).notChecked =
+      (purchaseTail g true a o false f s r q p b).notChecked := by
+  simp [purchaseTail]
 
 @[req "API-7"]
 def TailRefusal.rank : TailRefusal → Nat
   | .accountRecoverable | .accountTerminated | .fence => 0
   | .offerNotSellable => 1
-  | .solvency => 2
-  | .rate => 3
-  | .cap => 4
-  | .balance => 5
+  | .channelClosed => 2
+  | .solvency => 3
+  | .rate => 4
+  | .cap => 5
+  | .balance => 6
 
 @[req "WIR-9a"]
 def TailRefusal.retryable : TailRefusal → Bool
-  | .accountRecoverable | .solvency | .rate => true
+  | .accountRecoverable | .channelClosed | .solvency | .rate => true
   | .accountTerminated | .fence | .offerNotSellable | .cap | .balance => false
 
 @[req "WIR-9b"]
@@ -1098,49 +1117,48 @@ def envelopeRetryable (r : TailResult) : Bool := r.refusals.all TailRefusal.retr
 set_option maxHeartbeats 1000000
 @[req "API-7"]
 theorem empty_iff_admitted (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ (c : Bool) (h : AccountStatus.Status) (o f s r q p b : Bool),
-      (purchaseTail g c h o f s r q p b).refusals.isEmpty =
-        tailAdmitted g c h o f s r q p b := by
-  intro c h o f s r q p b
-  cases hs : g.offerSaleGuard <;> cases c <;> cases h <;> cases o <;> cases f <;>
+    ∀ (c : Bool) (h : AccountStatus.Status) (o x f s r q p b : Bool),
+      (purchaseTail g c h o x f s r q p b).refusals.isEmpty =
+        tailAdmitted g c h o x f s r q p b := by
+  intro c h o x f s r q p b
+  cases hc : g.channelClosureGuard <;> cases hs : g.offerSaleGuard <;> cases c <;> cases h <;> cases o <;> cases x <;> cases f <;>
     cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
-    simp [purchaseTail, tailAdmitted, hg, hs]
+    simp [purchaseTail, tailAdmitted, hg, hs, hc]
 
 @[req "API-7"]
 theorem ordered_without_duplicates (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ (c : Bool) (h : AccountStatus.Status) (o f s r q p b : Bool),
-      ((purchaseTail g c h o f s r q p b).refusals.map TailRefusal.rank).Pairwise (· < ·) ∧
-      (purchaseTail g c h o f s r q p b).refusals.Nodup := by
-  intro c h o f s r q p b
-  cases hs : g.offerSaleGuard <;> cases c <;> cases h <;> cases o <;> cases f <;>
+    ∀ (c : Bool) (h : AccountStatus.Status) (o x f s r q p b : Bool),
+      ((purchaseTail g c h o x f s r q p b).refusals.map TailRefusal.rank).Pairwise (· < ·) ∧
+      (purchaseTail g c h o x f s r q p b).refusals.Nodup := by
+  intro c h o x f s r q p b
+  cases hcx : (g.channelClosureGuard && x) <;> cases hs : g.offerSaleGuard <;> cases c <;> cases h <;> cases o <;> cases f <;>
     cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
-    simp [purchaseTail, TailRefusal.rank, hg, hs]
+    simp [purchaseTail, TailRefusal.rank, hg, hs, hcx]
 
 @[req "API-7"]
 theorem unpriced_checks_are_skipped (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ (c : Bool) (h : AccountStatus.Status) (o f s r q p b : Bool),
+    ∀ (c : Bool) (h : AccountStatus.Status) (o x f s r q p b : Bool),
       (r = false ∨ (c = true ∧ (h ≠ .healthy ∨ (g.offerSaleGuard = true ∧ o = false)))) →
-      (purchaseTail g c h o f s r q p b).refusals.contains .cap = false ∧
-      (purchaseTail g c h o f s r q p b).refusals.contains .balance = false ∧
-      (purchaseTail g c h o f s r q p b).notChecked.any (fun x => x.1 == .commitmentCap) = q ∧
-      (purchaseTail g c h o f s r q p b).notChecked.any (fun x => x.1 == .balance) = true := by
-  intro c h o f s r q p b
-  cases hs : g.offerSaleGuard <;> cases c <;> cases h <;> cases o <;> cases f <;>
+      (purchaseTail g c h o x f s r q p b).refusals.contains .cap = false ∧
+      (purchaseTail g c h o x f s r q p b).refusals.contains .balance = false ∧
+      (purchaseTail g c h o x f s r q p b).notChecked.any (fun z => z.1 == .commitmentCap) = q ∧
+      (purchaseTail g c h o x f s r q p b).notChecked.any (fun z => z.1 == .balance) = true := by
+  intro c h o x f s r q p b
+  cases hcx : (g.channelClosureGuard && x) <;> cases hs : g.offerSaleGuard <;> cases c <;> cases h <;> cases o <;> cases f <;>
     cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
-    simp [purchaseTail, hg, hs]
+    simp [purchaseTail, hg, hs, hcx]
 
 /-- Agreement is scoped to purchase actions after the common pipeline, not other verbs. -/
 @[req "LDG-40"]
 theorem tail_agrees_with_policy (g : Guards) (hg : g.richTailCollection = true) :
-    ∀ (c : Bool) (h : AccountStatus.Status) (o f s r q p b : Bool),
-      ((purchaseTail g c h o f s r q p b).refusals.contains .solvency = s) ∧
-      ((purchaseTail g c h o f s r q p b).refusals.contains .rate = !r) ∧
+    ∀ (c : Bool) (h : AccountStatus.Status) (o x f s r q p b : Bool),
+      ((purchaseTail g c h o x f s r q p b).refusals.contains .solvency = s) ∧
+      ((purchaseTail g c h o x f s r q p b).refusals.contains .rate = !r) ∧
       underHalt g (.caller (if c then .create else .extendRunway)) = some .halted ∧
       underNoRate g .active (.caller (if c then .create else .extendRunway)) = .halts := by
-  intro c h o f s r q p b
-  cases hs : g.offerSaleGuard <;> cases c <;> cases h <;> cases o <;> cases f <;>
-    cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
-    simp [purchaseTail, hg, hs, underHalt, underNoRate, Action.reducesExposure,
+  intro c h o x f s r q p b
+  cases c <;> cases h <;> cases s <;> cases r <;>
+    simp [purchaseTail, hg, underHalt, underNoRate, Action.reducesExposure,
       Action.billIncreasing, Action.mintsDestination]
 
 @[req "WIR-9b"]
@@ -1155,7 +1173,7 @@ This does not model status persistence or the transaction collecting the snapsho
 theorem account_retryability (g : Guards) (hg : g.richTailCollection = true) :
     ∀ a ∈ [AccountStatus.Status.accountUnreachable, .credentialsRejected, .terminated],
       ∀ combined : Bool,
-      envelopeRetryable (purchaseTail g true a true false combined (!combined) true true true) =
+      envelopeRetryable (purchaseTail g true a true false false combined (!combined) true true true) =
         (a != .terminated) := by
   intro a ha combined
   simp only [List.mem_cons, List.not_mem_nil, or_false] at ha

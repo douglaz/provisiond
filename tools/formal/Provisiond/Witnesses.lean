@@ -3595,7 +3595,7 @@ theorem without_native_split_cost_counts_twice :
 
 /-- The rich tail retains resource, pool and rate refusals together. -/
 def fencedHaltedNoRate (g : Admission.Guards) :=
-  purchaseTail g false .healthy true true true false true true true
+  purchaseTail g false .healthy true false true true false true true true
 
 @[req "API-7"]
 theorem rich_tail_retains_every_refusal :
@@ -3610,7 +3610,7 @@ theorem without_collection_only_the_headline_remains :
 and still collects the independent solvency and unavailable-rate refusals. -/
 def unsellableCreate (g : Admission.Guards) :=
   purchaseTail { g with richTailCollection := true }
-    true .accountUnreachable false false true false true true true
+    true .accountUnreachable false false false true false true true true
 
 @[req "API-7"]
 theorem unsellable_offer_is_refused_with_independent_faults :
@@ -3625,7 +3625,30 @@ theorem unsellable_offer_is_refused_with_independent_faults :
 @[req "API-7"]
 theorem without_sale_guard_unsellable_offer_is_admitted :
     (purchaseTail { Admission.current with offerSaleGuard := false }
-      true .healthy false false false true true false false).refusals = [] := by decide
+      true .healthy false false false false true true false false).refusals = [] := by decide
+
+/-- The create-only channel closure takes its own place between the offer and solvency.
+Its Boolean is the named account/channel snapshot; isolation and expiry remain conformance. -/
+def closedChannelCreate (g : Admission.Guards) :=
+  purchaseTail { g with richTailCollection := true, offerSaleGuard := true, channelClosureGuard := true }
+    true .accountUnreachable false true false true false true true true
+
+@[req "API-7"]
+theorem closed_channel_retains_all_refusals :
+    (closedChannelCreate Admission.current).refusals =
+      [.accountRecoverable, .offerNotSellable, .channelClosed, .solvency, .rate] ∧
+    Admission.envelopeRetryable (closedChannelCreate Admission.current) = false := by decide
+
+def channelOnly (g : Admission.Guards) :=
+  purchaseTail g true .healthy true true false false true false false false
+
+@[req "API-7"]
+theorem without_channel_guard_closed_create_is_admitted :
+    (channelOnly { Admission.current with channelClosureGuard := false }).refusals = [] := by decide
+
+@[req "API-7"]
+theorem channel_guard_refuses_closed_create :
+    (channelOnly Admission.current).refusals = [.channelClosed] := by decide
 
 /-- Complete short, incomplete pass, complete pass: `LDG-40`'s halt transition. -/
 def incompletePassingTrace (g : Admission.Guards) : Bool :=

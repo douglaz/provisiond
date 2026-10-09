@@ -163,6 +163,7 @@ the same request is safe and sensible":
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `account_unreachable` or `credentials_rejected` | `true` | The named account can recover |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `terminated` | `false` | The named account cannot recover |
 | `invalid_request` / `offer_not_sellable` on create | `false` | The offer cannot be bought on the same request |
+| `rate_limited` / closed ordering channel on create | `true` | The same create can be evaluated after the reported interval clears |
 | `conflict` / `cancellation_committed` | `false` | Repeating does not revoke a committed cancellation (`API-68` is a separate decision) |
 | `invalid_request` for `max_commitment_sats` | `false` | The caller must revise its spend bound |
 | `insufficient_balance` | `false` | The caller must supply balance before purchasing |
@@ -173,6 +174,10 @@ the same request is safe and sensible":
 from recoverable status; kind and reason remain unchanged.*
 *Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): the offer refusal and
 unchecked reason join create tails; cap and balance amounts are withheld for that offer.*
+*Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment): a local closed-channel
+entry carries `retry_after_ms` and is retryable when its interval can clear. Its
+headline uses HTTP 429 and `WIR-4`'s `Retry-After`; `WIR-9b` still aggregates every
+entry, including any earlier false account or offer refusal.*
 
 **Only on the `max_commitment_sats` refusal**, `invalid_request` carries
 `details.max_commitment_sats` (the supplied cap) and `details.required_sats` (the computed

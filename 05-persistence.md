@@ -166,7 +166,7 @@ concurrency** (`OVR-19`); the pools are sized from them.
   `retryable: true`, `retry_after_ms`) before any transaction begins, so the refusal writes no
   `STO-35` receipt of its own, and `API-11` judges the key's re-send against whatever receipt an
   earlier send left — none, for a key never sent before. It is not `rate_limited`: `API-50` says an
-  obedient caller "MUST never be throttled for rate", and a full pool is the replica's condition,
+  obedient caller "MUST never be throttled by the deployment's caller-throughput pacing", and a full pool is the replica's condition,
   not the caller's rate, so the decision is `503` rather than a non-rate `429`. Read and write
   checkouts are budgeted separately, on the same reasoning `API-50` applies to rate limits, so a
   poller cannot crowd out an extension.
@@ -788,6 +788,12 @@ deployment could move to a server engine and silently lose the only thing preven
 from spending the same balance. **The create's conditional write on `STO-47`'s row (`API-63`) is on that list too** (added
 2026-09-05): it is what orders admission against a termination, and a read in its place is not a
 primitive at all under snapshot isolation.
+**Added 2026-10-09 (`ADR-0036`):** the store MUST also support `PRV-42`'s
+conditional-write claim on `(provider_account, ordering_channel, offer_id)` for
+`offer_is_resource` creates, shared across tenants. The claim and the create's
+commitment and operation are one admitting transaction. An unresolved create retains
+its claim; settling its outcome releases it. The primitive MUST reject a competing
+claim atomically even when both callers read the same older snapshot.
 
 **STO-28** Decrementing a commitment MUST be a conditional write on its `version` (`LDG-34`), and
 posting a `usage_debit` MUST happen in the same transaction as the decrement (`LDG-31`).

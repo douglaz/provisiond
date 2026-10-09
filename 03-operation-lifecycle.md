@@ -251,6 +251,11 @@ before reaching it. `OPS-45`'s second marker is one column, `false` for both, so
 cannot tell them apart, and the machine may be sitting in rescue either way — which is the fact the
 marker records. The never-attempted exit was a third case until `RSC-18` was withdrawn, 2026-09-15.*
 
+*Amended 2026-10-09 (`ADR-0036`): a `PRV-40` local channel-closure refusal is
+an admission occurrence before any provider call, not an admission-only error kind.
+`rate_limited` remains available to drivers and workers. A refused `API-7` purchase tail
+creates no operation to classify as `failed`.*
+
 A failure is **ambiguous** when:
 
 - the error kind is `network`, `timeout`, or `internal` — the request may have been

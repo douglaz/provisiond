@@ -265,6 +265,8 @@ transaction, without an extra lock, ceiling slot, write or provider call. `detai
 against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
 then, on create only, `invalid_request`/`offer_not_sellable` when the named offer is
 not sellable under `PRV-13b` or `PRV-31`;
+then, on create only, `rate_limited` when the offer's account and ordering channel
+are closed under `PRV-40`;
 `halted`/`solvency`; `halted`/`rate_unavailable`; the commitment-cap refusal (`WIR-17`, `WIR-24`);
 `insufficient_balance`. See `ADR-0030` for the order's rationale and `LDG-40` for halt retention.
 Both halted entries may appear; no duplicate
@@ -280,8 +282,8 @@ headline: its `details.retry_after_ms` and `Retry-After` follow the existing per
 `WIR-4`; each entry keeps its own required pacing. No maximum is taken and a subordinate
 entry MUST NOT supply pacing to a headline kind that does not require it. A refused tail MUST
 commit nothing and write no `STO-35` receipt (`WIR-3`), so clearing faults and resending the same
-request/key evaluates afresh. Admission retains the conditional-write guards in `API-63` and
-`LDG-62`; collection does not replace them with read-only guards. These are admission refusals
+request/key evaluates afresh. Admission retains the conditional-write guards in `API-63`,
+`LDG-62` and `PRV-42`; collection does not replace them with read-only guards. These are admission refusals
 (`OPS-11`), never lists in operation views. Steps 1–5c still stop at their first refusal; see
 those steps for their rationale. Deposit behavior and other tails are unchanged.
 
@@ -290,6 +292,12 @@ create-only tail refusal after account health. It suppresses cap and balance eva
 while independent solvency and rate refusals remain collectible. A refused tail still
 commits nothing, including no operation, machine, balance write, receipt or provider call.
 The subordinate-entry pacing rule applies to every subordinate refusal.*
+
+*Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment): the stored
+account-and-channel closure is a create-only snapshot input, collected after the offer
+refusal and before solvency without a provider call or extra collection lock. It does
+not suppress pricing checks or add a `not_checked` reason; `WIR-9a` owns that closed
+reason set. The same request/key is evaluated again after a transient closure clears.*
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a
@@ -1196,12 +1204,12 @@ remaining delay. This covers the handle poll, whose remaining time is `API-34`'s
 `POST /v1/enrol/token`, which answers *after* its delay rather than advertising it.
 
 **API-50** **A caller that obeys every `Retry-After` it receives MUST never receive `429` for
-*throughput*.** This
+the deployment's caller-throughput pacing.** This
 is the rate-limit contract stated as a relationship rather than a number, because any number is
 wrong after the fleet grows.
 
-**AMENDED 2026-09-02 — the promise is about pacing, and two `429`s are not about pacing at all.**
-Read unconditionally it is now false three ways, and each of the three is a control the set
+**AMENDED 2026-09-02 — the promise is about caller pacing.**
+Read unconditionally it is false for the controls in this paragraph, each of which the set
 deliberately added: `ceiling_exceeded` (`SEC-39`, `DOM-17`) refuses a principal that has spent its
 allowance for the interval, and no amount of obedient pacing earns it back; `API-41` sheds enrolment
 at the global pending-tenant ceiling; and `WIR-49`'s per-source concurrency limit refuses a caller
@@ -1209,13 +1217,17 @@ holding too many token requests open. **The last two arrive on a caller's very f
 no `Retry-After` has ever been issued and the promise cannot even be evaluated.**
 
 The contract therefore splits, and both halves are testable. **A caller obeying every `Retry-After`
-MUST never be throttled for rate** — that is `CNF-152`, unchanged. **A `429` that is not about rate
-MUST say so in its `kind`**: `ceiling_exceeded` for an exhausted allowance, `rate_limited` for
-everything else, and the agent's recovery differs (`DOM-20`'s argument). A replica that cannot
+MUST never be throttled by the deployment's caller-throughput pacing** — that is `CNF-152`.
+A provider-shared ordering channel may already be closed by another tenant's create,
+so a well-paced caller MAY receive `PRV-40`'s `rate_limited` refusal on its first create.
+*Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment): the
+provider-shared channel exception applies even before the caller receives a pacing hint.*
+**Every `429` MUST identify an exhausted principal allowance as `ceiling_exceeded`;
+other throttles use `rate_limited`** (`DOM-17`). A replica that cannot
 obtain a store connection is not a `429` at all: it refuses `overloaded`, 503, before any
 transaction (`STO-55`, added 2026-09-12), because a full pool is the replica's capacity and not the
 caller's rate. *An unconditional promise
-that three shipped controls break is worse than a narrower one that holds: a caller written against
+that the listed controls break is worse than a narrower one that holds: a caller written against
 it treats any `429` as a bug in the server, and the natural response to a bug in the server is to
 retry harder.* Read limits MUST be budgeted separately from write limits and MUST
 admit, at minimum, one non-terminal list poll plus one balance poll plus one machines poll at the

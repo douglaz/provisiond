@@ -126,8 +126,10 @@ not optional hardening — they are the only structural defence there is.
       the three capability-less methods are `CNF-20`'s and are not rows here. **Then iterate the
       descriptor** (`PRV-44`), one case per (driver, field): a declared value has a working code
       path behind it — a declared ordering channel is searched, a declared evidence source is read,
-      a declared surviving attachment kind is listed — and a field with nothing to declare says so
+      a declared surviving attachment kind is listed, and each ordering channel carries
+      its own validated `order_budget` — and a field with nothing to declare says so
       explicitly rather than being absent. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
+      *Amended 2026-10-09 (`ADR-0036`): the order-budget field is iterated per channel.*
 - [ ] **CNF-19** — Create is refused when the provider has not declared the matching
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
@@ -202,7 +204,10 @@ not optional hardening — they are the only structural defence there is.
       "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`", assert that a
       pre-send `network` failure yields `needs_reconciliation` despite `details.accepted: false`;
       null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
-      with acceptance false.
+      with acceptance false. A local `PRV-40` closure is a pre-provider refusal with no
+      operation to classify; a driver-emitted `rate_limited` remains in the classifier,
+      including after accepted mutation.
+      *Amended 2026-10-09 (`ADR-0036`): local closure is a refusal occurrence without an operation.*
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
@@ -1066,6 +1071,7 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       the headline and its HTTP status: unhealthy create account or fenced extension `409`
       `conflict` (reason `state` or `cancellation_committed`); unsellable create offer
       `400` `invalid_request` (`reason: offer_not_sellable`, no cap or balance amount);
+      closed create ordering channel `429` `rate_limited` (`retry_after_ms`);
       solvency halt or absent rate `503`
       `halted` (gate `solvency` or `rate_unavailable`); cap exceeded `400` `invalid_request`
       (`max_commitment_sats`, `required_sats`); balance short `402` `insufficient_balance`
@@ -1079,6 +1085,18 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       (*Amended 2026-10-04, `pv-gip.26`, S2.*)
       No entry contains a nested list, no check/refusal repeats, and every refusing tail writes
       no commitment, balance, machine, operation or receipt and makes no provider call.
+
+      A closed create ordering channel alone is `429 rate_limited` with
+      `retry_after_ms` in its entry and headline, `Retry-After`, and retryable true;
+      the same request/key re-evaluates after the closure clears. The stored closure
+      adds no `not_checked` reason and does not withhold a price. Combine a healthy,
+      sellable create with closure, solvency halt, absent rate, optional cap and short
+      balance: require channel before solvency/rate, with cap and balance skipped for
+      the existing `rate_unavailable` reason in both cap-present and cap-absent cases.
+      With an available rate,
+      exercise channel + solvency + cap + balance and channel + balance. Vary subordinate
+      delays: a longer halt delay under a channel headline never replaces the channel's
+      own pacing. The closure never affects an extension or early-pipeline refusal.
 
       Fence + solvency + absent rate: HTTP `409`, entries fence/solvency/rate in that order;
       with a supplied cap, cap and balance each unchecked because `rate_unavailable`; headline has no synthesized
@@ -1107,6 +1125,14 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       omitted cap. A priced extension retains its existing checks; the create-only
       sale guard never refuses it or adds an `offer_not_sellable` skip reason.
 
+      Add the closed channel to that account + offer + solvency + absent-rate case:
+      order account, offer, channel, solvency, rate, each once. The false offer entry
+      makes envelope retryability false even though a recoverable account and channel
+      are retryable; a terminated account also makes it false. A longer channel delay
+      under either account or offer headline MUST NOT supply headline pacing.
+      Repeat with a sellable offer and recoverable/terminated accounts to show a
+      channel entry can be subordinate to the account without hiding independent faults.
+
       Repeat the sellable-offer absent-rate and unhealthy-account cases without `max_commitment_sats`: only balance
       appears in `not_checked`, with every applicable reason and no cap refusal. With a rate and
       healthy account and sellable offer, omitting the cap leaves balance evaluated and
@@ -1116,6 +1142,8 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       *Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): the
       create-only offer refusal and its skipped price checks qualify the
       account, rate and optional-cap combinations above.*
+      *Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment):
+      the create-only channel entry and its headline/subordinate pacing join the combinations.*
 
       Clear recoverable faults and resend the exact request and key: admission succeeds, proving refusal
       left no replay receipt. Check singleton/no-rate `not_checked` as well as the empty list
@@ -1444,11 +1472,17 @@ rather than acquiring a default.
       customer's satoshis committed behind an order that never landed — which `OPS-31`'s `absent`
       verb undoes, so the operator can recover it and would see it in the listing. (`PRV-39`,
       `OPS-27`, `LDG-32`)
-- [ ] **CNF-283** — **The ordering budget is enforced at admission.** Exhaust the driver's declared
-      daily order limit and assert the next create is refused before any provider call, classified
-      `failed` per `OPS-11`'s admission-only rule, with nothing ambiguous created. The budget is
-      the only bound on ordering an autonomous caller cannot acknowledge past — unbounded ordering
-      is the money-out family. (`PRV-40`, `OPS-11`)
+- [ ] **CNF-283** — **Robot's reported throttle closes the local channel.** Return
+      `403 RATE_LIMIT_EXCEEDED` with `interval` on one account's auction order request.
+      During the reported interval, each subsequent create there is refused by the
+      `API-7` tail before any provider call, with `rate_limited`, `retry_after_ms`, no
+      commitment, balance change, machine, operation or receipt, and an account/channel
+      identifying monitorable alarm. Re-evaluate after the interval; do not treat the
+      descriptor limit as a local counter. A closed auction channel alone does not
+      refuse a standard-channel create or another account's create. An already
+      accepted mutation followed by a provider throttle retains `OPS-11`'s ambiguity
+      classification. (`PRV-40`, `API-7`, `OPS-11`, `WIR-9a`)
+      *Amended 2026-10-09 (`ADR-0036`): provider-reported closure replaces local daily counting.*
 - [ ] **CNF-284** — **An authentication failure is attempted once.** Give a driver a bad credential
       and assert it makes exactly one attempt and escalates, with no scheduled re-attempt. Asserted
       by counting requests, not by reading the code. On a provider that locks out on repeated
@@ -2852,8 +2886,12 @@ Added 2026-08-12 with `API-49`–`API-54`.
 
 - [ ] **CNF-152** — A simulated caller that obeys every `Retry-After` it receives — across a
       non-terminal list poll, a balance poll and a machines poll at the finest advertised
-      cadence — receives zero `429`s over a sustained run. **The invariant is the test**, because
-      any fixed rate-limit number stops being tested the day the fleet grows. (`API-50`)
+      cadence — receives no `429` from caller-throughput pacing over a sustained run.
+      A separate first-create case closes a provider-shared ordering channel through
+      another tenant and asserts a well-paced caller can receive its `rate_limited`
+      refusal. **The pacing invariant is the test**, because a fixed rate-limit number
+      stops being tested the day the fleet grows. (`API-50`, `PRV-40`)
+      *Amended 2026-10-09 (`ADR-0036`): the shared channel is a first-create exception.*
 - [ ] **CNF-153** — Every non-terminal operation response carries `Retry-After` and a matching
       `poll_after_ms`, values differ by operation kind and state, and the enrolment poll carries
       no delay-derived value — the one endpoint where the pacing hint is a forbidden oracle.
@@ -3240,9 +3278,11 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       descriptor declaration and a lower deployment limit. With multiple tenants and configured
       provider accounts sharing a credential scope, assert one shared budget. Observe a read,
       mutation, poll and subsequent request at a dispatch barrier: each has already consumed
-      budget. Verify the engine reads the descriptor, not provider notes. Retain and independently
-      exhaust the order budget; extra request capacity does not authorize an extra order.
+      budget. Verify the engine reads the descriptor, not provider notes. Independently
+      close an order channel with Robot's throttle; extra request capacity does not
+      reopen it.
       (`PRV-44`, `PRV-46`, `PRV-40`)
+      *Amended 2026-10-09 (`ADR-0036`): the order gate closes on the reported throttle.*
 - [ ] **CNF-337** — **Reserve-only capacity refuses new tenant work and alarms.** Spend the tenant
       share, assert a scope-identifying monitorable alarm, and submit new tenant operations:
       each is refused deterministically with `rate_limited` before its first provider call. A second tenant on the
@@ -3290,3 +3330,34 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       passes that condition, no `traffic_allowance` cancellation reason is active.
       A provider invoice may carry residual traffic cost without a customer byte debit
       or new deficiency cause. (`PRV-13b`, `PRV-44`, `DOM-9`, `WIR-30`, `LDG-75`)
+
+## Robot ordering (`ADR-0036`, added 2026-10-09)
+
+- [ ] **CNF-342** — **Bad forwarded values never reach an order request.** Bypass API
+      validation with a stored create carrying each invalid provider-forwarded value,
+      including provider options; separately omit the required purchase acknowledgement.
+      Assert the driver rejects each before the order request. For a valid request, remove the named auction offer
+      from the listing after admission but before dispatch; assert the driver confirms
+      listing and sends no order request. Neither check adds a provider lookup to
+      `API-7`'s rich-tail collection. (`PRV-47`, `PRV-10`, `PRV-42`, `API-7`)
+- [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
+      tenants and two replicas on one `offer_is_resource` account/channel/offer.
+      Both read an open snapshot; at the admitting conditional-write barrier exactly
+      one wins, and the loser receives `conflict`/`state` with no commitment, balance
+      change, operation or receipt. Keep the winner unresolved and assert further
+      creates lose; settle it and assert the claim releases. A catalogue product
+      admits independent creates. Race account termination separately to retain
+      `API-63`'s guard, and race extension with cancellation to retain `LDG-62`'s.
+      (`PRV-42`, `STO-27`, `API-63`, `LDG-62`, `API-7`)
+- [ ] **CNF-344** — **Each channel declares its own order budget.** Enumerate the
+      descriptor's ordering channels and assert each has a positive `limit` and finite,
+      positive `per`; no top-level `order_budget` substitutes for a missing channel
+      entry. Verify the declared limit is read for documentation and the alarm threshold,
+      while only Robot's reported `403 RATE_LIMIT_EXCEEDED` closes the local gate.
+      Another channel's mere declaration authorizes no new ordering capability.
+      (`PRV-44`, `PRV-40`, `DOM-10`)
+- [ ] **CNF-345** — **Activation minimum is registered and validated.** Omit, zero,
+      make noninteger or configure below the price needed to purchase something:
+      startup refuses each. Two credited payments below the valid minimum that
+      cumulatively meet it activate once; neither is required to meet a per-payment
+      floor. (`OVR-19`, `API-35`, `LDG-44`, `LDG-52`)

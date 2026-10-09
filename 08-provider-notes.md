@@ -424,9 +424,15 @@ Notes that change driver code:
   | the transaction afterwards | **still `status: "ready", server_number: N`** while `GET /server/N` answered `404` | The listing outlives the machine; `PRV-43` owns the consequence |
   | `cancellation_reason` | provider advertises a 9-item enum and accepted the unlisted value `"Other"` | Do not model it as a closed set |
 
-- **Ordering is rate-limited: 20 requests per day**, on `POST /order/server/transaction` and again
-  on `POST /order/server_market/transaction`; cancellation is 200 per hour.
-  **[observed 2026-09-04 — Hetzner API documentation]** `PRV-40` owns what follows from it.
+- **Ordering is rate-limited: 20 requests per day** on each documented order endpoint:
+  `POST /order/server/transaction`, `POST /order/server_market/transaction` and
+  `POST /order/server_addon/transaction`. Robot reports `403 RATE_LIMIT_EXCEEDED` with
+  `max_request` and `interval`; cancellation is documented at 200 per hour.
+  **[observed 2026-10-09 — Hetzner Robot webservice reference]** `PRV-40` owns the local gate.
+  **[verify]** Whether Robot counts by account, webservice user or source address;
+  whether its window rolls or resets by calendar day; whether rejected and `test=true`
+  requests count; and whether requests after a 403 move the window. No live counting
+  observation is claimed.
 
 - **Three failed logins block the source IP for ten minutes, across the whole API** — not merely
   the endpoint that failed. **[observed 2026-09-04 — Hetzner Robot webservice documentation]**
