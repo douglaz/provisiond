@@ -83,3 +83,24 @@ machine row, as `state` and `state_observed_at` already do.
     route table's "no driver can read".
   - `CNF-228`, `CNF-233` and interleaving coverage.
   - No Lean declaration encodes this.
+
+## Clarification — 2026-10-09: `unknown` carries no source and no time (owner decision Q15)
+
+An rloop Manager blocked `pv-ucs.7` on what `source` and `observed_at` render after an operator withdraws
+the only record on a machine whose provider was never read. A four-reader panel
+(`docs/research/panels-2026-10/r30/`) agreed on null for that trace, and split on whether a provider's
+clear reading should still render beside `unknown`.
+
+- **`source` and `observed_at` render only beside `restricted`, as the positive observation's, which
+  is what Decision 2 already says ("Its `source` is the positive one").** Where neither source is
+  positive, both are null, whatever was read or withdrawn before. A non-null provenance on `unknown`
+  would be the deleted `none` under another name: no source can support the negative, and the
+  provider's last read is already dated on the machine view by `state_observed_at`.
+- Storage holds four nullable columns: the provider's reading and its time, and the operator's record
+  time and its `operator_ref`. A withdrawal, `{"status": "unknown"}` on the existing
+  `record-network-restriction` route, clears the operator's two. `WIR-47` owns the render rule.
+  `CNF-250`'s "null exactly when nobody has looked" becomes "null exactly when `status` is `unknown`".
+
+Rejected: rendering a clear provider reading beside `unknown`; keeping a trace of a withdrawn operator
+record; rendering a withdrawal as the latest observation, which asserts a negative the operator never
+observed.

@@ -24,5 +24,7 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r27 | What a driver reports when it cannot tell acceptance | `ADR-0035` amendment of 2026-10-08 |
 | r28 | Placing two new create refusals in the purchase tail | `ADR-0030` amendment and `ADR-0036` correction of 2026-10-09 |
 | r29 | Wind-down's latency composition; a scheduled attachment release | `ADR-0037` amendments of 2026-10-09 (Q13, Q14) |
+| r30 | A network restriction's provenance after an operator-only withdrawal | `ADR-0038` clarification of 2026-10-09 (Q15) |
+| r31 | Auction identity resolution; temporary-key lifetime | `ADR-0040` (Q16) |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.
