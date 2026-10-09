@@ -72,3 +72,12 @@ it. A fourth panel (`docs/research/panels-2026-10/r21/`, four readers, unanimous
   order request, `OPS-11`'s admission-only list and `API-7`'s tail, `OVR-19` (the channel rows and
   `API-35`'s minimum), `CNF-283`, `08-provider-notes.md`, and `Provisiond.Admission`'s tail refusals
   if the kind enters there.
+
+## Correction — 2026-10-09 (owner decision Q12)
+
+Decision 1's "it joins `OPS-11`'s admission-only list" cannot hold for the kind: that list's kinds
+"MUST NOT be emitted by a worker or a driver", and a driver emits `rate_limited` for a provider
+throttle. `OPS-11` records this local refusal as an occurrence decided before any provider call,
+not by listing the kind. Its place in `API-7`'s tail is `ADR-0030`'s amendment of 2026-10-09.
+"At most one create is in flight per offer" cannot be a read of the tail's snapshot, which takes no
+extra lock; it is a conditional-write guard beside `API-63`'s and `LDG-62`'s.

@@ -22,5 +22,6 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r25 | Provider traffic overage | `ADR-0039` |
 | r26 | Whether a failed refresh counts toward the per-machine bound | `ADR-0034` amendment of 2026-10-08 |
 | r27 | What a driver reports when it cannot tell acceptance | `ADR-0035` amendment of 2026-10-08 |
+| r28 | Placing two new create refusals in the purchase tail | `ADR-0030` amendment and `ADR-0036` correction of 2026-10-09 |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.
