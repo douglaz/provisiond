@@ -439,12 +439,11 @@ The note that followed, calling the derivation-count persistence rule "the contr
 is retired 2026-09-23 (`ADR-0027`): a count of derivations measured the wrong unit, and `LDG-58`'s
 window median is that control now.*
 
-**Where billing is capped per period, that cap is a catastrophe bound worth having for a
-sellable offer.** Only where traffic cannot add an unbounded charge does total failure to
-cancel cost at most `setup_fee + one period cap` per machine; record that bound: the
-reserve above is the expected case, and the cap is the provable upper bound.
-*Amended 2026-10-09 (`ADR-0039`): the exposure and cap claims are qualified to
-sellable offers.*
+**For a sellable offer billed with a per-period cap, if total failure to cancel
+costs at most `setup_fee + one period cap` per machine, record that established
+catastrophe bound:** the reserve above is the expected case, and the stated formula
+is the provable upper bound. *Amended 2026-10-09 (`ADR-0039`): this conditional
+exposure bound applies to sellable offers.*
 
 **PRV-31** **A driver MUST declare, per offer and before any order, a worst-case cancellation
 bound** — the latest `earliest_cancellation_date` a machine bought from that offer can carry —

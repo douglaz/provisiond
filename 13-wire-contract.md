@@ -960,7 +960,7 @@ never true.* **A create naming an account that is not `healthy` MUST be refused
 `conflict` with `details.reason: "state"`** — the catalogue read is advisory and a termination can
 land between the two calls, so omission from the listing is not by itself the control.
 `{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
-"capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
+"capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "install_rootfs_via_rescue", "install_raw_disk_via_rescue", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
 `DOM-22`). **This view is a subset of the driver's descriptor (`PRV-44`)**: `kind` and
 `capabilities` are the descriptor's fields, rendered; nothing here is declared anywhere else, and
 the descriptor's other fields do not reach the customer surface (*stated 2026-09-08, `ADR-0018`*).

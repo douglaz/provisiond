@@ -168,8 +168,8 @@ auction/market listing.
 | `traffic_bound` | The offer's declared traffic limit, disclosed as `unlimited` for currently sellable offers (`PRV-44`, `WIR-30`); an allowance with headroom is conditional on `ADR-0039`'s live evidence gate (*added 2026-10-09, `ADR-0039`*) |
 | `metadata` | Raw provider payload |
 
-*The `install_strategies`, `max_image_bytes`, `guest_requirements`, limits and
-`metadata` rows were added 2026-09-02; the two unit fields in the limits row,
+*The `install_strategies`, `max_image_bytes`, `guest_requirements` and limits rows
+were added 2026-09-02; the two unit fields in the limits row,
 2026-10-08 (`ADR-0033`).* The customer-facing additions are required on the wire by
 `WIR-30` and load-bearing somewhere — `install_strategies` is a **safety gate** whose absence
 authorizes a disk-wiping install (`05-persistence.md`), `max_rate_outage_seconds` discloses a second
