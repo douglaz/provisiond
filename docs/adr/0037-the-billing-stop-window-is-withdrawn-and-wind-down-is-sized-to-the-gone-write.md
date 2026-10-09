@@ -1,6 +1,6 @@
 # The billing-stop window is withdrawn, and wind-down is sized to the gone-write
 
-**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill). Amends
+**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14). Amends `ADR-0035` (a release that carries an effective date) and
 `ADR-0018`.
 
 ## Context
@@ -100,3 +100,32 @@ is a second provider call with its own deadline.
 
 Rejected: the larger of deadline and window (it under-reserves the late-accept and lost-reply traces);
 the sum of only those two (it omits the evidence read).
+
+## Amendment — 2026-10-09: a scheduled attachment release stops the meter at its date, and the sweep records it gone (owner decision Q14)
+
+Decision 4 withheld `released_at` from a release that carries an effective date, but nothing then
+ended the attachment's customer meter. `LDG-32` meters "until `released_at` is set", and no
+automatic path ever set it. The same panel (`docs/research/panels-2026-10/r29/`, unanimous on the
+first two points) found that Decision 3 had already decided the stop, "for a scheduled
+cancellation, its effective date", and that it was never applied to attachments.
+
+- **The effective date stops the customer's meter.** The attachment stores the provider's effective
+  date, on a new `machine_attachments` column written by `PRV-45`'s terminal or resolution
+  transaction where `released_at` is withheld. `WIR-35` carries it for `release_attachment` as it
+  does for `delete_machine`. The meter closes at the earlier of that date and `released_at`, on its
+  next tick inside the serialization. Nothing writes at the date and no operation waits on it, as
+  `LDG-38` already clips a scheduled machine. "Future" is dropped from Decision 4: a date that has
+  already passed is stored and clipped the same way.
+- **`released_at` stays evidence that the attachment is gone, and the account sweep records it.**
+  `OPS-32`, on every machine `STO-18` still holds, lists that machine's attachments (`PRV-45`'s list)
+  and records a missing billable one gone on its own terms: a complete pass and a direct re-read.
+  It writes `released_at` at the observation. That is what opens `STO-18`'s tombstone gate and lets
+  `LDG-32` close the commitment. Stopping the meter is not tombstoning.
+- The customer owes the attachment's rate through the effective date. The provider's part-day after
+  it is an operator gap (`LDG-75`). A month-end date learned after ordering needs a bound declared
+  per attachment kind at create, as `PRV-31` declares one for machines, or the shortfall meets
+  `LDG-31`'s clamp.
+
+Rejected: completion by the operator for v1; writing `released_at` at the date (a mark ahead of now
+that opens the tombstone gate while the attachment may still bill); metering until the gone
+observation (Decision 3 names the effective date).

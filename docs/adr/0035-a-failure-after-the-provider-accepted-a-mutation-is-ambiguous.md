@@ -103,3 +103,10 @@ connection that dropped, and a 5xx answer collides with the mapping of non-2xx r
 
 Rejected: a two-valued field with no unknown (it loses "nothing reached the provider" against "it may
 have"); settling a pre-send `network` failure as `failed` (a behaviour change beyond the question).
+
+## Amendment — 2026-10-09: a resolved release that carries an effective date (from ADR-0037)
+
+The Decision's "A release that resolution finds applied writes `released_at`" holds for a release with
+no effective date. A release whose result carries an effective date writes the date and not
+`released_at`, per `ADR-0037` Decision 4 and its amendment of 2026-10-09; `OPS-32`'s sweep writes
+`released_at` when the attachment is observed gone.
