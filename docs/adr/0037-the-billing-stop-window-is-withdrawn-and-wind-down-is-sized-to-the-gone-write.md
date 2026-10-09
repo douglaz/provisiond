@@ -73,3 +73,30 @@ used to shrink a number every machine's reserve depends on.
   `08-provider-notes.md`, the README's note on the dropped column, and
   `docs/research/provider-verify-2026-10.md` §3. No Lean declaration encodes the window or the
   sample kind.
+
+## Amendment — 2026-10-09: wind-down adds its sequential waits, and the window starts when the call's wait ends (owner decision Q13)
+
+An rloop Manager blocked `pv-ucs.6` because Decision 2 did not say how `OVR-19`'s provider-call deadline
+and `PRV-36`'s window compose. A four-reader panel (`docs/research/panels-2026-10/r29/`, unanimous)
+found that taking the larger of the two under-reserves. The window is end-to-end, from dispatch to
+the observed effect. A provider can accept as late as the deadline and still lag after it. And after
+a lost reply, `PRV-36` forbids the first evidence read "before the window has elapsed", so that read
+is a second provider call with its own deadline.
+
+- **Wind-down's latency is the sum of the waits that happen in sequence, and `PRV-13b` names each
+  one:**
+  - the mutating call's wait (the deadline);
+  - the visibility lag after it (the window);
+  - the time until resolution reads (a stated cadence, a new `OVR-19` row);
+  - that read's own wait (the deadline);
+  - plus the detection, machine-wait and margin terms as before.
+
+  `OVR-19` points to `PRV-13b` rather than restating the composition.
+- **`PRV-36`'s window runs from the end of the call's wait, its reply or the deadline's expiry,
+  not from dispatch.** Started at dispatch, a mutation the provider accepted late and that is still
+  lagging could be read at once and resolved *not applied* ("Beyond the window, a read still showing
+  the pre-mutation state resolves the mutation as *not applied*"). `OPS-32`'s create window, "measured
+  from the dispatch of the create", takes the same correction.
+
+Rejected: the larger of deadline and window (it under-reserves the late-accept and lost-reply traces);
+the sum of only those two (it omits the evidence read).
