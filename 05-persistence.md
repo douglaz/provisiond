@@ -336,7 +336,15 @@ reporting such a machine deleted cannot be enforced.
 | `external_id` | text | provider-side identifier |
 | `billable` | boolean | whether it continues to accrue cost after machine deletion |
 | `cleanup` | enum | `api` (the driver can delete it) \| `manual` (named operator procedure) |
+| `effective_cancellation_date` | timestamp | nullable; provider date carried by a successful terminal or `applied` release; the attachment's customer-meter stop boundary, not evidence of absence |
 | `released_at` | timestamp | nullable |
+
+`PRV-45`'s successful terminal or `applied` resolution transaction writes a returned effective
+date to `effective_cancellation_date` without deriving `released_at` from that result, even if
+the date has already passed; a prior gone observation remains recorded. A completed release
+without a date writes `released_at` instead. `OPS-32`'s
+complete sweep writes `released_at` at its direct gone observation in the same transaction as
+the `LDG-38` exit. The date itself schedules no write. *Amended 2026-10-09 (`ADR-0037`, Q14).*
 
 **STO-18** A machine MUST NOT be tombstoned while any `billable` attachment with a null
 `released_at` remains. `STO-8` says tombstone when the resource is gone; `PRV-13a` says a machine
@@ -478,6 +486,10 @@ This table holds what the engine has actually seen; `PRV-36` owns the measuremen
 | `operation_id` | UUID | not null; the mutation the sample was taken from |
 | `dispatched_at` | timestamp | not null; when the mutation was dispatched to the provider |
 | `observed_at` | timestamp | not null; when the engine first observed its effect |
+
+The stored sample remains dispatch-to-observation. `PRV-36`'s effective visibility window
+uses its duration but begins to run after the mutating call's wait ends; sample timestamps do
+not set that clock origin. *Amended 2026-10-09 (`ADR-0037`, Q13).*
 
 Primary key `(operation_id)`; index on `(provider_account)` for the aggregate.
 *Amended 2026-10-08 (`ADR-0037`): the billing-stop sample kind and the `kind` column are dropped.*

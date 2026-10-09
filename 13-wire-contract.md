@@ -862,7 +862,7 @@ subsequent sweep has opened a different episode.
 **WIR-52** **ADDED 2026-09-08** — attachments on the wire, the operator half of `PRV-45`
 (`API-65`). `GET /v1/machines/{id}/attachments` — **operator-only** (`WIR-34`), returns
 `{"attachments": []}`, each element `{"id": "0198d4a0-7e8f-7a9b-8c0d-1e2f3a4b5c34", "kind":
-"volume", "external_id": "vol-8f2a1c", "billable": true, "cleanup": "api", "released_at": null}` —
+"volume", "external_id": "vol-8f2a1c", "billable": true, "cleanup": "api", "effective_cancellation_date": null, "released_at": null}` —
 the `machine_attachments` row (`05-persistence.md`), whole, since it is small and an operator
 deciding whether a release is owed needs every column.
 `POST /v1/machines/{id}/attachments/{attachment_id}/actions/release` — **operator-only**, body
@@ -887,10 +887,16 @@ omission cost nothing here*):
 `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` — **and on a
 `delete_machine` MUST carry `"effective_cancellation_date": "2026-09-12T00:00:00Z"`** where the
 operator established that the provider *scheduled* rather than performed it — an `applied` without
-the date asserts the resource is gone, and is the only other thing it can mean — which settles
-`succeeded` as `cancellation_scheduled` and moves the episode to `scheduled` (`OPS-48`), keeping the fence until the tombstone
+the date asserts the machine is gone, and is the only other thing it can mean for
+`delete_machine` — which settles `succeeded` as `cancellation_scheduled` and moves the episode
+to `scheduled` (`OPS-48`), keeping the fence until the tombstone
 (*added 2026-09-05; without it an operator confirming a scheduled cancellation had no way to say so,
-and the resolution cleared the fence on a machine still billing*) — and
+and the resolution cleared the fence on a machine still billing*).
+On `release_attachment`, `applied` MAY carry the provider's effective date, for example
+`{"resolution": "applied", "effective_cancellation_date": "2026-10-31T00:00:00Z", "operator_ref": "opref-7d41cc"}`.
+`PRV-45` stores the date without deriving `released_at` from it; without the date the applied
+release is complete. Only `delete_machine` changes machine state or schedules its episode. No other
+resolution form or operation kind carries this date. *Amended 2026-10-09 (`ADR-0037`, Q14).*
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
 `external_id` — the machine is already known, which is the whole difference from a create.
 

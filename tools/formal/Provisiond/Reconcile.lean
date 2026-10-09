@@ -15,7 +15,8 @@ machine MUST be re-read directly before its absence is recorded" (`rereadBeforeA
 `absence_requires_three` is the theorem. The two windows are two fields of `Windows` — `PRV-36`'s
 visibility window and `OPS-33`'s negative window — and `Params.absenceWindow` names which one the
 sweep reads, because `OPS-32` says "It is `PRV-36`'s window and NOT `OPS-33`'s negative window,
-and the two must not be conflated".
+and the two must not be conflated". `Params.visibilityFromWaitEnd` selects the amended
+visibility origin; the negative window still reads `dispatchedAt`.
 
 What the guards decide: dropping the window guard records a live machine gone on a read taken
 inside the listing lag, and dropping the reread guard records a live machine gone on a listing
@@ -38,7 +39,8 @@ model omits: `OPS-27`'s search-authoritative absent row and its matched-and-gone
 absence about an operation with no machine record (the sweep here records absence about a machine
 record only) and its unresolved row, the escalation to an operator; `OPS-36`'s routing of a late
 attach through exhaustion (`Provisiond.Fence`) and `OPS-32`'s "A machine with no create of its own
-has no window at all" — both windows here run from the one create's dispatch; `PRV-36`'s
+has no window at all" — the model's negative window runs from the one create's dispatch and
+its visibility window from that call's wait end; `PRV-36`'s
 "`OPS-27`'s resolution MUST NOT take its first read before the window has elapsed" — a `found`
 read is evidence at any time and the model takes it at any time; `OPS-32`'s "what it observed
 *present* it may still record", `STO-48`'s observation instant on a listed machine; the
@@ -91,10 +93,10 @@ inductive Commitment
   deriving DecidableEq, Repr
 
 /-- Two windows, two fields. `visibility` is `PRV-36`'s effective window, "`max(declared,
-max(observed))`", listing lag in seconds, "measured from the dispatch of the create that produced
-its `external_id`" (`OPS-32`); `negative` is `OPS-33`'s bounded negative window, "derived per
+max(observed))`", listing lag in seconds, measured after the create call's wait ends
+(`OPS-32`); `negative` is `OPS-33`'s bounded negative window, "derived per
 provider from that provider's own allocation behaviour", whose origin `OPS-33` leaves unstated —
-the model starts both at the dispatch. A matched in-progress order is excluded by
+the model starts the negative window at dispatch. A matched in-progress order is excluded by
 `negativeOnly`; the model does not choose a new window origin after it finishes. -/
 structure Windows where
   visibility : Nat
@@ -127,7 +129,8 @@ guard because the bead asks that "never one" be checkable, and
 `negative_window_bills_the_gone_machine` is what checks it. `readConfirmsMatch`: `OPS-27`,
 2026-09-05, "the first row MUST be confirmed by a direct read before it attaches anything".
 `negativeOnly`: `OPS-33`, 2026-10-08 (`ADR-0035`), "the negative window MUST NOT run against a
-matched order that is still in progress". -/
+matched order that is still in progress". `visibilityFromWaitEnd`: `PRV-36`, 2026-10-09
+(`ADR-0037`, Q13), visibility begins at the end of the mutating call's wait. -/
 structure Params where
   completePassOnly    : Bool
   pastWindowOnly      : Bool
@@ -135,6 +138,7 @@ structure Params where
   absenceWindow       : WindowField
   readConfirmsMatch   : Bool
   negativeOnly       : Bool
+  visibilityFromWaitEnd : Bool
   deriving DecidableEq, Repr
 
 /-- The current guards; `Params` names their owners. Tagged to the sweep's requirement;
@@ -147,12 +151,15 @@ def current : Params := {
     rereadBeforeAbsence := true,
     absenceWindow       := .visibility,
     readConfirmsMatch   := true,
-    negativeOnly       := true }
+    negativeOnly       := true,
+    visibilityFromWaitEnd := true }
 
 structure World where
   now          : Nat
-  /-- The dispatch of the create that produced the `external_id`: both windows start here. -/
+  /-- The dispatch of the create that produced the `external_id`: negative window origin. -/
   dispatchedAt : Nat
+  /-- The reply or mutating-call deadline expiry: visibility window origin. -/
+  callWaitEndedAt : Nat
   windows      : Windows
   /-- The provider's fact: the machine exists. Not in the store. -/
   live         : Bool
@@ -176,7 +183,8 @@ def World.negativeElapsed (w : World) : Bool :=
 
 /-- The window the sweep reads has elapsed. -/
 def pastWindow (p : Params) (w : World) : Bool :=
-  decide (w.dispatchedAt + w.windows.get p.absenceWindow ≤ w.now)
+  decide ((if p.absenceWindow = .visibility && p.visibilityFromWaitEnd
+           then w.callWaitEndedAt else w.dispatchedAt) + w.windows.get p.absenceWindow ≤ w.now)
 
 /-- `OPS-27`: "takes the union of what those searches return". The union, so the same resource on
 two channels is one candidate. -/

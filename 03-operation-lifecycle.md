@@ -1185,13 +1185,10 @@ provider call is **dispatched**, so the refusal covered every operation an opera
 asked to resolve. `WIR-35` carries the same rule for the wire; this sentence is the engine's copy of
 it, and the first correction reached only the wire.*
 
-*Amended 2026-10-08 (`ADR-0035`): for a release resolved `applied`, `PRV-45` owns the
-attachment effect: "A successful release with no future effective date MUST write the row's
-`released_at` in its terminal transaction, including the resolution transaction when resolved
-`applied`". The future-date restriction is also there: "A release whose result carries a future
-effective date MUST NOT write `released_at`, including when resolved `applied`" (`ADR-0037`,
-quote amended 2026-10-08). `LDG-38` owns the exit write; the release does not mark its machine
-gone. Episode and fence transitions, where applicable, remain `OPS-48`'s.*
+*Amended 2026-10-08 (`ADR-0035`) and 2026-10-09 (`ADR-0037`, Q14): for a release resolved
+`applied`, `PRV-45` owns the attachment effect: "A successful completed release with no
+effective date MUST write the row's `released_at`"; a result with an effective date stores that
+date instead. `LDG-38` owns the exit write. `OPS-48` owns episode and fence transitions.*
 
 **And an operator MUST NOT be the first resort here.** `OPS-45` requires the engine's own record of
 whether a write began to be consulted before any of this: most install failures never reached a
@@ -1351,8 +1348,9 @@ remain outside the primitive (`LDG-69`).
 
 **And it may record an absence only about a machine past `PRV-36`'s effective visibility window for
 that provider** — `max(declared, max(observed))`, not the declaration alone (`ADR-0018`; this
-sentence read "declared" until 2026-09-08) — measured from the dispatch of the create that produced
-its `external_id`. *Added 2026-09-04. The sweep's listing is a read of provider state, and `PRV-36`
+sentence read "declared" until 2026-09-08) — measured from the end of the create call's wait,
+its reply or deadline expiry after a lost reply. *Amended 2026-10-09 (`ADR-0037`, Q13).*
+*Added 2026-09-04. The sweep's listing is a read of provider state, and `PRV-36`
 reads "a read of provider state is not authoritative about a mutation the driver issued until that
 provider's effective visibility window has elapsed". Nothing drew the line to here, so a machine created seconds before
 the sweep, whose create the provider's listing had not yet caught up with, was recorded gone:
@@ -1360,6 +1358,17 @@ the sweep, whose create the provider's listing had not yet caught up with, was r
 running and billing the operator with no funding behind it and nothing scheduled to look again.* A
 machine inside the window is not evidence either way and MUST be skipped, not deferred to a second
 opinion; the next pass has evidence.
+
+The sweep MUST also visit attachments of every machine still retained by `STO-18`, including a
+machine already recorded gone. It uses `PRV-45`'s attachment listing and direct non-mutating
+attachment read. Only a complete account pass, a complete attachment listing for that machine,
+and a direct absence for a missing billable attachment
+permit an observation transaction: write `released_at` at the observation instant and perform
+`LDG-38`'s exit write in that transaction. An interrupted or `rate_limited` listing, or a direct
+read that finds the attachment or fails, writes no absence. This does not dispatch a release
+mutation or change the machine's state. `LDG-32` owns commitment closure and `STO-18` remains
+the tombstone gate; an operator still initiates a `manual` cleanup where one is required.
+*Amended 2026-10-09 (`ADR-0037`, Q14): automatic attachment absence confirmation.*
 
 **A missing machine MUST be re-read directly before its absence is recorded.** The listing narrows
 the candidates; it never establishes one. *Added 2026-09-04, replacing a pass-start eligibility

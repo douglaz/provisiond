@@ -1095,7 +1095,8 @@ list for that reason. A release the delete's terminal transaction enqueues carri
 idempotent as any operation is (`API-11`); the `200` form, returning no operation, commits the
 `released_at` write and its idempotency record together under `WIR-24`'s one-transaction rule.
 For the release's exit write, see `LDG-38`.
-Either is what opens `STO-18`'s tombstone gate, and `LDG-74` is where the tombstone then happens.
+`PRV-45`'s `released_at` write is what opens `STO-18`'s tombstone gate; a stored effective date
+alone leaves it closed. `LDG-74` owns the later tombstone. *Amended 2026-10-09 (`ADR-0037`, Q14).*
 
 ## Operation views
 

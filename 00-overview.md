@@ -377,6 +377,7 @@ account and channel, and the activation funding minimum is registered.*
 | Provider request budget, per credential scope | `PRV-46`, `PRV-44` | `{scope, limit, per}` — nonempty scope; positive integer limit no greater than the driver's declaration; same finite, positive period as declared | yes |
 | System request reserve share, per credential scope | `PRV-46` | positive integer requests no greater than the effective request limit | yes |
 | Provider-call deadline | `OVR-19` | finite, positive duration | yes |
+| Resolution-read cadence, per provider account | `OVR-19` | finite, positive duration; maximum wait from a mutation's visibility-window end until its resolution read is issued | yes |
 | Margin | `LDG-24` | basis points | yes |
 | Runway floor | `PRV-13d` | duration | yes |
 | Image host allowlist | `SEC-19` | list of host patterns (`SEC-20`) | yes |
@@ -417,12 +418,17 @@ account and channel, and the activation funding minimum is registered.*
 | Recovery-key inventory procedure | `RSC-21` | human | no |
 
 **The deployment MUST state and enforce a finite, positive provider-call deadline**, measured
-from dispatch for each provider call, including a call that never replies. Wind-down sizing
-(`PRV-13b`) MUST cover this bound as well as the effective visibility window. Deadline expiry
+from dispatch for each provider call, including a call that never replies. The deployment MUST
+state and achieve a finite, positive resolution-read cadence per provider account: for a
+resolution-pending mutation, once its effective visibility window ends, its resolution read
+MUST be issued within that cadence. A missing, zero, negative, non-finite or malformed cadence
+MUST refuse startup as the deadline does. `PRV-13b` owns the sequential wind-down composition.
+Deadline expiry
 bounds the wait for a reply; it establishes neither the mutation's outcome nor that billing
 stopped. Classification and resolution remain with `OPS-11`, `PRV-5` and `PRV-36`; `OPS-12`'s
 "MUST NOT automatically retry an ambiguous mutation under any other name" still applies.
-*Added 2026-10-08 (`ADR-0037`): the deadline and its register row.*
+*Added 2026-10-08 (`ADR-0037`): the deadline and its register row. Amended 2026-10-09
+(`ADR-0037`, Q13): resolution-read cadence and the sizing pointer.*
 
 **The maximum tolerated rate outage is read at the value in force when `LDG-64`'s deadline is
 computed, for an outage already open too.** Lowering it below the elapsed outage makes that

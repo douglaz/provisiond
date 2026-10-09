@@ -1428,13 +1428,35 @@ def mach : Candidate := { account := acct, externalId := ⟨7⟩ }
 
 /-- The operation with its outcome unknown: nothing known, the commitment open. -/
 def unknownWorld (live : Bool) : Reconcile.World :=
-  { now := 0, dispatchedAt := 0, windows := { visibility := 8, negative := 1000 }, live := live,
+  { now := 0, dispatchedAt := 0, callWaitEndedAt := 0,
+    windows := { visibility := 8, negative := 1000 }, live := live,
     knowledge := .unknown, commitment := .open, orderLanded := none, throttled := false,
     retriedIntoThrottle := false, meterStoppedAt := none }
 
 /-- The machine record `OPS-32` sweeps: observed present at attach, its commitment running. -/
 def attachedWorld (live : Bool) : Reconcile.World :=
   { unknownWorld live with knowledge := .observedPresent mach }
+
+/-- A create accepted at its deadline, still hidden by the provider's listing lag. -/
+def lateAcceptedWorld : Reconcile.World :=
+  { attachedWorld true with now := 8, callWaitEndedAt := 7 }
+
+/-- The amended visibility clock refuses absence while the late accepted create may be live. -/
+@[req "PRV-36"]
+theorem late_acceptance_waits_from_reply :
+    let p := { Reconcile.current with pastWindowOnly := true, absenceWindow := .visibility }
+    let w := Reconcile.run p lateAcceptedWorld
+      [.sweep true false .notFound]
+    w.knowledge = .observedPresent mach ∧ w.meterStoppedAt = none := by decide
+
+/-- The former dispatch origin admits the same unsafe absence, while the negative window
+remains anchored to dispatch in both traces. -/
+@[req "PRV-36"]
+theorem late_acceptance_dispatch_origin_unsafe :
+    let p := { Reconcile.current with visibilityFromWaitEnd := false, pastWindowOnly := true, absenceWindow := .visibility }
+    let w := Reconcile.run p lateAcceptedWorld [.sweep true false .notFound]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 8 ∧
+    lateAcceptedWorld.negativeElapsed = false := by decide
 
 /-- `OPS-33`'s positive witness: the negative window elapses, the commitment is released, and the
 resource is still `unknown` — release is not absence. Then the sweep "MUST continue searching

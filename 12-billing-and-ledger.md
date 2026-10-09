@@ -324,8 +324,11 @@ is the machine's **running** commitment, which abandonment MUST NOT release (`OP
 snapshots and reserved addresses that survive machine deletion and keep costing money; `PRV-13b`
 reserves for them; but the meter (`LDG-37`) was machine-only, so a released commitment left them
 billing against nothing. A deployment MUST meter each billable attachment on its own identity
-until `released_at` is set, and MUST NOT sell an offer whose attachments have no bounded automatic
-cleanup unless the operator has explicitly accepted and capped that exposure.
+through the earlier applicable `PRV-45` effective date or `released_at` observation, and MUST
+keep the commitment open while any billable attachment's `released_at` is null, even if its
+customer meter has stopped at a stored date. It MUST NOT sell an offer whose attachments have
+no bounded automatic cleanup unless the operator has explicitly accepted and capped that
+exposure. *Amended 2026-10-09 (`ADR-0037`, Q14): customer stop and release evidence separate.*
 
 **Losing a provider account is not evidence that billing stopped** — see `SEC-46`, amended for the
 same reason. **A terminal path with no close rule strands a customer's satoshis
@@ -341,7 +344,7 @@ directions — and MUST NOT resize the commitment.
 ```
 protected_sats = at the current rate, rounded up:
                    wind_down_cost
-                 + surviving billable attachments (PRV-13a)
+                 + surviving billable attachments through their per-kind effective-date bounds (PRV-13a, PRV-45)
                  + cost through any effective cancellation date (DOM-19)
                  + cost through any earliest cancellation date not yet passed (PRV-13c)
 usable_sats    = max(0, reserved_sats − protected_sats)
@@ -560,9 +563,10 @@ nothing in the system raises anything.
   nobody can evidence, on a ledger whose entries are the authorization system.
 - **Stopping the machine's meter is not tombstoning it, and the two MUST NOT be collapsed.**
   `STO-18` forbids tombstoning while a billable attachment has a null `released_at`, and those
-  attachments are separately metered subjects (`STO-38`, `LDG-32`) that keep running after the
-  machine is gone. So the machine subject stops, each unreleased billable attachment keeps being
-  metered on its own identity, and the row is tombstoned when `STO-18` allows and the commitment
+  attachments are separately metered subjects (`STO-38`, `LDG-32`). So the machine subject stops,
+  each attachment's customer meter runs only to `LDG-38`'s earlier applicable stop boundary,
+  and `released_at` remains the absence fact even when a stored date has stopped that meter.
+  The row is tombstoned when `STO-18` allows and the commitment
   closes per `LDG-32`. For exit ordering, see `LDG-38`. *Written out because the obvious
   implementation — set `deleted` and
   tombstone — is the one `STO-18` refuses, and a terminated machine leaving volumes behind is the
@@ -642,6 +646,15 @@ one sweep interval for a machine whose end the record had held in advance. The o
 rule exists because the earlier instant is usually unknowable; here it is the one instant the
 deployment knew before the provider did.* The sweep's tombstone on that path releases `OPS-44`'s
 entry and clears the fence, which is stated there.
+
+**For an attachment the stop boundary is the earlier applicable stored
+`effective_cancellation_date` or `released_at`.** Re-read both fields inside the tenant
+serialization above and clip the increment to elapsed time ending no later than that boundary.
+A future date causes no debit, high-water advance or exit write at acceptance beyond elapsed
+billable time; the next tick after the date closes the elapsed tail. The same rule applies to a
+date already passed when recorded. Period and rate splits, the zero clamp, mark discard and
+exit exceptions still apply. `released_at` remains the cleanup fact for `LDG-32` and `STO-18`.
+*Amended 2026-10-09 (`ADR-0037`, Q14).*
 
 **An increment also closes at every period boundary** (`LDG-68`), and the new period's
 `meter_totals` row starts with `r = 0`: the credit is less than one satoshi and it is forfeited in the
@@ -943,17 +956,22 @@ deficiency, no entry" — and the prepaid debit stands, which is the point of th
 at its stop boundary and never later. `LDG-33` applies this bound: "The derivation counts from the
 later of now and the machine's mark".
 
-**Every transition of a subject out of billable MUST close that subject's increment at its stop
-boundary, in the write that records the exit, holding that subject's tenant's `LDG-35` primitive,
-before any `LDG-32` close.** This applies to the gone writers in `OPS-48`'s gone-write row and
-`LDG-74`, attachment releases (`PRV-45`, `API-65`), transitions out of `LDG-37`'s deployment-defined
+**Every observed transition of a subject out of billable MUST close that subject's increment at
+its stop boundary, in the write that records the exit, holding that subject's tenant's `LDG-35`
+primitive, before any `LDG-32` close.** A scheduled effective date records the boundary but
+does not itself trigger an exit write: the next tick closes only elapsed time through that date.
+This applies to the gone writers in `OPS-48`'s gone-write row and
+`LDG-74`, completed attachment releases (`PRV-45`, `API-65`), attachment absence observed by
+`OPS-32`, transitions out of `LDG-37`'s deployment-defined
 billable set, and account termination (`API-63`). Each subject closes independently; an attachment
 release need not close its machine's commitment. For an exit to a deployment-defined nonbillable
-state, the boundary is that transition's recorded instant; for an attachment release, it is
+state, the boundary is that transition's recorded instant; for a completed attachment release
+it is `released_at`, and for a dated release it is the earlier applicable effective date or
 `released_at`. The start, splits, arithmetic, clamp and discard are the same as for any increment
 below, including a stop whose boundary a tick already closed.
 A scheduled cancellation uses the stop boundary above, never its later gone observation or future
-time charged at cancellation acceptance.
+time charged at cancellation acceptance. *Amended 2026-10-09 (`ADR-0037`, Q14): a dated
+attachment release supplies a boundary without a write at the date.*
 For a quarantined subject, apply `LDG-72`'s exit exception.
 
 **For an exit increment containing outage time, `LDG-64` owns the absorbed window's end.**
@@ -2098,6 +2116,9 @@ Provider tails after the gone-write are the operator's (`ADR-0037`): alongside t
 unit, this includes Robot add-ons billed per day or part thereof and DigitalOcean's seconds
 between the delete reply and destroy. These are accepted gaps supplied by invoice authority,
 with no customer debit or new deficiency cause. *Provider tails added 2026-10-08 (`ADR-0037`).*
+An attachment's customer meter ends at its stored effective date under `LDG-38`; any provider
+part-day charge after that date is an operator gap supplied by invoice authority, with no new
+deficiency cause. *Amended 2026-10-09 (`ADR-0037`, Q14).*
 Residual traffic that reaches the provider invoice, including traffic after the last
 counter reading and through deletion, is another accepted gap supplied by invoice
 authority. It creates no byte meter, customer traffic debit or deficiency cause.

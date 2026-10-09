@@ -134,8 +134,13 @@ lifecycles; `exitAndRelease` separately executes the release-order guard, includ
 the closing post with the guard off. Release zeros the one remaining commitment; its opening and
 other ledger rules are in `Provisiond.Ledger`. Outage deficiency-row closure on a quarantined exit or qualifying rate return (2026-10-04)
 is outside this money/meter world, as are all outage rows. No one-subject theorem establishes an
-account-wide transaction. Omitted also:
-a second subject, and with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
+account-wide transaction. Also omitted are a scheduled attachment's stored effective date,
+its direct absence read and `released_at`
+write. The caller supplies a stop boundary to this one-subject arithmetic model; it does not
+choose the earlier applicable date and observation or prove that cleanup occurred. The model
+can check a supplied boundary's elapsed increment, but cannot establish `STO-18`'s tombstone
+gate or `OPS-32`'s account-wide observation transaction. Also omitted are a second subject,
+and with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
 the subject billable — `seed` is the mark's write alone; `LDG-68`'s period boundary
 (`Provisiond.Period`), and with it `LDG-38`'s "new period's `meter_totals` row starts with
 `r = 0`", the split of an increment "at every period boundary and every rate change it crosses" —

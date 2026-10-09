@@ -483,6 +483,9 @@ jobs:
       #     unlisted_live_machine_reread on [.advance 2000, .sweep true false .found];
       #   absenceWindow (OPS-32, 2026-09-04): the gone machine bills until the negative window --
       #     absence_on_visibility_window on [.advance 20, ..];
+      #   visibilityFromWaitEnd (PRV-36, ADR-0037 Q13): a late accepted create is
+      #     falsely recorded absent when the visibility window starts at dispatch --
+      #     late_acceptance_waits_from_reply on lateAcceptedWorld;
       #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
       #     match_is_not_observation, w.orderLanded = some mach.
       # Funding and the tenant lifecycle (pv-vwe.6; pv-vwe.15 for LDG-70's read; pv-vwe.16 for
@@ -687,6 +690,7 @@ jobs:
           Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
           Reconcile|absenceWindow|.visibility|.negative|Event.advance 20, Event.sweep true false Answer.notFound
+          Reconcile|visibilityFromWaitEnd|true|false|visibilityFromWaitEnd := __src.visibilityFromWaitEnd
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           Ledger|clampAtAuthority|true|false|seizureBalances
           Ledger|serializedAuthorization|true|false|skewTrace

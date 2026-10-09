@@ -1411,20 +1411,21 @@ rather than acquiring a default.
       driver whose descriptor declares a visibility window of *n* seconds, dispatch a create whose
       resource first appears in the listing at *n + k* seconds and assert a `provider_observations`
       row is written with that `dispatched_at` and `observed_at` (`STO-53`); then dispatch another
-      create, lose its reply, and assert resolution takes no read before *n + k* has elapsed — the
-      effective window is `max(declared, max(observed))` and the process was not restarted between
+      create, lose its reply, and assert resolution takes no read until *n + k* has elapsed
+      **after the second create call's deadline expiry** — the effective window is
+      `max(declared, max(observed))`, and the process was not restarted between
       the two. Assert the descriptor value itself is unchanged. A build that reads the window from
       driver source resolves the second create `absent`, releases the commitment, and the machine arrives with
       nobody paying. *Amended 2026-10-08 (`ADR-0037`): billing-stop-window assertion withdrawn.*
       (`PRV-36`, `PRV-44`, `STO-53`, `ADR-0018`)
-- [ ] **CNF-293** — **An attachment is released by an operator through a route, and
-      the route is what opens the tombstone gate.** Delete a machine on a driver whose descriptor
+- [ ] **CNF-293** — **An operator can release an attachment through a route; the completed
+      release writes the evidence that opens the tombstone gate.** Delete a machine on a driver whose descriptor
       declares a surviving attachment kind and whose *list attachments* returns one `billable: true`,
       and assert one `machine_attachments` row per returned attachment (`PRV-45`). For an `api` row: assert the delete's terminal transaction
       enqueued a `release_attachment` carrying the delete's own `requested_by` and `system_reason`;
       settle it `failed`, then call `POST .../attachments/{id}/actions/release` as an operator and
       assert a `202` with a fresh `release_attachment` operation, `requested_by: operator`, whose
-      completed-release success with no future effective date writes `released_at`, after which
+      completed-release success with no effective date writes `released_at`, after which
       `STO-18` no longer forbids the tombstone and
       `LDG-74`'s "the row is tombstoned when `STO-18` allows" is what performs it. For a `manual`
       row: assert the same route answers `200` synchronously with `released_at` set and no operation
@@ -2107,12 +2108,19 @@ rather than acquiring a default.
       machine in `DOM-7`'s **`failed`** keeps being metered — it is broken, not gone, and a failed
       dedicated machine is still allocated and still invoiced. A machine with an unreleased billable
       attachment stops its **own** meter and is **not** tombstoned (`STO-18`), while the attachment
-      keeps being metered on its own subject. And a sweep pass that **yields to `rate_limited` part
+      is metered on its own subject only through `LDG-38`'s earlier applicable effective date or
+      `released_at`. And a sweep pass that **yields to `rate_limited` part
       way records no absence at all** — the half-listing must not close a whole account's
       commitments. **A machine created inside `PRV-36`'s effective visibility window and not yet in
       the provider's listing records no absence either**, and its meter keeps running: seed a listing
       that omits a machine created seconds ago, assert the sweep writes nothing, then re-run past
       the window with the machine present and assert it is still metered and still committed.
+      Repeat with a create whose reply arrives at its provider-call deadline, and with one whose
+      reply is lost: a complete listing and direct `not_found` read after the dispatch-based
+      window would have elapsed, but before the window measured from the reply or deadline
+      expiry has elapsed, MUST write no absence.
+      Only the reply or deadline expiry starts that visibility wait. *Amended 2026-10-09
+      (`ADR-0037`, Q13).*
       Assert the window used is `PRV-36`'s and **not** `OPS-33`'s negative window — a build wired to
       the longer one passes this seeding and bills a terminated machine for hours. Assert too that a
       **late-attached** machine (`OPS-36`) records an absence on the first pass, having no create to
@@ -2125,6 +2133,9 @@ rather than acquiring a default.
       visibility window before the external delete**, or a conforming sweep skips it while this item
       waits for an absence write — that is the
       ordinary machine, and binding the stop to a caller's refresh leaves it draining forever.
+      On a retained machine already recorded gone, verify the same automatic pass lists its
+      attachments and directly re-reads a missing billable attachment before writing its
+      `released_at`; an interrupted pass or a direct read that finds it writes no absence.
       (`LDG-74`, `OPS-32`, `STO-48`, `LDG-37`, `DOM-7`, `DOM-8`, `STO-18`, `SEC-46`)
       **No tick during a short life:** configure a 60-second meter interval and a fixture
       provider whose effective visibility window is one second. Record the machine billable at
@@ -3173,7 +3184,7 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       in `CNF-315`/`CNF-316`. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-32`, `LDG-66`, `OPS-27`, `OPS-33`)
 - [ ] **CNF-326** — **Applied completed-release resolution ends that attachment's meter.** Accept a
       release, fail its follow-up read, and resolve it `applied` on evidence of completed release
-      with no future effective date. Assert the attachment's `released_at`
+      with no effective date. Assert the attachment's `released_at`
       and the applicable `LDG-38` exit write commit with the resolution; inject a transaction
       failure to demonstrate no partial effects. Preserve meter exit exceptions, machine state,
       other attachments and the episode/fence outcomes of `OPS-48`. Contrast unresolved,
@@ -3186,25 +3197,44 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       does not change or stand in for the operation outcome. (`API-51`, `API-50`, `WIR-9a`,
       `WIR-9b`, `OPS-12`)
 
-- [ ] **CNF-328** — **A future-date release leaves the attachment billable.** Return a successful
-      release result carrying a future effective date for an unreleased, normally metered billable
-      attachment.
-      Assert `released_at` remains null, its meter stays open, no commitment is released on that
-      basis, and the attachment still prevents tombstoning. Repeat through resolution `applied`
-      with the same future-date evidence. Preserve machine state and other attachments. Contrast
-      a completed release with no future effective date and demonstrate its atomic release/exit
-      write through `CNF-326` and its tombstone effect through `CNF-293`. This case asserts no
-      transition at the future date. *Added 2026-10-08 (`ADR-0037`).* (`PRV-45`, `LDG-38`,
-      `LDG-32`, `STO-18`)
+- [ ] **CNF-328** — **A dated attachment release stops customer metering at its date; the sweep
+      records later absence.** On both ordinary success and `applied` resolution, return an
+      effective date for a billable attachment. Exercise a future date and one already passed at
+      acceptance. Assert the terminal or resolution transaction stores the date atomically,
+      leaves `released_at` null, changes neither machine state nor other attachments, and keeps
+      the commitment and `STO-18` tombstone gate. Inject a transaction failure and assert no
+      partial date or meter write. Advance the clock past the future date before a meter tick and
+      sweep as in `CNF-277`: the attachment's customer meter closes exactly at the date, with no
+      future debit or mark at acceptance and no debit after the date, while `released_at` remains
+      null until evidence. With the mark preceding a date already passed at acceptance, the next
+      tick clips at that date. Exercise a
+      provider gone before the date: direct absence writes `released_at` at observation and the
+      meter clips to that earlier instant; a later dated release result preserves that
+      observation. Exercise presence after the date: the meter stays
+      stopped but `released_at` stays null and the gate remains closed. With the machine already
+      recorded gone, omit that attachment from a complete listing and confirm direct absence:
+      an automatic sweep writes `released_at` at
+      observation, closes the exit and commitment through their owners, and permits tombstoning.
+      An interrupted account pass or per-machine attachment listing writes no absence; a
+      complete listing omission contradicted by a
+      direct read finding the attachment also writes nothing. Verify the per-kind bound declared
+      at create and `LDG-31`'s clamp if a later date exceeds it. Contrast a completed release
+      with no effective date through `CNF-326` and `CNF-293`. *Amended 2026-10-09 (`ADR-0037`,
+      Q14).* (`PRV-45`, `OPS-32`, `WIR-35`, `WIR-52`, `LDG-38`, `LDG-32`, `STO-18`, `PRV-44`)
 - [ ] **CNF-329** — **A provider call that never replies has a deadline.** Configure a finite,
       positive deadline and dispatch a provider call whose reply never arrives; assert the wait
       ends at the configured bound. Repeat with a mutation whose outcome remains unknown:
       expiry alone proves neither success nor non-application nor billing stop, and no
       automatic replay occurs; classification and evidence-based resolution retain their existing
       rules without assuming acceptance from elapsed time. Show wind-down sizing covers the
-      configured deadline and the effective visibility window, including when either is larger,
-      with the machine-wait term retained. Refuse startup with a missing, zero, negative,
-      non-finite or malformed deadline. *Added 2026-10-08 (`ADR-0037`).* (`OVR-19`, `PRV-13b`,
+      full sequential allowance: metering detection cadence, mutating-call deadline, effective
+      visibility window starting at the reply or deadline expiry, resolution-read cadence,
+      that read's own deadline, worst-case machine-operation hold and margin. Exercise a reply
+      at the deadline followed by visibility lag and a lost reply followed by a delayed
+      resolution read whose own call lasts to its deadline. Assert neither max(deadline, window)
+      nor their sum without the read wait funds the trace. Refuse startup with a missing, zero,
+      negative, non-finite or malformed deadline or resolution-read cadence; enforce the stated
+      cadence. *Amended 2026-10-09 (`ADR-0037`, Q13).* (`OVR-19`, `PRV-13b`,
       `PRV-36`, `PRV-5`, `OPS-11`, `OPS-12`)
 
 ## Before production

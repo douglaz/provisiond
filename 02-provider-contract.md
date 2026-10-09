@@ -79,6 +79,8 @@ check and on every `GET /v1/providers`.
 `request_budget` `{scope, limit, per}` (`PRV-46`; provider credential scope identifier,
 positive integer request limit, finite positive period),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
+`attachment_cancellation_bound` per surviving billable attachment kind (`PRV-45`), declared
+before create —
 `traffic_bound` per offer (`ADR-0039`) — `unlimited`,
 `{allowance_bytes, headroom_bytes}` with nonnegative integer allowance bytes and
 `0 < headroom_bytes ≤ allowance_bytes`; the resulting limit is
@@ -105,6 +107,7 @@ Amended 2026-10-09 (`ADR-0039`): the per-offer traffic bound is added. An allowa
 declaration alone does not make an offer sellable; the live-evidence condition is below.*
 *Amended 2026-10-09 (`ADR-0036`): `order_budget` is declared within each
 `ordering_channels[]` entry, not once at descriptor top level.*
+*Amended 2026-10-09 (`ADR-0037`, Q14): per-kind attachment cancellation bound at create.*
 
 ### List offers
 
@@ -215,12 +218,20 @@ that passes the live gate declares allowance less headroom; see `WIR-30` for the
 before-purchase disclosure. Crossing it would open an exposure-reducing cancellation
 with future reason `traffic_allowance` beside `rate_outage_bound` (`OPS-39`, `STO-52`);
 this path is deferred until re-admission, and no active reason or Fence branch is
-created by this amendment. Wind-down's latency term is the effective visibility window owned by
-`PRV-36`: "the effective window is `max(declared, max(observed))`" — dispatch to the recorded
-gone. The provider's unit remainder is a different cost, absorbed by the operator under
-`ADR-0033`; the accepted accounting gaps belong to `LDG-75`. The provider-call deadline is on
-`OVR-19`. *Amended 2026-10-08 (`ADR-0037`). Amended 2026-10-09 (`ADR-0039`):
-traffic exposure, the sale gate and conditional re-admission.*
+created by this amendment. Wind-down funds the customer's meter through the gone-write. Its
+latency allowance adds the waits in sequence: **`LDG-37`'s metering cadence + the mutating
+provider call's deadline + `PRV-36`'s effective visibility window + `OVR-19`'s resolution-read
+cadence + that read's own provider-call deadline + the worst-case machine-operation hold +
+time margin**. `OVR-19` owns the deadline: "The deployment MUST state and enforce a finite, positive
+provider-call deadline". Every term MUST enter the reserve at the customer rate, even when one
+bound exceeds another. The visibility window begins at the end of the mutating call's wait,
+whether a reply arrived or its deadline expired. `STO-53`'s dispatch-to-observation samples
+widen the effective window; their stored timestamps do not move its start back to dispatch.
+The provider's unit remainder is a different cost, absorbed by the operator under
+`ADR-0033`; the accepted accounting gaps belong to `LDG-75`. *Amended 2026-10-08 (`ADR-0037`).
+Amended 2026-10-09 (`ADR-0037`, Q13):
+sequential wind-down waits. Amended 2026-10-09 (`ADR-0039`): traffic exposure, the sale gate
+and conditional re-admission.*
 
 The reserve is computed **in the provider's billing currency** and converted once, when the
 commitment is opened or re-sized, into the ledger unit:
@@ -236,6 +247,10 @@ reserve_native = setup_fee                              # at cost, no markup (AD
 
 commitment_sats = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 ```
+
+The `billable_attachments` term includes each applicable `PRV-45` per-kind cancellation bound
+at create, priced at that attachment's customer rate through its worst-case effective date.
+`LDG-33` carries the same protection during re-derivation. *Amended 2026-10-09 (`ADR-0037`, Q14).*
 
 *The `accrued_unbilled_usage` term was deleted from this formula on 2026-09-02.* Nothing produces
 it: the sizing happens at create, where by construction no usage has accrued, and once the meter was
@@ -298,9 +313,8 @@ because the claim was used to shrink a number every machine's reserve depends on
 reconciliation error propagating into systematic under-reserving across the whole fleet.
 
 The criterion is `PRV-29`'s "bound the time after which its evidence is truthful". Where the
-driver can, size `wind_down_cost` as **detection interval + `PRV-36`'s effective visibility
-window + margin**, subject to the provider-call deadline in `OVR-19` and the machine-wait term
-below. **Where it cannot, the pager-latency figure stands.** Scheduled-cancellation protection
+driver can, size `wind_down_cost` from the sequential allowance above. **Where it cannot, the
+pager-latency figure stands.** Scheduled-cancellation protection
 remains the reserve formula's `cost_through_earliest_cancellation_date` (`PRV-13c`); see that
 requirement for the exception branch.
 
@@ -335,16 +349,21 @@ post before buying anything.*
 
 **Mutation complete, resource absent, and billing stopped are three different facts** and MUST be
 evidenced separately. For the customer's meter, the billing-stop evidence is the gone-write for
-a machine, `released_at` for an attachment, and the effective date for a scheduled cancellation.
+a machine or `released_at` for a completed attachment release; a stored effective date stops
+the corresponding scheduled machine or attachment meter while the resource may remain present.
 Meter boundaries remain with `LDG-38` and `LDG-74` ("Billing stops at the observation instant").
 An action reporting `completed` does not establish that billing stopped.
 *Amended 2026-10-08 (`ADR-0037`): wind-down sizing above uses the effective visibility window;
-billing-stop evidence is named here.*
+billing-stop evidence is named here. Amended 2026-10-09 (`ADR-0037`, Q14): the attachment date
+stops its customer meter separately from absence evidence.*
 
 **AMENDED 2026-08-15 — `wind_down_cost` MUST include the time the cancellation spends waiting for
-the machine.** Both sizings above measure from the moment the provider is *called*, and
-neither accounts for reaching that moment. An exposure-reducing cancellation is an ordinary
-operation: it holds the machine (`OPS-8`), and where a long-running operation already
+the machine.** The provider call cannot begin until the machine is available; a pager-latency
+fallback measured from that call must cover the earlier hold too. The sequential allowance above
+includes it explicitly. *Amended 2026-10-09 (`ADR-0037`, Q13): the visibility wait begins when
+the call's wait ends, so the old description of both paths starting at the call was incomplete.*
+An exposure-reducing cancellation is an ordinary operation: it holds the machine (`OPS-8`),
+and where a long-running operation already
 holds it — an install — the cancellation is deferred with a short delay (`OPS-8`), not failed
 and not escalated. The wait is therefore bounded by the deployment's longest
 machine-holding operation, which on the dedicated product is a full rescue-and-install
@@ -502,11 +521,13 @@ read-and-branch shape is what makes a machine with an inherited contract safe wh
 
 ### List attachments / Release attachment
 
-**Input** — *list attachments*: `external_id`. *Release attachment*: an attachment's `kind` and
-`external_id`.
+**Input** — *list attachments*: machine `external_id`. *Get attachment*: attachment `kind` and
+`external_id`. *Release attachment*: an attachment's `kind` and `external_id`.
 **Output** — *list*: the attachments the provider still holds for that machine, each
-`{kind, external_id, billable, cleanup: api | manual}`. *Release*: an action result with
-delete's outcome classes.
+`{kind, external_id, billable, cleanup: api | manual}`. *Get attachment*: authoritative
+non-mutating presence or absence for that attachment identity, with `rate_limited` and other
+read failures distinct from absence. *Release*: an action result with delete's outcome classes
+and optional `effective_cancellation_date`.
 **Capability** — `delete_machine`. No capability of their own: a driver that can delete a
 machine can say what it left behind (`ADR-0018`).
 
@@ -521,15 +542,29 @@ with the resource gone and a release that failed ambiguously are two facts, and 
 cannot carry two statuses — the shape `ADR-0017` corrected on the episode. It holds the machine
 under `OPS-8`, MUST be safe to call twice — a provider answering "already deleted" is reporting
 the goal state, which `OPS-11` classifies as success — and its failures classify under `OPS-11`'s
-delete row. A successful release with no future effective date MUST write the row's `released_at`
+delete row. A successful completed release with no effective date MUST write the row's `released_at`
 in its terminal transaction, including the resolution transaction when resolved `applied`
-(`OPS-31`). A release whose result carries a future effective date MUST NOT write `released_at`,
-including when resolved `applied`. An unresolved release
-or one resolved `not_applied` or `abandoned` MUST NOT write `released_at` as an applied release.
-A `manual` row is released only by an operator. For the exit write, see `LDG-38`.
+(`OPS-31`). A successful release, including one resolved `applied`, whose result carries an
+effective date MUST store that date on the attachment row in the same terminal or resolution
+transaction and MUST NOT write `released_at` merely from that result, whether the date is future
+or already passed. A prior direct gone observation and its `released_at` MUST be preserved.
+Neither outcome changes the machine's gone state or schedules its episode. An unresolved release
+or one resolved `not_applied` or `abandoned` MUST NOT write either field as an applied release.
+`OPS-32` says "The sweep MUST also visit attachments of every machine still retained by
+`STO-18`" and owns the complete-pass, direct-read and observation transaction. Its
+`released_at` observation is distinct from an operator's initiation of `manual` provider
+cleanup. `LDG-38` owns the exit write, `LDG-32` commitment release and `STO-18` the
+tombstone gate.
+For each billable attachment kind that can return an effective date after create, a driver MUST
+declare a worst-case effective-date bound before create in `PRV-44`'s descriptor; without it,
+the offer MUST NOT be sold on prepaid terms. The bound funds that attachment's customer rate
+through the date; an actual later date does not automatically resize the commitment and a
+shortfall takes `LDG-31`'s clamp.
 *Amended 2026-10-08 (`ADR-0035`): successful resolution has the same attachment-row effect as
-ordinary success; it does not record the machine gone. Amended 2026-10-08 (`ADR-0037`): both
-paths are qualified by the future-effective-date prohibition.*
+ordinary success; it does not record the machine gone. The 2026-10-08 `ADR-0037` wording
+restricted the date case to the future; that restriction was too narrow when resolution arrived
+after the effective date. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and bound, and
+automatic direct-read absence confirmation.*
 
 ### Power
 
@@ -927,11 +962,17 @@ is `max(declared, max(observed))`. Widening by an observed sample that exceeds t
 thereby automatic; narrowing is a human re-declaring and archiving the samples.
 
 **Within the window, a read showing the pre-mutation state is no evidence and resolution stays
-pending.** `OPS-27`'s resolution MUST NOT take its first read before the window has elapsed. **A
-read showing the post-mutation state is evidence at any time, and MUST NOT be reverted by a later
+pending.** `OPS-27`'s resolution MUST NOT take its first read before the window has elapsed from
+the end of the mutating call's wait: its reply, or the provider-call deadline's expiry when no
+reply arrives. **A read showing the post-mutation state is evidence at any time, and MUST NOT be
+reverted by a later
 contrary read** — reads flap in both directions, and a resolution already reached on absence is not
 undone by a stale read. Beyond the window, a read still showing the pre-mutation state resolves
 the mutation as *not applied*.
+
+*Amended 2026-10-09 (`ADR-0037`, Q13): the visibility clock starts when the mutation call's
+wait ends, including the lost-reply deadline, while `STO-53` retains its dispatch-to-observation
+sample timestamps.*
 
 **Exceeding a declared window is a breach of the declaration, not a resolution.** It MUST be
 surfaced, it widens future sizing through `STO-53`, and it MUST NOT authorize a replay — `OPS-12`
