@@ -1145,7 +1145,6 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       account, rate and optional-cap combinations above.*
       *Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment):
       the create-only channel entry and its headline/subordinate pacing join the combinations.*
-      *Corrected 2026-10-10 (`ADR-0036`): the cap-absent channel combination.*
 
       Clear recoverable faults and resend the exact request and key: admission succeeds, proving refusal
       left no replay receipt. Check singleton/no-rate `not_checked` as well as the empty list
@@ -1482,14 +1481,15 @@ rather than acquiring a default.
       commitment, balance change, machine, operation or receipt, and an account/channel
       identifying monitorable alarm. Re-evaluate after the interval; do not treat the
       descriptor limit as a local counter. A closed auction channel alone does not
-      refuse a standard-channel create or another account's create. An already
-      accepted mutation followed by a provider throttle retains `OPS-11`'s ambiguity
-      classification. Admit and queue create A before the closure, then close A's
+      refuse a standard-channel create or another account's create. For a mutation
+      accepted before a provider throttle, assert the `OPS-11` classification. Admit
+      and queue create A before the closure, then close A's
       account/channel before its worker claims it. At claim, assert A's existing
-      operation settles `failed`; its operation-view `error` is exactly a `WIR-9`
-      inner error object with `kind: rate_limited`, the required per-kind message,
-      `retryable: true`, `details.retry_after_ms` equal to the remaining closure,
-      and no `details.refusals`. The operation view's own `retryable` is true;
+      operation settles `failed`; its operation-view `error` obeys `WIR-9`'s
+      "exactly `kind`/`message`/`retryable`/`details` and nothing else" object shape,
+      with `kind: rate_limited`, `retryable: true`, `details.retry_after_ms` equal
+      to the remaining closure, and no `details.refusals`. Its `message` obeys
+      `API-25`. The operation view's own `retryable` is true;
       no per-order key upload, order request or other provider call occurs. Its commitment is
       released in full with no setup or first-unit debit. A retry after expiry
       opens a new operation; A is not automatically requeued or attempted again.
@@ -3375,7 +3375,6 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       removed after admission, with the same pre-order listing check and refusal;
       a catalogue create takes no resource-offer exclusion. Neither check adds a provider lookup to
       `API-7`'s rich-tail collection. (`PRV-47`, `PRV-10`, `PRV-42`, `API-7`)
-      *Amended 2026-10-10 (`ADR-0036`): the catalogue listing case is explicit.*
 - [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
       tenants and two replicas on one `offer_is_resource` account/channel/offer.
       Both read an open snapshot; at the admitting conditional-write barrier exactly

@@ -1043,7 +1043,7 @@ debited for an order the provider never accepted. A retry after expiry is a new
 operation, not an automatic requeue or another attempt by this operation. This is a
 plain read, not a conditional-write guard: if a closure commits after the read,
 the provider's own `403 RATE_LIMIT_EXCEEDED` may settle the create the same way.
-Already accepted provider mutations retain `OPS-11`'s ambiguity classification.
+See `OPS-11` for classification after a provider has accepted a mutation.
 
 **PRV-46** A driver MUST declare the provider's request limit per credential scope in
 `PRV-44`'s `request_budget`; for Hetzner Cloud the scope is the project. The deployment MUST
@@ -1102,7 +1102,7 @@ the claim until its outcome is known. If the claim fails, the create MUST use
 operation or receipt" resource-offer guard response.
 Catalogue products do not take this claim.
 
-**Amended 2026-10-10 (`ADR-0036`).** For every create, including catalogue products
+For every create, including catalogue products
 and `offer_is_resource` offers, the driver MUST confirm that the named offer is still
 listed before sending the order request; a missing offer MUST NOT be ordered. This
 is a dispatch check, not a provider lookup during `API-7`'s read-only tail collection.

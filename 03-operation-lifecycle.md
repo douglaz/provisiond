@@ -251,12 +251,12 @@ before reaching it. `OPS-45`'s second marker is one column, `false` for both, so
 cannot tell them apart, and the machine may be sitting in rescue either way — which is the fact the
 marker records. The never-attempted exit was a third case until `RSC-18` was withdrawn, 2026-09-15.*
 
-*Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): a `PRV-40` local
-channel-closure refusal at admission, or at worker claim before any provider call,
-is an occurrence decided before provider acceptance, not an admission-only error kind.
-`rate_limited` remains available to drivers and workers. A refused `API-7` purchase tail
-creates no operation to classify as `failed`; the worker-at-claim case settles its
-existing operation `failed` under `PRV-40`.*
+*Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): `PRV-40` says to "refuse subsequent
+creates on that account and channel before any provider call" and, for a queued
+create closed at worker claim, to "settle the existing operation `failed`". These
+are occurrences decided before provider acceptance, not an admission-only error
+kind. `rate_limited` remains available to drivers and workers. See `API-7` for the
+purchase-tail refusal.*
 
 A failure is **ambiguous** when:
 
