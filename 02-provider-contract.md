@@ -187,13 +187,15 @@ API call is a business error, not a missing feature.
 
 **PRV-13a** Deleting a machine does not necessarily delete everything billable that was attached to it. A driver MUST declare associated resources that survive deletion and may continue to bill, and MUST expose cleanup for every such resource the provider's API can delete. **Amended 2026-09-08 (`ADR-0018`):** the kinds are declared in the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`; cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an operator procedure as `manual`.
 
-**Amended 2026-10-09 (provider research V17 and §3).** The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`; the descriptor MUST declare these kinds for the applicable provider:
+**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V17 and §3, retrieved 2026-10-06).** The descriptor MUST declare these potentially surviving kinds for the applicable provider, with their cleanup classification:
 
-| Provider | `surviving_attachments` declaration |
+| Provider | Kinds and `cleanup` declarations |
 |---|---|
-| Hetzner Cloud | Primary IP `api` unless its `auto_delete` reads back true; Floating IP `api`; Volume `api`; Snapshot `api` |
-| Hetzner Robot | Additional IPs and subnets as possible `api` survivors, pending live batch B step 9 |
-| DigitalOcean | Reserved IPs, floating IPs, snapshots, volumes, volume snapshots `api`; backups `manual`, with billing after Droplet destruction `[verify]` |
+| Hetzner Cloud | Primary IP `api`; Floating IP `api`; Volume `api`; Snapshot `api` |
+| Hetzner Robot | Additional IP `api`; subnet `api` |
+| DigitalOcean | Reserved IP `api`; floating IP `api`; snapshot `api`; volume `api`; volume snapshot `api`; backup `manual` |
+
+The declaration names kinds, not an assertion that every instance survives. Hetzner Cloud's read-back `auto_delete: true` is evidence that an individual Primary IP is deleted with its server; the descriptor remains unchanged. Robot additional IPs and subnets are included conservatively as possible survivors pending research batch B, step 9. DigitalOcean backup billing after Droplet destruction remains `[verify]`. The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`.
 
 A DigitalOcean driver MUST NOT set `backups: true` on create, because retained backups have no documented deletion API. A control plane that reports a machine deleted while its storage continues to accrue cost is reporting a falsehood.
 
@@ -577,7 +579,7 @@ freshly generated single-use public key.
 **PRV-15** Begin rescue MUST both activate the rescue environment *and* initiate the
 reboot or reset needed to enter it. The rescue engine waits for SSH; it does not reboot.
 
-**Amended 2026-10-09 (research V4/V10):** On Hetzner Cloud the driver MUST read `rescue_enabled` and disable an existing rescue activation before re-enabling it, then reset within the documented 60-minute auto-disable interval. On Hetzner Robot it MUST read `active` with `GET /boot/{n}/rescue` and disable an active rescue with `DELETE /boot/{n}/rescue` before re-enabling. Repeated-enable behavior remains `[verify]` for both providers.
+**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V4/V10, retrieved 2026-10-06):** On Hetzner Cloud the driver MUST read `rescue_enabled` and disable an existing rescue activation before re-enabling it, then reset within the documented 60-minute auto-disable interval. On Hetzner Robot it MUST read `active` with `GET /boot/{n}/rescue` and disable an active rescue with `DELETE /boot/{n}/rescue` before re-enabling. Repeated-enable behavior remains `[verify]` for both providers.
 
 **PRV-16** Begin rescue MUST populate the session's host keys with complete OpenSSH
 public host keys whenever the provider exposes them. A driver MUST NOT return an empty
@@ -589,12 +591,7 @@ no key-based rescue), because it forces the workflow onto a password that a
 first-connection attacker can capture when host-key pinning is unavailable. It MUST NOT
 accept the ephemeral key and then ignore it. See `DEF-7`.
 
-**PRV-18** Begin rescue MUST clean up after itself on partial failure. If the rescue
-environment is activated but the reboot fails, the driver MUST attempt to deactivate
-rescue and, when `PRV-9` permits deletion, remove any temporary key it registered. If an eligible cleanup itself fails, the
-driver MUST attach the identifiers of the leaked resources to the error's details so an
-operator can find them. Where the engine dies instead, nothing attaches anything, and the
-tagged key resource is `OPS-32`'s to remove (`PRV-9`).
+**PRV-18** **Amended 2026-10-09 (`ADR-0040`, Q16).** Begin rescue MUST clean up after itself on partial failure. If the rescue environment is activated but the reboot fails, the driver MUST attempt to deactivate rescue. Temporary-key deletion follows `PRV-9`; the driver MUST attempt it when eligible. If rescue deactivation fails, the driver MUST attach the identifier of the rescue environment left behind to the error's details. If an eligible key deletion fails, it MUST attach the identifier of the key left behind to those details. A key deliberately retained while deletion is ineligible is not a failed cleanup. Where the engine dies instead, nothing attaches anything, and the tagged key resource is `OPS-32`'s to remove when eligible (`PRV-9`).
 
 ### Refresh rescue session
 
@@ -615,7 +612,7 @@ key set, and MUST NOT replace key material with an empty value.
 **Output** — an action result.
 **Capability** — `rescue_ssh`.
 
-**PRV-21** End rescue MUST deactivate the rescue environment, reset or reboot into the
+**PRV-21** **Amended 2026-10-09 (`ADR-0040`, Q16).** End rescue MUST deactivate the rescue environment, reset or reboot into the
 installed system, and arrange removal of any temporary credential it registered using the session's opaque cleanup token when `PRV-9` permits deletion. A credential this call never reached — the engine died first, or the call was lost — is found by its operation-id tag and removed by `OPS-32`'s sweep when eligible (`PRV-9`).
 
 **PRV-22** Failure of end rescue is *always* ambiguous — the machine may be in rescue, may
@@ -706,7 +703,7 @@ cancellation too, and priced the reserve accordingly.
 
 A create MUST carry the operation's identifier into the provider, using whatever
 caller-controlled field that provider offers, and the driver MUST be able to find resources
-bearing it afterwards. A Cherry Servers driver MUST page through the project server list and filter returned `tags` client-side; no server-side tag filter is documented (research V21). Every provider examined offers **either a free caller-controlled field or
+bearing it afterwards. A Cherry Servers driver MUST page through the project server list and filter returned `tags` client-side; no server-side tag filter is documented (`docs/research/provider-verify-2026-10.md`, V21, retrieved 2026-10-06). Every provider examined offers **either a free caller-controlled field or
 a per-operation artifact that can serve as one** (`PRV-32`, `08-provider-notes.md`) — Hetzner
 Robot is the second case, because its only free field is disqualified by `PRV-30`. A driver that
 can find neither is asserting something unusual about its provider and MUST say so in its notes —
@@ -1135,4 +1132,4 @@ A new driver is expected to:
    provider publish rescue host keys (`PRV-16`)? is deletion an API call or a contract process
    (`PRV-13`)? — is commentary and goes in `08-provider-notes.md`.
 
-**PRV-48** **Added 2026-10-09 (`pv-ucs.9`).** A DigitalOcean driver MUST encode correlator tags in lowercase using only its documented characters and `:` or `_` as a separator, within the 255-character limit (`08-provider-notes.md`, V16). It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag: the endpoint deletes every Droplet carrying that tag. Resolution uses the read-only tagged listing and any eventual deletion targets a verified individual Droplet id (`OPS-27`).
+**PRV-48** **Added 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V16, retrieved 2026-10-06; `pv-ucs.9`).** A DigitalOcean driver MUST encode correlator tags in lowercase using only its documented characters and `:` or `_` as a separator, within the 255-character limit. It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag: the endpoint deletes every Droplet carrying that tag. Resolution uses the read-only tagged listing and any eventual deletion targets a verified individual Droplet id (`OPS-27`).

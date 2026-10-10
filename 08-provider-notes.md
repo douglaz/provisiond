@@ -62,8 +62,7 @@ sale decision and the live-evidence condition.
 **Key material at create time** — HC-spec says SSH key ids or names are injected at creation.
 **[observed — HC-spec, 2026-10-06]** The create Action reaching `success` and the reset that
 boots rescue are consumption-timing candidates; deletion during either interval remains
-**[verify]** (research V2). `PRV-9`'s common eligibility rule governs driver cleanup and the
-sweep. `POST /ssh_keys` requires a caller-set `name` and accepts `labels`; `GET /ssh_keys`
+**[verify]** (research V2). Deletion eligibility: `PRV-9` (`ADR-0040`). `POST /ssh_keys` requires a caller-set `name` and accepts `labels`; `GET /ssh_keys`
 supports `name` and `label_selector` filters. **[observed — HC-spec, 2026-10-06]** The sweep
 may use the selector. A duplicate fingerprint is rejected. Generated rescue/correlator keys
 remain fresh; caller-supplied create keys are distinct and no substitute-key policy is inferred
@@ -120,7 +119,7 @@ namespaced so the create path can route (`DOM-9` note). Orders are transactions 
 **Ordering is not idempotent.** A timed-out order poll MUST NOT be retried blindly
 (`PRV-11`). **[design]**
 
-**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** Whether the transaction retains `authorized_key[]` after key deletion is **[verify]** (batch B, step 6). `ADR-0040` supersedes the proposed Robot sweep exception: `PRV-9` governs cleanup eligibility, regardless of that timing. A newly generated per-order correlator key is distinct from a caller's create key.
+**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** Whether the transaction retains `authorized_key[]` after key deletion is **[verify]** (batch B, step 6). `ADR-0040` supersedes the proposed Robot sweep exception. Deletion eligibility: `PRV-9`. A newly generated per-order correlator key is distinct from a caller's create key.
 
 **Rescue host keys** — published in the rescue activation response and in a
 "last rescue" lookup. **[observed]** This is the only provider in the reference set that
@@ -255,7 +254,7 @@ researched of the three.
 filterable server-side via `ListByTag`. **[observed — `godo`]** Encode the operation UUID as a
 single string with a fixed prefix. Tags permit `^[a-zA-Z0-9_\-\:]+$` up to 255 characters.
 **[observed — DO-spec, 2026-10-06]** Use lowercase and `:` or `_` as a separator; tags are
-case-stable. `PRV-48` prohibits bulk tag deletion.
+case-stable. `PRV-48`: "It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag".
 
 **Deletion** — the delete reply and destroy are distinct; provider billing stops at destroy.
 **[documented 2026-10-06 — `docs/research/provider-verify-2026-10.md`, V17 and §3]**
@@ -328,8 +327,8 @@ to `404`. `GET` on the same id at the same instant → `404`. Under `OPS-11`'s g
 
 **Key handling** — DO-spec documents key embedding at Droplet creation and that deleting an
 account key leaves existing Droplet keys. **[observed — DO-spec, 2026-10-06]** In-flight
-consumption timing remains **[verify]**; `active` is a timing candidate, while `PRV-9` governs
-deletion (`DEF-6`, `ADR-0040`).
+consumption timing remains **[verify]**; `active` is a timing candidate. Deletion eligibility:
+`PRV-9` (`DEF-6`, `ADR-0040`).
 
 **Account termination scope** — **[verify]** whether DigitalOcean links and terminates related
 accounts together (`SEC-44`). `SEC-43`'s spread-tenants-across-accounts control is a belief until
@@ -450,7 +449,7 @@ spending money. `API-15` remains well-founded; it just has a different author th
 Answer these before writing code. Where an answer is a value the engine reads, it goes in the
 descriptor (`PRV-44`) and the reasoning goes here; the rest is recorded here:
 
-1. **What evidence establishes key consumption timing, and can a temporary key carry an operation-id name or tag?** Record unmeasured timing as `[verify]`; `PRV-9` owns the common cleanup rule even when timing is measured. Ask whether duplicate caller fingerprints are rejected, without inventing a generated substitute. Keep a generated rescue/correlator key separate from the caller's create key.
+1. **What evidence establishes key consumption timing, and can a temporary key carry an operation-id name or tag?** Record unmeasured timing as `[verify]`. Deletion eligibility: `PRV-9`. Ask whether duplicate caller fingerprints are rejected, without inventing a generated substitute. Keep a generated rescue/correlator key separate from the caller's create key.
 2. **Does the provider publish rescue SSH host keys, and if so, when — at activation, or
    only after the rescue system boots?** Determines whether pinning works without
    out-of-band material, and how long the refresh loop must wait (`PRV-16`, `RSC-9`).
@@ -469,7 +468,7 @@ descriptor (`PRV-44`) and the reasoning goes here; the rest is recorded here:
    again", and an install dispatched at a machine an earlier operation left in rescue arrives the
    same way. Determines whether that route exists on this provider, or whether the second operation
    instead fails at activation, leaving `PRV-18`'s "clean up after itself on partial failure" to
-   remove whatever the driver registered first (`PRV-15`, `RSC-38`).
+   handle what it can; temporary-key deletion follows `PRV-9` (`PRV-15`, `RSC-38`).
 5. **Is ordering idempotent?** Determines how a timed-out order is reported (`PRV-11`).
 6. **What is the identifier character set?** Determines the validation in `PRV-6`.
 7. **Which caller-controlled field can carry a correlator at create, per ordering channel, and

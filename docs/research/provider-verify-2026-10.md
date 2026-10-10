@@ -134,8 +134,7 @@ creation, so the temporary key resource can be deleted immediately after the cre
 returns while the create Action runs. Nothing says whether deleting the key during that Action is safe,
 and nothing says when rescue keys are read.
 
-**Consequence.** `PRV-9`'s "cleanup immediately after the create call returns" goes beyond the source.
-The create Action reaching `success` and the reset that boots rescue are consumption-timing candidates, still `[verify]`. `PRV-9`/`ADR-0040` governs eligibility and cannot be shortened by these unmeasured timings.
+**Consequence.** The former provider note said "the temporary key resource can be deleted immediately after the create call returns"; that historical shortcut went beyond the source. The create Action reaching `success` and the reset that boots rescue are consumption-timing candidates, still `[verify]`. Deletion eligibility belongs to `PRV-9` (`ADR-0040`); these unmeasured timings do not establish it.
 
 ### V3 — Hetzner Cloud: key resource carries an engine-chosen name or label
 
@@ -455,8 +454,7 @@ driver must never call it with a correlator tag.
 **Verdict.** PARTIAL. Copy at creation is documented. The window between `202` and first boot is not,
 because the guest reads keys at boot.
 
-**Consequence.** Delete the temporary key after the Droplet reaches `active`, or after the create action
-completes. `PRV-9`'s name requirement is met through `name`.
+**Consequence.** Droplet `active` and create-action completion are consumption-timing candidates, still `[verify]`; neither establishes deletion eligibility. Key deletion follows `PRV-9` (`ADR-0040`). The provider-side key can carry the operation id in its `name`.
 
 ### V19 — Cherry Servers: key captured at request or read later
 

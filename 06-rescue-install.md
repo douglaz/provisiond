@@ -165,7 +165,7 @@ claimed here: that requirement forbids persisting a rescue session at all, so un
 case the two were a contradiction a builder had to resolve by guessing. A provider-supplied rescue
 password is **never** persisted — it is the provider's to reset.
 
-**An engine crash persists nothing, and that is not a gap** (*added 2026-09-15, `pv-x8r`'s panel*).
+**An engine crash persists nothing, and that is not a gap** (*added 2026-09-15, `pv-x8r`'s panel; amended 2026-10-09, `ADR-0040`, Q16*).
 Neither branch runs when the process dies mid-session: `OPS-15` moves the operation to
 `needs_reconciliation`, the key dies with the process, and the machine sits in rescue with an
 authorized key nobody holds. The route back is to activate rescue again — `RSC-38`'s inventory pass,
