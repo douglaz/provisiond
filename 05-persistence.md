@@ -98,7 +98,10 @@ exists" — and the supervisor's restart window is the accepted outage, alarmed 
 `api` MAY run as any number of replicas against the shared store. **A deployment MUST NOT run its
 store on an engine that forbids a second `api` replica**, and the primitives the store provides for
 that are `STO-1`'s engine-checked atomic claim, `STO-51`'s per-machine index and startup lock,
-`STO-47`'s conditional write (`STO-27`) and `LDG-35`'s per-tenant serialization.
+`STO-47`'s conditional write (`STO-27`), `STO-27`'s "conditional-write claim on
+`(provider_account, ordering_channel, offer_id)`", and `LDG-35`'s per-tenant serialization.
+*Amended 2026-10-10 (`ADR-0036`): the primitive inventory now includes the shared
+resource-offer exclusion.*
 
 **`LDG-35`'s "MUST state which" is discharged in `ADR-0015`**: per-tenant advisory locks held for
 the transaction, acquired in ascending tenant-identifier order where one transaction spans two
@@ -806,6 +809,24 @@ conditional-write claim on `(provider_account, ordering_channel, offer_id)` for
 commitment and operation are one admitting transaction. An unresolved create retains
 its claim; settling its outcome releases it. The primitive MUST reject a competing
 claim atomically even when both callers read the same older snapshot.
+
+**STO-58** **Added 2026-10-10 (`ADR-0036`).** The store MUST retain the following
+logical ordering state in shared persistence, visible to every `api` replica and the
+engine across process restart. Physical tables, indexes and representation are left to
+the implementation:
+
+- A channel closure is identified by provider account and ordering channel, with the
+  reported closure interval's end retained so admission and worker-at-claim readers
+  (`PRV-40`: "retain a closure for the reported `interval`") can calculate the
+  remaining closure. It remains available throughout the
+  reported interval; a process-local timer alone cannot serve either reader.
+- A resource-offer exclusion is identified by provider account, ordering channel and
+  offer id, with the winning create operation's identity and unresolved status retained
+  for the admission guard (`PRV-42`: "An unresolved create retains the claim until its
+  outcome is known") and the atomic competing-claim primitive (`STO-27`: "The primitive
+  MUST reject a competing claim atomically even when both callers read the same older snapshot").
+  Its lifetime follows the winning create's outcome settlement; an unresolved exclusion
+  has no independently invented expiry.
 
 **STO-28** Decrementing a commitment MUST be a conditional write on its `version` (`LDG-34`), and
 posting a `usage_debit` MUST happen in the same transaction as the decrement (`LDG-31`).

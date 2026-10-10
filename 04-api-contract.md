@@ -287,6 +287,12 @@ request/key evaluates afresh. Admission retains the conditional-write guards in 
 (`OPS-11`), never lists in operation views. Steps 1–5c still stop at their first refusal; see
 those steps for their rationale. Deposit behavior and other tails are unchanged.
 
+**Amended 2026-10-10 (`ADR-0036`).** After an otherwise successful tail collection,
+a create whose resource-offer conditional write affects no row (`PRV-42`) MUST receive an
+ordinary HTTP `409 conflict`/`state` error with `retryable: false`, no
+`details.refusals`, no synthesized pacing or `Retry-After`, and no commitment,
+operation or receipt. This response is specific to the resource-offer guard.
+
 *Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): an unsellable offer is a
 create-only tail refusal after account health. It suppresses cap and balance evaluation,
 while independent solvency and rate refusals remain collectible. A refused tail still

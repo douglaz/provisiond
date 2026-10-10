@@ -40,8 +40,10 @@ refresh be answered from it.
 3. **The provider's request limit is a declared budget with a reserve the system owns.**
    - Each driver declares its provider's request limit in the descriptor (`PRV-44`) beside
      `order_budget`, per credential scope (Hetzner Cloud: the project).
-   - The deployment spends it before any provider call, as `PRV-40` already spends the order
-     budget, and may lower it but never raise it.
+   - The deployment spends it before any provider call and may lower it but never raise it.
+     *Corrected 2026-10-10 (`ADR-0036`): the earlier comparison to `PRV-40`'s order budget
+     was stale; `PRV-40` says its declaration "MUST NOT be used as a locally counted
+     substitute for Robot's accounting". This request-budget policy remains separate.*
    - A stated share of it is reserved (`OVR-19`) for the system's exposure-reducing and evidence
      paths: funding cancellations and other system-detected episodes (`OPS-39`, which is "never
      blocked by a caller's ceiling"), automatic resolution (`OPS-27`), and the account sweep

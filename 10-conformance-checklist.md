@@ -1090,8 +1090,10 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       the same request/key re-evaluates after the closure clears. The stored closure
       adds no `not_checked` reason and does not withhold a price. Combine a healthy,
       sellable create with closure, solvency halt, absent rate, optional cap and short
-      balance: require channel before solvency/rate, with cap and balance skipped for
-      the existing `rate_unavailable` reason in both cap-present and cap-absent cases.
+      balance: require channel before solvency/rate; `rate_unavailable` skips both
+      cap and balance when a cap is supplied, and balance alone when no cap is
+      supplied. Retain any
+      other applicable skip reasons in their defined order.
       With an available rate,
       exercise channel + solvency + cap + balance and channel + balance. Vary subordinate
       delays: a longer halt delay under a channel headline never replaces the channel's
@@ -1143,6 +1145,7 @@ external input in this specification that reaches a customer's disk (`LDG-41`, `
       account, rate and optional-cap combinations above.*
       *Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment):
       the create-only channel entry and its headline/subordinate pacing join the combinations.*
+      *Corrected 2026-10-10 (`ADR-0036`): the cap-absent channel combination.*
 
       Clear recoverable faults and resend the exact request and key: admission succeeds, proving refusal
       left no replay receipt. Check singleton/no-rate `not_checked` as well as the empty list
@@ -1481,8 +1484,23 @@ rather than acquiring a default.
       descriptor limit as a local counter. A closed auction channel alone does not
       refuse a standard-channel create or another account's create. An already
       accepted mutation followed by a provider throttle retains `OPS-11`'s ambiguity
-      classification. (`PRV-40`, `API-7`, `OPS-11`, `WIR-9a`)
-      *Amended 2026-10-09 (`ADR-0036`): provider-reported closure replaces local daily counting.*
+      classification. Admit and queue create A before the closure, then close A's
+      account/channel before its worker claims it. At claim, assert A's existing
+      operation settles `failed`; its operation-view `error` is exactly a `WIR-9`
+      inner error object with `kind: rate_limited`, the required per-kind message,
+      `retryable: true`, `details.retry_after_ms` equal to the remaining closure,
+      and no `details.refusals`. The operation view's own `retryable` is true;
+      no per-order key upload, order request or other provider call occurs. Its commitment is
+      released in full with no setup or first-unit debit. A retry after expiry
+      opens a new operation; A is not automatically requeued or attempted again.
+      Repeat after engine restart and across API replicas to prove the closure is
+      shared and retained through its reported interval. Then commit a closure
+      just after A's plain claim-time read: no conditional-write channel recheck
+      blocks dispatch, and Robot's own `403 RATE_LIMIT_EXCEEDED` settles the
+      unaccepted order the same way. (`PRV-40`, `STO-58`, `API-7`, `OPS-5`,
+      `OPS-11`, `LDG-39`, `WIR-9a`)
+      *Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): provider-reported closure
+      replaces local daily counting and reaches queued creates at worker claim.*
 - [ ] **CNF-284** — **An authentication failure is attempted once.** Give a driver a bad credential
       and assert it makes exactly one attempt and escalates, with no scheduled re-attempt. Asserted
       by counting requests, not by reading the code. On a provider that locks out on repeated
@@ -3353,17 +3371,25 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       including provider options; separately omit the required purchase acknowledgement.
       Assert the driver rejects each before the order request. For a valid request, remove the named auction offer
       from the listing after admission but before dispatch; assert the driver confirms
-      listing and sends no order request. Neither check adds a provider lookup to
+      listing and sends no order request. Repeat for an ordinary catalogue offer
+      removed after admission, with the same pre-order listing check and refusal;
+      a catalogue create takes no resource-offer exclusion. Neither check adds a provider lookup to
       `API-7`'s rich-tail collection. (`PRV-47`, `PRV-10`, `PRV-42`, `API-7`)
+      *Amended 2026-10-10 (`ADR-0036`): the catalogue listing case is explicit.*
 - [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
       tenants and two replicas on one `offer_is_resource` account/channel/offer.
       Both read an open snapshot; at the admitting conditional-write barrier exactly
-      one wins, and the loser receives `conflict`/`state` with no commitment, balance
-      change, operation or receipt. Keep the winner unresolved and assert further
-      creates lose; settle it and assert the claim releases. A catalogue product
-      admits independent creates. Race account termination separately to retain
-      `API-63`'s guard, and race extension with cancellation to retain `LDG-62`'s.
-      (`PRV-42`, `STO-27`, `API-63`, `LDG-62`, `API-7`)
+      one wins, and the loser receives an ordinary HTTP `409 conflict`/`state`
+      error with `retryable: false`, no `details.refusals`, no synthesized pacing
+      or `Retry-After`, and no commitment, balance change, operation or receipt.
+      Keep the winner unresolved across engine restart and assert further
+      creates lose on every replica; settle it and assert the exclusion releases.
+      A catalogue product admits independent creates. Race account termination
+      separately to retain `API-63`'s guard, and race extension with cancellation
+      to retain `LDG-62`'s.
+      (`PRV-42`, `STO-27`, `STO-58`, `API-63`, `LDG-62`, `API-7`)
+      *Amended 2026-10-10 (`ADR-0036`): the guard loser and retained exclusion
+      have exact response and persistence cases.*
 - [ ] **CNF-344** — **Each channel declares its own order budget.** Enumerate the
       descriptor's ordering channels and assert each has a positive `limit` and finite,
       positive `per`; no top-level `order_budget` substitutes for a missing channel
@@ -3372,10 +3398,16 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       Another channel's mere declaration authorizes no new ordering capability.
       (`PRV-44`, `PRV-40`, `DOM-10`)
 - [ ] **CNF-345** — **Activation minimum is registered and validated.** Omit, zero,
-      make noninteger or configure below the price needed to purchase something:
-      startup refuses each. Two credited payments below the valid minimum that
+      set negative or make the satoshi minimum noninteger: startup refuses each.
+      With a valid positive integer, startup and restart succeed during a rate
+      outage, without fetching an offer or rate to validate the minimum. Two
+      credited payments below the valid minimum that
       cumulatively meet it activate once; neither is required to meet a per-payment
-      floor. (`OVR-19`, `API-35`, `LDG-44`, `LDG-52`)
+      floor. `API-35`'s "The minimum MUST be large enough to purchase something"
+      remains the operator's obligation; startup does not value it.
+      (`OVR-19`, `API-35`, `LDG-44`, `LDG-52`)
+      *Amended 2026-10-10 (`ADR-0036`): structural startup validation and the
+      rate-outage restart replace the purchase-price startup check.*
 
 - [ ] **CNF-346** — **DigitalOcean correlator tags never drive bulk deletion** (`docs/research/provider-verify-2026-10.md`, V16, 2026-10-06). Exercise create, ambiguous resolution and cleanup with a lowercase correlator tag satisfying the DO-spec charset and length, using `:` or `_` as a separator; assert no call to `DELETE /v2/droplets?tag_name=` occurs and any delete names a verified individual Droplet id. (`PRV-48`, `OPS-27`)
 - [ ] **CNF-347** — **Survivor kinds and individual evidence stay distinct** (`docs/research/provider-verify-2026-10.md`, V17 and §3, 2026-10-06). For each applicable provider, inspect the immutable descriptor and assert the `PRV-13a` table's kinds and `api`/`manual` classifications: Cloud Primary IP is `api` regardless of any instance's `auto_delete`, Robot additional IP and subnet are `api` possible survivors, and DigitalOcean backup is `manual`. Separately, exercise attachment listing after deletion: a Cloud Primary IP read back with `auto_delete: true` and then absent after deletion is not reported as surviving; one that remains with `auto_delete: false` is reported with its identity and `cleanup: api`. Exercise a Robot case with an additional IP or subnet that survives and one with none; do not infer survival for every instance from the descriptor. Assert release follows each listed billable `api` attachment. Inspect DigitalOcean create requests and assert `backups: true` is never sent; leave backup billing `[verify]` and Robot survival pending live batch B step 9. (`PRV-13a`, `PRV-44`, `PRV-45`)

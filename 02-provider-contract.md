@@ -1031,6 +1031,20 @@ close another. This local isolation is a choice for admission, not a claim about
 undocumented upstream counter scope. A provider throttle encountered after an accepted
 mutation remains subject to `OPS-11`'s acceptance rule.
 
+**Amended 2026-10-10 (`ADR-0036`).** For a create already admitted and queued, the
+worker MUST read the stored closure for that account and ordering channel when it claims
+the operation (`OPS-5`), before any provider request, including a per-order key upload.
+If the channel is closed at that read, the worker MUST make no provider request and
+settle the existing operation `failed` with `rate_limited`,
+`details.retry_after_ms` equal to the remaining closure, and operation-view
+`retryable: true`. Its commitment MUST be released in full under `LDG-39`'s
+"Deterministic rejection before acceptance" case; no setup or first-unit charge is
+debited for an order the provider never accepted. A retry after expiry is a new
+operation, not an automatic requeue or another attempt by this operation. This is a
+plain read, not a conditional-write guard: if a closure commits after the read,
+the provider's own `403 RATE_LIMIT_EXCEEDED` may settle the create the same way.
+Already accepted provider mutations retain `OPS-11`'s ambiguity classification.
+
 **PRV-46** A driver MUST declare the provider's request limit per credential scope in
 `PRV-44`'s `request_budget`; for Hetzner Cloud the scope is the project. The deployment MUST
 share that budget across every tenant and configured provider account using that scope, and
@@ -1082,11 +1096,16 @@ conflates them will back off from a condition no backoff repairs.*
 `offer_is_resource` offer, across tenants. The create's admitting transaction MUST acquire
 a conditional-write claim on the account, channel and offer before opening a commitment
 or operation; a snapshot read alone does not enforce this. An unresolved create retains
-the claim until its outcome is known. If the claim fails, the create MUST refuse with
-`conflict`/`state`, without a commitment, operation or receipt. Catalogue products do
-not take this claim. The driver MUST confirm the named offer is still listed before
-sending the order request; a missing offer MUST NOT be ordered. This is a dispatch
-check, not a provider lookup during `API-7`'s read-only tail collection.
+the claim until its outcome is known. If the claim fails, the create MUST use
+`API-7`'s "ordinary HTTP `409 conflict`/`state` error with `retryable: false`, no
+`details.refusals`, no synthesized pacing or `Retry-After`, and no commitment,
+operation or receipt" resource-offer guard response.
+Catalogue products do not take this claim.
+
+**Amended 2026-10-10 (`ADR-0036`).** For every create, including catalogue products
+and `offer_is_resource` offers, the driver MUST confirm that the named offer is still
+listed before sending the order request; a missing offer MUST NOT be ordered. This
+is a dispatch check, not a provider lookup during `API-7`'s read-only tail collection.
 
 *Trap retained 2026-10-09 (`ADR-0040`): the withdrawn identity-resolution rule preferred an offer-number read and treated its absence past the visibility window as resolved-absent. That could release a commitment while a matched order was still in progress. The fingerprint search supplies order attribution and the delivered number.*
 
