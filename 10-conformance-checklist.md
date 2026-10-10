@@ -3257,12 +3257,17 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       observation, closes the exit and commitment through their owners, and permits tombstoning.
       An interrupted account pass or per-machine attachment listing writes no absence; a
       complete listing omission contradicted by a
-      direct read finding the attachment also writes nothing. Interpret Robot's day-only
-      `cancellation_date=2026-10-31` as `2026-10-31T23:59:59Z`, and a `now` release at
-      `2026-10-31T12:00:00Z` as that instant, not midnight. Keep an explicit timestamp's
-      instant unchanged. Resolve a scheduled release `applied` with its required wire date;
-      reject a date-less scheduled resolution, and contrast a completed release with no effective
-      date through `CNF-326` and `CNF-293`. Confirm a surviving Robot `primary_ipv4` add-on
+      direct read finding the attachment also writes nothing. Request a Robot `now` release at
+      `2026-10-31T12:00:00Z` and have the provider return day-only
+      `cancellation_date=2026-10-31`; assert the stored effective boundary is
+      `2026-10-31T23:59:59Z`, with `released_at` still null until release evidence when there
+      was no earlier gone observation, rather than noon or the start of that day. Separately
+      return an explicit provider timestamp and keep
+      its stated instant. Resolve a scheduled release `applied` with its required wire date;
+      assert that the resolution stores the date without deriving `released_at`. `WIR-35` says
+      "Without the date, `applied` asserts a completed release"; submit that assertion and
+      exercise the completed-release effects using `CNF-326` and `CNF-293`. Confirm a surviving
+      Robot `primary_ipv4` add-on
       remains sellable without an attachment bound or customer attachment charge; hold its
       commitment until `cleanup: api` release evidence and account for its provider cost under
       `LDG-75`. *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18).*

@@ -105,7 +105,6 @@ Amended 2026-10-09 (`ADR-0039`): the per-offer traffic bound is added. An allowa
 declaration alone does not make an offer sellable; the live-evidence condition is below.*
 *Amended 2026-10-09 (`ADR-0036`): `order_budget` is declared within each
 `ordering_channels[]` entry, not once at descriptor top level.*
-*Amended 2026-10-10 (`ADR-0037`, Q18): no attachment effective-date bound in v1.*
 
 ### List offers
 
@@ -557,8 +556,7 @@ tombstone gate.
 ordinary success; it does not record the machine gone. The 2026-10-08 `ADR-0037` wording
 restricted the date case to the future; that restriction was too narrow when resolution arrived
 after the effective date. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and
-automatic direct-read absence confirmation. Amended 2026-10-10 (`ADR-0037`, Q18): day-only dates
-and removal of the v1 attachment bound.*
+automatic direct-read absence confirmation. Amended 2026-10-10 (`ADR-0037`, Q18): day-only dates.*
 
 ### Power
 
