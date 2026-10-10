@@ -271,9 +271,10 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `first_unit_debit_id` | UUID | nullable reference to the retained `ledger_entries` row for this machine's `first_unit_debit`; settlement writer and eligibility fact owned by `LDG-39`, seed reader by `LDG-38`. *Added 2026-10-08, `ADR-0033`* |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`), by `OPS-41`'s no-mutation abort, and by a stalled-episode keep (`API-68`)** — `API-68`: "write the `LDG-33` re-derived `runway_until` using the transaction's rate and clock" (*list repaired 2026-10-08, `ADR-0033`*) — extension and abort added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
 | *`destroy_not_before`* | — | **Withdrawn 2026-09-25 (`ADR-0028`).** *It was `ADR-0026`'s destruction deadline, a wall-clock instant the exhaustion sweep's predicate and the cancelling worker's provider call read (`LDG-16`); it delayed a destruction, where `destroy_committed` below, `OPS-42`'s fence, orders two writers against each other. Written only by `STO-54`'s restore, as the restore instant plus one re-derivation interval; cleared by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort; discharged by no observation, because a restore moved the date backward by something other than consumption. The restore grace's unpaused end is one instant on the restore record, `STO-56`'s `grace_ends_at`, used at each claim under `OPS-41`, and no machine carries a deadline. With `rate_confirmation_ref`, withdrawn 2026-09-23 (`ADR-0027`), it replaced `exhausted_since` (2026-09-05 to 2026-09-21), which carried the confirmation wait and the restore grace on one clock and whose horizon half could never fire — `ADR-0026`. A conformance item, `CNF-99`, tested the behaviour for three weeks with no mechanism behind it, and then passed over the dead branch for sixteen days more* |
-| `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
-| `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
-| `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
+| `provider_restricted` | boolean | nullable before a provider reading; whether any mapped network-restriction flag was positive at the last driver reading (`PRV-35`) |
+| `provider_observed_at` | timestamp | nullable before a provider reading; when provisiond read the mapped flags, not when the provider acted |
+| `operator_recorded_at` | timestamp | nullable; the recording transaction's instant for an active operator notice; cleared on withdrawal (`WIR-47`) |
+| `operator_ref` | text | nullable; opaque reference to the active operator notice, cleared with `operator_recorded_at` (`WIR-47`) |
 | `last_install_strategy` | enum | nullable; `DOM-29`. Which strategy last installed this machine — not what is *permitted*, which is `install_strategies` |
 | `last_install_verified` | boolean | nullable; whether provisiond verified the bytes that reached the disk. False on a catalogue install (`DOM-28`), where the provider converts them and exposes no checksum |
 | `last_install_at` | timestamp | nullable; when. **All three survive `STO-14`'s deletion of the operation that knows** — a long-lived machine otherwise outlives the record of how it came to be |
@@ -281,14 +282,18 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `state_observed_at` | timestamp | nullable; **when `state` was last established by an authoritative read of the provider** — a refresh (`DOM-8`), a driver read during an operation, `OPS-32`'s sweep concluding an absence **on that requirement's own terms**, which are stricter than a listing — presence is authoritative from the first pass, absence only under the conditions `OPS-32` sets out — or `API-63` confirming the whole provider account terminated. As opposed to `updated_at`, which moves for any write at all. `LDG-74` reads it: the meter stops at this instant, never at the unknown instant the provider acted, because provisiond polls rather than watches (`STO-41`'s distinction). Null where nobody has read the provider since the row was created |
 | `created_at`, `updated_at` | timestamp | |
 
+*Machine columns amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b). The public object is
+derived by `WIR-47`.*
+
 **STO-48** **`state_observed_at` is a money column, and `updated_at` cannot stand in for it.**
 `LDG-74` stops billing a machine the provider has destroyed at the instant the observation was made,
 and both it and `OPS-32` MUST write that instant here. Two requirements mandated the write and no
 column existed to receive it — which is `STO-38`'s named failure class, on the fifth requirement to
 hit it. It is separate from `updated_at` because that column moves when the fence is set, a
 restriction is recorded or a runway is re-derived, none of which is evidence about the provider; and
-separate from `network_restriction_observed_at`, which answers a different question about a machine
-that still exists. For exit writes and their serialization, see `LDG-38` and `OPS-32`.
+separate from `provider_observed_at`, which dates the provider's network flag reading on a machine
+that still exists. `WIR-47` owns the public network-restriction rendering. For exit writes and
+their serialization, see `LDG-38` and `OPS-32`.
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; **unique `(provider_account,
 external_id)` across all tenants (`STO-17`), which is also the index `OPS-32`'s account sweep reads
@@ -1102,10 +1107,12 @@ was). It is keyed on the account rather than on the tenant because the fact is a
 account: `SEC-43` deliberately spreads tenants across accounts, so one row answers for all of them
 and a per-tenant copy would be the two-homes drift `DOM-27` was reorganised to avoid.
 
-**`status` defaults to `healthy` and `source` records which established it**, on
-`machines.network_restriction`'s reasoning: a driver observation is authoritative over an operator
-record, and an operator MUST NOT be able to shadow a fact the driver can read. **`configuration`
-ranks below both**: a configuration load MUST insert a `healthy` row only where none exists and
+**`status` defaults to `healthy` and `source` records which established it.** The account states
+are mutually exclusive: a confirmed termination cannot coexist with a healthy account, and an
+operator MUST NOT shadow an account status the driver itself reports: `API-63` says "Recording a
+status the driver itself reports MUST be refused". A `driver_observation` is authoritative over
+an `operator_record`. **`configuration` ranks below both `driver_observation` and
+`operator_record`**: a configuration load MUST insert a `healthy` row only where none exists and
 MUST NOT update one that does — *stated 2026-09-05, when the row was required to exist and nothing
 named its writer, so a reload that re-inserted `healthy` would have overwritten a write-once
 `terminated`.* **`terminated` is
@@ -1114,15 +1121,17 @@ that can be entered and left silently re-opens or re-releases every affected ten
 
 **`driver_observation` is reserved and today unreachable, and saying so is the point.** No
 requirement in `02-provider-contract.md` obliges a driver to report account-level status, and no
-launch driver does — unlike `PRV-35`, where the providers demonstrably expose a per-machine
-restriction signal and the precedence rule therefore bites. So on a launch deployment every row
+launch driver does. So on a launch deployment every row
 carries `configuration` until an operator records something and `operator_record` after — never
 `driver_observation` — and `API-63`'s refusal of an operator value that would shadow a driver
 value is a rule with nothing to fire on. **It is written now rather than later** because the
 alternative — adding it when a driver first reports one — is the amendment that gets forgotten while
-an operator value silently overrides a readable fact, which is exactly the drift `PRV-35` was
-reorganised to prevent. `CNF-278` MUST assert that refusal against a **stubbed** driver observation,
+an operator value silently overrides a readable account status. `CNF-278` MUST assert that refusal
+against a **stubbed** driver observation,
 not against a live one, and MUST say which it used.
+
+*Account-status reasoning amended 2026-10-10 (`ADR-0038`); its precedence and write-once rules
+remain on their own mutually exclusive states.*
 
 **STO-33** **A terminal operation MUST remain readable at least as long as its idempotency record
 can refuse a reused key, and the two horizons MUST be stated to callers as one number.** `STO-14`
@@ -1166,8 +1175,8 @@ answers to one physical question.
 
 **STO-44** **`warned_consequence` is immutable and `respond_by` moves only by appending.** The
 warning says what the notice threatened *at open* — a fact about the past, permanently true — and
-the machine's own `network_restriction_status` says what is true now, so the two describe different
-questions and cannot contradict each other. Nothing else legitimately changes: a provider that
+the machine's dated network-restriction evidence renders through `WIR-47`, so the two describe
+different questions. Nothing else legitimately changes: a provider that
 escalates its threat has sent a **new notice**, which is a new case (`DOM-23`), not an edit.
 
 A deadline extension MUST append `{previous, current, revised_at}` to `respond_by_revisions` in the
@@ -1177,6 +1186,9 @@ cannot answer whether the tenant was ever given the time it was told it had. *Th
 here: an operator's typo in `warned_consequence` is permanent. Correcting prose the tenant may
 already have acted on is the larger hazard, and the case-per-notice rule leaves nothing else that
 needs to move.*
+
+*Amended 2026-10-10 (`ADR-0038`): the machine keeps separate dated evidence rather than a stored
+network-restriction status.*
 
 **The provider's deadline is deliberately absent.** `respond_by` is set earlier than it by however
 long the operator needs to analyse and compose, and a second date that a tenant must never see is

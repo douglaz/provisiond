@@ -319,7 +319,7 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
   "provider_account": "hetzner-robot-1",
   "committed_sats": 71900,
   "runway_until": "2026-09-11T14:00:00Z",
-  "network_restriction": {"status": "none", "source": "provider_api", "observed_at": "2026-08-12T15:03:00Z"},
+  "network_restriction": {"status": "unknown", "source": null, "observed_at": null},
   "install_strategies": ["rootfs_via_rescue", "raw_disk"],
   "last_install": {"strategy": "raw_disk", "bytes_verified_by_provisiond": true, "at": "2026-08-12T14:40:00Z"},
   "rate_outage_deadline": null,
@@ -328,6 +328,8 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
   "created_at": "2026-08-12T14:03:00Z", "updated_at": "2026-08-12T15:03:00Z"
 }
 ```
+
+*Network-restriction fixture amended 2026-10-10 (`ADR-0038`, Q15).*
 
 The machine view MUST include `state_observed_at`, the stored nullable timestamp (`STO-48`,
 `05-persistence.md`): "when `state` was last established by an authoritative read of the provider".
@@ -1100,12 +1102,15 @@ detail read:
   "warned_consequence": "If this is not resolved, the provider may block this machine's network access.",
   "respond_by": "2026-08-13T12:00:00Z",
   "opened_at": "2026-08-12T23:10:00Z",
+  "network_restriction": {"status": "unknown", "source": null, "observed_at": null},
   "statements": [
     {"id": "0198c1d0-9f8e-7d6c-8b5a-4938271605f4", "seq": 1, "submitted_at": "2026-08-13T02:15:00Z", "body": "A container image we deployed was compromised. We stopped it at 02:05 UTC and rotated the host keys."}
   ],
   "outcome": null
 }
 ```
+
+*Case projection fixture amended 2026-10-10 (`ADR-0038`, Q15).*
 
 A submission is `{"body": "..."}` and nothing else, and returns **`201`** with the created statement
 (`id`, `seq`, `submitted_at`) so the caller can tell a retry from a second reply. **The body MUST be
@@ -1208,11 +1213,29 @@ and only one of them means the machine was not ours.
 minting no operation (`API-61`), each carrying `Idempotency-Key` under `WIR-24`'s
 one-transaction rule.
 
-Recording a restriction takes `{"status": "disabled", "observed_at": "2026-08-13T02:40:00Z"}` and
-returns `200` with the machine view. It sets `source` to `operator_notice` and **MUST be refused
-with `409` `conflict`, `details.reason: "state"`, where the driver reports this provider**
-(`PRV-35`) — the provider is authoritative there, and an operator value that shadows a readable
-fact is the two-homes drift this design was reorganised to avoid.
+Recording takes `{"status": "restricted", "operator_ref": "opref-7d41d0"}` and returns `200` with
+the machine view. The `operator_ref` field is required for a record and follows `WIR-42`'s
+"`operator_ref` MUST be an opaque reference to a record kept outside this system". The recording
+transaction MUST stamp `machines.operator_recorded_at` with its own instant and store the
+reference, preserving both provider columns; a fresh record under a new key MUST replace the
+operator time and reference. The request has no `observed_at`. Recording MUST be accepted even
+when the driver reports a positive restriction, subject to ordinary authorization, validation
+and idempotency rules.
+
+Withdrawal takes `{"status": "unknown"}` on the same route and returns `200` with the machine
+view. The operator withdraws after the provider grants the unlock. Withdrawal MUST be accepted
+even while the stored provider observation is positive, subject to ordinary authorization,
+validation and idempotency rules; it requires no fresh provider read. It MUST clear only
+`operator_recorded_at` and `operator_ref`, leaving both provider columns untouched. A same-key
+replay of either body MUST return the original exact response and time without writing again; a
+different fingerprint under that key is a `409 conflict`
+(`details.reason: "idempotency_mismatch"`). The operator column change and an idempotency record
+(fingerprint, status, exact response body) MUST commit in one transaction, following `WIR-24`'s
+"the commitment change and an idempotency record (fingerprint, status, the exact response body)
+MUST commit in one transaction". An operator record left after an unlock continues to warn until withdrawn; that
+stale warning can lead a customer to delete a working machine (`DOM-26`). Its rendered time shows
+its age and `operator_ref` identifies the notice to follow up. Neither case closure nor a
+gone-write withdraws it.
 
 Revising a deadline takes `{"respond_by": "2026-08-20T12:00:00Z"}` and returns `200` with the case,
 appending the previous value (`STO-44`). It is refused with `409` `conflict`,
@@ -1220,10 +1243,17 @@ appending the previous value (`STO-44`). It is refused with `409` `conflict`,
 `warned_consequence`**, and its absence is the design (`STO-44`).
 
 The machine view's `network_restriction` object is `{"status", "source", "observed_at"}`
-(`DOM-27`), and it renders `"status": "unknown"` with a null `observed_at` where nobody has looked.
+(`DOM-27`). If `provider_restricted` is true, it MUST render `restricted`, `provider_api`, and
+`provider_observed_at`, even if an operator record exists. Otherwise, if `operator_recorded_at` is
+set, it MUST render `restricted`, `operator_notice`, and that recording time. Otherwise it MUST
+render exactly `{"status":"unknown","source":null,"observed_at":null}`, regardless of earlier
+clear readings or withdrawals. Selection uses positive evidence, never timestamp order; changing
+the selected source may move the rendered time backward.
 **A client MUST NOT read `unknown` as `none`.** The same object is joined into the case projection
 at render time from the machine — never copied into `abuse_cases`, which is what keeps two open
 cases from carrying two answers.
+
+*Amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b).*
 
 **WIR-48** `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` — **operator-only**
 (`WIR-34`), **synchronous** `200`, minting no operation (`API-62`), carrying `Idempotency-Key` under

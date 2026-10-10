@@ -2533,11 +2533,13 @@ rather than acquiring a default.
       unrecognised value is `invalid_request` rather than ignored. The last clause is the one that
       matters: `WIR-2` ignores unknown query parameters, so a silently-ignored `state` answers the
       wrong question with a `200`. (`WIR-43`, `DOM-24`, `WIR-2`)
-- [ ] **CNF-250** — **`network_restriction.source` is null exactly when nobody has looked**, and
-      `system_reason` parses against a closed enum. A freshly created machine renders
-      `{"status": "unknown", "source": null, "observed_at": null}`; a strict client parsing
+- [ ] **CNF-250** — **`network_restriction.source` and `observed_at` are null exactly when
+      `status` is `unknown`**, and `system_reason` parses against a closed enum. A freshly created
+      machine, a clear provider reading without an operator record, and an operator-only record
+      after withdrawal each render `{"status": "unknown", "source": null, "observed_at": null}`;
+      a strict client parsing
       `system_reason` against `WIR-10a`'s set accepts every value the system emits. (`PRV-35`,
-      `WIR-10a`, `WIR-47`)
+      `WIR-10a`, `WIR-47`). *Amended 2026-10-10 (`ADR-0038`, Q15).*
 - [ ] **CNF-237** — **A delete is not resolved as failed while the provider is still catching up.**
       With a provider whose resource read lags its write, an ambiguous delete resolves correctly:
       resolution takes no read before the effective visibility window elapses, a pre-mutation reading
@@ -2851,15 +2853,38 @@ rather than acquiring a default.
       an instant older than the deployment can answer for — distinguishable from "it was nobody's".
       (`WIR-46`, `STO-43`)
 - [ ] **CNF-228** — **REWRITTEN 2026-08-16 — it tested English.** A restricted machine keeps billing
-      and says so *structurally*: `network_restriction.status` reads `disabled` on the machine view
-      and in every case rendering, `usage_debit` postings continue, the commitment decays,
-      `runway_until` keeps moving, and `delete` on that machine is accepted. **No assertion about
+      and says so *structurally*: positive evidence from either source makes
+      `network_restriction.status` read `restricted` on the machine view and in every case rendering,
+      including two open cases for the same machine; `usage_debit` postings continue, the commitment decays,
+      `runway_until` keeps moving, and `delete` on that machine is accepted. For a whole-server
+      lock with no provider signal or operator record, assert unknown/null/null on those views
+      while billing, runway and delete retain the same behavior. **No assertion about
       prose.** *Withdrawn clause:* "the case's `consequence` states the drain" — no conformance run
-      can execute a judgement about whether a sentence says a thing. (`LDG-71`, `DOM-27`, `DOM-26`)
-- [ ] **CNF-233** — `unknown` is never rendered as `none`. A machine whose driver reports no
-      restriction signal reads `"status": "unknown"` with a null `observed_at`, and an operator
-      recording is refused where the driver *does* report (`409` `state`). A field that is silently
-      `none` when nobody looked is worse than no field. (`PRV-35`, `WIR-47`)
+      can execute a judgement about whether a sentence says a thing. (`LDG-71`, `DOM-27`, `DOM-26`,
+      `WIR-47`) *Amended 2026-10-10 (`ADR-0038`).*
+- [ ] **CNF-233** — `unknown` is never rendered as `none`. Exercise the following traces with
+      machine and case reads after every step: operator record → provider flag set → flag clear
+      preserves the operator warning and its original time; provider flag set → operator records
+      successfully → flag clear → operator withdraws renders provider provenance, then operator
+      provenance, then unknown/null/null. Operator record → flag set → operator withdraws leaves
+      provider provenance immediately, without a refresh. A whole-machine lock with no provider
+      signal and no operator record remains unknown/null/null after a clear read; with an operator
+      record it continues to warn. A provider-positive observation wins provenance regardless of
+      which observation is newer, and clearing either half preserves the other. Assert the
+      provider and operator columns after each write, including after case closure and a gone-write;
+      neither implicitly withdraws the record. On Cloud, read `public_net.ipv4.blocked: true`
+      with `public_net.ipv6: null`: assert stored `provider_restricted: true` at the read time and
+      rendered `restricted/provider_api` at that time, preserving an existing operator record. Then read
+      `public_net.ipv4.blocked: false` with `public_net.ipv6: null`: assert stored `false` at the
+      new read time, unchanged operator columns, and `restricted/operator_notice` at the operator's original
+      recording time; without an operator record, assert unknown/null/null. On Robot, read several
+      mapped addresses with one `locked: true`: assert stored `true` at the read time and rendered
+      `restricted/provider_api` at that time, preserving an existing operator record. On
+      DigitalOcean, read `locked: true` as an action lock: assert it produces no mapped provider
+      restriction observation, leaving both provider columns null before any mapped reading;
+      render `restricted/operator_notice` with an existing operator record and unknown/null/null
+      without one. (`PRV-35`, `WIR-47`, `STO-39`)
+      *Amended 2026-10-10 (`ADR-0038`, Q15).*
 - [ ] **CNF-234** — `warned_consequence` has no write path after open, and a deadline revision
       appends: after two extensions the case carries both prior dates with their revision times,
       and `respond_by` reads the latest. (`STO-44`, `WIR-47`)
@@ -3412,3 +3437,19 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 - [ ] **CNF-347** — **Survivor kinds and individual evidence stay distinct** (`docs/research/provider-verify-2026-10.md`, V17 and §3, 2026-10-06). For each applicable provider, inspect the immutable descriptor and assert the `PRV-13a` table's kinds and `api`/`manual` classifications: Cloud Primary IP is `api` regardless of any instance's `auto_delete`, Robot additional IP and subnet are `api` possible survivors, and DigitalOcean backup is `manual`. Separately, exercise attachment listing after deletion: a Cloud Primary IP read back with `auto_delete: true` and then absent after deletion is not reported as surviving; one that remains with `auto_delete: false` is reported with its identity and `cleanup: api`. Exercise a Robot case with an additional IP or subnet that survives and one with none; do not infer survival for every instance from the descriptor. Assert release follows each listed billable `api` attachment. Inspect DigitalOcean create requests and assert `backups: true` is never sent; leave backup billing `[verify]` and Robot survival pending live batch B step 9. (`PRV-13a`, `PRV-44`, `PRV-45`)
 - [ ] **CNF-348** — **Existing rescue activation is disabled before re-enabling** (`docs/research/provider-verify-2026-10.md`, V4/V10, 2026-10-06). On Cloud read `rescue_enabled`, disable when true, then enable and reset inside its 60-minute interval. On Robot read `active`, use `DELETE /boot/{n}/rescue` when true, then re-enable and reset. Do not assume repeated-enable behavior. (`PRV-15`)
 - [ ] **CNF-349** — **Cherry correlator lookup scans the project list** (`docs/research/provider-verify-2026-10.md`, V21, 2026-10-06). Exercise more than one page with the matching tag on a later page; assert the driver filters client-side and returns the exact operation match, without assuming a server-side tag query. (`PRV-26`, `OPS-27`)
+- [ ] **CNF-350** — **Operator recording and withdrawal keep the server's time and replay receipt.**
+      With the provider never read, record at t1 using `{"status":"restricted","operator_ref":"ref-1"}`;
+      assert the machine and every case view show `operator_notice` at t1, with no caller-supplied
+      instant. Record again at t3 under a fresh key with
+      `{"status":"restricted","operator_ref":"ref-2"}` and assert the
+      stored operator pair becomes `(t3, ref-2)`. Fresh reads of the machine and every case view
+      render `restricted/operator_notice` at t3. Replay the t1 key:
+      assert the exact original status and response body, including t1, are returned while the
+      stored pair remains `(t3, ref-2)`; fresh reads of the machine and every case view still
+      render `restricted/operator_notice` at t3. Withdraw under a fresh key and assert unknown/null/null with
+      both operator columns cleared; replay the withdrawal and assert its exact original response
+      with no additional write. Reuse either key with a changed fingerprint and assert `409 conflict`
+      (`details.reason: "idempotency_mismatch"`). Check the state change and receipt are committed
+      atomically. An account-wide lock requires a separate record on each affected machine.
+      (`WIR-47`, `WIR-24`,
+      `SEC-41`, `API-61`) *Added 2026-10-10 (`ADR-0038`, Q15 and Q15b).*

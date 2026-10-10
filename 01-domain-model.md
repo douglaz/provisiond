@@ -287,12 +287,14 @@ the notice/case distinction, `ADR-0012` for why nothing is relayed in either dir
 
 **DOM-23** An abuse case MUST carry: the machine it concerns, an **operator-written**
 provider-neutral summary of the allegation, an operator-written `warned_consequence` stating what
-the notice threatened **at open** — never what is true now, which is `DOM-27`'s field on the
-machine — a
-single tenant-facing deadline, a state, and an append-only list of tenant statements. What must
+the notice threatened **at open** (see `DOM-27` and `WIR-47` for the machine's dated
+network-restriction evidence), a single tenant-facing deadline, a state, and an append-only list
+of tenant statements. What must
 never reach the customer surface is `WIR-45`'s, cited here rather than restated — a draft of this
 requirement carried its own copy, and the two were already stricter than each other in different
 directions.
+
+*Amended 2026-10-10 (`ADR-0038`): distinguished the notice at open from the machine's dated evidence.*
 
 **A case is created by an operator, never by a driver and never by a caller.** Hetzner exposes no
 abuse-case API — `08-provider-notes.md` describes the process as "notice, deadline and manual
@@ -331,14 +333,17 @@ operator's own decision (`SEC-45`).
 
 **DOM-27** **Whether a provider has restricted a machine's network is a fact about the machine, not
 about a case, and it MUST NOT be a `DOM-7` state.** It has one home — the machine — carrying a
-status (`none` | `restricted` | `disabled` | `unknown`), the **source** that established it
-(`provider_api` | `operator_notice`) and when it was observed (`STO-44`, `WIR-47`).
+derived status (`restricted` | `unknown`) and, when restricted, its positive **source**
+(`provider_api` | `operator_notice`) and observation time (`WIR-47`). The machine keeps the
+provider reading and the operator record separately in the columns in `05-persistence.md`.
 
 **It is not a lifecycle state**, and that is the durable reason rather than a contingent one: a
 restricted machine is still `running` or `off`, `DOM-7` is single-valued, and collapsing the two
-destroys the state `LDG-37` reads to decide what is billable. Providers also restrict per address
-family — Hetzner Cloud exposes `blocked` separately for IPv4 and IPv6 **[verify]** — so even a
-boolean would lose information a single enum value cannot carry.
+destroys the state `LDG-37` reads to decide what is billable. A single stored boolean would also
+lose which source still supplies positive evidence after the other clears; `WIR-47` owns how the
+separate observations render.
+
+*Amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b): two observations and a derived status.*
 
 **It is not a field on the abuse case**, for a reason the schema makes concrete: a machine may have
 more than one case open at once (`STO-39`), and two cases carrying two answers to one physical

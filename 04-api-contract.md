@@ -41,7 +41,7 @@
 | POST | `/v1/abuse-cases/{id}/actions/close` | ✓ | Operator: close with an outcome (`DOM-24`, `WIR-44`) |
 | POST | `/v1/abuse-cases/{id}/actions/record-transmission` | ✓ | Operator: record what was sent to the provider (`WIR-44`) |
 | GET | `/v1/address-resolution` | ✓ | Operator: which machines held an address at an instant (`SEC-54`, `WIR-46`) |
-| POST | `/v1/machines/{id}/actions/record-network-restriction` | ✓ | Operator: record a restriction no driver can read (`DOM-27`, `WIR-47`) |
+| POST | `/v1/machines/{id}/actions/record-network-restriction` | ✓ | Operator: record or withdraw a restriction (`WIR-47`) |
 | POST | `/v1/abuse-cases/{id}/actions/revise-deadline` | ✓ | Operator: extend `respond_by`, keeping the old value (`STO-44`, `WIR-47`) |
 | POST | `/v1/tenants/{tenant_id}/actions/assign-provider-account` | ✓ | Operator: add or replace a tenant's provider-account assignment (`API-62`, `WIR-48`) |
 | POST | `/v1/provider-accounts/{account}/actions/record-status` | ✓ | Operator: record an account unreachable, its credentials rejected, or its termination confirmed (`API-63`, `WIR-50`) |
@@ -1302,9 +1302,11 @@ and none of them mints an operation (`API-48`). A case is not created from a cal
 not from a driver (`DOM-23`); the operator supplies the machine — or an address and an instant for
 `SEC-54` to resolve — the summary, the `warned_consequence` and the tenant-facing deadline.
 
-**API-61** **Recording a network restriction and revising a deadline are operator-only writes**
+**API-61** **Recording or withdrawing a network restriction and revising a deadline are operator-only writes**
 (`WIR-47`), synchronous, minting no operation (`API-48`). Neither is a caller action: a customer
 cannot tell the system its machine was blocked, and cannot grant itself more time.
+
+*Amended 2026-10-10 (`ADR-0038`): the same action now accepts withdrawal.*
 
 **API-62** **A tenant's provider-account assignment MUST be changeable by an operator.** `API-57`
 writes it automatically — in the activation transaction where a healthy account exists, and by its
@@ -1456,11 +1458,12 @@ Re-assignment stays a separate, deliberate act (`API-62`), because doing it auto
 every affected tenant at once, precisely when the surviving accounts can least absorb them.
 
 **Recording a status the driver itself reports MUST be refused** `conflict` with
-`details.reason: "state"`, exactly as `WIR-47` refuses an operator network-restriction where the
-driver is authoritative. **`terminated` MUST NOT be reversible** through this verb or any other: it
+`details.reason: "state"`. **`terminated` MUST NOT be reversible** through this verb or any other: it
 has already released customer money, and a state that can be left silently would re-reserve balances
 against machines the provider says are gone. The remedy for a mistaken termination is a fresh
 account and `API-62`, which is a decision with a record.
+
+*Comparison with the former network-restriction refusal removed 2026-10-10 (`ADR-0038`).*
 
 **Every use MUST emit a monitorable event** naming the principal, the account, the status before and
 after, and the reason (`SEC-39`, `SEC-32`) — this is an operator verb that moves customer money, and

@@ -179,6 +179,9 @@ that MUST be recorded as an explicitly accepted risk with named mitigations — 
 separate provider accounts by risk tier, egress controls, an enforced content policy — not left
 as a footnote.
 
+An account-wide network lock costs one operator record per affected machine under `WIR-47`;
+the restriction remains a machine fact (`DOM-27`). *Amended 2026-10-10 (`ADR-0038`).*
+
 Two facts usually need separate answers: whether the provider's terms permit reselling at all,
 and whether they permit *anonymous* downstream customers. Permission for the first does not
 imply the second, and the reseller normally remains the provider's sole counterparty and is
@@ -419,11 +422,8 @@ argument and stands on its own.
 
 **A locked machine still bills.** The provider's remedy leaves the machine running, charging, and
 useless to its owner, so the customer's runway keeps draining (`LDG-13`, `LDG-33`) for compute it
-cannot reach. *Settled 2026-08-16 by `LDG-71` and `DOM-27`: it keeps billing, the machine view carries the
-restriction as a structured fact beside `runway_until`, and delete stays available as the
-customer's own remedy. `DOM-27` owns the reasoning; this note cites it rather than repeating it,
-because the first version of that argument was copied into three documents and was wrong in all
-three.*
+cannot reach. *Settled 2026-08-16 by `LDG-71` and `DOM-27`; disclosure scoped 2026-10-10 by
+`ADR-0038` through `WIR-47`'s "Selection uses positive evidence, never timestamp order".*
 
 **SEC-54** **The deployment MUST be able to answer which machines held a given address at a given
 instant, and MUST answer it as a candidate set rather than a single machine.** This is the first

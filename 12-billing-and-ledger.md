@@ -601,15 +601,20 @@ such an outage is nonetheless paying for the operator's problem, which is the sh
 choice; the operator's remedy is to fix the credential, and the deficiency machinery (`LDG-66`) is
 what carries any exposure it decides to absorb instead.*
 
-**LDG-71** **A machine whose network a provider has blocked over abuse MUST be told to its owner as
-still consuming runway.** The abuse case is where that is said (`DOM-23`), because a customer who
-cannot reach a machine and is not told why will read the drain as theft, and under `ADR-0005` there
-is no email in which to explain it afterwards.
+**LDG-71** **A machine with a positively evidenced network restriction MUST disclose `restricted`
+to its owner while it continues consuming runway.** `WIR-47` says "Selection uses positive
+evidence, never timestamp order" and owns the render rule. `ADR-0038` states the accepted source
+limit: "A whole-server lock the provider shows nowhere stays `unknown` until the operator records
+it." A customer who cannot reach a machine and is not told why will read the drain as theft,
+and under `ADR-0005` there is no email in which to explain it afterwards.
 
 **The telling is `DOM-27`'s structured `network_restriction` on the machine view, beside
 `runway_until`** — not a sentence in the case. A restricted machine stays `running`, which
 `LDG-37` already makes billable, so nothing here changes the meter; what changes is that a caller
-can now tell a blocked machine from a broken one before it reaches for a destructive remedy.
+can tell an evidenced block from a broken machine before it reaches for a destructive remedy.
+
+*Amended 2026-10-10 (`ADR-0038`): disclosure follows positive evidence; an unobserved whole-server
+lock remains `unknown` until an operator record supplies that evidence.*
 
 *Rationale, not requirement.* Continued billing is also the right answer: the provider goes on
 charging the operator, so making it free would move a real, uncapped cost onto the operator for a

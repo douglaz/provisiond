@@ -886,25 +886,28 @@ The cost MUST be stated rather than hidden: for such a provider the `OPS-33` neg
 bounded by **operator response time**, not by an automatic lookup, and `OPS-26`'s rota is what
 determines how long a customer's balance stays committed behind a stuck order.
 
-**PRV-35** **A driver MUST report a machine's network restriction where the provider exposes one,
-and MUST declare that it cannot where the provider does not.** This is `DOM-27`'s status, refreshed
-on the same path and with the same cache semantics as every other machine field (`DOM-8`), and it
-is **not** part of `DOM-7`'s status mapping.
+**PRV-35** **A driver MUST report positive network-restriction evidence where the provider exposes
+it.** Its reading updates only `machines.provider_restricted` and `machines.provider_observed_at`
+through the normal refresh path (`DOM-8`), without replacing an operator record. Operator writes
+are specified by `WIR-47`. This is not part of `DOM-7`'s status mapping. On a successful read of
+mapped flags, the driver MUST report whether any is positive, including a false result when none
+is positive; the refresh path stores that combined result and when provisiond read the flags.
+Before a reading, both provider columns remain null. A false reading supplies no evidence of an
+unrestricted network.
 
 **Where it comes from, per launch driver — each `[verify]` against the live API before it is
 relied on:**
 
 | Driver | Signal | Confidence |
 |---|---|---|
-| Hetzner Cloud | `public_net.ipv4.blocked` and `public_net.ipv6.blocked` on the server object, separate from lifecycle `status` | **[verify]** — documented in the official client schema; high |
-| Hetzner Robot | `locked` on each IP and subnet; server status stays `ready`/`in process` | **[verify]** — documented; high |
+| Hetzner Cloud | `public_net.ipv4.blocked` and `public_net.ipv6.blocked` on the server object, separate from lifecycle `status`; a true flag is positive even if the other address family is null. A false flag with a null family establishes no unrestricted network. `server.locked` remains unmapped pending a written provider answer | **[verify]** — address flags documented in the official client schema; positive evidence only |
+| Hetzner Robot | `locked` on each IP and subnet; server status stays `ready`/`in process` | **[verify]** — mapping retained, but its documented “Status of locking” does not establish coverage of whole-machine locks; reduced confidence |
 | DigitalOcean | a Droplet `locked` boolean exists, but is documented only as preventing user actions | **[verify]** — **do not map it**. Nothing official connects it to abuse networking, and reading it as a restriction would report every in-flight resize as a block |
 
-**Where a driver has no signal the restriction is `unknown` until an operator records one**
-(`WIR-47`), and `unknown` MUST NOT be rendered as `none`. A field that is silently false when
-nobody looked is worse than no field: `none` is a claim, and only an observation can support it.
-Where a driver *does* report, the provider is authoritative and an operator entry is the fallback
-for a provider that cannot answer — not a competing current value.
+`unknown` MUST NOT be rendered as `none`. A false or unavailable provider signal cannot establish
+an unrestricted network. A clear read MUST preserve both operator columns.
+
+*Amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b).*
 
 *Added 2026-08-16, after `LDG-71` asserted that "nothing knows it is blocked" and a cross-model
 check found that Hetzner Cloud and Robot both do. The `DOM-7` exclusion survived that discovery;
