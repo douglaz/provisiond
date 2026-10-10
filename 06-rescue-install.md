@@ -113,11 +113,11 @@ in the process table.
 
 **RSC-12** The installed system MUST NOT inherit the ephemeral rescue credential. Where
 the provider's installer offers to copy rescue authorized keys into the target, the
-generated configuration MUST explicitly disable that.
+generated configuration MUST explicitly disable that. For Hetzner Robot installimage, the generated config MUST contain `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`; the directive is [observed — installimage e15b5ea, 2026-10-06], while the deployed rescue installer remains `[verify]`.
 
 **RSC-13** A rootfs install MUST require at least one caller-supplied authorized key for
 the installed system, precisely because of `RSC-12` — otherwise the result is a machine
-nobody can reach.
+nobody can reach. On Hetzner Robot installimage, the generated config MUST set `SSHKEYS_URL` to the caller-key source [observed — installimage e15b5ea, 2026-10-06]; the deployed rescue installer remains `[verify]`.
 
 **RSC-14** A raw-disk install MUST reject caller-supplied authorized keys. The filesystem
 layout inside an arbitrary raw image is unknown, so keys cannot be injected generically.
@@ -174,8 +174,7 @@ since rescue lives in memory; whatever the remote command did after the connecti
 the disk either way, and a fresh inventory pass reads it. Nothing in
 the dead session is worth a root credential on disk for the whole of every install, which is what
 persisting the key from activation would cost `DOM-11`'s exception. Two things a crash does leave:
-the provider-side credential `PRV-21` would have removed stays registered, a public key whose
-private half no longer exists; and the error's `rescue_exit` is `unknown` with the address and port `OPS-15`'s pass can still
+the provider-side credential registered for `PRV-21` stays registered until `PRV-9` permits cleanup; its rescue public key is distinct from the recovery private key on disk; and the error's `rescue_exit` is `unknown` with the address and port `OPS-15`'s pass can still
 render, since the machine row holds them.
 
 **RSC-20** The recovery directory MUST be absolute, MUST be created with owner-only

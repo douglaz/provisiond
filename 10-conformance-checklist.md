@@ -231,8 +231,7 @@ not optional hardening — they are the only structural defence there is.
       (`RSC-9`, `DEF-5`)
 - [ ] **CNF-40** — A rescue password never appears in a command line. Assert on the spawned
       process's argument vector. (`RSC-11`)
-- [ ] **CNF-41** — The generated installer config disables copying rescue authorized keys
-      into the installed system. (`RSC-12`)
+- [ ] **CNF-41** — The generated Robot installimage config contains `SSHKEYS_URL` for the caller's keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`, and does not copy rescue authorized keys into the installed system. (`RSC-12`, `RSC-13`)
 - [ ] **CNF-42** — A rootfs install with no authorized keys is rejected; a raw-disk install
       *with* authorized keys is rejected. (`RSC-13`, `RSC-14`)
 - [ ] **CNF-43** — A digest mismatch on the rootfs path aborts before the installer runs.
@@ -1489,12 +1488,7 @@ rather than acquiring a default.
       by counting requests, not by reading the code. On a provider that locks out on repeated
       failures the retry loop takes every tenant's operations offline with it — an outage the
       operator sees and the provider's support desk undoes. (`PRV-41`, `OPS-26`)
-- [ ] **CNF-285** — **Where the offer identifier is the resource identifier, resolution reads the
-      resource.** For a channel whose descriptor entry carries `offer_is_resource: true` (`PRV-44`),
-      assert an ambiguous create resolves by reading the named resource rather than by searching a
-      listing, and that absence is interpreted through `PRV-36`'s window. A driver that declares
-      the identity and still searches is carrying `OPS-33`'s listing horizon for no reason — slower
-      resolution, not a wrong one. (`PRV-42`, `PRV-44`, `PRV-36`, `OPS-27`)
+- [ ] **CNF-285** — **Auction resolution proves attribution before attachment** (amended 2026-10-09, `ADR-0040`). Lose the reply to an auction order and assert the per-order fingerprint is searched on every ordering channel. A read of the offer number returns absent while the matched order remains in progress: the operation and commitment stay unresolved, with `OPS-33`'s matched-order qualification intact. Deliver a `server_number` different from the offer number: resolution uses the matched transaction's delivered number, then confirms that machine by direct read before attachment. Return two fingerprint matches and assert no automatic attachment. Fail the confirming read and assert no success or settled absence. Expire the transaction listing before a match and assert operator escalation under `OPS-31`, with `OPS-33`'s release rule and the account sweep still active. A positive offer-number read alone does not establish attribution. Assert `offer_is_resource` still enforces `PRV-42`'s admission claim. (`PRV-42`, `PRV-44`, `PRV-38`, `OPS-27`, `OPS-33`)
 - [ ] **CNF-286** — **A landed order is not attached without confirming the resource
       exists.** Resolve a create whose order record reports success and whose resource has since been
       destroyed, and assert the outcome is **not** resolved-observed: no `machines` row, no
@@ -2389,16 +2383,7 @@ rather than acquiring a default.
       one made at the dispatch instead: `OPS-45` states "false, written before begin rescue … is
       dispatched", and an implementation that waits for the dispatch renders that row `none`.
       (`OPS-45`, `OPS-15`, `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
-- [ ] **CNF-303** — **A temporary key the engine could not remove is swept, and one in use is not**
-      (added 2026-09-16, `pv-lld`). Kill the engine between begin-rescue's key registration and
-      `PRV-21`, and again between a create's key registration and `PRV-9`'s cleanup: assert each
-      key resource at the provider carries the operation id as its name or tag, that `OPS-32`'s next
-      complete pass deletes both, and that a key whose operation is still `running` on the same
-      account is untouched by that pass. Then let begin rescue fail partway with cleanup succeeding
-      and with it failing: the first leaves no resource, the second attaches the leaked ids to the
-      error's details (`PRV-18`) and the sweep removes the resource afterwards. On Robot, assert
-      the order transaction still lists the fingerprint after the resource is gone, or the item
-      must not delete it. (`PRV-9`, `PRV-18`, `PRV-21`, `OPS-32`, `PRV-32`)
+- [ ] **CNF-303** — **Temporary provider-side keys obey the common eligibility rule** (amended 2026-10-09, `ADR-0040`). Kill the engine after registering a create's tagged caller key and after registering an unresolved rescue key; the sweep retains both while their accepted operations are `needs_reconciliation`. Retain keys for `queued` and `running` operations. A pre-acceptance failure cleans up its key. After settlement, retain a key while a machine produced by that operation still reads `provisioning`; delete it when that guard clears. Delete a tagged key whose operation record vanished. For partial rescue activation, test cleanup success and failure: success leaves no resource when eligible; failure reports leaked ids in error details (`PRV-18`), and a later sweep deletes only when `PRV-9` permits it. Verify operation-id tags throughout, without requiring Robot's listing to persist its fingerprint after key deletion. (`PRV-9`, `PRV-18`, `PRV-21`, `OPS-32`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
@@ -3391,3 +3376,8 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       startup refuses each. Two credited payments below the valid minimum that
       cumulatively meet it activate once; neither is required to meet a per-payment
       floor. (`OVR-19`, `API-35`, `LDG-44`, `LDG-52`)
+
+- [ ] **CNF-346** — **DigitalOcean correlator tags never drive bulk deletion.** Exercise create, ambiguous resolution and cleanup with a lowercase correlator tag satisfying the DO-spec charset and length, using `:` or `_` as a separator; assert no call to `DELETE /v2/droplets?tag_name=` occurs and any delete names a verified individual Droplet id. (`PRV-48`, `OPS-27`)
+- [ ] **CNF-347** — **DigitalOcean backups are not enabled by the driver.** Inspect create requests and assert `backups: true` is never sent; verify the descriptor declares `PRV-13a`'s provider table for Cloud, Robot and DigitalOcean, including backups as `manual`, and that release follows each `api` kind. Keep Robot IP/subnet survival pending live batch B step 9. (`PRV-13a`, `PRV-44`, `PRV-45`)
+- [ ] **CNF-348** — **Existing rescue activation is disabled before re-enabling.** On Cloud read `rescue_enabled`, disable when true, then enable and reset inside its 60-minute interval. On Robot read `active`, use `DELETE /boot/{n}/rescue` when true, then re-enable and reset. Do not assume repeated-enable behavior. (`PRV-15`)
+- [ ] **CNF-349** — **Cherry correlator lookup scans the project list.** Exercise more than one page with the matching tag on a later page; assert the driver filters client-side and returns the exact operation match, without assuming a server-side tag query. (`PRV-26`, `OPS-27`)

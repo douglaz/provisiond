@@ -3027,13 +3027,30 @@ def crashedSession : List Session.Event := openSession ++ [.crash]
 def failedExitSession : List Session.Event :=
   [.armExit, .beginRescue false, .remoteCommand, .endRescue false]
 
+/-- `PRV-9`: the guard preserves the registration after a crash pending reconciliation and
+after settlement while its machine is provisioning. Settlement past provisioning and a vanished
+operation permit removal. Disabling the guard admits premature deletion of the crashed key. -/
+@[req "PRV-9"]
+theorem temporary_key_eligibility_witness :
+    let w := Session.run Rescue.current rescueSession crashedSession
+    let clean := Session.run Rescue.current rescueSession cleanSession
+    let settled := Session.step Rescue.current clean .settle
+    (Session.step Rescue.current w .sweepRemovesCredential).credentialRegistered = true ∧
+    (Session.step { Rescue.current with temporaryKeyEligibility := false } w
+      .sweepRemovesCredential).credentialRegistered = false ∧
+    (Session.step Rescue.current { settled with producedProvisioning := true }
+      .sweepRemovesCredential).credentialRegistered = true ∧
+    (Session.step Rescue.current settled .sweepRemovesCredential).credentialRegistered = false ∧
+    (Session.step Rescue.current { clean with recordPresent := false }
+      .sweepRemovesCredential).credentialRegistered = false := by decide
+
 /-- A session that exits cleanly with no key on disk: `RSC-19` persists the key on the uncertain
-branch and on no other, `PRV-21`'s exit removed the temporary credential, and the record renders
+branch and on no other, `PRV-9` retains the registered public key while the operation remains running, and the record renders
 `clean`. The model refuses nothing vacuously. -/
 @[req "RSC-19"]
 theorem clean_exit_leaves_no_key :
     let w := Session.run Rescue.current rescueSession cleanSession
-    w.keyOnDisk = none ∧ w.credentialRegistered = false ∧
+    w.keyOnDisk = none ∧ w.credentialRegistered = true ∧
     Session.rescueExit w = .clean := by decide
 
 /-- The design `RSC-19`'s 2026-09-15 paragraph refuses, as what it would cost: persisting the key

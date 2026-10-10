@@ -73,7 +73,7 @@ check and on every `GET /v1/providers`.
 
 **PRV-44** The descriptor is a typed, immutable value: `account`, `kind`, `capabilities`,
 `ordering_channels` (each with `correlator: operation_id | per_order_key | none`, `PRV-32`,
-`PRV-33`, `PRV-38`, `offer_is_resource: true | false`, `PRV-42`, and
+`PRV-33`, `PRV-38`, `offer_is_resource: true | false` (whether the offer names one machine, `PRV-42`), and
 `order_budget: {limit, per}`, `PRV-40`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
 `request_budget` `{scope, limit, per}` (`PRV-46`; provider credential scope identifier,
@@ -131,20 +131,9 @@ keys, optional user data, labels, and a provider-options object.
 persist a provider-generated root password, so a machine created without a key would be
 unreachable.
 
-**PRV-9** Where the provider requires SSH keys to be registered as account-level
-resources before they can be attached, the driver MUST create them, attach them, and
-then remove them — but it MUST NOT remove them until the provider has actually consumed
-the key material. For a synchronous create that copies key material at creation time,
-cleanup immediately after the create call returns is correct. For an *asynchronous*
-deploy that reads the key registration later, immediate cleanup produces a machine
-nobody can log into. The driver MUST know which of the two its provider is, and the
-adapter notes MUST record the answer. See `DEF-6`. **Every temporary key resource a driver
-registers — for a create or for rescue — MUST carry the operation id as its provider-side name or
-tag** (*added 2026-09-16, `pv-lld`*), so that `OPS-32`'s sweep can find one the engine did not
-remove: a crash between registration and cleanup leaks the resource, the session's cleanup token
-dies with the process (`DOM-11`), and `PRV-18`'s leaked-resource ids are attached only where the
-driver itself saw the failure. The image import carries the correlator for the same reason
-(`RSC-42`).
+**PRV-9** **Amended 2026-10-09 (`ADR-0040`).** Where the provider requires SSH keys to be registered as account-level resources before they can be attached, the driver MUST register and attach them as temporary provider-side resources. **A temporary key MUST be deleted only once its operation has settled or vanished, and no machine it produced still reads `provisioning`.** On failure before the provider accepts the operation, the driver MUST delete any registered temporary key. A post-acceptance `needs_reconciliation` operation retains its key until resolution settles it. The sweep MUST delete a tagged key whose operation record has vanished, because no machine from an unrecorded operation can be attached. This common eligibility rule governs driver cleanup and `OPS-32`'s sweep for create and rescue; provider-consumption timings may justify earlier deletion only after a separate amendment. The provider-side registration may contain a caller's create public key or a freshly generated rescue/correlator public key; it is distinct from the persisted recovery private key (`RSC-19`).
+
+**Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints may therefore block the caller's next create while an unresolved operation retains a registered caller key; no substitute key policy follows from this rule. See `DEF-6`.
 
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request's provider options carry an explicit purchase acknowledgement, *and* the account
@@ -196,15 +185,17 @@ result, because "deleted" does not mean "billing stopped" there. A driver in the
 category MUST NOT declare `delete_machine`; modelling a contract termination as a synchronous
 API call is a business error, not a missing feature.
 
-**PRV-13a** Deleting a machine does not necessarily delete everything billable that was
-attached to it. A driver MUST declare which associated resources — volumes, snapshots,
-backups, reserved addresses — survive machine deletion and continue to bill, and MUST expose
-cleanup for every such resource the provider's API can delete. **AMENDED 2026-09-08
-(`ADR-0018`) — the declaration and the cleanup both had no carrier.** The kinds are declared in
-the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`, and the
-cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an
-operator procedure, and those are the `manual` ones. A control plane that reports a machine
-deleted while its storage continues to accrue cost is reporting a falsehood.
+**PRV-13a** Deleting a machine does not necessarily delete everything billable that was attached to it. A driver MUST declare associated resources that survive deletion and may continue to bill, and MUST expose cleanup for every such resource the provider's API can delete. **Amended 2026-09-08 (`ADR-0018`):** the kinds are declared in the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`; cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an operator procedure as `manual`.
+
+**Amended 2026-10-09 (provider research V17 and §3).** The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`; the descriptor MUST declare these kinds for the applicable provider:
+
+| Provider | `surviving_attachments` declaration |
+|---|---|
+| Hetzner Cloud | Primary IP `api` unless its `auto_delete` reads back true; Floating IP `api`; Volume `api`; Snapshot `api` |
+| Hetzner Robot | Additional IPs and subnets as possible `api` survivors, pending live batch B step 9 |
+| DigitalOcean | Reserved IPs, floating IPs, snapshots, volumes, volume snapshots `api`; backups `manual`, with billing after Droplet destruction `[verify]` |
+
+A DigitalOcean driver MUST NOT set `backups: true` on create, because retained backups have no documented deletion API. A control plane that reports a machine deleted while its storage continues to accrue cost is reporting a falsehood.
 
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
 exposure before taking money. That requires, per product: an API path to stop the cost, a bound
@@ -586,6 +577,8 @@ freshly generated single-use public key.
 **PRV-15** Begin rescue MUST both activate the rescue environment *and* initiate the
 reboot or reset needed to enter it. The rescue engine waits for SSH; it does not reboot.
 
+**Amended 2026-10-09 (research V4/V10):** On Hetzner Cloud the driver MUST read `rescue_enabled` and disable an existing rescue activation before re-enabling it, then reset within the documented 60-minute auto-disable interval. On Hetzner Robot it MUST read `active` with `GET /boot/{n}/rescue` and disable an active rescue with `DELETE /boot/{n}/rescue` before re-enabling. Repeated-enable behavior remains `[verify]` for both providers.
+
 **PRV-16** Begin rescue MUST populate the session's host keys with complete OpenSSH
 public host keys whenever the provider exposes them. A driver MUST NOT return an empty
 host-key list when the provider published keys the driver simply did not parse.
@@ -598,7 +591,7 @@ accept the ephemeral key and then ignore it. See `DEF-7`.
 
 **PRV-18** Begin rescue MUST clean up after itself on partial failure. If the rescue
 environment is activated but the reboot fails, the driver MUST attempt to deactivate
-rescue and remove any temporary key it registered. If that cleanup itself fails, the
+rescue and, when `PRV-9` permits deletion, remove any temporary key it registered. If an eligible cleanup itself fails, the
 driver MUST attach the identifiers of the leaked resources to the error's details so an
 operator can find them. Where the engine dies instead, nothing attaches anything, and the
 tagged key resource is `OPS-32`'s to remove (`PRV-9`).
@@ -623,9 +616,7 @@ key set, and MUST NOT replace key material with an empty value.
 **Capability** — `rescue_ssh`.
 
 **PRV-21** End rescue MUST deactivate the rescue environment, reset or reboot into the
-installed system, and remove any temporary credential it registered, using the session's
-opaque cleanup token to find it. A credential this call never reached — the engine died first,
-or the call was lost — is found by its operation-id tag and removed by `OPS-32`'s sweep (`PRV-9`).
+installed system, and arrange removal of any temporary credential it registered using the session's opaque cleanup token when `PRV-9` permits deletion. A credential this call never reached — the engine died first, or the call was lost — is found by its operation-id tag and removed by `OPS-32`'s sweep when eligible (`PRV-9`).
 
 **PRV-22** Failure of end rescue is *always* ambiguous — the machine may be in rescue, may
 be rebooting into the new system, and a temporary credential may still be registered. The
@@ -715,7 +706,7 @@ cancellation too, and priced the reserve accordingly.
 
 A create MUST carry the operation's identifier into the provider, using whatever
 caller-controlled field that provider offers, and the driver MUST be able to find resources
-bearing it afterwards. Every provider examined offers **either a free caller-controlled field or
+bearing it afterwards. A Cherry Servers driver MUST page through the project server list and filter returned `tags` client-side; no server-side tag filter is documented (research V21). Every provider examined offers **either a free caller-controlled field or
 a per-operation artifact that can serve as one** (`PRV-32`, `08-provider-notes.md`) — Hetzner
 Robot is the second case, because its only free field is disqualified by `PRV-30`. A driver that
 can find neither is asserting something unusual about its provider and MUST say so in its notes —
@@ -763,6 +754,8 @@ than on the resulting machine (the robot-style shape):
   poll timeout that carries it (`PRV-11`) — as an accelerator, never as a precondition;
 - treat the listing window as the horizon beyond which automatic resolution is impossible
   (`08-provider-notes.md`), and `OPS-31` as the only remaining road.
+
+**Amended 2026-10-09 (research V7):** Robot-WS documents both order-channel listings as covering "within the last 30 days" [observed — Robot-WS, 2026-10-06]. `OPS-33` leaves a margin in the automatic-recovery horizon because rolling versus calendar alignment is unspecified; a by-id fetch does not replace fingerprint search when a lost reply withheld the transaction id.
 
 **PRV-30** **CONFIRMED IN WRITING 2026-08-13 — no longer `[verify]`, and it removes a field the
 design was relying on.** A provider's caller-controlled field MUST NOT alter how the order is
@@ -844,7 +837,8 @@ representation matches nothing, forever, and fails silently into `PRV-33`.
 
 **Two residuals remain.** The **standard** channel's listing is unconfirmed with a real order —
 only auction was bought, and standard is where the setup fees are (`08-provider-notes.md`) — and
-the listing window is still `[verify]`.
+the documented listing horizon's rolling versus calendar alignment remains unspecified (`PRV-27`).
+Automatic recovery leaves a margin (`OPS-33`).
 
 **PRV-34** **Robot orders have a test mode, and the driver MUST use it for the order-request half
 of conformance testing — `CNF-180`, `CNF-147` and `CNF-281` place real orders, because test mode
@@ -1085,12 +1079,7 @@ answers `401` without counting toward the lockout — four such responses on Rob
 left `/server` answering `200` immediately afterwards. **[observed 2026-09-04]** A driver that
 conflates them will back off from a condition no backoff repairs.*
 
-**PRV-42** **Where a provider's offer identifier *is* the resource identifier, resolution MUST be an
-identity read rather than a search, and the correlator is unnecessary.** On Hetzner Robot's auction
-channel the two are the same number: offer `3068756` provisioned as server `3068756` and offer
-`3068758` as server `3068758`, each leaving the offer feed on purchase. **[observed 2026-09-04,
-twice]** That market lists *specific physical machines*; the standard catalogue lists products, and
-there the server number is unknown until the order is filled.
+**PRV-42** **Amended 2026-10-09 (`ADR-0040`).** An `offer_is_resource` offer names one machine; the descriptor field records that property and does not select a resolution method. Hetzner Robot auction offer `3068756` provisioned as server `3068756` and offer `3068758` as server `3068758`, each leaving the feed on purchase. **[observed 2026-09-04, twice]** Equality of those numbers is an observation, not a prerequisite for resolution. A lost-reply auction create MUST be resolved through its per-order fingerprint on every ordering channel (`OPS-27`, `PRV-38`); the matched transaction supplies the delivered `server_number`, which is then read directly to confirm the machine. A read of the offer number that returns `not_found` cannot prove the order absent, and a positive read alone cannot prove this order produced the machine.
 
 **Amended 2026-10-09 (`ADR-0036`).** At most one create may be in flight per
 `offer_is_resource` offer, across tenants. The create's admitting transaction MUST acquire
@@ -1102,29 +1091,7 @@ not take this claim. The driver MUST confirm the named offer is still listed bef
 sending the order request; a missing offer MUST NOT be ordered. This is a dispatch
 check, not a provider lookup during `API-7`'s read-only tail collection.
 
-Where the identity holds, an ambiguous create resolves by reading the resource directly:
-
-| Response | Outcome |
-|---|---|
-| the account owns it | `OPS-27`'s first row, "Exactly one resource across all of this operation's correlators", reached without a search and naming the machine exactly |
-| absent, past `PRV-36`'s effective visibility window | `OPS-27`'s resolved-absent |
-
-This is stronger than a correlator search on four counts: it is an identity lookup, so `OPS-29`'s
-"A correlator match MUST be exact" is satisfied by construction; it is not bounded by a transaction
-listing's retention, which removes `OPS-33`'s hardest limit on this channel; it needs no ordering
-permission, which a webservice user may not hold (`08-provider-notes.md`); and **it supplies
-per-attempt discrimination for free**, because a create has exactly one attempt (`ADR-0014`) and
-its identity is known before the order is sent.
-
-A driver MUST declare, per ordering channel, whether the offer identifier is the resource
-identifier — the descriptor's `ordering_channels[].offer_is_resource` (`PRV-44`; the declaration
-had no field to live in until 2026-09-08, while `CNF-285` already tested it) — and MUST prefer the
-identity read where it is. **This does not reach a catalogue
-channel**, where the offer is a product and `PRV-32`'s correlator remains the only road.
-
-*The absence answer is `PRV-39`'s case: `404 SERVER_NOT_FOUND` is an answer, not an error. And the
-identity rests on two observations of one provider — that it holds by rule rather than by
-coincidence is `[verify]` before a driver depends on it.*
+*Trap retained 2026-10-09 (`ADR-0040`): the withdrawn identity-resolution rule preferred an offer-number read and treated its absence past the visibility window as resolved-absent. That could release a commitment while a matched order was still in progress. The fingerprint search supplies order attribution and the delivered number.*
 
 **PRV-43** **A correlator match proves an order landed. It is never evidence that the resource still
 exists.** The transaction listing outlives the machine: after server `3068756` was cancelled and
@@ -1164,6 +1131,8 @@ A new driver is expected to:
    `unknown` (`DOM-7`).
 5. Encode every path segment (`PRV-6`).
 6. Declare, in the descriptor (`PRV-44`), every value the engine reads. The reasoning behind
-   each — does key material get copied at create time or read later (`PRV-9`)? does the
+   each — what is known about key-consumption timing (`PRV-9`)? does the
    provider publish rescue host keys (`PRV-16`)? is deletion an API call or a contract process
    (`PRV-13`)? — is commentary and goes in `08-provider-notes.md`.
+
+**PRV-48** **Added 2026-10-09 (`pv-ucs.9`).** A DigitalOcean driver MUST encode correlator tags in lowercase using only its documented characters and `:` or `_` as a separator, within the 255-character limit (`08-provider-notes.md`, V16). It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag: the endpoint deletes every Droplet carrying that tag. Resolution uses the read-only tagged listing and any eventual deletion targets a verified individual Droplet id (`OPS-27`).

@@ -461,6 +461,8 @@ outcomes below:
 | More than one resource across every channel | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
 | Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no verified correlator exists for the operation's ordering channel (`PRV-33`) | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
+**Amended 2026-10-09 (`ADR-0040`): a lost-reply auction create uses the per-order fingerprint search across every ordering channel. The matched transaction supplies its delivered `server_number` for the confirming read. Offer-number equality is not assumed; an offer-number `not_found` cannot establish absence and a positive offer-number read alone cannot attribute the machine to this order.**
+
 **A correlator match is proof that an order landed, not that the resource exists, and the first
 row MUST be confirmed by a direct read before it attaches anything.** `08-provider-notes.md`
 records, from a live order, that Hetzner Robot's transaction "still" reports `status: "ready",
@@ -1427,18 +1429,9 @@ correlator whose operation has settled or vanished is caller data the deployment
 so it is **deleted** rather than reported. That is the opposite remedy from an unrecorded machine, and
 the asymmetry is the point — one is a customer's running server, the other is a copy of a customer's
 operating system sitting in the operator's account. *A delete may answer that it already happened;
-`OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*added
-2026-09-16, `pv-lld`*): a key resource carrying an operation id as its name or tag (`PRV-9`) whose
-operation is not `running` is one the engine registered and could not remove — a crash before
-`PRV-21`, or before a create's cleanup — and is **deleted**, on the same footing as an image. Its
-private half died with the process, so it is clutter and not a credential; it is swept because
-clutter that accumulates one entry per crash forever is `RSC-21`'s "slow leak" at the provider.
-A key whose operation is still `running` is in use and MUST NOT be touched. On Robot the fingerprint
-of a per-order key is the order's correlator (`PRV-32`); the sweep may delete the resource only
-where the transaction listing carries the fingerprint independently, which `08-provider-notes.md`
-records as `[verify]`.
+`OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*amended 2026-10-09, `ADR-0040`*): a key resource carrying an operation id as its name or tag (`PRV-9`) is deleted by the sweep only when `PRV-9`'s eligibility rule permits it: "A temporary key MUST be deleted only once its operation has settled or vanished, and no machine it produced still reads `provisioning`." A crashed create or rescue operation in `needs_reconciliation` retains its key; a vanished record permits deletion. The provider-side registration is not the recovery private key persisted under `RSC-19`. Failed deletion remains subject to `PRV-18`'s leaked-id reporting.
 
-**OPS-33** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
+**OPS-33** **Amended 2026-10-09 (`ADR-0040`): Robot transaction listings on both ordering channels cover "within the last 30 days" [observed — Robot-WS, 2026-10-06]. The automatic-recovery horizon leaves a margin because rolling versus calendar alignment is unspecified; it does not alter the measured negative window or the matched-in-progress qualification below.** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
 negative window has elapsed, the commitment MUST be closed and released in full even though the
 operation remains open, and `OPS-32`'s account sweep MUST continue searching for the correlator
 indefinitely afterwards. `OPS-36` governs what happens if the machine then appears.

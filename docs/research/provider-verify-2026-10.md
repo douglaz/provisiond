@@ -55,14 +55,14 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | id | provider | spec line(s) · requirement | claim | verdict | what changes in the spec |
 |---|---|---|---|---|---|
 | V1 | Hetzner Cloud | `01-domain-model.md:318`, `02-provider-contract.md:766` · `DOM-27`, `PRV-35` | `public_net.ipv4.blocked` / `ipv6.blocked` on the server, separate from `status` | CONFIRMED | Marker becomes `[observed — HC-spec, 2026-10-06]`. The `PRV-35` row should add that either family may be `null` and that Floating IPs carry their own `blocked`, which is not on the server |
-| V2 | Hetzner Cloud | `08-provider-notes.md:57` · `PRV-9` | key material is copied at create, so deleting the temp key right after the create call is safe | PARTIAL | "At creation time" is documented. Deleting while the create Action is still `running` is not. Until a live test passes, clean up after the create Action reaches `success`, not after the call returns |
+| V2 | Hetzner Cloud | `08-provider-notes.md:57` · `PRV-9` | key material is copied at create, so deleting the temp key right after the create call is safe | PARTIAL | "At creation time" is documented. Deleting while the create Action is still `running` is not. The create Action reaching `success` is a consumption-timing candidate, not cleanup eligibility; `PRV-9`/`ADR-0040` governs deletion |
 | V3 | Hetzner Cloud | `08-provider-notes.md:59` · `PRV-9`, `OPS-32` | a key resource carries a name/label the engine chooses | CONFIRMED | Marker becomes `[observed — HC-spec, 2026-10-06]`. `name` is required and caller-set, `labels` are supported, and the list endpoint filters by `name` and `label_selector` |
 | V4 | Hetzner Cloud | `08-provider-notes.md:70` · none named | `enable_rescue` while already enabled: error or re-arm | UNDETERMINABLE | Needs a live test, or design around it: read `rescue_enabled` and `disable_rescue` first |
 | V5 | Hetzner Cloud | `08-provider-notes.md:417` · correlator (`OPS-27`, `OPS-32`) | label key/value character set, length, count | PARTIAL | Character set and the 63-character length become `[observed — HC-spec, 2026-10-06]`. The count limit stays `[verify]`. A UUID value fits |
 | V6 | Hetzner Robot | `02-provider-contract.md:767` · `PRV-35` | `locked` on each IP and subnet; server status stays `ready`/`in process` | PARTIAL | The `PRV-35` row's "documented; high" must go. `locked` is documented only as "Status of locking", and Hetzner also locks entire servers, which has no API field. An IP showing `locked:false` does not support reporting `none` |
 | V7 | Hetzner Robot | `02-provider-contract.md:705`, `08-provider-notes.md:415` · `PRV-27`, `OPS-33` | transaction listing is time-bounded (30 days) | CONFIRMED | Marker becomes `[observed — Robot-WS, 2026-10-06]`. The bound is first-party: "within the last 30 days", on both channels |
-| V8 | Hetzner Robot | `02-provider-contract.md:940` · `PRV-42` | auction offer id equals server number by rule | UNDETERMINABLE | Not documented. `PRV-42` needs a runtime guard: if `server_number` ≠ offer id, fall back to `PRV-32`'s search |
-| V9 | Hetzner Robot | `08-provider-notes.md:104`, `03-operation-lifecycle.md:1379` · `PRV-9`, `PRV-32`, `OPS-32` | key carries an engine-chosen name; the transaction still lists the fingerprint after the key is deleted | PARTIAL | `name` is caller-set (`[observed — Robot-WS, 2026-10-06]`). Whether the listing outlives the key needs a live test. `OPS-32` keeps its "only where the listing carries it independently" clause until then |
+| V8 | Hetzner Robot | `02-provider-contract.md:940` · `PRV-42` | auction offer id equals server number by rule | UNDETERMINABLE | Not documented. Superseded by `ADR-0040`: every lost-reply auction create searches the per-order fingerprint; equality is only a dated observation |
+| V9 | Hetzner Robot | `08-provider-notes.md:104`, `03-operation-lifecycle.md:1379` · `PRV-9`, `PRV-32`, `OPS-32` | key carries an engine-chosen name; the transaction still lists the fingerprint after the key is deleted | PARTIAL | `name` is caller-set (`[observed — Robot-WS, 2026-10-06]`). Whether the listing outlives the key needs a live test. `ADR-0040` removes the Robot sweep exception; fingerprint persistence still needs a live check |
 | V10 | Hetzner Robot | `08-provider-notes.md:115` · none named | enabling rescue while already enabled: error or re-arm | UNDETERMINABLE | Design around it: `GET /boot/{n}/rescue` shows `active`, so `DELETE` first. The live test is optional |
 | V11 | Hetzner Robot | `08-provider-notes.md:121` · `RSC-12` | installimage config keys and the directive that stops rescue keys being copied | PARTIAL | Directive found in the official source: `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`. Whether the live rescue system runs that source needs a live check |
 | V12 | Hetzner Robot | `08-provider-notes.md:153` · `PRV-13c`, `DOM-19` | worst case across contracts; `cancellation_date=now` when the earliest date is in the future | PARTIAL | "30 days to the end of the month" is documented as "the longest period". The API's behaviour for `now` before the earliest date is not documented, so the "handle both" rule stands |
@@ -71,8 +71,8 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | V15 | DigitalOcean | `02-provider-contract.md:768` · `PRV-35` | Droplet `locked` is documented only as preventing user actions; do not map it | CONFIRMED | Keep "do not map it" and cite the source: DO documents `locked` as true while an uncompleted action blocks the next one. The driver declares no network-restriction signal, so the status is `unknown` |
 | V16 | DigitalOcean | `08-provider-notes.md:245`, `08-provider-notes.md:348` · correlator (`OPS-32`) | permitted tag character set | CONFIRMED | Marker becomes `[observed — DO-spec, 2026-10-06]`: `^[a-zA-Z0-9_\-\:]+$`, ≤255 characters. Separator is `:` or `_`. Use lowercase, because tags are case-stable |
 | V17 | DigitalOcean | `08-provider-notes.md:249` · `PRV-13a`, `PRV-13b` | delete stops billing; volumes, snapshots and reserved IPs survive | PARTIAL | Per-second billing stops "when you destroy it" (60 s minimum). Survivors and their monthly cost are documented. Automated backups survive about four weeks, with no documented billing after destroy and no API delete. The driver must never enable backups |
-| V18 | DigitalOcean | `08-provider-notes.md:316` · `PRV-9`, `DEF-6` | SSH keys copied at Droplet creation or read later | PARTIAL | "Embed … upon creation" is documented, and deleting a key does not remove it from existing Droplets. The in-flight window is not documented. Clean up after the Droplet is `active` |
-| V19 | Cherry Servers | `08-provider-notes.md:199` · `PRV-9`, `DEF-6` | key material captured at request time or read later | UNDETERMINABLE | Not documented. Keep temporary keys until the server reaches `deployed` (or `allocated` for iPXE) |
+| V18 | DigitalOcean | `08-provider-notes.md:316` · `PRV-9`, `DEF-6` | SSH keys copied at Droplet creation or read later | PARTIAL | "Embed … upon creation" is documented, and deleting a key does not remove it from existing Droplets. The in-flight window is not documented. `active` is a consumption-timing candidate; cleanup remains governed by `PRV-9`/`ADR-0040` |
+| V19 | Cherry Servers | `08-provider-notes.md:199` · `PRV-9`, `DEF-6` | key material captured at request time or read later | UNDETERMINABLE | Not documented. `deployed` (or `allocated` for iPXE) is a consumption-timing candidate; cleanup remains governed by `PRV-9`/`ADR-0040` |
 | V20 | Cherry Servers | `08-provider-notes.md:216` · none named | iPXE is a rebuild-action variant; needs an image alongside? | PARTIAL | iPXE is a field of the `rebuild` action (and of create). Whether `image` is required is not documented. cherrygo sends `type: "reinstall"`, not `rebuild` |
 | V21 | Cherry Servers | `08-provider-notes.md:342` · correlator (`OPS-27`) | tags filterable server-side | UNDETERMINABLE | No tag filter is documented. Design for a paginated list and filter on the client |
 | V22 | Hetzner | `07-security-requirements.md:329` · `SEC-44`, `SEC-43` | separately registered accounts are not linked and terminated together | UNDETERMINABLE | Not documented. Needs a written answer. `SEC-43` remains a belief |
@@ -135,8 +135,7 @@ returns while the create Action runs. Nothing says whether deleting the key duri
 and nothing says when rescue keys are read.
 
 **Consequence.** `PRV-9`'s "cleanup immediately after the create call returns" goes beyond the source.
-Safe wording: clean up after the create Action reaches `success`. For rescue, clean up after the reset
-that boots it. A live test may later tighten this.
+The create Action reaching `success` and the reset that boots rescue are consumption-timing candidates, still `[verify]`. `PRV-9`/`ADR-0040` governs eligibility and cannot be shortened by these unmeasured timings.
 
 ### V3 — Hetzner Cloud: key resource carries an engine-chosen name or label
 
@@ -153,8 +152,7 @@ chooses is **[verify]**".
 **Verdict.** CONFIRMED.
 
 **Consequence.** Marker becomes `[observed — HC-spec, 2026-10-06]`. `OPS-32`'s sweep can query with
-`label_selector`. Each temporary key must be freshly generated, since a duplicate fingerprint is
-rejected.
+`label_selector`. Duplicate fingerprints are rejected. Generated rescue/correlator material remains fresh; a caller-supplied create public key is not replaced with a generated one.
 
 ### V4 — Hetzner Cloud: `enable_rescue` when rescue is already enabled
 
@@ -242,9 +240,7 @@ rule.
 
 **Verdict.** UNDETERMINABLE. Not documented.
 
-**Consequence.** `PRV-42` should be guarded. When the identity read finds a server, assert
-`server_number == offer id` on the transaction. On a mismatch, treat the channel as catalogue-like and use
-`PRV-32`'s fingerprint search. A written answer from Hetzner would settle the rule.
+**Consequence.** Superseded 2026-10-09 by `ADR-0040`. Every lost-reply auction create uses the per-order fingerprint search across all ordering channels, reads the delivered `server_number` from the matched transaction, and confirms the resource. Equal numbers remain dated observations. A written identity answer no longer gates this algorithm.
 
 ### V9 — Robot temporary key: engine-chosen name, and listing after key deletion
 
@@ -261,8 +257,7 @@ rule.
 
 **Verdict.** PARTIAL. The name half is confirmed. The persistence half is not documented.
 
-**Consequence.** The name is `[observed — Robot-WS, 2026-10-06]`. `OPS-32`'s Robot exception stands until the live test (batch
-B, step 6) shows the fingerprint still listed after `DELETE /key/{fp}`.
+**Consequence.** The name is `[observed — Robot-WS, 2026-10-06]`. `ADR-0040` supersedes the Robot sweep exception. The live check (batch B, step 6) still asks whether the transaction retains its fingerprint after key deletion; it does not change `PRV-9` cleanup eligibility.
 
 ### V10 — Robot rescue activation when already active
 
@@ -474,8 +469,7 @@ read. Cherry's FAQ says Linux servers "are provisioned within 15 to 30 minutes".
 
 **Verdict.** UNDETERMINABLE. Not documented.
 
-**Consequence.** Keep the temporary key until the server reaches `deployed` (or `allocated` for iPXE;
-see cherrygo `servers.go` L26–40). This is the conservative reading of `PRV-9` and `DEF-6`. Cherry keys
+**Consequence.** `deployed` (or `allocated` for iPXE; see cherrygo `servers.go` L26–40) is a consumption-timing candidate, still `[verify]`. `PRV-9`/`ADR-0040` controls cleanup. Cherry keys
 carry a caller-set `label`.
 
 ### V20 — Cherry Servers iPXE
@@ -756,5 +750,6 @@ because no account action can settle them.
 1. Hetzner, DigitalOcean and Cherry: "Do you link and terminate separately registered accounts that
    share a payment method, contact address or beneficial owner?" (V22–V24, `SEC-44`).
 2. Hetzner: "May a reseller serve end users it has not identified?" (V13).
-3. Hetzner: "Is an auction offer's `id` always the delivered `server_number`?" (V8).
+3. Hetzner: "Is an auction offer's `id` always the delivered `server_number`?" (V8). `ADR-0040` makes the answer nonblocking for lost-reply resolution.
 4. Cherry: "Does ToS §17.4's notice period apply to hourly (on-demand) servers?" (`PRV-13b`).
+5. Hetzner Cloud: "What does `server.locked` mean for network restriction, including provider abuse action?" (`ADR-0038`; no `PRV-35` change in this ticket).
