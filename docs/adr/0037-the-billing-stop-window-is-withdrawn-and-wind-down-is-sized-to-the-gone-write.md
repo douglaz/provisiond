@@ -1,6 +1,6 @@
 # The billing-stop window is withdrawn, and wind-down is sized to the gone-write
 
-**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14). Amends `ADR-0035` (a release that carries an effective date) and
+**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14) and 2026-10-10 (Q18). Amends `ADR-0035` (a release that carries an effective date) and
 `ADR-0018`.
 
 ## Context
@@ -129,3 +129,48 @@ cancellation, its effective date", and that it was never applied to attachments.
 Rejected: completion by the operator for v1; writing `released_at` at the date (a mark ahead of now
 that opens the tombstone gate while the attachment may still bill); metering until the gone
 observation (Decision 3 names the effective date).
+
+## Amendment — 2026-10-10: posted entries behind the mark, day-only dates, and no attachment bound in v1 (owner decision Q18)
+
+An rloop Manager blocked `pv-ucs.6` on two traces left by the Q14 amendment. Two four-reader panels
+settled them: `docs/research/panels-2026-10/r34/` and a review of the proposed fix,
+`docs/research/panels-2026-10/r35/` (4–0). The decisive fact is that **no attachment carries a customer
+rate in v1**. `machine_attachments` has no rate column, `PRV-45`'s listing returns
+`{kind, external_id, billable, cleanup: api | manual}`, and `LDG-24` applies the margin "to machine time only".
+`RSC-45`'s IPv4 add-on is carried into the machine's price.
+
+- **A provider date given as a calendar day only names the end of that day, UTC.** Robot's
+  `cancellation_date` (`yyyy-MM-dd`) is one. A `now` release or cancellation never reads as a
+  start-of-day instant. `PRV-45` and `WIR-35` state it.
+- **A stop boundary learned behind a subject's mark leaves posted entries standing.** `LDG-38` states
+  this once, for machines and attachments alike. It also states that the case cannot arise in v1, and
+  names the conditions that would make it reachable: an attachment with its own customer price, or an
+  offer whose cancellation can be scheduled for a future date (`PRV-13c`'s exception branch).
+- **An automatic, idempotent corrective credit is a precondition of enabling either condition.** No
+  manual operator correction step is specified.
+- **v1 declares no attachment effective-date bound.** `PRV-44`'s `attachment_cancellation_bound` and
+  `PRV-45`'s refusal without it are removed. The bound priced nothing: its only reserve use is "priced at
+  that attachment's customer rate through its worst-case effective date", and no such rate exists. Its
+  only consumer was a sale gate that checked it had been declared, and that gate refused every Robot
+  offer, because Robot lists its additional IPs and subnets as possible `api` survivors. `PRV-13b`'s
+  `billable_attachments` reserve term has no v1 value, and `LDG-33`'s term returns to "surviving billable
+  attachments (`PRV-13a`)". The Q14 amendment's sentence "A month-end date learned after ordering needs a
+  bound declared per attachment kind at create … or the shortfall meets `LDG-31`'s clamp" is withdrawn:
+  without an attachment rate no customer shortfall is reachable. `LDG-32`, `PRV-13b`'s sale rule and
+  `API-7` are unchanged.
+- **Giving an attachment its own customer rate requires all three:** the automatic credit above; a
+  worst-case effective-date bound for each kind; and a declaration, for each offer, of the kinds its
+  order creates. The driver's descriptor is not that declaration: it names kinds per driver, and whether
+  an instance bills is decided at deletion.
+- **Robot offers that order the `primary_ipv4` add-on are sold now**, before batch B step 9 shows whether
+  the address outlives the server. The customer is never charged for the address. A surviving one is
+  operator rent until its `cleanup: api` cancellation, and `LDG-75` already names that gap ("Robot add-ons
+  billed per day or part thereof"). That the add-on is billed per day is inferred, not documented
+  (`docs/research/provider-verify-2026-10.md`). The panel split 2–2 on this, and the owner chose to sell.
+
+Rejected: building the automatic credit now; a manual operator correction step; a mandatory bound per
+kind with refusal (it refuses every Robot offer over a number nothing reads); scoping the refusal to the
+kinds an order creates (no pre-create input says which); a zero bound for an immediate kind (Robot's
+`now` returns a date, which names the end of that day); reading `LDG-32`'s "explicitly accepted and
+capped" as `LDG-31`'s clamp (the clamp caps the customer, not the operator); and selling only IPv6-only
+Robot offers until step 9.

@@ -28,6 +28,7 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r31 | Auction identity resolution; temporary-key lifetime | `ADR-0040` (Q16) |
 | r32 | Startup validation; a create queued behind a closure; a lost offer claim | `ADR-0036` amendment of 2026-10-10 (Q17) |
 | r33 | Which instant an operator's restriction record shows | `ADR-0038` clarification of 2026-10-10 (Q15b) |
-| r34 | An overcharge behind the mark; an attachment kind without a bound | pending (Q18) |
+| r34 | An overcharge behind the mark; an attachment kind without a bound | `ADR-0037` amendment of 2026-10-10 (Q18a) |
+| r35 | Review of the proposed attachment-bound fix (`q18a.txt` is the accepted Q18a text it was briefed with) | `ADR-0037` amendment of 2026-10-10 (Q18b) |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.
