@@ -104,3 +104,24 @@ clear reading should still render beside `unknown`.
 Rejected: rendering a clear provider reading beside `unknown`; keeping a trace of a withdrawn operator
 record; rendering a withdrawal as the latest observation, which asserts a negative the operator never
 observed.
+
+## Clarification — 2026-10-10: an operator record shows when provisiond recorded it (owner decision Q15b)
+
+An rloop Manager blocked `pv-ucs.7` on which instant an operator-sourced `restricted` shows; a
+four-reader panel (`docs/research/panels-2026-10/r33/`, unanimous) settled it.
+
+- **The operator's record time is the server's recording instant**, stamped by the transaction that
+  writes the record. The request no longer carries an `observed_at`: it sends `{"status": "restricted",
+  "operator_ref": "..."}`, and a withdrawal sends `{"status": "unknown"}`. Recording again moves the
+  time forward. A same-key replay returns the original response and time (`WIR-24`).
+- One field keeps one meaning. The provider's half is when provisiond read the flag (Hetzner's `blocked`
+  and Robot's `locked` carry no instant of their own), and the machine row dates observations by when
+  provisiond learned them (`STO-48`). Decision 2 already named "when it was recorded". The notice's own
+  date lives behind `operator_ref`.
+- What the time is for is the stale-record cost this ADR names: "The rendered `observed_at` shows the
+  record's age". A re-record after a fresh check is the freshness signal, and a notice date would make a
+  re-confirmed lock and a forgotten one look the same.
+
+Rejected: an operator-supplied observation instant, with a future-time refusal and a default to the
+recording instant. It gives one field two meanings and still lets the instant be backdated. And
+`SEC-32`'s audit record carries no timestamp, so it is no fallback for the recording instant.

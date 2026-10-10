@@ -1,0 +1,37 @@
+**Q18a — BLOCKER: the overcharge trace is valid; reachability in a sold v1 configuration is unproved. If that configuration remains admitted, choose (a).**
+
+A scratch Lean check posted −20, then supplied boundary 10: entries, mark 20 and remaining commitment were unchanged. Discard prevents another posting; it does not correct the first. The relevant implementation is [Funding.lean:595](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/tools/formal/Provisiond/Funding.lean#L595).
+
+Robot is the documented candidate: its IP and subnet cancellation APIs accept dates and return `cancellation_date`; IP cancellation also accepts `now`. No corresponding scheduled attachment release is established for Cloud or DigitalOcean in the provider research. [Robot API](https://robot.hetzner.com/doc/webservice/en.html#post-ip-ip-cancellation); [provider-verify-2026-10.md:551](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/docs/research/provider-verify-2026-10.md#L551).
+
+The scope premise needs qualification. “No extra IPs” does not exclude the primary IPv4 add-on: `RSC-45` permits “either order the address addon … or declare that its rescue path is IPv6-capable.” The research explicitly leaves its survival for batch B’s cancellation check. Neither a sold survivor nor its impossibility has been demonstrated. [06-rescue-install.md:513](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/06-rescue-install.md#L513); [provider-verify-2026-10.md:688](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/docs/research/provider-verify-2026-10.md#L688).
+
+Your pointers also conflate separate mechanisms:
+
+- `LDG-62` says “Extending runway is a caller write”; it is not a correction path. [12-billing-and-ledger.md:1901](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/12-billing-and-ledger.md#L1901).
+- Correction-period ownership is `LDG-38`, not `LDG-68`: “A correction is attributed to the period of the entry it corrects.” [12-billing-and-ledger.md:879](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/12-billing-and-ledger.md#L879).
+- `LDG-5` supplies “a new entry naming the entry it corrects,” not an automatic trigger. `WIR-42`’s concrete correction endpoint “Credits a deposit whose tenant was reaped”; it is not a general billing-adjustment endpoint. [12-billing-and-ledger.md:102](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/12-billing-and-ledger.md#L102); [13-wire-contract.md:482](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/13-wire-contract.md#L482).
+
+If adopting (a), specify the **engine accepting the date** as writer, in the same terminal/resolution transaction as date storage. Use `LDG-35`’s selected “per-tenant advisory locks,” re-read the boundary and affected entries under that lock, and append positive `correction` entries. [02-provider-contract.md:540](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/02-provider-contract.md#L540); [12-billing-and-ledger.md:422](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/12-billing-and-ledger.md#L422).
+
+Proposed key: `(attachment_stop_correction, attachment_id, effective_boundary, corrected_entry_id)`, tenant-scoped. Credit only the remaining actual overpayment, accounting for previous corrections, original rates, cumulative rounding and clamping—not hypothetical debits absorbed by the operator. Preserve original billing periods. Credit available balance whether the commitment is open or closed; do not reopen or grow it, rewind marks, or alter `r`. This reuses the ledger representation but adds a writer, calculation and obligation. Manual correction also needs explicit ownership; accepted overcharge would amend Q14.
+
+**Q18b — BLOCKER: the ADR’s natural reading permits the clamp consequence; refusal is safer but needs an explicit amendment.**
+
+“Or the shortfall meets `LDG-31`’s clamp” does not itself say “refuse sale.” The implementation’s “without it, the offer MUST NOT be sold” selects a stricter policy. [ADR-0037:124](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/docs/adr/0037-the-billing-stop-window-is-withdrawn-and-wind-down-is-sized-to-the-gone-write.md#L124); [02-provider-contract.md:551](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/02-provider-contract.md#L551).
+
+However, your binary framing omits existing exposure constraints: `PRV-13b` requires bounding exposure “before taking money”; `LDG-32` permits unbounded automatic cleanup only where the operator “explicitly accepted and capped that exposure.” The clamp protects customer authority; it supplies no operator loss ceiling. [02-provider-contract.md:202](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/02-provider-contract.md#L202); [12-billing-and-ledger.md:329](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/12-billing-and-ledger.md#L329).
+
+If retained, prefer refusal through existing `offer_not_sellable`. Apply it to attachments the offer can actually produce, rather than every kind its driver describes.
+
+**Scope — the strongest “don’t build” is an enforced exclusion, not an inferred absence.**
+
+Explicitly exclude offers producing billable survivors with date-bearing releases, settle the primary-IPv4 uncertainty, and defer both additional policies until admission expands. Preserve Q14’s settled meter/absence distinction. “Robot only” is insufficient: ADR-0039 says the other drivers “stay specified, and their conformance still runs.” [ADR-0039:61](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/docs/adr/0039-only-offers-with-no-traffic-overage-are-sold-until-a-counter-is-proven-fresh.md#L61).
+
+**Edits/formal — repair the owners first; preserve discard.**
+
+Finish the Manager’s [required-repairs list](docs/research/panels-2026-10/r34/manager-blocker.md:43). Then either document and test the scope exclusion, or add the correction obligation and missing-bound admission decision to their owners. Expand `CNF-328` beyond its current “mark preceding a date” fixture to cover a mark beyond the date, retries, closed commitments, rounding, clamp and month boundaries. [10-conformance-checklist.md:3194](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/10-conformance-checklist.md#L3194).
+
+Automation needs a tagged correction transition and witnesses: Funding explicitly omits scheduled-attachment date selection; Period says “no correction exists here.” Existing green proofs do not establish this behavior. Scope-only deferral needs no weakening of meter theorems. [Funding.lean:137](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/tools/formal/Provisiond/Funding.lean#L137); [Period.lean:55](https://github.com/douglaz/provisiond/blob/33bb62faef761cd9c1c58c4abe30b7f9fdacd320/tools/formal/Provisiond/Period.lean#L55).
+
+Focused review of `33bb62f`, including relevant changes in `fbe613a` and `f86de91`: **FAIL pending these blockers**. Required gates passed before and after; tracked files unchanged.
