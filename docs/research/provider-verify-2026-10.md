@@ -578,8 +578,8 @@ below are provider evidence, not deployment settings or values the engine reads.
   delete all backups bound to it."
 - Hetzner Docs, Volumes: "Volumes have a monthly price cap and are billed hourly."
 
-Declare `surviving_attachments`: Primary IP (`api`, unless `auto_delete` is read back true), Floating IP
-(`api`), Volume (`api`), Snapshot (`api`).
+For the Hetzner Cloud `surviving_attachments` kind declarations and cleanup classifications,
+including how per-IP `auto_delete` read-back relates to the immutable descriptor, see `PRV-13a`.
 
 **Hetzner Robot.**
 - "Billing system at Hetzner" (`https://docs.hetzner.com/general/others/new-billing-model/`, last change

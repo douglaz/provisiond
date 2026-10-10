@@ -259,7 +259,7 @@ case-stable. `PRV-48`: "It MUST NOT call `DELETE /v2/droplets?tag_name=` with a 
 **Deletion** — the delete reply and destroy are distinct; provider billing stops at destroy.
 **[documented 2026-10-06 — `docs/research/provider-verify-2026-10.md`, V17 and §3]**
 For customer meter boundaries see `LDG-38`/`LDG-74`; for accepted provider tails see `LDG-75`
-and `ADR-0037`. **[observed — DO-spec, 2026-10-06]** Reserved IPs, floating IPs, snapshots, volumes and volume snapshots survive with `cleanup: api`; backups survive about four weeks with `cleanup: manual`, while billing after destroy remains **[verify]**. `PRV-13a`/`PRV-44` own the descriptor declaration; the driver never sets `backups: true`.
+and `ADR-0037`. **[observed — DO-spec, 2026-10-06]** Reserved IPs, floating IPs, snapshots, volumes and volume snapshots survive with `cleanup: api`; backups survive about four weeks with `cleanup: manual`, while billing after destroy remains **[verify]**. `PRV-13a`/`PRV-44` own the descriptor declaration; `PRV-13a` says "A DigitalOcean driver MUST NOT set `backups: true` on create".
 *Billing interpretation amended 2026-10-08 (`ADR-0037`).*
 
 **Rescue** — **SETTLED 2026-08-31: there is no API to enter it. The driver MUST NOT declare
@@ -400,7 +400,7 @@ Notes that change driver code:
   | What | Observed | Why it is recorded |
   |---|---|---|
   | `in process` → `ready` | **7 min 24 s** and **4 min 03 s** | `OPS-33` says robot-style orders "poll through an `in process` state with no documented bound". These are the first real numbers; they differ by nearly 2×, which is the argument against hard-coding one |
-  | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way. `PRV-42` records this observation and preserves the admission claim; `ADR-0040` resolves lost replies by fingerprint |
+  | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way. `PRV-42` records this observation; its separate admission rule says "At most one create may be in flight per `offer_is_resource` offer, across tenants." `ADR-0040` resolves lost replies by fingerprint |
   | `earliest_cancellation_date` on delivery | **same day**, both | Confirms the cancellation note above |
   | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible; you learn which case applies only by reading `GET /server/{id}/cancellation` first. The mandatory branch was not exercised |
   | `server_ip` on delivery | **`null`** — no IPv4 | Hetzner's docs: "If you do not specify the parameter, the server will be ordered without an IPv4 address by default." `addon[]=primary_ipv4` is priced separately; `RSC-45` owns what a driver must do about it |
@@ -429,7 +429,7 @@ Notes that change driver code:
   **[observed 2026-09-04]** A deployment can therefore hold credentials that manage machines and
   cannot order or reconcile them.
 
-- **Robot's transaction listing is time-bounded** — both ordering channels document "within the last 30 days". **[observed — Robot-WS, 2026-10-06]** Rolling versus calendar alignment remains **[verify]**; `OPS-33` keeps a margin in automatic recovery. After the listing horizon, unresolved orders go to operator resolution.
+- **Robot's transaction listing is time-bounded** — both ordering channels document "within the last 30 days". **[observed — Robot-WS, 2026-10-06]** Rolling versus calendar alignment remains **[verify]**; for the automatic-recovery horizon, see `OPS-33`. After the listing horizon, unresolved orders go to operator resolution.
 - Hetzner Cloud label key segments and nonempty values begin and end with an alphanumeric character; dashes, underscores and dots are allowed inside, and each is at most 63 characters. The `hetzner.cloud/` prefix is reserved. **[observed — HC-spec, 2026-10-06]** A UUID value fits. The label count remains **[verify]** (V5).
 
 **A correction to an earlier note in this document, because the pattern matters more than the

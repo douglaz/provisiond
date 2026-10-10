@@ -752,7 +752,7 @@ than on the resulting machine (the robot-style shape):
 - treat the listing window as the horizon beyond which automatic resolution is impossible
   (`08-provider-notes.md`), and `OPS-31` as the only remaining road.
 
-**Amended 2026-10-09 (research V7):** Robot-WS documents both order-channel listings as covering "within the last 30 days" [observed — Robot-WS, 2026-10-06]. `OPS-33` leaves a margin in the automatic-recovery horizon because rolling versus calendar alignment is unspecified; a by-id fetch does not replace fingerprint search when a lost reply withheld the transaction id.
+**Amended 2026-10-09 (research V7):** Robot-WS documents both order-channel listings as covering "within the last 30 days" [observed — Robot-WS, 2026-10-06]. For the automatic-recovery horizon, see `OPS-33`; a by-id fetch does not replace fingerprint search when a lost reply withheld the transaction id.
 
 **PRV-30** **CONFIRMED IN WRITING 2026-08-13 — no longer `[verify]`, and it removes a field the
 design was relying on.** A provider's caller-controlled field MUST NOT alter how the order is
@@ -835,7 +835,7 @@ representation matches nothing, forever, and fails silently into `PRV-33`.
 **Two residuals remain.** The **standard** channel's listing is unconfirmed with a real order —
 only auction was bought, and standard is where the setup fees are (`08-provider-notes.md`) — and
 the documented listing horizon's rolling versus calendar alignment remains unspecified (`PRV-27`).
-Automatic recovery leaves a margin (`OPS-33`).
+For the automatic-recovery horizon, see `OPS-33`.
 
 **PRV-34** **Robot orders have a test mode, and the driver MUST use it for the order-request half
 of conformance testing — `CNF-180`, `CNF-147` and `CNF-281` place real orders, because test mode

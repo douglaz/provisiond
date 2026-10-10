@@ -1255,9 +1255,11 @@ a process that dies between that write and the dispatch leaves `false` over a ma
 never rebooted into rescue, and the column does not separate that row from one whose session is
 still open. Null is the only value that means no session was opened, and `false` moves to `true`
 and never back. **A driver's report that it cleaned up after a partial activation (`PRV-18`) does
-not move this marker**: the engine did not open the session and did not close it, and `PRV-18`'s
-own output for that case is "the identifiers of the leaked resources", an operator's fact and not
-the engine's record of its own execution. *Until 2026-09-16 this read "set when the driver's
+not move this marker**: the engine did not open the session and did not close it. On failed
+deactivation `PRV-18` reports "the identifier of the rescue environment left behind"; on failed
+eligible-key deletion it reports "the identifier of the key left behind". `PRV-18` also says "A key
+deliberately retained while deletion is ineligible is not a failed cleanup." Those reports are
+operator-facing facts, not the engine's record of its own execution. *Until 2026-09-16 this read "set when the driver's
 end-rescue call returns success, left unset when it fails or when the operation dies" — the
 classifier's two-way question standing where the column's three values belonged, and no sentence
 said when the column was written; a never-attempted exit was a third case until `RSC-18` was
@@ -1431,7 +1433,7 @@ the asymmetry is the point — one is a customer's running server, the other is 
 operating system sitting in the operator's account. *A delete may answer that it already happened;
 `OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*amended 2026-10-09, `ADR-0040`*): a key resource carrying an operation id as its name or tag (`PRV-9`) is deleted by the sweep only when `PRV-9`'s eligibility rule permits it: "A temporary key MUST be deleted only once its operation has settled or vanished, and no machine it produced still reads `provisioning`." A crashed create or rescue operation in `needs_reconciliation` retains its key; a vanished record permits deletion. The provider-side registration is distinct from the recovery private key (`RSC-19`).
 
-**OPS-33** **Amended 2026-10-09 (`ADR-0040`): Robot transaction listings on both ordering channels cover "within the last 30 days" [observed — Robot-WS, 2026-10-06]. The automatic-recovery horizon leaves a margin because rolling versus calendar alignment is unspecified; it does not alter the measured negative window or the matched-in-progress qualification below.** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
+**OPS-33** **Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V7, retrieved 2026-10-06): Robot transaction listings on both ordering channels cover "within the last 30 days" [observed — Robot-WS, 2026-10-06]. The automatic-recovery horizon leaves a margin because rolling versus calendar alignment is unspecified; it does not alter the measured negative window or the matched-in-progress qualification below.** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
 negative window has elapsed, the commitment MUST be closed and released in full even though the
 operation remains open, and `OPS-32`'s account sweep MUST continue searching for the correlator
 indefinitely afterwards. `OPS-36` governs what happens if the machine then appears.
