@@ -1565,8 +1565,9 @@ rather than acquiring a default.
 - [ ] **CNF-186** — Two credited payments each below the activation minimum, summing above it,
       activate the tenant atomically. (`LDG-52`, `API-35`)
 - [ ] **CNF-187** — A machine deleted while a billable attachment survives keeps its commitment
-      open and keeps metering that attachment; the commitment closes only when the last billable
-      resource stops. (`LDG-32`, `PRV-13a`, `STO-18`)
+      open until its `released_at` is recorded; a scheduled meter stop alone leaves it open.
+      The priced attachment below is an isolated accounting fixture: v1 has no attachment
+      customer-rate source and this fixture does not authorize a sale. (`LDG-32`, `PRV-13a`, `STO-18`)
       **Close each subject before releasing authority.** With 30 sats remaining, machine seed 0,
       no tick, 1/5 sat/s and gone delete at 7, assert debit 2, machine mark 7 and `r = 3/5`,
       then 28 still committed while the retained attachment is seeded at 7. Release it at 11
@@ -2108,7 +2109,8 @@ rather than acquiring a default.
       Delete a machine at the provider behind the system's back and then run **only** `OPS-32`'s
       sweep — no refresh, no caller request, no operator action. Assert the sweep **writes** the
       observation to the machine row, the meter posts nothing for time after that instant, and the
-      commitment closes once the last billable attachment has stopped (`LDG-32`, `STO-18`). Then the
+      commitment closes once every billable attachment has release evidence (`released_at`)
+      (`LDG-32`, `STO-18`); a stored effective date alone does not close it. Then the
       halves that are easy to get wrong. Nothing is credited for the window **before** the
       observation, since provisiond polls rather than watches and the earlier instant is not
       knowable. **A `cancellation_scheduled` machine stops at its `effective_cancellation_date`, not
@@ -2549,9 +2551,10 @@ rather than acquiring a default.
       window widens it and does **not** authorize a replay. (`PRV-36`, `OPS-33`, `OPS-12`)
 - [ ] **CNF-238** — **A goal-state rejection is a success.** A delete against an already-deleted
       resource, where the provider answers 4xx meaning "already in the target state", classifies
-      `succeeded` and its commitment closes (`LDG-32`) — **once the last billable resource has
-      stopped**, since `LDG-32` says "Attachments keep the commitment open, and metering follows
-      them"; with a billable attachment surviving, `CNF-187` governs and the commitment stays open
+      `succeeded` and its commitment closes (`LDG-32`) — **once every billable attachment has
+      release evidence**, since `LDG-32` says "keep the commitment open while any billable
+      attachment's `released_at` is null"; with a billable attachment surviving, `CNF-187`
+      governs and the commitment stays open
       (*qualifier added 2026-09-12, `F50`; until then the two items demanded opposite states, both
       BLOCKING*). Asserted against the driver's recorded code
       mapping, not its message text. The failure this catches is a customer's satoshis reserved
@@ -3227,7 +3230,9 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
 
 - [ ] **CNF-328** — **A dated attachment release stops customer metering at its date; the sweep
       records later absence.** On both ordinary success and `applied` resolution, return an
-      effective date for a billable attachment. Exercise a future date and one already passed at
+      effective date for a billable attachment. For customer-debit assertions, inject a priced
+      attachment only as an isolated accounting fixture: v1 has no attachment customer-rate
+      source and this is not a v1 sale. Exercise a future date and one already passed at
       acceptance. Assert the terminal or resolution transaction stores the date atomically,
       leaves `released_at` null, changes neither machine state nor other attachments, and keeps
       the commitment and `STO-18` tombstone gate. Inject a transaction failure and assert no
@@ -3235,7 +3240,14 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       sweep as in `CNF-277`: the attachment's customer meter closes exactly at the date, with no
       future debit or mark at acceptance and no debit after the date, while `released_at` remains
       null until evidence. With the mark preceding a date already passed at acceptance, the next
-      tick clips at that date. Exercise a
+      tick clips at that date. Separately, post usage through t=20 on each of a machine and an
+      isolated priced attachment subject, then learn a stop at t=10. Assert both marks and all
+      posted entries unchanged, no corrective entry, and no later posting past either stop.
+      This late-learned trace does not arise from a v1 sale. Enabling an attachment customer rate
+      or a future-scheduled offer requires the automatic, idempotent corrective credit owned by
+      `LDG-38`; the attachment rate also requires `PRV-13b`'s kind bound and per-offer created-kind
+      declaration. Distinguish an ordinary exit inside a prepaid first unit: its first-unit debit
+      remains and its closing increment is discarded. Exercise a
       provider gone before the date: direct absence writes `released_at` at observation and the
       meter clips to that earlier instant; a later dated release result preserves that
       observation. Exercise presence after the date: the meter stays
@@ -3245,10 +3257,16 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       observation, closes the exit and commitment through their owners, and permits tombstoning.
       An interrupted account pass or per-machine attachment listing writes no absence; a
       complete listing omission contradicted by a
-      direct read finding the attachment also writes nothing. Verify the per-kind bound declared
-      at create and `LDG-31`'s clamp if a later date exceeds it. Contrast a completed release
-      with no effective date through `CNF-326` and `CNF-293`. *Amended 2026-10-09 (`ADR-0037`,
-      Q14).* (`PRV-45`, `OPS-32`, `WIR-35`, `WIR-52`, `LDG-38`, `LDG-32`, `STO-18`, `PRV-44`)
+      direct read finding the attachment also writes nothing. Interpret Robot's day-only
+      `cancellation_date=2026-10-31` as `2026-10-31T23:59:59Z`, and a `now` release at
+      `2026-10-31T12:00:00Z` as that instant, not midnight. Keep an explicit timestamp's
+      instant unchanged. Resolve a scheduled release `applied` with its required wire date;
+      reject a date-less scheduled resolution, and contrast a completed release with no effective
+      date through `CNF-326` and `CNF-293`. Confirm a surviving Robot `primary_ipv4` add-on
+      remains sellable without an attachment bound or customer attachment charge; hold its
+      commitment until `cleanup: api` release evidence and account for its provider cost under
+      `LDG-75`. *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18).*
+      (`PRV-45`, `OPS-32`, `WIR-35`, `WIR-52`, `LDG-38`, `LDG-32`, `STO-18`, `PRV-13b`, `LDG-75`)
 - [ ] **CNF-329** — **A provider call that never replies has a deadline.** Configure a finite,
       positive deadline and dispatch a provider call whose reply never arrives; assert the wait
       ends at the configured bound. Repeat with a mutation whose outcome remains unknown:

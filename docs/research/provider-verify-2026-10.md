@@ -535,9 +535,9 @@ answer can settle it; no test on an account can show what a provider will do.
 
 ## 3. Billing units and provider tails after deletion
 
-**Interpretation amended 2026-10-08 (`ADR-0037`, `ADR-0033`).** Wind-down sizing belongs to
-`PRV-13b`: "Wind-down's latency term is the effective visibility window owned by `PRV-36`".
-The measurement procedure is `PRV-36`'s; invoices check billing units and how the provider counts
+**Interpretation amended 2026-10-10 (`ADR-0037`, Q13 and Q18; `ADR-0033`).** Wind-down sizing
+belongs to `PRV-13b`: "Its latency allowance adds the waits in sequence". `PRV-36` owns the
+effective visibility-window measurement within that composition. Invoices check billing units and how the provider counts
 them. They do not provide a second latency for reserve sizing. For the prepaid first unit see
 `ADR-0033` and `PRV-44`'s `billing_unit`; for the remaining provider tails see `LDG-75`'s
 accepted accounting gaps. `ADR-0037` records the distinction: "What the provider bills after the

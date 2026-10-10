@@ -79,8 +79,6 @@ check and on every `GET /v1/providers`.
 `request_budget` `{scope, limit, per}` (`PRV-46`; provider credential scope identifier,
 positive integer request limit, finite positive period),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
-`attachment_cancellation_bound` per surviving billable attachment kind (`PRV-45`), declared
-before create —
 `traffic_bound` per offer (`ADR-0039`) — `unlimited`,
 `{allowance_bytes, headroom_bytes}` with nonnegative integer allowance bytes and
 `0 < headroom_bytes ≤ allowance_bytes`; the resulting limit is
@@ -107,7 +105,7 @@ Amended 2026-10-09 (`ADR-0039`): the per-offer traffic bound is added. An allowa
 declaration alone does not make an offer sellable; the live-evidence condition is below.*
 *Amended 2026-10-09 (`ADR-0036`): `order_budget` is declared within each
 `ordering_channels[]` entry, not once at descriptor top level.*
-*Amended 2026-10-09 (`ADR-0037`, Q14): per-kind attachment cancellation bound at create.*
+*Amended 2026-10-10 (`ADR-0037`, Q18): no attachment effective-date bound in v1.*
 
 ### List offers
 
@@ -241,9 +239,13 @@ reserve_native = setup_fee                              # at cost, no markup (AD
 commitment_sats = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 ```
 
-The `billable_attachments` term includes each applicable `PRV-45` per-kind cancellation bound
-at create, priced at that attachment's customer rate through its worst-case effective date.
-`LDG-33` carries the same protection during re-derivation. *Amended 2026-10-09 (`ADR-0037`, Q14).*
+The `billable_attachments` term has no v1 value: no attachment has its own customer rate.
+Enabling one requires an automatic, idempotent corrective credit for a stop learned behind the
+subject's mark (`LDG-38`), a worst-case effective-date bound per attachment kind, and a
+per-offer declaration of the kinds that an order creates. `PRV-44` describes
+`surviving_attachments` as "the kinds that survive deletion"; this per-driver descriptor is
+not an individual order's declaration.
+*Amended 2026-10-10 (`ADR-0037`, Q18).*
 
 *The `accrued_unbilled_usage` term was deleted from this formula on 2026-09-02.* Nothing produces
 it: the sizing happens at create, where by construction no usage has accrued, and once the meter was
@@ -540,7 +542,10 @@ in its terminal transaction, including the resolution transaction when resolved 
 (`OPS-31`). A successful release, including one resolved `applied`, whose result carries an
 effective date MUST store that date on the attachment row in the same terminal or resolution
 transaction and MUST NOT write `released_at` merely from that result, whether the date is future
-or already passed. A prior direct gone observation and its `released_at` MUST be preserved.
+or already passed. A provider date given as a calendar day only, including Robot's
+`cancellation_date` (`yyyy-MM-dd`), names the end of that day UTC; a `now` release or
+cancellation is not a start-of-day instant. An explicit timestamp keeps its stated instant.
+A prior direct gone observation and its `released_at` MUST be preserved.
 Neither outcome changes the machine's gone state or schedules its episode. An unresolved release
 or one resolved `not_applied` or `abandoned` MUST NOT write either field as an applied release.
 `OPS-32` says "The sweep MUST also visit attachments of every machine still retained by
@@ -548,16 +553,12 @@ or one resolved `not_applied` or `abandoned` MUST NOT write either field as an a
 `released_at` observation is distinct from an operator's initiation of `manual` provider
 cleanup. `LDG-38` owns the exit write, `LDG-32` commitment release and `STO-18` the
 tombstone gate.
-For each billable attachment kind that can return an effective date after create, a driver MUST
-declare a worst-case effective-date bound before create in `PRV-44`'s descriptor; without it,
-the offer MUST NOT be sold on prepaid terms. The bound funds that attachment's customer rate
-through the date; an actual later date does not automatically resize the commitment and a
-shortfall takes `LDG-31`'s clamp.
 *Amended 2026-10-08 (`ADR-0035`): successful resolution has the same attachment-row effect as
 ordinary success; it does not record the machine gone. The 2026-10-08 `ADR-0037` wording
 restricted the date case to the future; that restriction was too narrow when resolution arrived
-after the effective date. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and bound, and
-automatic direct-read absence confirmation.*
+after the effective date. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and
+automatic direct-read absence confirmation. Amended 2026-10-10 (`ADR-0037`, Q18): day-only dates
+and removal of the v1 attachment bound.*
 
 ### Power
 

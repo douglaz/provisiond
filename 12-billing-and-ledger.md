@@ -189,7 +189,7 @@ stateDiagram-v2
     Open --> Open : extend-runway<br/>LDG-62, caller action, fenced by OPS-42
     Open --> Open : scheduled-cancellation top-up<br/>LDG-63, the one automatic growth
 
-    Open --> Closed : machine and every billable<br/>attachment stopped billing<br/>LDG-32, STO-18
+    Open --> Closed : machine meter stopped and every<br/>billable attachment released<br/>LDG-32, STO-18
     Open --> Closed : create failed deterministically
     Open --> Closed : resolved absent<br/>OPS-27
     Open --> Closed : abandoned by an operator<br/>OPS-31, create only
@@ -306,8 +306,8 @@ because spending what you already committed neither frees nor freezes anything:
 <!-- /formal -->
 
 **LDG-32** **AMENDED.** A commitment MUST be closed, and its remaining amount released in full,
-on **every** terminal outcome: the machine stops billing **and every billable attachment it left
-behind has stopped billing** (`PRV-13a`, `STO-18`); the create fails deterministically; the create
+on **every** terminal outcome: the machine's meter stops **and every billable attachment it left
+behind has release evidence (`released_at`)** (`PRV-13a`, `STO-18`); the create fails deterministically; the create
 is resolved absent (`OPS-27`); the create is abandoned (`OPS-31`); **or the machine's
 provider account is recorded `terminated`** (`SEC-46`, `API-63`), which stops every meter in that
 account (`LDG-74`) and closes every open commitment on its machines in the transaction that records
@@ -344,7 +344,7 @@ directions — and MUST NOT resize the commitment.
 ```
 protected_sats = at the current rate, rounded up:
                    wind_down_cost
-                 + surviving billable attachments through their per-kind effective-date bounds (PRV-13a, PRV-45)
+                 + surviving billable attachments (PRV-13a)
                  + cost through any effective cancellation date (DOM-19)
                  + cost through any earliest cancellation date not yet passed (PRV-13c)
 usable_sats    = max(0, reserved_sats − protected_sats)
@@ -585,8 +585,9 @@ the machine subject and its attachment subjects stop together**: the no-collapsi
 because unreleased volumes outlive their machine, and nothing in a terminated account outlives it.
 *Added 2026-09-04. `LDG-32` gained an account-termination row on 2026-09-02 that closes and
 releases every commitment on that account, and closing a commitment does not stop a meter — while
-its first row reads "the machine stops billing **and every billable attachment it left behind has
-stopped billing**", which is the precondition the new row arrived without. Left as written, the debits went on
+its first row then read "the machine stops billing **and every billable attachment it left behind has
+stopped billing**" (historical wording; `LDG-32` now requires release evidence), which was the
+precondition the new row arrived without. Left as written, the debits went on
 posting against a released commitment, which is the tenant's free balance, for machines on an
 account whose credentials no longer work.*
 
@@ -977,6 +978,15 @@ below, including a stop whose boundary a tick already closed.
 A scheduled cancellation uses the stop boundary above, never its later gone observation or future
 time charged at cancellation acceptance. *Amended 2026-10-09 (`ADR-0037`, Q14): a dated
 attachment release supplies a boundary without a write at the date.*
+**If a stop boundary is learned behind this subject's already-advanced mark, posted entries
+stand: neither the mark nor entries are rewound.** This applies to machine and attachment
+subjects alike. It cannot arise in v1. It becomes reachable if an attachment gains its own
+customer price, or an offer permits future-scheduled cancellation on `PRV-13c`'s exception path
+("branch to the exception path when it is **materially in the future**"). Enabling either
+condition requires an automatic, idempotent corrective credit for the excess already posted;
+v1 posts no such correction. This late-learned-boundary case differs from an ordinary exit
+inside a prepaid first unit: there the first-unit debit stands and the exit increment is
+discarded under the seed rule above. *Amended 2026-10-10 (`ADR-0037`, Q18).*
 For a quarantined subject, apply `LDG-72`'s exit exception.
 
 **For an exit increment containing outage time, `LDG-64` owns the absorbed window's end.**

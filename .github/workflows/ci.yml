@@ -690,7 +690,7 @@ jobs:
           Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
           Reconcile|absenceWindow|.visibility|.negative|Event.advance 20, Event.sweep true false Answer.notFound
-          Reconcile|visibilityFromWaitEnd|true|false|visibilityFromWaitEnd := __src.visibilityFromWaitEnd
+          Reconcile|visibilityFromWaitEnd|true|false|lateAcceptedWorld
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           Ledger|clampAtAuthority|true|false|seizureBalances
           Ledger|serializedAuthorization|true|false|skewTrace
@@ -812,9 +812,9 @@ jobs:
               echo "::error::${field}: more than one red"; grep '^error: Provisiond/' build.log; fail=1
             elif ! grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log; then
               echo "::error::${field}: the red is not a refuted witness"; grep '^error' build.log; fail=1
-            elif ! grep -A6 'proved that the proposition' build.log | grep -q "$token"; then
+            elif ! grep -A8 'proved that the proposition' build.log | grep -q "$token"; then
               echo "::error::${field}: the red witness is not the targeted one ($token)"
-              grep -A6 'proved that the proposition' build.log; fail=1
+              grep -A8 'proved that the proposition' build.log; fail=1
             else
               echo "lake build correctly failed on ${field} := ${to}, on the witness naming $token"
               passed=$((passed + 1))

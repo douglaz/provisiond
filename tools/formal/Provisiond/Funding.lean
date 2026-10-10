@@ -1520,6 +1520,19 @@ A quarantined exit records its stop externally and leaves this money/meter world
 def exitSubject (p : Params) (w : World) (boundary : Nat) (rate : Rat) : World :=
   if w.quarantined then w else if p.exitPosts then post p w boundary boundary rate else w
 
+/-- `LDG-38`: "posted entries stand" when a supplied stop boundary falls at or behind the
+subject's mark. This one-subject model leaves the entire money/meter world unchanged in that
+case; it does not establish how the boundary was learned, or specify a future corrective credit. -/
+@[req "LDG-38"]
+theorem late_stop_preserves_posted (p : Params) (hp : p.markDiscards = true) (w : World)
+    (boundary : Nat) (rate : Rat) (h : w.mark.any (boundary ≤ ·) = true) :
+    exitSubject p w boundary rate = w := by
+  by_cases hq : w.quarantined
+  · simp [exitSubject, hq]
+  · by_cases hx : p.exitPosts
+    · simpa [exitSubject, hq, hx] using post_discarded p hp w boundary boundary rate h
+    · simp [exitSubject, hq, hx]
+
 /-- `LDG-72`: a quarantined exit changes no entry, commitment or meter state. Stop recording
 and deletion completion are external to this one-subject money world. -/
 @[req "LDG-72"]

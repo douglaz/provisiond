@@ -1354,8 +1354,10 @@ surface the tenants it affects.
 
 **Recording `terminated` MUST, in one transaction, and in this order:** write the status; **record
 every machine in that account gone** — `machines.state` and `machines.state_observed_at` (`STO-48`)
-set to the recording instant, which is the write `LDG-74` stops a meter by, and `released_at` set on
-every unreleased billable attachment, which is how an attachment's meter stops (`LDG-32`, `STO-18`);
+set to the recording instant for `LDG-74`'s observation boundary ("Billing stops at the observation
+instant"), subject to its earlier scheduled-date case, and
+`released_at` set on every unreleased billable attachment as its release evidence (`LDG-32`,
+`STO-18`);
 **apply `LDG-38`'s exit rule to every subject**, including scheduled machines and quarantined
 subjects; **close and release in full
 every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create naming that
@@ -1446,8 +1448,8 @@ per machine — the `CNF-272` scenario, at the scale of a whole account.*
 
 **The meter stop MUST come first, and it MUST cover the attachments as well as the machines.**
 *Added 2026-09-04. The release was specified without it, and the two are not the same act:
-`LDG-32`'s first terminal outcome reads "the machine stops billing **and every billable attachment
-it left behind has stopped billing**", which is the shape the other rows share — while the
+`LDG-32`'s first terminal outcome says "the machine's meter stops **and every billable attachment it left
+behind has release evidence (`released_at`)**", which is the shape the other rows share — while the
 account-termination row added on 2026-09-02 released the money
 and left every meter running. For exit ordering and its rationale, see `LDG-38` and
 `ADR-0011` (2026-10-03).*
