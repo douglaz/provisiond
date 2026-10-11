@@ -3324,17 +3324,16 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 
 - [ ] **CNF-331** — **Refresh cache settlement preserves observation age.** Configure a positive
       freshness window. Enqueue a refresh of a machine observed within it: assert `202`, then
-      `succeeded`, result `{}`, zero provider calls and unchanged `state_observed_at`, including at reserve-only request
-      capacity. Repeat
+      `succeeded`, result `{}`, zero provider calls and unchanged `state_observed_at`. Repeat
       at the stale boundary and with a null observation: each can read the provider. Queue several
       refreshes while stale, then claim them serially within the window after a responding read;
       assert one provider read in total. Change the stored observation between enqueue and claim
       to prove the check reads it at claim. (`DOM-8`, `OPS-8`, `OPS-11`, `API-7`, `WIR-10`)
 - [ ] **CNF-332** — **Failed refreshes do not create freshness.** On a stale machine fail a provider
       read, assert `failed` and unchanged `state_observed_at`, then enqueue and claim a new refresh
-      before a window elapses. With tenant budget available it reads again; another failure remains
+      before a window elapses. It reads again; another failure remains
       `failed`. Repeat from a null observation. No attempted-read timestamp or cooldown substitutes
-      for a successful observation. (`DOM-8`, `OPS-11`, `PRV-46`)
+      for a successful observation. (`DOM-8`, `OPS-11`)
 - [ ] **CNF-333** — **The machine view exposes observation age.** Assert GET and list views include
       `state_observed_at` as the exact stored timestamp in wire format, and as explicit null for an
       unobserved machine. Change `updated_at` independently and show it does not change the
@@ -3344,7 +3343,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       request pipeline at and below the per-principal reverse-DNS ceiling. Assert `ceiling_exceeded`
       at the limit, including an identical recorded value; a replay spends no second slot. Below
       the limit assert `202` followed by `succeeded` and `{}` with zero provider calls for an
-      identical established PTR, including at reserve-only request capacity. Reject a foreign machine, an address outside its recorded list,
+      identical established PTR. Reject a foreign machine, an address outside its recorded list,
       an empty/overlong hostname and CR/LF even when its text matches a stored entry. Retain the
       capability check. (`SEC-39`, `API-7`, `API-16`, `API-17`, `PRV-2`, `PRV-25`, `WIR-10`)
 - [ ] **CNF-335** — **A requested PTR is not provider evidence.** Begin with no recorded value and
@@ -3355,35 +3354,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       identical subsequent no-op. Remove the address and assert its entry disappears. Exercise
       deterministic and ambiguous provider failures with the existing classifications.
       (`PRV-25`, `PRV-12`, `PRV-36`, `OPS-11`, `OPS-31`)
-- [ ] **CNF-336** — **Provider request capacity is shared and accounted before dispatch.** Supply a
-      descriptor declaration and a lower deployment limit. With multiple tenants and configured
-      provider accounts sharing a credential scope, assert one shared budget. Observe a read,
-      mutation, poll and subsequent request at a dispatch barrier: each has already consumed
-      budget. Verify the engine reads the descriptor, not provider notes. Independently
-      close an order channel with Robot's throttle; extra request capacity does not
-      reopen it.
-      (`PRV-44`, `PRV-46`, `PRV-40`)
-      *Amended 2026-10-09 (`ADR-0036`): the order gate closes on the reported throttle.*
-- [ ] **CNF-337** — **Reserve-only capacity refuses new tenant work and alarms.** Spend the tenant
-      share, assert a scope-identifying monitorable alarm, and submit new tenant operations:
-      each is refused deterministically with `rate_limited` before its first provider call. A second tenant on the
-      same scope cannot bypass this. At reserve-only capacity separately drive funding
-      cancellations, other system-detected episodes, automatic resolution and the account sweep;
-      each retains reserved access. Show per-principal ceilings and monetary reserves do not
-      replenish or substitute for provider-request capacity. (`PRV-46`, `OPS-39`, `OPS-27`, `OPS-32`)
-- [ ] **CNF-338** — **An admitted operation continues after depletion.** Admit an operation with
-      tenant capacity available and send its first request. Deplete that capacity before its
-      next request, then before a further poll. Assert no second local admission refusal and
-      accounting before each dispatch, including a continuation when total available capacity
-      is exhausted. In parallel refuse a new tenant operation. A provider throttle still follows
-      the existing error/classification rules; no automatic replay is introduced.
-      (`PRV-46`, `PRV-5`, `OPS-11`, `OPS-12`)
-- [ ] **CNF-339** — **New deployment parameters are validated.** Exercise every newly registered
-      row from `OVR-19`'s `ADR-0034` amendment. Missing, malformed, non-finite, zero or negative
-      durations/limits, an empty scope, a noninteger request limit or reserve, a limit above the declaration,
-      a changed declaration period, or a reserve above the effective limit refuse
-      startup. A valid lower limit and a valid share start successfully and govern dispatch.
-      (`OVR-19`, `DOM-8`, `PRV-44`, `PRV-46`)
+- [ ] **CNF-339** — **Refresh freshness is validated at startup.** Missing, malformed,
+      non-finite, zero or negative freshness durations refuse startup. A positive window
+      shorter than the account-sweep interval also refuses startup; equality and a longer
+      valid window start successfully. (`DOM-8`, `OVR-19`, `OPS-32`)
 
 ## Traffic sale scope (`ADR-0039`, added 2026-10-09)
 
@@ -3476,3 +3450,23 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       atomically. An account-wide lock requires a separate record on each affected machine.
       (`WIR-47`, `WIR-24`,
       `SEC-41`, `API-61`) *Added 2026-10-10 (`ADR-0038`, Q15 and Q15b).*
+
+## Provider traffic follow-through (`ADR-0034`, Q20 and Q20b)
+
+- [ ] **CNF-351** — **The complete sweep supplies refresh observations.** With N managed Robot
+      machines observed present by a successful complete pass, exercise refresh loops across
+      the covered sweep interval, after the pass has written its observations: assert one
+      `GET /server`, N present-writes of state and `state_observed_at`, and zero
+      `GET /server/{server-number}` caused by those refreshes. Keep claim times within each
+      observation's freshness window and provider listing successful. Do not count an initially
+      stale machine before its sweep observation. Stop the sweep and show successful reads
+      fall back to one per machine per window. (`OPS-32`, `DOM-8`, `STO-48`)
+- [ ] **CNF-352** — **Failed sweep reads establish no absence or freshness.** Interrupt an
+      account enumeration and assert no absence is recorded. Complete an enumeration that
+      omits a managed machine, then return `403 RATE_LIMIT_EXCEEDED` on its direct confirming
+      read: assert no gone write, no absence-dependent ledger or episode effects, and no
+      advance of `state_observed_at`. (`OPS-32`, `STO-48`, `LDG-74`)
+- [ ] **CNF-353** — **A throttled Robot rescue exit alarms without settling.** Return a Robot
+      throttle from end rescue. Assert a monitorable alarm naming the provider account and
+      the existing ambiguous error and reconciliation outcome; assert no silent retry or
+      successful settlement. (`PRV-22`, `OPS-11`)

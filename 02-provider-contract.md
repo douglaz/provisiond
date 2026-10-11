@@ -76,8 +76,6 @@ check and on every `GET /v1/providers`.
 `PRV-33`, `PRV-38`, `offer_is_resource: true | false` (whether the offer names one machine, `PRV-42`), and
 `order_budget: {limit, per}`, `PRV-40`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
-`request_budget` `{scope, limit, per}` (`PRV-46`; provider credential scope identifier,
-positive integer request limit, finite positive period),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
 `traffic_bound` per offer (`ADR-0039`) — `unlimited`,
 `{allowance_bytes, headroom_bytes}` with nonnegative integer allowance bytes and
@@ -100,7 +98,6 @@ commentary on why a descriptor says what it says (`ADR-0018`). `WIR-29` exposes 
 `CNF-18` iterates its fields as it iterates capabilities: a declared value has a working code path
 behind it.
 *Amended 2026-10-08 (`ADR-0037`): the billing-stop window is withdrawn.
-Amended 2026-10-08 (`ADR-0034`): the request-budget declaration is added.
 Amended 2026-10-09 (`ADR-0039`): the per-offer traffic bound is added. An allowance
 declaration alone does not make an offer sellable; the live-evidence condition is below.*
 *Amended 2026-10-09 (`ADR-0036`): `order_budget` is declared within each
@@ -618,6 +615,9 @@ installed system, and arrange removal of any temporary credential it registered 
 be rebooting into the new system, and a temporary credential may still be registered. The
 driver MUST surface it as an error rather than swallowing it, so the lifecycle can route
 the operation to reconciliation (`OPS-11`).
+**Amended 2026-10-11 (`ADR-0034`, Q20b).** A Robot throttled end-rescue call MUST emit a
+monitorable alarm identifying the provider account. The alarm does not settle the call or
+change its ambiguous error outcome.
 
 ### Rebuild
 
@@ -1046,30 +1046,6 @@ operation, not an automatic requeue or another attempt by this operation. This i
 plain read, not a conditional-write guard: if a closure commits after the read,
 the provider's own `403 RATE_LIMIT_EXCEEDED` may settle the create the same way.
 See `OPS-11` for classification after a provider has accepted a mutation.
-
-**PRV-46** A driver MUST declare the provider's request limit per credential scope in
-`PRV-44`'s `request_budget`; for Hetzner Cloud the scope is the project. The deployment MUST
-share that budget across every tenant and configured provider account using that scope, and
-MUST account for each provider request before dispatch, including reads, polling, and subsequent
-requests of an operation. It MAY lower the declared limit and MUST NOT raise it; the period and
-scope remain the declaration's. This request budget is additional to `PRV-40`'s order capacity.
-
-The deployment MUST state a system reserve share of the effective request budget, expressed
-as a number of whole requests (`OVR-19`).
-That capacity is reserved for funding cancellations and other system-detected episodes (`OPS-39`),
-automatic resolution (`OPS-27`) and the account sweep (`OPS-32`). It is provider-request capacity,
-separate from a customer's monetary reserve and `SEC-39`'s per-principal ceilings.
-
-Admission MUST be decided once per operation, before its first provider call. A new tenant-initiated
-operation MUST be refused deterministically with `rate_limited` when only the system reserve
-remains, before any provider call. The named system paths MUST retain access to that reserve.
-A second tenant using the same credential scope receives no fresh budget. A later request of an admitted operation
-MUST NOT be refused locally by this budget; each such request still spends budget before dispatch.
-Admission does not promise that the provider will not throttle an admitted operation.
-Local cache settlements make no provider request and need no request-budget admission.
-
-The deployment MUST emit a monitorable alarm on tenant-share exhaustion, identifying the credential
-scope. *Added 2026-10-08 (`ADR-0034`).*
 
 **PRV-41** **An authentication failure MUST NOT be retried against a provider that locks out on
 repeated failures.** Hetzner Robot blocks the **source IP for ten minutes after three failed login

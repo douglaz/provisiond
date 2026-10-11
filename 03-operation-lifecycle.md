@@ -1349,6 +1349,13 @@ the account would record every unlisted machine as gone — stopping their meter
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
 
+**Amended 2026-10-10 (`ADR-0034`, Q20).** A complete pass MUST write the observed state
+and `machines.state_observed_at` (`STO-48`) for every managed machine it observed present.
+The interrupted-pass permission above remains a permission. A failed read establishes no
+observation for the machine that read failed to observe; a failed direct absence confirmation
+cannot record absence. Successful present observations from earlier pages remain eligible
+under the interrupted-pass rule.
+
 The sweep's gone-write is an exit under `LDG-38`. Provider enumeration and the direct re-read below
 remain outside the primitive (`LDG-69`).
 

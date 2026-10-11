@@ -1,19 +1,13 @@
 import Provisiond.Admission
-/-! ADR-0034 (2026-10-08), including Q10: local settlements and provider request admission.
+/-! ADR-0034 (2026-10-08, Q10; 2026-10-10, Q20): local settlements and sweep freshness.
 
 The cache model has a sequence of serialized worker claims, not concurrent executions. Enqueue
 captures an observation only for the guard-off defect; the guarded path reads the current row.
+Cache.reads counts refresh-provider reads, not the sweep's account-list request.
 Provider success/failure is an input; no network, clock progress, state payload, or persistence
-is proved. Authorization and validation precede these functions and remain Admission's and Wire's.
-
-The budget model covers one declared period, with no refill or external traffic. Scope, operation
-identity and origin are immutable request facts; the caller cannot change them between requests.
-Usage and admission are produced by dispatch transitions, not supplied as verdicts. Reserve is a
-whole-request count. Remaining capacity uses integers so admitted continuations can be accounted
-for even beyond the effective limit. Configuration validation,
-provider enforcement, crash durability and system scheduling remain implementation obligations.
-Accounting may exceed capacity for already admitted operations: the model asserts no provider
-acceptance and invents no local mid-operation refusal. The order budget is untouched. -/
+is proved. A successful complete sweep observation is modeled as a write at its supplied time;
+the model does not prove enumeration, scheduling, state payload, persistence or provider behavior.
+Authorization and input validation remain Admission's and Wire's. -/
 namespace Provisiond.ProviderTraffic
 
 structure Guards where
@@ -24,13 +18,11 @@ structure Guards where
   reverseDnsNoop : Bool
   establishedOnly : Bool
   invalidatePtr : Bool
-  sharedScope : Bool
-  protectReserve : Bool
-  admitOnce : Bool
-  accountEveryRequest : Bool
+  sweepWritesPresent : Bool
+  windowAtLeastSweep : Bool
   deriving DecidableEq, Repr
 
-@[req "PRV-46"]
+@[req "DOM-8"]
 def current : Guards := {
     reuseFresh := true,
     checkAtClaim := true,
@@ -39,10 +31,8 @@ def current : Guards := {
     reverseDnsNoop := true,
     establishedOnly := true,
     invalidatePtr := true,
-    sharedScope := true,
-    protectReserve := true,
-    admitOnce := true,
-    accountEveryRequest := true }
+    sweepWritesPresent := true,
+    windowAtLeastSweep := true }
 
 structure Cache where
   observed : Option Nat := none
@@ -55,6 +45,16 @@ def fresh (observed : Option Nat) (now window : Nat) : Bool :=
   match observed with
   | none => false
   | some observedAt => observedAt ≤ now && now - observedAt < window
+
+/-- Startup checks positive durations and the owner window relationship. -/
+@[req "DOM-8"]
+def validFreshness (g : Guards) (window sweepInterval : Nat) : Bool :=
+  0 < window && 0 < sweepInterval && (!g.windowAtLeastSweep || sweepInterval ≤ window)
+
+/-- A complete pass writes the observation of a managed machine it found present. -/
+@[req "OPS-32"]
+def sweepPresent (g : Guards) (now : Nat) (s : Cache) : Cache :=
+  if g.sweepWritesPresent then { s with observed := some now } else s
 
 /-- DOM-8: the queue's observation is ignored when the claim-time guard is enabled. -/
 @[req "DOM-8"]
@@ -103,85 +103,5 @@ theorem invalidated_is_not_noop (g : Guards) (he : g.establishedOnly = true)
     (hi : g.invalidatePtr = true) (record : Option Ptr) (requested : String) :
     ptrNoop g (beforePtrDispatch g record) requested = false := by
   cases record <;> simp [ptrNoop, beforePtrDispatch, he, hi]
-
-inductive Origin
-  | tenant (id : Nat) | fundingCancellation | systemEpisode | automaticResolution | accountSweep
-  deriving DecidableEq, Repr
-
-structure Request where
-  operation : Nat
-  scope : Nat
-  origin : Origin
-  deriving DecidableEq, Repr
-
-structure Budget where
-  limit : Nat
-  reserve : Nat
-  deriving DecidableEq, Repr
-
-structure Usage where
-  scope : Nat
-  tenant : Option Nat
-  deriving DecidableEq, Repr
-
-structure Traffic where
-  spent : List Usage := []
-  admitted : List Request := []
-  calls : Nat := 0
-  alarms : List Nat := []
-  deriving DecidableEq, Repr
-
-@[req "PRV-46"]
-def usageKey (g : Guards) (r : Request) : Usage :=
-  { scope := r.scope, tenant := if g.sharedScope then none else
-      match r.origin with | .tenant id => some id | _ => none }
-
-@[req "PRV-46"]
-def remaining (g : Guards) (b : Budget) (r : Request) (s : Traffic) : Int :=
-  (b.limit : Int) - ((s.spent.filter (· == usageKey g r)).length : Int)
-
-@[req "PRV-46"]
-def tenantOrigin : Origin → Bool
-  | .tenant _ => true
-  | .fundingCancellation | .systemEpisode | .automaticResolution | .accountSweep => false
-
-/-- A request is considered immediately before dispatch. A refusal has no dispatch effect;
-continuations are recognized from the earlier transition's stored admission. -/
-@[req "PRV-46"]
-def dispatch (g : Guards) (b : Budget) (r : Request) (s : Traffic) : Traffic :=
-  let left := remaining g b r s
-  let exhausted := left ≤ (b.reserve : Int)
-  let continuing := g.admitOnce && s.admitted.contains r
-  if !continuing && tenantOrigin r.origin && g.protectReserve && exhausted then
-    { s with alarms := r.scope :: s.alarms }
-  else
-    let spent := if g.accountEveryRequest then usageKey g r :: s.spent else s.spent
-    let next := { s with spent := spent, admitted := r :: s.admitted, calls := s.calls + 1 }
-    if left > (b.reserve : Int) && remaining g b r next ≤ (b.reserve : Int) then
-      { next with alarms := r.scope :: next.alarms }
-    else next
-
-@[req "PRV-46"]
-theorem reserve_refuses_new_tenant (g : Guards) (b : Budget) (r : Request) (s : Traffic)
-    (hg : g.protectReserve = true) (ht : tenantOrigin r.origin = true)
-    (hn : s.admitted.contains r = false) (hr : remaining g b r s ≤ (b.reserve : Int)) :
-    (dispatch g b r s).calls = s.calls := by
-  have hn' : r ∉ s.admitted := by simpa using hn
-  simp [dispatch, hg, ht, hn', hr]
-
-@[req "PRV-46"]
-theorem admitted_request_continues (g : Guards) (b : Budget) (r : Request) (s : Traffic)
-    (hg : g.admitOnce = true) (ha : s.admitted.contains r = true) :
-    (dispatch g b r s).calls = s.calls + 1 := by
-  have ha' : r ∈ s.admitted := by simpa using ha
-  simp [dispatch, hg, ha']
-  split <;> split <;> rfl
-
-@[req "PRV-46"]
-theorem system_path_retains_access (g : Guards) (b : Budget) (r : Request) (s : Traffic)
-    (hs : tenantOrigin r.origin = false) :
-    (dispatch g b r s).calls = s.calls + 1 := by
-  simp [dispatch, hs]
-  split <;> split <;> rfl
 
 end Provisiond.ProviderTraffic

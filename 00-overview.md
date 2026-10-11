@@ -352,10 +352,12 @@ says a deployment MUST state is listed here, with the requirement that mandates 
 validate every startup-validated row and refuse to run on a missing or out-of-range value; the rows
 marked human are procedures the deployment records rather than values the process reads.
 
-*Amended 2026-10-08 (`ADR-0034`): refresh freshness, provider request budget and system reserve
-share are registered below. Amended 2026-10-09 (`ADR-0036`): the order declaration is per
-account and channel, and the activation funding minimum is registered. Amended 2026-10-10
-(`ADR-0036`): startup validates that minimum's positive-integer satoshi form.*
+*Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
+2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
+activation funding minimum is registered. Amended 2026-10-10 (`ADR-0036`): startup
+validates that minimum's positive-integer satoshi form. Amended 2026-10-10
+(`ADR-0034`, Q20): `DOM-8` says "A deployment MUST state a finite, positive refresh
+freshness window no shorter than the account-sweep interval"; startup validates it.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -374,9 +376,7 @@ account and channel, and the activation funding minimum is registered. Amended 2
 | Re-derivation interval | `PRV-13e` | duration | yes |
 | Account-sweep interval | `OPS-32`, `LDG-74` | duration | yes |
 | Worst-case operation hold, per product | `PRV-13b` | duration | yes |
-| Refresh freshness window | `DOM-8` | finite, positive duration | yes |
-| Provider request budget, per credential scope | `PRV-46`, `PRV-44` | `{scope, limit, per}` — nonempty scope; positive integer limit no greater than the driver's declaration; same finite, positive period as declared | yes |
-| System request reserve share, per credential scope | `PRV-46` | positive integer requests no greater than the effective request limit | yes |
+| Refresh freshness window | `DOM-8` | finite, positive duration; see `DOM-8` | yes |
 | Provider-call deadline | `OVR-19` | finite, positive duration | yes |
 | Resolution-read cadence, per provider account | `OVR-19` | finite, positive duration; maximum wait from a mutation's visibility-window end until its resolution read is issued | yes |
 | Margin | `LDG-24` | basis points | yes |

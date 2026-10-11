@@ -3836,6 +3836,39 @@ theorem stale_and_unobserved_read :
     (claimRefresh ProviderTraffic.current 60 160 none true freshObservation).reads = 2 ∧
     (claimRefresh ProviderTraffic.current 60 0 none true {}).reads = 1 := by decide
 
+/-- A complete pass observes a present machine at 100. The next sweep is due at 120;
+the claim at 110 is inside the validated window. Listing success, pass completion and
+claim timing are inputs; the witness proves local reuse, not scheduler reliability. -/
+def sweepRefresh (g : ProviderTraffic.Guards) : Option Cache :=
+  let g := { g with reuseFresh := true, checkAtClaim := true, preserveAge := true, successfulOnly := true }
+  if validFreshness g 20 20 then
+    some (claimRefresh g 20 110 none true (sweepPresent g 100 {}))
+  else none
+
+@[req "OPS-32"]
+theorem sweep_observation_answers_refresh :
+    (sweepRefresh ProviderTraffic.current).map Cache.reads = some 0 ∧
+    (sweepRefresh ProviderTraffic.current).map Cache.observed = some (some 100) := by decide
+@[req "OPS-32"]
+theorem without_present_write_refresh_reads :
+    (sweepRefresh { ProviderTraffic.current with sweepWritesPresent := false }).map Cache.reads =
+      some 1 := by decide
+
+/-- A five-unit window expires before the next twenty-unit sweep. Startup rejects that
+configuration; if the validation guard is removed, it is admitted and a claim at 110 reads. -/
+def shortWindowValidation (g : ProviderTraffic.Guards) : Bool := validFreshness g 5 20
+def shortWindowRefresh : Cache :=
+  claimRefresh ProviderTraffic.current 5 110 none true
+    (sweepPresent ProviderTraffic.current 100 {})
+
+@[req "DOM-8"]
+theorem short_window_is_rejected_and_loses_reuse :
+    shortWindowValidation ProviderTraffic.current = false ∧
+    shortWindowRefresh.reads = 1 := by decide
+@[req "DOM-8"]
+theorem without_window_guard_accepts_bad_window :
+    shortWindowValidation { ProviderTraffic.current with windowAtLeastSweep := false } = true := by decide
+
 def establishedPtr : Option Ptr := some ⟨"host.example", true⟩
 def establishedPtrNoop (g : ProviderTraffic.Guards) : Bool :=
   ptrNoop { g with establishedOnly := true } establishedPtr "host.example"
@@ -3870,64 +3903,6 @@ theorem differing_dispatch_invalidates_ptr :
 @[req "PRV-25"]
 theorem missing_invalidation_falsely_succeeds :
     ptrAfterDifferingDispatch { ProviderTraffic.current with invalidatePtr := false } = true := by decide
-
-def smallBudget : Budget := ⟨2, 1⟩
-def firstTenant : ProviderTraffic.Request := ⟨10, 7, .tenant 1⟩
-def secondTenant : ProviderTraffic.Request := ⟨11, 7, .tenant 2⟩
-def reserveOnly (g : ProviderTraffic.Guards) : Traffic := dispatch g smallBudget firstTenant {}
-def newTenantAtReserve (g : ProviderTraffic.Guards) : Traffic :=
-  dispatch g smallBudget secondTenant (reserveOnly g)
-
-def scopeGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
-  { g with protectReserve := true, accountEveryRequest := true }
-def reserveGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
-  { g with sharedScope := true, accountEveryRequest := true }
-
-@[req "PRV-46"]
-theorem reserve_refuses_tenant_witness :
-    (newTenantAtReserve (reserveGuards ProviderTraffic.current)).calls = 1 ∧
-    (newTenantAtReserve (reserveGuards ProviderTraffic.current)).spent.length = 1 := by with_unfolding_all decide
-@[req "PRV-46"]
-theorem unprotected_reserve_admits_tenant_witness :
-    (newTenantAtReserve { reserveGuards ProviderTraffic.current with protectReserve := false }).calls = 2 := by with_unfolding_all decide
-
-@[req "PRV-46"]
-theorem another_tenant_cannot_reset_scope :
-    (newTenantAtReserve (scopeGuards ProviderTraffic.current)).calls = 1 := by with_unfolding_all decide
-@[req "PRV-46"]
-theorem per_tenant_accounting_exposes_reserve :
-    (newTenantAtReserve { scopeGuards ProviderTraffic.current with sharedScope := false }).calls = 2 := by with_unfolding_all decide
-
-/-- Pin other guards: each CI mutation refutes exactly its own witness. -/
-def continuationGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
-  { g with sharedScope := true, protectReserve := true, accountEveryRequest := true }
-def continuedOperation (g : ProviderTraffic.Guards) : Traffic :=
-  let s := reserveOnly g
-  let s := dispatch g smallBudget firstTenant s
-  dispatch g smallBudget firstTenant s
-
-@[req "PRV-46"]
-theorem subsequent_requests_are_not_new_admissions :
-    (continuedOperation (continuationGuards ProviderTraffic.current)).calls = 3 := by with_unfolding_all decide
-@[req "PRV-46"]
-theorem repeated_admission_refuses_the_continuation :
-    (continuedOperation { continuationGuards ProviderTraffic.current with admitOnce := false }).calls = 1 := by with_unfolding_all decide
-
-def accountingGuards (g : ProviderTraffic.Guards) : ProviderTraffic.Guards :=
-  { g with sharedScope := true, protectReserve := true, admitOnce := true }
-@[req "PRV-46"]
-theorem subsequent_requests_still_spend :
-    (continuedOperation (accountingGuards ProviderTraffic.current)).spent.length = 3 ∧
-    (continuedOperation (accountingGuards ProviderTraffic.current)).alarms = [7] := by with_unfolding_all decide
-@[req "PRV-46"]
-theorem without_accounting_calls_spend_nothing :
-    (continuedOperation { accountingGuards ProviderTraffic.current with accountEveryRequest := false }).spent = [] := by with_unfolding_all decide
-
-@[req "PRV-46"]
-theorem system_paths_at_reserve_witness :
-    ∀ origin ∈ [Origin.fundingCancellation, .systemEpisode, .automaticResolution, .accountSweep],
-      (dispatch ProviderTraffic.current smallBudget ⟨12, 7, origin⟩
-        (reserveOnly ProviderTraffic.current)).calls = 2 := by with_unfolding_all decide
 
 def reverseDnsAdmission (g : Admission.Guards) : Option Admission.Outcome :=
   Admission.admit { g with ceilingStep := true }

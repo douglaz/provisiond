@@ -671,7 +671,7 @@ because no account action can settle them.
     sufficient for `ADR-0033`'s "priced, not amplified" criterion. Counter freshness,
     location accounting and the deletion residual remain unverified.
 
-**Batch B — Hetzner Robot (one auction order, about €0.08, ordering enabled)**
+**Batch B — Hetzner Robot (unrun plan: one auction order, about €0.08, ordering enabled)**
 1. `POST /key` with `name=pv-<uuid>` (V9). Read it back.
 2. `GET /order/server_market/product`. Pick the cheapest offer and record its `id`.
 3. Order it with `authorized_key[]=<fp>`, `addon[]=primary_ipv4` and `test=false`. Without the add-on
@@ -685,8 +685,13 @@ because no account action can settle them.
    Compare `/root/.ssh/robot_user_keys` with the activation fingerprint (V11).
 8. With rescue still active, `POST /boot/{n}/rescue` again with a different key (V10). Record the
    response, then `GET /boot/{n}/rescue`.
-9. `POST /server/{n}/cancellation` with `cancellation_date=now`. Record the UTC time. Check `GET /ip`
-   for whether the add-on IPv4 outlives the server.
+9. Without a `GET /server/{n}/cancellation` pre-read, first try
+   `POST /server/{n}/cancellation` with `cancellation_date=now` and
+   `reserve_location=false`. Record the response, UTC time and resulting cancellation
+   state. If Robot rejects it, use the existing pre-read path to complete cleanup;
+   do not infer that the pre-read is dispensable. A reservation-possible branch
+   unavailable on this server remains unverified. Check `GET /ip` for whether the
+   add-on IPv4 outlives the server.
 10. On the next invoice, check the server's hourly unit and how its hours are counted, and any
     add-on's day unit and part-day counting. Record what the invoice establishes about the grid,
     not a billing-stop latency (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
@@ -710,6 +715,20 @@ because no account action can settle them.
     scope, rolling versus calendar reset, rejected-request and test-request counting, and
     post-403 window behavior remain unsettled until measured. Never infer them from this
     written procedure alone.
+13. **Endpoint-limit scope checks (`ADR-0034`, Q20/Q20b; not run):** use the
+    method/path inventory in `08-provider-notes.md` as the list of limits to check.
+    Arrange separately authorized test accounts, webservice users, source IPs and
+    endpoint-specific fixtures before this part of Batch B; the auction order above
+    alone cannot resolve every counter's scope.
+    For each listed limit, record UTC timestamp, method/path, provider account,
+    webservice user, source IP, server number where applicable, response code and
+    returned throttle details. Compare controlled requests across distinct users,
+    accounts and source IPs to determine the counting scope; compare server-number
+    paths to learn whether their counts share a counter. In particular determine
+    whether `POST /reset/{server-number}` counts per account or per server; if per
+    account, revisit Q20b's accepted v1 residual with the owner. Keep the order-POST
+    experiment in step 12 separate from the order-transaction GET checks here.
+    No counting scope is inferred from the written plan.
 
 **Batch C — DigitalOcean (one `s-1vcpu-512mb` Droplet, under $0.01)**
 1. Create a key named `pv-<uuid>`. Create a Droplet with it and tag `pv:<uuid>`. Record the time of the

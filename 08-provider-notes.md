@@ -402,7 +402,7 @@ Notes that change driver code:
   | `in process` → `ready` | **7 min 24 s** and **4 min 03 s** | `OPS-33` says robot-style orders "poll through an `in process` state with no documented bound". These are the first real numbers; they differ by nearly 2×, which is the argument against hard-coding one |
   | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way. `PRV-42` records this observation; its separate admission rule says "At most one create may be in flight per `offer_is_resource` offer, across tenants." `ADR-0040` resolves lost replies by fingerprint |
   | `earliest_cancellation_date` on delivery | **same day**, both | Confirms the cancellation note above |
-  | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible; you learn which case applies only by reading `GET /server/{id}/cancellation` first. The mandatory branch was not exercised |
+  | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible. The planned delete path includes `GET /server/{id}/cancellation` first. Whether explicitly sending `reserve_location=false` succeeds without that pre-read remains **[verify]** (batch B); the mandatory branch was not exercised |
   | `server_ip` on delivery | **`null`** — no IPv4 | Hetzner's docs: "If you do not specify the parameter, the server will be ordered without an IPv4 address by default." `addon[]=primary_ipv4` is priced separately; `RSC-45` owns what a driver must do about it |
   | after cancellation | `GET /server/{n}` → `404 SERVER_NOT_FOUND`; account list back to its prior contents | Immediate destroy, no scheduled tail |
   | the transaction afterwards | **still `status: "ready", server_number: N`** while `GET /server/N` answered `404` | The listing outlives the machine; `PRV-43` owns the consequence |
@@ -417,6 +417,27 @@ Notes that change driver code:
   whether its window rolls or resets by calendar day; whether rejected and `test=true`
   requests count; and whether requests after a 403 move the window. No live counting
   observation is claimed.
+
+- **Robot endpoint limits.** The [Robot webservice reference](https://robot.hetzner.com/doc/webservice/en.html),
+  retrieved 2026-10-10, documents the following method/path limits. These are documented
+  limits, not measured shared counters or live availability guarantees.
+
+  | Method and path in the reference | Documented request limit |
+  |---|---|
+  | `GET /server`; `GET /server/{server-number}` | 200 per hour, documented on each path |
+  | `GET`, `POST`, `DELETE /server/{server-number}/cancellation` | 200 per hour, documented on each method |
+  | `POST /reset/{server-number}` | 50 per hour |
+  | `GET /order/server/transaction`, `GET /order/server/transaction/{id}`, `GET /order/server_market/transaction`, `GET /order/server_market/transaction/{id}` | 500 per hour, documented on each path |
+  | `GET`, `POST`, `DELETE /boot/{server-number}/rescue`; `GET /boot/{server-number}/rescue/last` | 500 per hour, documented on each method/path |
+  | `GET`, `POST`, `DELETE /boot/{server-number}/linux`; `GET /boot/{server-number}/linux/last`; `GET`, `POST`, `DELETE /boot/{server-number}/vnc`; `GET`, `POST`, `DELETE /boot/{server-number}/windows` | 500 per hour, documented on each method/path |
+  | `GET /ip`, `GET /ip/{ip}`, `GET /subnet`, `GET /subnet/{net-ip}` | 5000 per hour, documented on each path |
+  | `GET`, `POST`, `DELETE /ip/{ip}/cancellation`; `GET`, `POST /subnet/{net-ip}/cancellation`; `DELETE /subnet/{ip}/cancellation` | 200 per hour, documented on each method/path |
+
+  **[verify]** For every row and every listed method/path: whether its count is per
+  provider account, webservice user or source IP; whether server-number paths share a
+  counter across machines; and whether distinct methods or paths share a counter.
+  Reset's scope, including per-account versus per-server, is unknown. The separate
+  order-POST daily limits above remain distinct. Batch B records the planned checks.
 
 - **Three failed logins block the source IP for ten minutes, across the whole API** — not merely
   the endpoint that failed. **[observed 2026-09-04 — Hetzner Robot webservice documentation]**

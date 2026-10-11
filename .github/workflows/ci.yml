@@ -71,6 +71,27 @@ jobs:
           fi
           echo "identifier gate correctly rejected a dangling citation"
 
+      - name: Prove never-master identifiers cannot return to live specs
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n**PRV-46** A reused identifier.\n' >> 02-provider-contract.md
+          if python3 tools/check_ids.py > ids.log 2>&1; then
+            echo "::error::identifier gate accepted a reused never-master id"
+            exit 1
+          fi
+          grep -q "UNMERGED ID REUSED: \['PRV-46'\]" ids.log
+          sed -i '/^\*\*PRV-46\*\* A reused identifier\.$/d' 02-provider-contract.md
+          printf '\nA live reference to `CNF-336`.\n' >> 00-overview.md
+          if python3 tools/check_ids.py > ids.log 2>&1; then
+            echo "::error::identifier gate accepted a live citation to a never-master id"
+            exit 1
+          fi
+          grep -q "UNMERGED ID LIVE CITED: \['CNF-336'\]" ids.log
+
       # The same gate refuses a conformance item that carries a launch tier; the
       # tiers were withdrawn on 2026-09-12 (F50) and every item gates. The control
       # re-tags one existing item rather than appending a `CNF-9999` line: 9999 is
@@ -644,8 +665,8 @@ jobs:
       # from deleting after an admitted extension; interruptedRetry isolates this guard.
       # The automatic sweep-close row and its obsolete suspension-exemption witness
       # were deleted with that policy.
-      # ADR-0034 (2026-10-08): ProviderTraffic's cache, PTR evidence and request
-      # admission guards, and Admission's reverse-DNS ceiling, have isolated witnesses.
+      # ADR-0034 (2026-10-08/10): ProviderTraffic's cache, PTR evidence and
+      # sweep freshness guards, and Admission's reverse-DNS ceiling, have isolated witnesses.
       - name: Prove the Lean build rejects each listed guard's removal, one witness each
         env:
           SHARD: ${{ matrix.shard }}
@@ -743,10 +764,8 @@ jobs:
           ProviderTraffic|successfulOnly|true|false|failedRefreshes
           ProviderTraffic|reverseDnsNoop|true|false|establishedPtrNoop
           ProviderTraffic|establishedOnly|true|false|uncertainPtrNoop
-          ProviderTraffic|sharedScope|true|false|scopeGuards
-          ProviderTraffic|protectReserve|true|false|reserveGuards
-          ProviderTraffic|admitOnce|true|false|continuationGuards
-          ProviderTraffic|accountEveryRequest|true|false|accountingGuards
+          ProviderTraffic|sweepWritesPresent|true|false|sweepRefresh
+          ProviderTraffic|windowAtLeastSweep|true|false|shortWindowValidation
           Ledger|nativeCostSplit|true|false|nativeClampTrace
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace

@@ -137,17 +137,19 @@ the sentence above — the state is still a cache and still not authorization fo
 provider had destroyed it, and its owner's commitment drained regardless. **A reader MUST take the
 staleness bound from `state_observed_at` rather than from the fact of a caller having asked.**
 
-A deployment MUST state a finite, positive refresh freshness window (`OVR-19`). When a worker
+A deployment MUST state a finite, positive refresh freshness window no shorter than the
+account-sweep interval (`OVR-19`, `OPS-32`). Startup MUST refuse a shorter window. When a worker
 claims a refresh, it MUST check the machine's current `state_observed_at`: a non-null observation
 whose age is less than that window MUST settle the operation `succeeded` without a provider call.
 A null timestamp supplies no fresh observation; an observation at or beyond the window is stale.
 A cache answer MUST NOT advance `state_observed_at`. A failed provider read MUST leave it unchanged;
-a fresh subsequent operation can read again, subject to `PRV-46` and `OPS-8`.
+a fresh subsequent operation can read again, subject to `OPS-8`.
 
 Refreshes queued while stale and claimed in turn within the window after a successful observation
 reuse that observation. The per-machine read bound therefore holds while the provider answers;
-during provider read failure, a single paid machine can repeatedly consume the tenant share.
-`ADR-0034` accepts that residual. *Amended 2026-10-08 (`ADR-0034`, owner decision Q10).*
+during provider read failure, a single paid machine can repeatedly issue reads.
+`ADR-0034` accepts that residual. *Amended 2026-10-08 (`ADR-0034`, owner decision Q10);
+amended 2026-10-10 (`ADR-0034`, owner decision Q20).*
 
 ### Offer
 
