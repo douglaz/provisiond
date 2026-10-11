@@ -1,0 +1,27 @@
+Q21 ACCEPTED 2026-10-11 (pv-ucs.4; panels r38, r39; live Robot test 2026-10-11, server 3084954):
+(1) Observed: an auction server ordered with addon primary_ipv4, cancelled with cancellation_date=now and
+    reserve_location=false (200, "cancellation_date": "2026-10-11"): GET /server/{n} 404 at +1 s; the
+    add-on IPv4 (the server's main IP, server_ip = ip[0]) gone from GET /ip and GET /ip/{ip} 404 at +1 s
+    and through a 45-minute watch; the included IPv6 /64 gone from GET /subnet (GET /subnet/{net} 404) at
+    +20 s. Before cancelling, GET /server/{n} listed ip[] and subnet[]; GET /ip and GET /subnet carried
+    server_number. Delivery took ~19 min; server_number == offer id (V8 sample); after DELETE /key the
+    transaction still lists the key (V9 settled, batch B step 6). Batch B step 9 settled for the auction
+    add-on; untested: separately ordered IPs/subnets, the catalogue channel, other datacenters,
+    provider-initiated termination, hand-added IPs, and billing after the 404 (step 10, invoice).
+(2) Build no survivor machinery for the sold path now. KEEP Robot's declared survivor kinds (Additional
+    IP api; subnet api: "names kinds"); replace "pending research batch B, step 9" with the observation.
+(3) PRECONDITION (record beside Q18's and Q19's): before any sold create path can leave a billable
+    attachment that outlives its server (separately ordered Robot IPs/subnets; Cloud and DigitalOcean on
+    re-admission), the spec must have complete automatic discovery and cleanup: identities captured while
+    the machine is present (r38 option A is the candidate: rows from the reads STO-41 names), a
+    release_attachment enqueued at every gone-write, "never listed" distinguishable from "listed, none",
+    and disappearance before capture covered. No manual operator step.
+(4) Residual accepted with its threat model: accident only (no adversary can cause it); if Hetzner's own
+    termination or a catalogue order ever left the add-on behind, the operator pays its rent (EUR 1.90/month
+    net per IPv4, Robot offer list 2026-10-11) with no end date. ADR-0035:79's "Not covered here" points here.
+(5) REPAIR (4-0): OPS-48's scheduled row (03:1072) folds the tombstone into the gone-write against LDG-74
+    ("MUST NOT be collapsed") and STO-18: the scheduled row closes at the gone-write (the last row), the
+    tombstone follows when STO-18 allows; delete Tables.lean's Event.tombstone and Render.lean's
+    (.scheduled, .tombstone) edge with the rendered table/diagram (01:231/242, 13:894), CNF-271.
+Next owner question (Q22): does a Robot `now` delete settle as scheduled or gone (panel r39 split 2-2), and
+Robot's dates are local time (key created_at 05:47:37 for 03:47:37Z), against Q18a's "end of that day, UTC".

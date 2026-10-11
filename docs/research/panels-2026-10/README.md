@@ -32,5 +32,8 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r35 | Review of the proposed attachment-bound fix (`q18a.txt` is the accepted Q18a text it was briefed with) | `ADR-0037` amendment of 2026-10-10 (Q18b) |
 | r36 | pv-ucs.2: continuations versus the reserve; operator traffic; the refusal surface (`manager-blocker.md` is the Run report it answers; fable.md was recovered from its session log) | `ADR-0034` amendment of 2026-10-10 (Q19) |
 | r37 | Robot's per-endpoint request limits in v1 (`q19.txt` is the accepted Q19 text it was briefed with) | `ADR-0034` amendments of 2026-10-10 (Q20) and 2026-10-11 (Q20b) |
+| r38 | pv-ucs.4: an attachment left unrecorded when the listing never runs | test first (Q21) |
+| r39 | pv-ucs.4 after the live Robot test (`live-result.txt`, the runner's summary lines; one pre-existing server's number redacted) | `ADR-0037` amendment of 2026-10-11 (Q21) |
+| r40 | What a Robot `now` delete settles as; the zone of a day-only date (`q21.txt` is the accepted Q21 text it was briefed with) | `ADR-0037` amendment of 2026-10-11 (Q22) |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.

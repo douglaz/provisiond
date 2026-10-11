@@ -1,0 +1,25 @@
+# Robot live test, 2026-10-11 (summary lines of the runner; full request log kept by the owner)
+2026-10-11T03:47:36Z pre-existing servers: [<an unrelated pre-existing server>]
+2026-10-11T03:47:37Z key upload -> 201 fp=48:5b:d2:8e:b6:a9:12:e4:ec:6c:2f:9e:39:01:d5:93
+2026-10-11T03:47:38Z offer 3084954 at €72.0000/mo
+2026-10-11T03:47:38Z ORDER -> 201 tx=B20261011-3523630-3094545
+2026-10-11T04:06:19Z READY server=3084954 status=ready (offer 3084954; equal: yes)
+2026-10-11T04:06:19Z key delete -> 200
+2026-10-11T04:06:19Z tx after key delete: {"status":"ready","server_number":3084954,"authorized_key":[{"key":{"name":"pv-test-e46a502d","fingerprint":"48:5b:d2:8e:b6:a9:12:e4:ec:6c:2f:9e:39:01:d5:93","type":"ED25519","size":256,"created_at":"2026-10-11 05:47:37"}}],"addons":["primary_ipv4"]}
+2026-10-11T04:06:20Z SERVER BEFORE: {"server_ip":"62.238.91.26","server_ipv6_net":"2a01:4f9:3120:2e90::","ip":["62.238.91.26"],"subnet":[{"ip":"2a01:4f9:3120:2e90::","mask":"64"}],"status":"ready","cancelled":false,"paid_until":"2026-10-11"}
+2026-10-11T04:06:20Z add-on ip: 62.238.91.26
+2026-10-11T04:06:20Z GET /ip for 3084954: [{"ip":"62.238.91.26","server_ip":"62.238.91.26","server_number":3084954,"locked":false,"separate_mac":null,"traffic_warnings":false,"traffic_hourly":200,"traffic_daily":2000,"traffic_monthly":20}]
+2026-10-11T04:06:20Z GET /subnet for 3084954 -> 200: [{"ip":"2a01:4f9:3120:2e90::","mask":64,"gateway":"fe80::1","server_ip":"62.238.91.26","server_number":3084954,"vswitch_id":null,"failover":false,"locked":false,"traffic_warnings":false,"traffic_hourly":100,"traffic_daily":500,"traffic_monthly":2}]
+2026-10-11T04:06:20Z SERVER CANCELLATION BEFORE: {"server_ip":"62.238.91.26","server_number":3084954,"server_name":"","earliest_cancellation_date":"2026-10-11","cancelled":false,"reservation_possible":false,"reserved":false,"cancellation_date":null,"cancellation_reason":["Upgrade to a new server","Dissatisfied with the hardware","Dissatisfied with the support","Dissatisfied with the network","Dissatisfied with the IP/subnet allocation","Dissatisfied with the Robot webinterface","Dissatisfied with the official Terms and Conditions","Server no longer necessary due to project ending","Server too expensive"]}
+2026-10-11T04:06:20Z IP BEFORE: {"ip":"62.238.91.26","gateway":"62.238.91.1","mask":26,"broadcast":"62.238.91.63","server_ip":"62.238.91.26","server_number":3084954,"locked":false,"separate_mac":null,"traffic_warnings":false,"traffic_hourly":200,"traffic_daily":2000,"traffic_monthly":20}
+2026-10-11T04:06:21Z IP CANCELLATION BEFORE -> 200: {"cancellation":{"ip":"62.238.91.26","server_number":3084954,"earliest_cancellation_date":"2026-10-11","cancelled":false,"cancellation_date":null}}
+2026-10-11T04:06:21Z CANCEL_SENT
+2026-10-11T04:06:21Z CANCEL -> 200: {"cancellation":{"server_ip":null,"server_number":3084954,"server_name":"","earliest_cancellation_date":"2026-10-11","cancelled":true,"reservation_possible":false,"reserved":false,"cancellation_date":"2026-10-11","cancellation_reason":"Unspecified"}}
+2026-10-11T04:06:22Z WATCH 1 server=[404 {"status":null,"cancelled":null}] ip_in_list=[] ip=[404 {"server_number":null,"server_ip":null}] ip_cancellation=[404 {"cancelled":null,"cancellation_date":null,"earliest_cancellation_date":null}]
+2026-10-11T04:07:23Z WATCH 2 server=[404 {"status":null,"cancelled":null}] ip_in_list=[] ip=[404 {"server_number":null,"server_ip":null}] ip_cancellation=[404 {"cancelled":null,"cancellation_date":null,"earliest_cancellation_date":null}]
+2026-10-11T04:08:24Z WATCH 3 server=[404 {"status":null,"cancelled":null}] ip_in_list=[] ip=[404 {"server_number":null,"server_ip":null}] ip_cancellation=[404 {"cancelled":null,"cancellation_date":null,"earliest_cancellation_date":null}]
+2026-10-11T04:09:25Z WATCH 4 server=[404 {"status":null,"cancelled":null}] ip_in_list=[] ip=[404 {"server_number":null,"server_ip":null}] ip_cancellation=[404 {"cancelled":null,"cancellation_date":null,"earliest_cancellation_date":null}]
+# manual read-only checks
+2026-10-11T04:06:41Z GET /subnet for 3084954: []
+2026-10-11T04:06:41Z GET /subnet/2a01:4f9:3120:2e90:: -> 404
+2026-10-11T04:06:41Z GET /server count: [<an unrelated pre-existing server>]
