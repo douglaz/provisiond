@@ -1,0 +1,35 @@
+**Q23a — Blocker: fund the accepted-date fallback; one sweep interval is not a reliable bound.**
+
+The gap is real, though failure does not invariably exhaust the reserve. [02-provider-contract.md:244](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/02-provider-contract.md#L244) promises “Wind-down funds the customer's meter through the gone-write,” but its sum covers resolution waits, while the fallback “settles `succeeded` as `cancellation_scheduled`” ([02-provider-contract.md:190](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/02-provider-contract.md#L190)). A successful attempt is no longer awaiting resolution.
+
+The brief understates the possible delay: the sweep “MUST yield to `rate_limited`” ([03-operation-lifecycle.md:1446](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/03-operation-lifecycle.md#L1446)). Repeated failures can outlast multiple intervals. Accordingly, “the maximum time a customer can be billed” at [12-billing-and-ledger.md:579](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/12-billing-and-ledger.md#L579) also needs qualification.
+
+Smallest robust edit: add to PRV-13b’s existing allowance the maximum accepted-date delay not otherwise funded before purchase. For same-day responses, cover the worst remaining provider-local day across possible cancellation times, including DST—not merely the day remaining at create. Keep earlier evidenced absence as the actual stop. Extend CNF-329 ([10-conformance-checklist.md:3324](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/10-conformance-checklist.md#L3324)) with an exhausted-runway cancellation, failed read-back, repeatedly failed sweeps, and coverage through the effective stop.
+
+Threat qualification: [Robot documents](https://robot.hetzner.com/doc/webservice/en.html) 200 server reads/hour; counter sharing remains `[verify]` ([08-provider-notes.md:457](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/08-provider-notes.md#L457)). Tenant-induced throttling is therefore conditional, not disproved. A clamp deficiency after actual destruction need not represent additional provider rent; if the machine remains billable, actual uncovered cost is provider rate × uncovered duration.
+
+**Don’t build:** another retry system, or a failed-read billing stop. Neither is needed to price this bound; the latter can give away still-running compute.
+
+**Q23b — Blocker: explicitly exempt PRV-49’s settled residual; neither acceptance nor `cleanup: api` supplies a cap.**
+
+“Explicitly accepted and capped” ([12-billing-and-ledger.md:329](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/12-billing-and-ledger.md#L329)) conflicts with the permission that current offers “remain sold across Robot ordering channels” ([02-provider-contract.md:225](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/02-provider-contract.md#L225)) and Q21’s rent “with no end date” ([ADR-0037:202](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/docs/adr/0037-the-billing-stop-window-is-withdrawn-and-wind-down-is-sized-to-the-gone-write.md#L202)).
+
+An API capability cannot bound cleanup of an undiscovered attachment. The existing trigger is “on every delete that succeeds with the resource gone” ([02-provider-contract.md:561](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/02-provider-contract.md#L561)); Q21 expressly accepts paths outside that coverage. A monthly price bounds the rate, not accumulated rent.
+
+Smallest edit: qualify LDG-32’s sale prohibition with “Except for the explicitly accepted residual in PRV-49 …”. Merely citing PRV-49 as acceptance leaves “and capped” unsatisfied. Make PRV-13b’s universal “MUST be able to bound its own exposure” ([02-provider-contract.md:231](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/02-provider-contract.md#L231)) subject to that same named exception. Keep the threat model owned by Q21. Align CNF-354 ([10-conformance-checklist.md:3517](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/10-conformance-checklist.md#L3517)) with this narrow exception and the future enabling precondition.
+
+**Don’t build:** a budget, attachment-rate machinery, or manual cleanup to manufacture a cap. Preserving Q21 means acknowledging its uncapped exception, not pretending it satisfies the general rule.
+
+**Q23c — Blocker: normalize a day-only permitted-from value to the start of that provider-local day, then store UTC.**
+
+The missing conversion is at [02-provider-contract.md:197](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/02-provider-contract.md#L197): “MUST NOT receive this end-of-day conversion” excludes one answer without supplying another. Persistence says `timestamp` ([05-persistence.md:270](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/05-persistence.md#L270)); PRV-13c compares against “now plus one re-derivation period plus the product's wind-down bound” ([02-provider-contract.md:532](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/02-provider-contract.md#L532)); LDG-33 prices “cost through any earliest cancellation date not yet passed” ([12-billing-and-ledger.md:349](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/12-billing-and-ledger.md#L349)). CNF-63’s “keep … as a date” compounds the mismatch ([10-conformance-checklist.md:315](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/10-conformance-checklist.md#L315)).
+
+Put normalization in PRV-13 beside effective-date conversion; PRV-13c and the schema should cite it. Preserve explicit timestamps’ instants. Keep the existing timestamp type.
+
+CNF should demonstrate today already permitted, future dates priced to their normalized boundary, strict comparison at and around the material-future threshold, UTC/local date disagreement, DST, and no inferred meter stop. With an assumed Berlin zone, `2026-10-31` becomes `2026-10-30T23:00:00Z`.
+
+The [live log:13](https://github.com/douglaz/provisiond/blob/82bc3d828465d3d317c0c823cd4848f86ea77451/docs/research/panels-2026-10/r39/live-result.txt#L13) confirms today’s string and subsequent accepted cancellation; it does not establish midnight or timezone semantics.
+
+**Don’t build:** date-only storage or calendar-date comparisons throughout the ledger. They discard the sub-day precision its threshold and pricing need.
+
+Reviewed `82bc3d8`: **FAIL—specification blockers.** Both unpiped gate runs passed; tracked files remain unchanged.

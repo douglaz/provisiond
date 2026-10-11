@@ -35,5 +35,6 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r38 | pv-ucs.4: an attachment left unrecorded when the listing never runs | test first (Q21) |
 | r39 | pv-ucs.4 after the live Robot test (`live-result.txt`, the runner's summary lines; one pre-existing server's number redacted) | `ADR-0037` amendment of 2026-10-11 (Q21) |
 | r40 | What a Robot `now` delete settles as; the zone of a day-only date (`q21.txt` is the accepted Q21 text it was briefed with) | `ADR-0037` amendment of 2026-10-11 (Q22) |
+| r41 | Branch-review questions: a failed read-back's tail; `LDG-32`'s cap versus `PRV-49`; the instant of an earliest cancellation date (`fable.md` is the usage-limit failure; three readers answered) | `ADR-0037` amendment of 2026-10-11 (Q23a–c) |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.

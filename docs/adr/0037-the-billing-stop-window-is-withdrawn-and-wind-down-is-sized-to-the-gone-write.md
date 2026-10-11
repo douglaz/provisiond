@@ -1,6 +1,6 @@
 # The billing-stop window is withdrawn, and wind-down is sized to the gone-write
 
-**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18) and 2026-10-11 (Q21, Q22). Amends `ADR-0035` (a release that carries an effective date) and
+**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18) and 2026-10-11 (Q21, Q22, Q23). Amends `ADR-0035` (a release that carries an effective date) and
 `ADR-0018`.
 
 ## Context
@@ -228,3 +228,41 @@ Rejected: building attachment discovery now; recording a machine gone only at th
 delete (the customer pays up to one sweep interval that `PRV-13b`'s wind-down sum leaves out); a failed
 read-back settling `needs_reconciliation`; a Robot-wide "`now` is immediate" constant; a descriptor field
 for the zone.
+
+## Amendment — 2026-10-11: a failed read-back's tail, the attachment cap, and the earliest date's instant (owner decisions Q23a–c)
+
+A two-axis review of the branch found three questions the decisions above left open. A panel settled
+them (`docs/research/panels-2026-10/r41/`); three readers answered after the fourth seat failed on its
+usage limit.
+
+- **Q23a: the tail after a failed read-back is accepted, with its threat model.**
+  - After a read-back that fails or still shows the server, the attempt settles scheduled (Q22), and the
+    meter runs to `LDG-38`'s stop boundary. Time past wind-down is `LDG-74`'s sweep-interval residual,
+    ended no later than the stored date. Beyond the commitment, it meets `LDG-31`'s clamp.
+  - The threat model: Robot destroyed the tested server within a second of `now`. Time past the
+    read-back is therefore metered but not provider-billed. A clamp records an uncollectable charge for a
+    machine that is gone, not operator money: `LDG-66` "records who bore a cost or exposure, not whether a
+    provider is still owed".
+  - Operator money is at stake only while the machine is still present, which is the exposure the present
+    branch already carries.
+  - A tenant can induce a failed read only if Robot's server-read counter is shared, which is unverified
+    and settled by the live test. If it is shared, this is revisited.
+- **Q23b: `PRV-49` is the one home for selling an offer with a survivable attachment, and its residual is
+  uncapped.**
+  - `LDG-32`'s "It MUST NOT sell an offer whose attachments have no bounded automatic cleanup unless the
+    operator has explicitly accepted and capped that exposure" becomes a pointer: whether an offer may be
+    sold with a billable attachment that can outlive its machine is `PRV-49`'s.
+  - The residual Q21 accepted has no cap: EUR 1.90 a month for each stray address until someone notices.
+    It rests on Q21's threat model, an accident that no adversary can cause.
+  - `PRV-13b`'s duty to bound an offer's own exposure is read with the same exception.
+- **Q23c: a day-only `earliest_cancellation_date` names the start of that day in the provider's zone.**
+  - It is stored as the start of that day in the zone the provider dates in (Robot: `Europe/Berlin`,
+    unverified). A date equal to the provider's today has passed, so the machine takes the ordinary branch.
+  - Cost through a future earliest date runs to that day's end, because a cancellation dated then ends
+    there under `PRV-13`'s effective-date rule. `PRV-13` owns the rule.
+  - `CNF-147`'s "Size the commitment from the machine's read" contradicts `PRV-31`'s "MUST NOT resize the
+    commitment" and is reworded.
+
+Rejected: funding the rest of the provider day in wind-down on every purchase; stopping the meter at a
+failed read; an exception clause in `LDG-32` (a second home for the rule); withdrawing every `primary_ipv4`
+offer until removal is proven on every path; a plain calendar date compared in every consumer.
