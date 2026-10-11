@@ -1,6 +1,6 @@
 # A lost auction order is resolved by its fingerprint, and a temporary key outlives an unsettled operation
 
-**Status:** accepted (2026-10-09, owner decision Q16 of the provider-research grill; `pv-ucs.9`).
+**Status:** accepted (2026-10-09, owner decision Q16 of the provider-research grill; `pv-ucs.9`); amended 2026-10-11 (Q24).
 
 ## Context
 
@@ -64,3 +64,32 @@ through the sweep. `CNF-303` required it.
   - The research note's V8 consequence and its written inquiry 3.
   - `08-provider-notes.md`.
   - `Provisiond.Rescue.Session.step`'s `sweepRemovesCredential` event gains the guard, with a theorem.
+
+## Amendment — 2026-10-11: the sweep is the one deleter of a settled operation's key (owner decision Q24)
+
+A branch review found that nothing requires deleting a successful create's temporary key. Decision 2 says
+only when a key may be deleted, and `OPS-32` says a key "is deleted by the sweep only when" `PRV-9` permits
+it. A three-reader panel (`docs/research/panels-2026-10/r42/`) settled it.
+
+- **`OPS-32`'s sweep is the only deleter of a settled operation's key, and it MUST delete one once
+  Decision 2 permits it.** Robot deletes a key by its fingerprint (`DELETE /key/{fp}`) and has no
+  conditional delete. A second deleter can therefore race the sweep:
+  1. The sweep selects operation A's key.
+  2. The other deleter removes it.
+  3. Operation B registers the same public key.
+  4. The sweep deletes B's registration.
+
+  With one deleter, B's registration is refused (`409 KEY_ALREADY_EXISTS`) while A's key exists.
+- **The cost is accepted.** The same caller's next create on that account is refused before any order is
+  sent, so no money moves, until the sweep deletes the key. A create overlapping another create's flight is
+  refused under either choice.
+- **A driver deletes only a key its own operation registered.** On a failure before the provider accepts
+  the order, it deletes that key. It never deletes after a duplicate-key refusal or a lost
+  registration reply, when the fingerprint may belong to another operation.
+- The Consequence "A caller's key held by an unresolved operation blocks that caller's next create"
+  widens: any surviving registration of that key blocks it, until the sweep deletes it. Hetzner Cloud
+  and Robot document the refusal; it has not been reproduced live.
+
+Rejected: a prompt deletion after a successful create, with the sweep as fallback (it reopens the
+fingerprint race, which no ownership check closes on Robot); reusing an already-registered identical key
+(one registration serving several operations needs shared ownership and a per-account lock).
