@@ -1,6 +1,6 @@
 # The billing-stop window is withdrawn, and wind-down is sized to the gone-write
 
-**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18) and 2026-10-11 (Q21, Q22, Q23). Amends `ADR-0035` (a release that carries an effective date) and
+**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18) and 2026-10-11 (Q21, Q22, Q23, Q25). Amends `ADR-0035` (a release that carries an effective date) and
 `ADR-0018`.
 
 ## Context
@@ -266,3 +266,34 @@ usage limit.
 Rejected: funding the rest of the provider day in wind-down on every purchase; stopping the meter at a
 failed read; an exception clause in `LDG-32` (a second home for the rule); withdrawing every `primary_ipv4`
 offer until removal is proven on every path; a plain calendar date compared in every consumer.
+
+## Amendment — 2026-10-11: v1 sells no offer whose earliest cancellation is after today (owner decision Q25)
+
+An rloop Manager blocked `pv-ucs.10` on a gap between three rules:
+- the exception-branch test reads a day-only earliest date's start;
+- the purchase reserve adds its cost on that branch only;
+- `LDG-33` protects cost through the day's end.
+
+At 23:30 provider-local, an earliest day of tomorrow starts in thirty minutes, so it is ordinary and nothing
+extra is reserved, yet it is protected through tomorrow's end. A four-reader panel
+(`docs/research/panels-2026-10/r43/`) found that no v1 purchase can reach this.
+
+- **v1 sells no offer whose declared or reported earliest-cancellation bound is later than the provider's
+  today.**
+  - Such an offer permits future-scheduled cancellation. `LDG-38` says enabling that "requires an
+    automatic, idempotent corrective credit", which v1 does not post.
+  - `PRV-31` owns the rule. `API-7`'s existing "not sellable under `PRV-13b` or `PRV-31`" refusal applies
+    before any order, and `CNF-166` covers it.
+- **Robot's declared bound for the launch set is the provider's today.** Hetzner's documentation says of
+  dedicated servers "You can only cancel immediately". `08-provider-notes.md` records this; it is not a
+  constant.
+- **`PRV-13c`'s materiality test is not decided now.** The branch sentence returns to "when it is
+  materially in the future", replacing the start-of-day wording `3b717a0` introduced. The test is
+  settled when future-dated offers clear the corrective-credit gate.
+- **The branch stays specified for provider deviation:** a date read back later than the declared bound,
+  which `CNF-147` injects. Cost past the declared bound is operator-borne. `LDG-63`'s "bounded per machine
+  by `PRV-31`'s declared worst case" holds only where the read date lies within that bound.
+
+Rejected: judging a still-future earliest date by its day end now (it changes `PRV-13c` for a case no v1
+offer reaches at purchase); a near-midnight conformance fixture; a deferred dispatch that waits for the
+permitted-from instant.

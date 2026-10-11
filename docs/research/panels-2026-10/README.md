@@ -37,5 +37,6 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r40 | What a Robot `now` delete settles as; the zone of a day-only date (`q21.txt` is the accepted Q21 text it was briefed with) | `ADR-0037` amendment of 2026-10-11 (Q22) |
 | r41 | Branch-review questions: a failed read-back's tail; `LDG-32`'s cap versus `PRV-49`; the instant of an earliest cancellation date (`fable.md` is the usage-limit failure; three readers answered) | `ADR-0037` amendment of 2026-10-11 (Q23a–c) |
 | r42 | Who deletes a successful create's temporary key, and when (`manager-blocker.md` is the pv-ucs.10 Run report it answers; three readers, fable not run) | `ADR-0040` amendment of 2026-10-11 (Q24) |
+| r43 | A still-future earliest cancellation day near midnight (`manager-blocker.md` is the pv-ucs.10 Run report it answers; opus.md recovered from its session log) | `ADR-0037` amendment of 2026-10-11 (Q25) |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.
