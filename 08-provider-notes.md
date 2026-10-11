@@ -119,7 +119,7 @@ namespaced so the create path can route (`DOM-9` note). Orders are transactions 
 **Ordering is not idempotent.** A timed-out order poll MUST NOT be retried blindly
 (`PRV-11`). **[design]**
 
-**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** Whether the transaction retains `authorized_key[]` after key deletion is **[verify]** (batch B, step 6). `ADR-0040` supersedes the proposed Robot sweep exception. Deletion eligibility: `PRV-9`. A newly generated per-order correlator key is distinct from a caller's create key.
+**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** In the 2026-10-11 auction order, the transaction still listed the fingerprint in `authorized_key[]` after deletion of the temporary key; batch B step 6 settles that observation (`docs/research/panels-2026-10/r39/live-result.txt`). `ADR-0040` retains the per-order fingerprint correlator, and `PRV-9` retains key deletion eligibility. A newly generated per-order correlator key is distinct from a caller's create key.
 
 **Rescue host keys** — published in the rescue activation response and in a
 "last rescue" lookup. **[observed]** This is the only provider in the reference set that
@@ -408,6 +408,25 @@ Notes that change driver code:
   | the transaction afterwards | **still `status: "ready", server_number: N`** while `GET /server/N` answered `404` | The listing outlives the machine; `PRV-43` owns the consequence |
   | `cancellation_reason` | provider advertises a 9-item enum and accepted the unlisted value `"Other"` | Do not model it as a closed set |
 
+- **Auction add-on cancellation observed 2026-10-11 (`ADR-0037`, Q21/Q22).** Offer
+  `3084954` was ordered with `addon[]=primary_ipv4` at 03:47:38Z and delivered as ready
+  server `3084954` at 04:06:19Z (18 min 41 s). Equal offer/server identifiers add a V8
+  observation, not an identity rule; `ADR-0040`'s correlator remains necessary. Before
+  cancellation, `GET /server/{n}` returned its `ip` and `subnet`; account `GET /ip` and
+  `GET /subnet` associated the main IPv4 and included /64 with that server. The runner read
+  `GET /server/{n}/cancellation` before posting `cancellation_date=now` and
+  `reserve_location=false`; Robot returned HTTP 200 and
+  `cancellation_date: 2026-10-11`. The server and main/add-on IPv4 were absent at +1 second;
+  the included /64 was checked absent at +20 seconds. `ADR-0037` records a subsequent
+  45-minute IPv4 watch; the summary log contains only its initial lines and no minute-by-minute
+  subnet watch. This is an API absence observation, not invoice billing evidence.
+  Batch B step 9 is settled for this auction add-on only. The planned no-pre-read cancellation
+  and reservation-possible branch, separately ordered IPs/subnets, catalogue orders,
+  provider-initiated termination and invoice remain unverified. Robot's cancellation date zone
+  is proposed as **`Europe/Berlin` [verify]**: the key's `created_at` in this transaction
+  matches that zone's offset, but it does not verify the cancellation fields. `PRV-13` owns
+  the effective-date conversion.
+
 - **Ordering is rate-limited: 20 requests per day** on each documented order endpoint:
   `POST /order/server/transaction`, `POST /order/server_market/transaction` and
   `POST /order/server_addon/transaction`. Robot reports `403 RATE_LIMIT_EXCEEDED` with
@@ -507,7 +526,9 @@ The authoritative inquiry list is in `docs/research/provider-verify-2026-10.md`,
 
 ## Survivor declarations from provider research
 
-`PRV-13a` holds the declaration table and `PRV-44` owns its descriptor field. The evidence is
-research §3 (2026-10-06), not a live batch. Robot additional IP and subnet survival awaits
-batch B step 9; DigitalOcean backup billing after destroy remains `[verify]`. Cherry remains
+`PRV-13a` holds the declaration table and `PRV-44` owns its descriptor field. The source
+evidence is research §3 (2026-10-06). The 2026-10-11 auction order found its `primary_ipv4`
+add-on and included /64 absent after cancellation; separately ordered Robot Additional IP
+and subnet survival remains `[verify]`. DigitalOcean backup billing after destroy remains
+`[verify]`. Cherry remains
 outside v1; its survivor uncertainty is in research §3.

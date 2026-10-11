@@ -151,7 +151,11 @@ with `details.accepted` from `PRV-5`.*
 **Output** — the machine as the provider currently reports it.
 
 **PRV-12** Get machine MUST be read-only and free of side effects. It is called
-opportunistically after other actions and during reconciliation.
+opportunistically after other actions and during reconciliation. A read failure, including
+throttling, authentication rejection, a network error or deadline expiry, MUST remain distinct
+from provider-mapped absence of the known machine on the known provider account. A generic HTTP
+error or a response for another identity is not evidence that this machine is gone.
+*Amended 2026-10-11 (`ADR-0037`, Q22).*
 
 *`PRV-28` — adoption as get-machine plus a local row — is withdrawn with adopt (`ADR-0020`). What
 it said about attachment survives here because it is about resolution, not adoption:*
@@ -179,6 +183,24 @@ result, because "deleted" does not mean "billing stopped" there. A driver in the
 category MUST NOT declare `delete_machine`; modelling a contract termination as a synchronous
 API call is a business error, not a missing feature.
 
+**Amended 2026-10-11 (`ADR-0037`, Q22).** After an accepted cancellation returns an effective
+date, the driver MUST read that machine once on its known provider account and external identity.
+Provider-mapped absence, such as Robot `SERVER_NOT_FOUND`, records the machine gone at this read;
+the gone outcome stops its meter through `LDG-74` and closes any open episode under `OPS-48`.
+If the machine remains present, or this read fails for any reason including throttle,
+authentication, network error or deadline expiry, the accepted attempt settles `succeeded` as
+`cancellation_scheduled` with its effective date. Read failure does not turn the accepted dated
+cancellation into `needs_reconciliation` or establish absence. `PRV-36` owns the evidence rule;
+no second confirmation read is required. This result requires known acceptance and its date;
+`OPS-11` still classifies an unknown or failed mutation response.
+
+A calendar-day-only **effective** date names the end of that day in the zone the provider dates
+in; the driver MUST convert that local end-of-day instant to UTC. An explicit timestamp retains
+its instant. A `now` request is not evidence of a start-of-day stop. A provider's
+`earliest_cancellation_date` is a permitted-from date, not an effective stop instant, and MUST
+NOT receive this end-of-day conversion. Robot's proposed zone is recorded as
+`Europe/Berlin` **[verify]** in `08-provider-notes.md`.
+
 **PRV-13a** Deleting a machine does not necessarily delete everything billable that was attached to it. A driver MUST declare associated resources that survive deletion and may continue to bill, and MUST expose cleanup for every such resource the provider's API can delete. **Amended 2026-09-08 (`ADR-0018`):** the kinds are declared in the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`; cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an operator procedure as `manual`.
 
 **Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V17 and §3, retrieved 2026-10-06).** The descriptor MUST declare these potentially surviving kinds for the applicable provider, with their cleanup classification:
@@ -189,14 +211,26 @@ API call is a business error, not a missing feature.
 | Hetzner Robot | Additional IP `api`; subnet `api` |
 | DigitalOcean | Reserved IP `api`; floating IP `api`; snapshot `api`; volume `api`; volume snapshot `api`; backup `manual` |
 
-The declaration names kinds, not an assertion that every instance survives. Hetzner Cloud's read-back `auto_delete: true` is evidence that an individual Primary IP is deleted with its server; the descriptor remains unchanged. Robot additional IPs and subnets are included conservatively as possible survivors pending research batch B, step 9. DigitalOcean backup billing after Droplet destruction remains `[verify]`. The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`.
+The declaration names kinds, not an assertion that every instance survives. Hetzner Cloud's read-back `auto_delete: true` is evidence that an individual Primary IP is deleted with its server; the descriptor remains unchanged. On 2026-10-11 an auction order's `primary_ipv4` add-on and included /64 were absent after its `now` cancellation; this settles batch B step 9 only for that order, not separately ordered Additional IPs or subnets. Robot's possible-survivor declarations remain. DigitalOcean backup billing after Droplet destruction remains `[verify]`. The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`.
 
 A DigitalOcean driver MUST NOT set `backups: true` on create, because retained backups have no documented deletion API. A control plane that reports a machine deleted while its storage continues to accrue cost is reporting a falsehood.
+
+**PRV-49** **ADDED 2026-10-11 (`ADR-0037`, Q21) — enabling attachment cleanup.** Before
+enabling a sold create path that can leave a billable attachment outliving its machine, the
+system MUST provide complete automatic discovery and cleanup for that path. It MUST capture
+attachment identities while the machine is present, enqueue `release_attachment` at every
+gone-write for billable survivors, distinguish an attachment list never completed from a
+completed list finding none, and cover disappearance before identity capture. Cleanup MUST NOT
+depend on manual operator recovery. This precondition applies to separately ordered Robot IPs
+and subnets, and to Cloud and DigitalOcean on re-admission. It does not introduce a runtime
+refusal for the accepted Robot auction `primary_ipv4` path. The residual and its threat model
+are recorded in `ADR-0037`, Q21.
 
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
 exposure before taking money. That requires, per product: an API path to stop the cost, a bound
 on the time until the customer's meter stops, and cleanup for every billable attachment
-(`PRV-13a`, `PRV-45`). Traffic overage is operator exposure too. Under `ADR-0039`, an offer
+(`PRV-13a`, `PRV-45`); `PRV-49` is the enabling precondition for paths that can leave one
+outliving its machine. Traffic overage is operator exposure too. Under `ADR-0039`, an offer
 with `traffic_bound: unlimited` is sellable on this dimension; an allowance-bearing offer
 MUST NOT be sold until a live test establishes counter freshness and bounds traffic after
 the last reading through deletion under `ADR-0033`'s "priced, not amplified" criterion.
@@ -538,9 +572,8 @@ in its terminal transaction, including the resolution transaction when resolved 
 (`OPS-31`). A successful release, including one resolved `applied`, whose result carries an
 effective date MUST store that date on the attachment row in the same terminal or resolution
 transaction and MUST NOT write `released_at` merely from that result, whether the date is future
-or already passed. A provider date given as a calendar day only, including Robot's
-`cancellation_date` (`yyyy-MM-dd`), names the end of that day UTC; a `now` release or
-cancellation is not a start-of-day instant. An explicit timestamp keeps its stated instant.
+or already passed. `PRV-13` owns conversion of day-only effective dates and the distinction
+from a `now` request and `earliest_cancellation_date`.
 A prior direct gone observation and its `released_at` MUST be preserved.
 Neither outcome changes the machine's gone state or schedules its episode. An unresolved release
 or one resolved `not_applied` or `abandoned` MUST NOT write either field as an applied release.
@@ -549,11 +582,13 @@ or one resolved `not_applied` or `abandoned` MUST NOT write either field as an a
 `released_at` observation is distinct from an operator's initiation of `manual` provider
 cleanup. `LDG-38` owns the exit write, `LDG-32` commitment release and `STO-18` the
 tombstone gate.
+`PRV-49` is the enabling precondition for sold paths with outliving billable attachments.
 *Amended 2026-10-08 (`ADR-0035`): successful resolution has the same attachment-row effect as
 ordinary success; it does not record the machine gone. The 2026-10-08 `ADR-0037` wording
 restricted the date case to the future; that restriction was too narrow when resolution arrived
 after the effective date. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and
-automatic direct-read absence confirmation. Amended 2026-10-10 (`ADR-0037`, Q18): day-only dates.*
+automatic direct-read absence confirmation. Amended 2026-10-10 (`ADR-0037`, Q18): day-only dates.
+Amended 2026-10-11 (`ADR-0037`, Q21/Q22): enabling precondition and date-owner pointer.*
 
 ### Power
 

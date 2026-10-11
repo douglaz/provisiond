@@ -364,10 +364,10 @@ Operation records reference them, and an operator investigating a
 
 **STO-8a** "Succeeds" means the resource is gone. Where the provider only accepted a
 *scheduled* cancellation, the machine MUST be recorded `cancellation_scheduled` with its
-effective date (`DOM-19`) and MUST NOT be tombstoned until that date passes — or until the
-resource is independently recorded gone (`LDG-74`, `API-63`), which is the earlier end `DOM-19`
-admits. Tombstoning at acceptance hides a running, billing machine from every inventory query that
-filters out deleted rows.
+effective date (`DOM-19`) and MUST NOT be tombstoned until the resource is independently
+recorded gone (`LDG-74`, `API-63`) and `STO-18` permits retention to end. Passing the date
+alone does not establish absence. Tombstoning at acceptance hides a running, billing machine
+from every inventory query that filters out deleted rows. *Amended 2026-10-11 (`ADR-0037`, Q21).*
 
 ### `operations`
 

@@ -278,6 +278,12 @@ pre-provider admission has no accepted mutation. Unknown acceptance follows `PRV
 "MUST report `details.accepted: null` with the mutating request's own failure mapped as above",
 never an implicit default.
 
+The accepted dated cancellation read-back (`PRV-13`) is an evidence read after a successful
+mutating response. Failure of that read alone does not enter this failure classifier; the
+settlement for the known accepted date belongs to `PRV-13`. This exception does not reclassify
+unknown acceptance or a later failure of the mutating request. *Clarified 2026-10-11
+(`ADR-0037`, Q22).*
+
 **AMENDED 2026-08-31 — "a 4xx means the provider did not act" is false, and believing it strands a
 customer's money.** For a **goal-state mutation** — delete, power on, power off, end rescue — a
 provider may reject the request precisely *because the goal state already holds*, and that rejection
@@ -1069,7 +1075,7 @@ operator verb — and on the operator verbs on the episode (`API-64`, `API-68`):
 |---|---|---|
 | `succeeded`, resource gone — including `OPS-11`'s goal-state row | `closed`, `close_reason: resource_gone`, in the terminal transaction | **Cleared**, same transaction |
 | `succeeded` recording that no mutation was required (`OPS-41`'s abort) | `closed`, `close_reason: funded`, in the terminal transaction: the condition has ended, and a later lapse opens a fresh episode | **Cleared**, same transaction |
-| `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | `scheduled`; `closed`, `close_reason: resource_gone`, in the transaction that tombstones the machine at the effective date — that tombstone is the gone-write of the last row, and nothing tombstones by timer: `LDG-74` allows "A machine still present after its date" (*reason stated 2026-09-14; the row named none while every other close did*) | **Unchanged**; **Cleared** by the tombstone, same transaction |
+| `succeeded`, **scheduled** — the provider accepted a dated cancellation and the machine remains present (`DOM-19`, `STO-8a`, `PRV-13`) | `scheduled`; the later evidenced gone-write uses the last row, whether before or after the effective date. The date alone does not close it. Tombstoning follows only when `STO-18` permits. | **Unchanged** |
 | `failed` — deterministic; the provider did not act | `stalled` | **Unchanged** |
 | `needs_reconciliation` | `uncertain`, until the attempt is resolved (`OPS-27`, `OPS-31`) and one of the rows below applies | **Unchanged** |
 | Resolved `applied`, the resource gone (`OPS-45`) | `closed`, `close_reason: resource_gone`, in the resolution transaction | **Cleared**, same transaction |
@@ -1092,6 +1098,11 @@ withdrawn. No timer moves a stalled episode; the evidenced gone-write remains a 
 *The table is a marked region since 2026-09-15 (`ADR-0025`): its outcome tokens render `OPS-48`'s
 declaration, and the retry and scheduled rows' fence cells were reworded that day to carry the
 verdict token, with no row's meaning changed.*
+
+*Amended 2026-10-11 (`ADR-0037`, Q21/Q22): the scheduled row remains open after its effective
+date while the machine is present. An evidenced gone-write, including `PRV-13`'s cancellation
+read-back, closes the episode and clears its fence; a retained gone machine can await attachment
+release evidence before tombstoning. A later attempt resolution cannot reopen the closed episode.*
 
 **A close is permanent, and the rows above apply to an open episode only** (`ADR-0021`). An
 attempt under a closed episode that later settles, or is resolved under `OPS-31`, changes the
@@ -1120,9 +1131,9 @@ rate can fund it; a deletion decision already recorded by a fence is not reverse
 a **second** delete against the same machine, and a written fence is what keeps `LDG-62` from selling
 runway after the deletion decision. See `OPS-41`'s ordered decision for an unfenced episode's attempt.
 
-**`scheduled` is the row a reader will not expect.** `DOM-19` says "the machine is still running,
-the customer can still reach it, and the operator is still paying for it" until its effective
-date, so it is still unfunded and the next exhaustion sweep will find it. Closing the episode there
+**`scheduled` is the row a reader will not expect.** `DOM-19` says "Passing the date
+alone is no evidence of absence." While the machine is present it may still cost the operator,
+including after its effective date, and the next exhaustion sweep can find it. Closing the episode there
 is precisely the case `OPS-39`'s 2026-08-14 amendment warns about — "on a provider that accepts a
 *scheduled* cancellation the second call can then alter or repeat the first's mutation" — reached
 through resolution instead of through a reason key. So an `applied` carrying an

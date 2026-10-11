@@ -106,7 +106,7 @@ A normalized state, mapped by each driver from provider-specific status strings.
 | `rescue` | Running the provider's rescue environment |
 | `rebuilding` | Native rebuild or reimage in progress |
 | `deleting` | Deletion accepted, not yet complete |
-| `cancellation_scheduled` | Cancellation accepted for a future date. **Still running, still reachable, still billing.** |
+| `cancellation_scheduled` | Dated cancellation accepted while the machine remains present. The customer meter runs only through the effective date; presence may continue afterward. |
 | `deleted` | Gone, or locally tombstoned |
 | `failed` | Provider reports a terminal failure |
 | `unknown` | Driver could not map the provider status |
@@ -115,9 +115,10 @@ A normalized state, mapped by each driver from provider-specific status strings.
 guessing. `unknown` is a legitimate outcome and MUST NOT block an operation that does
 not depend on state.
 
-**DOM-19** A machine whose deletion was accepted for a future date (`PRV-13`'s second shape)
-MUST be `cancellation_scheduled`, never `deleted`, until that date passes — unless the resource is
-independently recorded gone before it (`LDG-74`, `API-63`), which is evidence, not the acceptance.
+**DOM-19** A machine with an accepted dated cancellation that remains present (`PRV-13`'s second
+shape) MUST be `cancellation_scheduled`, never `deleted`, until the resource is independently
+recorded gone (`LDG-74`, `API-63`), whether before or after the effective date. Passing the date
+alone is no evidence of absence. *Amended 2026-10-11 (`ADR-0037`, Q21/Q22).*
 Marking it `deleted` at accept time records a falsehood: the machine is still running, the customer can
 still reach it, and the operator is still paying for it. The effective cancellation date MUST
 be stored alongside the state, and any system reselling the machine MUST treat the window
@@ -241,7 +242,6 @@ stateDiagram-v2
     stalled --> closed : operator keep (API-68)
     stalled --> closed : machine recorded gone
     scheduled --> closed : machine recorded gone
-    scheduled --> closed : tombstoned at its effective date
     closed --> [*]
 ```
 <!-- /formal -->

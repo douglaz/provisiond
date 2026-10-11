@@ -346,22 +346,21 @@ inductive Settled
   deriving DecidableEq, Repr
 
 /-- What happens to an open episode: its attempt settles; its attempt is resolved under a verb,
-`dated` being `WIR-35`'s `effective_cancellation_date` on `applied`; `retry`; operator `keep`; the machine's gone-write; and the
-transaction that tombstones a scheduled machine at its effective date — a gone-write of its own,
-since nothing tombstones by timer and `LDG-74` allows "A machine still present after its date". -/
+`dated` being `WIR-35`'s `effective_cancellation_date` on `applied`; `retry`; operator `keep`;
+and the machine's evidenced gone-write. Time passing and tombstoning are not episode events.
+This model does not represent attachments or `STO-18`'s retention gate. -/
 inductive Event
   | settled (s : Settled)
   | resolved (v : Verb) (dated : Bool)
   | retry
   | keep
   | goneWrite
-  | tombstone
   deriving DecidableEq, Repr
 
 def Event.all : List Event :=
   [.gone, .noMutation, .scheduled, .failed, .needsReconciliation].map Event.settled ++
   (Verb.all.flatMap fun v => [.resolved v true, .resolved v false]) ++
-  [.retry, .keep, .goneWrite, .tombstone]
+  [.retry, .keep, .goneWrite]
 
 theorem Event.mem_all (e : Event) : e ∈ Event.all := by
   cases e with
@@ -393,9 +392,9 @@ def close (r : CloseReason) : Episode × Bool := (.closed r, true)
 /-- `OPS-48`'s table: the episode after the event, and whether `machines.destroy_committed` was
 cleared in that transaction. "The transitions are exactly these" — an event the state's rows do not
 key on changes nothing, and a closed episode is changed by nothing: "A close is permanent, and the
-rows above apply to an open episode only". The scheduled row closes "`close_reason:
-resource_gone`, in the transaction that tombstones the machine at the effective date", `STO-8a`'s
-"'Succeeds' means the resource is gone". -/
+rows above apply to an open episode only". A scheduled episode stays open until an evidenced
+gone-write, which closes it independently of the later tombstone. `STO-8a` says
+"'Succeeds' means the resource is gone"; an accepted date alone is not that evidence. -/
 @[req "OPS-48"]
 def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
   let stay := (s, false)
@@ -413,7 +412,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => stay
     | .keep => stay
     | .goneWrite => goneRow
-    | .tombstone => stay
   | .uncertain =>
     match e with
     | .settled _ => stay
@@ -426,7 +424,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => stay
     | .keep => stay
     | .goneWrite => goneRow
-    | .tombstone => stay
   | .stalled =>
     match e with
     | .settled _ => stay
@@ -438,7 +435,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => (.attempting, false)
     | .keep => close .kept
     | .goneWrite => goneRow
-    | .tombstone => stay
   | .scheduled =>
     match e with
     | .settled _ => stay
@@ -446,7 +442,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => stay
     | .keep => stay
     | .goneWrite => goneRow
-    | .tombstone => close .resourceGone
 
 /-- `ADR-0021`: "A close is permanent." Decided about the table: under every row set and every
 event, a closed episode is unchanged and clears nothing. -/
@@ -475,6 +470,12 @@ that transaction", from every open state. -/
 theorem gone_closes_and_clears :
     ∀ s, s.isOpen = true → episodeStep currentRows s .goneWrite = (.closed .resourceGone, true) := by
   decide
+
+/-- The scheduled episode and fence persist without an evidenced gone-write, even when its
+effective date has passed: elapsed time is not an event in this lifecycle model. -/
+@[req "OPS-48"]
+theorem scheduled_stays_open_without_gone :
+    ∀ e, e ≠ .goneWrite → episodeStep currentRows .scheduled e = (.scheduled, false) := by decide
 
 /-- Only the ordinary no-mutation settlement closes `funded` (2026-10-04, `ADR-0032`). -/
 @[req "OPS-48"]

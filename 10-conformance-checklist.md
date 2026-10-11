@@ -301,14 +301,31 @@ not optional hardening — they are the only structural defence there is.
 
 ## Deletion semantics
 
-- [ ] **CNF-63** — For a driver in `PRV-13`'s scheduled-cancellation shape, the action result
-      carries the effective cancellation date, and it is not assumed to be "now." (`PRV-13`)
-- [ ] **CNF-64** — A machine with a future cancellation date is recorded
-      `cancellation_scheduled`, not `deleted`, and is **not** tombstoned until that date
-      passes. Assert it still appears in inventory queries that exclude deleted rows. Then record
-      it gone before the date by `OPS-32`'s complete pass, and assert the earlier end is taken: the
-      meter stops, and its `scheduled` episode closes `resource_gone` (`OPS-48`, `ADR-0021`).
-      (`DOM-19`, `STO-8a`)
+- [ ] **CNF-63** — **Amended 2026-10-11 (`ADR-0037`, Q22).** For an accepted dated
+      cancellation, assert the driver surfaces its effective date and performs exactly one
+      read of the known machine on the known provider account. Return mapped absence (including
+      Robot `SERVER_NOT_FOUND`) and assert the gone outcome at that read, not at the date or
+      sweep. Return a present machine and assert `succeeded` with the accepted date as
+      `cancellation_scheduled`. Return throttle, authentication, network error and deadline
+      expiry on that read and assert the same scheduled success, never absence or
+      `needs_reconciliation`. A generic HTTP error and a mismatched identity establish no
+      absence. Separately lose the mutation's acceptance or date and assert no scheduled
+      success is inferred. Convert a day-only effective date in the provider's date zone to
+      its end-of-day UTC wire instant; retain an explicit timestamp's instant and keep a
+      permitted-from `earliest_cancellation_date` as a date. (`PRV-12`, `PRV-13`, `OPS-11`,
+      `PRV-36`)
+- [ ] **CNF-64** — **Amended 2026-10-11 (`ADR-0037`, Q21/Q22).** After a dated
+      cancellation whose read-back finds the machine present, assert `cancellation_scheduled`
+      remains visible in inventory. Advance beyond the effective date while it remains
+      present: the meter stops at the date, but the episode stays `scheduled`, its fence
+      stays set, and no tombstone is written. In a second trace, record authoritative gone
+      before the date, through the cancellation read-back or a later complete sweep pass:
+      stop the meter at that observation, close the episode `resource_gone` and clear the
+      fence in the gone-write. In a third trace, record gone while a known billable
+      attachment lacks release evidence: the episode closes and fence clears at the
+      gone-write, while the machine remains untombstoned until the retention gate permits.
+      Resolve a retained attempt afterward and assert the close stays closed. (`DOM-19`,
+      `STO-8a`, `STO-18`, `OPS-48`, `LDG-38`, `LDG-74`)
 - [ ] **CNF-65** — **AMENDED 2026-09-08 (`ADR-0018`) — the cleanup path now has a method.** After
       every delete that succeeds with the resource gone, the engine calls *list attachments*
       (`PRV-45`) and writes `machine_attachments`; a release is enqueued for every row whose kind
@@ -1319,26 +1336,21 @@ rather than acquiring a default.
 - [ ] **CNF-146** — `GET /v1/providers` reports three distinguishable capability sets, and a caller
       that acts only on what it reports never invokes an operation a provider does not have.
       (`OVR-16`, `OVR-2`)
-- [ ] **CNF-147** — **AMENDED 2026-09-02 — it required a scheduled cancellation on a product that
-      cancels immediately.** The dedicated path is exercised end to end against a real Hetzner Robot
-      machine: a setup fee and the prepaid first billing unit — Robot's hour, with no floor —
-      committed before the order and debited at successful settlement after acceptance (`LDG-39`, `ADR-0033`, `ADR-0035`,
-      2026-10-08), the machine's first seed writing its mark at the seed plus 3600 seconds
-      (`LDG-38`), and a commitment sized to include cost through the machine's **read**
-      `earliest_cancellation_date`. The cancellation is then asserted **against what the machine
-      actually says**, which is `PRV-13c`'s read-and-branch: where that date is today — the normal
-      case for a newly ordered current-generation server, per `08-provider-notes.md` — cancellation
-      is immediate and billing stops; where it is materially in the future, the machine goes to
-      `cancellation_scheduled` with its effective date and billing continues until it arrives
-      (`DOM-19`, `STO-8a`). **Both branches must be covered**: seed a provider whose per-machine
-      date is materially in the future, since no launch product reaches the branch by default and
-      adoption, the road that did, is withdrawn (`ADR-0020`). *Withdrawn clause:* "a cancellation that
-      schedules rather than deletes, and billing that continues until the effective date", asserted
-      unconditionally — which `08-provider-notes.md` records as not existing on current Robot
-      servers, so the item was unpassable on the product it was written for and would have been
-      "fixed" by encoding a commercial term `PRV-13c` forbids as a constant. **The requirements this
-      tests were all written before any of them had run.** (`LDG-39`, `PRV-13b`, `PRV-13c`,
-      `DOM-19`, `PRV-31`)
+- [ ] **CNF-147** — **Amended 2026-10-11 (`ADR-0037`, Q22): a permitted-from date is
+      not evidence that cancellation completed.** Exercise the dedicated path end to end
+      against a real Hetzner Robot machine: commit the setup fee and prepaid first billing
+      unit before ordering, debit them at accepted successful settlement, write the first
+      meter seed, and size the commitment from the machine's read
+      `earliest_cancellation_date` (`LDG-39`, `LDG-38`, `PRV-13c`). Where that date is
+      today, assert the outcome from the actual accepted cancellation result and its single
+      read-back: mapped gone records the observation and stops the meter; presence or read
+      failure settles scheduled with the returned effective date. Separately inject a
+      machine whose permitted-from date is materially in the future and exercise both a
+      rejection followed by scheduling and provider auto-scheduling; assert the returned
+      date and subsequent evidence govern the same branches. Do not encode a Robot-wide
+      immediacy constant. The old unconditional scheduled-only fixture remains withdrawn;
+      it did not fit the ordinary current Robot product. (`PRV-12`, `PRV-13`, `PRV-13b`,
+      `PRV-13c`, `DOM-19`, `STO-8a`, `PRV-31`)
 - [ ] **CNF-148** — **The Robot order `comment` field is never populated, by any code path** —
       Hetzner routes commented orders to manual processing (`PRV-30`, confirmed). Asserted against
       the outbound request, not by reading the driver.
@@ -1893,8 +1905,10 @@ rather than acquiring a default.
       closed; and **no timer ever moves a `stalled` episode** — run the clock out and assert it is still `stalled` with one
       attempt, including a `rate_limited` refusal before acceptance (`ADR-0035`; `F48` retains the deferral history). **Then the row a reader
       will get wrong**: a cancellation the provider merely *scheduled* (`DOM-19`) settles
-      `succeeded`, the episode is `scheduled`, and it and the fence both **stay** until the effective
-      date passes and the machine is tombstoned — closing there lets the next exhaustion sweep open
+      `succeeded`, the episode is `scheduled`, and it and the fence both **stay** while the
+      machine is present, even after the effective date. Only an evidenced gone-write closes
+      the episode and clears its fence; tombstoning waits for the retention gate. Closing at
+      the date lets the next exhaustion sweep open
       a fresh episode and place a second cancellation against a machine already scheduled, which
       `OPS-39` warns can alter or repeat the first's mutation. **The failure this catches is a
       sweep loop that settles `succeeded` forever while the machine bills forever.** (`OPS-48`,
@@ -3260,17 +3274,21 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       direct read finding the attachment also writes nothing. Request a Robot `now` release at
       `2026-10-31T12:00:00Z` and have the provider return day-only
       `cancellation_date=2026-10-31`; assert the stored effective boundary is
-      `2026-10-31T23:59:59Z`, with `released_at` still null until release evidence when there
-      was no earlier gone observation, rather than noon or the start of that day. Separately
-      return an explicit provider timestamp and keep
-      its stated instant. Resolve a scheduled release `applied` with its required wire date;
+      `2026-10-31T22:59:59Z` if Robot's date zone is verified as `Europe/Berlin`, with
+      `released_at` still null until release evidence when there was no earlier gone
+      observation, rather than noon or the start of that day. Separately return an explicit
+      provider timestamp and keep its stated instant. Resolve a scheduled release `applied`
+      with its required wire date;
       assert that the resolution stores the date without deriving `released_at`. `WIR-35` says
       "Without the date, `applied` asserts a completed release"; submit that assertion and
-      exercise the completed-release effects using `CNF-326` and `CNF-293`. Confirm a surviving
-      Robot `primary_ipv4` add-on
-      remains sellable without an attachment bound or customer attachment charge; hold its
-      commitment until `cleanup: api` release evidence and account for its provider cost under
-      `LDG-75`. *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18).*
+      exercise the completed-release effects using `CNF-326` and `CNF-293`. For a separate
+      hypothetical surviving billable Robot attachment, assert the commitment remains held
+      until `cleanup: api` release evidence and its provider cost belongs to `LDG-75`; this
+      is an accounting fixture, not the observed auction outcome. The observed auction
+      `primary_ipv4` add-on remains sellable without a separate attachment customer charge
+      or attachment bound, and its recorded absence creates no survivor row.
+      *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18);
+      amended 2026-10-11 (`ADR-0037`, Q21/Q22).*
       (`PRV-45`, `OPS-32`, `WIR-35`, `WIR-52`, `LDG-38`, `LDG-32`, `STO-18`, `PRV-13b`, `LDG-75`)
 - [ ] **CNF-329** — **A provider call that never replies has a deadline.** Configure a finite,
       positive deadline and dispatch a provider call whose reply never arrives; assert the wait
@@ -3431,7 +3449,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       rate-outage restart replace the purchase-price startup check.*
 
 - [ ] **CNF-346** — **DigitalOcean correlator tags never drive bulk deletion** (`docs/research/provider-verify-2026-10.md`, V16, 2026-10-06). Exercise create, ambiguous resolution and cleanup with a lowercase correlator tag satisfying the DO-spec charset and length, using `:` or `_` as a separator; assert no call to `DELETE /v2/droplets?tag_name=` occurs and any delete names a verified individual Droplet id. (`PRV-48`, `OPS-27`)
-- [ ] **CNF-347** — **Survivor kinds and individual evidence stay distinct** (`docs/research/provider-verify-2026-10.md`, V17 and §3, 2026-10-06). For each applicable provider, inspect the immutable descriptor and assert the `PRV-13a` table's kinds and `api`/`manual` classifications: Cloud Primary IP is `api` regardless of any instance's `auto_delete`, Robot additional IP and subnet are `api` possible survivors, and DigitalOcean backup is `manual`. Separately, exercise attachment listing after deletion: a Cloud Primary IP read back with `auto_delete: true` and then absent after deletion is not reported as surviving; one that remains with `auto_delete: false` is reported with its identity and `cleanup: api`. Exercise a Robot case with an additional IP or subnet that survives and one with none; do not infer survival for every instance from the descriptor. Assert release follows each listed billable `api` attachment. Inspect DigitalOcean create requests and assert `backups: true` is never sent; leave backup billing `[verify]` and Robot survival pending live batch B step 9. (`PRV-13a`, `PRV-44`, `PRV-45`)
+- [ ] **CNF-347** — **Survivor kinds and individual evidence stay distinct** (`docs/research/provider-verify-2026-10.md`, V17 and §3, updated 2026-10-11 under `ADR-0037`, Q21). For each applicable provider, inspect the immutable descriptor and assert the `PRV-13a` table's kinds and `api`/`manual` classifications: Cloud Primary IP is `api` regardless of any instance's `auto_delete`, Robot Additional IP and subnet are `api` possible survivors, and DigitalOcean backup is `manual`. Separately, exercise attachment listing after deletion: a Cloud Primary IP read back with `auto_delete: true` and then absent after deletion is not reported as surviving; one that remains with `auto_delete: false` is reported with its identity and `cleanup: api`. Exercise a Robot case with a separately ordered Additional IP or subnet that survives and one with none as isolated fixtures; do not infer survival for every instance from the descriptor. Assert release follows each listed billable `api` attachment. For the observed auction `primary_ipv4` add-on and included /64, return a complete empty post-cancellation listing and assert no survivor row or release is invented. Inspect DigitalOcean create requests and assert `backups: true` is never sent; leave backup billing `[verify]` and separately ordered Robot attachments unverified. (`PRV-13a`, `PRV-44`, `PRV-45`)
 - [ ] **CNF-348** — **Existing rescue activation is disabled before re-enabling** (`docs/research/provider-verify-2026-10.md`, V4/V10, 2026-10-06). On Cloud read `rescue_enabled`, disable when true, then enable and reset inside its 60-minute interval. On Robot read `active`, use `DELETE /boot/{n}/rescue` when true, then re-enable and reset. Do not assume repeated-enable behavior. (`PRV-15`)
 - [ ] **CNF-349** — **Cherry correlator lookup scans the project list** (`docs/research/provider-verify-2026-10.md`, V21, 2026-10-06). Exercise more than one page with the matching tag on a later page; assert the driver filters client-side and returns the exact operation match, without assuming a server-side tag query. (`PRV-26`, `OPS-27`)
 - [ ] **CNF-350** — **Operator recording and withdrawal keep the server's time and replay receipt.**
@@ -3470,3 +3488,13 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       throttle from end rescue. Assert a monitorable alarm naming the provider account and
       the existing ambiguous error and reconciliation outcome; assert no silent retry or
       successful settlement. (`PRV-22`, `OPS-11`)
+- [ ] **CNF-354** — **Automatic attachment cleanup is an enabling precondition** (added
+      2026-10-11, `ADR-0037`, Q21). Attempt to enable a sold create path capable of leaving
+      a billable attachment after the machine is gone, including a separately ordered Robot
+      IP or subnet and Cloud or DigitalOcean re-admission. Reject enablement until its
+      demonstrated cleanup covers identity capture while present, release enqueue at each
+      gone-write, never-listed versus completed-empty states, and disappearance before
+      capture, with no manual recovery. Assert the accepted Robot auction `primary_ipv4`
+      path remains enabled and an observed empty listing creates no survivor cleanup.
+      This checks the gate for future paths; it does not assert today's system has
+      implemented discovery. (`PRV-49`, `PRV-13b`, `PRV-45`)

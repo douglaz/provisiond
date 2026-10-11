@@ -650,8 +650,9 @@ attempt is discarded, with no debit, decrement, rounding-state change or deficie
 and nothing observes the machine at the date except `OPS-32`'s next pass, so the customer paid up to
 one sweep interval for a machine whose end the record had held in advance. The observation-instant
 rule exists because the earlier instant is usually unknowable; here it is the one instant the
-deployment knew before the provider did.* The sweep's tombstone on that path releases `OPS-44`'s
-entry and clears the fence, which is stated there.
+deployment knew before the provider did.* The evidenced gone-write on that path closes the
+episode and clears the fence under `OPS-48`; tombstoning follows when `STO-18` permits it.
+*Amended 2026-10-11 (`ADR-0037`, Q21).*
 
 **For an attachment the stop boundary is the earlier applicable stored
 `effective_cancellation_date` or `released_at`.** Re-read both fields inside the tenant

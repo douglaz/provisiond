@@ -891,21 +891,22 @@ omission cost nothing here*):
 operator established that the provider *scheduled* rather than performed it — an `applied` without
 the date asserts the machine is gone, and is the only other thing it can mean for
 `delete_machine` — which settles `succeeded` as `cancellation_scheduled` and moves the episode
-to `scheduled` (`OPS-48`), keeping the fence until the tombstone
+to `scheduled` (`OPS-48`), keeping the fence until the evidenced gone-write
 (*added 2026-09-05; without it an operator confirming a scheduled cancellation had no way to say so,
 and the resolution cleared the fence on a machine still billing*).
 On `release_attachment`, `applied` MUST carry `effective_cancellation_date` when the operator
 established a scheduled release, for example
-`{"resolution": "applied", "effective_cancellation_date": "2026-10-31T23:59:59Z", "operator_ref": "opref-7d41cc"}`
-for Robot's day-only `cancellation_date` of `2026-10-31`. A provider date given as a calendar
-day only names the end of that day UTC; `now` never means its start. An explicit timestamp
-retains its stated instant. The wire value follows `WIR-1`'s UTC timestamp convention.
+`{"resolution": "applied", "effective_cancellation_date": "2026-10-31T22:59:59Z", "operator_ref": "opref-7d41cc"}`
+for Robot's day-only `cancellation_date` of `2026-10-31` if its date zone is verified as
+`Europe/Berlin` (`PRV-13`; zone `[verify]`). `PRV-13` owns conversion of day-only effective dates;
+the wire value follows `WIR-1`'s UTC timestamp convention.
 `PRV-45` says a dated result "MUST store that date on the attachment row" and "MUST NOT write
 `released_at` merely from that result". Without the date, `applied`
 asserts a completed release, for example
 `{"resolution": "applied", "operator_ref": "opref-7d41cc"}`. Only `delete_machine`
 changes machine state or schedules its episode. No other resolution form or operation kind
-carries this date. *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18).*
+carries this date. *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18);
+amended 2026-10-11 (`ADR-0037`, Q21/Q22): gone-write fence and provider-zone conversion.*
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
 `external_id` — the machine is already known, which is the whole difference from a create.
 

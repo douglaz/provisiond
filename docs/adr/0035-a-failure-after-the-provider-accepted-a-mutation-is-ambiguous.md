@@ -78,7 +78,9 @@ debits the prepaid unit on confirmed acceptance. `OPS-11` was the one reader tha
     last-row failure is never `failed`.
 - Not covered here: a delete whose success is followed by a throttled attachment listing. Only that
   listing writes `machine_attachments`, so `LDG-32` can close while a surviving volume bills the
-  operator. That defect predates this one and has its own ticket.
+  operator. That defect predates this one and has its own ticket. **Answered 2026-10-11:**
+  `ADR-0037`'s Q21 amendment owns the accepted scope, observation and future enabling
+  precondition; this historical gap does not reopen this decision.
 
 ## Amendment — 2026-10-08: unknown acceptance keeps its cause's kind (owner decision Q11)
 

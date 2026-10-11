@@ -61,8 +61,8 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | V5 | Hetzner Cloud | `08-provider-notes.md:417` · correlator (`OPS-27`, `OPS-32`) | label key/value character set, length, count | PARTIAL | Character set and the 63-character length become `[observed — HC-spec, 2026-10-06]`. The count limit stays `[verify]`. A UUID value fits |
 | V6 | Hetzner Robot | `02-provider-contract.md:767` · `PRV-35` | `locked` on each IP and subnet; server status stays `ready`/`in process` | PARTIAL | The `PRV-35` row's "documented; high" must go. `locked` is documented only as "Status of locking", and Hetzner also locks entire servers, which has no API field. An IP showing `locked:false` does not support reporting `none` |
 | V7 | Hetzner Robot | `02-provider-contract.md:705`, `08-provider-notes.md:415` · `PRV-27`, `OPS-33` | transaction listing is time-bounded (30 days) | CONFIRMED | Marker becomes `[observed — Robot-WS, 2026-10-06]`. The bound is first-party: "within the last 30 days", on both channels |
-| V8 | Hetzner Robot | `02-provider-contract.md:940` · `PRV-42` | auction offer id equals server number by rule | UNDETERMINABLE | Not documented. Superseded by `ADR-0040`: every lost-reply auction create searches the per-order fingerprint; equality is only a dated observation |
-| V9 | Hetzner Robot | `08-provider-notes.md:104`, `03-operation-lifecycle.md:1379` · `PRV-9`, `PRV-32`, `OPS-32` | key carries an engine-chosen name; the transaction still lists the fingerprint after the key is deleted | PARTIAL | `name` is caller-set (`[observed — Robot-WS, 2026-10-06]`). Whether the listing outlives the key needs a live test. `ADR-0040` removes the Robot sweep exception; fingerprint persistence still needs a live check |
+| V8 | Hetzner Robot | `PRV-42`, `ADR-0040` | auction offer id equals server number by rule | UNDETERMINABLE | A third equal-number auction sample was observed 2026-10-11 (offer/server `3084954`); no provider-wide rule follows. Lost-reply resolution still searches the per-order fingerprint |
+| V9 | Hetzner Robot | `PRV-9`, `PRV-32`, `OPS-32` | key carries a caller-set name; the transaction still lists the fingerprint after the key is deleted | CONFIRMED FOR TESTED TRANSACTION | The 2026-10-11 auction transaction retained `authorized_key[]` with the fingerprint after temporary-key deletion (batch B step 6). `ADR-0040` and key eligibility remain unchanged |
 | V10 | Hetzner Robot | `08-provider-notes.md:115` · none named | enabling rescue while already enabled: error or re-arm | UNDETERMINABLE | Design around it: `GET /boot/{n}/rescue` shows `active`, so `DELETE` first. The live test is optional |
 | V11 | Hetzner Robot | `08-provider-notes.md:121` · `RSC-12` | installimage config keys and the directive that stops rescue keys being copied | PARTIAL | Directive found in the official source: `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`. Whether the live rescue system runs that source needs a live check |
 | V12 | Hetzner Robot | `08-provider-notes.md:153` · `PRV-13c`, `DOM-19` | worst case across contracts; `cancellation_date=now` when the earliest date is in the future | PARTIAL | "30 days to the end of the month" is documented as "the longest period". The API's behaviour for `now` before the earliest date is not documented, so the "handle both" rule stands |
@@ -239,9 +239,9 @@ rule.
 
 **Verdict.** UNDETERMINABLE. Not documented.
 
-**Consequence.** Superseded 2026-10-09 by `ADR-0040`. Every lost-reply auction create uses the per-order fingerprint search across all ordering channels, reads the delivered `server_number` from the matched transaction, and confirms the resource. Equal numbers remain dated observations. A written identity answer no longer gates this algorithm.
+**Consequence.** Superseded 2026-10-09 by `ADR-0040`. Every lost-reply auction create uses the per-order fingerprint search across all ordering channels, reads the delivered `server_number` from the matched transaction, and confirms the resource. The 2026-10-11 order of offer `3084954` delivered server `3084954` after 18 min 41 s, adding a dated equal-number sample, not a rule. A written identity answer no longer gates this algorithm.
 
-### V9 — Robot temporary key: engine-chosen name, and listing after key deletion
+### V9 — Robot temporary key: caller-set name, and listing after key deletion
 
 **Spec.** `08-provider-notes.md:103-105`; `03-operation-lifecycle.md:1377-1379`.
 
@@ -254,9 +254,12 @@ rule.
 - No source says whether the transaction's `authorized_key[]` is a snapshot or a live join to the key
   resource.
 
-**Verdict.** PARTIAL. The name half is confirmed. The persistence half is not documented.
+**Verdict.** CONFIRMED for the 2026-10-11 tested auction transaction. The transaction retained
+the fingerprint in `authorized_key[]` after the temporary key was deleted (batch B step 6;
+`docs/research/panels-2026-10/r39/live-result.txt`). This observation is not a promise about
+every provider transaction.
 
-**Consequence.** The name is `[observed — Robot-WS, 2026-10-06]`. `ADR-0040` supersedes the Robot sweep exception. The live check (batch B, step 6) still asks whether the transaction retains its fingerprint after key deletion; it does not change `PRV-9` cleanup eligibility.
+**Consequence.** The name is `[observed — Robot-WS, 2026-10-06]`. `ADR-0040`'s correlator search and `PRV-9` cleanup eligibility remain unchanged.
 
 ### V10 — Robot rescue activation when already active
 
@@ -551,7 +554,7 @@ below are provider evidence, not deployment settings or values the engine reads.
 | Provider | Granularity (documented) | Stops at | Survives deletion and keeps billing | Not documented |
 |---|---|---|---|---|
 | Hetzner Cloud | hourly, partial hours rounded up, monthly cap | server deletion | Primary IPs (hourly; detached, not deleted, unless `auto_delete`), Floating IPs (monthly, prorated), Volumes (hourly, monthly cap), Snapshots (per GB-month, prorated). Backups are deleted with the server | delete-to-stop latency; `auto_delete` value on an auto-created Primary IP |
-| Hetzner Robot | hourly, partial hours rounded up, monthly cap; add-ons "per day or part thereof"; licences full calendar months | immediate cancellation (`cancellation_date=now`) | additional IPs and subnets *may* survive ("You may need to cancel these separately"; cancellable by API: `POST /ip/{ip}/cancellation`, `POST /subnet/{net-ip}/cancellation`). Licences carry a month-end billing tail; nothing says they outlive the server, and the driver orders none | whether IPs auto-cancel with the server; whether the `primary_ipv4` order add-on is a day-billed "add-on" (this note's inference, not stated) |
+| Hetzner Robot | hourly, partial hours rounded up, monthly cap; add-ons "per day or part thereof"; licences full calendar months | immediate cancellation (`cancellation_date=now`) | additional IPs and subnets *may* survive ("You may need to cancel these separately"; cancellable by API: `POST /ip/{ip}/cancellation`, `POST /subnet/{net-ip}/cancellation`). The tested auction `primary_ipv4` add-on and included /64 were absent after cancellation. Licences carry a month-end billing tail; nothing says they outlive the server, and the driver orders none | separately ordered IPs/subnets, catalogue orders and provider termination; whether the `primary_ipv4` order add-on is day-billed (inference, not stated); invoice |
 | DigitalOcean | per second, minimum 60 s or $0.01 | destroy | reserved and floating IPs, snapshots, volumes, volume snapshots (API reports each one's monthly `cost` if retained); backups retained about 4 weeks | whether retained backups bill; v5 public-IPv4 line after destroy |
 | Cherry Servers | on-demand "Hourly" from team balance; fixed-term monthly or annual, prepaid and not refunded | portal: "Your service will be canceled immediately" | "IP addresses, load balancers, and backup storage … continue to run and use your account balance until independently canceled" (the docs say "such as", so the list is not exhaustive) | hourly rounding unit; conflict with ToS §17.4 (below) |
 
@@ -592,9 +595,15 @@ including how per-IP `auto_delete` read-back relates to the immutable descriptor
 - Server Auction FAQ: "The cancellation period for these servers is usually immediately." It also says
   that extra IPs, hardware and add-ons: "You may need to cancel these separately."
 
-Declare additional IPs and subnets as possible `api` survivors until batch B, step 9 settles it. The
-descriptor's unit is an hour for the server, and should be taken as a day for anything ordered as an
-add-on.
+`PRV-13a` retains Additional IP and subnet as possible `api` survivor kinds. The 2026-10-11
+auction `primary_ipv4` add-on and included /64 were absent after cancellation, settling batch B
+step 9 only for that order. Before cancellation, `GET /server/{n}` exposed both addresses, and
+account `GET /ip` and `GET /subnet` associated them with the server. The server and IPv4 were
+absent at +1 second; the /64 was checked absent at +20 seconds. `ADR-0037`, Q21 records the
+subsequent 45-minute watch, while the summary log contains only initial watch lines and no
+per-minute subnet checks. Absence does not establish invoice billing or the add-on's billing
+unit; treating it as day-billed remains an inference awaiting the invoice. The server's
+documented unit is an hour.
 
 **DigitalOcean.** Quotes are in V17. Further sources:
 - Reserved IP pricing (last verified 25 Jun 2025): "Reserved IPv4 addresses cost $5.00 per month ($0.01
@@ -671,27 +680,35 @@ because no account action can settle them.
     sufficient for `ADR-0033`'s "priced, not amplified" criterion. Counter freshness,
     location accounting and the deletion residual remain unverified.
 
-**Batch B — Hetzner Robot (unrun plan: one auction order, about €0.08, ordering enabled)**
+**Batch B — Hetzner Robot (partially run 2026-10-11; remaining steps are plans)**
 1. `POST /key` with `name=pv-<uuid>` (V9). Read it back.
 2. `GET /order/server_market/product`. Pick the cheapest offer and record its `id`.
 3. Order it with `authorized_key[]=<fp>`, `addon[]=primary_ipv4` and `test=false`. Without the add-on
    the server is delivered with no IPv4 (`server_ip: null`), and steps 7–8 would need IPv6 egress
-   from the test host. The add-on also exposes the day tail in steps 9–10 (`PRV-13b`).
+   from the test host. The add-on may expose a day tail in steps 9–10; its billing
+   unit awaits the invoice (`PRV-13b`).
 4. Poll until `ready`. Check `server_number == offer id` (V8, one more sample).
 5. `DELETE /key/{fp}` (V9).
-6. `GET /order/server_market/transaction`. Check that `authorized_key[]` still shows the fingerprint (V9).
+6. `GET /order/server_market/transaction`. Check that `authorized_key[]` still shows the fingerprint (V9). **Observed:** it did after the temporary key was deleted.
 7. `POST /boot/{n}/rescue` with a key, `reset`, and SSH in. Run
    `grep -n TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS` over the installimage scripts in the rescue system.
    Compare `/root/.ssh/robot_user_keys` with the activation fingerprint (V11).
 8. With rescue still active, `POST /boot/{n}/rescue` again with a different key (V10). Record the
    response, then `GET /boot/{n}/rescue`.
-9. Without a `GET /server/{n}/cancellation` pre-read, first try
+9. **Auction add-on survival observed; no-pre-read and reservation branches untested.** The
+   planned experiment was: without a `GET /server/{n}/cancellation` pre-read, first try
    `POST /server/{n}/cancellation` with `cancellation_date=now` and
    `reserve_location=false`. Record the response, UTC time and resulting cancellation
    state. If Robot rejects it, use the existing pre-read path to complete cleanup;
    do not infer that the pre-read is dispensable. A reservation-possible branch
    unavailable on this server remains unverified. Check `GET /ip` for whether the
-   add-on IPv4 outlives the server.
+   add-on IPv4 outlives the server. The runner instead read cancellation state first,
+   observed `reservation_possible=false`, then posted `cancellation_date=now` with
+   `reserve_location=false`. Robot returned HTTP 200 with
+   `cancellation_date: 2026-10-11`; the server and main/add-on IPv4 were absent at +1 second,
+   and the included /64 was checked absent at +20 seconds. The no-pre-read path and
+   reservation-possible branch remain `[verify]`. Separately ordered IPs/subnets,
+   catalogue orders, provider-initiated termination and the invoice remain untested.
 10. On the next invoice, check the server's hourly unit and how its hours are counted, and any
     add-on's day unit and part-day counting. Record what the invoice establishes about the grid,
     not a billing-stop latency (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
