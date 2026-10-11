@@ -328,12 +328,15 @@ not optional hardening — they are the only structural defence there is.
       is produced by the clock, and inventory still shows the scheduled machine. If the
       mark already passed that date, `LDG-38`'s posted entries and mark stay unchanged;
       no later increment posts beyond the stop. In a
-      second trace, record authoritative gone, including mapped post-cancellation absence
-      inside the visibility window or a later complete sweep pass:
-      stop the meter at that observation, close the episode `resource_gone` and clear the
-      fence in the gone-write, with the meter stopped at that observation when it precedes
-      the date. Follow the present and failed-read traces with a later evidenced gone-write:
-      both close `resource_gone` and clear the fence then. In a third trace, record gone while
+      second isolated trace, record mapped post-cancellation absence inside the visibility
+      window before the effective date: stop the customer meter at that observation, close
+      the episode `resource_gone` and clear the fence in the gone-write. In another isolated
+      trace, keep the machine present through the effective date and record authoritative gone
+      on a later complete sweep pass: leave the customer stop at the stored date, with no debit
+      between that date and the observation; the later gone-write closes the episode
+      `resource_gone` and clears the fence without advancing the stop. Follow the present and
+      failed-read traces with a later evidenced gone-write: both close `resource_gone` and
+      clear the fence then. In a third trace, record gone while
       a known billable
       attachment lacks release evidence: the episode closes and fence clears at the
       gone-write, while the machine remains untombstoned until the retention gate permits.

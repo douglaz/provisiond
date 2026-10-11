@@ -508,10 +508,11 @@ exist. A deployment MUST define, and record:
   own rule;*
 - **which machine states are billable.** `stopped` **is billable** — powering a machine off does
   not stop provider billing on either the cloud or the dedicated products (`LDG-13`). So is
-  `cancellation_scheduled`: `DOM-19` states that "the machine is still running, the customer can
-  still reach it, and the operator is still paying for it" until its effective date, and a meter
-  that stops at cancellation acceptance under-bills for exactly
-  the window `DOM-19` was written to make visible;
+  `cancellation_scheduled`, with metering clipped at `LDG-38`'s "stop boundary is the earlier of its
+  `effective_cancellation_date` and any gone observation"; cancellation acceptance alone does
+  not stop the meter. `DOM-19` keeps that state "until the resource is independently recorded
+  gone", including after the customer stop; `LDG-74` owns the resulting provider cost.
+  *Clarified 2026-10-11 (`ADR-0037`, Q21/Q22);*
 - **the treatment of a partial period**, rounded per `LDG-28`.
 
 **LDG-74** **The meter MUST stop on evidence that the machine is gone, and no caller action may be
@@ -649,7 +650,8 @@ attempt is discarded, with no debit, decrement, rounding-state change or deficie
 
 **For a `cancellation_scheduled` machine the stop boundary is the earlier of its
 `effective_cancellation_date` and any gone observation** (`LDG-74`, `DOM-19`). *Added 2026-09-05.
-`LDG-37` bills that state "until its effective date" and `LDG-74` stops at the observation instant —
+`LDG-37` says "cancellation acceptance alone does not stop the meter" and `LDG-74` stops at the
+observation instant —
 and nothing observes the machine at the date except `OPS-32`'s next pass, so the customer paid up to
 one sweep interval for a machine whose end the record had held in advance. The observation-instant
 rule exists because the earlier instant is usually unknowable; here it is the one instant the
@@ -1969,12 +1971,16 @@ paid for. That is the second-normative-copy failure inverted: not two copies dri
 copies where the work is done.
 
 **LDG-63** **The scheduled-cancellation branch is the exception, because the operator cannot
-exit.** For a machine whose billing runs to an effective date regardless (`DOM-19`, `PRV-13c`),
-re-derivation MUST top the commitment from available so it covers cost through that date at the
-current rate; where available cannot fund it, the shortfall is **operator-borne** — there is no
+exit.** For a still-present machine on `PRV-13c`'s "exception path",
+re-derivation MUST top the commitment from available so it covers machine time through the
+effective date at the current rate; the customer meter uses `LDG-38`'s "stop boundary is the
+earlier of its `effective_cancellation_date` and any gone observation", while `LDG-74` says
+"A machine **still present after its date** has its meter stopped and is billing the operator".
+Where available cannot fund the top-up, the shortfall is **operator-borne** — there is no
 customer action to wait for and no faster cancellation to route to — and MUST be surfaced to the
 operator as a named deficiency, bounded per machine by `PRV-31`'s declared worst case. This is
 one of the two exceptions `ADR-0003`'s amended matching claim names.
+*Clarified 2026-10-11 (`ADR-0037`, Q21/Q22).*
 
 **LDG-16** **AMENDED (`ADR-0011`), again 2026-09-21 (`ADR-0026`), again 2026-09-23
 (`ADR-0027`), and again 2026-09-25 (`ADR-0028`).** A rate or price movement MUST NOT have its own cancellation machinery; it reaches
