@@ -887,7 +887,7 @@ omitted rescue inventory until 2026-09-03, four lines above the closed-set parag
 correctly — and that paragraph is the one a strict server is built from, which is the only reason the
 omission cost nothing here*):
 `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` — **and on a
-`delete_machine` MUST carry `"effective_cancellation_date": "2026-09-12T00:00:00Z"`** where the
+`delete_machine` MUST carry `"effective_cancellation_date": "2026-09-12T21:59:59Z"`** (the end of September 12 in Europe/Berlin CEST, used here as an isolated provider-zone fixture) where the
 operator established that the provider *scheduled* rather than performed it — an `applied` without
 the date asserts the machine is gone, and is the only other thing it can mean for
 `delete_machine` — which settles `succeeded` as `cancellation_scheduled` and moves the episode
@@ -1022,9 +1022,7 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
 account's `capabilities` (`WIR-29`) say what the driver can do at all; eligibility for a
 rescue-based install is a property of the **offer**, because an auction listing and a standard
 product at the same provider can differ on it. The fixture shows a Robot
-default-uplink offer, currently sellable under `ADR-0039`; the earlier Cloud
-fixture was removed because its traffic overage keeps it off the customer
-listing. An install naming a strategy absent from its
+default-uplink offer, currently sellable under `ADR-0039`. An install naming a strategy absent from its
 machine's recorded list MUST be rejected as `invalid_request` before the operation is enqueued,
 exactly as an invalid pairing is. The list MUST be present on every offer; an empty list means no
 install is available for that offer. **The gate reads the copy the machine took at create —
@@ -1230,8 +1228,12 @@ operator time and reference. The request has no `observed_at`. Recording MUST be
 when the driver reports a positive restriction, subject to ordinary authorization, validation
 and idempotency rules.
 
-Withdrawal takes `{"status": "unknown"}` on the same route and returns `200` with the machine
-view. The operator withdraws after the provider grants the unlock. Withdrawal MUST be accepted
+Withdrawal takes `{"status": "unknown"}` without `operator_ref` on the same route and returns
+`200` with the machine view. Under `WIR-2`'s "Unknown fields in a request body MUST be
+rejected" rule, a withdrawal body containing `operator_ref` returns `invalid_request`
+naming that first unknown field.
+
+The operator withdraws after the provider grants the unlock. Withdrawal MUST be accepted
 even while the stored provider observation is positive, subject to ordinary authorization,
 validation and idempotency rules; it requires no fresh provider read. It MUST clear only
 `operator_recorded_at` and `operator_ref`, leaving both provider columns untouched. A same-key

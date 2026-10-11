@@ -182,8 +182,7 @@ columns by accident.
 
 **Deleting the text is not reusing the number.** The gap in the sequence *is* the tombstone. A
 published requirement whose text is deleted goes in the withdrawn-identifier index below so an old
-citation still resolves. `tools/check_ids.py` reads that index. **Amended 2026-10-11 (`ADR-0034`,
-Q19):** identifiers removed before their revision reached master are a separate, narrow class.
+citation still resolves. `tools/check_ids.py` reads that index. **Amended 2026-10-11 (`pv-ucs.2`; `docs/verification/pv-ucs.2-2026-10-11.md`):** identifiers removed before their revision reached master are a separate, narrow class.
 The gate's exact `UNMERGED_RESERVED` registry records them, permits their gaps and historical ADR
 mentions, and refuses their reuse or citation in live root documents. They are not withdrawn
 published requirements and get no withdrawal markers. All other missing identifiers and dangling

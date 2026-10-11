@@ -46,6 +46,12 @@ def fresh (observed : Option Nat) (now window : Nat) : Bool :=
   | none => false
   | some observedAt => observedAt ≤ now && now - observedAt < window
 
+/-- `DOM-8`: an observation later than claim time supplies no freshness. -/
+@[req "DOM-8"]
+theorem future_observation_stale (observedAt now window : Nat)
+    (h : now < observedAt) : fresh (some observedAt) now window = false := by
+  simp [fresh, Nat.not_le.mpr h]
+
 /-- Startup checks positive durations and the owner window relationship. -/
 @[req "DOM-8"]
 def validFreshness (g : Guards) (window sweepInterval : Nat) : Bool :=

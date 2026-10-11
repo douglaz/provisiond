@@ -140,17 +140,16 @@ staleness bound from `state_observed_at` rather than from the fact of a caller h
 
 A deployment MUST state a finite, positive refresh freshness window no shorter than the
 account-sweep interval (`OVR-19`, `OPS-32`). Startup MUST refuse a shorter window. When a worker
-claims a refresh, it MUST check the machine's current `state_observed_at`: a non-null observation
+claims a refresh, it MUST check the machine's current `state_observed_at`: a non-null observation at or before claim time
 whose age is less than that window MUST settle the operation `succeeded` without a provider call.
-A null timestamp supplies no fresh observation; an observation at or beyond the window is stale.
+A null or future timestamp supplies no fresh observation; an observation at or beyond the window is stale.
 A cache answer MUST NOT advance `state_observed_at`. A failed provider read MUST leave it unchanged;
 a fresh subsequent operation can read again, subject to `OPS-8`.
 
 Refreshes queued while stale and claimed in turn within the window after a successful observation
 reuse that observation. The per-machine read bound therefore holds while the provider answers;
 during provider read failure, a single paid machine can repeatedly issue reads.
-`ADR-0034` accepts that residual. *Amended 2026-10-08 (`ADR-0034`, owner decision Q10);
-amended 2026-10-10 (`ADR-0034`, owner decision Q20).*
+`ADR-0034` accepts that residual. *Amended 2026-10-08 (`ADR-0034`, owner decision Q10).*
 
 ### Offer
 

@@ -1465,8 +1465,6 @@ has already released customer money, and a state that can be left silently would
 against machines the provider says are gone. The remedy for a mistaken termination is a fresh
 account and `API-62`, which is a decision with a record.
 
-*Comparison with the former network-restriction refusal removed 2026-10-10 (`ADR-0038`).*
-
 **Every use MUST emit a monitorable event** naming the principal, the account, the status before and
 after, and the reason (`SEC-39`, `SEC-32`) — this is an operator verb that moves customer money, and
 `SEC-39` as amended assumes the operator principal is a program.

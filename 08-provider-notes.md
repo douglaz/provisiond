@@ -64,7 +64,8 @@ sale decision and the live-evidence condition.
 boots rescue are consumption-timing candidates; deletion during either interval remains
 **[verify]** (research V2). Deletion eligibility: `PRV-9` (`ADR-0040`). `POST /ssh_keys` requires a caller-set `name` and accepts `labels`; `GET /ssh_keys`
 supports `name` and `label_selector` filters. **[observed — HC-spec, 2026-10-06]** The sweep
-may use the selector. A duplicate fingerprint is rejected. Generated rescue/correlator keys
+may use the selector. A duplicate fingerprint is rejected **[documented — HC-spec,
+2026-10-06; not reproduced live]**. Generated rescue/correlator keys
 remain fresh; caller-supplied create keys are distinct and no substitute-key policy is inferred
 (V3).
 
@@ -104,7 +105,12 @@ comes with unlimited traffic; its 10 Gbit uplink has a traffic allowance
 `ADR-0039`. The documented counter counts a TCP stream only after it
 disconnects. A held stream could therefore outrun a reading; live testing
 must establish a usable freshness bound before an allowance offer is
-re-admitted. No such test is claimed here.
+re-admitted. No such test is claimed here. **[Read-only product-list observation supplied
+by `pv-ucs.10`, 2026-10-11; not reproduced in this Run]** Robot's
+`GET /order/server/product` and `GET /order/server_market/product` list only
+`primary_ipv4` as an orderable add-on. The 10 Gbit uplink cannot be bought through
+`provider_options` on those offers; `ADR-0039`'s exclusion still governs allowance
+offers.
 
 **Auth** — HTTP basic. Request bodies are form-encoded, not JSON. **[observed]** Note
 that this means the HTTP client needs URL-encoded form support; check that the
@@ -119,7 +125,7 @@ namespaced so the create path can route (`DOM-9` note). Orders are transactions 
 **Ordering is not idempotent.** A timed-out order poll MUST NOT be retried blindly
 (`PRV-11`). **[design]**
 
-**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** In the 2026-10-11 auction order, the transaction still listed the fingerprint in `authorized_key[]` after deletion of the temporary key; batch B step 6 settles that observation (`docs/research/panels-2026-10/r39/live-result.txt`). `ADR-0040` retains the per-order fingerprint correlator, and `PRV-9` retains key deletion eligibility. A newly generated per-order correlator key is distinct from a caller's create key.
+**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** A duplicate fingerprint is refused with `409 KEY_ALREADY_EXISTS` **[documented — Robot-WS; not reproduced live]**. In the 2026-10-11 auction order, the transaction still listed the fingerprint in `authorized_key[]` after deletion of the temporary key; batch B step 6 settles that observation (`docs/research/panels-2026-10/r39/live-result.txt`). `ADR-0040` retains the per-order fingerprint correlator, and `PRV-9` owns key deletion. A newly generated per-order correlator key is distinct from a caller's create key.
 
 **Rescue host keys** — published in the rescue activation response and in a
 "last rescue" lookup. **[observed]** This is the only provider in the reference set that

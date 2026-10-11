@@ -17,7 +17,7 @@ which is the whole bucket.
 
 The harm lands on the operator's money. A throttle refusing a delete before acceptance is
 `failed` (`OPS-48`: "A throttle refusing the mutation before acceptance is `failed` and stalls the
-episode"); `OPS-48` also says "Neither returns the attempt to `queued`". An exhaustion delete
+episode"); `OPS-48` also says "Neither case returns the attempt to `queued`". An exhaustion delete
 can therefore leave an episode for an operator while its machine bills the operator. The account
 sweep cannot record an absence while throttled either. Retrying throttles on a timer was rejected
 in `F48` ("every operation is several requests") and stays rejected.

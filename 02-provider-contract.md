@@ -125,9 +125,20 @@ keys, optional user data, labels, and a provider-options object.
 persist a provider-generated root password, so a machine created without a key would be
 unreachable.
 
-**PRV-9** **Amended 2026-10-09 (`ADR-0040`).** Where the provider requires SSH keys to be registered as account-level resources before they can be attached, the driver MUST register and attach them as temporary provider-side resources. **A temporary key MUST be deleted only once its operation has settled or vanished, and no machine it produced still reads `provisioning`.** On failure before the provider accepts the operation, the driver MUST delete any registered temporary key. A post-acceptance `needs_reconciliation` operation retains its key until resolution settles it. The sweep MUST delete a tagged key whose operation record has vanished, because no machine from an unrecorded operation can be attached. This common eligibility rule governs driver cleanup and `OPS-32`'s sweep for create and rescue; provider-consumption timings may justify earlier deletion only after a separate amendment. The provider-side registration may contain a caller's create public key or a freshly generated rescue/correlator public key; it is distinct from the persisted recovery private key (`RSC-19`).
+**PRV-9** **Amended 2026-10-09 (`ADR-0040`); amended 2026-10-11 (`ADR-0040`, Q24).** Where the provider
+requires SSH keys to be registered as account-level resources before they can be attached, the driver
+MUST register and attach them as temporary provider-side resources. **After acceptance, a temporary key
+MUST be deleted when, and only when, its operation has settled or vanished and no machine it produced
+still reads `provisioning`; `OPS-32`'s sweep is its only deleter.** On failure before acceptance, the
+driver MUST delete only a temporary key that its own operation successfully registered. A
+duplicate-fingerprint refusal or an indeterminate registration reply gives the driver no ownership
+evidence and MUST NOT trigger deletion by fingerprint. A post-acceptance `needs_reconciliation` operation
+retains its key until resolution settles it. The sweep MUST delete a tagged key whose operation record
+has vanished, because no machine from an unrecorded operation can be attached. The provider-side
+registration may contain a caller's create public key or a freshly generated rescue/correlator public
+key; it is distinct from the persisted recovery private key (`RSC-19`).
 
-**Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints may therefore block the caller's next create while an unresolved operation retains a registered caller key; no substitute key policy follows from this rule. See `DEF-6`.
+**Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints blocks the caller's next same-key create on that account while any registration survives, until the sweep deletes it. The refusal precedes acceptance and sends no order. Cloud and Robot document this refusal (`08-provider-notes.md`); neither refusal was reproduced live. See `DEF-6`.
 
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request's provider options carry an explicit purchase acknowledgement, *and* the account
@@ -194,11 +205,16 @@ cancellation into `needs_reconciliation` or establish absence. `PRV-36` owns the
 no second confirmation read is required. This result requires known acceptance and its date;
 `OPS-11` still classifies an unknown or failed mutation response.
 
+**Amended 2026-10-11 (`ADR-0037`, Q23a).** After a failed or present read-back, the meter
+runs to `LDG-38`'s stop boundary. Time beyond the funded wind-down is `LDG-74`'s
+sweep-interval residual, which the stored effective date ends no later than that date;
+any amount beyond the commitment meets `LDG-31`'s clamp. A failed read supplies no
+absence evidence and does not stop the meter.
+
 A calendar-day-only **effective** date names the end of that day in the zone the provider dates
 in; the driver MUST convert that local end-of-day instant to UTC. An explicit timestamp retains
-its instant. A `now` request is not evidence of a start-of-day stop. A provider's
-`earliest_cancellation_date` is a permitted-from date, not an effective stop instant, and MUST
-NOT receive this end-of-day conversion. Robot's proposed zone is recorded as
+its instant. A `now` request is not evidence of a start-of-day stop. **Amended 2026-10-11 (`ADR-0037`, Q23c).** A provider's
+`earliest_cancellation_date` is a permitted-from date, not an effective stop instant: a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone. A date equal to the provider's today has passed and takes the ordinary branch. For a future earliest date, cost through that date runs to the end of its provider-local day; this pricing does not change the stored permitted-from instant or resize the commitment (`PRV-31`). Robot's proposed zone is recorded as
 `Europe/Berlin` **[verify]** in `08-provider-notes.md`.
 
 **PRV-13a** Deleting a machine does not necessarily delete everything billable that was attached to it. A driver MUST declare associated resources that survive deletion and may continue to bill, and MUST expose cleanup for every such resource the provider's API can delete. **Amended 2026-09-08 (`ADR-0018`):** the kinds are declared in the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`; cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an operator procedure as `manual`.
@@ -211,11 +227,11 @@ NOT receive this end-of-day conversion. Robot's proposed zone is recorded as
 | Hetzner Robot | Additional IP `api`; subnet `api` |
 | DigitalOcean | Reserved IP `api`; floating IP `api`; snapshot `api`; volume `api`; volume snapshot `api`; backup `manual` |
 
-The declaration names kinds, not an assertion that every instance survives. Hetzner Cloud's read-back `auto_delete: true` is evidence that an individual Primary IP is deleted with its server; the descriptor remains unchanged. On 2026-10-11 an auction order's `primary_ipv4` add-on and included /64 were absent after its `now` cancellation; this settles batch B step 9 only for that order, not separately ordered Additional IPs or subnets. Robot's possible-survivor declarations remain. DigitalOcean backup billing after Droplet destruction remains `[verify]`. The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`.
+The declaration names kinds, not an assertion that every instance survives. Hetzner Cloud's read-back `auto_delete: true` is evidence that an individual Primary IP is deleted with its server; the descriptor remains unchanged. On 2026-10-11 an auction order's `primary_ipv4` add-on and included /64 were absent after its `now` cancellation; this settles batch B step 9 (`docs/research/provider-verify-2026-10.md` §5) only for that order, not separately ordered Additional IPs or subnets. Robot's possible-survivor declarations remain. DigitalOcean backup billing after Droplet destruction remains `[verify]`. The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`.
 
 A DigitalOcean driver MUST NOT set `backups: true` on create, because retained backups have no documented deletion API. A control plane that reports a machine deleted while its storage continues to accrue cost is reporting a falsehood.
 
-**PRV-49** **ADDED 2026-10-11 (`ADR-0037`, Q21) — enabling attachment cleanup.** Before
+**PRV-49** **Enabling attachment cleanup.** Before
 enabling a sold create path that can leave a billable attachment outliving its machine, the
 system MUST provide complete automatic discovery and cleanup for that path. It MUST capture
 attachment identities while the machine is present, enqueue `release_attachment` at every
@@ -225,11 +241,14 @@ depend on manual operator recovery. This precondition applies to separately orde
 and subnets, and to Cloud and DigitalOcean on re-admission. Current Robot offers that order
 the `primary_ipv4` add-on remain sold across Robot ordering channels. The observed absence is
 limited to the tested auction order; catalogue orders and provider termination retain the
-accepted accident-only residual recorded in `ADR-0037`, Q21. This precondition does not
-require a runtime refusal API for those current offers. *Clarified 2026-10-11 (`ADR-0037`, Q21).*
+accepted accident-only residual recorded in `ADR-0037`, Q21. This precondition does not require a runtime refusal API for those current offers. The accepted residual
+for catalogue orders or provider termination is an accident that no adversary can cause: a stray address
+costs EUR 1.90 per month until noticed, with no operator cap (`ADR-0037`, Q23b).
 
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
-exposure before taking money. That requires, per product: an API path to stop the cost, a bound
+exposure before taking money, subject to `PRV-49`'s accepted residual: "an accident that no
+adversary can cause: a stray address costs EUR 1.90 per month until noticed, with no operator
+cap". *Amended 2026-10-11 (`ADR-0037`, Q23b).* That requires, per product: an API path to stop the cost, a bound
 on the time until the customer's meter stops, and cleanup for every billable attachment
 (`PRV-13a`, `PRV-45`); `PRV-49` is the enabling precondition for paths that can leave one
 outliving its machine. Traffic overage is operator exposure too. Under `ADR-0039`, an offer
@@ -525,12 +544,11 @@ traffic allowance and traffic overage price are
 per-contract facts that change, differ between a provider's own product lines, and differ
 between one contract and the next. Billing granularity is declared per offer as `PRV-44`'s
 `billing_unit` (`ADR-0033`, 2026-10-08).
-The driver MUST read allowance and overage price from current provider terms, declaring the
-per-offer `traffic_bound` through `PRV-44`; `08-provider-notes.md` is evidence, not runtime
+The driver MUST report an allowance offer's `traffic_bound` from current provider terms in List offers (`PRV-44`). If an allowance offer is re-admitted, its current overage price is read with those terms at re-admission; the immutable descriptor performs no network I/O and carries no overage-price field; `08-provider-notes.md` is evidence, not runtime
 configuration. *Amended 2026-10-09 (`ADR-0039`).*
 
 The required shape is read-and-branch: order, then **read** the provider's per-machine
-cancellation constraint, and branch to the exception path when it is **materially in the
+cancellation constraint. `PRV-13` says "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone" and "For a future earliest date, cost through that date runs to the end of its provider-local day". Branch to the exception path when the stored permitted-from instant is **materially in the
 future** — defined (`F18`) as later than now plus one re-derivation period plus the product's
 wind-down bound; anything nearer is indistinguishable from the ordinary exhaustion path and
 needs no exception —
@@ -586,9 +604,7 @@ cleanup. `LDG-38` owns the exit write, `LDG-32` commitment release and `STO-18` 
 tombstone gate.
 `PRV-49` is the enabling precondition for sold paths with outliving billable attachments.
 *Amended 2026-10-08 (`ADR-0035`): successful resolution has the same attachment-row effect as
-ordinary success; it does not record the machine gone. The 2026-10-08 `ADR-0037` wording
-restricted the date case to the future; that restriction was too narrow when resolution arrived
-after the effective date. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and
+ordinary success; it does not record the machine gone. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and
 automatic direct-read absence confirmation. Amended 2026-10-10 (`ADR-0037`, Q18): day-only dates.
 Amended 2026-10-11 (`ADR-0037`, Q21/Q22): enabling precondition and date-owner pointer.*
 
@@ -624,7 +640,7 @@ no key-based rescue), because it forces the workflow onto a password that a
 first-connection attacker can capture when host-key pinning is unavailable. It MUST NOT
 accept the ephemeral key and then ignore it. See `DEF-7`.
 
-**PRV-18** **Amended 2026-10-09 (`ADR-0040`, Q16).** Begin rescue MUST clean up after itself on partial failure. If the rescue environment is activated but the reboot fails, the driver MUST attempt to deactivate rescue. Temporary-key deletion follows `PRV-9`; the driver MUST attempt it when eligible. If rescue deactivation fails, the driver MUST attach the identifier of the rescue environment left behind to the error's details. If an eligible key deletion fails, it MUST attach the identifier of the key left behind to those details. A key deliberately retained while deletion is ineligible is not a failed cleanup. Where the engine dies instead, nothing attaches anything, and the tagged key resource is `OPS-32`'s to remove when eligible (`PRV-9`).
+**PRV-18** **Amended 2026-10-09 (`ADR-0040`, Q16); amended 2026-10-11 (`ADR-0040`, Q24).** Begin rescue MUST clean up after itself on partial failure. If the rescue environment is activated but the reboot fails, the driver MUST attempt to deactivate rescue. Before acceptance, the driver MUST attempt deletion only of a temporary key its own operation successfully registered (`PRV-9`). After acceptance, `OPS-32`'s sweep deletes it when eligible; the driver does not. If rescue deactivation fails, the driver MUST attach the identifier of the rescue environment left behind to the error's details. If an owned pre-acceptance key deletion fails, it MUST attach the identifier of the key left behind to those details. A key deliberately retained while deletion is ineligible or registration ownership is unknown is not a failed cleanup. Where the engine dies instead, nothing attaches anything, and the tagged key resource is `OPS-32`'s to remove when eligible (`PRV-9`).
 
 ### Refresh rescue session
 
@@ -645,8 +661,8 @@ key set, and MUST NOT replace key material with an empty value.
 **Output** — an action result.
 **Capability** — `rescue_ssh`.
 
-**PRV-21** **Amended 2026-10-09 (`ADR-0040`, Q16).** End rescue MUST deactivate the rescue environment, reset or reboot into the
-installed system, and arrange removal of any temporary credential it registered using the session's opaque cleanup token when `PRV-9` permits deletion. A credential this call never reached — the engine died first, or the call was lost — is found by its operation-id tag and removed by `OPS-32`'s sweep when eligible (`PRV-9`).
+**PRV-21** **Amended 2026-10-09 (`ADR-0040`, Q16); amended 2026-10-11 (`ADR-0040`, Q24).** End rescue MUST deactivate the rescue environment, reset or reboot into the
+installed system, and leave any temporary credential it registered for `OPS-32`'s sweep to remove when `PRV-9` permits deletion. The sweep finds it by its operation-id tag, including a credential this call never reached because the engine died first or the call was lost. The session's opaque cleanup token does not authorize a separate post-acceptance deletion.
 
 **PRV-22** Failure of end rescue is *always* ambiguous — the machine may be in rescue, may
 be rebooting into the new system, and a temporary credential may still be registered. The
@@ -788,7 +804,7 @@ than on the resulting machine (the robot-style shape):
 - treat the listing window as the horizon beyond which automatic resolution is impossible
   (`08-provider-notes.md`), and `OPS-31` as the only remaining road.
 
-**Amended 2026-10-09 (research V7):** Robot-WS documents both order-channel listings as covering "within the last 30 days" [observed — Robot-WS, 2026-10-06]. For the automatic-recovery horizon, see `OPS-33`; a by-id fetch does not replace fingerprint search when a lost reply withheld the transaction id.
+**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V7):** Robot-WS documents both order-channel listings as covering "within the last 30 days" [observed — Robot-WS, 2026-10-06]. For the automatic-recovery horizon, see `OPS-33`; a by-id fetch does not replace fingerprint search when a lost reply withheld the transaction id.
 
 **PRV-30** **CONFIRMED IN WRITING 2026-08-13 — no longer `[verify]`, and it removes a field the
 design was relying on.** A provider's caller-controlled field MUST NOT alter how the order is
@@ -1031,8 +1047,7 @@ for any of them, and the negative window has elapsed" — whose effect that tabl
 released in full (`LDG-32`)". So the customer's balance is released and the operation closed while a
 physical server bought on the other channel runs unrecorded at the operator's expense. `OPS-32`'s
 account sweep MUST therefore cover every channel too; it is the only thing that would ever find it,
-and that document states its interval as "the maximum time a customer can be billed for a machine
-that no longer exists" — here it bounds the mirror case, a machine nobody is billed for at all.
+and `LDG-74` says "The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence" — here it bounds the mirror case, a machine nobody is billed for at all.
 
 **PRV-39** **A provider that answers an empty search with an error status MUST have that answer
 translated into an empty result, never into an error kind.** Hetzner Robot returns
@@ -1057,7 +1072,7 @@ Nothing is mutated here, so that rule does not reach it.*
 ordering limit in each ordering-channel descriptor entry (`PRV-44`). Robot documents 20
 requests per day on each of `server`, `server_market` and `server_addon`; its
 `403 RATE_LIMIT_EXCEEDED` reports `max_request` and `interval` (`08-provider-notes.md`).
-The declaration documents capacity and supplies an alarm threshold. It MUST NOT be used
+The declaration documents capacity and supplies the threshold for the exhaustion alarm raised after Robot's reported `403 RATE_LIMIT_EXCEEDED`. It MUST NOT be used
 as a locally counted substitute for Robot's accounting, whose credential scope, window
 reset and treatment of rejected or test requests are unverified.
 
@@ -1135,9 +1150,7 @@ prior contents — `GET /order/server_market/transaction` still reported that or
 though it had succeeded", and gives the effect on the commitment as "Becomes the machine's running
 commitment". Applied to a destroyed machine that writes a `machines` row for something that is gone,
 opens a commitment against it and starts the meter — which is the defect `OPS-32` was amended to
-close, arriving by another road: "the meter reads the machine record, `DOM-8` refreshes that record
-only on an explicit caller operation, and nothing in this set refreshes on a schedule — so a machine
-the provider terminated went on draining its tenant's commitment until somebody happened to look."
+close, arriving by another road. `DOM-8` now says "`OPS-32`'s account sweep reads each provider account independently of any caller and MUST write what it saw (state, and `machines.state_observed_at`, `STO-48`)"; `OPS-32` writes present observations and confirmed absences.
 
 **Resolution MUST therefore establish that the resource currently exists by reading the resource
 itself, not the order that produced it**, and MUST interpret its absence through `PRV-36`'s declared

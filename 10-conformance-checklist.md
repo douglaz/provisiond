@@ -301,7 +301,7 @@ not optional hardening — they are the only structural defence there is.
 
 ## Deletion semantics
 
-- [ ] **CNF-63** — **Amended 2026-10-11 (`ADR-0037`, Q22).** For an accepted dated
+- [ ] **CNF-63** — **Amended 2026-10-11 (`ADR-0037`, Q22/Q23c).** For an accepted dated
       cancellation, assert the driver surfaces its effective date and performs exactly one
       read of the known machine on the known provider account. Return mapped absence (including
       Robot `SERVER_NOT_FOUND`) and assert the gone outcome at that read, not at the date or
@@ -311,13 +311,10 @@ not optional hardening — they are the only structural defence there is.
       `needs_reconciliation`. A generic HTTP error and a mismatched identity establish no
       absence. Separately lose the mutation's acceptance or date and assert no scheduled
       success is inferred. Convert a day-only effective date in the provider's date zone to
-      its end-of-day UTC wire instant; retain an explicit timestamp's instant and keep a
-      permitted-from `earliest_cancellation_date` as a date: in a fixture returning
-      `earliest_cancellation_date=2026-10-31` at `2026-10-31T12:00:00Z`, assert that no
-      end-of-day UTC instant is produced from that field and no meter stop is inferred.
+      its end-of-day UTC wire instant; retain an explicit timestamp's instant and convert a day-only permitted-from `earliest_cancellation_date=2026-10-31` to the stored start `2026-10-30T23:00:00Z` in an isolated Europe/Berlin fixture. At provider-local noon on October 31, the date has passed, so take the ordinary branch; infer no meter stop from that field. In a separate future-day fixture, price cost through the end of the earliest date's provider-local day while keeping the stored permitted-from start distinct. Robot's date zone remains `[verify]`.
       (`PRV-12`, `PRV-13`, `OPS-11`,
       `PRV-36`)
-- [ ] **CNF-64** — **Amended 2026-10-11 (`ADR-0037`, Q21/Q22).** After a dated
+- [ ] **CNF-64** — **Amended 2026-10-11 (`ADR-0037`, Q21/Q22/Q23a).** After a dated
       cancellation whose read-back finds the machine present, assert `cancellation_scheduled`
       remains visible in inventory. Repeat with throttle, authentication, network and
       deadline failures on that read: the attempt succeeds as scheduled with its stored
@@ -342,12 +339,12 @@ not optional hardening — they are the only structural defence there is.
       between that date and the observation; the later gone-write closes the episode
       `resource_gone` and clears the fence without advancing the stop. Follow the present and
       failed-read traces with a later evidenced gone-write: both close `resource_gone` and
-      clear the fence then. In a third trace, record gone while
+      clear the fence then. Exhaust the commitment in a failed-read scheduled trace before the stored stop date: assert `LDG-31` records `clamp_overflow`, takes nothing from available, and clips metering at the date even if no gone-write has yet arrived. The failed read supplies no absence evidence. In a third trace, record gone while
       a known billable
       attachment lacks release evidence: the episode closes and fence clears at the
       gone-write, while the machine remains untombstoned until the retention gate permits.
       Resolve a retained attempt afterward and assert the close stays closed. (`DOM-19`,
-      `STO-8a`, `STO-18`, `OPS-48`, `LDG-38`, `LDG-74`)
+      `STO-8a`, `STO-18`, `OPS-48`, `LDG-31`, `LDG-38`, `LDG-74`, `PRV-13`)
 - [ ] **CNF-65** — **AMENDED 2026-09-08 (`ADR-0018`) — the cleanup path now has a method.** After
       every delete that succeeds with the resource gone, the engine calls *list attachments*
       (`PRV-45`) and writes `machine_attachments`; a release is enqueued for every row whose kind
@@ -735,7 +732,7 @@ the fee's shape were amended the same day to stay true for both obligations.
       (2026-10-08, `ADR-0033`). (`PRV-13b`, `PRV-44`,
       `LDG-12`, `LDG-24`, `LDG-39`)
 - [ ] **CNF-316** — **Successful settlement after acceptance debits the authorized amount as its
-      own kind, paired with the decrement** (amended 2026-10-08, `ADR-0035`). Move the rate
+      own kind, paired with the decrement.** Move the rate
       between the create and the provider's acceptance. The entry is a
       `first_unit_debit`, never a `usage_debit`, for exactly the satoshi amount
       `operations.request_summary` carries as authorized and not a re-conversion; the commitment
@@ -794,7 +791,7 @@ the fee's shape were amended the same day to stay true for both obligations.
       should; one that reads the live offer at the seed meters a unit nobody prepaid, or prepays
       one it never meters; one that reads the snapshot at the seed has nothing to read once
       `STO-14` has run. (`LDG-38`, `STO-45`, `LDG-72`, `PRV-44`, `LDG-67`, `WIR-30`, `STO-14`)
-- [ ] **CNF-319** — **Every runway writer uses the mark** (amended 2026-10-08, `ADR-0033`).
+- [ ] **CNF-319** — **Every runway writer uses the mark.**
       Take the writer inventory from `05-persistence.md`'s `machines.runway_until` row; exercise
       every listed writer under its own preconditions. On independent copies of a machine whose
       first unit was actually debited and whose first seed at 0 wrote mark 3600, derive at 100
@@ -1358,14 +1355,12 @@ rather than acquiring a default.
 - [ ] **CNF-146** — `GET /v1/providers` reports three distinguishable capability sets, and a caller
       that acts only on what it reports never invokes an operation a provider does not have.
       (`OVR-16`, `OVR-2`)
-- [ ] **CNF-147** — **Amended 2026-10-11 (`ADR-0037`, Q22): a permitted-from date is
+- [ ] **CNF-147** — **Amended 2026-10-11 (`ADR-0037`, Q22/Q23c): a permitted-from date is
       not evidence that cancellation completed.** Exercise the dedicated path end to end
       against a real Hetzner Robot machine: commit the setup fee and prepaid first billing
       unit before ordering — Robot's hour, with no floor (`ADR-0033`) — debit them at
       accepted successful settlement (`ADR-0035`), and assert the machine's first meter
-      seed writes its mark at the seed plus 3600 seconds. Size the commitment from the
-      machine's read
-      `earliest_cancellation_date` (`LDG-39`, `LDG-38`, `PRV-13c`). Where that date is
+      seed writes its mark at the seed plus 3600 seconds. At create, size the commitment from `PRV-31`'s declared offer bound. After ordering, read the machine's actual `earliest_cancellation_date` and price the cost-through-earliest-date term in `LDG-33`'s protected satoshis without resizing the commitment (`LDG-39`, `LDG-38`, `PRV-13c`). Where that date is
       today, assert the outcome from the actual accepted cancellation result and its single
       read-back: mapped gone records the observation and stops the meter; presence or read
       failure settles scheduled with the returned effective date. Separately inject a
@@ -2441,7 +2436,24 @@ rather than acquiring a default.
       one made at the dispatch instead: `OPS-45` states "false, written before begin rescue … is
       dispatched", and an implementation that waits for the dispatch renders that row `none`.
       (`OPS-45`, `OPS-15`, `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
-- [ ] **CNF-303** — **Temporary provider-side keys obey the common eligibility rule** (amended 2026-10-09, `ADR-0040`). Kill the engine after registering a create's tagged caller key and after registering an unresolved rescue key; the sweep retains both while their accepted operations are `needs_reconciliation`. Retain keys for `queued` and `running` operations. Exercise a pre-acceptance begin-rescue failure: successful eligible deletion removes its key; failed eligible deletion reports the key id in the begin-rescue error details, then the sweep removes it. After settlement, retain a key while a machine produced by that operation still reads `provisioning`; delete it when that guard clears. Delete a tagged key whose operation record vanished. For an accepted rescue activation followed by reboot failure, keep the operation unresolved and its key registered: assert begin rescue attempts deactivation even though key deletion is ineligible. Exercise both successful deactivation, with no leaked rescue environment to report, and failed deactivation, whose identifier appears in the error details while the key remains registered. After eligibility, remove the retained key. Verify operation-id tags throughout, without requiring Robot's listing to persist its fingerprint after key deletion. (`PRV-9`, `PRV-18`, `PRV-21`, `OPS-32`)
+- [ ] **CNF-303** — **Temporary provider-side key cleanup has one owner after acceptance.** Kill the
+      engine after registering a tagged caller key for an accepted create and a tagged rescue key; the
+      sweep retains each while its operation is `needs_reconciliation`, `queued` or `running`. After
+      successful settlement, keep the create's machine in `provisioning` and assert the key remains;
+      once a later observation clears that guard, assert the sweep deletes it. Before that sweep, retry
+      a create with the same caller fingerprint: Cloud and Robot refuse the duplicate before acceptance,
+      with no order request or charge. The successful create's driver makes no prompt deletion. Delete a
+      tagged key whose operation row vanished through the sweep. On a pre-acceptance failure, delete
+      only a key successfully registered by that operation; a failed owned deletion reports its
+      identifier in begin-rescue error details and the sweep subsequently removes it. Return Robot `409
+      KEY_ALREADY_EXISTS`, and separately lose the registration reply: in both cases assert the driver
+      neither deletes by fingerprint nor sends an order, since it cannot establish registration
+      ownership. For an accepted rescue activation followed by reboot failure, keep the operation
+      unresolved and its key registered while begin rescue attempts deactivation; exercise successful
+      and failed deactivation and its error details. After eligibility, the sweep removes the retained
+      key. Verify operation-id tags, and keep provider-side public registrations distinct from persisted
+      recovery private keys. These are implementation obligations; no live duplicate refusal is claimed.
+      (`PRV-9`, `PRV-18`, `PRV-21`, `OPS-32`, `DEF-6`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
       no credential type, and `engine` does not depend on `api`. **AMENDED 2026-09-02 — the money
@@ -2924,7 +2936,7 @@ rather than acquiring a default.
       DigitalOcean, read `locked: true` as an action lock: assert it produces no mapped provider
       restriction observation, leaving both provider columns null before any mapped reading;
       render `restricted/operator_notice` with an existing operator record and unknown/null/null
-      without one. (`PRV-35`, `WIR-47`, `STO-39`)
+      without one. Submit a withdrawal with `operator_ref` and assert `invalid_request` names it as the first unknown body field, with no column change; the recording body still requires that field. (`PRV-35`, `WIR-47`, `WIR-2`, `STO-39`)
       *Amended 2026-10-10 (`ADR-0038`, Q15).*
 - [ ] **CNF-234** — `warned_consequence` has no write path after open, and a deadline revision
       appends: after two extensions the case carries both prior dates with their revision times,
@@ -3313,8 +3325,6 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       order `primary_ipv4` remain sellable on all Robot ordering channels without a separate
       attachment customer charge or attachment bound. The tested auction order's recorded
       absence creates no survivor row; catalogue survival remains unverified.
-      *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18);
-      amended 2026-10-11 (`ADR-0037`, Q21/Q22).*
       (`PRV-45`, `OPS-32`, `WIR-35`, `WIR-52`, `LDG-38`, `LDG-32`, `STO-18`, `PRV-13b`, `LDG-75`)
 - [ ] **CNF-329** — **A provider call that never replies has a deadline.** Configure a finite,
       positive deadline and dispatch a provider call whose reply never arrives; assert the wait
@@ -3329,7 +3339,7 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       resolution read whose own call lasts to its deadline. Assert neither max(deadline, window)
       nor their sum without the read wait funds the trace. Refuse startup with a missing, zero,
       negative, non-finite or malformed deadline or resolution-read cadence; enforce the stated
-      cadence. *Amended 2026-10-09 (`ADR-0037`, Q13).* (`OVR-19`, `PRV-13b`,
+      cadence. (`OVR-19`, `PRV-13b`,
       `PRV-36`, `PRV-5`, `OPS-11`, `OPS-12`)
 
 ## Before production
@@ -3369,7 +3379,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 - [ ] **CNF-331** — **Refresh cache settlement preserves observation age.** Configure a positive
       freshness window. Enqueue a refresh of a machine observed within it: assert `202`, then
       `succeeded`, result `{}`, zero provider calls and unchanged `state_observed_at`. Repeat
-      at the stale boundary and with a null observation: each can read the provider. Queue several
+      at the stale boundary, with a null observation, and with an observation timestamp later than claim time: each can read the provider. A future timestamp does not make the cache fresh. Queue several
       refreshes while stale, then claim them serially within the window after a responding read;
       assert one provider read in total. Change the stored observation between enqueue and claim
       to prove the check reads it at claim. (`DOM-8`, `OPS-8`, `OPS-11`, `API-7`, `WIR-10`)
@@ -3415,9 +3425,11 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       An offer lacking a declared cancellation bound follows the same refusal (`CNF-166`).
       An unassigned or unhealthy account still takes its existing listing response.
       Check the listed offer's customer price and install strategies remain governed by
-      their existing contracts. Vary the provider feed's allowance and overage price;
-      the descriptor follows the current terms rather than a compiled constant or
-      `08-provider-notes.md` value. (`DOM-9`, `WIR-30`, `PRV-13b`, `PRV-31`, `PRV-44`,
+      their existing contracts. Vary the provider feed's allowance; the returned offer's
+      `traffic_bound` follows current terms rather than a compiled constant or
+      `08-provider-notes.md` value. Describe capabilities remains pure and synchronous.
+      For a future allowance-offer re-admission, read current overage price with the offer
+      terms; no overage-price descriptor field is required. (`DOM-9`, `WIR-30`, `PRV-13b`, `PRV-31`, `PRV-44`,
       `PRV-13c`, `API-7`)
 - [ ] **CNF-341** — **Conditional allowance re-admission needs measured evidence.** A
       driver declaring an allowance and headroom without a live counter-freshness bound
@@ -3453,13 +3465,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       separately to retain `API-63`'s guard, and race extension with cancellation
       to retain `LDG-62`'s.
       (`PRV-42`, `STO-27`, `STO-58`, `API-63`, `LDG-62`, `API-7`)
-      *Amended 2026-10-10 (`ADR-0036`): the guard loser and retained exclusion
-      have exact response and persistence cases.*
 - [ ] **CNF-344** — **Each channel declares its own order budget.** Enumerate the
       descriptor's ordering channels and assert each has a positive `limit` and finite,
       positive `per`; no top-level `order_budget` substitutes for a missing channel
-      entry. Verify the declared limit is read for documentation and the alarm threshold,
-      while only Robot's reported `403 RATE_LIMIT_EXCEEDED` closes the local gate.
+      entry. Verify the declared limit documents capacity; Robot's reported `403 RATE_LIMIT_EXCEEDED` raises the exhaustion alarm naming account and channel and closes the local gate. No local request count raises that alarm.
       Another channel's mere declaration authorizes no new ordering capability.
       (`PRV-44`, `PRV-40`, `DOM-10`)
 - [ ] **CNF-345** — **Activation minimum is registered and validated.** Omit, zero,
@@ -3471,8 +3480,6 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       floor. `API-35`'s "The minimum MUST be large enough to purchase something"
       remains the operator's obligation; startup does not value it.
       (`OVR-19`, `API-35`, `LDG-44`, `LDG-52`)
-      *Amended 2026-10-10 (`ADR-0036`): structural startup validation and the
-      rate-outage restart replace the purchase-price startup check.*
 
 - [ ] **CNF-346** — **DigitalOcean correlator tags never drive bulk deletion** (`docs/research/provider-verify-2026-10.md`, V16, 2026-10-06). Exercise create, ambiguous resolution and cleanup with a lowercase correlator tag satisfying the DO-spec charset and length, using `:` or `_` as a separator; assert no call to `DELETE /v2/droplets?tag_name=` occurs and any delete names a verified individual Droplet id. (`PRV-48`, `OPS-27`)
 - [ ] **CNF-347** — **Survivor kinds and individual evidence stay distinct** (`docs/research/provider-verify-2026-10.md`, V17 and §3, updated 2026-10-11 under `ADR-0037`, Q21). For each applicable provider, inspect the immutable descriptor and assert the `PRV-13a` table's kinds and `api`/`manual` classifications: Cloud Primary IP is `api` regardless of any instance's `auto_delete`, Robot Additional IP and subnet are `api` possible survivors, and DigitalOcean backup is `manual`. Separately, exercise attachment listing after deletion: a Cloud Primary IP read back with `auto_delete: true` and then absent after deletion is not reported as surviving; one that remains with `auto_delete: false` is reported with its identity and `cleanup: api`. Exercise a Robot case with a separately ordered Additional IP or subnet that survives and one with none as isolated fixtures; do not infer survival for every instance from the descriptor. Assert release follows each listed billable `api` attachment. For the observed auction `primary_ipv4` add-on and included /64, return a complete empty post-cancellation listing and assert no survivor row or release is invented. Inspect DigitalOcean create requests and assert `backups: true` is never sent; leave backup billing `[verify]` and separately ordered Robot attachments unverified. (`PRV-13a`, `PRV-44`, `PRV-45`)
@@ -3514,15 +3521,17 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       throttle from end rescue. Assert a monitorable alarm naming the provider account and
       the existing ambiguous error and reconciliation outcome; assert no silent retry or
       successful settlement. (`PRV-22`, `OPS-11`)
-- [ ] **CNF-354** — **Automatic attachment cleanup is an enabling precondition** (added
-      2026-10-11, `ADR-0037`, Q21). Attempt to enable a sold create path capable of leaving
-      a billable attachment after the machine is gone, including a separately ordered Robot
-      IP or subnet and Cloud or DigitalOcean re-admission. Reject enablement until its
-      demonstrated cleanup covers identity capture while present, release enqueue at each
-      gone-write, never-listed versus completed-empty states, and disappearance before
-      capture, with no manual recovery. Assert current Robot offers that order
-      `primary_ipv4` remain enabled on the auction and catalogue channels; the observed
-      auction empty listing creates no survivor cleanup, while catalogue survival is
-      unverified (`ADR-0037`, Q21).
-      This checks the gate for future paths; it does not assert today's system has
-      implemented discovery. (`PRV-49`, `PRV-13b`, `PRV-45`)
+- [ ] **CNF-354** — **Attachment cleanup is an enabling precondition.** Inspect each proposed sold
+      create path able to leave a billable attachment after its machine is gone, including separately
+      ordered Robot IPs or subnets and Cloud or DigitalOcean re-admission. Before enabling that path,
+      demonstrate complete automatic discovery and cleanup: capture identities while present, enqueue
+      `release_attachment` at every gone-write for billable survivors, distinguish never-completed
+      listings from completed-empty listings, cover disappearance before identity capture, and require
+      no manual operator recovery. Trace each duty to `PRV-49`; inspect the sale configuration and
+      conformance evidence rather than asserting an unspecified runtime refusal API. Assert current
+      Robot `primary_ipv4` offers remain sold in both ordering channels under `PRV-49`'s accepted
+      exception. Exercise the tested auction empty listing without inventing a survivor; catalogue
+      survival and provider termination remain unverified, with an accepted accident-only, uncapped EUR
+      1.90/month per-stray-address residual until noticed. Do not treat `LDG-31`'s
+      "The decrement clamps at zero and the excess is the
+      operator's" as an operator cap on that residual. (`PRV-49`, `PRV-13b`, `PRV-45`, `LDG-31`, `LDG-32`)

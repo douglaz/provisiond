@@ -962,9 +962,12 @@ inductive Event
   | recoveryComplete
   deriving DecidableEq, Repr
 
-/-- `PRV-9`'s accepted eligibility. A vanished row is removable because its machine cannot be
-attached; a present row needs settlement and the produced machine past provisioning. The model
-does not measure provider consumption or model the provider's key resource itself. -/
+/-- `PRV-9`'s deletion eligibility. A vanished row is removable because its machine cannot be
+attached; a present row needs settlement and the produced machine past provisioning. The
+`sweepRemovesCredential` event performs the eligible deletion. This single-operation model has
+no provider fingerprint namespace, registration outcome or race, and does not prove duplicate
+refusal, scheduler liveness or cross-operation ownership. It does not model the provider's key
+resource itself or the persisted recovery private key. -/
 @[req "PRV-9"]
 def keyEligible (w : World) : Bool :=
   !w.recordPresent ||
@@ -1019,7 +1022,8 @@ theorem sweep_retains_ineligible (p : Params) (hp : p.temporaryKeyEligibility = 
       w.credentialRegistered := by
   simp [step, hp, h]
 
-/-- `PRV-9`: eligible tagged registrations are removed, including vanished operation rows. -/
+/-- `PRV-9` and `OPS-32`: an eligible tagged registration is removed when the model's sweep
+event runs, including a vanished operation row. This theorem does not prove the sweep runs. -/
 @[req "PRV-9"]
 theorem sweep_removes_eligible (w : World) (h : keyEligible w = true) :
     (step current w .sweepRemovesCredential).credentialRegistered = false := by

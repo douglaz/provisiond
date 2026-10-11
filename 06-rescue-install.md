@@ -17,7 +17,7 @@ provider through the rescue lifecycle, and installs an image over SSH.
 8. Install: run the provider's OS installer against a generated layout config, or stream
    and decompress a raw image onto a named block device.
 9. Ask the driver to exit rescue and reset into the installed system (`PRV-21`).
-10. Remove any temporary provider-side credential.
+10. Leave registered temporary provider-side credentials for `OPS-32`'s sweep to remove when `PRV-9` permits; the driver cleans up only its own successfully registered key on a pre-acceptance failure (`PRV-9`).
 
 ```mermaid
 sequenceDiagram

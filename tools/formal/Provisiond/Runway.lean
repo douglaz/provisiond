@@ -40,7 +40,9 @@ def current : Params := {
     startAtMark := true }
 
 /-- `LDG-33`: `usable_sats = max(0, reserved_sats − protected_sats)`.
-`Nat` subtraction truncates at zero, which is the `max(0, ·)`. -/
+`Nat` subtraction truncates at zero, which is the `max(0, ·)`. `prot` is an input:
+this model does not derive its cost-through-earliest-date term, convert a provider-local
+permitted-from date to an instant, price through that day's end, or resize a commitment. -/
 @[req "LDG-33"]
 def usableSats (reserved prot : Nat) : Nat := reserved - prot
 

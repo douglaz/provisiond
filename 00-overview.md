@@ -354,10 +354,7 @@ marked human are procedures the deployment records rather than values the proces
 
 *Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
 2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
-activation funding minimum is registered. Amended 2026-10-10 (`ADR-0036`): startup
-validates that minimum's positive-integer satoshi form. Amended 2026-10-10
-(`ADR-0034`, Q20): `DOM-8` says "A deployment MUST state a finite, positive refresh
-freshness window no shorter than the account-sweep interval"; startup validates it.*
+activation funding minimum is registered.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -387,7 +384,7 @@ freshness window no shorter than the account-sweep interval"; startup validates 
 | Autonomous per-principal ceilings and their interval | `SEC-39` | integers, duration | yes |
 | Operator-principal ceilings | `SEC-39` | integers | yes |
 | Lightning ceiling | `SEC-49` | satoshis | yes |
-| Order budget declaration, per provider account and ordering channel | `PRV-40`, `PRV-44` | `{limit, per}` — positive limit and finite, positive period in each channel descriptor; documentation and alarm threshold, not a local admission counter | yes |
+| Order budget declaration, per provider account and ordering channel | `PRV-40`, `PRV-44` | `{limit, per}` — positive limit and finite, positive period in each channel descriptor; documentation and the alarm raised on the provider's reported 403, not a local admission counter | yes |
 | Activation funding minimum | `API-35`, `LDG-44` | positive integer satoshis | yes |
 | Enrolment per-source concurrency | `API-36` | integer | yes |
 | Pending-tenant ceiling | `API-41` | integer | yes |
@@ -428,8 +425,6 @@ Deadline expiry
 bounds the wait for a reply; it establishes neither the mutation's outcome nor that billing
 stopped. Classification and resolution remain with `OPS-11`, `PRV-5` and `PRV-36`; `OPS-12`'s
 "MUST NOT automatically retry an ambiguous mutation under any other name" still applies.
-*Added 2026-10-08 (`ADR-0037`): the deadline and its register row. Amended 2026-10-09
-(`ADR-0037`, Q13): resolution-read cadence and the sizing pointer.*
 
 **The maximum tolerated rate outage is read at the value in force when `LDG-64`'s deadline is
 computed, for an outage already open too.** Lowering it below the elapsed outage makes that

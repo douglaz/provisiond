@@ -1114,7 +1114,7 @@ def TailRefusal.retryable : TailRefusal → Bool
 @[req "WIR-9b"]
 def envelopeRetryable (r : TailResult) : Bool := r.refusals.all TailRefusal.retryable
 
-set_option maxHeartbeats 1000000
+set_option maxHeartbeats 1000000 in
 @[req "API-7"]
 theorem empty_iff_admitted (g : Guards) (hg : g.richTailCollection = true) :
     ∀ (c : Bool) (h : AccountStatus.Status) (o x f s r q p b : Bool),
@@ -1125,6 +1125,7 @@ theorem empty_iff_admitted (g : Guards) (hg : g.richTailCollection = true) :
     cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
     simp [purchaseTail, tailAdmitted, hg, hs, hc]
 
+set_option maxHeartbeats 1000000 in
 @[req "API-7"]
 theorem ordered_without_duplicates (g : Guards) (hg : g.richTailCollection = true) :
     ∀ (c : Bool) (h : AccountStatus.Status) (o x f s r q p b : Bool),
@@ -1135,6 +1136,7 @@ theorem ordered_without_duplicates (g : Guards) (hg : g.richTailCollection = tru
     cases s <;> cases r <;> cases q <;> cases p <;> cases b <;>
     simp [purchaseTail, TailRefusal.rank, hg, hs, hcx]
 
+set_option maxHeartbeats 1000000 in
 @[req "API-7"]
 theorem unpriced_checks_are_skipped (g : Guards) (hg : g.richTailCollection = true) :
     ∀ (c : Bool) (h : AccountStatus.Status) (o x f s r q p b : Bool),

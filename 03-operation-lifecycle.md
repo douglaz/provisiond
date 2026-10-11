@@ -1416,18 +1416,17 @@ snapshot-consistent pagination — which is all of them.
 `OPS-33`'s bounds a **correlator search** for a create whose outcome is unknown — derived from a
 provider's allocation behaviour, and on Hetzner Robot bounded by how quickly a human looks
 (`PRV-33`). Binding absence detection to it would let a machine the provider terminated in its first
-hours go on billing its customer for that whole window, while `LDG-74` makes the **sweep interval**
-"this rule's error bound, the maximum time a customer can be billed for a machine that is gone". `PRV-36`'s window is
+hours go on billing its customer for that whole window, while `LDG-74` says "The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence". `PRV-36`'s window is
 listing lag — eight seconds against live DigitalOcean — which is the quantity actually in play here.
 **A machine with no create of its own has no window at all**: a late-attached machine (`OPS-36`)
 was observed present at the provider before it became a record here, so an absence is evidence
-about it from the first pass. `LDG-74` is why the write exists at all: the
-meter reads the machine record, `DOM-8` refreshes that record only on an explicit caller operation,
-and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
-draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not
-enough, because the cost accrues while the report sits unread. **This sweep's stated interval is
-therefore a money parameter** (`OVR-19`): it is the maximum time a customer can be billed for a
-machine that no longer exists.
+about it from the first pass. `LDG-74` is why the write exists at all: `DOM-8` says
+"`OPS-32`'s account sweep reads each provider account independently of any caller and MUST
+write what it saw (state, and `machines.state_observed_at`, `STO-48`)". Present
+observations and confirmed absences update the cache without a caller. The cache does not
+authorize destruction (`DOM-8`). **This sweep's stated interval is therefore a money
+parameter** (`OVR-19`); `LDG-74` qualifies the customer-billing tail when the sweep yields
+to `rate_limited` or waits for confirmation.
 
 **A machine is unrecorded when it is absent from the `machines` table by
 `(provider_account, external_id)`** — *not* when it bears no correlator. The previous wording
@@ -1457,7 +1456,7 @@ correlator whose operation has settled or vanished is caller data the deployment
 so it is **deleted** rather than reported. That is the opposite remedy from an unrecorded machine, and
 the asymmetry is the point — one is a customer's running server, the other is a copy of a customer's
 operating system sitting in the operator's account. *A delete may answer that it already happened;
-`OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*amended 2026-10-09, `ADR-0040`*): a key resource carrying an operation id as its name or tag (`PRV-9`) is deleted by the sweep only when `PRV-9`'s eligibility rule permits it: "A temporary key MUST be deleted only once its operation has settled or vanished, and no machine it produced still reads `provisioning`." A crashed create or rescue operation in `needs_reconciliation` retains its key; a vanished record permits deletion. The provider-side registration is distinct from the recovery private key (`RSC-19`).
+`OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*amended 2026-10-09 and 2026-10-11, `ADR-0040`*): a key resource carrying an operation id as its name or tag (`PRV-9`) MUST be deleted by the sweep when, and only when, `PRV-9` permits it: "After acceptance, a temporary key MUST be deleted when, and only when, its operation has settled or vanished and no machine it produced still reads `provisioning`; `OPS-32`'s sweep is its only deleter." A crashed create or rescue operation in `needs_reconciliation` retains its key; a vanished record requires sweep deletion. A driver removes only a key its own operation successfully registered on pre-acceptance failure (`PRV-9`). The provider-side registration is distinct from the recovery private key (`RSC-19`).
 
 **OPS-33** **Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V7, retrieved 2026-10-06): Robot transaction listings on both ordering channels cover "within the last 30 days" [observed — Robot-WS, 2026-10-06]. The automatic-recovery horizon leaves a margin because rolling versus calendar alignment is unspecified; it does not alter the measured negative window or the matched-in-progress qualification below.** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
 negative window has elapsed, the commitment MUST be closed and released in full even though the

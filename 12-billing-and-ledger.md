@@ -279,11 +279,13 @@ name**, and both independent reviewers found it.*
 
 **The decrement clamps at zero and the excess is the operator's.** Where a debit exceeds the
 commitment's remaining amount — reachable through the wind-down window, the rate window's lag
-(`LDG-58`; amended 2026-09-23, `ADR-0027`) and a resolved-observed setup fee — or, since
-2026-10-08, prepaid first unit (`ADR-0033`) — against a still-open commitment (`LDG-39`) — the
+(`LDG-58`; amended 2026-09-23, `ADR-0027`), a resolved-observed setup fee, a prepaid first
+unit (`ADR-0033`, added 2026-10-08), or the post-cancellation metering tail after a failed
+or present read-back (`PRV-13`, `ADR-0037`, Q23a) — against a still-open commitment
+(`LDG-39`) — the
 commitment decrements to zero, the tenant is debited only up to the
 authority it granted, and the remainder is recorded as an **operator deficiency** in the manner of
-`LDG-63`. It MUST NOT be taken from available balance: that would be the automatic seizure
+`LDG-63`. *Amended 2026-10-11 (`ADR-0037`, Q23a): the scheduled-cancellation reachability case.* It MUST NOT be taken from available balance: that would be the automatic seizure
 `ADR-0011` exists to forbid, arriving through the meter instead of through re-derivation.
 
 **The clamp MUST split provider-native cost as it splits satoshis** (added 2026-10-04,
@@ -326,9 +328,10 @@ reserves for them; but the meter (`LDG-37`) was machine-only, so a released comm
 billing against nothing. A deployment MUST meter each billable attachment on its own identity
 through the earlier applicable `PRV-45` effective date or `released_at` observation, and MUST
 keep the commitment open while any billable attachment's `released_at` is null, even if its
-customer meter has stopped at a stored date. It MUST NOT sell an offer whose attachments have
-no bounded automatic cleanup unless the operator has explicitly accepted and capped that
-exposure. *Amended 2026-10-09 (`ADR-0037`, Q14): customer stop and release evidence separate.*
+customer meter has stopped at a stored date. Whether an offer may be sold with a billable
+attachment that can outlive its machine is `PRV-49`'s rule. *Amended 2026-10-09
+(`ADR-0037`, Q14): customer stop and release evidence separate. Amended 2026-10-11
+(`ADR-0037`, Q23b): sale rule has one owner.*
 
 **Losing a provider account is not evidence that billing stopped** — see `SEC-46`, amended for the
 same reason. **A terminal path with no close rule strands a customer's satoshis
@@ -346,12 +349,14 @@ protected_sats = at the current rate, rounded up:
                    wind_down_cost
                  + surviving billable attachments (PRV-13a)
                  + cost through any effective cancellation date (DOM-19)
-                 + cost through any earliest cancellation date not yet passed (PRV-13c)
+                 + cost through any future permitted-from date to its provider-local day end (PRV-13, PRV-13c)
 usable_sats    = max(0, reserved_sats − protected_sats)
 mark           = the machine subject's latest high-water mark (LDG-72); none before its first seed
 runway_until   = max(now, mark) + floor(usable_sats / current_customer_rate)
                                                      # max(now, mark) is now where there is no mark
 ```
+
+*Amended 2026-10-11 (`ADR-0037`, Q23c): the stored permitted-from start and priced-through end are distinct; the commitment remains fixed.*
 
 **The derivation counts from the later of now and the machine's mark** (`ADR-0033`, amended
 2026-10-08; formalized as `Provisiond.Runway.runwayUntil`). `mark` is the machine subject's latest
@@ -576,10 +581,15 @@ nothing in the system raises anything.
   tombstone — is the one `STO-18` refuses, and a terminated machine leaving volumes behind is the
   ordinary case rather than the exotic one.*
 
-**The residual is the sweep interval, and it is therefore a money parameter.** `OPS-32` already
-requires the interval to be stated; it is **this rule's error bound**, the maximum time a customer
-can be billed for a machine that is gone, and it MUST be stated as such with the other deployment
-parameters (`OVR-19`) rather than chosen as an operational convenience.
+**The sweep interval is a money parameter.** `OPS-32` requires it to be stated, and it
+MUST be stated as a customer-billing residual with the other deployment parameters
+(`OVR-19`). The stated interval bounds only the scheduled wait to a pass; a complete pass and
+successful direct confirmation then establish absence. It is not a wall-clock maximum
+when the sweep yields to `rate_limited`, a pass is incomplete, or direct confirmation
+fails. In a scheduled cancellation the stored effective date clips the customer meter
+even while gone confirmation waits (`LDG-38`); the later gone-write closes the episode,
+and `STO-18`'s attachment and retention gates can delay tombstoning. *Amended
+2026-10-11 (`ADR-0037`, Q23a).*
 
 **A confirmed account termination stops every meter in the account, machines and attachments
 alike.** Recording `terminated` (`API-63`, `SEC-46`) is an authoritative observation that the whole
