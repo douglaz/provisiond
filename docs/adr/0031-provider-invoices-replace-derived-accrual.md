@@ -37,8 +37,9 @@ The classification lives in `LDG-75`; these are its producer checks, not a secon
   charged for a machine that is nonetheless gone". Both identify an actual fee without a customer
   entry. Its abandoned row says "the operator gave up establishing whether the order landed";
   that recorded fee obligation remains an estimate until the invoice, not evidence of payment.
-- `LDG-63`: "so it covers cost through that date". This is forward coverage; metering subsequently
-  supplies the actual customer entry and any clamp remainder, not another copy of the reservation.
+- `LDG-63`: "so it covers machine time through the effective date at the current rate". This is
+  forward coverage; metering subsequently supplies the actual customer entry and any clamp remainder,
+  not another copy of the reservation. *Quotation synchronized 2026-10-11 (`ADR-0037`, Q21/Q22).*
 - `SEC-46`: "Where exposure must be carried without confirmation". `LDG-74` says "the meter
   **continues**"; entries and incurred deficiencies supply actual charges
   while the account is unreachable, until the stop rule, with gaps answered by the invoice.

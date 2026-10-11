@@ -331,7 +331,13 @@ not optional hardening — they are the only structural defence there is.
       second isolated trace, record mapped post-cancellation absence inside the visibility
       window before the effective date: stop the customer meter at that observation, close
       the episode `resource_gone` and clear the fence in the gone-write. In another isolated
-      trace, keep the machine present through the effective date and record authoritative gone
+      future-date trace, let the cancellation read-back find the machine present, leaving it
+      scheduled; repeat with a failed read-back. Before the stored effective date, run a
+      complete `OPS-32` account pass after the create visibility window: omit the machine
+      from the listing and confirm its absence by direct read. In each trace, assert the
+      gone-write stops the customer meter at this earlier observation, closes the episode
+      `resource_gone` and clears the fence. In a late-sweep trace, keep the machine present
+      through the effective date and record authoritative gone
       on a later complete sweep pass: leave the customer stop at the stored date, with no debit
       between that date and the observation; the later gone-write closes the episode
       `resource_gone` and clears the fence without advancing the stop. Follow the present and
