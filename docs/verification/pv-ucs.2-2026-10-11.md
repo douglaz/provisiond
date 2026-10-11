@@ -38,7 +38,7 @@ serialized claims, and the stated claim times. It does not prove N-machine behav
 scheduler cadence, provider availability, counting scope, persistence, or runtime
 conformance. The checklist remains unchecked. No live provider call was made.
 
-## Gate and control evidence
+## Round 1 gate and control evidence
 
 The baseline unpiped `nix develop --command bash tools/check-all.sh` exited 0 before
 edits. The same command exited 0 after the first semantic pass and again after the
@@ -69,3 +69,38 @@ the sweep helper pinned the unrelated cache guards on, as the existing witnesses
 do. The formal gate then exited 0 and the complete matrix rerun passed with one
 targeted refutation per row. No theorem statement was weakened.
 The single rehearsal copy and its generated state were deleted after the reruns.
+
+## Round 2 acceptance repair and verification (2026-10-11)
+
+The [Robot webservice reference](https://robot.hetzner.com/doc/webservice/en.html) was
+rechecked on 2026-10-11. The `GET /order/server_addon/transaction`,
+`GET /order/server_addon/transaction/{id}` and `GET /boot/{server-number}` sections each
+document 500 requests per hour. `08-provider-notes.md` now lists those distinct GET
+method/paths in the existing table, under its existing **[verify]** qualification for
+counting scope. Batch B step 13 uses that table as its limit list, so it now includes
+these scope checks. Its separate order-POST experiment and 20-per-day POST limits remain.
+This was a documentation check; no Robot account action or live count was performed.
+
+`README.md` now distinguishes the withdrawn index for published requirements from the
+gate's exact `UNMERGED_RESERVED` set for never-master Decision 3 identifiers. The gate
+implementation and its CI negative control were not changed. It still rejects live
+definitions and root-document citations to those reserved identifiers, and still
+checks ordinary dangling references and gaps.
+
+The unpiped `nix develop --command bash tools/check-all.sh` exited 0 before Round 2
+edits and 0 after the two documentation edits; both runs passed all seven gates,
+including the Lean build. The relevant controls came from `.github/workflows/ci.yml`.
+In one in-repository rehearsal copy of the identifier gate's Markdown inputs, restored
+between cases, the clean gate exited 0; adding a live `PRV-46` definition exited 1
+with only `UNMERGED ID REUSED: ['PRV-46']`; adding a live `CNF-336` citation exited 1
+with only `UNMERGED ID LIVE CITED: ['CNF-336']`. The workflow's ordinary
+`API-9999`/`DOM-9999` mutation exited 1 with `DOM-9999` dangling and `API-9999`
+outlying. Restored baseline checks exited 0 after each mutation. The copy was removed.
+The Round 1 standalone and formal guard matrices above were not rerun: no gate, formal
+or CI code changed. Their source-list partition and counts remain the Round 1 evidence,
+not a new rehearsal claim.
+
+The Panel scratch directories `.review-opus-ucs2r1/` and `.review-ucs2-independent/`
+were inspected for processes with a working directory or open file inside them. None
+were found; both exact directories were removed. No review scratch remains in the
+deliverable tree.

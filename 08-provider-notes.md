@@ -419,15 +419,17 @@ Notes that change driver code:
   observation is claimed.
 
 - **Robot endpoint limits.** The [Robot webservice reference](https://robot.hetzner.com/doc/webservice/en.html),
-  retrieved 2026-10-10, documents the following method/path limits. These are documented
-  limits, not measured shared counters or live availability guarantees.
+  retrieved 2026-10-10 and rechecked for the added paths 2026-10-11, documents the
+  following method/path limits. These are documented limits, not measured shared counters
+  or live availability guarantees.
 
   | Method and path in the reference | Documented request limit |
   |---|---|
   | `GET /server`; `GET /server/{server-number}` | 200 per hour, documented on each path |
   | `GET`, `POST`, `DELETE /server/{server-number}/cancellation` | 200 per hour, documented on each method |
   | `POST /reset/{server-number}` | 50 per hour |
-  | `GET /order/server/transaction`, `GET /order/server/transaction/{id}`, `GET /order/server_market/transaction`, `GET /order/server_market/transaction/{id}` | 500 per hour, documented on each path |
+  | `GET /order/server/transaction`, `GET /order/server/transaction/{id}`, `GET /order/server_market/transaction`, `GET /order/server_market/transaction/{id}`, `GET /order/server_addon/transaction`, `GET /order/server_addon/transaction/{id}` | 500 per hour, documented on each path |
+  | `GET /boot/{server-number}` | 500 per hour |
   | `GET`, `POST`, `DELETE /boot/{server-number}/rescue`; `GET /boot/{server-number}/rescue/last` | 500 per hour, documented on each method/path |
   | `GET`, `POST`, `DELETE /boot/{server-number}/linux`; `GET /boot/{server-number}/linux/last`; `GET`, `POST`, `DELETE /boot/{server-number}/vnc`; `GET`, `POST`, `DELETE /boot/{server-number}/windows` | 500 per hour, documented on each method/path |
   | `GET /ip`, `GET /ip/{ip}`, `GET /subnet`, `GET /subnet/{net-ip}` | 5000 per hour, documented on each path |
