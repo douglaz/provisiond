@@ -1,0 +1,17 @@
+Q19 ACCEPTED 2026-10-10 (pv-ucs.2's three Manager questions, comment 270; panel r36):
+ADR-0034 Decision 3 (the declared provider request budget and its system reserve) is DEFERRED until an
+offer that shares a provider request bucket (Hetzner Cloud's per-project bucket) is sellable again. v1
+sells only Robot (ADR-0039); PRV-44's {scope, limit, per} cannot express Robot's per-endpoint limits;
+and a locally counted budget cannot hold a reserve against traffic outside provisiond (ADR-0036 already
+rejected a local count). Decisions 1-2 and the Q10 amendment (refresh cache, reverse-DNS ceiling) stay
+and are kept as implemented in bd737c9. "It never reaches the system's own deletes" is withdrawn.
+Preconditions recorded for re-admitting a shared-bucket offer (the panel's answers to Q19a-c):
+(a) gate new admissions on the provider's own reported remaining count (Cloud's RateLimit-Remaining),
+    not a local count; continuations of admitted operations dispatch; state the residual;
+(b) eligibility by path, not actor: exposure-reducing and evidence work (deletes, cancellations,
+    API-64 episode retries, API-65 releases, OPS-27 resolution, OPS-32 sweep) is never refused by the
+    budget whoever requested it; requested_by stays an audit stamp; SEC-39's operator ceilings stay;
+(c) refusal decided at worker claim after the cache check: 202, then failed/rate_limited with
+    retry_after_ms, retryable: true, zero provider calls, a create's commitment released (PRV-40's
+    claim-time precedent); no synchronous 429.
+Next owner question (Q20): Robot's per-endpoint limits in v1 (GET /server and GET /server/{n}: 200/hour).
