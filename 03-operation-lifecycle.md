@@ -1120,9 +1120,12 @@ call made it so.
 **A `stalled` episode is never retried by a timer.** A deterministic rejection repeated
 automatically is the loop `OPS-39` exists to prevent. A throttle refusing the mutation before
 acceptance is `failed` and stalls the episode;
-a throttle after acceptance is `needs_reconciliation` and makes it `uncertain`, under `OPS-11`'s
-"the operation's mutating request was accepted by the provider" condition. Neither returns the
-attempt to `queued` (`F48` records the rejected deferral).
+a later failure of an accepted mutation follows `OPS-11`'s
+"the operation's mutating request was accepted by the provider" condition. For an accepted
+dated cancellation whose read-back fails, `PRV-13` instead says "the accepted attempt settles
+`succeeded` as `cancellation_scheduled` with its effective date"; the episode takes the
+scheduled row and keeps its fence. Neither case returns the attempt to `queued` (`F48`
+records the rejected deferral). *Clarified 2026-10-11 (`ADR-0037`, Q22).*
 *Amended 2026-10-08 (`ADR-0035`): the earlier blanket throttled-delete failure description is
 withdrawn; the table consumes the classification and its episode/fence effects are unchanged.*
 A `stalled` or `uncertain` episode is therefore the operator's to look at
@@ -1147,8 +1150,11 @@ table, and the deliberate answer for an attempt that *did* reach the provider wi
 exposure is that the fence **persists** — the customer keeps its satoshis and is told plainly that
 the machine is being cancelled — the residual `OPS-42` accepts, not an oversight. On
 the scheduled branch that is also the right answer on its own terms: runway bought past an
-effective cancellation date buys nothing, since `LDG-33` already protects the cost of running to it
-and the machine goes on that date regardless.
+effective cancellation date buys no customer-metered machine time, since `LDG-38` says
+"the earlier of its `effective_cancellation_date` and any gone observation" is the stop.
+The machine may remain present after that date; `LDG-74` says "A machine **still present after
+its date** has its meter stopped and is billing the operator". *Clarified 2026-10-11
+(`ADR-0037`, Q21/Q22).*
 
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look

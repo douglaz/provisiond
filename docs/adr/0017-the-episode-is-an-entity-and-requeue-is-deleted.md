@@ -37,6 +37,8 @@ in for an entity the model lacked.
   (the provider accepted a future date; ends when the machine is tombstoned, `DOM-19` — *or is
   recorded gone before its date, `ADR-0021`*), and
   `closed`, carrying why. `OPS-48` is the lifecycle; `OPS-44`'s table becomes its transitions.
+  *Historical note (2026-10-11): `ADR-0037` Q21 corrects the scheduled episode's end to the
+  evidenced gone-write; retention may delay tombstoning after that close.*
 - **The fence holds the episode.** `machines.destroy_committed` keeps its name, its conditional
   write and its contention with `LDG-62`'s extend-runway, and now holds the **open episode's id**.
   It points at nothing retention deletes.

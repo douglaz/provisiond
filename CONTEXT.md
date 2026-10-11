@@ -457,10 +457,11 @@ formalized clause must satisfy)
 credentials at a provider. A customer's relationship with the operator is a **tenant** (for
 isolation) — never "account".
 
-**"Delete" is not "cancel."** Deleting a virtual machine stops the billing; cancelling a
-dedicated machine schedules an end date and the machine keeps running and keeps billing until
-it arrives (`DOM-19`, `cancellation_scheduled`). Use **cancel** whenever an end date is
-involved, and reserve **delete** for gone-and-not-billing.
+**"Delete" is not "cancel."** Deleting a virtual machine stops its customer meter; a
+dedicated cancellation can return an effective date while the machine remains present
+(`DOM-19`, `cancellation_scheduled`). Its customer meter stops at the earlier of that date
+and observed absence, while provider cost can continue afterward (`LDG-74`). Use **cancel**
+whenever an end date is involved, and reserve **delete** for a machine recorded gone.
 
 **"Exposure-reducing cancellation" is the set's umbrella for the system's own destruction
 paths**, whichever provider verb one ends in. `OPS-41` says "A worker executing **any**

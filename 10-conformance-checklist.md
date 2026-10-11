@@ -312,16 +312,29 @@ not optional hardening — they are the only structural defence there is.
       absence. Separately lose the mutation's acceptance or date and assert no scheduled
       success is inferred. Convert a day-only effective date in the provider's date zone to
       its end-of-day UTC wire instant; retain an explicit timestamp's instant and keep a
-      permitted-from `earliest_cancellation_date` as a date. (`PRV-12`, `PRV-13`, `OPS-11`,
+      permitted-from `earliest_cancellation_date` as a date: in a fixture returning
+      `earliest_cancellation_date=2026-10-31` at `2026-10-31T12:00:00Z`, assert that no
+      end-of-day UTC instant is produced from that field and no meter stop is inferred.
+      (`PRV-12`, `PRV-13`, `OPS-11`,
       `PRV-36`)
 - [ ] **CNF-64** — **Amended 2026-10-11 (`ADR-0037`, Q21/Q22).** After a dated
       cancellation whose read-back finds the machine present, assert `cancellation_scheduled`
-      remains visible in inventory. Advance beyond the effective date while it remains
-      present: the meter stops at the date, but the episode stays `scheduled`, its fence
-      stays set, and no tombstone is written. In a second trace, record authoritative gone
-      before the date, through the cancellation read-back or a later complete sweep pass:
+      remains visible in inventory. Repeat with throttle, authentication, network and
+      deadline failures on that read: the attempt succeeds as scheduled with its stored
+      date, the episode stays `scheduled`, and its fence stays set. Advance beyond a stored
+      date already passed at acceptance in both the present and failed-read traces, as
+      isolated fixtures rather than newly enabled v1 sales: the
+      meter stops at the date, but the episode and fence remain, no gone-write or tombstone
+      is produced by the clock, and inventory still shows the scheduled machine. If the
+      mark already passed that date, `LDG-38`'s posted entries and mark stay unchanged;
+      no later increment posts beyond the stop. In a
+      second trace, record authoritative gone, including mapped post-cancellation absence
+      inside the visibility window or a later complete sweep pass:
       stop the meter at that observation, close the episode `resource_gone` and clear the
-      fence in the gone-write. In a third trace, record gone while a known billable
+      fence in the gone-write, with the meter stopped at that observation when it precedes
+      the date. Follow the present and failed-read traces with a later evidenced gone-write:
+      both close `resource_gone` and clear the fence then. In a third trace, record gone while
+      a known billable
       attachment lacks release evidence: the episode closes and fence clears at the
       gone-write, while the machine remains untombstoned until the retention gate permits.
       Resolve a retained attempt afterward and assert the close stays closed. (`DOM-19`,
@@ -1339,8 +1352,10 @@ rather than acquiring a default.
 - [ ] **CNF-147** — **Amended 2026-10-11 (`ADR-0037`, Q22): a permitted-from date is
       not evidence that cancellation completed.** Exercise the dedicated path end to end
       against a real Hetzner Robot machine: commit the setup fee and prepaid first billing
-      unit before ordering, debit them at accepted successful settlement, write the first
-      meter seed, and size the commitment from the machine's read
+      unit before ordering — Robot's hour, with no floor (`ADR-0033`) — debit them at
+      accepted successful settlement (`ADR-0035`), and assert the machine's first meter
+      seed writes its mark at the seed plus 3600 seconds. Size the commitment from the
+      machine's read
       `earliest_cancellation_date` (`LDG-39`, `LDG-38`, `PRV-13c`). Where that date is
       today, assert the outcome from the actual accepted cancellation result and its single
       read-back: mapped gone records the observation and stops the meter; presence or read
@@ -3274,7 +3289,8 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       direct read finding the attachment also writes nothing. Request a Robot `now` release at
       `2026-10-31T12:00:00Z` and have the provider return day-only
       `cancellation_date=2026-10-31`; assert the stored effective boundary is
-      `2026-10-31T22:59:59Z` if Robot's date zone is verified as `Europe/Berlin`, with
+      `2026-10-31T22:59:59Z` in this isolated fixture, which assumes provider zone
+      `Europe/Berlin` regardless of the live Robot zone's `[verify]` status, with
       `released_at` still null until release evidence when there was no earlier gone
       observation, rather than noon or the start of that day. Separately return an explicit
       provider timestamp and keep its stated instant. Resolve a scheduled release `applied`
@@ -3284,9 +3300,10 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       exercise the completed-release effects using `CNF-326` and `CNF-293`. For a separate
       hypothetical surviving billable Robot attachment, assert the commitment remains held
       until `cleanup: api` release evidence and its provider cost belongs to `LDG-75`; this
-      is an accounting fixture, not the observed auction outcome. The observed auction
-      `primary_ipv4` add-on remains sellable without a separate attachment customer charge
-      or attachment bound, and its recorded absence creates no survivor row.
+      is an accounting fixture, not the observed auction outcome. Current Robot offers that
+      order `primary_ipv4` remain sellable on all Robot ordering channels without a separate
+      attachment customer charge or attachment bound. The tested auction order's recorded
+      absence creates no survivor row; catalogue survival remains unverified.
       *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18);
       amended 2026-10-11 (`ADR-0037`, Q21/Q22).*
       (`PRV-45`, `OPS-32`, `WIR-35`, `WIR-52`, `LDG-38`, `LDG-32`, `STO-18`, `PRV-13b`, `LDG-75`)
@@ -3494,7 +3511,9 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       IP or subnet and Cloud or DigitalOcean re-admission. Reject enablement until its
       demonstrated cleanup covers identity capture while present, release enqueue at each
       gone-write, never-listed versus completed-empty states, and disappearance before
-      capture, with no manual recovery. Assert the accepted Robot auction `primary_ipv4`
-      path remains enabled and an observed empty listing creates no survivor cleanup.
+      capture, with no manual recovery. Assert current Robot offers that order
+      `primary_ipv4` remain enabled on the auction and catalogue channels; the observed
+      auction empty listing creates no survivor cleanup, while catalogue survival is
+      unverified (`ADR-0037`, Q21).
       This checks the gate for future paths; it does not assert today's system has
       implemented discovery. (`PRV-49`, `PRV-13b`, `PRV-45`)

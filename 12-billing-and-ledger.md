@@ -531,12 +531,15 @@ nothing in the system raises anything.
   declaration — `ADR-0018`; this read "declared" until 2026-09-08), and confirmed by a
   direct re-read, since a listing narrows candidates and never establishes one — stops the meter for
   that machine. Inside that
-  window a read is not evidence of absence at all, which is the same rule everywhere else in this set
-  and is why a machine created moments ago does not stop its own meter. That window is listing lag,
+  window, a listing omission or a read still showing the pre-create state cannot establish
+  absence of a machine created moments ago. `PRV-36` says "A read showing the post-mutation
+  state is evidence at any time"; mapped absence on the known machine after an accepted
+  cancellation is such evidence, including inside the window (`PRV-13`). That window is listing lag,
   not `OPS-33`'s negative window, which bounds a correlator search and is far longer; binding the
   stop to the longer one would break the error bound stated below. **`DOM-7`'s `failed` does NOT stop it**: that state means "provider reports a
   terminal failure", and a failed dedicated machine is still allocated, still in the operator's
-  account and still on the invoice. `LDG-37` continues to own which states are billable; this rule
+  account and still on the invoice. *Clarified 2026-10-11 (`ADR-0037`, Q22).*
+  `LDG-37` continues to own which states are billable; this rule
   is about the resource ceasing to exist, which is not a state so much as the absence of one.
 - **`OPS-32` MUST record what it saw on the machine row, not merely report it** — the state and the
   observation instant, in `machines.state` and `machines.state_observed_at` (`STO-48`) — so the
@@ -1904,9 +1907,11 @@ API documentation. Where the stored
 date passes while the machine's currency has no rate, `LDG-65` holds what happens instead (*added
 2026-10-02, `ADR-0029`*). **Where the
 provider cannot cancel immediately** (`PRV-13`'s scheduled-cancellation shape, `DOM-19`), the
-machine keeps running and keeps billing until its effective date, and the deployment MUST hold a
-commitment covering that whole window or MUST NOT sell that machine on prepaid terms
-(`PRV-13c`). The previous text made immediate destruction unconditional, which is unexecutable
+customer meter stops at the earlier boundary that `LDG-74` states as "the earlier of its
+`effective_cancellation_date` and the observation". The machine may remain present after that
+date, at operator cost. The deployment MUST hold a commitment covering machine time
+through the effective date or MUST NOT sell that machine on prepaid terms
+(`PRV-13c`). *Clarified 2026-10-11 (`ADR-0037`, Q21/Q22).* The previous text made immediate destruction unconditional, which is unexecutable
 on exactly the branch where cost cannot be stopped.
 
 **LDG-15** Remaining runway MUST be readable from the machine view, so a caller can act on it. A

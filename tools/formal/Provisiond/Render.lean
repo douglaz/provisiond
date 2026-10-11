@@ -102,7 +102,7 @@ def ops48Table : Region :=
 def Event.label : Event → String
   | .settled .gone => "attempt succeeded, resource gone"
   | .settled .noMutation => "no mutation required, funded"
-  | .settled .scheduled => "attempt succeeded, future date"
+  | .settled .scheduled => "attempt succeeded, dated cancellation"
   | .settled .failed => "attempt failed"
   | .settled .needsReconciliation => "attempt needs_reconciliation"
   | .resolved .applied false => "resolved applied, gone"

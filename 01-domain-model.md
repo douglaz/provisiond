@@ -229,7 +229,7 @@ stateDiagram-v2
     [*] --> attempting : sweep opens it, first attempt enqueued
     attempting --> closed : attempt succeeded, resource gone
     attempting --> closed : no mutation required, funded
-    attempting --> scheduled : attempt succeeded, future date
+    attempting --> scheduled : attempt succeeded, dated cancellation
     attempting --> stalled : attempt failed
     attempting --> uncertain : attempt needs_reconciliation
     attempting --> closed : machine recorded gone

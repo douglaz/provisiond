@@ -266,7 +266,7 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `reverse_dns` | map of address to text | provider-established PTR values; empty initially. Recording, invalidation and eligibility for no-op are owned by `PRV-25`. *Added 2026-10-08 (`ADR-0034`)* |
 | `metadata` | json | redacted (`DOM-6`) |
 | `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**. Nullable, for a machine that bore none when adopt returns (`ADR-0020`). *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
-| `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
+| `effective_cancellation_date` | timestamp | nullable; stored when an accepted cancellation returns an effective date, including one already passed (`PRV-13`); a scheduled outcome retains it for the meter. The date alone is no gone observation (`DOM-19`). *Amended 2026-10-11 (`ADR-0037`, Q22).* |
 | `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
 | `first_unit_debit_id` | UUID | nullable reference to the retained `ledger_entries` row for this machine's `first_unit_debit`; settlement writer and eligibility fact owned by `LDG-39`, seed reader by `LDG-38`. *Added 2026-10-08, `ADR-0033`* |
 | `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`), by `OPS-41`'s no-mutation abort, and by a stalled-episode keep (`API-68`)** — `API-68`: "write the `LDG-33` re-derived `runway_until` using the transaction's rate and clock" (*list repaired 2026-10-08, `ADR-0033`*) — extension and abort added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
@@ -1529,7 +1529,7 @@ cancellation follows `OPS-41`, including when the rate is absent (*amended 2026-
 when the tenant can first act, not from the restore instant, and **a machine already fenced when the
 grace begins gets no extension from it** — its fence stayed set because the provider refused
 (`stalled`), because nobody yet knows what the provider did (`uncertain`) or because the provider
-accepted a cancellation for a future date (`scheduled`); its route back is `OPS-42`'s, and a retry's
+accepted a dated cancellation (`scheduled`); its route back is `OPS-42`'s, and a retry's
 claim follows `OPS-41`'s grace rule like every claim — in `ADR-0028`'s words, “"outside the grace"
 means no extension, not exemption from the wait”; see that ADR for the rejected fence-clearing
 alternative and its reasoning*); the extension's satoshis are back in the tenant's balance, because

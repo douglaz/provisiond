@@ -61,7 +61,7 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | V5 | Hetzner Cloud | `08-provider-notes.md:417` · correlator (`OPS-27`, `OPS-32`) | label key/value character set, length, count | PARTIAL | Character set and the 63-character length become `[observed — HC-spec, 2026-10-06]`. The count limit stays `[verify]`. A UUID value fits |
 | V6 | Hetzner Robot | `02-provider-contract.md:767` · `PRV-35` | `locked` on each IP and subnet; server status stays `ready`/`in process` | PARTIAL | The `PRV-35` row's "documented; high" must go. `locked` is documented only as "Status of locking", and Hetzner also locks entire servers, which has no API field. An IP showing `locked:false` does not support reporting `none` |
 | V7 | Hetzner Robot | `02-provider-contract.md:705`, `08-provider-notes.md:415` · `PRV-27`, `OPS-33` | transaction listing is time-bounded (30 days) | CONFIRMED | Marker becomes `[observed — Robot-WS, 2026-10-06]`. The bound is first-party: "within the last 30 days", on both channels |
-| V8 | Hetzner Robot | `PRV-42`, `ADR-0040` | auction offer id equals server number by rule | UNDETERMINABLE | A third equal-number auction sample was observed 2026-10-11 (offer/server `3084954`); no provider-wide rule follows. Lost-reply resolution still searches the per-order fingerprint |
+| V8 | Hetzner Robot | `PRV-42`, `ADR-0040` | auction offer id equals server number by rule | UNDETERMINABLE | An equal-number auction order was observed 2026-10-11 (offer/server `3084954`); no provider-wide rule follows. Lost-reply resolution still searches the per-order fingerprint |
 | V9 | Hetzner Robot | `PRV-9`, `PRV-32`, `OPS-32` | key carries a caller-set name; the transaction still lists the fingerprint after the key is deleted | CONFIRMED FOR TESTED TRANSACTION | The 2026-10-11 auction transaction retained `authorized_key[]` with the fingerprint after temporary-key deletion (batch B step 6). `ADR-0040` and key eligibility remain unchanged |
 | V10 | Hetzner Robot | `08-provider-notes.md:115` · none named | enabling rescue while already enabled: error or re-arm | UNDETERMINABLE | Design around it: `GET /boot/{n}/rescue` shows `active`, so `DELETE` first. The live test is optional |
 | V11 | Hetzner Robot | `08-provider-notes.md:121` · `RSC-12` | installimage config keys and the directive that stops rescue keys being copied | PARTIAL | Directive found in the official source: `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`. Whether the live rescue system runs that source needs a live check |
@@ -78,8 +78,6 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | V22 | Hetzner | `07-security-requirements.md:329` · `SEC-44`, `SEC-43` | separately registered accounts are not linked and terminated together | UNDETERMINABLE | Not documented. Needs a written answer. `SEC-43` remains a belief |
 | V23 | DigitalOcean | `07-security-requirements.md:329`, `08-provider-notes.md:319` · `SEC-44`, `SEC-43` | as V22 | UNDETERMINABLE | As V22 |
 | V24 | Cherry Servers | `07-security-requirements.md:329` · `SEC-44`, `SEC-43` | as V22 | UNDETERMINABLE | As V22 |
-
-Verdict count: CONFIRMED 5, REFUTED 0, PARTIAL 10, UNDETERMINABLE 9.
 
 ## 2. Facts
 

@@ -222,9 +222,11 @@ attachment identities while the machine is present, enqueue `release_attachment`
 gone-write for billable survivors, distinguish an attachment list never completed from a
 completed list finding none, and cover disappearance before identity capture. Cleanup MUST NOT
 depend on manual operator recovery. This precondition applies to separately ordered Robot IPs
-and subnets, and to Cloud and DigitalOcean on re-admission. It does not introduce a runtime
-refusal for the accepted Robot auction `primary_ipv4` path. The residual and its threat model
-are recorded in `ADR-0037`, Q21.
+and subnets, and to Cloud and DigitalOcean on re-admission. Current Robot offers that order
+the `primary_ipv4` add-on remain sold across Robot ordering channels. The observed absence is
+limited to the tested auction order; catalogue orders and provider termination retain the
+accepted accident-only residual recorded in `ADR-0037`, Q21. This precondition does not
+require a runtime refusal API for those current offers. *Clarified 2026-10-11 (`ADR-0037`, Q21).*
 
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
 exposure before taking money. That requires, per product: an API path to stop the cost, a bound
