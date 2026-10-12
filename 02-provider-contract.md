@@ -48,6 +48,10 @@ request's own failure mapped as above (`network`, `timeout`, or `provider` with 
 of the mutating request's own, omit `details.accepted`, or substitute `false` for unknown
 acceptance. Known acceptance MUST remain `true` on every later error, whatever its kind.
 Robot's `403 RATE_LIMIT_EXCEEDED` MUST map to `rate_limited`, retaining `details.status: 403`.
+**Amended 2026-10-12 (`ADR-0037`, Q28): every Robot `403 RATE_LIMIT_EXCEEDED` MUST
+raise a monitorable alarm naming the provider account and request path, for reads and
+writes alike.** An absorbed read-back failure still raises this alarm; it does not change
+the accepted mutation's outcome.
 The status and redaction obligations above and in `PRV-7` still apply.
 
 **PRV-6** A driver MUST NOT interpolate a caller-controlled value into a provider URL
@@ -144,7 +148,7 @@ the same eligibility. The provider-side
 registration may contain a caller's create public key or a freshly generated rescue/correlator public
 key; it is distinct from the persisted recovery private key (`RSC-19`).
 
-**Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints blocks the caller's next same-key create on that account while any registration survives, until the sweep deletes it. The refusal precedes acceptance and sends no order. Cloud and Robot document this refusal (`08-provider-notes.md`); neither refusal was reproduced live. See `DEF-6`.
+**Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints blocks the caller's next same-key create on that account while any registration survives, until the sweep deletes it. The refusal precedes acceptance and sends no order. Cloud and Robot document this refusal (`08-provider-notes.md`); Robot reproduced it on 2026-10-12 (`docs/research/panels-2026-10/r45/live-session2.txt`), while Cloud has not been reproduced live. See `DEF-6`.
 
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request's provider options carry an explicit purchase acknowledgement, *and* the account
@@ -168,7 +172,12 @@ with `details.accepted` from `PRV-5`.*
 **Output** — the machine as the provider currently reports it.
 
 **PRV-12** Get machine MUST be read-only and free of side effects. It is called
-opportunistically after other actions and during reconciliation. A read failure, including
+after other actions and during reconciliation. **Amended 2026-10-12 (`ADR-0037`, Q28):
+Robot MUST run `DOM-8`'s claim-time freshness check ("When a worker claims a refresh,
+it MUST check the machine's current `state_observed_at`") before every opportunistic
+`GET /server/{n}` after an action, and MUST NOT send that GET when the check can
+reuse a fresh observation.** Required confirmation and absence reads follow their own
+evidence rules; cached presence proves neither a mutation nor absence. A read failure, including
 throttling, authentication rejection, a network error or deadline expiry, MUST remain distinct
 from provider-mapped absence of the known machine on the known provider account. A generic HTTP
 error or a response for another identity is not evidence that this machine is gone.
@@ -210,6 +219,15 @@ authentication, network error or deadline expiry, the accepted attempt settles `
 cancellation into `needs_reconciliation` or establish absence. `PRV-36` owns the evidence rule;
 no second confirmation read is required. This result requires known acceptance and its date;
 `OPS-11` still classifies an unknown or failed mutation response.
+
+**Amended 2026-10-12 (`ADR-0037`, Q28).** On Robot the driver MUST send
+`POST /server/{n}/cancellation` with `cancellation_date=now&reserve_location=false`
+and MUST NOT issue `GET /server/{n}/cancellation` as a pre-read in that cancellation
+dispatch path. `PRV-13c` says "The required shape is read-and-branch: order, then **read**
+the provider's per-machine cancellation constraint." That separate post-order read remains
+required. The direct machine read after an accepted dated cancellation above still occurs; its failure, including
+`rate_limited`, retains the accepted `cancellation_scheduled` success and stored date.
+The reservation-possible branch remains `[verify]` (`08-provider-notes.md`).
 
 **Amended 2026-10-11 (`ADR-0037`, Q23a).** After a failed or present read-back, the meter
 runs to `LDG-38`'s stop boundary. Time beyond the funded wind-down is `LDG-74`'s
@@ -566,6 +584,9 @@ needs no exception —
 cost-through-that-date, or not be sold on prepaid terms at all. **That cost is part of
 `protected_sats` (`LDG-33`), not spendable runway** — the whole point of reading the date is that
 the satoshis covering it are never advertised as runtime.
+This post-order discovery is distinct from `PRV-13`'s Robot cancellation request:
+"MUST NOT issue `GET /server/{n}/cancellation` as a pre-read in that cancellation
+dispatch path."
 
 *This requirement exists because a specification, a reviewing model, and a researching model
 each asserted a different set of terms for the same provider, and two of the three were wrong.
@@ -638,11 +659,16 @@ freshly generated single-use public key.
 **PRV-15** Begin rescue MUST both activate the rescue environment *and* initiate the
 reboot or reset needed to enter it. The rescue engine waits for SSH; it does not reboot.
 
-**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V4/V10, retrieved 2026-10-06):** On Hetzner Cloud the driver MUST read `rescue_enabled` and disable an existing rescue activation before re-enabling it, then reset within the documented 60-minute auto-disable interval. On Hetzner Robot it MUST read `active` with `GET /boot/{n}/rescue` and disable an active rescue with `DELETE /boot/{n}/rescue` before re-enabling. Repeated-enable behavior remains `[verify]` for both providers.
+**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V4/V10, retrieved 2026-10-06):** On Hetzner Cloud the driver MUST read `rescue_enabled` and disable an existing rescue activation before re-enabling it, then reset within the documented 60-minute auto-disable interval. On Hetzner Robot it MUST read `active` with `GET /boot/{n}/rescue` and disable an active rescue with `DELETE /boot/{n}/rescue` before re-enabling. Repeated-enable behavior remains `[verify]` for Cloud; Robot accepted a second activation for the next boot on 2026-10-12 (`docs/research/panels-2026-10/r45/live-session2.txt`). The disable-before-enable procedure remains required.
 
-**PRV-16** Begin rescue MUST populate the session's host keys with complete OpenSSH
-public host keys whenever the provider exposes them. A driver MUST NOT return an empty
-host-key list when the provider published keys the driver simply did not parse.
+**PRV-16** **Amended 2026-10-12 (`ADR-0041`).** Begin rescue MUST populate the session's
+host-key pins with complete OpenSSH public host keys whenever the provider exposes
+complete keys, and with published SHA256 fingerprints when it exposes only fingerprints.
+A driver MUST NOT return an empty pin set when the provider published usable pins the
+driver simply did not parse. Robot's activation exposes no host keys or fingerprints:
+begin rescue returns an empty pin set marked *awaiting provider keys*, never a statement
+that this provider has no pinning support. A fingerprint is a pin, not a fabricated
+complete public key.
 
 **PRV-17** Begin rescue SHOULD use the supplied ephemeral public key. A driver that uses
 provider-generated password authentication instead MUST document why (the provider offers
@@ -661,9 +687,21 @@ accept the ephemeral key and then ignore it. See `DEF-7`.
 boot. Its purpose is to pick up metadata — most importantly host keys — that a provider
 only publishes once the rescue environment is running. The default implementation returns
 the session unchanged.
+**Amended 2026-10-12 (`ADR-0041`).** Robot refresh MUST read
+`GET /boot/{server-number}/rescue/last` and accept its SHA256 fingerprint pins only
+when its `boot_time` is strictly later than this session's reset. A missing last record,
+missing or non-later `boot_time`, and an earlier session's record leave the session
+awaiting keys. Activation and `GET /boot/{n}/rescue` supply none. Empty or stale
+later responses remain subject to `PRV-20`'s "Refresh MUST NOT downgrade a session".
 
-**PRV-20** Refresh MUST NOT downgrade a session: it MUST NOT clear an already-known host
-key set, and MUST NOT replace key material with an empty value.
+**PRV-20** Refresh MUST NOT downgrade a session: it MUST NOT clear an already-known host-key
+pin set, and MUST NOT replace pin material with an empty value.
+**Amended 2026-10-12 (`ADR-0041`).** The same rule protects fingerprint pins. An
+awaiting Robot session cannot become eligible for first-use trust, even with the
+caller's explicit first-use opt-in. If current-boot pins have not arrived by `RSC-9`'s
+deadline ("The deadline for waiting on driver-published host keys MUST be derived from the boot
+timeout"), connection fails `integrity`; a presented key whose SHA256 fingerprint
+matches none of the current pins is refused.
 
 ### End rescue
 
@@ -678,8 +716,9 @@ installed system, and leave any temporary credential it registered for `OPS-32`'
 be rebooting into the new system, and a temporary credential may still be registered. The
 driver MUST surface it as an error rather than swallowing it, so the lifecycle can route
 the operation to reconciliation (`OPS-11`).
-**Amended 2026-10-11 (`ADR-0034`, Q20b).** A Robot throttled end-rescue call MUST emit a
-monitorable alarm identifying the provider account. The alarm does not settle the call or
+**Amended 2026-10-12 (`ADR-0037`, Q28).** A Robot throttled end-rescue call raises
+`PRV-5`'s "every Robot `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the
+provider account and request path" alarm. The alarm does not settle the call or
 change its ambiguous error outcome.
 
 ### Rebuild
@@ -1082,15 +1121,19 @@ Nothing is mutated here, so that rule does not reach it.*
 ordering limit in each ordering-channel descriptor entry (`PRV-44`). Robot documents 20
 requests per day on each of `server`, `server_market` and `server_addon`; its
 `403 RATE_LIMIT_EXCEEDED` reports `max_request` and `interval` (`08-provider-notes.md`).
-The declaration documents capacity and supplies the threshold for the exhaustion alarm raised after Robot's reported `403 RATE_LIMIT_EXCEEDED`. It MUST NOT be used
+The declaration documents capacity; Robot's reported `403 RATE_LIMIT_EXCEEDED` raises
+`PRV-5`'s "every Robot `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the
+provider account and request path" alarm. It MUST NOT be used
 as a locally counted substitute for Robot's accounting, whose credential scope, window
 reset and treatment of rejected or test requests are unverified.
 
 After Robot reports `403 RATE_LIMIT_EXCEEDED` for an account and ordering channel,
 the deployment MUST retain a closure for the reported `interval` and refuse subsequent
 creates on that account and channel before any provider call, with `rate_limited` and
-`retry_after_ms` for the remaining interval. It MUST raise a monitorable exhaustion alarm
-identifying the account and channel. A closure on one account or channel MUST NOT alone
+`retry_after_ms` for the remaining interval. `PRV-5` says "every Robot
+`403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider account and
+request path"; that alarm may
+include the ordering channel. A closure on one account or channel MUST NOT alone
 close another. This local isolation is a choice for admission, not a claim about Robot's
 undocumented upstream counter scope. A provider throttle encountered after an accepted
 mutation remains subject to `OPS-11`'s acceptance rule.

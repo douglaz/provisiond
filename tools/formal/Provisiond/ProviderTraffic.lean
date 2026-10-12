@@ -1,5 +1,5 @@
 import Provisiond.Admission
-/-! ADR-0034 (2026-10-08, Q10; 2026-10-10, Q20): local settlements and sweep freshness.
+/-! ADR-0034 (2026-10-08, Q10; 2026-10-10, Q20); ADR-0037 (2026-10-12, Q28): local settlements and sweep freshness.
 
 The cache model has a sequence of serialized worker claims, not concurrent executions. Enqueue
 captures an observation only for the guard-off defect; the guarded path reads the current row.
@@ -19,7 +19,7 @@ structure Guards where
   establishedOnly : Bool
   invalidatePtr : Bool
   sweepWritesPresent : Bool
-  windowAtLeastSweep : Bool
+  windowAtLeastTwoSweeps : Bool
   deriving DecidableEq, Repr
 
 @[req "DOM-8"]
@@ -32,7 +32,7 @@ def current : Guards := {
     establishedOnly := true,
     invalidatePtr := true,
     sweepWritesPresent := true,
-    windowAtLeastSweep := true }
+    windowAtLeastTwoSweeps := true }
 
 structure Cache where
   observed : Option Nat := none
@@ -55,7 +55,7 @@ theorem future_observation_stale (observedAt now window : Nat)
 /-- Startup checks positive durations and the owner window relationship. -/
 @[req "DOM-8"]
 def validFreshness (g : Guards) (window sweepInterval : Nat) : Bool :=
-  0 < window && 0 < sweepInterval && (!g.windowAtLeastSweep || sweepInterval ≤ window)
+  0 < window && 0 < sweepInterval && (!g.windowAtLeastTwoSweeps || 2 * sweepInterval ≤ window)
 
 /-- A complete pass writes the observation of a managed machine it found present. -/
 @[req "OPS-32"]

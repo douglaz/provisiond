@@ -231,7 +231,7 @@ not optional hardening — they are the only structural defence there is.
       (`RSC-9`, `DEF-5`)
 - [ ] **CNF-40** — A rescue password never appears in a command line. Assert on the spawned
       process's argument vector. (`RSC-11`)
-- [ ] **CNF-41** — For each applicable generated installer, assert the installed system does not inherit the ephemeral rescue credential. For Robot installimage, inspect the generated config: it contains `SSHKEYS_URL` for the caller's keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`, and does not copy rescue authorized keys into the installed system. This is a generated-config check; deployed rescue installimage remains `[verify]`. (`RSC-12`, `RSC-13`; Robot directive observed in `docs/research/provider-verify-2026-10.md` V11, 2026-10-06)
+- [ ] **CNF-41** — For each applicable generated installer, assert the installed system does not inherit the ephemeral rescue credential. For Robot installimage, inspect the generated config: it contains `SSHKEYS_URL` for the caller's keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`, and does not copy rescue authorized keys into the installed system. This is a generated-config check; the deployed script was inspected on 2026-10-12, but no end-to-end installation or exact upstream commit match was tested. (`RSC-12`, `RSC-13`; Robot directive observed in `docs/research/provider-verify-2026-10.md` V11, 2026-10-06)
 - [ ] **CNF-42** — A rootfs install with no authorized keys is rejected; a raw-disk install
       *with* authorized keys is rejected. (`RSC-13`, `RSC-14`)
 - [ ] **CNF-43** — A digest mismatch on the rootfs path aborts before the installer runs.
@@ -2460,7 +2460,7 @@ rather than acquiring a default.
       unresolved and its key registered while begin rescue attempts deactivation; exercise successful
       and failed deactivation and its error details. After eligibility, the sweep removes the retained
       key. Verify operation-id tags, and keep provider-side public registrations distinct from persisted
-      recovery private keys. These are implementation obligations; no live duplicate refusal is claimed.
+      recovery private keys. These are implementation obligations; Robot reproduced a live duplicate refusal on 2026-10-12 (`docs/research/panels-2026-10/r45/live-session2.txt`), while Cloud has not.
       (`PRV-9`, `PRV-18`, `PRV-21`, `OPS-32`, `DEF-6`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
@@ -3422,10 +3422,14 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       identical subsequent no-op. Remove the address and assert its entry disappears. Exercise
       deterministic and ambiguous provider failures with the existing classifications.
       (`PRV-25`, `PRV-12`, `PRV-36`, `OPS-11`, `OPS-31`)
-- [ ] **CNF-339** — **Refresh freshness is validated at startup.** Missing, malformed,
+- [ ] **CNF-339** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **Refresh freshness is validated at startup.** Missing, malformed,
       non-finite, zero or negative freshness durations refuse startup. A positive window
-      shorter than the account-sweep interval also refuses startup; equality and a longer
-      valid window start successfully. (`DOM-8`, `OVR-19`, `OPS-32`)
+      shorter than twice the account-sweep interval also refuses startup. Exercise a
+      window equal to one interval, just below two intervals, exactly two intervals
+      and above two intervals: reject the first two and accept the latter two. At
+      the next sweep boundary, claim refresh before the sweep writes: the old
+      one-interval window is stale at equality while the two-interval window
+      reuses the prior observation. (`DOM-8`, `OVR-19`, `OPS-32`)
 
 ## Traffic sale scope (`ADR-0039`, added 2026-10-09)
 
@@ -3479,10 +3483,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       separately to retain `API-63`'s guard, and race extension with cancellation
       to retain `LDG-62`'s.
       (`PRV-42`, `STO-27`, `STO-58`, `API-63`, `LDG-62`, `API-7`)
-- [ ] **CNF-344** — **Each channel declares its own order budget.** Enumerate the
+- [ ] **CNF-344** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **Each channel declares its own order budget.** Enumerate the
       descriptor's ordering channels and assert each has a positive `limit` and finite,
       positive `per`; no top-level `order_budget` substitutes for a missing channel
-      entry. Verify the declared limit documents capacity; Robot's reported `403 RATE_LIMIT_EXCEEDED` raises the exhaustion alarm naming account and channel and closes the local gate. No local request count raises that alarm.
+      entry. Verify the declared limit documents capacity; Robot's reported `403 RATE_LIMIT_EXCEEDED` raises `PRV-5`'s alarm naming account and request path (and channel where useful) and closes the local gate. No local request count raises that alarm.
       Another channel's mere declaration authorizes no new ordering capability.
       (`PRV-44`, `PRV-40`, `DOM-10`)
 - [ ] **CNF-345** — **Activation minimum is registered and validated.** Omit, zero,
@@ -3497,7 +3501,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 
 - [ ] **CNF-346** — **DigitalOcean correlator tags never drive bulk deletion** (`docs/research/provider-verify-2026-10.md`, V16, 2026-10-06). Exercise create, ambiguous resolution and cleanup with a lowercase correlator tag satisfying the DO-spec charset and length, using `:` or `_` as a separator; assert no call to `DELETE /v2/droplets?tag_name=` occurs and any delete names a verified individual Droplet id. (`PRV-48`, `OPS-27`)
 - [ ] **CNF-347** — **Survivor kinds and individual evidence stay distinct** (`docs/research/provider-verify-2026-10.md`, V17 and §3, updated 2026-10-11 under `ADR-0037`, Q21). For each applicable provider, inspect the immutable descriptor and assert the `PRV-13a` table's kinds and `api`/`manual` classifications: Cloud Primary IP is `api` regardless of any instance's `auto_delete`, Robot Additional IP and subnet are `api` possible survivors, and DigitalOcean backup is `manual`. Separately, exercise attachment listing after deletion: a Cloud Primary IP read back with `auto_delete: true` and then absent after deletion is not reported as surviving; one that remains with `auto_delete: false` is reported with its identity and `cleanup: api`. Exercise a Robot case with a separately ordered Additional IP or subnet that survives and one with none as isolated fixtures; do not infer survival for every instance from the descriptor. Assert release follows each listed billable `api` attachment. For the observed auction `primary_ipv4` add-on and included /64, return a complete empty post-cancellation listing and assert no survivor row or release is invented. Inspect DigitalOcean create requests and assert `backups: true` is never sent; leave backup billing `[verify]` and separately ordered Robot attachments unverified. (`PRV-13a`, `PRV-44`, `PRV-45`)
-- [ ] **CNF-348** — **Existing rescue activation is disabled before re-enabling** (`docs/research/provider-verify-2026-10.md`, V4/V10, 2026-10-06). On Cloud read `rescue_enabled`, disable when true, then enable and reset inside its 60-minute interval. On Robot read `active`, use `DELETE /boot/{n}/rescue` when true, then re-enable and reset. Do not assume repeated-enable behavior. (`PRV-15`)
+- [ ] **CNF-348** — **Existing rescue activation is disabled before re-enabling** (`docs/research/provider-verify-2026-10.md`, V4/V10, 2026-10-06). On Cloud read `rescue_enabled`, disable when true, then enable and reset inside its 60-minute interval. On Robot read `active`, use `DELETE /boot/{n}/rescue` when true, then re-enable and reset. Robot accepted a second activation for the next boot in the 2026-10-12 live session; Cloud remains unverified. (`PRV-15`)
 - [ ] **CNF-349** — **Cherry correlator lookup scans the project list** (`docs/research/provider-verify-2026-10.md`, V21, 2026-10-06). Exercise more than one page with the matching tag on a later page; assert the driver filters client-side and returns the exact operation match, without assuming a server-side tag query. (`PRV-26`, `OPS-27`)
 - [ ] **CNF-350** — **Operator recording and withdrawal keep the server's time and replay receipt.**
       With the provider never read, record at t1 using `{"status":"restricted","operator_ref":"ref-1"}`;
@@ -3518,23 +3522,26 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 
 ## Provider traffic follow-through (`ADR-0034`, Q20 and Q20b)
 
-- [ ] **CNF-351** — **The complete sweep supplies refresh observations.** With N managed Robot
+- [ ] **CNF-351** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **The complete sweep supplies refresh observations.** With N managed Robot
       machines observed present by a successful complete pass, exercise refresh loops across
       the covered sweep interval, after the pass has written its observations: assert one
       `GET /server`, N present-writes of state and `state_observed_at`, and zero
       `GET /server/{server-number}` caused by those refreshes. Keep claim times within each
       observation's freshness window and provider listing successful. Do not count an initially
       stale machine before its sweep observation. Stop the sweep and show successful reads
-      fall back to one per machine per window. (`OPS-32`, `DOM-8`, `STO-48`)
-- [ ] **CNF-352** — **Failed sweep reads establish no absence or freshness.** Interrupt an
+      fall back to one per machine per window. Run a refresh claim at the next
+      sweep boundary before that sweep writes: the previous observation remains
+      fresh under the validated two-interval minimum. (`OPS-32`, `DOM-8`, `STO-48`)
+- [ ] **CNF-352** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **Failed sweep reads establish no absence or freshness.** Interrupt an
       account enumeration and assert no absence is recorded. Complete an enumeration that
       omits a managed machine, then return `403 RATE_LIMIT_EXCEEDED` on its direct confirming
       read: assert no gone write, no absence-dependent ledger or episode effects, and no
-      advance of `state_observed_at`. (`OPS-32`, `STO-48`, `LDG-74`)
-- [ ] **CNF-353** — **A throttled Robot rescue exit alarms without settling.** Return a Robot
+      advance of `state_observed_at`; assert the account-and-path alarm on that
+      Robot throttle. (`OPS-32`, `STO-48`, `LDG-74`, `PRV-5`)
+- [ ] **CNF-353** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **A throttled Robot rescue exit alarms without settling.** Return a Robot
       throttle from end rescue. Assert a monitorable alarm naming the provider account and
-      the existing ambiguous error and reconciliation outcome; assert no silent retry or
-      successful settlement. (`PRV-22`, `OPS-11`)
+      request path under `PRV-5`, and the existing ambiguous error and reconciliation
+      outcome; assert no silent retry or successful settlement. (`PRV-22`, `PRV-5`, `OPS-11`)
 - [ ] **CNF-354** — **Attachment cleanup is an enabling precondition.** Inspect each proposed sold
       create path able to leave a billable attachment after its machine is gone, including separately
       ordered Robot IPs or subnets and Cloud or DigitalOcean re-admission. Before enabling that path,
@@ -3549,3 +3556,42 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       1.90/month per-stray-address residual until noticed. Do not treat `LDG-31`'s
       "The decrement clamps at zero and the excess is the
       operator's" as an operator cap on that residual. (`PRV-49`, `PRV-13b`, `PRV-45`, `LDG-31`, `LDG-32`)
+
+- [ ] **CNF-355** — **Added 2026-10-12 (`ADR-0041`, Q27).** **Robot rescue pins arrive after this boot.** Return `host_key: []`
+      from activation and `GET /boot/{n}/rescue`. Before reset, make `/rescue/last`
+      return 404 and an earlier session's fingerprints; after reset, reject a record
+      whose `boot_time` equals or precedes this session's reset. Then publish current-boot
+      SHA256 ECDSA, ED25519 and RSA fingerprints and connect with a presented full key
+      matching one of them. Assert the matched presented key is pinned for the connection;
+      no full public key is synthesized from a fingerprint. Supply caller full keys in
+      separate overlapping and nonoverlapping cases: compare their algorithm and SHA256
+      digest to provider pins, and require the actual connection to match a current pin.
+      Refuse a mismatched presented key before authentication. Repeat with no current-boot
+      pins through `RSC-9`'s boot-derived deadline; fail `integrity` even with explicit
+      first-use opt-in. An empty or stale later refresh and retry never clear an
+      established pin or enable first-use trust. (`PRV-16`, `PRV-19`, `PRV-20`, `RSC-3`,
+      `RSC-5`, `RSC-6`, `RSC-9`, `WIR-20`, `WIR-40`)
+- [ ] **CNF-356** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot cancellation needs no `/server` pre-read.** Block the shared
+      `/server` read family and issue a Robot delete. Assert no
+      `GET /server/{n}/cancellation` pre-read occurs in the deletion dispatch path,
+      and the request sends
+      `cancellation_date=now&reserve_location=false`. Accept a dated response, then
+      fail its one required direct machine read with `403 RATE_LIMIT_EXCEEDED`:
+      the attempt remains `succeeded`/`cancellation_scheduled` with the converted
+      effective date and `PRV-5`'s alarm names account and path. Neither uncertainty
+      nor a stalled episode follows the absorbed read failure. Contrast mapped
+      absence, which records gone at that read, and presence, which remains scheduled.
+      Separately refuse an ordinary `GET /server/{n}` and assert the same alarm.
+      Retain the post-order future-earliest-date and deviation cases of `CNF-147`.
+      (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `OPS-48`)
+- [ ] **CNF-357** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot optional reads and attachments use their own evidence.**
+      With fresh post-action `state_observed_at`, assert no opportunistic
+      `GET /server/{n}`; with a stale observation, exercise the existing read and
+      mapped failure behavior, without using cached presence as mutation or absence
+      proof. Visit attachments for every retained machine, including one already
+      recorded gone. Assert Robot listing and direct attachment reads use `GET /ip`
+      and `GET /subnet`, never `GET /server/{n}`. During a failed account pass, let
+      `/ip` work but assert it cannot record all attachments absent; require a
+      complete pass, complete machine attachment listing and direct confirmation
+      before each `released_at`. Retain `STO-18`'s tombstone and `LDG-32`'s
+      commitment rules. (`PRV-12`, `DOM-8`, `OPS-32`, `PRV-45`, `STO-18`, `LDG-32`)

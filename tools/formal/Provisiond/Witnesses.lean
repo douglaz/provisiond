@@ -2768,6 +2768,18 @@ guard that could be removed, so neither is one of `ci.yml`'s rows. -/
 section Rescue
 open Provisiond.Rescue
 
+/-- The ordinary accept-new result cannot authorize Robot while it awaits current-boot
+provider pins, even with explicit opt-in or caller keys. Matching the presented identity
+abstracts a provider fingerprint match; it does not prove SHA256 or SSH authentication. -/
+@[req "PRV-20"]
+theorem robot_awaiting_pins_witness :
+    Trust.decision [] [] true = .acceptNew ∧
+    Trust.sessionDecision true [] [] true = .abortIntegrity ∧
+    Trust.sessionDecision true [⟨1⟩] [] false = .abortIntegrity ∧
+    Trust.permitsPresented true [] [⟨1⟩] true ⟨1⟩ = true ∧
+    Trust.permitsPresented true [] [⟨1⟩] true ⟨2⟩ = false ∧
+    Trust.permitsPresented true [⟨1⟩] [⟨2⟩] false ⟨2⟩ = false := by decide
+
 /-- The caller pinned one key and the driver published two, which overlap: `RSC-3`'s third row. -/
 def pinnedConn : Trust.Conn :=
   { trust := .pinned, callerKeys := [⟨1⟩], driverKeys := [⟨1⟩, ⟨2⟩], optIn := false }
@@ -3848,8 +3860,8 @@ the claim at 110 is inside the validated window. Listing success, pass completio
 claim timing are inputs; the witness proves local reuse, not scheduler reliability. -/
 def sweepRefresh (g : ProviderTraffic.Guards) : Option Cache :=
   let g := { g with reuseFresh := true, checkAtClaim := true, preserveAge := true, successfulOnly := true }
-  if validFreshness g 20 20 then
-    some (claimRefresh g 20 110 none true (sweepPresent g 100 {}))
+  if validFreshness g 40 20 then
+    some (claimRefresh g 40 110 none true (sweepPresent g 100 {}))
   else none
 
 @[req "OPS-32"]
@@ -3864,6 +3876,25 @@ theorem without_present_write_refresh_reads :
 /-- A five-unit window expires before the next twenty-unit sweep. Startup rejects that
 configuration; if the validation guard is removed, it is admitted and a claim at 110 reads. -/
 def shortWindowValidation (g : ProviderTraffic.Guards) : Bool := validFreshness g 5 20
+
+/-- The old one-sweep minimum admits a claim exactly at the next sweep boundary,
+before that sweep has written its observation. The strict freshness age test then reads.
+Twice the interval keeps that prior observation fresh at this ordering boundary. -/
+def freshnessBoundGuards : ProviderTraffic.Guards :=
+  { ProviderTraffic.current with reuseFresh := true, checkAtClaim := true, preserveAge := true, successfulOnly := true, sweepWritesPresent := true, windowAtLeastTwoSweeps := true }
+
+@[req "DOM-8"]
+theorem two_sweep_minimum_boundary :
+    validFreshness freshnessBoundGuards 20 20 = false ∧
+    validFreshness freshnessBoundGuards 39 20 = false ∧
+    validFreshness freshnessBoundGuards 40 20 = true ∧
+    validFreshness freshnessBoundGuards 41 20 = true ∧
+    validFreshness freshnessBoundGuards 0 20 = false ∧
+    validFreshness freshnessBoundGuards 40 0 = false ∧
+    (claimRefresh freshnessBoundGuards 20 120 none true
+      (sweepPresent freshnessBoundGuards 100 {})).reads = 1 ∧
+    (claimRefresh freshnessBoundGuards 40 120 none true
+      (sweepPresent freshnessBoundGuards 100 {})).reads = 0 := by decide
 def shortWindowRefresh : Cache :=
   claimRefresh ProviderTraffic.current 5 110 none true
     (sweepPresent ProviderTraffic.current 100 {})
@@ -3874,7 +3905,7 @@ theorem short_window_is_rejected_and_loses_reuse :
     shortWindowRefresh.reads = 1 := by decide
 @[req "DOM-8"]
 theorem without_window_guard_accepts_bad_window :
-    shortWindowValidation { ProviderTraffic.current with windowAtLeastSweep := false } = true := by decide
+    shortWindowValidation { ProviderTraffic.current with windowAtLeastTwoSweeps := false } = true := by decide
 
 def establishedPtr : Option Ptr := some ⟨"host.example", true⟩
 def establishedPtrNoop (g : ProviderTraffic.Guards) : Bool :=

@@ -22,8 +22,9 @@ one each. The temporary-key model carries an operation-row presence bit and a pr
 provisioning bit; it does not model provider consumption time, tag lookup, or an actual machine read.
 
 What the model omits: `RSC-6`'s canonicalization (a key here is its canonical `algorithm base64`
-pair, reduced to an identity) and `RSC-7`/`RSC-8`'s known-hosts file; `RSC-9`'s deadline and
-`PRV-19`'s polling, so the driver publishing keys is one event with no clock; which set is pinned
+pair, reduced to an identity), SHA256 computation and real SSH authentication; `PRV-19`'s
+`boot_time` parsing and current-reset comparison; and `RSC-7`/`RSC-8`'s known-hosts file;
+`RSC-9`'s deadline and `PRV-19`'s polling, so the driver publishing pins is one event with no clock; which set is pinned
 where both are supplied and they overlap, because `RSC-3` does not say and inventing one would put
 a rule in `tools/formal/` that no requirement owns; `RSC-20`'s directory (absolute, owner-only,
 encrypted storage) — a deployment fact, so what is persisted here is a key named by an operation
@@ -86,7 +87,7 @@ def connects : Decision → Bool
   | .pinCaller | .pinDriver | .pinOverlapping | .acceptNew => true
   | .abortIntegrity => false
 
-/-- `RSC-3`'s table, a total function of the caller's keys, the driver's published keys and the
+/-- `RSC-3`'s ordinary-session table, a total function of the caller's keys, the driver's published keys and the
 explicit first-use opt-in. "Caller supplied expected host keys" is the first row, "Driver published
 host keys and caller supplied none" the second, "Caller supplied keys *and* driver published keys"
 the third — where "No overlap is an `integrity` failure, and the engine MUST abort before
@@ -99,6 +100,22 @@ def decision (caller driver : List HostKey) (optIn : Bool) : Decision :=
   | _ :: _, [] => .pinCaller
   | [], _ :: _ => .pinDriver
   | c :: cs, d :: ds => if overlaps (c :: cs) (d :: ds) then .pinOverlapping else .abortIntegrity
+
+/-- `PRV-20`'s required-provider-pins state removes the ordinary table's accept-new
+permission. Driver identities stand for current provider pins only; this model does not
+establish how Robot's boot-time comparison admitted them. -/
+@[req "PRV-20"]
+def sessionDecision (providerPinsRequired : Bool) (caller driver : List HostKey)
+    (optIn : Bool) : Decision :=
+  if providerPinsRequired && driver.isEmpty then .abortIntegrity else decision caller driver optIn
+
+/-- Identity comparison abstracts the presented SSH key matching a current provider pin.
+The actual SHA256 computation and SSH handshake are outside this model. -/
+@[req "RSC-3"]
+def permitsPresented (providerPinsRequired : Bool) (caller driver : List HostKey)
+    (optIn : Bool) (presented : HostKey) : Bool :=
+  connects (sessionDecision providerPinsRequired caller driver optIn) &&
+    (!providerPinsRequired || driver.contains presented)
 
 /-- Every key set over a two-key universe: enough to reach all five rows, with the both-supplied row
 both overlapping and not. -/

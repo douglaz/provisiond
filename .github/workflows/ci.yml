@@ -765,7 +765,7 @@ jobs:
           ProviderTraffic|reverseDnsNoop|true|false|establishedPtrNoop
           ProviderTraffic|establishedOnly|true|false|uncertainPtrNoop
           ProviderTraffic|sweepWritesPresent|true|false|sweepRefresh
-          ProviderTraffic|windowAtLeastSweep|true|false|shortWindowValidation
+          ProviderTraffic|windowAtLeastTwoSweeps|true|false|shortWindowValidation
           Ledger|nativeCostSplit|true|false|nativeClampTrace
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
@@ -845,6 +845,32 @@ jobs:
             echo "::error::expected $expected listed guard controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
+
+      # Q28 (ADR-0037): the old one-sweep minimum is a specific regression, even
+      # though a control that removes validation altogether is also red.
+      - name: Prove the Lean build rejects the old one-sweep freshness minimum
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/ProviderTraffic.lean')
+          source = path.read_text()
+          old = '2 * sweepInterval ≤ window'
+          assert source.count(old) == 1
+          path.write_text(source.replace(old, 'sweepInterval ≤ window'))
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::the old one-sweep minimum passed"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A3 'proved that the proposition' build.log | grep -q 'validFreshness freshnessBoundGuards 20 20 = false'
+          echo "lake build correctly refuted the old one-sweep minimum"
 
       # The rendering gate (pv-vwe.8, ADR-0025): a hand edit inside a marked region is
       # red for that region, and the same edit one line outside it is not. The scratch

@@ -1398,7 +1398,11 @@ permit an observation transaction: write `released_at` at the observation instan
 read that finds the attachment or fails, writes no absence. This does not dispatch a release
 mutation or change the machine's state. `LDG-32` owns commitment closure and `STO-18` remains
 the tombstone gate; an operator still initiates a `manual` cleanup where one is required.
-*Amended 2026-10-09 (`ADR-0037`, Q14): automatic attachment absence confirmation.*
+*Amended 2026-10-09 (`ADR-0037`, Q14): automatic attachment absence confirmation.
+Amended 2026-10-12 (`ADR-0037`, Q28): on Robot, attachment listing and direct reads
+MUST use `GET /ip` and `GET /subnet`, never `GET /server/{n}`. A successful attachment
+endpoint read during a failed account pass does not establish a complete pass or authorize
+absence writes.*
 
 **A missing machine MUST be re-read directly before its absence is recorded.** The listing narrows
 the candidates; it never establishes one. *Added 2026-09-04, replacing a pass-start eligibility
