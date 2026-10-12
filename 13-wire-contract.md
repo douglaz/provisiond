@@ -127,6 +127,7 @@ agent to parse English. Minimum keys:
 | kind | `details` |
 |---|---|
 | `insufficient_balance` | `available_sats`, `required_sats` |
+| `invalid_request` / `offer_not_sellable` on create | `reason: "offer_not_sellable"`; no cap or balance result or amount derived from the withheld offer's price |
 | `not_activated` | `activation_minimum_sats` |
 | `rate_limited` | `retry_after_ms` |
 | `ceiling_exceeded` | `ceiling` (which one, from `SEC-39`'s stated set), `limit`, `interval_seconds`, `retry_after_ms` (to the end of the current interval) |
@@ -141,12 +142,18 @@ agent to parse English. Minimum keys:
 **On create and extend-runway tail refusals** (*amended 2026-10-04, `ADR-0030`*), `details.refusals` is the ordered list of
 `WIR-9` inner objects and `details.not_checked` is a list of `{check, because}` objects; `API-7`
 owns refusal collection, refusal ordering and evaluation. `check` is exactly `commitment_cap` or `balance`;
-`because` is exactly `rate_unavailable` or `provider_account_not_healthy` (create only).
+`because` is exactly `rate_unavailable`, `provider_account_not_healthy` (create only),
+or `offer_not_sellable` (create only).
+An unsellable-offer refusal is HTTP `400`, kind `invalid_request`, with
+`details.reason: "offer_not_sellable"`; it is not a cap refusal and carries no
+cap or balance result. Its response MUST NOT publish cap or balance amounts derived
+from the withheld offer's price, in either the headline details or a refusal entry.
 Every genuinely skipped check MUST appear with every applicable reason; an absent refusal does
 not imply that check passed. `commitment_cap` applies only when the request supplied
 `max_commitment_sats`; without it there is no cap check to skip. Balance is always a check.
 When no checks were skipped, the list MUST be empty. Entries MUST be in check order
-`commitment_cap`, `balance`, then reason order `provider_account_not_healthy`, `rate_unavailable`.
+`commitment_cap`, `balance`, then reason order `provider_account_not_healthy`,
+`offer_not_sellable`, `rate_unavailable`.
 Purchase-tail entries MUST use these `retryable` values, applying `DOM-17`'s "whether repeating
 the same request is safe and sensible":
 
@@ -155,6 +162,8 @@ the same request is safe and sensible":
 | `halted` / `solvency` or `rate_unavailable` | `true` | The same purchase can succeed when the gate clears |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `account_unreachable` or `credentials_rejected` | `true` | The named account can recover |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `terminated` | `false` | The named account cannot recover |
+| `invalid_request` / `offer_not_sellable` on create | `false` | The offer cannot be bought on the same request |
+| `rate_limited` / closed ordering channel on create | `true` | The same create can be evaluated after the reported interval clears |
 | `conflict` / `cancellation_committed` | `false` | Repeating does not revoke a committed cancellation (`API-68` is a separate decision) |
 | `invalid_request` for `max_commitment_sats` | `false` | The caller must revise its spend bound |
 | `insufficient_balance` | `false` | The caller must supply balance before purchasing |
@@ -163,11 +172,17 @@ the same request is safe and sensible":
 
 *Amended 2026-10-04 (`pv-gip.26`, S2): account retryability distinguishes permanent termination
 from recoverable status; kind and reason remain unchanged.*
+*Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): the offer refusal and
+unchecked reason join create tails; cap and balance amounts are withheld for that offer.*
+*Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment): a local closed-channel
+entry carries `retry_after_ms` and is retryable when its interval can clear. Its
+headline uses HTTP 429 and `WIR-4`'s `Retry-After`; `WIR-9b` still aggregates every
+entry, including any earlier false account or offer refusal.*
 
 **Only on the `max_commitment_sats` refusal**, `invalid_request` carries
 `details.max_commitment_sats` (the supplied cap) and `details.required_sats` (the computed
 commitment to open or additional satoshis to reserve); these keys are not required of other
-`invalid_request` errors.
+`invalid_request` errors, including `offer_not_sellable`.
 
 **On an `install` operation's error, `details.disk_effect` is required whatever the kind** (*added
 2026-09-15, `pv-x8r`*): `none` where this operation is established to have written nothing to the
@@ -205,6 +220,13 @@ view's `retryable` (`WIR-10`) is authoritative and the envelope's MUST equal it.
 fresh idempotency key is a fresh operation, not a retry: a second purchase on a create, a second
 destructive write on an install (`API-51`).
 
+*Amended 2026-10-08 (`ADR-0035`):* `API-51` requires a reconciliation-pending rate-limited
+create to "retain `details.retry_after_ms` alongside `retryable: false`". The `rate_limited` row
+in `WIR-9a` still supplies its keys; retry-after does not authorize another mutation. A throttled
+GET of the operation view carries "no information about any operation's outcome" (`API-50`).
+`PRV-5` requires "every driver error MUST carry `details.accepted`"; the existing redaction
+rules still apply.
+
 ## Views
 
 **WIR-10** The **operation view** (`API-20`):
@@ -215,7 +237,7 @@ destructive write on an install (`API-51`).
   "tenant": "agent-7", "status": "running", "terminal": false,
   "revision": 4, "retryable": false,
   "requested_by": "caller", "system_reason": null, "episode_id": null,
-  "machine_id": null, "provider_account": "hetzner-cloud-1",
+  "machine_id": null, "provider_account": "hetzner-robot-1",
   "idempotency_key": "agent-7:create:2026-08-12T14",
   "committed_sats": 72000,
   "result": null, "error": null,
@@ -290,14 +312,15 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
 ```json
 {
   "id": "0198c1e0-3a2b-7c4d-8e9f-1b3d5f7a9c20",
-  "name": "worker-1", "kind": "virtual", "state": "running",
+  "name": "worker-1", "kind": "bare_metal", "state": "running",
+  "state_observed_at": "2026-08-12T15:03:00Z",
   "region": "fsn1",
   "public_ips": ["203.0.113.7"],
-  "provider_account": "hetzner-cloud-1",
+  "provider_account": "hetzner-robot-1",
   "committed_sats": 71900,
   "runway_until": "2026-09-11T14:00:00Z",
-  "network_restriction": {"status": "none", "source": "provider_api", "observed_at": "2026-08-12T15:03:00Z"},
-  "install_strategies": ["provider_native", "raw_disk"],
+  "network_restriction": {"status": "unknown", "source": null, "observed_at": null},
+  "install_strategies": ["rootfs_via_rescue", "raw_disk"],
   "last_install": {"strategy": "raw_disk", "bytes_verified_by_provisiond": true, "at": "2026-08-12T14:40:00Z"},
   "rate_outage_deadline": null,
   "effective_cancellation_date": null,
@@ -305,6 +328,13 @@ operation has an `error`; whether it has a `result` at all is exactly what nobod
   "created_at": "2026-08-12T14:03:00Z", "updated_at": "2026-08-12T15:03:00Z"
 }
 ```
+
+*Network-restriction fixture amended 2026-10-10 (`ADR-0038`, Q15).*
+
+The machine view MUST include `state_observed_at`, the stored nullable timestamp (`STO-48`,
+`05-persistence.md`): "when `state` was last established by an authoritative read of the provider".
+Timestamp format: `WIR-1`. An unobserved machine carries `"state_observed_at": null`,
+never an omitted key or `updated_at` in its place. *Amended 2026-10-08 (`ADR-0034`, Q10).*
 
 `runway_until` floats with the rate (`LDG-15`, `LDG-33`); the first `public_ips` entry is the
 rescue address. `external_id` and raw provider metadata are **absent** on the customer surface
@@ -591,8 +621,8 @@ billable machines including `cancellation_scheduled`, and is `null` when there a
 
 ```json
 {
-  "provider_account": "hetzner-cloud-1",
-  "offer": "standard:cx32",
+  "provider_account": "hetzner-robot-1",
+  "offer": "market:12345",
   "region": "fsn1",
   "hostname": "worker-1",
   "image": null,
@@ -605,6 +635,11 @@ billable machines including `cancellation_scheduled`, and is `null` when there a
   "provider_options": {}
 }
 ```
+
+This create uses `WIR-30`'s `"market:12345"` Robot default-uplink offer; the
+running operation (`WIR-10`) and resulting machine (`WIR-11`) show the same
+purchase at later stages. `WIR-30` says "the commitment is priced at accept
+time"; its earlier listing quote is indicative.
 
 `ssh_public_keys` MUST be non-empty (`PRV-8`, `API-13`). `acknowledge_purchase` MUST be literal
 `true` (`API-15`, `PRV-10`). `image` (nullable, a catalog identifier), `user_data` (nullable,
@@ -829,7 +864,7 @@ subsequent sweep has opened a different episode.
 **WIR-52** **ADDED 2026-09-08** — attachments on the wire, the operator half of `PRV-45`
 (`API-65`). `GET /v1/machines/{id}/attachments` — **operator-only** (`WIR-34`), returns
 `{"attachments": []}`, each element `{"id": "0198d4a0-7e8f-7a9b-8c0d-1e2f3a4b5c34", "kind":
-"volume", "external_id": "vol-8f2a1c", "billable": true, "cleanup": "api", "released_at": null}` —
+"volume", "external_id": "vol-8f2a1c", "billable": true, "cleanup": "api", "effective_cancellation_date": null, "released_at": null}` —
 the `machine_attachments` row (`05-persistence.md`), whole, since it is small and an operator
 deciding whether a release is owed needs every column.
 `POST /v1/machines/{id}/attachments/{attachment_id}/actions/release` — **operator-only**, body
@@ -852,12 +887,26 @@ omitted rescue inventory until 2026-09-03, four lines above the closed-set parag
 correctly — and that paragraph is the one a strict server is built from, which is the only reason the
 omission cost nothing here*):
 `{"resolution": "applied", "operator_ref": "opref-7d41cc"}` settles `succeeded` — **and on a
-`delete_machine` MUST carry `"effective_cancellation_date": "2026-09-12T00:00:00Z"`** where the
+`delete_machine` MUST carry `"effective_cancellation_date": "2026-09-12T21:59:59Z"`** (the end of September 12 in Europe/Berlin CEST, used here as an isolated provider-zone fixture) where the
 operator established that the provider *scheduled* rather than performed it — an `applied` without
-the date asserts the resource is gone, and is the only other thing it can mean — which settles
-`succeeded` as `cancellation_scheduled` and moves the episode to `scheduled` (`OPS-48`), keeping the fence until the tombstone
+the date asserts the machine is gone, and is the only other thing it can mean for
+`delete_machine` — which settles `succeeded` as `cancellation_scheduled` and moves the episode
+to `scheduled` (`OPS-48`), keeping the fence until the evidenced gone-write
 (*added 2026-09-05; without it an operator confirming a scheduled cancellation had no way to say so,
-and the resolution cleared the fence on a machine still billing*) — and
+and the resolution cleared the fence on a machine still billing*).
+On `release_attachment`, `applied` MUST carry `effective_cancellation_date` when the operator
+established a scheduled release, for example
+`{"resolution": "applied", "effective_cancellation_date": "2026-10-31T22:59:59Z", "operator_ref": "opref-7d41cc"}`
+for Robot's day-only `cancellation_date` of `2026-10-31` in its verified `Europe/Berlin`
+date zone (`PRV-13`; `docs/research/panels-2026-10/r40/zone-check.txt`). `PRV-13` owns conversion of day-only effective dates;
+the wire value follows `WIR-1`'s UTC timestamp convention.
+`PRV-45` says a dated result "MUST store that date on the attachment row" and "MUST NOT write
+`released_at` merely from that result". Without the date, `applied`
+asserts a completed release, for example
+`{"resolution": "applied", "operator_ref": "opref-7d41cc"}`. Only `delete_machine`
+changes machine state or schedules its episode. No other resolution form or operation kind
+carries this date. *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`ADR-0037`, Q18);
+amended 2026-10-11 (`ADR-0037`, Q21/Q22): gone-write fence and provider-zone conversion.*
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
 `external_id` — the machine is already known, which is the whole difference from a create.
 
@@ -932,7 +981,7 @@ never true.* **A create naming an account that is not `healthy` MUST be refused
 `conflict` with `details.reason: "state"`** — the catalogue read is advisory and a termination can
 land between the two calls, so omission from the listing is not by itself the control.
 `{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
-"capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
+"capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "install_rootfs_via_rescue", "install_raw_disk_via_rescue", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
 `DOM-22`). **This view is a subset of the driver's descriptor (`PRV-44`)**: `kind` and
 `capabilities` are the descriptor's fields, rendered; nothing here is declared anywhere else, and
 the descriptor's other fields do not reach the customer surface (*stated 2026-09-08, `ADR-0018`*).
@@ -954,13 +1003,16 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
 
 ```json
 {"offers": [{
-  "id": "standard:cx32", "name": "CX32", "kind": "virtual", "regions": ["fsn1"],
-  "recurring_price": {"amount_sats": 120, "period": "hour"},
+  "id": "market:12345", "name": "Auction dedicated server", "kind": "bare_metal", "regions": ["fsn1"],
+  "recurring_price": {"amount_sats": 90, "period": "hour"},
   "setup_fee_sats": 0,
+  "first_unit_sats": 90,
+  "billing_unit_seconds": 3600,
   "min_runway_seconds": 3600,
-  "quoted_at": "2026-08-13T14:00:00Z", "binding": false,
+  "quoted_at": "2026-08-12T13:59:00Z", "binding": false,
   "max_rate_outage_seconds": 21600,
-  "install_strategies": ["provider_native", "raw_disk"],
+  "traffic_bound": "unlimited",
+  "install_strategies": ["rootfs_via_rescue", "raw_disk"],
   "max_image_bytes": 107374182400,
   "guest_requirements": null
 }]}
@@ -969,9 +1021,8 @@ list that `WIR-29`'s create refusal then rejects at purchase*:
 **`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them.** The
 account's `capabilities` (`WIR-29`) say what the driver can do at all; eligibility for a
 rescue-based install is a property of the **offer**, because an auction listing and a standard
-product at the same provider can differ on it. The fixture above is a cloud VPS, which is why it
-omits `rootfs_via_rescue`: no cloud product in the reference set offers one
-(`08-provider-notes.md`). An install naming a strategy absent from its
+product at the same provider can differ on it. The fixture shows a Robot
+default-uplink offer, currently sellable under `ADR-0039`. An install naming a strategy absent from its
 machine's recorded list MUST be rejected as `invalid_request` before the operation is enqueued,
 exactly as an invalid pairing is. The list MUST be present on every offer; an empty list means no
 install is available for that offer. **The gate reads the copy the machine took at create —
@@ -1002,10 +1053,25 @@ speaks to the price only, and for a machine the authoritative instant is its vie
 `rate_outage_deadline` (`WIR-11`) (*added 2026-10-02, `ADR-0029`*). Prices are integers of
 satoshis, already margined by
 the one pricing function (`LDG-23`, `LDG-24`)
-at the same rounding as commitment creation. **An offer price is an indicative quote converted at
+at the same rounding as commitment creation. `first_unit_sats` is the prepaid first billing unit's
+customer price and `billing_unit_seconds` its duration (`ADR-0033`, added 2026-10-08; `PRV-13b`
+prices it and `LDG-39` holds its lifecycle), disclosed beside the setup fee — a quote under the
+same `binding: false` as the recurring price; the unit's `native_floor` is a provider figure and
+does not appear. **An offer price is an indicative quote converted at
 read time; `binding` is `false` and the commitment is priced at accept time (`LDG-27`) and MAY
 differ** — a caller bounding spend uses `WIR-17`'s `max_commitment_sats`, not the quote. The
 provider's currency, price string and raw metadata MUST NOT appear.
+
+This customer listing follows `DOM-9`'s sale filter and MUST disclose the
+`PRV-44` `traffic_bound` of every listed offer: `"unlimited"` or, following
+conditional re-admission under `ADR-0039`, `{ "limit_bytes": nonnegative integer }` for
+the declared allowance less headroom. For that conditional allowance branch, the
+listing MUST disclose before purchase that crossing `limit_bytes` causes an
+exposure-reducing cancellation that destroys the machine. This is a traffic
+limit, not a second customer price. For remembered IDs, see `API-7`'s create-tail
+"`invalid_request`/`offer_not_sellable` when the named offer is not sellable
+under `PRV-13b` or `PRV-31`".
+*Amended 2026-10-09 (`ADR-0039`).*
 
 **WIR-31** `GET /healthz` — `200 {"status": "ok"}`, unauthenticated but rate-limited (`API-29`),
 and MUST NOT disclose version, uptime, queue depth or anything else a caller can fingerprint.
@@ -1042,12 +1108,15 @@ detail read:
   "warned_consequence": "If this is not resolved, the provider may block this machine's network access.",
   "respond_by": "2026-08-13T12:00:00Z",
   "opened_at": "2026-08-12T23:10:00Z",
+  "network_restriction": {"status": "unknown", "source": null, "observed_at": null},
   "statements": [
     {"id": "0198c1d0-9f8e-7d6c-8b5a-4938271605f4", "seq": 1, "submitted_at": "2026-08-13T02:15:00Z", "body": "A container image we deployed was compromised. We stopped it at 02:05 UTC and rotated the host keys."}
   ],
   "outcome": null
 }
 ```
+
+*Case projection fixture amended 2026-10-10 (`ADR-0038`, Q15).*
 
 A submission is `{"body": "..."}` and nothing else, and returns **`201`** with the created statement
 (`id`, `seq`, `submitted_at`) so the caller can tell a retry from a second reply. **The body MUST be
@@ -1150,11 +1219,33 @@ and only one of them means the machine was not ours.
 minting no operation (`API-61`), each carrying `Idempotency-Key` under `WIR-24`'s
 one-transaction rule.
 
-Recording a restriction takes `{"status": "disabled", "observed_at": "2026-08-13T02:40:00Z"}` and
-returns `200` with the machine view. It sets `source` to `operator_notice` and **MUST be refused
-with `409` `conflict`, `details.reason: "state"`, where the driver reports this provider**
-(`PRV-35`) — the provider is authoritative there, and an operator value that shadows a readable
-fact is the two-homes drift this design was reorganised to avoid.
+Recording takes `{"status": "restricted", "operator_ref": "opref-7d41d0"}` and returns `200` with
+the machine view. The `operator_ref` field is required for a record and follows `WIR-42`'s
+"`operator_ref` MUST be an opaque reference to a record kept outside this system". The recording
+transaction MUST stamp `machines.operator_recorded_at` with its own instant and store the
+reference, preserving both provider columns; a fresh record under a new key MUST replace the
+operator time and reference. The request has no `observed_at`. Recording MUST be accepted even
+when the driver reports a positive restriction, subject to ordinary authorization, validation
+and idempotency rules.
+
+Withdrawal takes `{"status": "unknown"}` without `operator_ref` on the same route and returns
+`200` with the machine view. Under `WIR-2`'s "Unknown fields in a request body MUST be
+rejected" rule, a withdrawal body containing `operator_ref` returns `invalid_request`
+naming that first unknown field.
+
+The operator withdraws after the provider grants the unlock. Withdrawal MUST be accepted
+even while the stored provider observation is positive, subject to ordinary authorization,
+validation and idempotency rules; it requires no fresh provider read. It MUST clear only
+`operator_recorded_at` and `operator_ref`, leaving both provider columns untouched. A same-key
+replay of either body MUST return the original exact response and time without writing again; a
+different fingerprint under that key is a `409 conflict`
+(`details.reason: "idempotency_mismatch"`). The operator column change and an idempotency record
+(fingerprint, status, exact response body) MUST commit in one transaction, following `WIR-24`'s
+"the commitment change and an idempotency record (fingerprint, status, the exact response body)
+MUST commit in one transaction". An operator record left after an unlock continues to warn until withdrawn; that
+stale warning can lead a customer to delete a working machine (`DOM-26`). Its rendered time shows
+its age and `operator_ref` identifies the notice to follow up. Neither case closure nor a
+gone-write withdraws it.
 
 Revising a deadline takes `{"respond_by": "2026-08-20T12:00:00Z"}` and returns `200` with the case,
 appending the previous value (`STO-44`). It is refused with `409` `conflict`,
@@ -1162,10 +1253,17 @@ appending the previous value (`STO-44`). It is refused with `409` `conflict`,
 `warned_consequence`**, and its absence is the design (`STO-44`).
 
 The machine view's `network_restriction` object is `{"status", "source", "observed_at"}`
-(`DOM-27`), and it renders `"status": "unknown"` with a null `observed_at` where nobody has looked.
+(`DOM-27`). If `provider_restricted` is true, it MUST render `restricted`, `provider_api`, and
+`provider_observed_at`, even if an operator record exists. Otherwise, if `operator_recorded_at` is
+set, it MUST render `restricted`, `operator_notice`, and that recording time. Otherwise it MUST
+render exactly `{"status":"unknown","source":null,"observed_at":null}`, regardless of earlier
+clear readings or withdrawals. Selection uses positive evidence, never timestamp order; changing
+the selected source may move the rendered time backward.
 **A client MUST NOT read `unknown` as `none`.** The same object is joined into the case projection
 at render time from the machine — never copied into `abuse_cases`, which is what keeps two open
 cases from carrying two answers.
+
+*Amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b).*
 
 **WIR-48** `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` — **operator-only**
 (`WIR-34`), **synchronous** `200`, minting no operation (`API-62`), carrying `Idempotency-Key` under

@@ -71,6 +71,27 @@ jobs:
           fi
           echo "identifier gate correctly rejected a dangling citation"
 
+      - name: Prove never-master identifiers cannot return to live specs
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n**PRV-46** A reused identifier.\n' >> 02-provider-contract.md
+          if python3 tools/check_ids.py > ids.log 2>&1; then
+            echo "::error::identifier gate accepted a reused never-master id"
+            exit 1
+          fi
+          grep -q "UNMERGED ID REUSED: \['PRV-46'\]" ids.log
+          sed -i '/^\*\*PRV-46\*\* A reused identifier\.$/d' 02-provider-contract.md
+          printf '\nA live reference to `CNF-336`.\n' >> 00-overview.md
+          if python3 tools/check_ids.py > ids.log 2>&1; then
+            echo "::error::identifier gate accepted a live citation to a never-master id"
+            exit 1
+          fi
+          grep -q "UNMERGED ID LIVE CITED: \['CNF-336'\]" ids.log
+
       # The same gate refuses a conformance item that carries a launch tier; the
       # tiers were withdrawn on 2026-09-12 (F50) and every item gates. The control
       # re-tags one existing item rather than appending a `CNF-9999` line: 9999 is
@@ -144,15 +165,22 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo/tools/formal"
-          sed -i 's/^def abortDate (reserved prot rate : Nat) : Bool := runwaySeconds reserved prot rate > 0$/def abortDate (reserved prot _rate : Nat) : Bool := usableSats reserved prot > 0/' \
+          # Since 2026-10-08 (ADR-0033) the predicate reads LDG-33's derivation from now and the
+          # mark, so the signature stays and only the body is swapped for the withdrawn form.
+          sed -i \
+            -e 's/^def abortDate (p : Params) (now : Nat) (mark : Option Nat) (reserved prot rate : Nat) : Bool :=$/def abortDate (_p : Params) (_now : Nat) (_mark : Option Nat) (reserved prot _rate : Nat) : Bool :=/' \
+            -e 's/^  runwayUntil p now mark reserved prot rate > now$/  usableSats reserved prot > 0/' \
             Provisiond/Runway.lean
-          grep -q 'def abortDate (reserved prot _rate : Nat) : Bool := usableSats' Provisiond/Runway.lean
+          grep -q '^def abortDate (_p : Params) (_now : Nat) (_mark : Option Nat) (reserved prot _rate : Nat) : Bool :=$' Provisiond/Runway.lean
+          grep -q '^  usableSats reserved prot > 0$' Provisiond/Runway.lean
           if nix develop --command lake build > build.log 2>&1; then
             echo "::error::lake build passed with the withdrawn predicate in abortDate"
             exit 1
           fi
-          # Lean names the line, not the theorem: the unsolved goal is in Runway.lean,
-          # and nothing else in that file can fail on this mutation.
+          # Lean names the line, not the theorem: the unsolved goal is in Runway.lean, in
+          # abortDate_never_on_routed, and nothing else in that file reads abortDate's body
+          # (not_routed_inside_the_unit reads routed alone; the witnesses are downstream).
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
           grep -q 'error: Provisiond/Runway.lean:.*unsolved goals' build.log
           echo "lake build correctly failed on abortDate_never_on_routed"
 
@@ -297,7 +325,7 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo/tools/formal"
-          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true }/' \
+          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true, acceptanceRule := true }/' \
             Provisiond/Tables.lean
           grep -q 'goalStateRow := false, markerRule := true' Provisiond/Tables.lean
           if nix develop --command lake build > build.log 2>&1; then
@@ -308,6 +336,65 @@ jobs:
           grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
           grep -A6 'proved that the proposition' build.log | grep -q 'deleteMachine'
           echo "lake build correctly failed on already_deleted_witness"
+
+      # ADR-0035: disable one amendment guard at a time. Require a refuted
+      # witness, never a syntax error. One in-repository copy serves both rows.
+      - name: Prove accepted failures and in-progress orders survive only with their guards
+        if: matrix.shard == 0
+        run: |
+          python3 - <<'PYCONTROL'
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import tempfile
+
+          root = Path.cwd()
+          with tempfile.TemporaryDirectory(prefix='.acceptance-control-', dir=root) as directory:
+              copy = Path(directory)
+              files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+              for name in filter(None, files):
+                  source = root / name
+                  target = copy / name
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(source, target)
+              shutil.copytree(root / 'tools/formal/.lake', copy / 'tools/formal/.lake')
+              formal = copy / 'tools/formal'
+              for module, old, new, witness in [
+                  ('Tables', 'acceptanceRule := true', 'acceptanceRule := false',
+                   'accepted_read_failure_witness'),
+                  ('Reconcile', 'negativeOnly       := true', 'negativeOnly       := false',
+                   'in_progress_order_witness'),
+              ]:
+                  path = formal / f'Provisiond/{module}.lean'
+                  original = path.read_bytes()
+                  assert original.count(old.encode()) == 1
+                  try:
+                      path.write_bytes(original.replace(old.encode(), new.encode()))
+                      result = subprocess.run(['nix', 'develop', '--command', 'bash', '-c',
+                                               'cd "$1" && lake build', 'acceptance-control', str(formal)],
+                                              cwd=root, capture_output=True, text=True)
+                      output = result.stdout + result.stderr
+                      print(output)
+                      assert result.returncode != 0
+                      lines = (formal / 'Provisiond/Witnesses.lean').read_text().splitlines()
+                      start = next(i + 1 for i, line in enumerate(lines)
+                                   if line.startswith(f'theorem {witness} :'))
+                      end = next(i + 1 for i in range(start, len(lines)) if not lines[i].strip())
+                      errors = [line for line in output.splitlines()
+                                if line.startswith('error: Provisiond/')]
+                      assert len(errors) == 1, errors
+                      assert 'error: Provisiond/Witnesses.lean:' in errors[0], errors
+                      location = int(errors[0].split(':')[2])
+                      assert start <= location <= end, errors
+                      assert 'proved that the proposition' in errors[0], errors
+                      print(f'PASS: removing only {module} guard refutes {witness}', flush=True)
+                  finally:
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              subprocess.run(['nix', 'develop', '--command', 'bash', '-c',
+                              'cd "$1" && lake build', 'acceptance-control', str(formal)],
+                             cwd=root, check=True)
+          PYCONTROL
 
       # The migration-plan type (STO-12): a CONCURRENTLY build inside a transactional
       # migration is not a value of the type. The control writes one, in the Explore
@@ -417,6 +504,9 @@ jobs:
       #     unlisted_live_machine_reread on [.advance 2000, .sweep true false .found];
       #   absenceWindow (OPS-32, 2026-09-04): the gone machine bills until the negative window --
       #     absence_on_visibility_window on [.advance 20, ..];
+      #   visibilityFromWaitEnd (PRV-36, ADR-0037 Q13): a late accepted create is
+      #     falsely recorded absent when the visibility window starts at dispatch --
+      #     late_acceptance_waits_from_reply on lateAcceptedWorld;
       #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
       #     match_is_not_observation, w.orderLanded = some mach.
       # Funding and the tenant lifecycle (pv-vwe.6; pv-vwe.15 for LDG-70's read; pv-vwe.16 for
@@ -523,6 +613,16 @@ jobs:
       #   LDG-38, 2026-10-03: exit without posting loses a sub-interval life and the tails
       #   around re-entry -- exit_closes_each_tail on exitCases Funding.current. Other
       #   Funding guards are pinned so each row still refutes exactly one witness.
+      # The prepaid first billing unit (pv-ucs.1, ADR-0033), Funding.current.prepaidFirstUnit:
+      #   LDG-38, 2026-10-08: the machine's first seed is written at its instant instead of the
+      #   unit's end, and the tick inside the unit charges seconds the customer prepaid --
+      #   first_unit_is_prepaid on unitTrace. Other Funding guards are pinned, and the lifecycle
+      #   witness pins this one, so the row refutes exactly one witness.
+      # The runway derivation's start (pv-ucs.1, ADR-0033), Runway.current.startAtMark:
+      #   LDG-33, 2026-10-08: the derivation counts from now inside the prepaid unit and the
+      #   stored date is one unit early -- runway_counts_from_the_unit_end on insideTheUnitDate.
+      # Customer-debit eligibility (pv-ucs.1, ADR-0033): offsetRequiresDebit refuses the unpaid
+      # late-attach funding abort; removal refutes unpaid_late_attach_cannot_abort alone.
       # The billing period (pv-vwe.17), Period.current:
       #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
       #     the new period's first 2/5 posts 0 against what the old one left --
@@ -565,7 +665,9 @@ jobs:
       # from deleting after an admitted extension; interruptedRetry isolates this guard.
       # The automatic sweep-close row and its obsolete suspension-exemption witness
       # were deleted with that policy.
-      - name: Prove the Lean build rejects each fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status guard's removal, one witness each
+      # ADR-0034 (2026-10-08/10): ProviderTraffic's cache, PTR evidence and
+      # sweep freshness guards, and Admission's reverse-DNS ceiling, have isolated witnesses.
+      - name: Prove the Lean build rejects each listed guard's removal, one witness each
         env:
           SHARD: ${{ matrix.shard }}
           JOB_INDEX: ${{ strategy.job-index }}
@@ -609,6 +711,7 @@ jobs:
           Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
           Reconcile|absenceWindow|.visibility|.negative|Event.advance 20, Event.sweep true false Answer.notFound
+          Reconcile|visibilityFromWaitEnd|true|false|lateAcceptedWorld
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           Ledger|clampAtAuthority|true|false|seizureBalances
           Ledger|serializedAuthorization|true|false|skewTrace
@@ -624,6 +727,9 @@ jobs:
           Funding|seedOnBillable|true|false|seedTrace
           Funding|exitPosts|true|false|exitCases Funding.current
           Funding|closeBeforeRelease|true|false|releaseOrderTail Funding.current
+          Funding|prepaidFirstUnit|true|false|unitTrace
+          Funding|offsetRequiresDebit|true|false|unpaidLateSeed Funding.current
+          Runway|startAtMark|true|false|insideTheUnitDate
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
@@ -631,6 +737,7 @@ jobs:
           Rescue|secondMarkerBeforeSession|true|false|Rescue.current rescueSession crashedSession
           Rescue|partialCleanupMovesNothing|true|false|Rescue.current rescueInstall partialActivation
           Rescue|persistAtActivation|false|true|Rescue.current rescueSession cleanSession
+          Rescue|temporaryKeyEligibility|true|false|Rescue.current rescueSession crashedSession
           Rehost|allowlistRequired|true|false|emptyAllowlist
           Rehost|allowlistPerHop|true|false|attackerRedirect
           Rehost|schemePerHop|true|false|schemeDowngrade
@@ -648,11 +755,23 @@ jobs:
           Admission|solvencyUsesValuedTerms|true|false|Action.solvencyCheck
           Admission|completeCheckToLift|true|false|incompletePassingTrace
           Admission|richTailCollection|true|false|fencedHaltedNoRate
+          Admission|offerSaleGuard|true|false|offerNotSellable
+          Admission|channelClosureGuard|true|false|channelClosed
+          Admission|reverseDnsCeiling|true|false|reverseDnsAdmission
+          ProviderTraffic|reuseFresh|true|false|freshClaim
+          ProviderTraffic|checkAtClaim|true|false|queuedRefreshes
+          ProviderTraffic|preserveAge|true|false|ageClaim
+          ProviderTraffic|successfulOnly|true|false|failedRefreshes
+          ProviderTraffic|reverseDnsNoop|true|false|establishedPtrNoop
+          ProviderTraffic|establishedOnly|true|false|uncertainPtrNoop
+          ProviderTraffic|sweepWritesPresent|true|false|sweepRefresh
+          ProviderTraffic|windowAtLeastSweep|true|false|shortWindowValidation
           Ledger|nativeCostSplit|true|false|nativeClampTrace
           Period|resetAtBoundary|true|false|twoPeriodTrace
           Period|splitAtBoundary|true|false|straddleTrace
           Period|deploymentWide|true|false|lateSubjectTrace
           AccountStatus|retainUnlessTerminated|true|false|credentialsRejected
+          ProviderTraffic|invalidatePtr|true|false|ptrAfterDifferingDispatch
           ROWS
           )
           # No matrix condition on this step: a bad shard must reach the guard.
@@ -712,9 +831,9 @@ jobs:
               echo "::error::${field}: more than one red"; grep '^error: Provisiond/' build.log; fail=1
             elif ! grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log; then
               echo "::error::${field}: the red is not a refuted witness"; grep '^error' build.log; fail=1
-            elif ! grep -A6 'proved that the proposition' build.log | grep -q "$token"; then
+            elif ! grep -A8 'proved that the proposition' build.log | grep -q "$token"; then
               echo "::error::${field}: the red witness is not the targeted one ($token)"
-              grep -A6 'proved that the proposition' build.log; fail=1
+              grep -A8 'proved that the proposition' build.log; fail=1
             else
               echo "lake build correctly failed on ${field} := ${to}, on the witness naming $token"
               passed=$((passed + 1))
@@ -723,7 +842,7 @@ jobs:
             rm -rf "$tmp"
           done <<<"$selected"
           if [ "$passed" -ne "$expected" ]; then
-            echo "::error::expected $expected fence, restore, reconciliation, funding, wire, rescue, re-host, admission, period and account-status controls to pass, got $passed"; fail=1
+            echo "::error::expected $expected listed guard controls to pass, got $passed"; fail=1
           fi
           exit "$fail"
 

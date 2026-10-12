@@ -55,14 +55,14 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | id | provider | spec line(s) · requirement | claim | verdict | what changes in the spec |
 |---|---|---|---|---|---|
 | V1 | Hetzner Cloud | `01-domain-model.md:318`, `02-provider-contract.md:766` · `DOM-27`, `PRV-35` | `public_net.ipv4.blocked` / `ipv6.blocked` on the server, separate from `status` | CONFIRMED | Marker becomes `[observed — HC-spec, 2026-10-06]`. The `PRV-35` row should add that either family may be `null` and that Floating IPs carry their own `blocked`, which is not on the server |
-| V2 | Hetzner Cloud | `08-provider-notes.md:57` · `PRV-9` | key material is copied at create, so deleting the temp key right after the create call is safe | PARTIAL | "At creation time" is documented. Deleting while the create Action is still `running` is not. Until a live test passes, clean up after the create Action reaches `success`, not after the call returns |
+| V2 | Hetzner Cloud | `08-provider-notes.md:57` · `PRV-9` | key material is copied at create, so deleting the temp key right after the create call is safe | PARTIAL | "At creation time" is documented. Deleting while the create Action is still `running` is not. The create Action reaching `success` is a consumption-timing candidate, not cleanup eligibility; `PRV-9`/`ADR-0040` governs deletion |
 | V3 | Hetzner Cloud | `08-provider-notes.md:59` · `PRV-9`, `OPS-32` | a key resource carries a name/label the engine chooses | CONFIRMED | Marker becomes `[observed — HC-spec, 2026-10-06]`. `name` is required and caller-set, `labels` are supported, and the list endpoint filters by `name` and `label_selector` |
 | V4 | Hetzner Cloud | `08-provider-notes.md:70` · none named | `enable_rescue` while already enabled: error or re-arm | UNDETERMINABLE | Needs a live test, or design around it: read `rescue_enabled` and `disable_rescue` first |
 | V5 | Hetzner Cloud | `08-provider-notes.md:417` · correlator (`OPS-27`, `OPS-32`) | label key/value character set, length, count | PARTIAL | Character set and the 63-character length become `[observed — HC-spec, 2026-10-06]`. The count limit stays `[verify]`. A UUID value fits |
 | V6 | Hetzner Robot | `02-provider-contract.md:767` · `PRV-35` | `locked` on each IP and subnet; server status stays `ready`/`in process` | PARTIAL | The `PRV-35` row's "documented; high" must go. `locked` is documented only as "Status of locking", and Hetzner also locks entire servers, which has no API field. An IP showing `locked:false` does not support reporting `none` |
 | V7 | Hetzner Robot | `02-provider-contract.md:705`, `08-provider-notes.md:415` · `PRV-27`, `OPS-33` | transaction listing is time-bounded (30 days) | CONFIRMED | Marker becomes `[observed — Robot-WS, 2026-10-06]`. The bound is first-party: "within the last 30 days", on both channels |
-| V8 | Hetzner Robot | `02-provider-contract.md:940` · `PRV-42` | auction offer id equals server number by rule | UNDETERMINABLE | Not documented. `PRV-42` needs a runtime guard: if `server_number` ≠ offer id, fall back to `PRV-32`'s search |
-| V9 | Hetzner Robot | `08-provider-notes.md:104`, `03-operation-lifecycle.md:1379` · `PRV-9`, `PRV-32`, `OPS-32` | key carries an engine-chosen name; the transaction still lists the fingerprint after the key is deleted | PARTIAL | `name` is caller-set (`[observed — Robot-WS, 2026-10-06]`). Whether the listing outlives the key needs a live test. `OPS-32` keeps its "only where the listing carries it independently" clause until then |
+| V8 | Hetzner Robot | `PRV-42`, `ADR-0040` | auction offer id equals server number by rule | UNDETERMINABLE | An equal-number auction order was observed 2026-10-11 (offer/server `3084954`); no provider-wide rule follows. Lost-reply resolution still searches the per-order fingerprint |
+| V9 | Hetzner Robot | `PRV-9`, `PRV-32`, `OPS-32` | key carries a caller-set name; the transaction still lists the fingerprint after the key is deleted | CONFIRMED FOR TESTED TRANSACTION | The 2026-10-11 auction transaction retained `authorized_key[]` with the fingerprint after temporary-key deletion (batch B step 6). `ADR-0040` and key eligibility remain unchanged |
 | V10 | Hetzner Robot | `08-provider-notes.md:115` · none named | enabling rescue while already enabled: error or re-arm | UNDETERMINABLE | Design around it: `GET /boot/{n}/rescue` shows `active`, so `DELETE` first. The live test is optional |
 | V11 | Hetzner Robot | `08-provider-notes.md:121` · `RSC-12` | installimage config keys and the directive that stops rescue keys being copied | PARTIAL | Directive found in the official source: `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`. Whether the live rescue system runs that source needs a live check |
 | V12 | Hetzner Robot | `08-provider-notes.md:153` · `PRV-13c`, `DOM-19` | worst case across contracts; `cancellation_date=now` when the earliest date is in the future | PARTIAL | "30 days to the end of the month" is documented as "the longest period". The API's behaviour for `now` before the earliest date is not documented, so the "handle both" rule stands |
@@ -71,15 +71,13 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | V15 | DigitalOcean | `02-provider-contract.md:768` · `PRV-35` | Droplet `locked` is documented only as preventing user actions; do not map it | CONFIRMED | Keep "do not map it" and cite the source: DO documents `locked` as true while an uncompleted action blocks the next one. The driver declares no network-restriction signal, so the status is `unknown` |
 | V16 | DigitalOcean | `08-provider-notes.md:245`, `08-provider-notes.md:348` · correlator (`OPS-32`) | permitted tag character set | CONFIRMED | Marker becomes `[observed — DO-spec, 2026-10-06]`: `^[a-zA-Z0-9_\-\:]+$`, ≤255 characters. Separator is `:` or `_`. Use lowercase, because tags are case-stable |
 | V17 | DigitalOcean | `08-provider-notes.md:249` · `PRV-13a`, `PRV-13b` | delete stops billing; volumes, snapshots and reserved IPs survive | PARTIAL | Per-second billing stops "when you destroy it" (60 s minimum). Survivors and their monthly cost are documented. Automated backups survive about four weeks, with no documented billing after destroy and no API delete. The driver must never enable backups |
-| V18 | DigitalOcean | `08-provider-notes.md:316` · `PRV-9`, `DEF-6` | SSH keys copied at Droplet creation or read later | PARTIAL | "Embed … upon creation" is documented, and deleting a key does not remove it from existing Droplets. The in-flight window is not documented. Clean up after the Droplet is `active` |
-| V19 | Cherry Servers | `08-provider-notes.md:199` · `PRV-9`, `DEF-6` | key material captured at request time or read later | UNDETERMINABLE | Not documented. Keep temporary keys until the server reaches `deployed` (or `allocated` for iPXE) |
+| V18 | DigitalOcean | `08-provider-notes.md:316` · `PRV-9`, `DEF-6` | SSH keys copied at Droplet creation or read later | PARTIAL | "Embed … upon creation" is documented, and deleting a key does not remove it from existing Droplets. The in-flight window is not documented. `active` is a consumption-timing candidate; cleanup remains governed by `PRV-9`/`ADR-0040` |
+| V19 | Cherry Servers | `08-provider-notes.md:199` · `PRV-9`, `DEF-6` | key material captured at request time or read later | UNDETERMINABLE | Not documented. `deployed` (or `allocated` for iPXE) is a consumption-timing candidate; cleanup remains governed by `PRV-9`/`ADR-0040` |
 | V20 | Cherry Servers | `08-provider-notes.md:216` · none named | iPXE is a rebuild-action variant; needs an image alongside? | PARTIAL | iPXE is a field of the `rebuild` action (and of create). Whether `image` is required is not documented. cherrygo sends `type: "reinstall"`, not `rebuild` |
 | V21 | Cherry Servers | `08-provider-notes.md:342` · correlator (`OPS-27`) | tags filterable server-side | UNDETERMINABLE | No tag filter is documented. Design for a paginated list and filter on the client |
 | V22 | Hetzner | `07-security-requirements.md:329` · `SEC-44`, `SEC-43` | separately registered accounts are not linked and terminated together | UNDETERMINABLE | Not documented. Needs a written answer. `SEC-43` remains a belief |
 | V23 | DigitalOcean | `07-security-requirements.md:329`, `08-provider-notes.md:319` · `SEC-44`, `SEC-43` | as V22 | UNDETERMINABLE | As V22 |
 | V24 | Cherry Servers | `07-security-requirements.md:329` · `SEC-44`, `SEC-43` | as V22 | UNDETERMINABLE | As V22 |
-
-Verdict count: CONFIRMED 5, REFUTED 0, PARTIAL 10, UNDETERMINABLE 9.
 
 ## 2. Facts
 
@@ -134,9 +132,7 @@ creation, so the temporary key resource can be deleted immediately after the cre
 returns while the create Action runs. Nothing says whether deleting the key during that Action is safe,
 and nothing says when rescue keys are read.
 
-**Consequence.** `PRV-9`'s "cleanup immediately after the create call returns" goes beyond the source.
-Safe wording: clean up after the create Action reaches `success`. For rescue, clean up after the reset
-that boots it. A live test may later tighten this.
+**Consequence.** The former provider note said "the temporary key resource can be deleted immediately after the create call returns"; that historical shortcut went beyond the source. The create Action reaching `success` and the reset that boots rescue are consumption-timing candidates, still `[verify]`. Deletion eligibility belongs to `PRV-9` (`ADR-0040`); these unmeasured timings do not establish it.
 
 ### V3 — Hetzner Cloud: key resource carries an engine-chosen name or label
 
@@ -153,8 +149,7 @@ chooses is **[verify]**".
 **Verdict.** CONFIRMED.
 
 **Consequence.** Marker becomes `[observed — HC-spec, 2026-10-06]`. `OPS-32`'s sweep can query with
-`label_selector`. Each temporary key must be freshly generated, since a duplicate fingerprint is
-rejected.
+`label_selector`. Duplicate fingerprints are rejected. Generated rescue/correlator material remains fresh; a caller-supplied create public key is not replaced with a generated one.
 
 ### V4 — Hetzner Cloud: `enable_rescue` when rescue is already enabled
 
@@ -242,11 +237,9 @@ rule.
 
 **Verdict.** UNDETERMINABLE. Not documented.
 
-**Consequence.** `PRV-42` should be guarded. When the identity read finds a server, assert
-`server_number == offer id` on the transaction. On a mismatch, treat the channel as catalogue-like and use
-`PRV-32`'s fingerprint search. A written answer from Hetzner would settle the rule.
+**Consequence.** Superseded 2026-10-09 by `ADR-0040`. Every lost-reply auction create uses the per-order fingerprint search across all ordering channels, reads the delivered `server_number` from the matched transaction, and confirms the resource. The 2026-10-11 order of offer `3084954` delivered server `3084954` after 18 min 41 s, adding a dated equal-number sample, not a rule. A written identity answer no longer gates this algorithm.
 
-### V9 — Robot temporary key: engine-chosen name, and listing after key deletion
+### V9 — Robot temporary key: caller-set name, and listing after key deletion
 
 **Spec.** `08-provider-notes.md:103-105`; `03-operation-lifecycle.md:1377-1379`.
 
@@ -259,10 +252,12 @@ rule.
 - No source says whether the transaction's `authorized_key[]` is a snapshot or a live join to the key
   resource.
 
-**Verdict.** PARTIAL. The name half is confirmed. The persistence half is not documented.
+**Verdict.** CONFIRMED for the 2026-10-11 tested auction transaction. The transaction retained
+the fingerprint in `authorized_key[]` after the temporary key was deleted (batch B step 6;
+`docs/research/panels-2026-10/r39/live-result.txt`). This observation is not a promise about
+every provider transaction.
 
-**Consequence.** The name is `[observed — Robot-WS, 2026-10-06]`. `OPS-32`'s Robot exception stands until the live test (batch
-B, step 6) shows the fingerprint still listed after `DELETE /key/{fp}`.
+**Consequence.** The name is `[observed — Robot-WS, 2026-10-06]`. `ADR-0040`'s correlator search and `PRV-9` cleanup eligibility remain unchanged.
 
 ### V10 — Robot rescue activation when already active
 
@@ -460,8 +455,7 @@ driver must never call it with a correlator tag.
 **Verdict.** PARTIAL. Copy at creation is documented. The window between `202` and first boot is not,
 because the guest reads keys at boot.
 
-**Consequence.** Delete the temporary key after the Droplet reaches `active`, or after the create action
-completes. `PRV-9`'s name requirement is met through `name`.
+**Consequence.** Droplet `active` and create-action completion are consumption-timing candidates, still `[verify]`; neither establishes deletion eligibility. Key deletion follows `PRV-9` (`ADR-0040`). The provider-side key can carry the operation id in its `name`.
 
 ### V19 — Cherry Servers: key captured at request or read later
 
@@ -474,8 +468,7 @@ read. Cherry's FAQ says Linux servers "are provisioned within 15 to 30 minutes".
 
 **Verdict.** UNDETERMINABLE. Not documented.
 
-**Consequence.** Keep the temporary key until the server reaches `deployed` (or `allocated` for iPXE;
-see cherrygo `servers.go` L26–40). This is the conservative reading of `PRV-9` and `DEF-6`. Cherry keys
+**Consequence.** `deployed` (or `allocated` for iPXE; see cherrygo `servers.go` L26–40) is a consumption-timing candidate, still `[verify]`. `PRV-9`/`ADR-0040` controls cleanup. Cherry keys
 carry a caller-set `label`.
 
 ### V20 — Cherry Servers iPXE
@@ -541,23 +534,25 @@ on the client.
 **Consequence.** `SEC-43` remains "a belief, not a defence" (`SEC-44`'s words). Only a written provider
 answer can settle it; no test on an account can show what a provider will do.
 
-## 3. `PRV-13b` — when billing stops after deletion
+## 3. Billing units and provider tails after deletion
 
-**The main point for the requirement.** `billing_stop_window` is a latency in seconds from request to
-billing stop. Hetzner (Cloud and Robot) rounds partial hours up, and Robot bills add-ons per day "or
-part thereof". On those products a delete at any latency still pays for the rest of the started unit:
-up to an hour, or up to a day. That is a property of the unit, so a twenty-sample latency measurement
-cannot reveal it. The reserve's wind-down term therefore needs the rounding unit as well as the latency.
+**Interpretation amended 2026-10-10 (`ADR-0037`, Q13 and Q18; `ADR-0033`).** Wind-down sizing
+belongs to `PRV-13b`: "Its latency allowance adds the waits in sequence". `PRV-36` owns the
+effective visibility-window measurement within that composition. Invoices check billing units and how the provider counts
+them. They do not provide a second latency for reserve sizing. For the prepaid first unit see
+`ADR-0033` and `PRV-44`'s `billing_unit`; for the remaining provider tails see `LDG-75`'s
+accepted accounting gaps. `ADR-0037` records the distinction: "What the provider bills after the
+gone-write is the operator's".
 
-DigitalOcean bills per second, so its post-delete cost is the latency itself. Its 60-second/$0.01
-minimum binds only on Droplets that live less than a minute.
-
-The units come from the documents below. The latencies still need `F18`'s measurement.
+The unit and grid evidence below remains useful: Hetzner rounds partial hours up and Robot
+bills add-ons per day "or part thereof". DigitalOcean bills per second subject to its
+60-second/$0.01 minimum; the money floor can bind beyond a minute. The quotations and table
+below are provider evidence, not deployment settings or values the engine reads.
 
 | Provider | Granularity (documented) | Stops at | Survives deletion and keeps billing | Not documented |
 |---|---|---|---|---|
 | Hetzner Cloud | hourly, partial hours rounded up, monthly cap | server deletion | Primary IPs (hourly; detached, not deleted, unless `auto_delete`), Floating IPs (monthly, prorated), Volumes (hourly, monthly cap), Snapshots (per GB-month, prorated). Backups are deleted with the server | delete-to-stop latency; `auto_delete` value on an auto-created Primary IP |
-| Hetzner Robot | hourly, partial hours rounded up, monthly cap; add-ons "per day or part thereof"; licences full calendar months | immediate cancellation (`cancellation_date=now`) | additional IPs and subnets *may* survive ("You may need to cancel these separately"; cancellable by API: `POST /ip/{ip}/cancellation`, `POST /subnet/{net-ip}/cancellation`). Licences carry a month-end billing tail; nothing says they outlive the server, and the driver orders none | whether IPs auto-cancel with the server; whether the `primary_ipv4` order add-on is a day-billed "add-on" (this note's inference, not stated) |
+| Hetzner Robot | hourly, partial hours rounded up, monthly cap; add-ons "per day or part thereof"; licences full calendar months | immediate cancellation (`cancellation_date=now`) | additional IPs and subnets *may* survive ("You may need to cancel these separately"; cancellable by API: `POST /ip/{ip}/cancellation`, `POST /subnet/{net-ip}/cancellation`). The tested auction `primary_ipv4` add-on and included /64 were absent after cancellation. Licences carry a month-end billing tail; nothing says they outlive the server, and the driver orders none | separately ordered IPs/subnets, catalogue orders and provider termination; whether the `primary_ipv4` order add-on is day-billed (inference, not stated); invoice |
 | DigitalOcean | per second, minimum 60 s or $0.01 | destroy | reserved and floating IPs, snapshots, volumes, volume snapshots (API reports each one's monthly `cost` if retained); backups retained about 4 weeks | whether retained backups bill; v5 public-IPv4 line after destroy |
 | Cherry Servers | on-demand "Hourly" from team balance; fixed-term monthly or annual, prepaid and not refunded | portal: "Your service will be canceled immediately" | "IP addresses, load balancers, and backup storage … continue to run and use your account balance until independently canceled" (the docs say "such as", so the list is not exhaustive) | hourly rounding unit; conflict with ToS §17.4 (below) |
 
@@ -584,8 +579,8 @@ The units come from the documents below. The latencies still need `F18`'s measur
   delete all backups bound to it."
 - Hetzner Docs, Volumes: "Volumes have a monthly price cap and are billed hourly."
 
-Declare `surviving_attachments`: Primary IP (`api`, unless `auto_delete` is read back true), Floating IP
-(`api`), Volume (`api`), Snapshot (`api`).
+For the Hetzner Cloud `surviving_attachments` kind declarations and cleanup classifications,
+including how per-IP `auto_delete` read-back relates to the immutable descriptor, see `PRV-13a`.
 
 **Hetzner Robot.**
 - "Billing system at Hetzner" (`https://docs.hetzner.com/general/others/new-billing-model/`, last change
@@ -598,9 +593,15 @@ Declare `surviving_attachments`: Primary IP (`api`, unless `auto_delete` is read
 - Server Auction FAQ: "The cancellation period for these servers is usually immediately." It also says
   that extra IPs, hardware and add-ons: "You may need to cancel these separately."
 
-Declare additional IPs and subnets as possible `api` survivors until batch B, step 9 settles it. The
-descriptor's unit is an hour for the server, and should be taken as a day for anything ordered as an
-add-on.
+`PRV-13a` retains Additional IP and subnet as possible `api` survivor kinds. The 2026-10-11
+auction `primary_ipv4` add-on and included /64 were absent after cancellation, settling batch B
+step 9 only for that order. Before cancellation, `GET /server/{n}` exposed both addresses, and
+account `GET /ip` and `GET /subnet` associated them with the server. The server and IPv4 were
+absent at +1 second; the /64 was checked absent at +20 seconds. `ADR-0037`, Q21 records the
+subsequent 45-minute watch, while the summary log contains only initial watch lines and no
+per-minute subnet checks. Absence does not establish invoice billing or the add-on's billing
+unit; treating it as day-billed remains an inference awaiting the invoice. The server's
+documented unit is an hour.
 
 **DigitalOcean.** Quotes are in V17. Further sources:
 - Reserved IP pricing (last verified 25 Jun 2025): "Reserved IPv4 addresses cost $5.00 per month ($0.01
@@ -664,26 +665,85 @@ because no account action can settle them.
 8. Add labels to the server one at a time until the API rejects one. Record the count and the error
    (V5).
 9. Delete the server. Note the UTC times of the `DELETE` and of the `deleting` → `404` transition.
-10. When the next invoice's usage statement arrives (up to 28 days after month end), read the server's
-    billed hours (`PRV-13b`).
+10. When the next invoice's usage statement arrives (up to 28 days after month end), check the
+    server's billing unit and how started hours are counted, including any visible grid boundary.
+    Do not derive a billing-stop latency from the invoice (`ADR-0037`, `ADR-0033`; amended
+    2026-10-08).
+11. **Deferred traffic re-admission test (`ADR-0039`; not run):** in each candidate location,
+    sample the provider traffic counter with timestamps while a controlled outbound stream
+    stays open, then stop it and sample again. Repeat with a server created mid-month and
+    compare the displayed allowance, consumption and next invoice; include the provider's
+    100 MB overage blocks. Evidence must bound the counter's worst observed age and the
+    bytes that can leave between its last reading and confirmed deletion, with headroom
+    sufficient for `ADR-0033`'s "priced, not amplified" criterion. Counter freshness,
+    location accounting and the deletion residual remain unverified.
 
-**Batch B — Hetzner Robot (one auction order, about €0.08, ordering enabled)**
+**Batch B — Hetzner Robot (partially run 2026-10-11; remaining steps are plans)**
 1. `POST /key` with `name=pv-<uuid>` (V9). Read it back.
 2. `GET /order/server_market/product`. Pick the cheapest offer and record its `id`.
 3. Order it with `authorized_key[]=<fp>`, `addon[]=primary_ipv4` and `test=false`. Without the add-on
    the server is delivered with no IPv4 (`server_ip: null`), and steps 7–8 would need IPv6 egress
-   from the test host. The add-on also exposes the day tail in steps 9–10 (`PRV-13b`).
+   from the test host. The add-on may expose a day tail in steps 9–10; its billing
+   unit awaits the invoice (`PRV-13b`).
 4. Poll until `ready`. Check `server_number == offer id` (V8, one more sample).
 5. `DELETE /key/{fp}` (V9).
-6. `GET /order/server_market/transaction`. Check that `authorized_key[]` still shows the fingerprint (V9).
+6. `GET /order/server_market/transaction`. Check that `authorized_key[]` still shows the fingerprint (V9). **Observed:** it did after the temporary key was deleted.
 7. `POST /boot/{n}/rescue` with a key, `reset`, and SSH in. Run
    `grep -n TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS` over the installimage scripts in the rescue system.
    Compare `/root/.ssh/robot_user_keys` with the activation fingerprint (V11).
 8. With rescue still active, `POST /boot/{n}/rescue` again with a different key (V10). Record the
    response, then `GET /boot/{n}/rescue`.
-9. `POST /server/{n}/cancellation` with `cancellation_date=now`. Record the UTC time. Check `GET /ip`
-   for whether the add-on IPv4 outlives the server.
-10. On the next invoice, read the hours billed for the server and the days for any add-on (`PRV-13b`).
+9. **Auction add-on survival observed; no-pre-read and reservation branches untested.** The
+   planned experiment was: without a `GET /server/{n}/cancellation` pre-read, first try
+   `POST /server/{n}/cancellation` with `cancellation_date=now` and
+   `reserve_location=false`. Record the response, UTC time and resulting cancellation
+   state. If Robot rejects it, use the existing pre-read path to complete cleanup;
+   do not infer that the pre-read is dispensable. A reservation-possible branch
+   unavailable on this server remains unverified. Check `GET /ip` for whether the
+   add-on IPv4 outlives the server. The runner instead read cancellation state first,
+   observed `reservation_possible=false`, then posted `cancellation_date=now` with
+   `reserve_location=false`. Robot returned HTTP 200 with
+   `cancellation_date: 2026-10-11`; the server and main/add-on IPv4 were absent at +1 second,
+   and the included /64 was checked absent at +20 seconds. The no-pre-read path and
+   reservation-possible branch remain `[verify]`. Separately ordered IPs/subnets,
+   catalogue orders, provider-initiated termination and the invoice remain untested.
+10. On the next invoice, check the server's hourly unit and how its hours are counted, and any
+    add-on's day unit and part-day counting. Record what the invoice establishes about the grid,
+    not a billing-stop latency (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
+11. **Deferred 10 Gbit traffic re-admission test (`ADR-0039`; not run):** compare the Robot
+    traffic counter with a controlled held TCP stream before disconnect, after disconnect,
+    and at intervals until the reading changes. Include a mid-month server with a known
+    allowance and a deletion after the last reading. Evidence must bound how long bytes
+    can remain invisible and the residual through cancellation/deletion against declared
+    headroom. A disconnected-only count cannot by itself bound a held stream; freshness
+    and the residual remain unverified. The default unlimited uplink needs no allowance
+    counter for this sale criterion.
+12. **Deferred order-limit experiment (`ADR-0036`; not run):** run only after the real-order
+    work above, on a test account whose ordering capacity can be spent without invalidating
+    this batch. This experiment may consume a full day of ordering capacity on that account;
+    reserve that capacity and do not interleave it with the real auction order. On
+    `POST /order/server_market/transaction`, send twenty invalid requests, then one
+    `test=true` request. On `POST /order/server/transaction`, send twenty `test=true`
+    requests, then one more. Continue requests after the first `403 RATE_LIMIT_EXCEEDED`
+    on each endpoint to learn whether they move the window. Record endpoint, UTC timestamp,
+    response code and any `max_request` and `interval` for every request. The account/user/IP
+    scope, rolling versus calendar reset, rejected-request and test-request counting, and
+    post-403 window behavior remain unsettled until measured. Never infer them from this
+    written procedure alone.
+13. **Endpoint-limit scope checks (`ADR-0034`, Q20/Q20b; not run):** use the
+    method/path inventory in `08-provider-notes.md` as the list of limits to check.
+    Arrange separately authorized test accounts, webservice users, source IPs and
+    endpoint-specific fixtures before this part of Batch B; the auction order above
+    alone cannot resolve every counter's scope.
+    For each listed limit, record UTC timestamp, method/path, provider account,
+    webservice user, source IP, server number where applicable, response code and
+    returned throttle details. Compare controlled requests across distinct users,
+    accounts and source IPs to determine the counting scope; compare server-number
+    paths to learn whether their counts share a counter. In particular determine
+    whether `POST /reset/{server-number}` counts per account or per server; if per
+    account, revisit Q20b's accepted v1 residual with the owner. Keep the order-POST
+    experiment in step 12 separate from the order-transaction GET checks here.
+    No counting scope is inferred from the written plan.
 
 **Batch C — DigitalOcean (one `s-1vcpu-512mb` Droplet, under $0.01)**
 1. Create a key named `pv-<uuid>`. Create a Droplet with it and tag `pv:<uuid>`. Record the time of the
@@ -694,8 +754,16 @@ because no account action can settle them.
 5. `GET /v2/droplets/{id}/destroy_with_associated_resources`. Record the keys and `cost` values
    (`PRV-13a`).
 6. `DELETE /v2/droplets/{id}`. Record the UTC time.
-7. Repeat steps 1–6 twenty times for `F18`'s billing-stop sample. Read each Droplet's line on the
-   invoice (`PRV-13b`).
+7. Read the Droplet's invoice line to check per-second counting and the 60-second/$0.01 minimum.
+   Record how the provider counts the unit and applies the floor, not a billing-stop latency;
+   no invoice-latency sample campaign is required (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
+8. **Deferred traffic re-admission test (`ADR-0039`; not run):** hold a controlled outbound
+   stream, timestamp the per-Droplet Mbps samples and any account/team transfer reading,
+   then end the stream and destroy the Droplet. Repeat with a mid-month Droplet and other
+   team traffic present to test the pooled allowance. Evidence must identify a counter
+   attributable to the usable team pool, bound its freshness and the bytes after the last
+   reading through destroy, and show sufficient headroom under `ADR-0033`. An Mbps time
+   series alone is not that counter; pooling and residual attribution remain unverified.
 
 **Batch D — Cherry Servers (one hourly server; out of v1, so lowest priority)**
 1. Create a key with `label=pv-<uuid>`. `POST` a server on the hourly cycle with the key and
@@ -714,5 +782,6 @@ because no account action can settle them.
 1. Hetzner, DigitalOcean and Cherry: "Do you link and terminate separately registered accounts that
    share a payment method, contact address or beneficial owner?" (V22–V24, `SEC-44`).
 2. Hetzner: "May a reseller serve end users it has not identified?" (V13).
-3. Hetzner: "Is an auction offer's `id` always the delivered `server_number`?" (V8).
+3. Hetzner: "Is an auction offer's `id` always the delivered `server_number`?" (V8). `ADR-0040` makes the answer nonblocking for lost-reply resolution.
 4. Cherry: "Does ToS §17.4's notice period apply to hourly (on-demand) servers?" (`PRV-13b`).
+5. Hetzner Cloud: "What does `server.locked` mean for network restriction, including provider abuse action?" (`ADR-0038`; no `PRV-35` change in this ticket).

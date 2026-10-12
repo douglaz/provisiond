@@ -215,6 +215,11 @@ buying anything.*
 
 This is `OVR-5` made concrete.
 
+For local successful settlement, see `DOM-8` (refresh) and `PRV-25` (reverse-DNS).
+The failure classifier below begins "On failure"; a successful local settlement is not a
+failure classification. Asynchronous surface: `API-7`; result bodies: `WIR-10`.
+*Amended 2026-10-08 (`ADR-0034`).*
+
 **OPS-11** On failure, the system MUST classify the error into `failed` or
 `needs_reconciliation` using the operation kind and the error kind:
 
@@ -246,6 +251,13 @@ before reaching it. `OPS-45`'s second marker is one column, `false` for both, so
 cannot tell them apart, and the machine may be sitting in rescue either way — which is the fact the
 marker records. The never-attempted exit was a third case until `RSC-18` was withdrawn, 2026-09-15.*
 
+*Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): `PRV-40` says to "refuse subsequent
+creates on that account and channel before any provider call" and, for a queued
+create closed at worker claim, to "settle the existing operation `failed`". These
+are occurrences decided before provider acceptance, not an admission-only error
+kind. `rate_limited` remains available to drivers and workers. See `API-7` for the
+purchase-tail refusal.*
+
 A failure is **ambiguous** when:
 
 - the error kind is `network`, `timeout`, or `internal` — the request may have been
@@ -253,8 +265,24 @@ A failure is **ambiguous** when:
 - the error kind is `conflict` *and* it arose from the worker being cut off mid-flight
   (`OPS-21`) rather than from a provider-reported state conflict; or
 - the error kind is `provider` *and* the upstream status was 5xx, or no upstream status
-  was recorded at all. A 4xx generally means the provider rejected the request and did not act; a
-  5xx means it may have acted and then failed to say so.
+  was recorded at all. A 4xx rejection of the mutating request itself means the provider did not
+  accept that request; a 5xx means it may have acted and then failed to say so; or
+- the operation's mutating request was accepted by the provider (`details.accepted: true`,
+  `PRV-5`), whatever the later error kind or status.
+
+**Amended 2026-10-08 (`ADR-0035`): acceptance is an additional ambiguity condition for the
+last row.** A later `rate_limited`, `not_found`, `authentication`, or provider 4xx error MUST NOT
+classify that accepted mutation `failed`. The goal-state success rule below still takes
+precedence. The refresh, parent, install/rescue-inventory and admission-only rows are unchanged;
+pre-provider admission has no accepted mutation. Unknown acceptance follows `PRV-5`'s
+"MUST report `details.accepted: null` with the mutating request's own failure mapped as above",
+never an implicit default.
+
+The accepted dated cancellation read-back (`PRV-13`) is an evidence read after a successful
+mutating response. Failure of that read alone does not enter this failure classifier; the
+settlement for the known accepted date belongs to `PRV-13`. This exception does not reclassify
+unknown acceptance or a later failure of the mutating request. *Clarified 2026-10-11
+(`ADR-0037`, Q22).*
 
 **AMENDED 2026-08-31 — "a 4xx means the provider did not act" is false, and believing it strands a
 customer's money.** For a **goal-state mutation** — delete, power on, power off, end rescue — a
@@ -294,8 +322,9 @@ rather than the offer. It is terms, not secrets, so it survives the purge exactl
 account does — and it is retained as **evidence**, not as a comparison field.
 
 **One snapshot, because there is one attempt** (`ADR-0014`, `ADR-0017`). `request_summary` carries
-the create's correlator, its offer snapshot and its at-cost setup fee (`LDG-67`,
-`05-persistence.md`), and resolution reads them without choosing.
+the create's correlator, its offer snapshot, its at-cost setup fee and its prepaid first unit
+(`LDG-67`, `05-persistence.md`; the unit since 2026-10-08, `ADR-0033`), and resolution reads them
+without choosing.
 
 *Withdrawn 2026-09-05, and the two sentences are kept verbatim because `F36` quotes them and a
 finding whose quotes resolve to nothing is worthless. They read: "`request_summary` holds a list
@@ -391,7 +420,10 @@ flowchart TD
     B -- "yes" --> D["Search the correlator on<br/>EVERY ordering channel, PRV-38.<br/>Union over channels"]
     D --> E{"How many resources?"}
 
-    E -- "exactly one" --> F["Resolved-observed"]
+    E -- "exactly one" --> V{"Direct read, OPS-27 / PRV-36"}
+    V -- "present" --> F["Resolved-observed"]
+    V -- "not_found inside window<br/>or failed read" --> WAIT
+    V -- "not_found past<br/>visibility window" --> K
     F --> F1{"Was the commitment<br/>already released by OPS-33?"}
     F1 -- "no" --> G["Attach. It becomes the<br/>machine's running commitment"]
     F1 -- "yes" --> H["OPS-36: attach, then route<br/>straight to exhaustion"]
@@ -402,8 +434,9 @@ flowchart TD
     H3 --> I
     I --> J["Tenant may still extend-runway subject to LDG-40<br/>LDG-62, until OPS-42's fence"]
 
-    E -- "zero, authoritative,<br/>past the negative window" --> K["Resolved-absent.<br/>Close and release in full"]
-    E -- "zero, window not elapsed" --> WAIT
+    E -- "zero, matched order<br/>still in progress, OPS-33" --> WAIT
+    E -- "zero, no in-progress match,<br/>authoritative, past the negative window" --> K["Resolved-absent.<br/>Close and release in full"]
+    E -- "zero, no in-progress match,<br/>window not elapsed" --> WAIT
     E -- "more than one" --> L["Duplicate. MUST NOT auto-attach either.<br/>OPS-38, operator remediates"]
     E -- "cannot be made<br/>authoritative" --> M["Unresolved. OPS-31's verbs<br/>are the only road"]
 
@@ -436,6 +469,8 @@ outcomes below:
 | More than one resource across every channel | **Unresolved — duplicate.** MUST NOT auto-attach either. Surface both for operator remediation (`OPS-38`). | Released per `OPS-33`; the duplicate is operator cost |
 | Any one of the searches cannot be made authoritative — the provider cannot filter, the listing window has expired, or no verified correlator exists for the operation's ordering channel (`PRV-33`) | **Unresolved.** Escalate to an operator (`OPS-31`, `WIR-35`). | Released per `OPS-33`, which applies here too |
 
+**Amended 2026-10-09 (`ADR-0040`): a lost-reply auction create uses the per-order fingerprint search across every ordering channel. The matched transaction supplies its delivered `server_number` for the confirming read. Offer-number equality is not assumed; an offer-number `not_found` cannot establish absence and a positive offer-number read alone cannot attribute the machine to this order.**
+
 **A correlator match is proof that an order landed, not that the resource exists, and the first
 row MUST be confirmed by a direct read before it attaches anything.** `08-provider-notes.md`
 records, from a live order, that Hetzner Robot's transaction "still" reports `status: "ready",
@@ -447,8 +482,9 @@ Robot order reports `ready` with a server number before the server API lists the
 read inside that window is not evidence of absence. **Where it returns `not_found` past the
 window, the operation resolves *absent* — the second row's outcome, reached without waiting for
 `OPS-33`'s negative window, because a direct read past the visibility window is authoritative
-where a listing was not**: no machine is attached and the commitment is released in full — with one addition to `LDG-39`, that a setup fee the provider's own transaction
-shows was charged becomes an `unrecoverable_setup_fee` deficiency rather than being pretended away.
+where a listing was not**: no machine is attached and the commitment is released in full — with one addition to `LDG-39`, that a setup fee or prepaid first unit (*the unit since 2026-10-08,
+`ADR-0033`*) the provider's own transaction shows was charged becomes the deficiency `LDG-39`'s
+absent row names for it rather than being pretended away.
 *Added 2026-09-05, and corrected the same day: a first form invented an "accepted-but-gone"
 outcome, which had no value in `WIR-35`'s closed `resolution` set, no settled status, no `LDG-39`
 row, and ignored the visibility window — so the ordinary Robot create resolved as gone and came
@@ -458,22 +494,32 @@ reconciliation attached, metered and fee-settled a ghost.*
 **A create MUST NOT settle `succeeded` on the strength of the reply in hand alone.** Before the
 terminal write the system MUST search the correlator across every ordering channel the driver
 reaches (`PRV-38`) and MUST settle `succeeded` only where that search yields exactly one
-resource. A create settles exactly one machine, so **more** than one is `OPS-38`'s many-case: it
+resource, confirmed by the direct read above. **After acceptance, zero or many resources, a
+failed search, or any non-authoritative search MUST leave the create in `needs_reconciliation`**;
+a failed confirming read likewise cannot establish success or settle-time absence. Later
+resolution follows the rows above. A create settles exactly one machine, so **more** than one is
+`OPS-38`'s many-case: it
 MUST NOT auto-attach either, and it goes to an operator (`OPS-31`), never to `succeeded`. An order
 that lands *after* the search was taken is beyond what any settle-time search can see, and
 `OPS-32`'s account sweep is the backstop for it. *Until 2026-09-05 the search was over several
 attempts' correlators; `ADR-0014` removed the second attempt, and what has to be searched is
 several channels, which `PRV-38` found was never covered.*
 
+*Amended 2026-10-08 (`ADR-0035`): the settle-time outcomes above include every unsuccessful
+search after acceptance. A matched order still in progress stays unresolved; `OPS-33` owns the
+negative-window qualification.*
+
 **A create whose order landed MUST be recorded in one transaction**, in the manner of `LDG-11`.
-This is one rule with **three entry points** — the provider **accepting the order in its reply**,
+This is one rule with **three entry points** — successful settle-time verification after the
+provider **accepting the order in its reply**,
 `OPS-27` **resolving-observed** a create whose reply was lost, and `OPS-36`'s **late attach** of a
 machine whose commitment `OPS-33` had already released — because each writes a set of effects a
 partial commit of which is unrepairable. Those effects are: the terminal write on
-the operation (`STO-19`'s write-once columns), the machine row, the **settlement of the setup fee**
-— a debit where a commitment is still open, an `LDG-66` operator deficiency where `OPS-33` has
-released it (`LDG-39`, amended 2026-09-02; it is never taken from available balance) — the
-clearing of any parked `LDG-67` pending-fee record, and the commitment decrement where a commitment
+the operation (`STO-19`'s write-once columns), the machine row, the **settlement of the setup fee
+and of the prepaid first unit** (`ADR-0033`, 2026-10-08) — each a debit where a commitment is still
+open, each an `LDG-66` operator deficiency where `OPS-33` has released it (`LDG-39`, amended
+2026-09-02; neither is ever taken from available balance) — the clearing of any parked `LDG-67`
+record, and the commitment decrement where a commitment
 is still open (`LDG-31`). They MUST commit together, under `LDG-35`'s per-tenant serialization
 because the debit reads the balance. **The late-attach entry point carries three further effects,
 and they commit in that same transaction**: the attach itself; *either* the wind-down commitment
@@ -523,13 +569,14 @@ re-planned, sized from a `runway_seconds` the payload purge deleted, ignoring th
 `max_commitment_sats` cap the original create may have set. That is precisely the surface
 `ADR-0011` abolished, reappearing through reconciliation.
 
-**The wind-down floor is tested against available balance with the setup fee taken out of the
-question** (amended 2026-09-02). `LDG-39` used to debit the late fee from available on this same
+**The wind-down floor is tested against available balance with the setup fee — and the prepaid
+first unit, of which `LDG-39` says "Where a row names the fee it names the unit as well" — taken
+out of the question** (amended 2026-09-02; the unit added 2026-10-08, `ADR-0033`). `LDG-39` used to debit the late fee from available on this same
 branch, which left "does available cover the floor" with two defensible answers and no rule: with
 100 sats available, a 70-sat fee and a 70-sat floor, fee-first charges 70 and makes the whole
 wind-down an operator loss, while reserve-first ultimately charges the customer 100 — both preserve
-`LDG-10` and the set chose neither. The fee is now never debited to the customer once `OPS-33` has
-released the commitment; it is an operator deficiency (`LDG-39`, `LDG-66`). **So there is one
+`LDG-10` and the set chose neither. Neither the fee nor the unit is debited to the customer once
+`OPS-33` has released the commitment; each is an operator deficiency (`LDG-39`, `LDG-66`). **So there is one
 number to test and one order to test it in**, and the ordering question dissolves rather than being
 answered.
 
@@ -613,7 +660,10 @@ bound.
 Before any ordering call the worker MUST re-read the offer's current price **in the provider's own
 currency** and compare it with the native price the commitment was sized from — **carried on the
 operation's `request_summary`, which MUST hold the accepted recurring price, its
-currency and its period, and the accepted setup fee** (`LDG-2`; *the
+currency and its period, and the accepted setup fee and prepaid first unit, the unit with its
+`billing_unit.seconds`** (`LDG-2`, `LDG-67`; *the unit and its seconds added 2026-10-08,
+`ADR-0033`, because the machine's row copies the seconds for its first seed, `LDG-38`,
+`05-persistence.md`*; *the
 fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment
 row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
 provider
@@ -1025,7 +1075,7 @@ operator verb — and on the operator verbs on the episode (`API-64`, `API-68`):
 |---|---|---|
 | `succeeded`, resource gone — including `OPS-11`'s goal-state row | `closed`, `close_reason: resource_gone`, in the terminal transaction | **Cleared**, same transaction |
 | `succeeded` recording that no mutation was required (`OPS-41`'s abort) | `closed`, `close_reason: funded`, in the terminal transaction: the condition has ended, and a later lapse opens a fresh episode | **Cleared**, same transaction |
-| `succeeded`, **scheduled** — the provider accepted a cancellation for a future date (`DOM-19`, `STO-8a`) | `scheduled`; `closed`, `close_reason: resource_gone`, in the transaction that tombstones the machine at the effective date — that tombstone is the gone-write of the last row, and nothing tombstones by timer: `LDG-74` allows "A machine still present after its date" (*reason stated 2026-09-14; the row named none while every other close did*) | **Unchanged**; **Cleared** by the tombstone, same transaction |
+| `succeeded`, **scheduled** — the provider accepted a dated cancellation and the machine remains present (`DOM-19`, `STO-8a`, `PRV-13`) | `scheduled`; the later evidenced gone-write uses the last row, whether before or after the effective date. The date alone does not close it. Tombstoning follows only when `STO-18` permits. | **Unchanged** |
 | `failed` — deterministic; the provider did not act | `stalled` | **Unchanged** |
 | `needs_reconciliation` | `uncertain`, until the attempt is resolved (`OPS-27`, `OPS-31`) and one of the rows below applies | **Unchanged** |
 | Resolved `applied`, the resource gone (`OPS-45`) | `closed`, `close_reason: resource_gone`, in the resolution transaction | **Cleared**, same transaction |
@@ -1049,6 +1099,11 @@ withdrawn. No timer moves a stalled episode; the evidenced gone-write remains a 
 declaration, and the retry and scheduled rows' fence cells were reworded that day to carry the
 verdict token, with no row's meaning changed.*
 
+*Amended 2026-10-11 (`ADR-0037`, Q21/Q22): the scheduled row remains open after its effective
+date while the machine is present. An evidenced gone-write, including `PRV-13`'s cancellation
+read-back, closes the episode and clears its fence; a retained gone machine can await attachment
+release evidence before tombstoning. A later attempt resolution cannot reopen the closed episode.*
+
 **A close is permanent, and the rows above apply to an open episode only** (`ADR-0021`). An
 attempt under a closed episode that later settles, or is resolved under `OPS-31`, changes the
 attempt and not the episode: `closed_at`, `close_reason` and the cleared fence stand, `STO-52`'s
@@ -1063,19 +1118,25 @@ retains the unresolved attempt; the termination establishes that the resource is
 call made it so.
 
 **A `stalled` episode is never retried by a timer.** A deterministic rejection repeated
-automatically is the loop `OPS-39` exists to prevent. A provider throttle is not a deterministic
-rejection, but it is not deferred either: `rate_limited` is on neither of `OPS-11`'s ambiguity
-lists, so a throttled delete is `failed` under its delete row, nothing in this set returns it to
-`queued`, and the attempt stalls its episode like any other refusal (`F48` records why no deferral
-is specified). A `stalled` or `uncertain` episode is therefore the operator's to look at
+automatically is the loop `OPS-39` exists to prevent. A throttle refusing the mutation before
+acceptance is `failed` and stalls the episode;
+a later failure of an accepted mutation follows `OPS-11`'s
+"the operation's mutating request was accepted by the provider" condition. For an accepted
+dated cancellation whose read-back fails, `PRV-13` instead says "the accepted attempt settles
+`succeeded` as `cancellation_scheduled` with its effective date"; the episode takes the
+scheduled row and keeps its fence. Neither case returns the attempt to `queued` (`F48`
+records the rejected deferral). *Clarified 2026-10-11 (`ADR-0037`, Q22).*
+*Amended 2026-10-08 (`ADR-0035`): the earlier blanket throttled-delete failure description is
+withdrawn; the table consumes the classification and its episode/fence effects are unchanged.*
+A `stalled` or `uncertain` episode is therefore the operator's to look at
 (`OPS-26`): its machine may still be running and billing, and the episode is not over. A later
 rate can fund it; a deletion decision already recorded by a fence is not reversed by that rate. The open episode is what keeps a later sweep from enqueuing
 a **second** delete against the same machine, and a written fence is what keeps `LDG-62` from selling
 runway after the deletion decision. See `OPS-41`'s ordered decision for an unfenced episode's attempt.
 
-**`scheduled` is the row a reader will not expect.** `DOM-19` says "the machine is still running,
-the customer can still reach it, and the operator is still paying for it" until its effective
-date, so it is still unfunded and the next exhaustion sweep will find it. Closing the episode there
+**`scheduled` is the row a reader will not expect.** `DOM-19` says "Passing the date
+alone is no evidence of absence." While the machine is present it may still cost the operator,
+including after its effective date, and the next exhaustion sweep can find it. Closing the episode there
 is precisely the case `OPS-39`'s 2026-08-14 amendment warns about — "on a provider that accepts a
 *scheduled* cancellation the second call can then alter or repeat the first's mutation" — reached
 through resolution instead of through a reason key. So an `applied` carrying an
@@ -1089,8 +1150,11 @@ table, and the deliberate answer for an attempt that *did* reach the provider wi
 exposure is that the fence **persists** — the customer keeps its satoshis and is told plainly that
 the machine is being cancelled — the residual `OPS-42` accepts, not an oversight. On
 the scheduled branch that is also the right answer on its own terms: runway bought past an
-effective cancellation date buys nothing, since `LDG-33` already protects the cost of running to it
-and the machine goes on that date regardless.
+effective cancellation date buys no customer-metered machine time, since `LDG-38` says
+"the earlier of its `effective_cancellation_date` and any gone observation" is the stop.
+The machine may remain present after that date; `LDG-74` says "A machine **still present after
+its date** has its meter stopped and is billing the operator". *Clarified 2026-10-11
+(`ADR-0037`, Q21/Q22).*
 
 **OPS-29** A correlator match MUST be exact. Resolution MUST NOT match on hostname, offer,
 creation time or any other heuristic, because two of a tenant's own concurrent creates can look
@@ -1141,6 +1205,11 @@ difference between a rule and its opposite: on every other kind `OPS-45` sets th
 provider call is **dispatched**, so the refusal covered every operation an operator could ever be
 asked to resolve. `WIR-35` carries the same rule for the wire; this sentence is the engine's copy of
 it, and the first correction reached only the wire.*
+
+*Amended 2026-10-08 (`ADR-0035`) and 2026-10-09 (`ADR-0037`, Q14): for a release resolved
+`applied`, `PRV-45` owns the attachment effect: "A successful completed release with no
+effective date MUST write the row's `released_at`"; a result with an effective date stores that
+date instead. `LDG-38` owns the exit write. `OPS-48` owns episode and fence transitions.*
 
 **And an operator MUST NOT be the first resort here.** `OPS-45` requires the engine's own record of
 whether a write began to be consulted before any of this: most install failures never reached a
@@ -1205,9 +1274,11 @@ a process that dies between that write and the dispatch leaves `false` over a ma
 never rebooted into rescue, and the column does not separate that row from one whose session is
 still open. Null is the only value that means no session was opened, and `false` moves to `true`
 and never back. **A driver's report that it cleaned up after a partial activation (`PRV-18`) does
-not move this marker**: the engine did not open the session and did not close it, and `PRV-18`'s
-own output for that case is "the identifiers of the leaked resources", an operator's fact and not
-the engine's record of its own execution. *Until 2026-09-16 this read "set when the driver's
+not move this marker**: the engine did not open the session and did not close it. On failed
+deactivation `PRV-18` reports "the identifier of the rescue environment left behind"; on failed
+eligible-key deletion it reports "the identifier of the key left behind". `PRV-18` also says "A key
+deliberately retained while deletion is ineligible is not a failed cleanup." Those reports are
+operator-facing facts, not the engine's record of its own execution. *Until 2026-09-16 this read "set when the driver's
 end-rescue call returns success, left unset when it fails or when the operation dies" — the
 classifier's two-way question standing where the column's three values belonged, and no sentence
 said when the column was written; a never-attempted exit was a third case until `RSC-18` was
@@ -1295,13 +1366,21 @@ the account would record every unlisted machine as gone — stopping their meter
 commitments across a whole account, on a throttle. An interrupted pass MUST record nothing about
 absence; what it observed *present* it may still record.
 
+**Amended 2026-10-10 (`ADR-0034`, Q20).** A complete pass MUST write the observed state
+and `machines.state_observed_at` (`STO-48`) for every managed machine it observed present.
+The interrupted-pass permission above remains a permission. A failed read establishes no
+observation for the machine that read failed to observe; a failed direct absence confirmation
+cannot record absence. Successful present observations from earlier pages remain eligible
+under the interrupted-pass rule.
+
 The sweep's gone-write is an exit under `LDG-38`. Provider enumeration and the direct re-read below
 remain outside the primitive (`LDG-69`).
 
 **And it may record an absence only about a machine past `PRV-36`'s effective visibility window for
 that provider** — `max(declared, max(observed))`, not the declaration alone (`ADR-0018`; this
-sentence read "declared" until 2026-09-08) — measured from the dispatch of the create that produced
-its `external_id`. *Added 2026-09-04. The sweep's listing is a read of provider state, and `PRV-36`
+sentence read "declared" until 2026-09-08) — measured from the end of the create call's wait,
+its reply or deadline expiry after a lost reply. *Amended 2026-10-09 (`ADR-0037`, Q13).*
+*Added 2026-09-04. The sweep's listing is a read of provider state, and `PRV-36`
 reads "a read of provider state is not authoritative about a mutation the driver issued until that
 provider's effective visibility window has elapsed". Nothing drew the line to here, so a machine created seconds before
 the sweep, whose create the provider's listing had not yet caught up with, was recorded gone:
@@ -1309,6 +1388,17 @@ the sweep, whose create the provider's listing had not yet caught up with, was r
 running and billing the operator with no funding behind it and nothing scheduled to look again.* A
 machine inside the window is not evidence either way and MUST be skipped, not deferred to a second
 opinion; the next pass has evidence.
+
+The sweep MUST also visit attachments of every machine still retained by `STO-18`, including a
+machine already recorded gone. It uses `PRV-45`'s attachment listing and direct non-mutating
+attachment read. Only a complete account pass, a complete attachment listing for that machine,
+and a direct absence for a missing billable attachment
+permit an observation transaction: write `released_at` at the observation instant and perform
+`LDG-38`'s exit write in that transaction. An interrupted or `rate_limited` listing, or a direct
+read that finds the attachment or fails, writes no absence. This does not dispatch a release
+mutation or change the machine's state. `LDG-32` owns commitment closure and `STO-18` remains
+the tombstone gate; an operator still initiates a `manual` cleanup where one is required.
+*Amended 2026-10-09 (`ADR-0037`, Q14): automatic attachment absence confirmation.*
 
 **A missing machine MUST be re-read directly before its absence is recorded.** The listing narrows
 the candidates; it never establishes one. *Added 2026-09-04, replacing a pass-start eligibility
@@ -1326,18 +1416,17 @@ snapshot-consistent pagination — which is all of them.
 `OPS-33`'s bounds a **correlator search** for a create whose outcome is unknown — derived from a
 provider's allocation behaviour, and on Hetzner Robot bounded by how quickly a human looks
 (`PRV-33`). Binding absence detection to it would let a machine the provider terminated in its first
-hours go on billing its customer for that whole window, while `LDG-74` makes the **sweep interval**
-"this rule's error bound, the maximum time a customer can be billed for a machine that is gone". `PRV-36`'s window is
+hours go on billing its customer for that whole window, while `LDG-74` says "The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence". `PRV-36`'s window is
 listing lag — eight seconds against live DigitalOcean — which is the quantity actually in play here.
 **A machine with no create of its own has no window at all**: a late-attached machine (`OPS-36`)
 was observed present at the provider before it became a record here, so an absence is evidence
-about it from the first pass. `LDG-74` is why the write exists at all: the
-meter reads the machine record, `DOM-8` refreshes that record only on an explicit caller operation,
-and nothing in this set refreshes on a schedule — so a machine the provider terminated went on
-draining its tenant's commitment until somebody happened to look. Reporting it to an operator is not
-enough, because the cost accrues while the report sits unread. **This sweep's stated interval is
-therefore a money parameter** (`OVR-19`): it is the maximum time a customer can be billed for a
-machine that no longer exists.
+about it from the first pass. `LDG-74` is why the write exists at all: `DOM-8` says
+"`OPS-32`'s account sweep reads each provider account independently of any caller and MUST
+write what it saw (state, and `machines.state_observed_at`, `STO-48`)". Present
+observations and confirmed absences update the cache without a caller. The cache does not
+authorize destruction (`DOM-8`). **This sweep's stated interval is therefore a money
+parameter** (`OVR-19`); `LDG-74` qualifies the customer-billing tail when the sweep yields
+to `rate_limited` or waits for confirmation.
 
 **A machine is unrecorded when it is absent from the `machines` table by
 `(provider_account, external_id)`** — *not* when it bears no correlator. The previous wording
@@ -1367,21 +1456,17 @@ correlator whose operation has settled or vanished is caller data the deployment
 so it is **deleted** rather than reported. That is the opposite remedy from an unrecorded machine, and
 the asymmetry is the point — one is a customer's running server, the other is a copy of a customer's
 operating system sitting in the operator's account. *A delete may answer that it already happened;
-`OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*added
-2026-09-16, `pv-lld`*): a key resource carrying an operation id as its name or tag (`PRV-9`) whose
-operation is not `running` is one the engine registered and could not remove — a crash before
-`PRV-21`, or before a create's cleanup — and is **deleted**, on the same footing as an image. Its
-private half died with the process, so it is clutter and not a credential; it is swept because
-clutter that accumulates one entry per crash forever is `RSC-21`'s "slow leak" at the provider.
-A key whose operation is still `running` is in use and MUST NOT be touched. On Robot the fingerprint
-of a per-order key is the order's correlator (`PRV-32`); the sweep may delete the resource only
-where the transaction listing carries the fingerprint independently, which `08-provider-notes.md`
-records as `[verify]`.
+`OPS-11`'s goal-state rule makes that a success.* **And temporary key resources** (*amended 2026-10-09, 2026-10-11 and 2026-10-12, `ADR-0040`*): a key resource carrying an operation id as its name or tag (`PRV-9`) MUST be deleted by the sweep when, and only when, `PRV-9` permits it: "A tagged temporary key still registered at the provider MUST be deleted by `OPS-32`'s sweep when, and only when, its operation has settled or its record has vanished, and no machine that operation produced still reads `provisioning`, whether or not an order was accepted." A crashed create or rescue operation in `needs_reconciliation` retains its key. `PRV-9` says "A vanished operation record satisfies only the settlement condition; the sweep MUST still check the provisioning condition against retained `machines` rows." It also says "On failure before acceptance, the driver MUST delete only a temporary key that its own operation successfully registered." The provider-side registration is distinct from the recovery private key (`RSC-19`).
 
-**OPS-33** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
+**OPS-33** **Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V7, retrieved 2026-10-06): Robot transaction listings on both ordering channels cover "within the last 30 days" [observed — Robot-WS, 2026-10-06]. The automatic-recovery horizon leaves a margin because rolling versus calendar alignment is unspecified; it does not alter the measured negative window or the matched-in-progress qualification below.** A negative search MUST NOT reserve a customer's balance indefinitely. Once a bounded
 negative window has elapsed, the commitment MUST be closed and released in full even though the
 operation remains open, and `OPS-32`'s account sweep MUST continue searching for the correlator
 indefinitely afterwards. `OPS-36` governs what happens if the machine then appears.
+
+**Amended 2026-10-08 (`ADR-0035`): the negative window MUST NOT run against a matched order
+that is still in progress.** That positive match is not a negative search, even before it yields
+a resource for a direct read. While it remains in progress, the create stays unresolved and this
+window cannot release its commitment. This adds no timeout on an in-progress order.
 
 **Where a provider channel has no verified correlator** (`PRV-33` — Hetzner Robot's **standard**
 channel is the live case after `PRV-30` disqualified its `comment` field; its auction channel
@@ -1409,7 +1494,7 @@ takes the visible loss.
 The window MUST be recorded per provider and MUST be derived from measurement rather than
 assumed. For the robot-style ordering shape it interacts with the transaction listing window
 (`08-provider-notes.md`): past that horizon automatic resolution is impossible and `OPS-31` is
-the only road, but the commitment was released long before.
+the only road, but a negative search releases its commitment under the bounded window above.
 
 ## Worker algorithm
 

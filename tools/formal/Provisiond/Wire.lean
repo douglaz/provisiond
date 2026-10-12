@@ -712,11 +712,12 @@ theorem foreign_indistinguishable_from_absent {α β : Type} (caller : TenantId)
     scopedLookup caller (some o) project = scopedLookup caller none project := by
   simp [scopedLookup, h]
 
-/-- The machine row's two columns the customer surface names and the two it hides: `WIR-11`,
+/-- The machine row's selected public columns and the two it hides: `WIR-11`,
 "`external_id` and raw provider metadata are **absent** on the customer surface". -/
 structure MachineRow where
   id         : MachineId
   name       : String
+  stateObservedAt : Option Nat := none
   externalId : String
   metadata   : Json
   deriving DecidableEq, Repr
@@ -724,12 +725,20 @@ structure MachineRow where
 structure MachineView where
   id   : MachineId
   name : String
+  stateObservedAt : Option Nat
   deriving DecidableEq, Repr
 
 /-- `WIR-11`'s view, "`external_id` and raw provider metadata are **absent** on the customer
 surface": the projection reads neither. -/
 @[req "WIR-11"]
-def machineView (m : MachineRow) : MachineView := { id := m.id, name := m.name }
+def machineView (m : MachineRow) : MachineView :=
+  { id := m.id, name := m.name, stateObservedAt := m.stateObservedAt }
+
+/-- WIR-11, ADR-0034: the optional stored observation survives projection unchanged.
+Naturals stand for timestamps; serialization remains the wire contract's. -/
+@[req "WIR-11"]
+theorem machineView_preserves_observation (m : MachineRow) :
+    (machineView m).stateObservedAt = m.stateObservedAt := rfl
 
 /-- The view of a machine row is the view of the same row with both provider columns replaced. -/
 @[req "WIR-11"]

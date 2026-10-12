@@ -14,6 +14,7 @@ import Provisiond.Rescue
 import Provisiond.Rehost
 import Provisiond.Admission
 import Provisiond.AccountStatus
+import Provisiond.ProviderTraffic
 /-! Historical defects as executable witnesses. Each one looked correct, was nearly built or was
 built, and broke; each is retained here so the trap cannot be re-laid without a red build.
 
@@ -22,7 +23,7 @@ How a proof here may be trusted is `ADR-0025`'s trust policy, enforced by `Gate.
 open Std
 
 namespace Provisiond.Witnesses
-open Provisiond.Meter Provisiond.Runway Provisiond.Claim Provisiond.Tables
+open Provisiond.Meter Provisiond.Claim Provisiond.Tables
 
 /-! ## The claim model -/
 
@@ -112,10 +113,12 @@ theorem clamp_leaves_credit_witness :
     debits [100, 50] 0 = [100, 50] ∧ Ledger.clamp 30 100 = (30, 70) := by
   decide +kernel
 
-/-- `OPS-41` (2026-09-04): the withdrawn `usable_sats > 0` predicate on the historical input. -/
+/-- `OPS-41` (2026-09-04): the withdrawn `usable_sats > 0` predicate on the historical input, a
+machine with no mark whose date is now. -/
 @[req "OPS-41"]
 theorem sub_second_runway_witness :
-    runwaySeconds 1 0 2 = 0 ∧ abortSats 1 0 2 = true ∧ abortDate 1 0 2 = false := by
+    Runway.runwaySeconds 1 0 2 = 0 ∧ Runway.abortSats 1 0 2 = true ∧
+    Runway.abortDate Runway.current 0 none 1 0 2 = false := by
   decide
 
 /-! ## The cancellation fence
@@ -1425,13 +1428,35 @@ def mach : Candidate := { account := acct, externalId := ⟨7⟩ }
 
 /-- The operation with its outcome unknown: nothing known, the commitment open. -/
 def unknownWorld (live : Bool) : Reconcile.World :=
-  { now := 0, dispatchedAt := 0, windows := { visibility := 8, negative := 1000 }, live := live,
+  { now := 0, dispatchedAt := 0, callWaitEndedAt := 0,
+    windows := { visibility := 8, negative := 1000 }, live := live,
     knowledge := .unknown, commitment := .open, orderLanded := none, throttled := false,
     retriedIntoThrottle := false, meterStoppedAt := none }
 
 /-- The machine record `OPS-32` sweeps: observed present at attach, its commitment running. -/
 def attachedWorld (live : Bool) : Reconcile.World :=
   { unknownWorld live with knowledge := .observedPresent mach }
+
+/-- A create accepted at its deadline, still hidden by the provider's listing lag. -/
+def lateAcceptedWorld : Reconcile.World :=
+  { attachedWorld true with now := 8, callWaitEndedAt := 7 }
+
+/-- The amended visibility clock refuses absence while the late accepted create may be live. -/
+@[req "PRV-36"]
+theorem late_acceptance_waits_from_reply :
+    let p := { Reconcile.current with pastWindowOnly := true, absenceWindow := .visibility }
+    let w := Reconcile.run p lateAcceptedWorld
+      [.sweep true false .notFound]
+    w.knowledge = .observedPresent mach ∧ w.meterStoppedAt = none := by decide
+
+/-- The former dispatch origin admits the same unsafe absence, while the negative window
+remains anchored to dispatch in both traces. -/
+@[req "PRV-36"]
+theorem late_acceptance_dispatch_origin_unsafe :
+    let p := { Reconcile.current with visibilityFromWaitEnd := false, pastWindowOnly := true, absenceWindow := .visibility }
+    let w := Reconcile.run p lateAcceptedWorld [.sweep true false .notFound]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 8 ∧
+    lateAcceptedWorld.negativeElapsed = false := by decide
 
 /-- `OPS-33`'s positive witness: the negative window elapses, the commitment is released, and the
 resource is still `unknown` — release is not absence. Then the sweep "MUST continue searching
@@ -1453,6 +1478,16 @@ theorem release_waits_for_negative_window :
       [.advance 999, .search [[]], .release]).commitment = .open ∧
     (Reconcile.run Reconcile.current (attachedWorld true)
       [.advance 2000, .release]).commitment = .open := by decide
+
+/-- `ADR-0035`: an in-progress order remains positively matched after the negative-window
+clock would otherwise expire. Removing only the exclusion releases its commitment. -/
+@[req "OPS-33"]
+theorem in_progress_order_witness :
+    let w := { unknownWorld true with matchedOrderInProgress := true }
+    let events : List Reconcile.Event := [.advance 2000, .release]
+    (Reconcile.run Reconcile.current w events).commitment = .open ∧
+    (Reconcile.run { Reconcile.current with negativeOnly := false } w events).commitment =
+      .closed := by decide
 
 /-- `OPS-27`'s 2026-09-05 sentence: the match on a gone Robot machine — "the listing outlives the
 machine" — records that the order landed and observes nothing; the read is what attaches. -/
@@ -1982,7 +2017,12 @@ theorem remeter_charged_twice_without_the_start_rule :
     w.roundingCredit = 3/5 ∧ w.mark = some 10 ∧
     (Funding.post p markedAtTen 540 630 (1/5)).charged = [(540, 630)] := by decide +kernel
 
-/-- A subject nothing has marked, in a period that opened at 60. -/
+/-- A machine nothing has marked, in a period that opened at 60, on an offer whose
+`billing_unit.seconds` is zero — `PRV-44`'s exact-elapsed-time offer, a unit of no length, under
+which nothing is prepaid for time and a machine's first seed writes its mark at the seed instant
+(`LDG-38`, `ADR-0033`). The witnesses that seed it and assert the mark or the first increment at
+the seed instant run under that zero unit; the first seed under a unit of some seconds is
+`unitWorld`'s below. -/
 def seedWorld : Funding.World := { fundWorld with mark := none, periodStart := 60 }
 
 /-- The subject is recorded billable at 30, before the period opened, and the first tick closes an
@@ -1993,9 +2033,10 @@ def seedTrace : List Funding.Event := [.billable 30, .post 60 90 (1/5)]
 def startOn : Funding.Params := { Funding.current with startsAtMark := true }
 
 /-- `LDG-38`'s seed, the start rule pinned: "Every transition of a subject into billable MUST write
-that subject's high-water mark at its seed instant", so the seed leaves the mark at 30, and the
-first increment is priced from 30: sixty seconds, the one entry of 12. (The split of those seconds
-at the period boundary is `Provisiond.Period`'s.) -/
+that subject's high-water mark at its seed instant", so the seed leaves the mark at 30 — a machine's
+first seed, under `seedWorld`'s zero unit, which offsets it by nothing — and the first increment is
+priced from 30: sixty seconds, the one entry of 12. (The split of those seconds at the period
+boundary is `Provisiond.Period`'s.) -/
 @[req "LDG-38"]
 theorem seed_starts_the_first_increment :
     let w := Funding.run startOn seedWorld seedTrace
@@ -2006,7 +2047,8 @@ theorem seed_starts_the_first_increment :
 /-- Without the seed the subject has no mark at its first tick: `LDG-38`'s trap, "A start at the
 metering period's first instant, for a subject not yet marked, forfeits every billable second before
 that boundary and makes the tick's timing a pricing input". The increment is priced from 60, and
-the thirty billable seconds before the boundary are never charged. -/
+the thirty billable seconds before the boundary are never charged. Under `seedWorld`'s zero unit
+the seed, had it been written, would have been at 30 and nothing prepaid. -/
 @[req "LDG-38"]
 theorem first_increment_from_the_period_start_without_the_seed :
     let p := { Funding.current with startsAtMark := true, seedOnBillable := false }
@@ -2016,7 +2058,8 @@ theorem first_increment_from_the_period_start_without_the_seed :
 
 /-- `LDG-38`: the seed is written at "any later re-entry into a billable state", and "an existing
 row's `r` is untouched". Exit at 100 closes the ten seconds left after `seedTrace`'s tick;
-re-entry at 200 moves only the mark. All guards here are pinned for control isolation. -/
+re-entry at 200 moves only the mark. All guards here are pinned for control isolation. The first
+seed is `seedWorld`'s, under its zero unit; the re-entry is never offset whatever the unit. -/
 @[req "LDG-38"]
 theorem reentry_seeds_the_mark_and_nothing_else :
     let p := { Funding.current with startsAtMark := true, seedOnBillable := true,
@@ -2090,14 +2133,16 @@ theorem reentered_life_is_valid (p : Funding.Params) :
 def unmarkedShortLife (p : Funding.Params) : Funding.World :=
   Funding.exitSubject p (Funding.seed p seedWorld 30) 34 (1/5)
 
-/-- Validity starts with `mark = none` and uses the existing seed, without assuming coverage. -/
+/-- Validity starts with `mark = none` and uses the existing seed, without assuming coverage — a
+machine's first seed under `seedWorld`'s zero unit, so at its instant, 30, and recording no unit. -/
 @[req "LDG-38"]
 theorem unmarked_short_life_is_valid (p : Funding.Params) :
     Funding.LifecycleTrace p seedWorld 0 (unmarkedShortLife p) 34 none [(30,34)] (some 34) := by
   exact .exit (.enter (.initial rfl) 30 (by decide)) 34 (1/5) (by decide) (by decide +kernel)
 
-/-- Execute the first seed and close. All relevant guards are pinned: this additional witness
-is not a second target for any guard-removal control. -/
+/-- Execute the first seed — a machine's, under `seedWorld`'s zero unit, so at its instant — and
+close. All relevant guards are pinned: this additional witness is not a second target for any
+guard-removal control. -/
 @[req "LDG-38", req "LDG-32"]
 theorem unmarked_short_life_closes :
     let p := { exitGuards Funding.current with exitPosts := true }
@@ -2108,11 +2153,14 @@ theorem unmarked_short_life_closes :
   decide +kernel
 
 /-- Apply the general unmarked-world proofs to this executable trace: its first span is covered
-without overlap, and the close precedes release. No partition is supplied as a premise. -/
+without overlap, and the close precedes release. No partition is supplied as a premise.
+`seedWorld`'s offer declares a zero unit, so the seed records none and the coverage is the plain
+one. -/
 @[req "LDG-38", req "LDG-32"]
 theorem unmarked_short_life_covered_before_release :
     let p := { exitGuards Funding.current with exitPosts := true }
     let w := unmarkedShortLife p
+    w.prepaid = none ∧
     (∀ t, Funding.Covered w.charged t ↔ Funding.Covered [(30,34)] t) ∧
     w.charged.Pairwise (fun a b => ∀ t, ¬ (Funding.Inside t a ∧ Funding.Inside t b)) ∧
     w.mark = some 34 ∧ (Funding.release w).mark = w.mark ∧
@@ -2123,9 +2171,171 @@ theorem unmarked_short_life_covered_before_release :
     cases he
   have trace := unmarked_short_life_is_valid p
   have coverage := Funding.unmarked_lifecycle_coverage p rfl rfl rfl rfl rfl seedWorld 0
-    rfl hc rfl trace
-  exact ⟨coverage.1, coverage.2, Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
-    seedWorld 0 rfl hc rfl trace⟩
+    rfl hc rfl rfl trace
+  have release := Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
+    seedWorld 0 rfl hc rfl rfl trace
+  have hp : (unmarkedShortLife p).prepaid = none := by decide +kernel
+  have hnp : ∀ t, ¬ Funding.Prepaid (unmarkedShortLife p) t := by
+    rintro t ⟨u, hu, -⟩; rw [hp] at hu; cases hu
+  refine ⟨hp, fun t => ?_, coverage.2.2.2, ?_, release.2.1, release.2.2.1, release.2.2.2⟩
+  · rw [coverage.1 t]; simp [hnp t]
+  · rw [release.1, Funding.unitEnd_of_none _ hp]; rfl
+
+/-! ### The prepaid first billing unit (`ADR-0033`, 2026-10-08)
+
+`ADR-0033`: "the machine's first seed places its mark at the seed instant plus one unit", and the
+meter starts where the unit ends; `LDG-38` carries eligibility: "A machine's first seed is eligible
+for an offset only if its first unit was actually debited to the customer". The copied duration is
+`machines.billing_unit_seconds`, `World.unitSeconds` here. The unit
+here is sixty seconds. The actual debit is an assumed input to Funding, whose transitions omit
+settlement; these witnesses check eligibility and metering, not the establishment of that fact. -/
+
+/-- `seedWorld`'s unmarked machine with a copied 60-second unit and an assumed actual debit of 12. -/
+def unitWorld : Funding.World := { seedWorld with unitSeconds := 60, firstUnitDebitSats := 12 }
+
+/-- The machine is recorded billable at 30, so its unit runs to 90, and the meter ticks at 60,
+inside it, at 1/5 sat a second. -/
+def unitTrace : List Funding.Event := [.billable 30, .post 30 60 (1/5)]
+
+/-- `Funding.current` with every other meter guard pinned, as `exitGuards` pins them, so that
+`prepaidFirstUnit` alone decides the pair below. -/
+def unitGuards (p : Funding.Params) : Funding.Params :=
+  { exitGuards p with exitPosts := true, offsetRequiresDebit := true }
+
+/-- The guard pinned on as well, for the lifecycle witnesses: they are not a second target for the
+control that flips it. -/
+def unitOn : Funding.Params := { unitGuards Funding.current with prepaidFirstUnit := true }
+
+/-- Refused with the guard: the seed leaves the mark at 90 and records the unit as 30 to 90; the
+tick inside the unit charges nothing and leaves the world — `r`, the entries, the deficiencies —
+exactly as the seed left it; an exit inside the unit, at 80, moves nothing either, so the prepaid
+debit stands; and the first increment past the unit is priced from the unit's end, 90 to 120 at
+1/5, the one entry of 6. -/
+@[req "LDG-38"]
+theorem first_unit_is_prepaid :
+    let p := unitGuards Funding.current
+    let seeded := Funding.run p unitWorld (unitTrace.take 1)
+    let w := Funding.run p unitWorld unitTrace
+    seeded.mark = some 90 ∧ seeded.prepaid = some (30, 90) ∧ w = seeded ∧
+    Funding.exitSubject p w 80 (1/5) = w ∧ w.roundingCredit = 0 ∧ w.entries = [] ∧
+    (Funding.post p w 30 120 (1/5)).charged = [(90, 120)] ∧
+    (Funding.post p w 30 120 (1/5)).entries.map (·.sats) = [-6] := by
+  with_unfolding_all decide
+
+/-- Admitted without it: the seed leaves the mark at 30 and records no unit, the tick charges 30 to
+60 — six satoshis for seconds the prepaid unit already bought — and the exit at 80 charges 60 to 80
+as well: the customer pays the unit and the seconds. -/
+@[req "LDG-38"]
+theorem unit_seconds_charged_without_the_offset :
+    let p := { unitGuards Funding.current with prepaidFirstUnit := false }
+    let w := Funding.run p unitWorld unitTrace
+    let x := Funding.exitSubject p w 80 (1/5)
+    (Funding.run p unitWorld (unitTrace.take 1)).mark = some 30 ∧ w.prepaid = none ∧
+    w.charged = [(30, 60)] ∧ x.charged = [(30, 60), (60, 80)] ∧
+    x.entries.map (·.sats) = [-6, -4] := by
+  with_unfolding_all decide
+
+/-- Pin every other guard, including the offset and runway start: only customer-debit eligibility
+can change the late-attach witness. Acceptance settlement is outside Funding's transitions. -/
+def debitGuards (p : Funding.Params) : Funding.Params :=
+  { unitOn with offsetRequiresDebit := p.offsetRequiresDebit }
+
+/-- Released create, then first attachment at 30; copied duration remains 60, actual debit is zero.
+Release alone does not erase a paid debit: this trace starts with no such debit. -/
+def unpaidLateSeed (p : Funding.Params) : Funding.World :=
+  Funding.seed (debitGuards p)
+    (Funding.release { unitWorld with firstUnitDebitSats := 0 }) 30
+
+/-- The seed's output mark feeds both derivation and abort. Zero usable sats at a valid rate
+cannot buy an unpaid unit; the re-derived date at 60 is now, so no funding abort. -/
+@[req "LDG-38", req "LDG-33", req "OPS-41"]
+theorem unpaid_late_attach_cannot_abort :
+    let seeded := unpaidLateSeed Funding.current
+    let rp : Runway.Params := { startAtMark := true }
+    seeded.mark = some 30 ∧ seeded.prepaid = none ∧
+    Runway.runwayUntil rp 60 seeded.mark seeded.remaining.toNat 0 1 = 60 ∧
+    Runway.abortDate rp 60 seeded.mark seeded.remaining.toNat 0 1 = false := by
+  with_unfolding_all decide
+
+/-- Remove only eligibility: the identical released, unpaid trace now admits a funding abort. -/
+@[req "LDG-38", req "LDG-33", req "OPS-41"]
+theorem unpaid_late_attach_aborts_without_debit_guard :
+    let seeded := unpaidLateSeed { Funding.current with offsetRequiresDebit := false }
+    let rp : Runway.Params := { startAtMark := true }
+    seeded.mark = some 90 ∧ seeded.prepaid = some (30, 90) ∧
+    Runway.runwayUntil rp 60 seeded.mark seeded.remaining.toNat 0 1 = 90 ∧
+    Runway.abortDate rp 60 seeded.mark seeded.remaining.toNat 0 1 = true := by
+  with_unfolding_all decide
+
+/-- Successful paid execution of the same seed-to-abort composition: a real debit protects the
+unit even with zero remaining authority. Guard pinned on to isolate the negative control above. -/
+@[req "LDG-38", req "LDG-33", req "OPS-41"]
+theorem paid_late_seed_protects_unit :
+    let seeded := Funding.seed unitOn (Funding.release unitWorld) 30
+    let rp : Runway.Params := { startAtMark := true }
+    seeded.mark = some 90 ∧
+    Runway.runwayUntil rp 60 seeded.mark seeded.remaining.toNat 0 1 = 90 ∧
+    Runway.abortDate rp 60 seeded.mark seeded.remaining.toNat 0 1 = true := by
+  with_unfolding_all decide
+
+/-- A zero first_unit at positive declared seconds supplies no debit; the ordinary seed meters
+from 30 if a later rate is positive. A paid money floor with zero duration still adds no time. -/
+@[req "LDG-38"]
+theorem zero_first_unit_has_no_offset :
+    let zeroPrice := { unitWorld with firstUnitDebitSats := 0 }
+    let seeded := Funding.seed unitOn zeroPrice 30
+    seeded.mark = some 30 ∧ seeded.prepaid = none ∧
+    (Funding.post unitOn seeded 30 60 (1/5)).charged = [(30, 60)] ∧
+    (Funding.seed unitOn { unitWorld with unitSeconds := 0 } 30).mark = some 30 := by
+  with_unfolding_all decide
+
+/-- A whole lifecycle under the rule: the first seed at 30, a tick at 60 inside the unit, a tick at
+120 past it, exit at 150. -/
+def unitLife (p : Funding.Params) : Funding.World :=
+  Funding.exitSubject p (Funding.run p unitWorld [.billable 30, .post 30 60 (1/5),
+    .post 60 120 (1/5)]) 150 (1/5)
+
+/-- The lifecycle is admitted by the general trace relation, with its one completed span 30 to 150. -/
+@[req "LDG-38"]
+theorem unit_life_is_valid (p : Funding.Params) :
+    Funding.LifecycleTrace p unitWorld 0 (unitLife p) 150 none [(30, 150)] (some 150) := by
+  exact .exit (.tick (.tick (.enter (.initial rfl) 30 (by decide)) 60 (1/5) (by decide)
+    (by decide +kernel)) 120 (1/5) (by decide) (by decide +kernel)) 150 (1/5) (by decide)
+    (by decide +kernel)
+
+/-- The successful execution, computed: the unit recorded as 30 to 90, two metered increments — 90
+to 120 and 120 to 150 — of six satoshis each, `r` at 0, the mark at 150, 18 of the 30 committed
+left, and release leaving the meter where the exit put it. -/
+@[req "LDG-38", req "LDG-32"]
+theorem first_unit_lifecycle_witness :
+    let w := unitLife unitOn
+    w.prepaid = some (30, 90) ∧ w.charged = [(90, 120), (120, 150)] ∧
+    w.entries.map (·.sats) = [-6, -6] ∧ w.roundingCredit = 0 ∧ w.mark = some 150 ∧
+    w.remaining = 18 ∧ w.deficiencies = [] ∧ (Funding.release w).remaining = 0 := by
+  with_unfolding_all decide
+
+/-- The same lifecycle under the general theorems: every second of the span 30 to 150 is priced
+once — inside the unit by the prepaid unit, after it by exactly one charged interval — no second
+by both, and the mark at release is the boundary. -/
+@[req "LDG-38", req "LDG-32"]
+theorem first_unit_lifecycle_covered :
+    let p := unitOn
+    let w := unitLife p
+    (∀ t, Funding.Covered w.charged t ↔ Funding.Covered [(30, 150)] t ∧ ¬ Funding.Prepaid w t) ∧
+    (∀ t, Funding.Covered [(30, 150)] t → Funding.Covered w.charged t ∨ Funding.Prepaid w t) ∧
+    (∀ t, Funding.Prepaid w t → ¬ Funding.Covered w.charged t) ∧
+    w.charged.Pairwise (fun a b => ∀ t, ¬ (Funding.Inside t a ∧ Funding.Inside t b)) ∧
+    w.mark = some (max 150 w.unitEnd) := by
+  let p := unitOn
+  have hc : unitWorld.markCovers := by
+    intro e he
+    cases he
+  have trace := unit_life_is_valid p
+  have coverage := Funding.unmarked_lifecycle_coverage p rfl rfl rfl rfl rfl unitWorld 0
+    rfl hc rfl rfl trace
+  have release := Funding.unmarked_release_follows_close p rfl rfl rfl rfl rfl
+    unitWorld 0 rfl hc rfl rfl trace
+  exact ⟨coverage.1, coverage.2.1, coverage.2.2.1, coverage.2.2.2, release.1⟩
 
 /-- Pin the posting guards so release order alone determines this witness. -/
 def releaseOrderGuards (p : Funding.Params) : Funding.Params :=
@@ -2154,6 +2364,41 @@ theorem release_before_close_loses_debit :
     w.charged = [(10,14)] := by decide +kernel
 
 end Funding
+
+/-! ## The runway derivation's start
+
+`LDG-33`: `runway_until = max(now, mark) + floor(usable_sats / current_customer_rate)`, with the
+mark the machine subject's latest (`ADR-0033`, 2026-10-08). -/
+
+/-- A machine a hundred seconds into an hour's prepaid unit — seeded at 0 on a 3600-second unit, so
+its mark is 3600 — with 20 usable satoshis at 2 a second: ten seconds of runway. -/
+def insideTheUnitDate (p : Runway.Params) : Nat := Runway.runwayUntil p 100 (some 3600) 20 0 2
+
+/-- With the start at the mark the date is 3610, the unit's end plus the ten seconds. A machine
+past its unit, its mark a closed increment end at 50, counts from now, 110; so does one with no mark
+yet. And the same machine with nothing left to spend — the twenty satoshis protected — is still
+inside its hour: its date is 3600, and `OPS-41` aborts the cancellation rather than deleting a
+machine whose prepaid unit runs. -/
+@[req "LDG-33", req "OPS-41"]
+theorem runway_counts_from_the_unit_end :
+    insideTheUnitDate Runway.current = 3610 ∧
+    Runway.runwayUntil Runway.current 100 (some 50) 20 0 2 = 110 ∧
+    Runway.runwayUntil Runway.current 100 none 20 0 2 = 110 ∧
+    Runway.abortDate Runway.current 100 (some 3600) 20 20 2 = true := by decide
+
+/-- Without it the same machine's date is 110: 3500 seconds early, the whole of the unit that has
+not elapsed — `ADR-0033`'s "every machine routes up to one unit early". At 120, past that date,
+`LDG-16`'s sweep has the machine routed on the flipped derivation's stored date while the customer's
+prepaid hour runs, and not routed on the rule's, whose date is 3610 — the rule pinned on here, so
+that the control flipping `Runway.current` refutes `runway_counts_from_the_unit_end` alone. -/
+@[req "LDG-33", req "LDG-16"]
+theorem runway_early_without_the_start_witness :
+    let flipped := { Runway.current with startAtMark := false }
+    let withRule := { Runway.current with startAtMark := true }
+    insideTheUnitDate flipped = 110 ∧
+    Runway.routed flipped 100 120 (some 3600) 20 0 2 ∧
+    ¬ Runway.routed withRule 100 120 (some 3600) 20 0 2 := by
+  refine ⟨by decide, ?_, ?_⟩ <;> unfold Runway.routed <;> decide
 
 /-! ## The billing period
 
@@ -2267,7 +2512,7 @@ is `failed`; under the install row as it stood — the kind column alone — it 
 `needs_reconciliation`, "an operator-resolved loss". -/
 @[req "OPS-11"]
 theorem host_key_abort_witness :
-    let abort : Failure := ⟨.integrity, false, .unrecorded, false⟩
+    let abort : Failure := ⟨.integrity, false, .unrecorded, false, false⟩
     classify currentRules .install abort ⟨false, true⟩ = some .failed ∧
     classify { currentRules with markerRule := false } .install abort ⟨false, true⟩ =
       some .needsReconciliation := by decide
@@ -2278,10 +2523,34 @@ was "the provider rejected the request and did not act" and the delete that succ
 `failed` — and `LDG-32` then never closed the commitment. -/
 @[req "OPS-11"]
 theorem already_deleted_witness :
-    let rejection : Failure := ⟨.provider, false, .status4xx, true⟩
+    let rejection : Failure := ⟨.provider, false, .status4xx, true, false⟩
     classify currentRules .deleteMachine rejection ⟨true, true⟩ = some .succeeded ∧
     classify { currentRules with goalStateRow := false } .deleteMachine rejection ⟨true, true⟩ =
       some .failed := by decide
+
+/-- `ADR-0035`: an accepted mutation followed by a refused read. With acceptance every
+last-row kind remains unresolved; without only that rule each of these reads records a
+false deterministic failure. The marker and goal-state rules are retained. -/
+@[req "OPS-11"]
+theorem accepted_read_failure_witness :
+    ∀ (k : Kind), k.lastRow = true →
+      ∀ e ∈ [ErrorKind.rateLimited, .notFound, .authentication, .provider],
+        let f : Failure := ⟨e, false, .status4xx, false, true⟩
+        classify currentRules k f ⟨true, true⟩ = some .needsReconciliation ∧
+        classify { currentRules with acceptanceRule := false } k f ⟨true, true⟩ =
+          some .failed := by decide
+
+/-- `PRV-5`: "never a preceding key upload". A key uploaded before the order's rejection
+confers no acceptance on the create; transport ambiguity stands without known acceptance, and
+an unknown-acceptance 5xx keeps the mutating request's mapped `provider` kind. -/
+@[req "OPS-11"]
+theorem rejected_order_witness :
+    classify currentRules .createMachine ⟨.provider, false, .status4xx, false, false⟩
+      ⟨true, true⟩ = some .failed ∧
+    classify currentRules .createMachine ⟨.network, false, .unrecorded, false, false⟩
+      ⟨true, true⟩ = some .needsReconciliation ∧
+    classify currentRules .createMachine ⟨.provider, false, .status5xx, false, false⟩
+      ⟨false, true⟩ = some .needsReconciliation := by decide
 
 /-- `ADR-0021`'s first hole: a machine recorded gone under `API-63`'s termination, its episode
 `stalled` with the fence set. With the gone-write row the episode closes `resource_gone` and the
@@ -2478,7 +2747,7 @@ no machine; tenant 2 gets the view, without the provider columns. -/
 theorem foreign_machine_witness :
     machineLookup ⟨1⟩ (some machineOfTenantTwo) = machineLookup ⟨1⟩ none ∧
       machineLookup ⟨1⟩ (some machineOfTenantTwo) = .notFound ∧
-      machineLookup ⟨2⟩ (some machineOfTenantTwo) = .ok { id := ⟨9⟩, name := "worker-1" } := by
+      machineLookup ⟨2⟩ (some machineOfTenantTwo) = .ok { id := ⟨9⟩, name := "worker-1", stateObservedAt := none } := by
   decide
 
 end Wire
@@ -2758,13 +3027,37 @@ def crashedSession : List Session.Event := openSession ++ [.crash]
 def failedExitSession : List Session.Event :=
   [.armExit, .beginRescue false, .remoteCommand, .endRescue false]
 
+/-- The tagged eligibility guard preserves the registration after a crash pending reconciliation and
+after settlement while its machine is provisioning, even if retention removes the operation row.
+Once provisioning clears, the sweep can remove it with that row still absent. Disabling the guard
+admits premature deletion of the crashed key. -/
+@[req "PRV-9"]
+theorem temporary_key_eligibility_witness :
+    let w := Session.run Rescue.current rescueSession crashedSession
+    let clean := Session.run Rescue.current rescueSession cleanSession
+    let settled := Session.step Rescue.current clean .settle
+    (Session.step Rescue.current w .sweepRemovesCredential).credentialRegistered = true ∧
+    (Session.step { Rescue.current with temporaryKeyEligibility := false } w
+      .sweepRemovesCredential).credentialRegistered = false ∧
+    (Session.step Rescue.current { settled with producedProvisioning := true }
+      .sweepRemovesCredential).credentialRegistered = true ∧
+    (Session.step Rescue.current
+      { settled with recordPresent := false, producedProvisioning := true }
+      .sweepRemovesCredential).credentialRegistered = true ∧
+    (Session.step Rescue.current
+      { settled with recordPresent := false, producedProvisioning := false }
+      .sweepRemovesCredential).credentialRegistered = false ∧
+    (Session.step Rescue.current settled .sweepRemovesCredential).credentialRegistered = false ∧
+    (Session.step Rescue.current { clean with recordPresent := false }
+      .sweepRemovesCredential).credentialRegistered = false := by decide
+
 /-- A session that exits cleanly with no key on disk: `RSC-19` persists the key on the uncertain
-branch and on no other, `PRV-21`'s exit removed the temporary credential, and the record renders
+branch and on no other, `PRV-9` retains the registered public key while the operation remains running, and the record renders
 `clean`. The model refuses nothing vacuously. -/
 @[req "RSC-19"]
 theorem clean_exit_leaves_no_key :
     let w := Session.run Rescue.current rescueSession cleanSession
-    w.keyOnDisk = none ∧ w.credentialRegistered = false ∧
+    w.keyOnDisk = none ∧ w.credentialRegistered = true ∧
     Session.rescueExit w = .clean := by decide
 
 /-- The design `RSC-19`'s 2026-09-15 paragraph refuses, as what it would cost: persisting the key
@@ -3348,7 +3641,7 @@ theorem without_native_split_cost_counts_twice :
 
 /-- The rich tail retains resource, pool and rate refusals together. -/
 def fencedHaltedNoRate (g : Admission.Guards) :=
-  purchaseTail g false .healthy true true false true true true
+  purchaseTail g false .healthy true false true true false true true true
 
 @[req "API-7"]
 theorem rich_tail_retains_every_refusal :
@@ -3358,6 +3651,50 @@ theorem rich_tail_retains_every_refusal :
 theorem without_collection_only_the_headline_remains :
     (fencedHaltedNoRate { Admission.current with richTailCollection := false }).refusals =
       [.fence] := by decide
+
+/-- `ADR-0039`'s sale guard rejects a remembered unsellable offer, withholds its price checks,
+and still collects the independent solvency and unavailable-rate refusals. -/
+def unsellableCreate (g : Admission.Guards) :=
+  purchaseTail { g with richTailCollection := true }
+    true .accountUnreachable false false false true false true true true
+
+@[req "API-7"]
+theorem unsellable_offer_is_refused_with_independent_faults :
+    (unsellableCreate Admission.current).refusals =
+      [.accountRecoverable, .offerNotSellable, .solvency, .rate] ∧
+    (unsellableCreate Admission.current).notChecked =
+      [(.commitmentCap, .unhealthy), (.commitmentCap, .unsellable),
+       (.commitmentCap, .noRate), (.balance, .unhealthy),
+       (.balance, .unsellable), (.balance, .noRate)] ∧
+    Admission.envelopeRetryable (unsellableCreate Admission.current) = false := by decide
+
+@[req "API-7"]
+theorem without_sale_guard_unsellable_offer_is_admitted :
+    (purchaseTail { Admission.current with offerSaleGuard := false }
+      true .healthy false false false false true true false false).refusals = [] := by decide
+
+/-- The create-only channel closure takes its own place between the offer and solvency.
+Its Boolean is the named account/channel snapshot; isolation and expiry remain conformance. -/
+def closedChannelCreate (g : Admission.Guards) :=
+  purchaseTail { g with richTailCollection := true, offerSaleGuard := true, channelClosureGuard := true }
+    true .accountUnreachable false true false true false true true true
+
+@[req "API-7"]
+theorem closed_channel_retains_all_refusals :
+    (closedChannelCreate Admission.current).refusals =
+      [.accountRecoverable, .offerNotSellable, .channelClosed, .solvency, .rate] ∧
+    Admission.envelopeRetryable (closedChannelCreate Admission.current) = false := by decide
+
+def channelOnly (g : Admission.Guards) :=
+  purchaseTail g true .healthy true true false false true false false false
+
+@[req "API-7"]
+theorem without_channel_guard_closed_create_is_admitted :
+    (channelOnly { Admission.current with channelClosureGuard := false }).refusals = [] := by decide
+
+@[req "API-7"]
+theorem channel_guard_refuses_closed_create :
+    (channelOnly Admission.current).refusals = [.channelClosed] := by decide
 
 /-- Complete short, incomplete pass, complete pass: `LDG-40`'s halt transition. -/
 def incompletePassingTrace (g : Admission.Guards) : Bool :=
@@ -3449,5 +3786,146 @@ theorem accepted_boundary_cases :
     Rate.rateAt Rate.current [⟨none, some ⟨100, 840, 60⟩, 850⟩,
       ⟨some 100, some ⟨100, 839, 60⟩, 850⟩] 850 = none ∧
     Rate.acceptanceTime 845 850 = 850 := by decide
+
+section ProviderTraffic
+open Provisiond.ProviderTraffic
+
+def freshObservation : Cache := ⟨some 100, 1, true⟩
+def freshClaim (g : ProviderTraffic.Guards) : Cache :=
+  claimRefresh { g with checkAtClaim := true, preserveAge := true } 60 110 none true freshObservation
+
+def ageClaim (g : ProviderTraffic.Guards) : Cache :=
+  claimRefresh { g with reuseFresh := true, checkAtClaim := true } 60 110 none true freshObservation
+
+@[req "DOM-8"]
+theorem fresh_refresh_has_no_call : (freshClaim ProviderTraffic.current).reads = 1 := by decide
+@[req "DOM-8"]
+theorem without_reuse_fresh_refresh_calls :
+    (freshClaim { ProviderTraffic.current with reuseFresh := false }).reads = 2 := by decide
+
+@[req "DOM-8"]
+theorem cache_answer_does_not_rejuvenate :
+    (ageClaim ProviderTraffic.current).observed = some 100 := by decide
+@[req "DOM-8"]
+theorem without_age_guard_cache_rejuvenates :
+    (ageClaim { ProviderTraffic.current with preserveAge := false }).observed = some 110 := by decide
+
+/-- Every request queued with no observation; only the row at each claim learns the last read. -/
+def queuedRefreshes (g : ProviderTraffic.Guards) : Cache :=
+  [100, 110, 120].foldl (fun s now => claimRefresh { g with reuseFresh := true, preserveAge := true } 60 now none true s) {}
+
+@[req "DOM-8"]
+theorem queued_refreshes_share_one_read :
+    (queuedRefreshes ProviderTraffic.current).reads = 1 ∧
+    (queuedRefreshes ProviderTraffic.current).observed = some 100 := by decide
+@[req "DOM-8"]
+theorem enqueue_check_spends_three_reads :
+    (queuedRefreshes { ProviderTraffic.current with checkAtClaim := false }).reads = 3 := by decide
+
+/-- A stale observed row, a failed read, then a fresh operation while tenant capacity permits.
+The caller gets failure on each failed read, never success from an invented observation. -/
+def failedRefreshes (g : ProviderTraffic.Guards) : Cache × Cache :=
+  let g := { g with reuseFresh := true, checkAtClaim := true, preserveAge := true }
+  let first := claimRefresh g 60 100 (some 0) false ⟨some 0, 0, false⟩
+  (first, claimRefresh g 60 101 (some 0) false first)
+
+@[req "DOM-8"]
+theorem failed_refresh_can_read_again :
+    failedRefreshes ProviderTraffic.current =
+      (⟨some 0, 1, false⟩, ⟨some 0, 2, false⟩) := by decide
+@[req "DOM-8"]
+theorem counting_failures_hides_the_next_failure :
+    (failedRefreshes { ProviderTraffic.current with successfulOnly := false }).2 =
+      ⟨some 100, 1, true⟩ := by decide
+
+@[req "DOM-8"]
+theorem stale_and_unobserved_read :
+    (claimRefresh ProviderTraffic.current 60 160 none true freshObservation).reads = 2 ∧
+    (claimRefresh ProviderTraffic.current 60 0 none true {}).reads = 1 := by decide
+
+/-- A complete pass observes a present machine at 100. The next sweep is due at 120;
+the claim at 110 is inside the validated window. Listing success, pass completion and
+claim timing are inputs; the witness proves local reuse, not scheduler reliability. -/
+def sweepRefresh (g : ProviderTraffic.Guards) : Option Cache :=
+  let g := { g with reuseFresh := true, checkAtClaim := true, preserveAge := true, successfulOnly := true }
+  if validFreshness g 20 20 then
+    some (claimRefresh g 20 110 none true (sweepPresent g 100 {}))
+  else none
+
+@[req "OPS-32"]
+theorem sweep_observation_answers_refresh :
+    (sweepRefresh ProviderTraffic.current).map Cache.reads = some 0 ∧
+    (sweepRefresh ProviderTraffic.current).map Cache.observed = some (some 100) := by decide
+@[req "OPS-32"]
+theorem without_present_write_refresh_reads :
+    (sweepRefresh { ProviderTraffic.current with sweepWritesPresent := false }).map Cache.reads =
+      some 1 := by decide
+
+/-- A five-unit window expires before the next twenty-unit sweep. Startup rejects that
+configuration; if the validation guard is removed, it is admitted and a claim at 110 reads. -/
+def shortWindowValidation (g : ProviderTraffic.Guards) : Bool := validFreshness g 5 20
+def shortWindowRefresh : Cache :=
+  claimRefresh ProviderTraffic.current 5 110 none true
+    (sweepPresent ProviderTraffic.current 100 {})
+
+@[req "DOM-8"]
+theorem short_window_is_rejected_and_loses_reuse :
+    shortWindowValidation ProviderTraffic.current = false ∧
+    shortWindowRefresh.reads = 1 := by decide
+@[req "DOM-8"]
+theorem without_window_guard_accepts_bad_window :
+    shortWindowValidation { ProviderTraffic.current with windowAtLeastSweep := false } = true := by decide
+
+def establishedPtr : Option Ptr := some ⟨"host.example", true⟩
+def establishedPtrNoop (g : ProviderTraffic.Guards) : Bool :=
+  ptrNoop { g with establishedOnly := true } establishedPtr "host.example"
+@[req "PRV-25"]
+theorem identical_ptr_is_local :
+    establishedPtrNoop ProviderTraffic.current = true := by decide
+@[req "PRV-25"]
+theorem without_ptr_noop_identical_ptr_calls :
+    establishedPtrNoop { ProviderTraffic.current with reverseDnsNoop := false } = false := by decide
+
+/-- A differing dispatched write made the old value uncertain. Asking for the old value
+must reach the provider, even though its text remains in the invalidated entry. -/
+def invalidatedPtr : Option Ptr :=
+  beforePtrDispatch { ProviderTraffic.current with invalidatePtr := true } establishedPtr
+
+def uncertainPtrNoop (g : ProviderTraffic.Guards) : Bool :=
+  ptrNoop { g with reverseDnsNoop := true } invalidatedPtr "host.example"
+@[req "PRV-25"]
+theorem uncertain_ptr_is_not_equality :
+    uncertainPtrNoop ProviderTraffic.current = false ∧
+    ptrNoop ProviderTraffic.current none "host.example" = false := by decide
+@[req "PRV-25"]
+theorem without_evidence_guard_old_ptr_falsely_succeeds :
+    uncertainPtrNoop { ProviderTraffic.current with establishedOnly := false } = true := by decide
+
+def ptrAfterDifferingDispatch (g : ProviderTraffic.Guards) : Bool :=
+  ptrNoop { g with reverseDnsNoop := true, establishedOnly := true }
+    (beforePtrDispatch g establishedPtr) "host.example"
+@[req "PRV-25"]
+theorem differing_dispatch_invalidates_ptr :
+    ptrAfterDifferingDispatch ProviderTraffic.current = false := by decide
+@[req "PRV-25"]
+theorem missing_invalidation_falsely_succeeds :
+    ptrAfterDifferingDispatch { ProviderTraffic.current with invalidatePtr := false } = true := by decide
+
+def reverseDnsAdmission (g : Admission.Guards) : Option Admission.Outcome :=
+  Admission.admit { g with ceilingStep := true }
+    { freshCreate with verb := .reverseDns, atCeiling := true }
+
+@[req "SEC-39"]
+theorem reverse_dns_ceiling_reaches_pipeline :
+    reverseDnsAdmission Admission.current =
+      some { verdict := .refused .ceilingExceeded, slotSpent := false } ∧
+    (Admission.admit Admission.current { freshCreate with verb := .refresh, atCeiling := true }).map
+      Admission.Outcome.verdict = some .admitted := by decide
+@[req "SEC-39"]
+theorem without_reverse_dns_ceiling_pipeline_admits :
+    (reverseDnsAdmission { Admission.current with reverseDnsCeiling := false }).map
+      Admission.Outcome.verdict = some .admitted := by decide
+
+end ProviderTraffic
 
 end Provisiond.Witnesses

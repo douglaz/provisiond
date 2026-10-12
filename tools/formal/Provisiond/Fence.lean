@@ -57,6 +57,13 @@ Operator authentication, durable operator evidence and idempotency receipt stora
 this model. `Attempt.retried` abstracts the durable requested-by/episode origin specified by
 API-64, not a claim-local flag.
 
+`Fence`'s machine carries no mark: `derive`, `extend`, `extend_admitted` and the `writeAbortDate`
+sites compute `now + runwaySeconds`, which is `LDG-33`'s derivation before the machine's first seed
+— "Before the seed exists there is no mark and the derivation counts from now" —
+`Provisiond.Runway.runway_from_now_before_the_seed`'s instance. The prepaid unit's offset
+(`ADR-0033`, 2026-10-08) is `Provisiond.Runway.runwayStart`'s and `Provisiond.Funding.seed`'s, and
+nothing here reads a mark.
+
 Re-derivation consumes an optional per-currency acceptance order (`STO-49`); no observation is
 `LDG-40`'s halt. The caller supplies the date computed by `LDG-33`; source aggregation, currency
 selection and rate arithmetic are outside this transition. The rate the worker reads is
@@ -315,10 +322,12 @@ def Params.holder (p : Params) (a : Attempt) : Holder :=
   | .episodeId => .episode a.ep
   | .attemptId => .attempt a.op
 
-/-- The abort predicate in force, on what the re-check read. -/
-def Params.abort (p : Params) (commitment prot rate : Nat) : Bool :=
+/-- The abort predicate in force, on what the re-check read. This model's machine carries no
+high-water mark, so the date is `LDG-33`'s derivation from `now` with no mark (`derive` writes the
+same date), under `Provisiond.Runway.current`. -/
+def Params.abort (p : Params) (now commitment prot rate : Nat) : Bool :=
   match p.abortPredicate with
-  | .date => abortDate commitment prot rate
+  | .date => abortDate Runway.current now none commitment prot rate
   | .sats => abortSats commitment prot rate
 
 /-- Where the worker is. `holding`: claimed, `OPS-8`'s hold on the machine, before the fence
@@ -625,7 +634,7 @@ def exempt (p : Params) (w : World) (a : Attempt) : Bool :=
 machine with unspent paused grace. The return observed by step 5 uses this same branch. -/
 @[req "OPS-41"]
 def derive (p : Params) (w : World) (r : Nat) : Verdict :=
-  if p.abort w.m.commitment w.prot r then
+  if p.abort w.now w.m.commitment w.prot r then
     .noMutation (some (w.now + runwaySeconds w.m.commitment w.prot r))
   else if p.pausedGraceInFence && pausedGrace p w then .defer
   else .proceed (some (w.now + runwaySeconds w.m.commitment w.prot r))
@@ -1220,7 +1229,7 @@ theorem defer_only_without_a_rate_before_the_deadline (p : Params) (w : World) (
 in the transaction, and the paused protection applies. In particular a funded machine never waits. -/
 @[req "OPS-41"]
 theorem derive_defers_iff (p : Params) (w : World) (r : Nat) :
-    derive p w r = .defer ↔ p.abort w.m.commitment w.prot r = false ∧
+    derive p w r = .defer ↔ p.abort w.now w.m.commitment w.prot r = false ∧
       p.pausedGraceInFence = true ∧ pausedGrace p w = true := by
   unfold derive; (repeat' split) <;> simp_all
 
@@ -1445,11 +1454,11 @@ theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true)
 
 theorem derive_proceeds (p : Params) (hab : p.abortPredicate = .date) (w : World) (r : Nat)
     (d : Option Nat) (h : derive p w r = .proceed d) :
-    abortDate w.m.commitment w.prot r = false := by
+    abortDate Runway.current w.now none w.m.commitment w.prot r = false := by
   unfold derive at h
   split at h
   · simp at h
-  · simpa [Params.abort, hab] using ‹¬p.abort w.m.commitment w.prot r = true›
+  · simpa [Params.abort, hab] using ‹¬p.abort w.now w.m.commitment w.prot r = true›
 
 /-- What a re-check that lets the cancellation through has read, under `current`'s keys (each a
 hypothesis, so that a flipped key reddens its witness and not this theorem): retry satisfying
@@ -1475,7 +1484,7 @@ theorem recheck_proceeds (p : Params) (hk : p.suspensionKey = .currentState)
     (p.retryDeletes = true ∧ a.retried = true ∧
       (p.retryNeedsFence = false ∨ w.m.fence = some (p.holder a))) ∨ w.suspended = true ∨
     (∃ r, (w.rate = some r ∨ (w.rate = none ∧ w.deadlinePassed = true ∧ restored = some r)) ∧
-      abortDate w.m.commitment w.prot r = false) ∨
+      abortDate Runway.current w.now none w.m.commitment w.prot r = false) ∨
     (w.rate = none ∧ w.deadlinePassed = true ∧ restored = none) := by
   unfold recheck at h
   split at h
@@ -1845,7 +1854,7 @@ theorem extension_first (p : Params) (hguard : p.retryNeedsFence = true)
     (ha : w.attempt = some a) (hs : w.suspended = false)
     (hk : p.suspensionKey = .currentState) (sats : Nat) (hf : w.m.fence = none)
     (hb : sats ≤ w.balance)
-    (hfunded : p.abort (w.m.commitment + sats) w.prot r = true) (restored : Option Nat) :
+    (hfunded : p.abort w.now (w.m.commitment + sats) w.prot r = true) (restored : Option Nat) :
     ∃ d, (fenceTxn p (extend p w sats) restored).phase = .noMutation n d ∧
     (fenceTxn p (extend p w sats) restored).m.fence = none ∧
     (fenceTxn p (extend p w sats) restored).m.commitment = w.m.commitment + sats ∧
@@ -1860,7 +1869,7 @@ theorem extension_first (p : Params) (hguard : p.retryNeedsFence = true)
     unfold recheck
     split
     · exact ⟨_, rfl⟩
-    · simp [exempt, hguard, hf', hf, hk, hs', hs, hr'.trans hr, derive, hc, hprot', hfunded]
+    · simp [exempt, hguard, hf', hf, hk, hs', hs, hr'.trans hr, derive, hc, hprot', hnow', hfunded]
   obtain ⟨d, hre⟩ := hre
   have hft := fenceTxn_abort p (extend p w sats) n a restored d (hph'.trans hph) (ha'.trans ha) hre
   rw [hmid] at hft

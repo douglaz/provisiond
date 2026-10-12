@@ -92,13 +92,14 @@ choice.
 **STO-6** **AMENDED 2026-09-08 (`ADR-0016`) — the engine is one process and that is accepted;
 `api` is what replicates.** `engine` runs as exactly one supervised process (`OPS-47`). That
 process is a single point of failure for every mechanism that stops a machine billing — `LDG-14`'s
-exhaustion cancellation, `SEC-45`'s one-action suspension and `OPS-32`'s account sweep, of whose
-interval `OPS-32` says it is "the maximum time a customer can be billed for a machine that no longer
-exists" — and the supervisor's restart window is the accepted outage, alarmed under `OVR-18`.
+exhaustion cancellation, `SEC-45`'s one-action suspension and `OPS-32`'s account sweep, whose interval `LDG-74` says "MUST be stated as a customer-billing residual" — and the supervisor's restart window is the accepted outage, alarmed under `OVR-18`.
 `api` MAY run as any number of replicas against the shared store. **A deployment MUST NOT run its
 store on an engine that forbids a second `api` replica**, and the primitives the store provides for
 that are `STO-1`'s engine-checked atomic claim, `STO-51`'s per-machine index and startup lock,
-`STO-47`'s conditional write (`STO-27`) and `LDG-35`'s per-tenant serialization.
+`STO-47`'s conditional write (`STO-27`), `STO-27`'s "conditional-write claim on
+`(provider_account, ordering_channel, offer_id)`", and `LDG-35`'s per-tenant serialization.
+*Amended 2026-10-10 (`ADR-0036`): the primitive inventory now includes the shared
+resource-offer exclusion.*
 
 **`LDG-35`'s "MUST state which" is discharged in `ADR-0015`**: per-tenant advisory locks held for
 the transaction, acquired in ascending tenant-identifier order where one transaction spans two
@@ -166,7 +167,7 @@ concurrency** (`OVR-19`); the pools are sized from them.
   `retryable: true`, `retry_after_ms`) before any transaction begins, so the refusal writes no
   `STO-35` receipt of its own, and `API-11` judges the key's re-send against whatever receipt an
   earlier send left — none, for a key never sent before. It is not `rate_limited`: `API-50` says an
-  obedient caller "MUST never be throttled for rate", and a full pool is the replica's condition,
+  obedient caller "MUST never be throttled by the deployment's caller-throughput pacing", and a full pool is the replica's condition,
   not the caller's rate, so the decision is `503` rather than a non-rate `429`. Read and write
   checkouts are budgeted separately, on the same reasoning `API-50` applies to rate limits, so a
   poller cannot crowd out an extension.
@@ -256,18 +257,22 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `kind` | enum | `virtual` \| `bare_metal` |
 | `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null only for a machine that came from no offer, which no v1 machine is (`ADR-0020`) |
 | `install_strategies` | list of text | nullable; the machine's own install eligibility, **copied from the offer's list at create** (`WIR-30`) — or from the operation's `request_summary` snapshot where the machine is attached by resolution instead (`OPS-13`) — and never re-resolved afterwards. An empty list means **no install is permitted on this machine** — the offer allowed none. A null value MUST be read as empty, never as a fall-back to `DOM-10`'s account capabilities |
+| `billing_unit_seconds` | integer | nullable; the `seconds` of `PRV-44`'s `billing_unit` for the offer this machine was created from, **copied from the create's `request_summary` snapshot** — at create, or at attach where the machine is attached by resolution instead (`OPS-13`) — **in the same transaction as `offer_id`**, and never re-resolved afterwards. `LDG-38`: "The seconds are read from `machines.billing_unit_seconds`", as the install gate reads `install_strategies`; `LDG-38` holds why the seed reads this copy and neither the create's snapshot nor the live offer. **A null value MUST be read as zero** — `PRV-44`'s exact-elapsed-time unit, a first seed at its instant — **never as a fall-back to the live offer**. *Added 2026-10-08, `ADR-0033`* |
 | `state` | enum | see `DOM-7` |
 | `region` | text | nullable |
 | `public_ips` | list of text | ordered; first entry is the rescue address |
+| `reverse_dns` | map of address to text | provider-established PTR values; empty initially. Recording, invalidation and eligibility for no-op are owned by `PRV-25`. *Added 2026-10-08 (`ADR-0034`)* |
 | `metadata` | json | redacted (`DOM-6`) |
 | `correlator_kind`, `correlator_value` | text, text | what was actually written into the provider at create (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). A single value here, not the operation's list: this row records the one correlator **this resource itself bore**. Nullable, for a machine that bore none when adopt returns (`ADR-0020`). *A single UUID column could not hold Robot's fingerprint, which is why the pair replaced it* |
-| `effective_cancellation_date` | timestamp | nullable; set when cancellation is accepted for a future date (`DOM-19`) |
-| `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine constraint, **read** not assumed (`PRV-13c`) |
-| `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort** — the last two added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
+| `effective_cancellation_date` | timestamp | nullable; stored when an accepted cancellation returns an effective date, including one already passed (`PRV-13`); a scheduled outcome retains it for the meter. The date alone is no gone observation (`DOM-19`). *Amended 2026-10-11 (`ADR-0037`, Q22).* |
+| `earliest_cancellation_date` | timestamp | nullable; the provider's per-machine permitted-from start, **read** not assumed (`PRV-13`, `PRV-13c`); a day-only value is stored as the UTC instant at the start of that day in the provider's date zone, distinct from the priced-through end |
+| `first_unit_debit_id` | UUID | nullable reference to the retained `ledger_entries` row for this machine's `first_unit_debit`; settlement writer and eligibility fact owned by `LDG-39`, seed reader by `LDG-38`. *Added 2026-10-08, `ADR-0033`* |
+| `runway_until` | timestamp | when funding expires (`PRV-13d`); readable by the caller (`LDG-15`). **Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`), by `OPS-41`'s no-mutation abort, and by a stalled-episode keep (`API-68`)** — `API-68`: "write the `LDG-33` re-derived `runway_until` using the transaction's rate and clock" (*list repaired 2026-10-08, `ADR-0033`*) — extension and abort added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |
 | *`destroy_not_before`* | — | **Withdrawn 2026-09-25 (`ADR-0028`).** *It was `ADR-0026`'s destruction deadline, a wall-clock instant the exhaustion sweep's predicate and the cancelling worker's provider call read (`LDG-16`); it delayed a destruction, where `destroy_committed` below, `OPS-42`'s fence, orders two writers against each other. Written only by `STO-54`'s restore, as the restore instant plus one re-derivation interval; cleared by an extension (`LDG-62`) and by `OPS-41`'s no-mutation abort; discharged by no observation, because a restore moved the date backward by something other than consumption. The restore grace's unpaused end is one instant on the restore record, `STO-56`'s `grace_ends_at`, used at each claim under `OPS-41`, and no machine carries a deadline. With `rate_confirmation_ref`, withdrawn 2026-09-23 (`ADR-0027`), it replaced `exhausted_since` (2026-09-05 to 2026-09-21), which carried the confirmation wait and the restore grace on one clock and whose horizon half could never fire — `ADR-0026`. A conformance item, `CNF-99`, tested the behaviour for three weeks with no mechanism behind it, and then passed over the dead branch for sixteen days more* |
-| `network_restriction_status` | enum | `none` \| `restricted` \| `disabled` \| `unknown` (`DOM-27`, `PRV-35`). **Defaults to `unknown`, never `none`** — `none` is a claim and only an observation supports it |
-| `network_restriction_source` | enum | **nullable**; `provider_api` \| `operator_notice`; which established the value above. A driver-read value is authoritative over an operator-recorded one (`PRV-35`). **Null exactly when nobody has looked** — the state every machine starts in, where neither value is true. *Marked nullable 2026-08-31: `status` defaults to `unknown` and `observed_at` was already nullable, but this column had no legal value for that state, so two builders would have invented two answers* |
-| `network_restriction_observed_at` | timestamp | nullable; when that observation was made. Null with a status of `unknown` means nobody has looked |
+| `provider_restricted` | boolean | nullable before a provider reading; whether any mapped network-restriction flag was positive at the last driver reading (`PRV-35`) |
+| `provider_observed_at` | timestamp | nullable before a provider reading; when provisiond read the mapped flags, not when the provider acted |
+| `operator_recorded_at` | timestamp | nullable; the recording transaction's instant for an active operator notice; cleared on withdrawal (`WIR-47`) |
+| `operator_ref` | text | nullable; opaque reference to the active operator notice, cleared with `operator_recorded_at` (`WIR-47`) |
 | `last_install_strategy` | enum | nullable; `DOM-29`. Which strategy last installed this machine — not what is *permitted*, which is `install_strategies` |
 | `last_install_verified` | boolean | nullable; whether provisiond verified the bytes that reached the disk. False on a catalogue install (`DOM-28`), where the provider converts them and exposes no checksum |
 | `last_install_at` | timestamp | nullable; when. **All three survive `STO-14`'s deletion of the operation that knows** — a long-lived machine otherwise outlives the record of how it came to be |
@@ -275,14 +280,18 @@ two cases about one machine would otherwise carry two answers to one physical qu
 | `state_observed_at` | timestamp | nullable; **when `state` was last established by an authoritative read of the provider** — a refresh (`DOM-8`), a driver read during an operation, `OPS-32`'s sweep concluding an absence **on that requirement's own terms**, which are stricter than a listing — presence is authoritative from the first pass, absence only under the conditions `OPS-32` sets out — or `API-63` confirming the whole provider account terminated. As opposed to `updated_at`, which moves for any write at all. `LDG-74` reads it: the meter stops at this instant, never at the unknown instant the provider acted, because provisiond polls rather than watches (`STO-41`'s distinction). Null where nobody has read the provider since the row was created |
 | `created_at`, `updated_at` | timestamp | |
 
+*Machine columns amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b). The public object is
+derived by `WIR-47`.*
+
 **STO-48** **`state_observed_at` is a money column, and `updated_at` cannot stand in for it.**
 `LDG-74` stops billing a machine the provider has destroyed at the instant the observation was made,
 and both it and `OPS-32` MUST write that instant here. Two requirements mandated the write and no
 column existed to receive it — which is `STO-38`'s named failure class, on the fifth requirement to
 hit it. It is separate from `updated_at` because that column moves when the fence is set, a
 restriction is recorded or a runway is re-derived, none of which is evidence about the provider; and
-separate from `network_restriction_observed_at`, which answers a different question about a machine
-that still exists. For exit writes and their serialization, see `LDG-38` and `OPS-32`.
+separate from `provider_observed_at`, which dates the provider's network flag reading on a machine
+that still exists. `WIR-47` owns the public network-restriction rendering. For exit writes and
+their serialization, see `LDG-38` and `OPS-32`.
 
 Constraints: unique `(tenant_id, provider_account, external_id)`; **unique `(provider_account,
 external_id)` across all tenants (`STO-17`), which is also the index `OPS-32`'s account sweep reads
@@ -333,7 +342,15 @@ reporting such a machine deleted cannot be enforced.
 | `external_id` | text | provider-side identifier |
 | `billable` | boolean | whether it continues to accrue cost after machine deletion |
 | `cleanup` | enum | `api` (the driver can delete it) \| `manual` (named operator procedure) |
+| `effective_cancellation_date` | timestamp | nullable; provider date carried by a successful terminal or `applied` release; the attachment's customer-meter stop boundary, not evidence of absence |
 | `released_at` | timestamp | nullable |
+
+`PRV-45`'s successful terminal or `applied` resolution transaction writes a returned effective
+date to `effective_cancellation_date` without deriving `released_at` from that result, even if
+the date has already passed; a prior gone observation remains recorded. A completed release
+without a date writes `released_at` instead. `OPS-32`'s
+complete sweep writes `released_at` at its direct gone observation in the same transaction as
+the `LDG-38` exit. The date itself schedules no write. *Amended 2026-10-09 (`ADR-0037`, Q14).*
 
 **STO-18** A machine MUST NOT be tombstoned while any `billable` attachment with a null
 `released_at` remains. `STO-8` says tombstone when the resource is gone; `PRV-13a` says a machine
@@ -345,10 +362,10 @@ Operation records reference them, and an operator investigating a
 
 **STO-8a** "Succeeds" means the resource is gone. Where the provider only accepted a
 *scheduled* cancellation, the machine MUST be recorded `cancellation_scheduled` with its
-effective date (`DOM-19`) and MUST NOT be tombstoned until that date passes — or until the
-resource is independently recorded gone (`LDG-74`, `API-63`), which is the earlier end `DOM-19`
-admits. Tombstoning at acceptance hides a running, billing machine from every inventory query that
-filters out deleted rows.
+effective date (`DOM-19`) and MUST NOT be tombstoned until the resource is independently
+recorded gone (`LDG-74`, `API-63`) and `STO-18` permits retention to end. Passing the date
+alone does not establish absence. Tombstoning at acceptance hides a running, billing machine
+from every inventory query that filters out deleted rows. *Amended 2026-10-11 (`ADR-0037`, Q21).*
 
 ### `operations`
 
@@ -363,7 +380,7 @@ filters out deleted rows.
 | `provider_account` | text | nullable |
 | `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (`ADR-0014`): a create has one attempt and one correlator. Written **before** the provider call, like `provider_account` (`OPS-35`), and null for every operation kind other than create. *`F36` and `ADR-0014` record what the withdrawn per-attempt list cost* |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** (native minor units, currency, and the satoshi amount authorized at the create, `LDG-67`, `LDG-39`). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and that fee as the amount `LDG-39` settles — debited against a still-open commitment, or absorbed as an operator deficiency where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
+| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted — the create's record of the unit's duration, from which `machines.billing_unit_seconds` takes the copy the machine's first seed reads, at create or at attach (`LDG-67`, `LDG-39`, `LDG-38`; `ADR-0033`, 2026-10-08). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
 | `result` | json | nullable, redacted |
 | `error` | json | nullable, redacted |
@@ -409,7 +426,8 @@ purge exists. The contents are:
   (`OPS-35`), and what `OPS-13` requires: what was attempted, and any provider-side identifiers
   that were created.
 - **For a create** — the correlator, the offer snapshot and the at-cost setup fee enumerated on the
-  `request_summary` row below.
+  `request_summary` row below, and since 2026-10-08 the prepaid first unit beside the fee
+  (`ADR-0033`).
 - **For the kinds `OPS-45` governs** (*it names six; this said "five" until 2026-09-16*) — the two markers, `write_started_at` and `rescue_exited_cleanly`,
   copied from their columns as that row already requires.
 
@@ -464,19 +482,23 @@ those references.
 
 ### `provider_observations`
 
-**STO-53** **ADDED 2026-09-08 (`ADR-0018`).** The observed half of a measured window. `PRV-36`
-and `PRV-13b` declare a window in the descriptor (`PRV-44`); this table holds what the engine has
-actually seen, and the effective window is the larger of the two by `PRV-36`'s rule.
+**STO-53** **ADDED 2026-09-08 (`ADR-0018`).** The observed half of the visibility window.
+This table holds what the engine has actually seen; `PRV-36` owns the measurement procedure and
+"the effective window is `max(declared, max(observed))`".
 
 | Column | Type | Notes |
 |---|---|---|
 | `provider_account` | text | not null |
-| `kind` | enum | `visibility` \| `billing_stop` |
 | `operation_id` | UUID | not null; the mutation the sample was taken from |
 | `dispatched_at` | timestamp | not null; when the mutation was dispatched to the provider |
 | `observed_at` | timestamp | not null; when the engine first observed its effect |
 
-Primary key `(operation_id, kind)`; index on `(provider_account, kind)` for the aggregate.
+The stored sample remains dispatch-to-observation. `PRV-36`'s effective visibility window
+uses its duration but begins to run after the mutating call's wait ends; sample timestamps do
+not set that clock origin. *Amended 2026-10-09 (`ADR-0037`, Q13).*
+
+Primary key `(operation_id)`; index on `(provider_account)` for the aggregate.
+*Amended 2026-10-08 (`ADR-0037`): the billing-stop sample kind and the `kind` column are dropped.*
 
 **Append-only, and written as a by-product.** The engine writes a row when a resolution (`OPS-27`)
 establishes when a resource became visible, and when an ordinary mutation's effect is first read
@@ -541,7 +563,7 @@ the authorization system.
 | `id` | UUID | primary key |
 | `tenant_id` | text | not null; **no foreign key** (`STO-26`) |
 | `seq` | integer | not null; the per-tenant monotonic sequence of `LDG-6` |
-| `kind` | enum | `topup` \| `usage_debit` \| `setup_fee_debit` \| `operation_fee_debit` \| `correction` — closed by `LDG-7` |
+| `kind` | enum | `topup` \| `usage_debit` \| `setup_fee_debit` \| `operation_fee_debit` \| `first_unit_debit` (*added 2026-10-08, `ADR-0033`*) \| `correction` — closed by `LDG-7` |
 | `amount_sats` | integer | **signed** (`LDG-1`); a debit is negative. *Until 2026-09-02 this read "which is what makes `LDG-38`'s netting come out right" — `LDG-38` no longer nets over entries at all, and the sign rule stands on `LDG-1` alone* |
 | `balance_after` | integer | the running balance after this entry (`LDG-6`); authoritative for reads per `LDG-70` |
 | `subject_kind`, `subject_id` | enum, UUID | nullable; `machine` \| `attachment` — **`LDG-8`'s *subject*.** Required on every `usage_debit`, because a machine and each of its billable attachments (`PRV-13a`, `machine_attachments`) are separately metered subjects and `LDG-38` carries a rounding credit and a high-water mark **per subject** (`STO-45`). Carrying only `machine_id` merges them into one meter, and the merge under-bills by whichever subject is not the one being posted |
@@ -705,7 +727,7 @@ accepted row needed for this clamp as well as the floors above.
 | `subject_kind`, `subject_id` | enum, UUID | `machine` \| `attachment` — `LDG-8`'s subject, the same one `ledger_entries` carries. A machine and each of its billable attachments are separately metered (`STO-38`) and so are separately totalled |
 | `billing_period` | text | `LDG-68`'s calendar month in UTC |
 | `rounding_credit_num`, `rounding_credit_den` | integer, integer | `LDG-38`'s `r`: how far the last posting's `ceil` ran **ahead** of the exact charge, as an exact rational (`LDG-4`, `LDG-1`). **The invariant `0 ≤ r < 1` is the whole of this table's integrity story** — `LDG-72` checks it by inspection, and an in-range value that is nonetheless wrong costs the subject at most one satoshi for the life of the period. *Five columns stood here until 2026-09-02: `charged_magnitude`, `exact_charge_num`/`den` and three cumulative seconds figures. They are withdrawn together and the trap behind them is worth keeping — see `STO-45`* |
-| `high_water_increment_end` | timestamp | See `LDG-72` |
+| `high_water_increment_end` | timestamp | See `LDG-72`, including seed row placement: "even when the mark lies in a later month" (`ADR-0033`, 2026-10-08) |
 | `version` | integer | for the conditional write, in the manner of `LDG-34` |
 | `updated_at` | timestamp | |
 
@@ -784,6 +806,30 @@ deployment could move to a server engine and silently lose the only thing preven
 from spending the same balance. **The create's conditional write on `STO-47`'s row (`API-63`) is on that list too** (added
 2026-09-05): it is what orders admission against a termination, and a read in its place is not a
 primitive at all under snapshot isolation.
+**Added 2026-10-09 (`ADR-0036`):** the store MUST also support `PRV-42`'s
+conditional-write claim on `(provider_account, ordering_channel, offer_id)` for
+`offer_is_resource` creates, shared across tenants. The claim and the create's
+commitment and operation are one admitting transaction. An unresolved create retains
+its claim; settling its outcome releases it. The primitive MUST reject a competing
+claim atomically even when both callers read the same older snapshot.
+
+**STO-58** **Added 2026-10-10 (`ADR-0036`).** The store MUST retain the following
+logical ordering state in shared persistence, visible to every `api` replica and the
+engine across process restart. Physical tables, indexes and representation are left to
+the implementation:
+
+- A channel closure is identified by provider account and ordering channel, with the
+  reported closure interval's end retained so admission and worker-at-claim readers
+  (`PRV-40`: "retain a closure for the reported `interval`") can calculate the
+  remaining closure. It remains available throughout the
+  reported interval; a process-local timer alone cannot serve either reader.
+- A resource-offer exclusion is identified by provider account, ordering channel and
+  offer id, with the winning create operation's identity and unresolved status retained
+  for the admission guard (`PRV-42`: "An unresolved create retains the claim until its
+  outcome is known") and the atomic competing-claim primitive (`STO-27`: "The primitive
+  MUST reject a competing claim atomically even when both callers read the same older snapshot").
+  Its lifetime follows the winning create's outcome settlement; an unresolved exclusion
+  has no independently invented expiry.
 
 **STO-28** Decrementing a commitment MUST be a conditional write on its `version` (`LDG-34`), and
 posting a `usage_debit` MUST happen in the same transaction as the decrement (`LDG-31`).
@@ -949,7 +995,8 @@ deadline cannot serve as its end),
 when the record was opened; per-record presence and permanent nullability are owned by
 `LDG-66`; pointer amended 2026-10-04, `pv-gip.39`, T8),
 `cause` (`clamp_overflow` | `exception_branch` | `rate_outage` | `account_loss` |
-`late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`)),
+`late_attach_cleanup` (`OPS-36`'s unfunded wind-down) | `unrecoverable_setup_fee` (`LDG-39`) |
+`unrecoverable_first_unit` (`LDG-39`'s rows for the prepaid first unit, `ADR-0033`, added 2026-10-08)),
 `idempotency_key` (unique), `opened_at`. `LDG-66`'s record. It is deliberately not
 a `ledger_entries` row: every entry kind there moves tenant satoshis, and these move none.
 *Amended 2026-10-04 (`pv-gip.39`, `ADR-0031`): the deficiency-resolution timestamp is
@@ -957,13 +1004,15 @@ removed; `LDG-75` owns accrual classification and invoice coverage.*
 **Durable account provenance** (*added 2026-10-04, `pv-gip.39`, J2*): `provider_account`
 is required on every deficiency, written by its producer in the producing transaction from the
 cost's provider account. For machine/attachment costs the producer resolves the account through
-the subject. Every setup-fee deficiency producer in `LDG-39` MUST populate this
-`provider_account` from the originating `operations.provider_account` in the same transaction
-as the deficiency, including the absent-but-charged and abandoned-estimate branches with no
-machine row. *Producer detail moved here 2026-10-04 (`pv-gip.39`, U2).* Subsequent account attribution MUST
+the subject. Every producer in `LDG-39` of a deficiency for an order-landed obligation it parks —
+the setup fee's, the prepaid first unit's (*reworded over both 2026-10-08, `ADR-0033`*) — MUST
+populate this `provider_account` from the originating `operations.provider_account` in the same
+transaction as the deficiency, including the absent-but-charged and abandoned-estimate branches
+with no machine row. *Producer detail moved here 2026-10-04 (`pv-gip.39`, U2).* Subsequent account attribution MUST
 read this field, without depending on a retained operation or a machine for a machine-less create.
-A setup-fee deficiency with no machine uses `subject_kind: operation` and the originating
-operation's id as `subject_id`; that identifier remains evidence after `STO-14` retention,
+A deficiency for such an obligation with no machine uses `subject_kind: operation` and the
+originating operation's id as `subject_id`, one record per obligation and cause under its own
+`idempotency_key`; that identifier remains evidence after `STO-14` retention,
 not a foreign key requiring that operation to survive. The row and its account link remain
 resolvable under `STO-57`.
 
@@ -1006,13 +1055,25 @@ fresh and newest plus bound would date the start in the future. When the clocks 
 outage — the newest goes stale, and a later pass accepts one observation into a still-thin window —
 the replay returns the first instant, which those per-writer formulas did not. A late opening
 changes no bill: `LDG-38`'s apportioning reads the persisted `absorbed_from`, not the moment it was
-written. **The subject row starts at `max(currency outage start, billable-span seed)`.**
+written. **The subject row starts at `max(currency outage start, the subject's latest mark)`**
+(`LDG-72`; amended 2026-10-08, `ADR-0033`). For the seed value, `LDG-38` owns the rule:
+"an unpaid first seed MUST write it at the seed instant" and "No mark is ever written ahead of
+now except an eligible first seed's mark at the paid unit's end". For example, with a currency
+outage starting at 10, an unpaid machine attached and seeded at 30 has mark 30: a tick at 60
+opens a row from 30, absorbing eligible post-attach time. A paid 60-second unit seeded at 30
+instead has mark 90: the tick at 60 is discarded and a tick at 120 opens a row from 90. An
+attachment seeded at 30 whose increment 30–60 closed has mark 60 and opens from 60. These
+examples apply the maximum above; no row absorbs pre-attach time. Provider cost attribution
+remains `LDG-75`'s: "Provider cost MUST count once whoever bore it: an exposure estimate and the
+charge realizing it MUST NOT both enter accrual".
 Rows of one outage MUST carry the same `absorbed_from` wherever that maximum is the same,
 regardless of posting order or current settings. For row closure at exit to nonbillable, see
 `LDG-38` and `LDG-72`. Settings changes move neither an existing row's start nor a later row's
 replayed start for the same clipped span.
 Re-entry during the same currency outage can open a new row, whose `absorbed_from` is clipped to
-the re-entry seed. Neither row absorbs the nonbillable gap. The conditional-insert guard above
+no earlier than the subject's latest mark — the re-entry seed where that seed wrote it, the
+paid unit's end where the re-entry fell inside the unit (*amended 2026-10-08, `ADR-0033`*).
+Neither row absorbs the nonbillable gap. The conditional-insert guard above
 applies to competing postings within each span. Re-entry changes the subject row start, not the replayed currency outage start.
 *Amended 2026-10-04 (`pv-gip.28`, `pv-gip.6`, Q13): replay uses `LDG-58`'s as-of
 selection for both clocks, including delayed thin verdicts; a later-accepted row supplies no
@@ -1044,10 +1105,12 @@ was). It is keyed on the account rather than on the tenant because the fact is a
 account: `SEC-43` deliberately spreads tenants across accounts, so one row answers for all of them
 and a per-tenant copy would be the two-homes drift `DOM-27` was reorganised to avoid.
 
-**`status` defaults to `healthy` and `source` records which established it**, on
-`machines.network_restriction`'s reasoning: a driver observation is authoritative over an operator
-record, and an operator MUST NOT be able to shadow a fact the driver can read. **`configuration`
-ranks below both**: a configuration load MUST insert a `healthy` row only where none exists and
+**`status` defaults to `healthy` and `source` records which established it.** The account states
+are mutually exclusive: a confirmed termination cannot coexist with a healthy account, and an
+operator MUST NOT shadow an account status the driver itself reports: `API-63` says "Recording a
+status the driver itself reports MUST be refused". A `driver_observation` is authoritative over
+an `operator_record`. **`configuration` ranks below both `driver_observation` and
+`operator_record`**: a configuration load MUST insert a `healthy` row only where none exists and
 MUST NOT update one that does — *stated 2026-09-05, when the row was required to exist and nothing
 named its writer, so a reload that re-inserted `healthy` would have overwritten a write-once
 `terminated`.* **`terminated` is
@@ -1056,15 +1119,17 @@ that can be entered and left silently re-opens or re-releases every affected ten
 
 **`driver_observation` is reserved and today unreachable, and saying so is the point.** No
 requirement in `02-provider-contract.md` obliges a driver to report account-level status, and no
-launch driver does — unlike `PRV-35`, where the providers demonstrably expose a per-machine
-restriction signal and the precedence rule therefore bites. So on a launch deployment every row
+launch driver does. So on a launch deployment every row
 carries `configuration` until an operator records something and `operator_record` after — never
 `driver_observation` — and `API-63`'s refusal of an operator value that would shadow a driver
 value is a rule with nothing to fire on. **It is written now rather than later** because the
 alternative — adding it when a driver first reports one — is the amendment that gets forgotten while
-an operator value silently overrides a readable fact, which is exactly the drift `PRV-35` was
-reorganised to prevent. `CNF-278` MUST assert that refusal against a **stubbed** driver observation,
+an operator value silently overrides a readable account status. `CNF-278` MUST assert that refusal
+against a **stubbed** driver observation,
 not against a live one, and MUST say which it used.
+
+*Account-status reasoning amended 2026-10-10 (`ADR-0038`); its precedence and write-once rules
+remain on their own mutually exclusive states.*
 
 **STO-33** **A terminal operation MUST remain readable at least as long as its idempotency record
 can refuse a reused key, and the two horizons MUST be stated to callers as one number.** `STO-14`
@@ -1108,8 +1173,8 @@ answers to one physical question.
 
 **STO-44** **`warned_consequence` is immutable and `respond_by` moves only by appending.** The
 warning says what the notice threatened *at open* — a fact about the past, permanently true — and
-the machine's own `network_restriction_status` says what is true now, so the two describe different
-questions and cannot contradict each other. Nothing else legitimately changes: a provider that
+the machine's dated network-restriction evidence renders through `WIR-47`, so the two describe
+different questions. Nothing else legitimately changes: a provider that
 escalates its threat has sent a **new notice**, which is a new case (`DOM-23`), not an edit.
 
 A deadline extension MUST append `{previous, current, revised_at}` to `respond_by_revisions` in the
@@ -1119,6 +1184,9 @@ cannot answer whether the tenant was ever given the time it was told it had. *Th
 here: an operator's typo in `warned_consequence` is permanent. Correcting prose the tenant may
 already have acted on is the larger hazard, and the case-per-notice rule leaves nothing else that
 needs to move.*
+
+*Amended 2026-10-10 (`ADR-0038`): the machine keeps separate dated evidence rather than a stored
+network-restriction status.*
 
 **The provider's deadline is deliberately absent.** `respond_by` is set earlier than it by however
 long the operator needs to analyse and compose, and a second date that a tenant must never see is
@@ -1459,7 +1527,7 @@ cancellation follows `OPS-41`, including when the rate is absent (*amended 2026-
 when the tenant can first act, not from the restore instant, and **a machine already fenced when the
 grace begins gets no extension from it** — its fence stayed set because the provider refused
 (`stalled`), because nobody yet knows what the provider did (`uncertain`) or because the provider
-accepted a cancellation for a future date (`scheduled`); its route back is `OPS-42`'s, and a retry's
+accepted a dated cancellation (`scheduled`); its route back is `OPS-42`'s, and a retry's
 claim follows `OPS-41`'s grace rule like every claim — in `ADR-0028`'s words, “"outside the grace"
 means no extension, not exemption from the wait”; see that ADR for the rejected fence-clearing
 alternative and its reasoning*); the extension's satoshis are back in the tenant's balance, because

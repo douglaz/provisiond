@@ -1,6 +1,7 @@
 # A driver's declarations are a typed descriptor, and a measured window is the larger of what was declared and what was seen
 
-**Status:** accepted (2026-09-07)
+**Status:** accepted (2026-09-07); amended by `ADR-0037` (accepted 2026-10-06, applied
+2026-10-08) for the billing-stop window. The descriptor and visibility-window decision stands.
 
 *Describe capabilities* returned an account id, a provider kind and a set of capability strings.
 Eight other per-provider facts the engine's behaviour turns on — ordering channels (`PRV-38`),
@@ -23,9 +24,9 @@ specified table that nothing populated and only account termination ever release
   descriptor carries the *declared* bound with its sample size and date, immutable. The store holds
   *observed* samples (`STO-53`): one row per provider account per mutation, the dispatch instant and
   the first-observation instant, written as a by-product of work the engine already does. The
-  effective window is `max(declared, max(observed))`. It can only grow, which is `PRV-36`'s "MUST
-  NOT be narrowed except by re-measurement"; narrowing is a human re-declaring and archiving the
-  samples. The same shape serves `PRV-13b`'s billing-stop window.
+  effective window is `max(declared, max(observed))`. `PRV-36` owns narrowing: "narrowing is a
+  human re-declaring and archiving the samples". *Amended 2026-10-08 (`ADR-0037`): this shape now serves only the visibility window;
+  the billing-stop window is withdrawn.*
 - **Two driver methods for attachments, under the existing `delete_machine` capability**
   (`PRV-45`): *list attachments* for a machine — kind, external id, billable, cleanup `api` or
   `manual` — and *release attachment*, returning delete's outcome classes. The engine calls list on
@@ -37,8 +38,9 @@ specified table that nothing populated and only account termination ever release
 
 ## Why the window is not a constant
 
-`PRV-36` says the window "MUST be widened by any observed sample that exceeds it". A constant in
-driver source cannot widen itself; a human notices a metric, edits, deploys. In the gap between the
+`PRV-36` says "Widening by an observed sample that exceeds the declaration is thereby automatic"
+(quote refreshed 2026-10-08 with `ADR-0037`). A constant in driver source cannot widen itself;
+a human notices a metric, edits, deploys. In the gap between the
 exceeding sample and the deploy, the sweep is using a window it has already observed to be too
 short, and a lost create reply followed by an early read showing nothing resolves `absent`,
 releases the commitment, and the machine arrives afterwards with nobody paying. That is the second
@@ -52,10 +54,12 @@ unstated behaviour this set keeps finding it had.
 
 ## Consequences
 
-- The 2026-09-07 review's §6.12 ask that visibility, billing-stop and negative windows "require live
-  measurement" becomes a property of normal operation: samples accumulate from the first real
-  mutation. A launch still needs the declared bound to be a real measurement, and `CNF-292` asserts
-  the effective window widens on an exceeding sample without a redeploy.
+- Visibility samples accumulate from normal mutations. The procedure belongs to `PRV-36`:
+  "the worst observed request-to-observation latency over at least twenty real mutations";
+  until then it uses a "declared conservative bound marked **unmeasured**". See `CNF-292` for
+  the widening demonstration. *Amended 2026-10-08 (`ADR-0037`): the earlier consequence treated
+  the 2026-09-07 review's request for live billing-stop measurement as fulfilled by these
+  observations. That measurement is withdrawn; visibility observations never established it.*
 - `CNF-18`'s table-driven capability test gains a row per descriptor field: a declared value has a
   working code path behind it, as a declared capability does.
 - `STO-18`'s tombstone gate, `LDG-32`'s attachment meter and the `billable_attachments` term of the

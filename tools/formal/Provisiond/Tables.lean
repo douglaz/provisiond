@@ -88,12 +88,15 @@ instance {p : Upstream → Prop} [DecidablePred p] : Decidable (∀ u, p u) :=
 /-- One failure as the classification reads it: the kind, and the facts `OPS-11`'s ambiguity list
 and goal-state rule turn on. `cutOff` is a `conflict` that "arose from the worker being cut off
 mid-flight (`OPS-21`)"; `goalStateHeld` is the driver's mapping of "a provider rejection whose
-meaning is 'already in the target state'". Each is read only under the kind it qualifies. -/
+meaning is 'already in the target state'". Acceptance is the `PRV-5` fact for the operation's
+mutation, not an ancillary request. Unknown acceptance retains the mutating request's mapped
+failure kind; this Boolean records known acceptance and does not model the wire's null separately. -/
 structure Failure where
   kind          : ErrorKind
   cutOff        : Bool
   upstream      : Upstream
   goalStateHeld : Bool
+  accepted      : Bool
   deriving DecidableEq, Repr
 
 /-- `OPS-45`'s two markers: `write_started_at` set, and "no rescue session was opened or the one
@@ -109,23 +112,26 @@ structure Markers where
 /-- The rules `OPS-11` gained by dated amendment. `goalStateRow`: "A provider rejection whose
 meaning is 'already in the target state' MUST classify `succeeded`" (2026-08-31). `markerRule`:
 `OPS-45`'s settlement, "`failed` ... for any failure at all while `OPS-45`'s two markers say the
-disk is untouched and no rescue session was left open" (2026-09-02). -/
+disk is untouched and no rescue session was left open" (2026-09-02). `acceptanceRule`:
+`ADR-0035`, "A failure of an operation whose mutating request the provider accepted is ambiguous,
+whatever its kind" (2026-10-08). -/
 structure Rules where
   goalStateRow : Bool
   markerRule   : Bool
+  acceptanceRule : Bool
   deriving DecidableEq, Repr
 
-/-- `OPS-11` as it stands: both rules present. -/
+/-- `OPS-11` as it stands: every amendment rule present. -/
 @[req "OPS-11"]
-def currentRules : Rules := { goalStateRow := true, markerRule := true }
+def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true }
 
 /-- `OPS-11`: "A failure is **ambiguous** when" the kind is `network`, `timeout` or `internal`;
-`conflict` from a mid-flight cut-off; or `provider` with a 5xx or no recorded status. Every other
-kind is deterministic, the admission-only seven because "Nothing was destroyed and nothing was
-ordered, so ambiguity cannot arise". -/
+`conflict` from a mid-flight cut-off; `provider` with a 5xx or no recorded status; or "the
+operation's mutating request was accepted by the provider". `acceptanceRule` restores the
+pre-amendment predicate when disabled. Admission-only failures have no accepted mutation. -/
 @[req "OPS-11"]
-def ambiguous (f : Failure) : Bool :=
-  match f.kind with
+def ambiguous (r : Rules) (f : Failure) : Bool :=
+  (r.acceptanceRule && f.accepted) || match f.kind with
   | .network | .timeout | .internal => true
   | .conflict => f.cutOff
   | .provider => f.upstream != .status4xx
@@ -158,8 +164,8 @@ def installRow (r : Rules) (m : Markers) (e : ErrorKind) : Written :=
 
 /-- The last row — "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`". -/
 @[req "OPS-11"]
-def mutationRow (f : Failure) : Written :=
-  if ambiguous f then .needsReconciliation else .failed
+def mutationRow (r : Rules) (f : Failure) : Written :=
+  if ambiguous r f then .needsReconciliation else .failed
 
 /-- `OPS-11`'s goal-state row, for "a **goal-state mutation** — delete, power on, power off": a
 `provider` rejection the driver mapped as "already in the target state". -/
@@ -177,27 +183,42 @@ def classify (r : Rules) (k : Kind) (f : Failure) (m : Markers) : Option Written
   | .suspendTenant => none
   | .install | .rescueInventory => some (installRow r m f.kind)
   | .power | .deleteMachine | .releaseAttachment =>
-      some (if goalState r f then .succeeded else mutationRow f)
-  | .createMachine | .reverseDns => some (mutationRow f)
+      some (if goalState r f then .succeeded else mutationRow r f)
+  | .createMachine | .reverseDns => some (mutationRow r f)
 
 /-- "Every kind in `DOM-17` MUST have a defined classification for every operation kind. There is
 no implicit default": over every kind, failure and marker pair, the one row without an outcome is
 the parent's. Decided over the whole domain. -/
 @[req "OPS-11"]
 theorem classify_total :
-    ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool) (w : Bool) (x : Bool),
+    ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool) (a : Bool) (w : Bool) (x : Bool),
       k ≠ .suspendTenant →
-        (classify currentRules k ⟨e, c, u, g⟩ ⟨w, x⟩).isSome = true := by decide
+        (classify currentRules k ⟨e, c, u, g, a⟩ ⟨w, x⟩).isSome = true := by decide
 
 /-- The admission-only seven: "any pre-provider occurrence classifies deterministically as `failed`
-for every operation kind", under every fact about the failure. Pre-provider is the markers clear —
+for every operation kind". Pre-provider means `accepted = false` and the markers clear —
 nothing dispatched, no rescue opened; a worker or driver "MUST NOT" emit these kinds, so the table
 is not asked about them past that point. -/
 @[req "OPS-11"]
 theorem admission_only_failed :
     ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool),
       e.admissionOnly = true → k ≠ .suspendTenant →
-        classify currentRules k ⟨e, c, u, g⟩ ⟨false, true⟩ = some .failed := by decide
+        classify currentRules k ⟨e, c, u, g, false⟩ ⟨false, true⟩ = some .failed := by decide
+
+/-- The kinds in `OPS-11`'s last row. -/
+@[req "OPS-11"]
+def Kind.lastRow : Kind → Bool
+  | .createMachine | .power | .reverseDns | .deleteMachine | .releaseAttachment => true
+  | .refresh | .suspendTenant | .install | .rescueInventory => false
+
+/-- `ADR-0035`: an accepted last-row failure is never `failed`. The goal-state row may still
+produce `succeeded`; this is not a claim that every accepted failure needs reconciliation.
+The other amendment switches remain arbitrary. -/
+@[req "OPS-11"]
+theorem accepted_never_failed :
+    ∀ (goal marker : Bool) (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream)
+      (g w x : Bool), k.lastRow = true →
+      classify ⟨goal, marker, true⟩ k ⟨e, c, u, g, true⟩ ⟨w, x⟩ ≠ some .failed := by decide
 
 /-- `refresh` "Always `failed`. It is read-only; a failure changed nothing." -/
 @[req "OPS-11"]
@@ -209,10 +230,10 @@ theorem refresh_always_failed (r : Rules) (f : Failure) (m : Markers) :
 kind at all is `needs_reconciliation`. -/
 @[req "OPS-11"]
 theorem install_marker_directions :
-    ∀ (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool),
+    ∀ (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool) (a : Bool),
       (installKindRow e = .needsReconciliation →
-        classify currentRules .install ⟨e, c, u, g⟩ ⟨true, true⟩ ≠ some .failed) ∧
-      classify currentRules .install ⟨e, c, u, g⟩ ⟨false, true⟩ ≠ some .needsReconciliation := by
+        classify currentRules .install ⟨e, c, u, g, a⟩ ⟨true, true⟩ ≠ some .failed) ∧
+      classify currentRules .install ⟨e, c, u, g, a⟩ ⟨false, true⟩ ≠ some .needsReconciliation := by
   decide
 
 /-- `pv-x8r`'s decision (2026-09-15): past the write-started marker with a clean rescue exit, the
@@ -325,22 +346,21 @@ inductive Settled
   deriving DecidableEq, Repr
 
 /-- What happens to an open episode: its attempt settles; its attempt is resolved under a verb,
-`dated` being `WIR-35`'s `effective_cancellation_date` on `applied`; `retry`; operator `keep`; the machine's gone-write; and the
-transaction that tombstones a scheduled machine at its effective date — a gone-write of its own,
-since nothing tombstones by timer and `LDG-74` allows "A machine still present after its date". -/
+`dated` being `WIR-35`'s `effective_cancellation_date` on `applied`; `retry`; operator `keep`;
+and the machine's evidenced gone-write. Time passing and tombstoning are not episode events.
+This model does not represent attachments or `STO-18`'s retention gate. -/
 inductive Event
   | settled (s : Settled)
   | resolved (v : Verb) (dated : Bool)
   | retry
   | keep
   | goneWrite
-  | tombstone
   deriving DecidableEq, Repr
 
 def Event.all : List Event :=
   [.gone, .noMutation, .scheduled, .failed, .needsReconciliation].map Event.settled ++
   (Verb.all.flatMap fun v => [.resolved v true, .resolved v false]) ++
-  [.retry, .keep, .goneWrite, .tombstone]
+  [.retry, .keep, .goneWrite]
 
 theorem Event.mem_all (e : Event) : e ∈ Event.all := by
   cases e with
@@ -372,9 +392,9 @@ def close (r : CloseReason) : Episode × Bool := (.closed r, true)
 /-- `OPS-48`'s table: the episode after the event, and whether `machines.destroy_committed` was
 cleared in that transaction. "The transitions are exactly these" — an event the state's rows do not
 key on changes nothing, and a closed episode is changed by nothing: "A close is permanent, and the
-rows above apply to an open episode only". The scheduled row closes "`close_reason:
-resource_gone`, in the transaction that tombstones the machine at the effective date", `STO-8a`'s
-"'Succeeds' means the resource is gone". -/
+rows above apply to an open episode only". A scheduled episode stays open until an evidenced
+gone-write, which closes it independently of the later tombstone. `STO-8a` says
+"'Succeeds' means the resource is gone"; an accepted date alone is not that evidence. -/
 @[req "OPS-48"]
 def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
   let stay := (s, false)
@@ -392,7 +412,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => stay
     | .keep => stay
     | .goneWrite => goneRow
-    | .tombstone => stay
   | .uncertain =>
     match e with
     | .settled _ => stay
@@ -405,7 +424,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => stay
     | .keep => stay
     | .goneWrite => goneRow
-    | .tombstone => stay
   | .stalled =>
     match e with
     | .settled _ => stay
@@ -417,7 +435,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => (.attempting, false)
     | .keep => close .kept
     | .goneWrite => goneRow
-    | .tombstone => stay
   | .scheduled =>
     match e with
     | .settled _ => stay
@@ -425,7 +442,6 @@ def episodeStep (rows : Rows) (s : Episode) (e : Event) : Episode × Bool :=
     | .retry => stay
     | .keep => stay
     | .goneWrite => goneRow
-    | .tombstone => close .resourceGone
 
 /-- `ADR-0021`: "A close is permanent." Decided about the table: under every row set and every
 event, a closed episode is unchanged and clears nothing. -/
@@ -454,6 +470,12 @@ that transaction", from every open state. -/
 theorem gone_closes_and_clears :
     ∀ s, s.isOpen = true → episodeStep currentRows s .goneWrite = (.closed .resourceGone, true) := by
   decide
+
+/-- The scheduled episode and fence persist without an evidenced gone-write, even when its
+effective date has passed: elapsed time is not an event in this lifecycle model. -/
+@[req "OPS-48"]
+theorem scheduled_stays_open_without_gone :
+    ∀ e, e ≠ .goneWrite → episodeStep currentRows .scheduled e = (.scheduled, false) := by decide
 
 /-- Only the ordinary no-mutation settlement closes `funded` (2026-10-04, `ADR-0032`). -/
 @[req "OPS-48"]

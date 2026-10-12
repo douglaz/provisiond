@@ -72,3 +72,36 @@ it. A fourth panel (`docs/research/panels-2026-10/r21/`, four readers, unanimous
   order request, `OPS-11`'s admission-only list and `API-7`'s tail, `OVR-19` (the channel rows and
   `API-35`'s minimum), `CNF-283`, `08-provider-notes.md`, and `Provisiond.Admission`'s tail refusals
   if the kind enters there.
+
+## Correction — 2026-10-09 (owner decision Q12)
+
+Decision 1's "it joins `OPS-11`'s admission-only list" cannot hold for the kind: that list's kinds
+"MUST NOT be emitted by a worker or a driver", and a driver emits `rate_limited` for a provider
+throttle. `OPS-11` records this local refusal as an occurrence decided before any provider call,
+not by listing the kind. Its place in `API-7`'s tail is `ADR-0030`'s amendment of 2026-10-09.
+"At most one create is in flight per offer" cannot be a read of the tail's snapshot, which takes no
+extra lock; it is a conditional-write guard beside `API-63`'s and `LDG-62`'s.
+
+## Amendment — 2026-10-10: startup, a create queued behind a closure, and a lost offer claim (owner decision Q17)
+
+An rloop Manager blocked `pv-ucs.5` on three questions; a four-reader panel
+(`docs/research/panels-2026-10/r32/`) settled them.
+
+- **Startup validates the activation minimum as a positive integer of satoshis, and nothing more.**
+  "Large enough to purchase something" stays the operator's obligation (`API-35`). Pricing a purchase
+  at startup needs an offer and a live rate, so a rate outage would become an engine outage. While the
+  engine is down, the deadline cancellations that bound the outage cannot run.
+- **A create admitted before its ordering channel closed is checked when a worker claims it**, before
+  any provider request, the per-order key upload included. While the account and channel are closed it
+  fails locally: `failed`, `rate_limited`, `retry_after_ms` set to the remaining closure, and
+  `retryable: true`, a retry after expiry being a new operation. Its commitment is released in full.
+  The check is a plain read: a closure committed after it leaves the provider's `403` to settle the
+  create the same way.
+- **A create that loses the one-in-flight-per-offer guard refuses as an ordinary `409
+  conflict`/`state`, `retryable: false`, with no refusal list and no pacing.** The winner usually
+  lands, and the offer leaves the listing, which is the loser's way to learn whether it is still
+  for sale. A Robot order can stay `in process` with no documented bound, so `true` would invite
+  polling for a machine someone else bought.
+
+Rejected: pricing a purchase at startup; sending a queued create into a closed channel; a conditional
+write for the closure check; `retryable: true` for the guard's loser.

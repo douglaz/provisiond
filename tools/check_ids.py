@@ -32,6 +32,11 @@ NAMESPACES = [
 ]
 NS = "|".join(NAMESPACES)
 
+# ADR-0034 Q19 removed these identifiers before the revision reached master.
+# Reserve only these exact numbers; they are not withdrawn requirements and
+# must not reappear as live definitions or citations.
+UNMERGED_RESERVED = {"PRV-46", "CNF-336", "CNF-337", "CNF-338"}
+
 # A requirement is *defined* in one of three shapes the set actually uses:
 #   **API-7** ...                 (most namespaces)
 #   - [ ] **CNF-1** ...           (conformance items)
@@ -73,6 +78,9 @@ def main():
                 defined[rid] = f
 
     cited = set()
+    live_cited = set()
+    for f in root_md:
+        live_cited.update(m.group(1) for m in CITE_RE.finditer(open(f).read()))
     for f in root_md + adr_md:
         cited.update(m.group(1) for m in CITE_RE.finditer(open(f).read()))
 
@@ -86,7 +94,10 @@ def main():
         if idx != -1:
             withdrawn = {m.group(1) for m in WITHDRAWN_RE.finditer(readme[idx:])}
 
-    dangling = sorted(c for c in cited if c not in defined and c not in withdrawn)
+    dangling = sorted(c for c in cited if c not in defined and c not in withdrawn
+                      and c not in UNMERGED_RESERVED)
+    unmerged_reused = sorted(UNMERGED_RESERVED & defined.keys())
+    unmerged_live_cites = sorted(UNMERGED_RESERVED & live_cited)
 
     # A single mistyped identifier (**API-9999**) would otherwise make every
     # integer below it "missing" and bury the real finding under 20KB of noise.
@@ -108,6 +119,7 @@ def main():
         missing = [
             n for n in range(1, max(body) + 1)
             if n not in body and f"{ns}-{n}" not in withdrawn
+            and f"{ns}-{n}" not in UNMERGED_RESERVED
         ]
         if missing:
             gaps[ns] = missing if len(missing) <= 20 else (
@@ -141,6 +153,8 @@ def main():
     print(f"withdrawn ids indexed: {len(withdrawn)}")
     print("DUPES:", dupes or "none")
     print("DANGLING:", dangling or "none")
+    print("UNMERGED ID REUSED:", unmerged_reused or "none")
+    print("UNMERGED ID LIVE CITED:", unmerged_live_cites or "none")
     print("NUMBER GAPS:", gaps or "none")
     print("OUTLIER IDS:", outliers or "none")
     print("BAD ADR REFS:", sorted(bad_adrs) or "none")
@@ -148,7 +162,8 @@ def main():
     print("TIER TAG (withdrawn 2026-09-12):", tiered or "none")
     print("RETIRED BUT TICKABLE:", retired or "none")
 
-    return 1 if (dupes or dangling or gaps or outliers or bad_adrs
+    return 1 if (dupes or dangling or unmerged_reused or unmerged_live_cites
+                 or gaps or outliers or bad_adrs
                  or tiered or retired) else 0
 
 

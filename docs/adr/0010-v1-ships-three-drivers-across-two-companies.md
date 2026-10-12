@@ -60,6 +60,11 @@ policy, and leaves the driver interface unproven against anything but one API di
 
 ## Consequences
 
+**Amended 2026-10-09 (`ADR-0039`).** The v1 sale scope is currently Robot's default
+unlimited-traffic dedicated offers. Cloud, DigitalOcean and Robot 10 Gbit offers remain
+withheld until the live evidence gate in `ADR-0039` re-admits an offer. This changes
+which offers may be sold, not the three-driver specification or its conformance scope.
+
 - **Three drivers before the first customer.** This is straightforwardly more work than any
   alternative considered, undertaken before anything has been validated against a real
   transaction. The trade accepted is breadth of proof over speed to a first sale.

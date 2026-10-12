@@ -18,7 +18,8 @@ the project declares none.
 
 `Params` lists the guards dated amendments added and the one design `RSC-19` refuses, each a field
 so that removing it is a one-token change a witness theorem exercises; `ci.yml`'s controls flip
-one each.
+one each. The temporary-key model carries an operation-row presence bit and a produced-machine
+provisioning bit; it does not model provider consumption time, tag lookup, or an actual machine read.
 
 What the model omits: `RSC-6`'s canonicalization (a key here is its canonical `algorithm base64`
 pair, reduced to an identity) and `RSC-7`/`RSC-8`'s known-hosts file; `RSC-9`'s deadline and
@@ -335,6 +336,7 @@ end Disk
 One field per line, because `ci.yml`'s controls match that shape. -/
 
 /-- The guards `OPS-45` and `RSC-19` gained by dated amendment, and the one design `RSC-19` refuses.
+`temporaryKeyEligibility`: `PRV-9`, 2026-10-09, `ADR-0040` — the temporary-key sweep waits for an eligible operation and no provisioning machine.
 `coalesceWrite`: `OPS-45`, 2026-09-12, `ADR-0022` — "The write sets the marker only where it is
 null", by "`COALESCE(write_started_at, now)` under the worker guard, never a guard on the marker
 being null".
@@ -352,6 +354,7 @@ structure Params where
   secondMarkerBeforeSession  : Bool
   partialCleanupMovesNothing : Bool
   persistAtActivation        : Bool
+  temporaryKeyEligibility   : Bool
   deriving DecidableEq, Repr
 
 /-- The rules as they stand. -/
@@ -361,7 +364,8 @@ def current : Params := {
     markerBeforePhase          := true,
     secondMarkerBeforeSession  := true,
     partialCleanupMovesNothing := true,
-    persistAtActivation        := false }
+    persistAtActivation        := false,
+    temporaryKeyEligibility   := true }
 
 /-! ## `OPS-45`'s two markers, on the claim model -/
 
@@ -904,6 +908,11 @@ structure World where
   /-- The `needs_reconciliation` record was closed: recovery is complete (`RSC-21`). -/
   resolved             : Bool
   status               : Claim.Status
+  /-- Whether the operation row still exists. Retention may remove it while a produced machine
+  remains attached and reads provisioning. -/
+  recordPresent        : Bool
+  /-- A machine produced by this operation still reads provisioning. -/
+  producedProvisioning : Bool
   /-- The engine died. -/
   dead                 : Bool
   deriving DecidableEq, Repr
@@ -944,6 +953,8 @@ inductive Event
   moves the operation to `needs_reconciliation`" — which is the startup pass's, `Restore.lean`'s
   subject, and is not modelled here. -/
   | crash
+  /-- The operation settles after provider work and resolution have completed. -/
+  | settle
   /-- `OPS-32`'s sweep removes the tagged provider-side credential (`PRV-21`, `PRV-18`, `PRV-9`). -/
   | sweepRemovesCredential
   /-- The operator removes a persisted recovery key (`RSC-21`). -/
@@ -951,6 +962,18 @@ inductive Event
   /-- The operator closes the record: recovery is complete. -/
   | recoveryComplete
   deriving DecidableEq, Repr
+
+/-- `PRV-9` says "A vanished operation record satisfies only the settlement condition; the sweep
+MUST still check the provisioning condition against retained `machines` rows." An attached
+machine may outlive its operation row, so the provisioning guard applies in either case. The
+`sweepRemovesCredential` event performs the eligible deletion. This single-operation model has
+no provider fingerprint namespace, registration ownership outcome or race, and does not prove duplicate
+refusal, scheduler liveness or cross-operation races. It does not model the provider's key
+resource itself or the persisted recovery private key. -/
+@[req "PRV-9"]
+def keyEligible (w : World) : Bool :=
+  (!w.recordPresent || w.status == .succeeded || w.status == .failed) &&
+    !w.producedProvisioning
 
 /-- The step. `RSC-19`'s branch writes the key on the uncertain paths and on no other; the crash
 writes nothing; `RSC-21`'s removal is the operator's and waits for recovery. -/
@@ -971,12 +994,14 @@ def step (p : Params) (w : World) : Event → World
   | .endRescue succeeded =>
     if w.dead || !w.dispatched || w.exitAttempted then w
     else if succeeded then
-      { w with exitAttempted := true, rescueExitedCleanly := some true,
-               credentialRegistered := false }
+      { w with exitAttempted := true, rescueExitedCleanly := some true }
     else
       { w with exitAttempted := true, uncertain := true, keyOnDisk := some ⟨⟨w.operation⟩⟩ }
   | .crash => { w with dead := true, status := .needsReconciliation }
-  | .sweepRemovesCredential => { w with credentialRegistered := false }
+  | .settle => { w with status := .succeeded }
+  | .sweepRemovesCredential =>
+    if !p.temporaryKeyEligibility || keyEligible w then
+      { w with credentialRegistered := false } else w
   | .operatorRemovesKey => if w.resolved then { w with keyOnDisk := none } else w
   | .recoveryComplete => { w with resolved := true }
 
@@ -988,7 +1013,24 @@ def begin (operation : OperationId) (address : String) (port : Nat) : World :=
   { operation := operation, address := address, port := port, keyOnDisk := none,
     credentialRegistered := false, rescueExitedCleanly := none, dispatched := false,
     exitAttempted := false, uncertain := false, resolved := false, status := .running,
-    dead := false }
+    recordPresent := true, producedProvisioning := false, dead := false }
+
+/-- In this model, an in-progress or reconciliation-pending operation keeps the registered key;
+a provisioning machine keeps it even after settlement or operation-row retention. -/
+@[req "PRV-9"]
+theorem sweep_retains_ineligible (p : Params) (hp : p.temporaryKeyEligibility = true)
+    (w : World) (h : keyEligible w = false) :
+    (step p w .sweepRemovesCredential).credentialRegistered =
+      w.credentialRegistered := by
+  simp [step, hp, h]
+
+/-- An eligible tagged registration is removed when the model's sweep
+event runs, including after its operation row vanishes once the provisioning guard clears.
+This theorem does not prove the sweep runs. -/
+@[req "PRV-9"]
+theorem sweep_removes_eligible (w : World) (h : keyEligible w = true) :
+    (step current w .sweepRemovesCredential).credentialRegistered = false := by
+  simp [step, current, h]
 
 /-- `RSC-19`: the key is written on the uncertain branch and nowhere else — never at activation,
 never on a clean exit. Over every trace, with the refused design off. -/
@@ -1018,8 +1060,8 @@ theorem dead_engine_persists_nothing (p : Params) (w : World) (hd : w.dead = tru
         simp_all)
     w ⟨hd, h0⟩ evs).2
 
-/-- `RSC-19`: on a crash "the provider-side credential `PRV-21` would have removed stays
-registered", until `OPS-32`'s sweep removes it by tag. -/
+/-- `PRV-9`: after a crash the provider-side public-key registration remains until an eligible
+tagged sweep removes it. This does not model the recovery private key on disk. -/
 @[req "PRV-21"]
 theorem crash_leaves_the_credential_registered (p : Params) (w : World) (hd : w.dead = true)
     (hc : w.credentialRegistered = true) (evs : List Event)

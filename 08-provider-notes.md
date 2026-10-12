@@ -1,10 +1,9 @@
 # 08 — Provider adapter notes
 
-**This document carries no value the engine reads.** Every declaration the engine turns on —
-capabilities, ordering channels and their correlators, evidence sources, the visibility and
-billing-stop windows, the order budget, the cancellation bound, the rescue address family, the
-attachments that survive deletion — lives in the driver's descriptor (`PRV-44`), and a driver
-that declares it here and not there has declared nothing (`ADR-0018`). What lives here is why a
+**This document carries no value the engine reads.** The declaration list belongs to `PRV-44`:
+"A value the engine reads MUST come from here and never from `08-provider-notes.md`". A driver
+that declares a value here and not in its descriptor has declared nothing (`ADR-0018`).
+*Descriptor pointer amended 2026-10-08 (`ADR-0037`).* What lives here is why a
 descriptor says what it says: the provider facts that shaped the architecture and are worth
 carrying forward. **Provenance is per fact, not per document**: many notes were read out of a
 reference implementation's adapters and never checked, several have since been verified against
@@ -49,14 +48,26 @@ load-bearing rather than decorative.
 
 ## Cloud VPS providers (Hetzner Cloud shape)
 
+**Traffic allowance and overage** — **[documented 2026-10-07 — `ADR-0039`'s
+provider-document and account-price reading; live counter freshness [verify]]**.
+The included outbound allowance depends on location: the cited EU account price has
+20 TiB, US locations at least 1 TB and AP locations at least 0.5 TB. Hetzner
+charges overage in 100 MB blocks; the cited EU account price was $1.20/TB.
+The counter's update interval is undocumented. These are documentary readings,
+not live observations or permission to sell a Cloud offer. `ADR-0039` owns the
+sale decision and the live-evidence condition.
+
 **Auth** — bearer token. **[observed]**
 
-**Key material at create time** — SSH keys must exist as account-level resources and are
-referenced by id at create. The key material is copied into the new server during
-creation, so the temporary key resource can be deleted immediately after the create call
-returns. **[verify]** — this is the assumption that makes immediate cleanup safe
-(`PRV-9`); confirm it before relying on it. Whether a key resource carries a name or label the engine
-chooses is **[verify]** — `OPS-32`'s sweep finds a leaked temporary key by it.
+**Key material at create time** — HC-spec says SSH key ids or names are injected at creation.
+**[observed — HC-spec, 2026-10-06]** The create Action reaching `success` and the reset that
+boots rescue are consumption-timing candidates; deletion during either interval remains
+**[verify]** (research V2). Deletion eligibility: `PRV-9` (`ADR-0040`). `POST /ssh_keys` requires a caller-set `name` and accepts `labels`; `GET /ssh_keys`
+supports `name` and `label_selector` filters. **[observed — HC-spec, 2026-10-06]** The sweep
+may use the selector. A duplicate fingerprint is rejected **[documented — HC-spec,
+2026-10-06; not reproduced live]**. Generated rescue/correlator keys
+remain fresh; caller-supplied create keys are distinct and no substitute-key policy is inferred
+(V3).
 
 **Rescue host keys** — not exposed through the API. **[observed]** Consequence: callers
 MUST supply `expected_rescue_host_keys` out of band or explicitly accept first-use trust
@@ -67,8 +78,10 @@ it. Enable-rescue returns a root password even when SSH keys were supplied; the
 implementation ignores it. **[observed]** Ignoring it is correct — see `PRV-8`, and note
 that capturing it would violate `SEC-3`.
 
-**Rescue activation when rescue is already enabled** — **[verify]** whether the enable-rescue
-action against a server whose rescue is already enabled errors or re-arms it with the new key.
+**Rescue activation when rescue is already enabled** — read `server.rescue_enabled` and, if true,
+call `disable_rescue` before re-enabling. **[observed — HC-spec, 2026-10-06]** Rescue
+automatically disables on first boot or after 60 minutes unused; reset must follow enable
+within that interval. Repeated-enable behavior itself remains **[verify]** (V4).
 
 **Rebuild** — the rebuild endpoint takes an image but has no field for SSH keys, so the
 reference adapter injected keys and any post-install payload through first-boot user
@@ -85,6 +98,20 @@ deleting / rebuilding / unknown. Map to `DOM-7`. **[observed]**
 
 ## Dedicated servers, robot-style (Hetzner Robot shape)
 
+**Traffic by uplink** — **[documented 2026-10-07 — `ADR-0039`;
+counter behavior [verify] live]**. Robot's default dedicated 1 Gbit uplink
+comes with unlimited traffic; its 10 Gbit uplink has a traffic allowance
+(20 TB in the cited product reading) and cannot currently be sold under
+`ADR-0039`. The documented counter counts a TCP stream only after it
+disconnects. A held stream could therefore outrun a reading; live testing
+must establish a usable freshness bound before an allowance offer is
+re-admitted. No such test is claimed here. **[Read-only product-list observation supplied
+by `pv-ucs.10`, 2026-10-11; not reproduced in this Run]** Robot's
+`GET /order/server/product` and `GET /order/server_market/product` list only
+`primary_ipv4` as an orderable add-on. The 10 Gbit uplink cannot be bought through
+`provider_options` on those offers; `ADR-0039`'s exclusion still governs allowance
+offers.
+
 **Auth** — HTTP basic. Request bodies are form-encoded, not JSON. **[observed]** Note
 that this means the HTTP client needs URL-encoded form support; check that the
 dependency actually provides it before pinning the feature flag — the reference
@@ -98,11 +125,7 @@ namespaced so the create path can route (`DOM-9` note). Orders are transactions 
 **Ordering is not idempotent.** A timed-out order poll MUST NOT be retried blindly
 (`PRV-11`). **[design]**
 
-**Key material** — SSH keys are account-level resources identified by fingerprint;
-temporary keys are created, attached to the order or the rescue activation, and deleted
-afterwards. **[observed]** Whether a key resource carries a name the engine chooses, and whether
-the order transaction still lists the fingerprint after the resource is deleted, is **[verify]** —
-the sweep may not remove a leaked per-order key until the second holds (`OPS-32`, `PRV-32`).
+**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** A duplicate fingerprint is refused with `409 KEY_ALREADY_EXISTS` **[documented — Robot-WS; not reproduced live]**. In the 2026-10-11 auction order, the transaction still listed the fingerprint in `authorized_key[]` after deletion of the temporary key; batch B step 6 settles that observation (`docs/research/panels-2026-10/r39/live-result.txt`). `ADR-0040` retains the per-order fingerprint correlator, and `PRV-9` owns key deletion. A newly generated per-order correlator key is distinct from a caller's create key.
 
 **Rescue host keys** — published in the rescue activation response and in a
 "last rescue" lookup. **[observed]** This is the only provider in the reference set that
@@ -112,17 +135,9 @@ supports pinning without out-of-band material, and it is why `PRV-19` (refresh) 
 out-of-band hard reset to enter it. Exiting is disable-rescue plus another hard reset.
 **[observed]**
 
-**Rescue activation when rescue is already enabled** — **[verify]** whether enabling rescue on a
-server that already has it enabled errors or re-arms it with the new fingerprint.
+**Rescue activation when rescue is already enabled** — read `GET /boot/{n}/rescue` for `active` and disable with `DELETE /boot/{n}/rescue` before re-enabling. **[observed — Robot-WS, 2026-10-06]** Repeated-enable behavior remains **[verify]** (V10).
 
-**OS installer** — the rescue environment ships an installer that consumes a root
-filesystem archive plus a generated config file (drives, RAID, partitions, hostname,
-bootloader, image path, authorized-keys source, optional post-install script). This is
-the `install_rootfs_via_rescue` capability. **[verify]** — the exact config keys, and in
-particular the directive that prevents the installer from copying rescue authorized keys
-into the installed system (`RSC-12`), MUST be checked against the current installer
-source. The reference implementation emitted a specific directive name that was not
-independently verified.
+**OS installer** — Robot installimage's generated config uses `SSHKEYS_URL` for caller keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no` to exclude rescue keys. **[observed — installimage e15b5ea, 2026-10-06]** `RSC-12`/`RSC-13` own the obligation. Whether the deployed rescue installer matches that source remains **[verify]** (batch B, step 7).
 
 **Deletion** — **usually immediate.** Current standard (AX/EX/SX/DX/GEX) and auction dedicated
 servers have **no minimum term**. `POST /server/{server-number}/cancellation` with
@@ -132,10 +147,18 @@ cap — the same shape as the cloud product, not term billing. The per-server
 for a newly ordered machine. **[observed — verified against current Hetzner product pages and
 the Robot cancellation guide, 2026-08-08]**
 
+**Launch-set cancellation declaration** — the driver's declared worst-case bound for the
+current Robot launch offers is the provider's today, under `PRV-31` and `ADR-0037` Q25.
+Hetzner's supplied dedicated-server statement is "You can only cancel immediately".
+This is a provider fact for the current offer set, not a runtime constant or a declaration
+for an individually different contract. Robot's cancellation dates use `Europe/Berlin`
+(`docs/research/panels-2026-10/r40/zone-check.txt`; `ADR-0037`'s 2026-10-12 verification note).
+
 Consequences for a reseller: the delete-stops-cost arrow that hourly metering depends on
 genuinely exists here, so no separate term SKU is needed. The **setup fee** is the real prepaid
-exposure — commonly charged on standard servers, undocumented as refundable, so treat it as non-refundable, **commit it before ordering and debit it only on confirmed
-acceptance** (`LDG-39`). Auction servers carry no setup fee.
+exposure — commonly charged on standard servers, undocumented as refundable, so treat it as non-refundable. For commitment and settlement, see `LDG-39`, including "an accepted but
+unresolved create MUST take the `needs_reconciliation` pending-obligation row" (amended
+2026-10-08, `ADR-0035`). Auction servers carry no setup fee.
 
 **Measured against the live API 2026-09-04, because `LDG-39` calls the fee "unrecoverable" and the
 set never stated a size.** Standard catalogue setup fees range **€59 to €1349 net** across 29
@@ -150,9 +173,7 @@ driver therefore emits one offer per priced location and omits the empty ones** 
 
 **The exception branch is real.** Hetzner states cancellation periods depend on the individual
 contract, so a machine carries whatever terms its contract has — which is why adoption, withdrawn
-from v1 by `ADR-0020`, was this branch's main road while it stood. Two things remain **[verify]**: the universal worst case across legacy and custom
-contracts, and what `cancellation_date=now` does against a server whose earliest date is in the
-future — rejection, or automatic scheduling. **A driver MUST handle both**: on rejection, fall
+from v1 by `ADR-0020`, was this branch's main road while it stood. The documented standard cancellation worst case is "30 days to the end of the month" unless the individual contract says otherwise. **[observed — Hetzner cancellation docs, 2026-10-06]** What `cancellation_date=now` does against a future earliest date remains **[verify]**: it may reject or schedule. **A driver MUST handle both**: on rejection, fall
 back to scheduling at the earliest permitted date; on auto-scheduling, `DOM-19` already models
 the result. Never assume; read `earliest_cancellation_date` and branch (`PRV-13c`).
 
@@ -195,11 +216,7 @@ the result. Never assume; read `earliest_cancellation_date` and branch (`PRV-13c
 **Auth** — bearer token. Server creation is scoped to a configured project id.
 **[observed]**
 
-**Key material at create time** — servers deploy asynchronously. Whether key material is
-captured at request time or read later from the account-level key resource is **[verify]**
-and matters a great deal: the reference implementation deleted the temporary keys
-immediately after issuing the deploy and the rebuild, which if the deploy reads them
-later produces machines nobody can log into (`PRV-9`, `DEF-6`).
+**Key material at create time** — Cherry deployment is asynchronous. Whether the account key is read at request time or later is **[verify]** (V19). `deployed`, or iPXE `allocated`, is a consumption-timing candidate only; `PRV-9`/`ADR-0040` controls deletion eligibility.
 
 **Rescue host keys** — not exposed. **[observed]**
 
@@ -213,9 +230,7 @@ exposes a live root password (`SEC-24`).
 adapter must return `unsupported` rather than substituting a reboot (`PRV-14`).
 **[observed]**
 
-**iPXE** — supported, script base64-encoded into a rebuild-shaped action. **[verify]** —
-whether an iPXE boot really is a rebuild action variant, and whether it requires an image
-alongside, should be confirmed.
+**iPXE** — script base64-encoded into a rebuild-shaped action, and also accepted at create. **[observed — Cherry-spec, 2026-10-06]** Whether an image is required alongside remains **[verify]**; Cherry-spec names the action `rebuild`, while cherrygo sends `reinstall`. Cherry remains outside v1 (V20).
 
 **User data** — base64-encoded by the API contract. **[observed]**
 
@@ -230,6 +245,14 @@ disk and RAID options passed through. **[observed]**
 
 ## Cloud VPS, tag-based (DigitalOcean shape)
 
+**Traffic pool and metrics** — **[documented 2026-10-07 — `ADR-0039`;
+provider counter freshness and attribution [verify] live]**. DigitalOcean
+pools included transfer at team level and quotes $0.01/GiB overage. Its
+per-Droplet public metric is an Mbps time series, not a byte counter
+attributed to that Droplet's share of the pool. Those documentary facts
+do not establish how fresh a bound-enforcing counter would be. The
+Droplet offers stay withheld under `ADR-0039` pending the live test.
+
 **Added 2026-08-13, and its absence was a finding.** `ADR-0010` made DigitalOcean a **mandatory
 launch driver** and this document had no section for it — while Cherry, which the same ADR cut
 from v1, had a full one. Both reviewers called it the `F29` pattern with the ink still wet: a
@@ -241,14 +264,16 @@ researched of the three.
 **[observed — client library]**
 
 **Correlator** — `tags`, a flat list of strings (not key/value, unlike Hetzner Cloud's labels),
-filterable server-side via `ListByTag`. Encode the operation UUID as a single string with a fixed
-prefix. The permitted character set is **[verify]** before a separator is chosen.
-**[observed — `godo`]**
+filterable server-side via `ListByTag`. **[observed — `godo`]** Encode the operation UUID as a
+single string with a fixed prefix. Tags permit `^[a-zA-Z0-9_\-\:]+$` up to 255 characters.
+**[observed — DO-spec, 2026-10-06]** Use lowercase and `:` or `_` as a separator; tags are
+case-stable. `PRV-48`: "It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag".
 
-**Deletion** — believed immediate destroy with billing stopping at deletion, the cloud shape.
-**[verify]** — and specifically **[verify]** what survives: volumes, snapshots and reserved IPs
-are separately billable resources on this provider, so `PRV-13a`'s attachment model is likely to
-matter *more* here than on Hetzner Cloud, not less.
+**Deletion** — the delete reply and destroy are distinct; provider billing stops at destroy.
+**[documented 2026-10-06 — `docs/research/provider-verify-2026-10.md`, V17 and §3]**
+For customer meter boundaries see `LDG-38`/`LDG-74`; for accepted provider tails see `LDG-75`
+and `ADR-0037`. **[observed — DO-spec, 2026-10-06]** Reserved IPs, floating IPs, snapshots, volumes and volume snapshots survive with `cleanup: api`; backups survive about four weeks with `cleanup: manual`, while billing after destroy remains **[verify]**. `PRV-13a`/`PRV-44` own the descriptor declaration; `PRV-13a` says "A DigitalOcean driver MUST NOT set `backups: true` on create".
+*Billing interpretation amended 2026-10-08 (`ADR-0037`).*
 
 **Rescue** — **SETTLED 2026-08-31: there is no API to enter it. The driver MUST NOT declare
 `rescue_ssh`, `install_rootfs_via_rescue` or `install_raw_disk_via_rescue`.** **[observed —
@@ -301,11 +326,11 @@ usable as `OPS-32`'s correlator. The image polls `NEW → pending → available`
 
 **Delete visibility — read-after-write is eventually consistent.** **[observed — n=1, 2026-08-31]**
 `DELETE /v2/droplets/{id}` returned `204`; a `GET` 8 s later returned `200 "active"` with a live
-address; `404` by the next poll, so the window was under ~25 s. **`PRV-36` governs**, and this is a
-**visibility** sample only — `PRV-13b`'s delete-to-billing-stop figure for this provider is still
-unmeasured and still owed. One sample is not a bound: the descriptor's `visibility_window` and
-`billing_stop_window` (`PRV-44`) hold the declared values, conservative and marked unmeasured
-until twenty samples exist, and `STO-53` holds the samples the engine collects afterwards.
+address; `404` by the next poll, so this observation was under ~25 s. This is a **visibility**
+sample only, not a measured bound or a billing-stop sample. The procedure belongs to `PRV-36`:
+"the worst observed request-to-observation latency over at least twenty real mutations"; the
+descriptor is `PRV-44` and observations are `STO-53`.
+*Amended 2026-10-08 (`ADR-0037`): the separate billing-stop measurement obligation is withdrawn.*
 
 **Image delete is not idempotent, and disagrees with the read path.** **[observed, 2026-08-31]**
 First `DELETE /v2/images/{id}` → `204`. Second, immediately and again 2.5 minutes later → `422
@@ -313,8 +338,10 @@ First `DELETE /v2/images/{id}` → `204`. Second, immediately and again 2.5 minu
 to `404`. `GET` on the same id at the same instant → `404`. Under `OPS-11`'s goal-state rule that
 `422` is a **success**, and the driver MUST map it so.
 
-**Key handling** — **[verify]** whether SSH keys are copied at droplet creation or read later
-(`PRV-9`, `DEF-6` — the defect that produced a machine nobody could log into).
+**Key handling** — DO-spec documents key embedding at Droplet creation and that deleting an
+account key leaves existing Droplet keys. **[observed — DO-spec, 2026-10-06]** In-flight
+consumption timing remains **[verify]**; `active` is a timing candidate. Deletion eligibility:
+`PRV-9` (`DEF-6`, `ADR-0040`).
 
 **Account termination scope** — **[verify]** whether DigitalOcean links and terminates related
 accounts together (`SEC-44`). `SEC-43`'s spread-tenants-across-accounts control is a belief until
@@ -329,23 +356,21 @@ recorded facts rather than assumptions about "the cloud shape" — which is exac
 
 Checked 2026-08-11, because `OPS-27` reconciliation depends on being able to ask a provider
 *"did my lost request create anything?"* and get an answer that names the specific operation
-rather than a machine that merely looks similar. **Every provider in this set offers a
-caller-controlled field** — **and that turned out to be wrong for Hetzner Robot** (see below), the
-one product where a lost order costs a physical server and a non-refundable setup fee. Three of the
-four offer a usable field and can filter on it server-side; Robot's only candidate is disqualified
-by `PRV-30`.
+rather than a machine that merely looks similar. The provider field and retrieval method are
+listed below. Robot's free-text candidate was disqualified by `PRV-30`; its per-order key
+fingerprint is the correlator. Cherry has no documented server-side tag filter (V21).
 
 | Provider shape | Field carried at create | Shape | Find it afterwards | Confidence |
 |---|---|---|---|---|
 | Hetzner Cloud | `labels` | `map[string]string` | `label_selector` query parameter on list | **[observed — official `hcloud-go` client, `ServerCreateOpts.Labels` and `ListOpts.LabelSelector` → `label_selector`]** |
-| Hetzner Robot | ~~`comment`~~ **UNUSABLE** → per-order SSH key | key **fingerprint**, MD5-colon form (47 chars) | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one. **The two channels keep separate listings and a search of one is not a search of the provider** | **`comment` CONFIRMED UNUSABLE** — comments require manual provisioning (`PRV-30`), and Hetzner's own parameter table says so. **Key substitute [observed 2026-09-04 — two real auction orders, two distinct fingerprints, each matching exactly one transaction]** (`PRV-32`). Standard channel still unconfirmed with a real order |
-| Cherry Servers | `tags` | `map[string]string` | returned on the server object | **[observed — official `cherrygo` client]**; server-side filtering **[verify]** |
+| Hetzner Robot | ~~`comment`~~ **UNUSABLE** → per-order SSH key | key **fingerprint**, MD5-colon form (47 chars) | `GET /order/server/transaction` and `/order/server_market/transaction` list **recent** transactions; `/{id}` fetches one. **The two channels keep separate listings and a search of one is not a search of the provider; both list orders "within the last 30 days" [observed — Robot-WS, 2026-10-06]** | **`comment` CONFIRMED UNUSABLE** — comments require manual provisioning (`PRV-30`), and Hetzner's own parameter table says so. **Key substitute [observed 2026-09-04 — two real auction orders, two distinct fingerprints, each matching exactly one transaction]** (`PRV-32`). Standard channel still unconfirmed with a real order |
+| Cherry Servers | `tags` | `map[string]string` | returned on the server object | **[observed — official `cherrygo` client]**; no documented server-side tag filter; page project list and filter client-side (V21) |
 | DigitalOcean | `tags` | `[]string` — flat strings, **not** key/value | `ListByTag` | **[observed — official `godo` client]** |
 
 Notes that change driver code:
 
 - **DigitalOcean tags are not key/value.** Encode the correlator as a single string with a fixed
-  prefix. The permitted character set is **[verify]** before choosing a separator.
+  prefix. Use lowercase tags, valid `:` or `_` separators, and the DO-spec character and length limits above. Never use `DELETE /v2/droplets?tag_name=` with a correlator tag (`PRV-48`).
 - **Robot's `comment` field is confirmed unusable, 2026-08-13.** Hetzner states that supplying a
   comment on a standard or auction order sends it to **manual processing**. That is a
   decision-changing side effect (`PRV-30`), so the field is out — for correlation and for
@@ -388,17 +413,66 @@ Notes that change driver code:
   | What | Observed | Why it is recorded |
   |---|---|---|
   | `in process` → `ready` | **7 min 24 s** and **4 min 03 s** | `OPS-33` says robot-style orders "poll through an `in process` state with no documented bound". These are the first real numbers; they differ by nearly 2×, which is the argument against hard-coding one |
-  | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way. `PRV-42` owns what a driver does with it |
+  | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way. `PRV-42` records this observation; its separate admission rule says "At most one create may be in flight per `offer_is_resource` offer, across tenants." `ADR-0040` resolves lost replies by fingerprint |
   | `earliest_cancellation_date` on delivery | **same day**, both | Confirms the cancellation note above |
-  | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible; you learn which case applies only by reading `GET /server/{id}/cancellation` first. The mandatory branch was not exercised |
+  | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible. The planned delete path includes `GET /server/{id}/cancellation` first. Whether explicitly sending `reserve_location=false` succeeds without that pre-read remains **[verify]** (batch B); the mandatory branch was not exercised |
   | `server_ip` on delivery | **`null`** — no IPv4 | Hetzner's docs: "If you do not specify the parameter, the server will be ordered without an IPv4 address by default." `addon[]=primary_ipv4` is priced separately; `RSC-45` owns what a driver must do about it |
   | after cancellation | `GET /server/{n}` → `404 SERVER_NOT_FOUND`; account list back to its prior contents | Immediate destroy, no scheduled tail |
   | the transaction afterwards | **still `status: "ready", server_number: N`** while `GET /server/N` answered `404` | The listing outlives the machine; `PRV-43` owns the consequence |
   | `cancellation_reason` | provider advertises a 9-item enum and accepted the unlisted value `"Other"` | Do not model it as a closed set |
 
-- **Ordering is rate-limited: 20 requests per day**, on `POST /order/server/transaction` and again
-  on `POST /order/server_market/transaction`; cancellation is 200 per hour.
-  **[observed 2026-09-04 — Hetzner API documentation]** `PRV-40` owns what follows from it.
+- **Auction add-on cancellation observed 2026-10-11 (`ADR-0037`, Q21/Q22).** Offer
+  `3084954` was ordered with `addon[]=primary_ipv4` at 03:47:38Z and delivered as ready
+  server `3084954` at 04:06:19Z (18 min 41 s). Equal offer/server identifiers add a V8
+  observation, not an identity rule; `ADR-0040`'s correlator remains necessary. Before
+  cancellation, `GET /server/{n}` returned its `ip` and `subnet`; account `GET /ip` and
+  `GET /subnet` associated the main IPv4 and included /64 with that server. The runner read
+  `GET /server/{n}/cancellation` before posting `cancellation_date=now` and
+  `reserve_location=false`; Robot returned HTTP 200 and
+  `cancellation_date: 2026-10-11`. The server and main/add-on IPv4 were absent at +1 second;
+  the included /64 was checked absent at +20 seconds. `ADR-0037` records a subsequent
+  45-minute IPv4 watch; the summary log contains only its initial lines and no minute-by-minute
+  subnet watch. This is an API absence observation, not invoice billing evidence.
+  Batch B step 9 is settled for this auction add-on only. The planned no-pre-read cancellation
+  and reservation-possible branch, separately ordered IPs/subnets, catalogue orders,
+  provider-initiated termination and invoice remain unverified. Robot's cancellation date zone
+  is **`Europe/Berlin`**, verified separately by read-only cancellation-field observations across
+  Berlin midnight (`docs/research/panels-2026-10/r40/zone-check.txt`). The key's `created_at`
+  in this transaction alone did not verify those fields. `PRV-13` owns
+  the effective-date conversion.
+
+- **Ordering is rate-limited: 20 requests per day** on each documented order endpoint:
+  `POST /order/server/transaction`, `POST /order/server_market/transaction` and
+  `POST /order/server_addon/transaction`. Robot reports `403 RATE_LIMIT_EXCEEDED` with
+  `max_request` and `interval`; cancellation is documented at 200 per hour.
+  **[observed 2026-10-09 — Hetzner Robot webservice reference]** `PRV-40` owns the local gate.
+  **[verify]** Whether Robot counts by account, webservice user or source address;
+  whether its window rolls or resets by calendar day; whether rejected and `test=true`
+  requests count; and whether requests after a 403 move the window. No live counting
+  observation is claimed.
+
+- **Robot endpoint limits.** The [Robot webservice reference](https://robot.hetzner.com/doc/webservice/en.html),
+  retrieved 2026-10-10 and rechecked for the added paths 2026-10-11, documents the
+  following method/path limits. These are documented limits, not measured shared counters
+  or live availability guarantees.
+
+  | Method and path in the reference | Documented request limit |
+  |---|---|
+  | `GET /server`; `GET /server/{server-number}` | 200 per hour, documented on each path |
+  | `GET`, `POST`, `DELETE /server/{server-number}/cancellation` | 200 per hour, documented on each method |
+  | `POST /reset/{server-number}` | 50 per hour |
+  | `GET /order/server/transaction`, `GET /order/server/transaction/{id}`, `GET /order/server_market/transaction`, `GET /order/server_market/transaction/{id}`, `GET /order/server_addon/transaction`, `GET /order/server_addon/transaction/{id}` | 500 per hour, documented on each path |
+  | `GET /boot/{server-number}` | 500 per hour |
+  | `GET`, `POST`, `DELETE /boot/{server-number}/rescue`; `GET /boot/{server-number}/rescue/last` | 500 per hour, documented on each method/path |
+  | `GET`, `POST`, `DELETE /boot/{server-number}/linux`; `GET /boot/{server-number}/linux/last`; `GET`, `POST`, `DELETE /boot/{server-number}/vnc`; `GET`, `POST`, `DELETE /boot/{server-number}/windows` | 500 per hour, documented on each method/path |
+  | `GET /ip`, `GET /ip/{ip}`, `GET /subnet`, `GET /subnet/{net-ip}` | 5000 per hour, documented on each path |
+  | `GET`, `POST`, `DELETE /ip/{ip}/cancellation`; `GET`, `POST /subnet/{net-ip}/cancellation`; `DELETE /subnet/{ip}/cancellation` | 200 per hour, documented on each method/path |
+
+  **[verify]** For every row and every listed method/path: whether its count is per
+  provider account, webservice user or source IP; whether server-number paths share a
+  counter across machines; and whether distinct methods or paths share a counter.
+  Reset's scope, including per-account versus per-server, is unknown. The separate
+  order-POST daily limits above remain distinct. Batch B records the planned checks.
 
 - **Three failed logins block the source IP for ten minutes, across the whole API** — not merely
   the endpoint that failed. **[observed 2026-09-04 — Hetzner Robot webservice documentation]**
@@ -411,11 +485,8 @@ Notes that change driver code:
   **[observed 2026-09-04]** A deployment can therefore hold credentials that manage machines and
   cannot order or reconcile them.
 
-- **Robot's transaction listing is time-bounded** — the client library documents the last 30
-  days. **[verify]** the exact window, because it is the hard limit on how long an unresolved
-  ambiguous order stays automatically recoverable. After it, resolution is manual.
-- Hetzner Cloud's label constraints (key/value character set, length, count) are **[verify]** —
-  the Go client performs no validation of its own, so the server enforces whatever it enforces.
+- **Robot's transaction listing is time-bounded** — both ordering channels document "within the last 30 days". **[observed — Robot-WS, 2026-10-06]** Rolling versus calendar alignment remains **[verify]**; for the automatic-recovery horizon, see `OPS-33`. After the listing horizon, unresolved orders go to operator resolution.
+- Hetzner Cloud label key segments and nonempty values begin and end with an alphanumeric character; dashes, underscores and dots are allowed inside, and each is at most 63 characters. The `hetzner.cloud/` prefix is reserved. **[observed — HC-spec, 2026-10-06]** A UUID value fits. The label count remains **[verify]** (V5).
 
 **A correction to an earlier note in this document, because the pattern matters more than the
 fact.** It read: *"Robot's order request carries a field literally named
@@ -434,12 +505,7 @@ spending money. `API-15` remains well-founded; it just has a different author th
 Answer these before writing code. Where an answer is a value the engine reads, it goes in the
 descriptor (`PRV-44`) and the reasoning goes here; the rest is recorded here:
 
-1. **Does key material get copied at create/rebuild time, or read asynchronously later?**
-   Determines whether temporary key cleanup is safe immediately (`PRV-9`). **And can a temporary
-   key resource carry the operation id as its name or tag, and does deleting it after the operation
-   settles leave every reference the set later reads — a Robot order transaction's fingerprint
-   (`PRV-32`) above all — intact?** Determines whether `OPS-32`'s sweep may remove a key the engine
-   leaked (`PRV-9`, `PRV-21`).
+1. **What evidence establishes key consumption timing, and can a temporary key carry an operation-id name or tag?** Record unmeasured timing as `[verify]`. Deletion eligibility: `PRV-9`. Ask whether duplicate caller fingerprints are rejected, without inventing a generated substitute. Keep a generated rescue/correlator key separate from the caller's create key.
 2. **Does the provider publish rescue SSH host keys, and if so, when — at activation, or
    only after the rescue system boots?** Determines whether pinning works without
    out-of-band material, and how long the refresh loop must wait (`PRV-16`, `RSC-9`).
@@ -458,13 +524,25 @@ descriptor (`PRV-44`) and the reasoning goes here; the rest is recorded here:
    again", and an install dispatched at a machine an earlier operation left in rescue arrives the
    same way. Determines whether that route exists on this provider, or whether the second operation
    instead fails at activation, leaving `PRV-18`'s "clean up after itself on partial failure" to
-   remove whatever the driver registered first (`PRV-15`, `RSC-38`).
+   handle what it can; temporary-key deletion follows `PRV-9` (`PRV-15`, `RSC-38`).
 5. **Is ordering idempotent?** Determines how a timed-out order is reported (`PRV-11`).
 6. **What is the identifier character set?** Determines the validation in `PRV-6`.
 7. **Which caller-controlled field can carry a correlator at create, per ordering channel, and
    can you search by it?** Determines whether ambiguous creates resolve automatically or wait
    for a human (`PRV-26`, `PRV-27`, `OPS-27`), and is the descriptor's `ordering_channels[].correlator`
-   (`PRV-33`, `PRV-38`). If the field lives on an order rather than the machine, record the
-   listing window too — it bounds how long automatic recovery is possible.
+   (`PRV-33`, `PRV-38`). If the field lives on an order rather than the machine, record the listing window and leave a margin for unknown alignment. For `offer_is_resource`, the offer names one machine; `ADR-0040` still resolves by per-order fingerprint and the matched transaction's delivered number.
 8. **Does a newly ordered machine have an IPv4 address?** The descriptor's
    `rescue_address_family` (`RSC-45`).
+
+## Written provider inquiries (not sent)
+
+The authoritative inquiry list is in `docs/research/provider-verify-2026-10.md`, *Written inquiries*. It covers anonymous downstream customers (V13), linked account termination (V22–V24), auction identity (V8; nonblocking under `ADR-0040`), Cherry ToS §17.4, and Cloud `server.locked` (`ADR-0038`). All remain `[verify]`; no response is claimed.
+
+## Survivor declarations from provider research
+
+`PRV-13a` holds the declaration table and `PRV-44` owns its descriptor field. The source
+evidence is research §3 (2026-10-06). The 2026-10-11 auction order found its `primary_ipv4`
+add-on and included /64 absent after cancellation; separately ordered Robot Additional IP
+and subnet survival remains `[verify]`. DigitalOcean backup billing after destroy remains
+`[verify]`. Cherry remains
+outside v1; its survivor uncertainty is in research §3.

@@ -75,6 +75,7 @@ provider-side `external_id`.
 | `state` | See below |
 | `region` | Provider-defined location string, nullable |
 | `public_ips` | Ordered; the first entry is the address used for rescue SSH |
+| `reverse_dns` | Provider-established PTR values by address (`PRV-25`); an absent entry is unknown |
 | `metadata` | Redacted provider payload, for operator debugging |
 | `created_at`, `updated_at` | Timestamps |
 
@@ -105,7 +106,7 @@ A normalized state, mapped by each driver from provider-specific status strings.
 | `rescue` | Running the provider's rescue environment |
 | `rebuilding` | Native rebuild or reimage in progress |
 | `deleting` | Deletion accepted, not yet complete |
-| `cancellation_scheduled` | Cancellation accepted for a future date. **Still running, still reachable, still billing.** |
+| `cancellation_scheduled` | Dated cancellation accepted while the machine remains present. The customer meter runs only through the effective date; presence may continue afterward. |
 | `deleted` | Gone, or locally tombstoned |
 | `failed` | Provider reports a terminal failure |
 | `unknown` | Driver could not map the provider status |
@@ -114,18 +115,21 @@ A normalized state, mapped by each driver from provider-specific status strings.
 guessing. `unknown` is a legitimate outcome and MUST NOT block an operation that does
 not depend on state.
 
-**DOM-19** A machine whose deletion was accepted for a future date (`PRV-13`'s second shape)
-MUST be `cancellation_scheduled`, never `deleted`, until that date passes — unless the resource is
-independently recorded gone before it (`LDG-74`, `API-63`), which is evidence, not the acceptance.
+**DOM-19** A machine with an accepted dated cancellation that remains present (`PRV-13`'s second
+shape) MUST be `cancellation_scheduled`, never `deleted`, until the resource is independently
+recorded gone (`LDG-74`, `API-63`), whether before or after the effective date. Passing the date
+alone is no evidence of absence. *Amended 2026-10-11 (`ADR-0037`, Q21/Q22).*
 Marking it `deleted` at accept time records a falsehood: the machine is still running, the customer can
 still reach it, and the operator is still paying for it. The effective cancellation date MUST
 be stored alongside the state, and any system reselling the machine MUST treat the window
 between acceptance and that date as continuing cost.
 
 **DOM-8** Machine state is a *cache* of provider truth, refreshed by explicit refresh
-operations and opportunistically after actions. The system MUST NOT treat it as
+operations, opportunistically after actions, and by the account sweep described below. The system
+MUST NOT treat it as
 authoritative when deciding whether a destructive action is safe; that decision belongs
 to the caller, expressed through the destructive acknowledgement (`API-14`).
+*Amended 2026-10-12 (`ADR-0034`, Q20): the cache summary names the sweep's observation.*
 
 **AMENDED 2026-09-02 — one thing does refresh without a caller, and the cache now carries its own
 age.** `OPS-32`'s account sweep reads each provider account independently of any caller and MUST
@@ -135,6 +139,19 @@ the sentence above — the state is still a cache and still not authorization fo
 *defect*: a machine created and never refreshed had no route by which the system could learn the
 provider had destroyed it, and its owner's commitment drained regardless. **A reader MUST take the
 staleness bound from `state_observed_at` rather than from the fact of a caller having asked.**
+
+A deployment MUST state a finite, positive refresh freshness window no shorter than the
+account-sweep interval (`OVR-19`, `OPS-32`). Startup MUST refuse a shorter window. When a worker
+claims a refresh, it MUST check the machine's current `state_observed_at`: a non-null observation at or before claim time
+whose age is less than that window MUST settle the operation `succeeded` without a provider call.
+A null or future timestamp supplies no fresh observation; an observation at or beyond the window is stale.
+A cache answer MUST NOT advance `state_observed_at`. A failed provider read MUST leave it unchanged;
+a fresh subsequent operation can read again, subject to `OPS-8`.
+
+Refreshes queued while stale and claimed in turn within the window after a successful observation
+reuse that observation. The per-machine read bound therefore holds while the provider answers;
+during provider read failure, a single paid machine can repeatedly issue reads.
+`ADR-0034` accepts that residual. *Amended 2026-10-08 (`ADR-0034`, owner decision Q10).*
 
 ### Offer
 
@@ -151,18 +168,27 @@ auction/market listing.
 | `install_strategies` | The offer's subset of `DOM-13`'s strategies, which **gates** them (`WIR-30`). Present on every offer; empty means no install is available for it |
 | `max_image_bytes` | The ceiling `RSC-40` enforces against a caller-supplied image stream |
 | `guest_requirements` | Prose the caller relays to whoever built the image; null where the strategy imposes none, non-null for `provider_catalogue` (`RSC-43`, `WIR-30`) |
-| `min_runway_seconds`, `setup_fee_sats`, `max_rate_outage_seconds` | `PRV-13d`'s floor, `LDG-39`'s at-cost fee, and `LDG-64`'s disclosed bound — the operator's current limit, which can change (`WIR-30`) |
+| `min_runway_seconds`, `setup_fee_sats`, `first_unit_sats`, `billing_unit_seconds`, `max_rate_outage_seconds` | `PRV-13d`'s floor, `LDG-39`'s at-cost fee, the prepaid first billing unit's customer price in satoshis and its duration in seconds beside the fee (`ADR-0033`, `PRV-13b`; added 2026-10-08 — the unit's `native_floor` and native rate never reach the customer surface, `LDG-26`), and `LDG-64`'s disclosed bound — the operator's current limit, which can change (`WIR-30`) |
+| `traffic_bound` | The offer's declared traffic limit, disclosed as `unlimited` for currently sellable offers (`PRV-44`, `WIR-30`); an allowance with headroom is conditional on `ADR-0039`'s live evidence gate (*added 2026-10-09, `ADR-0039`*) |
 | `metadata` | Raw provider payload |
 
-*The six rows after the prices were added 2026-09-02.* Every one of them is required on the wire by
+*The `install_strategies`, `max_image_bytes`, `guest_requirements` and limits rows
+were added 2026-09-02; the two unit fields in the limits row,
+2026-10-08 (`ADR-0033`).* The customer-facing additions are required on the wire by
 `WIR-30` and load-bearing somewhere — `install_strategies` is a **safety gate** whose absence
 authorizes a disk-wiping install (`05-persistence.md`), `max_rate_outage_seconds` discloses a second
 trigger that destroys a machine — and none was in the entity this document defines. A caller reading
-`01` learned the domain had an offer with a price and a name; a caller reading `13` received six more
-fields with no entity behind them.
+`01` learned the domain had an offer with a price and a name; a caller reading `13` received
+the listed fields without an entity behind them.
 
 **DOM-9** Prices MUST be carried as strings exactly as the provider returned them.
 Parsing them into floating point loses money.
+
+The customer offer listing MUST include only offers sellable under `PRV-13b` and
+`PRV-31`. See `WIR-30` for disclosure of the listed offer's bound. The listing is
+advisory: a remembered ID still meets `API-7`'s create tail, which says "then, on
+create only, `invalid_request`/`offer_not_sellable` when the named offer is
+not sellable under `PRV-13b` or `PRV-31`". *Amended 2026-10-09 (`ADR-0039`).*
 
 **An offer carries exactly one recurring price and one setup fee, and where a provider prices per
 location the driver MUST emit one offer per priced location, with a singleton `regions` and a
@@ -204,7 +230,7 @@ stateDiagram-v2
     [*] --> attempting : sweep opens it, first attempt enqueued
     attempting --> closed : attempt succeeded, resource gone
     attempting --> closed : no mutation required, funded
-    attempting --> scheduled : attempt succeeded, future date
+    attempting --> scheduled : attempt succeeded, dated cancellation
     attempting --> stalled : attempt failed
     attempting --> uncertain : attempt needs_reconciliation
     attempting --> closed : machine recorded gone
@@ -217,7 +243,6 @@ stateDiagram-v2
     stalled --> closed : operator keep (API-68)
     stalled --> closed : machine recorded gone
     scheduled --> closed : machine recorded gone
-    scheduled --> closed : tombstoned at its effective date
     closed --> [*]
 ```
 <!-- /formal -->
@@ -265,12 +290,14 @@ the notice/case distinction, `ADR-0012` for why nothing is relayed in either dir
 
 **DOM-23** An abuse case MUST carry: the machine it concerns, an **operator-written**
 provider-neutral summary of the allegation, an operator-written `warned_consequence` stating what
-the notice threatened **at open** — never what is true now, which is `DOM-27`'s field on the
-machine — a
-single tenant-facing deadline, a state, and an append-only list of tenant statements. What must
+the notice threatened **at open** (see `DOM-27` and `WIR-47` for the machine's dated
+network-restriction evidence), a single tenant-facing deadline, a state, and an append-only list
+of tenant statements. What must
 never reach the customer surface is `WIR-45`'s, cited here rather than restated — a draft of this
 requirement carried its own copy, and the two were already stricter than each other in different
 directions.
+
+*Amended 2026-10-10 (`ADR-0038`): distinguished the notice at open from the machine's dated evidence.*
 
 **A case is created by an operator, never by a driver and never by a caller.** Hetzner exposes no
 abuse-case API — `08-provider-notes.md` describes the process as "notice, deadline and manual
@@ -309,14 +336,17 @@ operator's own decision (`SEC-45`).
 
 **DOM-27** **Whether a provider has restricted a machine's network is a fact about the machine, not
 about a case, and it MUST NOT be a `DOM-7` state.** It has one home — the machine — carrying a
-status (`none` | `restricted` | `disabled` | `unknown`), the **source** that established it
-(`provider_api` | `operator_notice`) and when it was observed (`STO-44`, `WIR-47`).
+derived status (`restricted` | `unknown`) and, when restricted, its positive **source**
+(`provider_api` | `operator_notice`) and observation time (`WIR-47`). The machine keeps the
+provider reading and the operator record separately in the columns in `05-persistence.md`.
 
 **It is not a lifecycle state**, and that is the durable reason rather than a contingent one: a
 restricted machine is still `running` or `off`, `DOM-7` is single-valued, and collapsing the two
-destroys the state `LDG-37` reads to decide what is billable. Providers also restrict per address
-family — Hetzner Cloud exposes `blocked` separately for IPv4 and IPv6 **[verify]** — so even a
-boolean would lose information a single enum value cannot carry.
+destroys the state `LDG-37` reads to decide what is billable. A single stored boolean would also
+lose which source still supplies positive evidence after the other clears; `WIR-47` owns how the
+separate observations render.
+
+*Amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b): two observations and a derived status.*
 
 **It is not a field on the abuse case**, for a reason the schema makes concrete: a machine may have
 more than one case open at once (`STO-39`), and two cases carrying two answers to one physical
@@ -594,8 +624,9 @@ rejection.
 
 **It is not `rate_limited`, and the difference is exactly the argument this requirement already
 makes.** Both say "not now", and an agent's response to each is genuinely different: a rate limit is
-about *load* and clears in milliseconds under the deployment's own control, so backing off is the
-whole answer; a ceiling is about *authority* over a stated interval — an hour by default — and
+about *capacity* and its delay follows the source of the throttle, including a provider-shared
+ordering channel whose interval the deployment does not control (`PRV-40`); a ceiling is about
+*authority* over a stated interval — an hour by default — and
 clears only when the interval rolls, however gently the caller asks. Collapsing them means an agent
 that has hit its destruction ceiling retries a delete every few seconds for an hour, and an operator
 reading `429` cannot tell a busy server from a principal that has spent its budget. "Wait a moment"
@@ -604,10 +635,13 @@ are. The HTTP status is shared with `rate_limited` because 429 is what both mean
 intermediary; the **kind** is what the agent branches on, which is the whole point of `DOM-17`
 carrying one.
 
+*Amended 2026-10-09 (`ADR-0036`): the capacity delay may come from the
+provider-shared channel and is not necessarily controlled by the deployment.*
+
 **ADDED 2026-09-12 — a seventh row, `overloaded`, and it is not `rate_limited` either.** `STO-55`
 makes the connection pool the bound on `api` concurrency and refuses a request that obtains no
 connection within the checkout bound. That refusal is about the *replica's* capacity, not the
-caller's rate. `API-50` allows a non-rate `429` that "MUST say so in its `kind`", and `503` was
+caller's rate. `API-50` says "Every `429` MUST identify an exhausted principal allowance as `ceiling_exceeded`", and `503` was
 chosen over that because an intermediary reads `429` as the caller's doing and `503` as the
 server's, which is what this is; and it is not `halted`, which `WIR-9a` reserves for the solvency
 and rate gates. It is admission-only (`OPS-11`): nothing was written and the refusal leaves no

@@ -10,7 +10,7 @@
 | GET | `/v1/machines` | ✓ | List the caller's machines |
 | POST | `/v1/machines` | | Create a machine |
 | GET | `/v1/machines/{id}` | ✓ | Read one machine |
-| POST | `/v1/machines/{id}/actions/refresh` | | Re-read from the provider |
+| POST | `/v1/machines/{id}/actions/refresh` | | Refresh the machine cache (`DOM-8`) |
 | POST | `/v1/machines/{id}/actions/power` | | Power on/off, reboot, hard reset |
 | POST | `/v1/machines/{id}/actions/rescue-inventory` | | Boot rescue and report the disks, before a destructive write (`RSC-38`, `WIR-40`) |
 | POST | `/v1/machines/{id}/actions/install` | | Install an image (`WIR-20`, `DOM-13`) |
@@ -41,7 +41,7 @@
 | POST | `/v1/abuse-cases/{id}/actions/close` | ✓ | Operator: close with an outcome (`DOM-24`, `WIR-44`) |
 | POST | `/v1/abuse-cases/{id}/actions/record-transmission` | ✓ | Operator: record what was sent to the provider (`WIR-44`) |
 | GET | `/v1/address-resolution` | ✓ | Operator: which machines held an address at an instant (`SEC-54`, `WIR-46`) |
-| POST | `/v1/machines/{id}/actions/record-network-restriction` | ✓ | Operator: record a restriction no driver can read (`DOM-27`, `WIR-47`) |
+| POST | `/v1/machines/{id}/actions/record-network-restriction` | ✓ | Operator: record or withdraw a restriction (`WIR-47`) |
 | POST | `/v1/abuse-cases/{id}/actions/revise-deadline` | ✓ | Operator: extend `respond_by`, keeping the old value (`STO-44`, `WIR-47`) |
 | POST | `/v1/tenants/{tenant_id}/actions/assign-provider-account` | ✓ | Operator: add or replace a tenant's provider-account assignment (`API-62`, `WIR-48`) |
 | POST | `/v1/provider-accounts/{account}/actions/record-status` | ✓ | Operator: record an account unreachable, its credentials rejected, or its termination confirmed (`API-63`, `WIR-50`) |
@@ -263,24 +263,47 @@ collect every applicable refusal once, from one read-only snapshot inside the ex
 transaction, without an extra lock, ceiling slot, write or provider call. `details.refusals`
 (`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
 against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
+then, on create only, `invalid_request`/`offer_not_sellable` when the named offer is
+not sellable under `PRV-13b` or `PRV-31`;
+then, on create only, `rate_limited` when the offer's account and ordering channel
+are closed under `PRV-40`;
 `halted`/`solvency`; `halted`/`rate_unavailable`; the commitment-cap refusal (`WIR-17`, `WIR-24`);
 `insufficient_balance`. See `ADR-0030` for the order's rationale and `LDG-40` for halt retention.
 Both halted entries may appear; no duplicate
 means no repeated refusal/check, not unique kind strings. The cap and balance checks MUST NOT
-run without a rate, nor for create against an unhealthy account: `WIR-30` says "an account whose
+run without a rate, nor for create against an unhealthy account or unsellable offer:
+`WIR-30` says "an account whose
 `STO-47` status is not `healthy` `404`s on this route too". `WIR-9a` owns `not_checked`,
 including cap presence, reasons and ordering. Each refusal is exactly
 `WIR-9`'s inner error object, with no nested refusal list. Entry 0 is the headline: HTTP status,
 `kind`, `message` and per-kind details MUST match it; top-level details additionally carry the
 aggregate keys. Only top-level `retryable` may differ, under `WIR-9b`. Pacing belongs to the
 headline: its `details.retry_after_ms` and `Retry-After` follow the existing per-kind rules and
-`WIR-4`; each entry keeps its own required pacing. No maximum is taken and a subordinate halted
+`WIR-4`; each entry keeps its own required pacing. No maximum is taken and a subordinate
 entry MUST NOT supply pacing to a headline kind that does not require it. A refused tail MUST
 commit nothing and write no `STO-35` receipt (`WIR-3`), so clearing faults and resending the same
-request/key evaluates afresh. Admission retains the conditional-write guards in `API-63` and
-`LDG-62`; collection does not replace them with read-only guards. These are admission refusals
+request/key evaluates afresh. Admission retains the conditional-write guards in `API-63`,
+`LDG-62` and `PRV-42`; collection does not replace them with read-only guards. These are admission refusals
 (`OPS-11`), never lists in operation views. Steps 1–5c still stop at their first refusal; see
 those steps for their rationale. Deposit behavior and other tails are unchanged.
+
+**Amended 2026-10-10 (`ADR-0036`).** After an otherwise successful tail collection,
+a create whose resource-offer conditional write affects no row (`PRV-42`) MUST receive an
+ordinary HTTP `409 conflict`/`state` error with `retryable: false`, no
+`details.refusals`, no synthesized pacing or `Retry-After`, and no commitment,
+operation or receipt. This response is specific to the resource-offer guard.
+
+*Amended 2026-10-09 (`ADR-0039`, `ADR-0030`'s Q12 amendment): an unsellable offer is a
+create-only tail refusal after account health. It suppresses cap and balance evaluation,
+while independent solvency and rate refusals remain collectible. A refused tail still
+commits nothing, including no operation, machine, balance write, receipt or provider call.
+The subordinate-entry pacing rule applies to every subordinate refusal.*
+
+*Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment): the stored
+account-and-channel closure is a create-only snapshot input, collected after the offer
+refusal and before solvency without a provider call or extra collection lock. It does
+not suppress pricing checks or add a `not_checked` reason; `WIR-9a` owns that closed
+reason set. The same request/key is evaluated again after a transient closure clears.*
 
 *The withdrawn list applied the commitment and the spending gates to "every write endpoint", so a
 literal builder opened a purchase commitment on a reboot and could be blocked from deleting a
@@ -960,6 +983,10 @@ from any other option.*
 in the machine's recorded address list, and the hostname MUST be 1–253 characters with no
 CR or LF.
 
+The refresh and reverse-DNS endpoints retain `API-7`'s "enqueue an operation, then `202`".
+Local successful settlement: `DOM-8` and `PRV-25`. Result bodies: `WIR-10`.
+*Amended 2026-10-08 (`ADR-0034`).*
+
 ## Authorization
 
 **API-17** Every machine-scoped endpoint MUST resolve the machine *within the caller's
@@ -1019,9 +1046,10 @@ gone-write closed the episode after the operator read it (`OPS-48`, `ADR-0021`) 
 the idempotency record commit together — and it counts against `SEC-39`'s operator retry ceiling
 (`API-7` step 5c). **A `stalled` episode is never retried by a timer** (`OPS-48`): the attempt
 settled `failed` because the provider rejected it and did not act, and repeating a deterministic
-rejection automatically is the loop `OPS-39` exists to prevent. A throttled attempt reaches
-`stalled` too, for a different reason: `rate_limited` is on neither of `OPS-11`'s ambiguity lists,
-so a throttled delete is `failed`, and nothing in this set returns it to `queued` (`F48`). The
+rejection automatically is the loop `OPS-39` exists to prevent. *Amended 2026-10-08 (`ADR-0035`):* throttle classification follows `OPS-11`'s
+"the operation's mutating request was accepted by the provider" condition, and episode effects
+follow `OPS-48`: a pre-acceptance refusal can stall; post-acceptance ambiguity is `uncertain`,
+where this retry verb is inadmissible. `F48` retains the rejected automatic-deferral history. The
 episode, not the `failed` attempt row, is what
 outlives `STO-14`'s retention, which is why the verb is on the episode (`ADR-0017`).
 
@@ -1073,7 +1101,8 @@ list for that reason. A release the delete's terminal transaction enqueues carri
 idempotent as any operation is (`API-11`); the `200` form, returning no operation, commits the
 `released_at` write and its idempotency record together under `WIR-24`'s one-transaction rule.
 For the release's exit write, see `LDG-38`.
-Either is what opens `STO-18`'s tombstone gate, and `LDG-74` is where the tombstone then happens.
+`PRV-45`'s `released_at` write is what opens `STO-18`'s tombstone gate; a stored effective date
+alone leaves it closed. `LDG-74` owns the later tombstone. *Amended 2026-10-09 (`ADR-0037`, Q14).*
 
 ## Operation views
 
@@ -1182,12 +1211,12 @@ remaining delay. This covers the handle poll, whose remaining time is `API-34`'s
 `POST /v1/enrol/token`, which answers *after* its delay rather than advertising it.
 
 **API-50** **A caller that obeys every `Retry-After` it receives MUST never receive `429` for
-*throughput*.** This
+the deployment's caller-throughput pacing.** This
 is the rate-limit contract stated as a relationship rather than a number, because any number is
 wrong after the fleet grows.
 
-**AMENDED 2026-09-02 — the promise is about pacing, and two `429`s are not about pacing at all.**
-Read unconditionally it is now false three ways, and each of the three is a control the set
+**AMENDED 2026-09-02 — the promise is about caller pacing.**
+Read unconditionally it is false for the controls in this paragraph, each of which the set
 deliberately added: `ceiling_exceeded` (`SEC-39`, `DOM-17`) refuses a principal that has spent its
 allowance for the interval, and no amount of obedient pacing earns it back; `API-41` sheds enrolment
 at the global pending-tenant ceiling; and `WIR-49`'s per-source concurrency limit refuses a caller
@@ -1195,13 +1224,17 @@ holding too many token requests open. **The last two arrive on a caller's very f
 no `Retry-After` has ever been issued and the promise cannot even be evaluated.**
 
 The contract therefore splits, and both halves are testable. **A caller obeying every `Retry-After`
-MUST never be throttled for rate** — that is `CNF-152`, unchanged. **A `429` that is not about rate
-MUST say so in its `kind`**: `ceiling_exceeded` for an exhausted allowance, `rate_limited` for
-everything else, and the agent's recovery differs (`DOM-20`'s argument). A replica that cannot
+MUST never be throttled by the deployment's caller-throughput pacing** — that is `CNF-152`.
+A provider-shared ordering channel may already be closed by another tenant's create,
+so a well-paced caller MAY receive `PRV-40`'s `rate_limited` refusal on its first create.
+*Amended 2026-10-09 (`ADR-0036`, `ADR-0030`'s Q12 amendment): the
+provider-shared channel exception applies even before the caller receives a pacing hint.*
+**Every `429` MUST identify an exhausted principal allowance as `ceiling_exceeded`;
+other throttles use `rate_limited`** (`DOM-17`). A replica that cannot
 obtain a store connection is not a `429` at all: it refuses `overloaded`, 503, before any
 transaction (`STO-55`, added 2026-09-12), because a full pool is the replica's capacity and not the
 caller's rate. *An unconditional promise
-that three shipped controls break is worse than a narrower one that holds: a caller written against
+that the listed controls break is worse than a narrower one that holds: a caller written against
 it treats any `429` as a bug in the server, and the natural response to a bug in the server is to
 retry harder.* Read limits MUST be budgeted separately from write limits and MUST
 admit, at minimum, one non-terminal list poll plus one balance poll plus one machines poll at the
@@ -1220,6 +1253,12 @@ something*). `OPS-12` forbids the *system* from retrying an ambiguous mutation, 
 the *customer's* agent from buying the duplicate server `OPS-27` exists to prevent — `SEC-39`'s
 per-principal ceiling is the backstop, and this
 field is the signal. This is the single most expensive way for "finding out" to go wrong.
+
+*Amended 2026-10-08 (`ADR-0035`):* a `needs_reconciliation` create with error kind
+`rate_limited` MUST retain `details.retry_after_ms` alongside `retryable: false`. Retry-after
+reports the throttle interval; it does not authorize reissuing the mutation. `WIR-9a` owns the
+per-kind keys and `WIR-9b` their retryability precedence. A failure to poll the operation view
+is a read failure, distinct from the underlying operation's outcome (`API-50`).
 
 **API-52** **A pending tenant MUST be able to observe its own activation without attempting a
 purchase.** `API-43` owns the reachable-while-pending set and this requirement does not restate
@@ -1263,9 +1302,11 @@ and none of them mints an operation (`API-48`). A case is not created from a cal
 not from a driver (`DOM-23`); the operator supplies the machine — or an address and an instant for
 `SEC-54` to resolve — the summary, the `warned_consequence` and the tenant-facing deadline.
 
-**API-61** **Recording a network restriction and revising a deadline are operator-only writes**
+**API-61** **Recording or withdrawing a network restriction and revising a deadline are operator-only writes**
 (`WIR-47`), synchronous, minting no operation (`API-48`). Neither is a caller action: a customer
 cannot tell the system its machine was blocked, and cannot grant itself more time.
+
+*Amended 2026-10-10 (`ADR-0038`): the same action now accepts withdrawal.*
 
 **API-62** **A tenant's provider-account assignment MUST be changeable by an operator.** `API-57`
 writes it automatically — in the activation transaction where a healthy account exists, and by its
@@ -1313,8 +1354,10 @@ surface the tenants it affects.
 
 **Recording `terminated` MUST, in one transaction, and in this order:** write the status; **record
 every machine in that account gone** — `machines.state` and `machines.state_observed_at` (`STO-48`)
-set to the recording instant, which is the write `LDG-74` stops a meter by, and `released_at` set on
-every unreleased billable attachment, which is how an attachment's meter stops (`LDG-32`, `STO-18`);
+set to the recording instant for `LDG-74`'s observation boundary ("Billing stops at the observation
+instant"), subject to its earlier scheduled-date case, and
+`released_at` set on every unreleased billable attachment as its release evidence (`LDG-32`,
+`STO-18`);
 **apply `LDG-38`'s exit rule to every subject**, including scheduled machines and quarantined
 subjects; **close and release in full
 every open commitment on machines in that account** (`SEC-46`, `LDG-32`); **transition every `queued`, never-claimed create naming that
@@ -1405,8 +1448,8 @@ per machine — the `CNF-272` scenario, at the scale of a whole account.*
 
 **The meter stop MUST come first, and it MUST cover the attachments as well as the machines.**
 *Added 2026-09-04. The release was specified without it, and the two are not the same act:
-`LDG-32`'s first terminal outcome reads "the machine stops billing **and every billable attachment
-it left behind has stopped billing**", which is the shape the other rows share — while the
+`LDG-32`'s first terminal outcome says "the machine's meter stops **and every billable attachment it left
+behind has release evidence (`released_at`)**", which is the shape the other rows share — while the
 account-termination row added on 2026-09-02 released the money
 and left every meter running. For exit ordering and its rationale, see `LDG-38` and
 `ADR-0011` (2026-10-03).*
@@ -1417,8 +1460,7 @@ Re-assignment stays a separate, deliberate act (`API-62`), because doing it auto
 every affected tenant at once, precisely when the surviving accounts can least absorb them.
 
 **Recording a status the driver itself reports MUST be refused** `conflict` with
-`details.reason: "state"`, exactly as `WIR-47` refuses an operator network-restriction where the
-driver is authoritative. **`terminated` MUST NOT be reversible** through this verb or any other: it
+`details.reason: "state"`. **`terminated` MUST NOT be reversible** through this verb or any other: it
 has already released customer money, and a state that can be left silently would re-reserve balances
 against machines the provider says are gone. The remedy for a mistaken termination is a fresh
 account and `API-62`, which is a decision with a record.

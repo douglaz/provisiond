@@ -67,9 +67,22 @@ interval an admitted posting priced: `no_second_charged_twice` is the rule on ev
 `nothing_left_at_or_before_the_mark` is `LDG-38`'s "the discard above is the case with nothing left
 after the mark". `seed` is `Params.seedOnBillable`, `LDG-38`'s "Every transition of a subject into
 billable MUST write that subject's high-water mark at its seed instant": the mark and nothing
-else. `World.mark` stays an `Option` because the seed's absence is a value of the model: in the
-specified system "There is no case without a mark", and `none` is reachable here only from a world
-that was never seeded, where `start` falls back on `World.periodStart` — `LDG-38`'s trap:
+else — except a machine's first seed. `Params.prepaidFirstUnit` is `ADR-0033`, 2026-10-08: the
+provider's first billing unit of a machine is prepaid machine time, `LDG-39`'s lifecycle, so
+"the machine's first seed places its mark at the seed instant plus one unit" and the meter starts
+where the unit ends. The unit is `World.unitSeconds`, `PRV-44`'s `billing_unit.seconds` for the
+subject's offer as the machine's row copied it (`LDG-38`), and `firstUnit` is the seed it applies
+to: the subject is a machine, it has no mark yet, the unit has seconds and a customer debit
+exists. `Params.offsetRequiresDebit` isolates this eligibility guard (`ADR-0033`, 2026-10-08).
+`World.firstUnitDebitSats` is the actual debit magnitude supplied from the durable reference,
+not a provider charge or an obligation; zero includes a released create and a zero-priced unit.
+`World.prepaid`
+records the interval that seed bought, as `charged` records what each posting priced; it is not a
+column. A later seed, an attachment's seed and a unit of no seconds are the plain rule, and the
+floor on the unit's price (`native_floor`) moves no instant. `World.mark` stays an `Option`
+because the seed's absence is a value of the model: in the specified system "There is no case
+without a mark", and `none` is reachable here only from a world that was never seeded, where
+`start` falls back on `World.periodStart` — `LDG-38`'s trap:
 "A start at the metering period's first instant, for a subject not yet marked, forfeits every
 billable second before that boundary and makes the tick's timing a pricing input".
 `Meter.postedDebit` computes the debit, `Ledger.clamp` splits it, and `r` advances by the computed
@@ -96,8 +109,13 @@ state the clamp theorems under premises that do not read the clamp's outcome.
 leaves the meter's state untouched" on the composed model.
 
 Omitted, and where: `LDG-35`'s serialization and the two-tenant lock order of an attribution
-(`Provisiond.Ledger` carries the stale read); `LDG-7`'s two fee kinds, which pair like the usage
-debit — `Kind` lists them, nothing here constructs them; `LDG-47`'s received-versus-requested
+(`Provisiond.Ledger` carries the stale read); `LDG-7`'s two fee kinds and the prepaid first unit's
+`first_unit_debit`, which pair like the usage debit — `Kind` lists them, nothing here constructs
+them: the unit's debit is `LDG-39`'s settlement write, outside this model.
+`World.firstUnitDebitSats` is an assumed input, not a conclusion about settlement. The guarded
+seed proves how that input controls eligibility; it does not prove that a debit established it
+or that the durable reference survives retention. `World.prepaid` records only the eligible
+interval; `LDG-47`'s received-versus-requested
 amount — `sats` here is the settled value; `LDG-48`'s confirmation depth, folded into the
 settlement event; `LDG-52`'s rail floor; `LDG-56`'s disclosure; `WIR-42`'s `operator_ref` and its
 `409` on a second tenant, which the model refuses silently; `LDG-66`'s "provider-native amount
@@ -116,8 +134,13 @@ lifecycles; `exitAndRelease` separately executes the release-order guard, includ
 the closing post with the guard off. Release zeros the one remaining commitment; its opening and
 other ledger rules are in `Provisiond.Ledger`. Outage deficiency-row closure on a quarantined exit or qualifying rate return (2026-10-04)
 is outside this money/meter world, as are all outage rows. No one-subject theorem establishes an
-account-wide transaction. Omitted also:
-a second subject, and with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
+account-wide transaction. Also omitted are a scheduled attachment's stored effective date,
+its direct absence read and `released_at`
+write. The caller supplies a stop boundary to this one-subject arithmetic model; it does not
+choose the earlier applicable date and observation or prove that cleanup occurred. The model
+can check a supplied boundary's elapsed increment, but cannot establish `STO-18`'s tombstone
+gate or `OPS-32`'s account-wide observation transaction. Also omitted are a second subject,
+and with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records
 the subject billable — `seed` is the mark's write alone; `LDG-68`'s period boundary
 (`Provisiond.Period`), and with it `LDG-38`'s "new period's `meter_totals` row starts with
 `r = 0`", the split of an increment "at every period boundary and every rate change it crosses" —
@@ -173,12 +196,14 @@ structure Deposit where
   attributedTo : Option TenantId
   deriving DecidableEq, Repr
 
-/-- `LDG-7`'s closed list; the two fee kinds are never constructed here (the module docstring). -/
+/-- `LDG-7`'s closed list; the two fee kinds and `firstUnitDebit`, `ADR-0033`'s prepaid first unit,
+are never constructed here (the module docstring). -/
 inductive Kind
   | topup
   | usageDebit
   | setupFeeDebit
   | operationFeeDebit
+  | firstUnitDebit
   | correction
   deriving DecidableEq, Repr
 
@@ -254,7 +279,11 @@ observation takes itself to have begun. `seedOnBillable`: `LDG-38`, 2026-10-02, 
 "Every transition of a subject into billable"; `false` writes none. `exitPosts`: `LDG-38`,
 2026-10-03, the exit closes through `post`; `false` records a stop without closing its tail.
 `closeBeforeRelease`: `LDG-38`, "before any `LDG-32` close"; `false` releases authority before
-posting the tail in `exitAndRelease`. -/
+posting the tail in `exitAndRelease`. `prepaidFirstUnit`: `ADR-0033`, 2026-10-08, "the machine's
+first seed places its mark at the seed instant plus one unit"; `false` writes a machine's first seed
+at its instant like any other, the rule as it stood before that day.
+`offsetRequiresDebit`: `LDG-38`, 2026-10-08, only an actual customer debit earns the offset;
+`false` admits the unpaid late-attach defect. -/
 structure Params where
   keyFrom             : KeySource
   correctionPrefix    : Bool
@@ -266,6 +295,8 @@ structure Params where
   seedOnBillable      : Bool
   exitPosts           : Bool
   closeBeforeRelease  : Bool
+  prepaidFirstUnit    : Bool
+  offsetRequiresDebit : Bool
   deriving DecidableEq, Repr
 
 /-- The rules as they stand. One field per line: `ci.yml`'s controls flip one each. -/
@@ -280,7 +311,9 @@ def current : Params := {
     startsAtMark        := true,
     seedOnBillable      := true,
     exitPosts           := true,
-    closeBeforeRelease  := true }
+    closeBeforeRelease  := true,
+    prepaidFirstUnit    := true,
+    offsetRequiresDebit := true }
 
 structure World where
   now           : Nat
@@ -311,6 +344,19 @@ structure World where
   charged        : List (Nat × Nat)
   /-- The subject quarantine from `LDG-72`; the audit that sets it is not modeled. -/
   quarantined    : Bool := false
+  /-- `PRV-44`'s `billing_unit.seconds` for the subject's offer, as the machine's own row carries
+  it — `machines.billing_unit_seconds`, the copy the row takes from the create's snapshot and
+  `LDG-38`'s first seed reads (`ADR-0033`). Zero is `PRV-44`'s exact-elapsed-time offer, a unit of
+  no length, and the row's null: nothing is prepaid for time and a machine's first seed writes its
+  mark at the seed instant. -/
+  unitSeconds    : Nat := 0
+  /-- Magnitude of the actual customer debit referenced by machines.first_unit_debit_id
+  (`LDG-39`); zero means absent. Supplied initial fact: this model has no acceptance/settlement
+  transition establishing it, so a proof using it does not prove settlement or persistence. -/
+  firstUnitDebitSats : Nat := 0
+  /-- Not a column: the interval the prepaid first unit bought — the machine's first seed instant
+  to that instant plus the unit — written by that seed and by nothing else (`ADR-0033`). -/
+  prepaid        : Option (Nat × Nat) := none
   deriving DecidableEq, Repr
 
 /-- A live `tenants` row bears the identifier. -/
@@ -428,12 +474,119 @@ def start (p : Params) (w : World) (observedFrom : Nat) : Nat :=
 def charge (p : Params) (w : World) (observedFrom incrementEnd : Nat) (rate : Rat) : Rat :=
   Period.Increment.exact ⟨start p w observedFrom, incrementEnd, rate⟩
 
+/-- `ADR-0033`'s prepaid first unit, as the interval a seed at `at_` buys: the subject is a
+machine with no mark yet — its first seed — under the offset guard, with positive copied seconds
+and, under the eligibility guard, a nonzero actual customer debit.
+`none` for every other seed: a re-entry, an attachment's seed (the ADR prepays "the provider's
+first billing unit of every machine" and nothing else), a unit of no seconds, or the guard off. -/
+@[req "LDG-38"]
+def firstUnit (p : Params) (w : World) (at_ : Nat) : Option (Nat × Nat) :=
+  match w.subject, w.mark with
+  | .machine _, none =>
+    if p.prepaidFirstUnit && w.unitSeconds != 0 &&
+       (!p.offsetRequiresDebit || w.firstUnitDebitSats != 0)
+    then some (at_, at_ + w.unitSeconds) else none
+  | _, _ => none
+
 /-- `LDG-38`'s seed: `at_` is the seed instant, a given here (the module's omissions). It writes
 "an empty increment through `STO-45`'s no-entry path" — no entry, no seconds, `r` where it was —
-and a mark already at or past it stays. -/
+and a mark already at or past it stays. An eligible machine's first seed under `ADR-0033` writes the mark at
+the unit's end instead, `firstUnit`, and records the unit; "the meter starts where the unit ends".
+-/
 @[req "LDG-38"]
 def seed (p : Params) (w : World) (at_ : Nat) : World :=
-  if p.seedOnBillable then { w with mark := some (max (w.mark.getD 0) at_) } else w
+  if p.seedOnBillable then
+    match firstUnit p w at_ with
+    | some u => { w with mark := some u.2, prepaid := some u }
+    | none => { w with mark := some (max (w.mark.getD 0) at_) }
+  else w
+
+/-- What a recorded unit says of the seed that wrote it: the subject had no mark, the guard was on,
+the unit has seconds, and the interval runs from the seed instant to that instant plus the unit. -/
+theorem firstUnit_some (p : Params) (w : World) (at_ : Nat) (u : Nat × Nat)
+    (h : firstUnit p w at_ = some u) :
+    w.mark = none ∧ u = (at_, at_ + w.unitSeconds) ∧ w.unitSeconds ≠ 0 ∧
+      p.prepaidFirstUnit = true := by
+  unfold firstUnit at h
+  cases hs : w.subject <;> cases hmk : w.mark <;> simp only [hs, hmk] at h <;> try cases h
+  split at h
+  · rename_i hc
+    simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at hc
+    exact ⟨rfl, (Option.some.inj h).symm, hc.1.2, hc.1.1⟩
+  · cases h
+
+/-- A seed on a marked subject is never a first seed. -/
+theorem firstUnit_none_of_marked (p : Params) (w : World) (at_ m : Nat) (hm : w.mark = some m) :
+    firstUnit p w at_ = none := by
+  unfold firstUnit; cases w.subject <;> simp [hm]
+
+/-- An attachment's seed is never offset. -/
+theorem firstUnit_none_of_attachment (p : Params) (w : World) (at_ : Nat) (a : AttachmentId)
+    (hs : w.subject = .attachment a) : firstUnit p w at_ = none := by
+  unfold firstUnit; cases w.mark <;> simp [hs]
+
+/-- `ADR-0033`: a machine's first seed, with an assumed actual customer debit, under the offset
+guard and a unit of some seconds, writes the mark
+at "the seed instant plus one unit" and records the unit's interval; `r`, the entries and the
+deficiencies are where they were. -/
+@[req "LDG-38"]
+theorem seed_prepays_the_first_unit (p : Params) (hs : p.seedOnBillable = true)
+    (hu : p.prepaidFirstUnit = true) (w : World) (m : MachineId) (hm : w.subject = .machine m)
+    (hn : w.mark = none) (hz : w.unitSeconds ≠ 0) (paid : w.firstUnitDebitSats ≠ 0) (at_ : Nat) :
+    seed p w at_ = { w with mark := some (at_ + w.unitSeconds),
+                            prepaid := some (at_, at_ + w.unitSeconds) } := by
+  have hf : firstUnit p w at_ = some (at_, at_ + w.unitSeconds) := by
+    unfold firstUnit; simp [hm, hn, hu, hz, paid]
+  simp [seed, hs, hf]
+
+/-- Eligibility under the guard is a debit fact, never inferred from positive duration. -/
+@[req "LDG-38"]
+theorem firstUnit_requires_customer_debit (p : Params) (hguard : p.offsetRequiresDebit = true)
+    (w : World) (at_ : Nat) (u : Nat × Nat) (h : firstUnit p w at_ = some u) :
+    w.firstUnitDebitSats ≠ 0 := by
+  intro unpaid
+  unfold firstUnit at h
+  cases hs : w.subject <;> cases hm : w.mark <;> simp_all
+
+/-- A released or zero-priced unit has no customer debit: even positive seconds cannot offset it. -/
+@[req "LDG-38"]
+theorem seed_unpaid_unoffset (p : Params) (hs : p.seedOnBillable = true)
+    (hg : p.offsetRequiresDebit = true) (w : World) (hn : w.mark = none)
+    (unpaid : w.firstUnitDebitSats = 0) (at_ : Nat) :
+    seed p w at_ = { w with mark := some at_ } := by
+  cases hsub : w.subject <;> simp [seed, firstUnit, hs, hg, hn, unpaid, hsub]
+
+/-- A later seed is unchanged by the guard: with a mark, the seed writes the greater of the mark and
+its instant and records no unit — `LDG-38`'s "any later re-entry into a billable state" is not
+offset, and "A seed at or before the subject's latest mark is discarded". -/
+@[req "LDG-38"]
+theorem seed_later_unoffset (p : Params) (hs : p.seedOnBillable = true) (w : World) (m at_ : Nat)
+    (hm : w.mark = some m) : seed p w at_ = { w with mark := some (max m at_) } := by
+  simp [seed, hs, firstUnit_none_of_marked p w at_ m hm, hm]
+
+/-- An attachment's seed is the plain rule whatever the guard says: `ADR-0033` prepays "the
+provider's first billing unit of every machine" and nothing else. -/
+@[req "LDG-38"]
+theorem seed_attachment_unoffset (p : Params) (hs : p.seedOnBillable = true) (w : World)
+    (a : AttachmentId) (ha : w.subject = .attachment a) (at_ : Nat) :
+    seed p w at_ = { w with mark := some (max (w.mark.getD 0) at_) } := by
+  simp [seed, hs, firstUnit_none_of_attachment p w at_ a ha]
+
+/-- Whatever the seed wrote, the mark after it is at least the mark before it. -/
+theorem seed_mark_mono (p : Params) (w : World) (at_ m : Nat) (hm : w.mark = some m) :
+    ∃ m', (seed p w at_).mark = some m' ∧ m ≤ m' := by
+  unfold seed; split
+  · rw [firstUnit_none_of_marked p w at_ m hm]; exact ⟨_, rfl, by simp [hm]; omega⟩
+  · exact ⟨m, hm, Nat.le_refl m⟩
+
+/-- A seed moves neither the entries, the charged intervals, the subject nor the period. -/
+theorem seed_entries (p : Params) (w : World) (at_ : Nat) :
+    (seed p w at_).entries = w.entries ∧ (seed p w at_).charged = w.charged ∧
+    (seed p w at_).subject = w.subject ∧ (seed p w at_).period = w.period ∧
+    (seed p w at_).quarantined = w.quarantined := by
+  unfold seed; split
+  · split <;> exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+  · exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- `post` refuses the increment whole: `markDiscards` discards it, or the entry it writes carries a
 key already on the tenant's ledger. An increment that writes no entry inserts no key to collide.
@@ -730,7 +883,7 @@ theorem payments_match_topups (p : Params) (w : World) (e : Event)
     split
     · exact h
     · simp only [List.filter_append, List.length_append, h]; split <;> simp
-  | billable at_ => simp only [step, seed]; split <;> exact h
+  | billable at_ => simp only [step, seed]; split <;> (try split) <;> exact h
 
 /-! ## Rail identity -/
 
@@ -849,7 +1002,7 @@ theorem lightning_paid_before_expiry (p : Params) (w : World) (e : Event)
           · split <;> exact hlt
     · exact h
   | post observedFrom incrementEnd rate => simp only [step, post]; split <;> exact h
-  | billable at_ => simp only [step, seed]; split <;> exact h
+  | billable at_ => simp only [step, seed]; split <;> (try split) <;> exact h
 
 /-! ## The tenant -/
 
@@ -967,7 +1120,7 @@ theorem in_window_deposit_has_live_tenant (p : Params) (hp : p.reapWaitsForWindo
             exact h dep' hdep' hw
     · exact h
   | post observedFrom incrementEnd rate => simp only [step, post]; split <;> exact h
-  | billable at_ => simp only [step, seed]; split <;> exact h
+  | billable at_ => simp only [step, seed]; split <;> (try split) <;> exact h
 
 /-- On a world carrying the invariant, a settlement at a deposit inside its window is credited to
 a live tenant, and the tenant is live after the credit. -/
@@ -1216,9 +1369,15 @@ theorem mark_covers_every_key (p : Params) (w : World) (e : Event) (h : w.markCo
   | billable at_ =>
     unfold World.markCovers at h ⊢
     simp only [step, seed]; split
-    · intro e he n hn
-      obtain ⟨m, hm, hle⟩ := h e he n hn
-      exact ⟨_, rfl, by simp [hm]; omega⟩
+    · split
+      · rename_i u hu
+        intro e he n hn
+        obtain ⟨m, hm, -⟩ := h e he n hn
+        have := (firstUnit_some p w at_ u hu).1
+        simp [this] at hm
+      · intro e he n hn
+        obtain ⟨m, hm, hle⟩ := h e he n hn
+        exact ⟨_, rfl, by simp [hm]; omega⟩
     · exact h
   | post observedFrom incrementEnd rate =>
     unfold World.markCovers at h ⊢
@@ -1286,9 +1445,15 @@ theorem charged_in_order_step (p : Params) (hp : p.startsAtMark = true) (w : Wor
     · exact h
   | billable at_ =>
     simp only [step, seed]; split
-    · refine ⟨h.1, fun i hi => ?_⟩
-      obtain ⟨m, hm, hle⟩ := h.2 i hi
-      exact ⟨_, rfl, by simp [hm]; omega⟩
+    · split
+      · rename_i u hu
+        refine ⟨h.1, fun i hi => ?_⟩
+        obtain ⟨m, hm, -⟩ := h.2 i hi
+        have := (firstUnit_some p w at_ u hu).1
+        simp [this] at hm
+      · refine ⟨h.1, fun i hi => ?_⟩
+        obtain ⟨m, hm, hle⟩ := h.2 i hi
+        exact ⟨_, rfl, by simp [hm]; omega⟩
     · exact h
   | post observedFrom incrementEnd rate =>
     simp only [step, post, Ledger.clamp]; split
@@ -1355,6 +1520,19 @@ A quarantined exit records its stop externally and leaves this money/meter world
 def exitSubject (p : Params) (w : World) (boundary : Nat) (rate : Rat) : World :=
   if w.quarantined then w else if p.exitPosts then post p w boundary boundary rate else w
 
+/-- `LDG-38`: "posted entries stand" when a supplied stop boundary falls at or behind the
+subject's mark. This one-subject model leaves the entire money/meter world unchanged in that
+case; it does not establish how the boundary was learned, or specify a future corrective credit. -/
+@[req "LDG-38"]
+theorem late_stop_preserves_posted (p : Params) (hp : p.markDiscards = true) (w : World)
+    (boundary : Nat) (rate : Rat) (h : w.mark.any (boundary ≤ ·) = true) :
+    exitSubject p w boundary rate = w := by
+  by_cases hq : w.quarantined
+  · simp [exitSubject, hq]
+  · by_cases hx : p.exitPosts
+    · simpa [exitSubject, hq, hx] using post_discarded p hp w boundary boundary rate h
+    · simp [exitSubject, hq, hx]
+
 /-- `LDG-72`: a quarantined exit changes no entry, commitment or meter state. Stop recording
 and deletion completion are external to this one-subject money world. -/
 @[req "LDG-72"]
@@ -1412,23 +1590,28 @@ inductive LifecycleTrace (p : Params) (initial : World) (origin : Nat) :
       (prior : LifecycleTrace p initial origin w cursor none spans (some boundary)) :
       LifecycleTrace p initial origin (release w) cursor none spans (some boundary)
 
-/-- The ordinary posting reaches the requested boundary, adding exactly the remaining interval;
-a boundary already at the mark is a whole-state discard, including zero-entry postings. -/
+/-- The posting at a boundary, from any mark: it leaves the mark at the greater of the mark and the
+boundary, and adds the interval from the mark to the boundary where there is one. A boundary at or
+before the mark is a whole-state discard, including zero-entry postings. -/
 theorem post_partition (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
-    (w : World) (cursor at_ observed : Nat) (rate : Rat)
-    (hm : w.mark = some cursor) (hc : w.markCovers) (ho : cursor ≤ at_) :
-    (post p w observed at_ rate).mark = some at_ ∧
+    (w : World) (M at_ observed : Nat) (rate : Rat)
+    (hm : w.mark = some M) (hc : w.markCovers) :
+    (post p w observed at_ rate).mark = some (max M at_) ∧
     (post p w observed at_ rate).charged =
-      w.charged ++ (if cursor < at_ then [(cursor, at_)] else []) := by
-  by_cases h : cursor < at_
+      w.charged ++ (if M < at_ then [(M, at_)] else []) := by
+  by_cases h : M < at_
   · have hn := not_refused_past_the_mark p hk w hc at_ (charge p w observed at_ rate)
         (by simp [hm, h])
-    simp [post, hn, start, hs, hm, h, Nat.max_eq_right ho]
-  · have he : at_ = cursor := by omega
-    subst at_
-    rw [post_discarded p hd w observed cursor rate (by simp [hm])]
-    simp [hm]
+    simp [post, hn, start, hs, hm, h]
+  · have he : at_ ≤ M := by omega
+    rw [post_discarded p hd w observed at_ rate (by simp [hm, he])]
+    simp [hm, h, Nat.max_eq_left he]
+
+/-- A posting writes no unit and reads none: `prepaid` is the first seed's alone. -/
+theorem post_prepaid (p : Params) (w : World) (observed at_ : Nat) (rate : Rat) :
+    (post p w observed at_ rate).prepaid = w.prepaid := by
+  simp only [post]; split <;> rfl
 
 /-- Splitting at any chronological tick preserves precisely the covered seconds. -/
 theorem covered_split (xs : List (Nat × Nat)) (a b t : Nat) :
@@ -1438,80 +1621,191 @@ theorem covered_split (xs : List (Nat × Nat)) (a b t : Nat) :
   · simp [Covered, h, Inside]
   · simp [Covered, h]; omega
 
-/-- Invariant derived from transitions: coverage equals completed spans plus the active prefix,
-with all priced intervals ordered. The mark/key hypotheses prevent an unrelated key conflict
-from silently refusing a fresh closing posting. The alternative to a mark at the cursor is
-only the untouched initial world before any entry, so an unmarked first entry loses no span. -/
+/-- The instant the meter starts from under `ADR-0033`: the end of the prepaid unit the world
+records, or 0 where it records none. -/
+def World.unitEnd (w : World) : Nat := (w.prepaid.map (·.2)).getD 0
+
+/-- A second inside the prepaid first unit the world records: machine time the customer paid for
+at acceptance (`LDG-39`) and the meter never prices. -/
+def Prepaid (w : World) (t : Nat) : Prop := ∃ u, w.prepaid = some u ∧ Inside t u
+
+theorem unitEnd_of_prepaid (w : World) (u : Nat × Nat) (h : w.prepaid = some u) :
+    w.unitEnd = u.2 := by simp [World.unitEnd, h]
+
+theorem unitEnd_of_none (w : World) (h : w.prepaid = none) : w.unitEnd = 0 := by
+  simp [World.unitEnd, h]
+
+/-- Invariant derived from transitions, under `ADR-0033`. The mark is the greater of the cursor and
+the prepaid unit's end; coverage is the completed spans plus the active prefix, less every second
+inside the unit — "the meter starts where the unit ends" — with all priced intervals ordered; and
+the unit the world records, if any, was written from an unmarked initial world at the first entry,
+so it starts no later than any span. The mark/key hypotheses prevent an unrelated key conflict from
+silently refusing a fresh closing posting. The alternative to a mark at the cursor is only the
+untouched initial world before any entry, so an unmarked first entry loses no span. -/
 theorem lifecycle_initial_invariant (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
     (initial : World) (origin : Nat) (hm : initial.mark = some origin ∨ initial.mark = none)
-    (hc : initial.markCovers) (hempty : initial.charged = [])
+    (hc : initial.markCovers) (hempty : initial.charged = []) (hu : initial.prepaid = none)
     {w cursor active spans stopped}
     (trace : LifecycleTrace p initial origin w cursor active spans stopped) :
     w.quarantined = false ∧
-    (w.mark = some cursor ∨ (w = initial ∧ cursor = origin ∧ active = none ∧ stopped = none)) ∧
+    (w.mark = some (max cursor w.unitEnd) ∨
+      (w = initial ∧ cursor = origin ∧ active = none ∧ spans = [] ∧ stopped = none)) ∧
     w.markCovers ∧ w.chargedInOrder ∧
     (∀ begin, active = some begin → begin ≤ cursor) ∧
     (∀ boundary, stopped = some boundary → boundary = cursor) ∧
-    (∀ t, Covered w.charged t ↔ Covered spans t ∨
-      ∃ begin, active = some begin ∧ begin ≤ t ∧ t < cursor) := by
+    (∀ u, w.prepaid = some u → initial.mark = none ∧ u.1 ≤ u.2 ∧ u.1 ≤ cursor ∧
+      (∀ sp ∈ spans, u.1 ≤ sp.1) ∧ (∀ begin, active = some begin → u.1 ≤ begin)) ∧
+    (∀ t, Covered w.charged t ↔ w.unitEnd ≤ t ∧ (Covered spans t ∨
+      ∃ begin, active = some begin ∧ begin ≤ t ∧ t < cursor)) := by
   induction trace with
   | initial hnq =>
-    refine ⟨hnq, Or.inr ⟨rfl, rfl, rfl, rfl⟩, hc, ?_, by simp, by simp, ?_⟩
+    refine ⟨hnq, Or.inr ⟨rfl, rfl, rfl, rfl, rfl⟩, hc, ?_, by simp, by simp, ?_, ?_⟩
     · simp [World.chargedInOrder, hempty]
+    · intro u hu'; rw [hu] at hu'; cases hu'
     · simp [Covered, hempty]
   | @enter w cursor spans stopped prior at_ ordered ih =>
-    obtain ⟨hnq, hmark, hkeys, horder, _, _, hcover⟩ := ih
-    have hseed : seed p w at_ = { w with mark := some at_ } := by
-      rcases hmark with hmark | ⟨rfl, rfl, _, _⟩
-      · simp [seed, he, hmark, Nat.max_eq_right ordered]
-      · rcases hm with hm | hm <;> simp [seed, he, hm, Nat.max_eq_right ordered]
-    refine ⟨by simpa [hseed] using hnq, Or.inl (by simp [hseed]), mark_covers_every_key p w (.billable at_) hkeys,
-      charged_in_order_step p hs w (.billable at_) horder, by simp, by simp, ?_⟩
-    intro t
-    have hem : ¬ (at_ ≤ t ∧ t < at_) := by omega
-    simpa [hseed, hem] using hcover t
+    obtain ⟨hnq, hmark, hkeys, horder, -, -, hunit, hcover⟩ := ih
+    have hkeys' := mark_covers_every_key p w (.billable at_) hkeys
+    have horder' := charged_in_order_step p hs w (.billable at_) horder
+    simp only [step] at hkeys' horder'
+    obtain ⟨hent, hch, -, -, hq⟩ := seed_entries p w at_
+    rcases hmark with hmark | ⟨hwi, rfl, -, rfl, -⟩
+    · -- a marked world: the plain seed
+      have hseed := seed_later_unoffset p he w _ at_ hmark
+      refine ⟨by rw [hq]; exact hnq, Or.inl ?_, hkeys', horder', by simp, by simp, ?_, ?_⟩
+      · rw [hseed]; simp [World.unitEnd] <;> omega
+      · intro u hu'
+        rw [hseed] at hu'; simp only at hu'
+        obtain ⟨h1, h2, h3, h4, -⟩ := hunit u hu'
+        exact ⟨h1, h2, by omega, h4, fun b hb => by cases hb; omega⟩
+      · intro t
+        rw [hseed]; simp only [World.unitEnd]
+        have hem : ¬ (at_ ≤ t ∧ t < at_) := by omega
+        have := hcover t
+        simp only [World.unitEnd] at this
+        simpa [hem] using this
+    · -- the initial world: the first entry
+      subst hwi
+      rcases hm with hm | hm
+      · have hseed := seed_later_unoffset p he w _ at_ hm
+        refine ⟨by rw [hq]; exact hnq, Or.inl ?_, hkeys', horder', by simp, by simp, ?_, ?_⟩
+        · rw [hseed]; simp [World.unitEnd, hu] <;> omega
+        · intro u hu'; rw [hseed] at hu'; simp [hu] at hu'
+        · intro t
+          rw [hseed]; simp [World.unitEnd, hu, hempty, Covered] <;> omega
+      · cases hf : firstUnit p w at_ with
+        | some u =>
+          obtain ⟨-, rfl, -, -⟩ := firstUnit_some p w at_ u hf
+          have hseed : seed p w at_ =
+              { w with mark := some (at_ + w.unitSeconds),
+                       prepaid := some (at_, at_ + w.unitSeconds) } := by
+            simp [seed, he, hf]
+          refine ⟨by rw [hq]; exact hnq, Or.inl ?_, hkeys', horder', by simp, by simp, ?_, ?_⟩
+          · rw [hseed]; simp [World.unitEnd] <;> omega
+          · intro u hu'
+            rw [hseed] at hu'; simp only at hu'
+            cases hu'
+            exact ⟨hm, by omega, Nat.le_refl _, by simp, fun b hb => by cases hb; exact Nat.le_refl _⟩
+          · intro t
+            rw [hseed]; simp [World.unitEnd, hempty, Covered] <;> omega
+        | none =>
+          have hseed : seed p w at_ = { w with mark := some (max 0 at_) } := by
+            simp [seed, he, hf, hm]
+          refine ⟨by rw [hq]; exact hnq, Or.inl ?_, hkeys', horder', by simp, by simp, ?_, ?_⟩
+          · rw [hseed]; simp [World.unitEnd, hu] <;> omega
+          · intro u hu'; rw [hseed] at hu'; simp [hu] at hu'
+          · intro t
+            rw [hseed]; simp [World.unitEnd, hu, hempty, Covered] <;> omega
   | @tick w cursor begin spans prior at_ rate ordered priced ih =>
-    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
-    have hmark := hmark.resolve_right (by rintro ⟨_, _, h, _⟩; cases h)
-    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ cursor rate hmark hkeys ordered
-    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, Or.inl hm',
+    obtain ⟨hnq, hmark, hkeys, horder, hbegin, -, hunit, hcover⟩ := ih
+    have hmark := hmark.resolve_right (by rintro ⟨-, -, h, -, -⟩; cases h)
+    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w _ at_ cursor rate hmark hkeys
+    have hpre := post_prepaid p w cursor at_ rate
+    have hue : (post p w cursor at_ rate).unitEnd = w.unitEnd := by
+      simp only [World.unitEnd, hpre]
+    have hb := hbegin begin rfl
+    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, Or.inl ?_,
       mark_covers_every_key p w (.post cursor at_ rate) hkeys,
-      charged_in_order_step p hs w (.post cursor at_ rate) horder, ?_, by simp, ?_⟩
-    · intro b hb; have := hbegin b hb; omega
+      charged_in_order_step p hs w (.post cursor at_ rate) horder, ?_, by simp, ?_, ?_⟩
+    · rw [hm', hue]; congr 1; omega
+    · intro b hb'; cases hb'; omega
+    · intro u hu'
+      rw [hpre] at hu'
+      obtain ⟨h1, h2, h3, h4, h5⟩ := hunit u hu'
+      exact ⟨h1, h2, by omega, h4, fun b hb' => by cases hb'; exact h5 begin rfl⟩
     · intro t
-      rw [hcharged, covered_split, hcover]
-      have := hbegin begin rfl
+      rw [hcharged, covered_split, hcover, hue]
       simp
       by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
   | @exit w cursor begin spans prior at_ rate ordered priced ih =>
-    obtain ⟨hnq, hmark, hkeys, horder, hbegin, _, hcover⟩ := ih
+    obtain ⟨hnq, hmark, hkeys, horder, hbegin, -, hunit, hcover⟩ := ih
     simp only [exitSubject, hnq, Bool.false_eq_true, ↓reduceIte, hx]
-    have hmark := hmark.resolve_right (by rintro ⟨_, _, h, _⟩; cases h)
-    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w cursor at_ at_ rate hmark hkeys ordered
-    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, Or.inl hm',
+    have hmark := hmark.resolve_right (by rintro ⟨-, -, h, -, -⟩; cases h)
+    obtain ⟨hm', hcharged⟩ := post_partition p hs hk hd w _ at_ at_ rate hmark hkeys
+    have hpre := post_prepaid p w at_ at_ rate
+    have hue : (post p w at_ at_ rate).unitEnd = w.unitEnd := by
+      simp only [World.unitEnd, hpre]
+    have hb := hbegin begin rfl
+    refine ⟨by simpa using (post_quarantined p w _ _ rate).trans hnq, Or.inl ?_,
       mark_covers_every_key p w (.post at_ at_ rate) hkeys,
-      charged_in_order_step p hs w (.post at_ at_ rate) horder, by simp, by simp_all, ?_⟩
-    intro t
-    rw [hcharged, covered_split, hcover]
-    have := hbegin begin rfl
-    have happ : Covered (spans ++ [(begin, at_)]) t ↔
-        Covered spans t ∨ (begin ≤ t ∧ t < at_) := by simp [Covered, Inside]
-    rw [happ]
-    simp
-    by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
+      charged_in_order_step p hs w (.post at_ at_ rate) horder, by simp, by simp_all, ?_, ?_⟩
+    · rw [hm', hue]; congr 1; omega
+    · intro u hu'
+      rw [hpre] at hu'
+      obtain ⟨h1, h2, h3, h4, h5⟩ := hunit u hu'
+      refine ⟨h1, h2, by omega, ?_, by simp⟩
+      intro sp hsp
+      simp only [List.mem_append, List.mem_singleton] at hsp
+      rcases hsp with hsp | rfl
+      · exact h4 sp hsp
+      · exact h5 begin rfl
+    · intro t
+      rw [hcharged, covered_split, hcover, hue]
+      have happ : Covered (spans ++ [(begin, at_)]) t ↔
+          Covered spans t ∨ (begin ≤ t ∧ t < at_) := by simp [Covered, Inside]
+      rw [happ]
+      simp
+      by_cases hcovered : Covered spans t <;> simp [hcovered] <;> omega
   | @release w cursor spans boundary prior ih =>
     obtain ⟨hnq, hmark, rest⟩ := ih
-    have hmark := hmark.resolve_right (by rintro ⟨_, _, _, h⟩; cases h)
+    have hmark := hmark.resolve_right (by rintro ⟨-, -, -, -, h⟩; cases h)
     exact ⟨hnq, Or.inl hmark, rest⟩
 
-/-- The marked-initial-state invariant, preserved as a specialization. -/
+/-- A world seeded before the trace, and recording no unit, records none through it: with a mark
+in place no seed in the trace is a first seed, so the world ends with the unit it began with.
+`initial.prepaid = none` is an added hypothesis that narrows the earlier domain, not a
+consequence of the mark. The 2026-10-08 formal-scope note in `ADR-0033` owns the limitation:
+`seed_prepays_the_first_unit` leaves a marked world with `prepaid = some u`, which this theorem
+and the three below do not reach; what they describe is a world rebuilt from the store, where
+`World.prepaid` is "Not a column" and starts empty. -/
+theorem marked_trace_records_no_unit (p : Params) (hs : p.startsAtMark = true)
+    (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
+    (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
+    (initial : World) (origin : Nat) (hm : initial.mark = some origin)
+    (hc : initial.markCovers) (hempty : initial.charged = []) (hu : initial.prepaid = none)
+    {w cursor active spans stopped}
+    (trace : LifecycleTrace p initial origin w cursor active spans stopped) :
+    w.prepaid = none ∧ w.unitEnd = 0 := by
+  obtain ⟨-, -, -, -, -, -, hunit, -⟩ := lifecycle_initial_invariant p hs hk hd he hx initial origin
+    (Or.inl hm) hc hempty hu trace
+  have hp : w.prepaid = none := by
+    cases h : w.prepaid with
+    | none => rfl
+    | some u => have := (hunit u h).1; rw [hm] at this; cases this
+  exact ⟨hp, unitEnd_of_none w hp⟩
+
+/-- The marked-initial-state invariant, narrowed as recorded in the 2026-10-08 formal-scope note
+in `ADR-0033`: on a world that begins
+marked and recording no unit (`marked_trace_records_no_unit`'s assumption) there is no unit, and
+the mark is at the cursor. -/
+@[req "LDG-38"]
 theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
     (initial : World) (origin : Nat) (hm : initial.mark = some origin)
-    (hc : initial.markCovers) (hempty : initial.charged = [])
+    (hc : initial.markCovers) (hempty : initial.charged = []) (hu : initial.prepaid = none)
     {w cursor active spans stopped}
     (trace : LifecycleTrace p initial origin w cursor active spans stopped) :
     w.quarantined = false ∧ w.mark = some cursor ∧ w.markCovers ∧ w.chargedInOrder ∧
@@ -1519,86 +1813,135 @@ theorem lifecycle_invariant (p : Params) (hs : p.startsAtMark = true)
     (∀ boundary, stopped = some boundary → boundary = cursor) ∧
     (∀ t, Covered w.charged t ↔ Covered spans t ∨
       ∃ begin, active = some begin ∧ begin ≤ t ∧ t < cursor) := by
-  obtain ⟨hnq, hmark, rest⟩ := lifecycle_initial_invariant p hs hk hd he hx initial origin
-    (Or.inl hm) hc hempty trace
-  refine ⟨hnq, ?_, rest⟩
-  rcases hmark with hmark | ⟨rfl, rfl, _, _⟩
-  · exact hmark
-  · exact hm
+  obtain ⟨hnq, hmark, hkeys, horder, hbegin, hstop, -, hcover⟩ :=
+    lifecycle_initial_invariant p hs hk hd he hx initial origin (Or.inl hm) hc hempty hu trace
+  obtain ⟨-, hue⟩ := marked_trace_records_no_unit p hs hk hd he hx initial origin hm hc hempty hu trace
+  refine ⟨hnq, ?_, hkeys, horder, hbegin, hstop, fun t => ?_⟩
+  · rcases hmark with hmark | ⟨rfl, rfl, -, -, -⟩
+    · rw [hmark, hue]; simp
+    · exact hm
+  · rw [hcover t, hue]; simp
 
 /-- Every second in each completed seed-to-stop span belongs to exactly one priced increment:
 coverage is an equivalence (so nonbillable gaps are excluded), and pairwise disjointness rules out
 multiple occurrences. Hypotheses are the specified guards, a valid non-quarantined trace and a
-clean initial interval history with a consistent mark/key relation. Rounding and clamp may still
-post zero satoshis. -/
+clean initial interval history with a consistent mark/key relation, on a world already marked and
+recording no unit — `marked_trace_records_no_unit`'s assumption and the narrowing recorded in
+`ADR-0033`'s 2026-10-08 formal-scope note;
+the marked world `seed_prepays_the_first_unit` leaves, its unit still ahead, is not such a world,
+and `unmarked_lifecycle_coverage` is the statement that holds the first seed. Rounding and clamp
+may still post zero satoshis. -/
 @[req "LDG-38"]
 theorem lifecycle_coverage (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
     (initial : World) (origin : Nat) (hm : initial.mark = some origin)
-    (hc : initial.markCovers) (hempty : initial.charged = [])
+    (hc : initial.markCovers) (hempty : initial.charged = []) (hu : initial.prepaid = none)
     {w cursor spans stopped}
     (trace : LifecycleTrace p initial origin w cursor none spans stopped) :
     (∀ t, Covered w.charged t ↔ Covered spans t) ∧
     w.charged.Pairwise (fun a b => ∀ t, ¬ (Inside t a ∧ Inside t b)) := by
-  obtain ⟨_, _, _, ho, _, _, hcov⟩ := lifecycle_invariant p hs hk hd he hx initial origin hm hc hempty trace
+  obtain ⟨_, _, _, ho, _, _, hcov⟩ :=
+    lifecycle_invariant p hs hk hd he hx initial origin hm hc hempty hu trace
   refine ⟨by simpa using hcov, ho.1.imp ?_⟩
   intro a b hab t ht
   simp only [Inside] at ht
   omega
 
 /-- Any admitted release follows an exit that already closed the meter at its stop boundary.
-This holds for arbitrary valid traces, including ticks and repeated exit/re-entry without release;
-`release` cannot itself advance the mark or append a priced interval. -/
+This holds for arbitrary valid traces, including ticks and repeated exit/re-entry without release,
+on a world already marked and recording no unit (`marked_trace_records_no_unit`'s assumption,
+a narrowing recorded in `ADR-0033`'s 2026-10-08 formal-scope note;
+`unmarked_release_follows_close` holds the first seed); `release` cannot itself advance the mark
+or append a priced interval. -/
 @[req "LDG-32", req "LDG-38"]
 theorem release_follows_close (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
     (initial : World) (origin : Nat) (hm : initial.mark = some origin)
-    (hc : initial.markCovers) (hempty : initial.charged = [])
+    (hc : initial.markCovers) (hempty : initial.charged = []) (hu : initial.prepaid = none)
     {w cursor spans boundary}
     (trace : LifecycleTrace p initial origin w cursor none spans (some boundary)) :
     w.mark = some boundary ∧ (release w).mark = w.mark ∧
       (release w).charged = w.charged ∧ (release w).remaining = 0 := by
-  obtain ⟨_, hmark, _, _, _, hstop, _⟩ := lifecycle_invariant p hs hk hd he hx initial origin hm hc hempty trace
+  obtain ⟨_, hmark, _, _, _, hstop, _⟩ :=
+    lifecycle_invariant p hs hk hd he hx initial origin hm hc hempty hu trace
   exact ⟨by simpa [hstop boundary rfl] using hmark, rfl, rfl, rfl⟩
 
-/-- Coverage from an initially unmarked subject, including its first completed span. The trace
-executes the existing seed on first entry and admits arbitrary later ticks, exits, re-entries and
-releases. Empty initial history and a consistent key relation are premises; coverage is derived.
-As for `lifecycle_coverage`, this covers intervals, including zero-entry increments, not satoshis. -/
+/-- Coverage from an initially unmarked subject, including its first completed span, under
+`ADR-0033`. The trace executes the existing seed on first entry — for a machine on an offer with a
+debited unit, the seed that records its interval — and admits arbitrary later ticks, exits, re-entries and releases.
+Empty initial history, no recorded unit and a consistent key relation are premises; coverage is
+derived: the meter prices exactly the span seconds outside the prepaid unit, so every second of
+every completed span is priced once — by a charged interval, or by the unit the customer paid for
+at acceptance — and no second is priced by both. *Until 2026-10-08 this theorem said every span
+second lay in exactly one charged interval; the seconds inside the unit no longer do, because the
+unit bought them, and the statement changed to say so.* As for `lifecycle_coverage`, this covers
+intervals, including zero-entry increments, not satoshis. -/
 @[req "LDG-38"]
 theorem unmarked_lifecycle_coverage (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
     (initial : World) (origin : Nat) (hm : initial.mark = none)
-    (hc : initial.markCovers) (hempty : initial.charged = [])
+    (hc : initial.markCovers) (hempty : initial.charged = []) (hu : initial.prepaid = none)
     {w cursor spans stopped}
     (trace : LifecycleTrace p initial origin w cursor none spans stopped) :
-    (∀ t, Covered w.charged t ↔ Covered spans t) ∧
+    (∀ t, Covered w.charged t ↔ Covered spans t ∧ ¬ Prepaid w t) ∧
+    (∀ t, Covered spans t → Covered w.charged t ∨ Prepaid w t) ∧
+    (∀ t, Prepaid w t → ¬ Covered w.charged t) ∧
     w.charged.Pairwise (fun a b => ∀ t, ¬ (Inside t a ∧ Inside t b)) := by
-  obtain ⟨_, _, _, ho, _, _, hcov⟩ := lifecycle_initial_invariant p hs hk hd he hx initial origin
-    (Or.inr hm) hc hempty trace
-  refine ⟨by simpa using hcov, ho.1.imp ?_⟩
-  intro a b hab t ht
-  simp only [Inside] at ht
-  omega
+  obtain ⟨-, -, -, ho, -, -, hunit, hcov⟩ := lifecycle_initial_invariant p hs hk hd he hx initial
+    origin (Or.inr hm) hc hempty hu trace
+  have hmain : ∀ t, Covered w.charged t ↔ Covered spans t ∧ ¬ Prepaid w t := by
+    intro t
+    rw [hcov t]
+    simp only [reduceCtorEq, false_and, exists_false, or_false]
+    constructor
+    · rintro ⟨hle, hsp⟩
+      refine ⟨hsp, ?_⟩
+      rintro ⟨u, hpu, hin⟩
+      rw [unitEnd_of_prepaid w u hpu] at hle
+      simp only [Inside] at hin
+      omega
+    · rintro ⟨hsp, hnp⟩
+      refine ⟨?_, hsp⟩
+      cases hpu : w.prepaid with
+      | none => rw [unitEnd_of_none w hpu]; exact Nat.zero_le t
+      | some u =>
+        rw [unitEnd_of_prepaid w u hpu]
+        obtain ⟨-, -, -, h4, -⟩ := hunit u hpu
+        obtain ⟨sp, hsp', hin⟩ := hsp
+        have := h4 sp hsp'
+        simp only [Inside] at hin
+        rcases Nat.lt_or_ge t u.2 with hlt | hge
+        · exact absurd ⟨u, hpu, by simp only [Inside]; omega⟩ hnp
+        · exact hge
+  refine ⟨hmain, fun t hsp => ?_, fun t hp hc' => ?_, ho.1.imp ?_⟩
+  · by_cases hp : Prepaid w t
+    · exact Or.inr hp
+    · exact Or.inl ((hmain t).2 ⟨hsp, hp⟩)
+  · exact ((hmain t).1 hc').2 hp
+  · intro a b hab t ht
+    simp only [Inside] at ht
+    omega
 
-/-- The release ordering also holds from an unmarked initial world: the first entry seeds,
-and a stopped trace has already advanced the mark to its boundary before release. -/
+/-- The release ordering also holds from an unmarked initial world: the first entry seeds, and a
+stopped trace has already advanced the mark to its boundary before release — or, where the exit
+fell inside the prepaid unit, left it at the unit's end, the increment the exit would have closed
+being one `LDG-38` discards. -/
 @[req "LDG-32", req "LDG-38"]
 theorem unmarked_release_follows_close (p : Params) (hs : p.startsAtMark = true)
     (hk : p.usageKeyFrom = .incrementEnd) (hd : p.markDiscards = true)
     (he : p.seedOnBillable = true) (hx : p.exitPosts = true)
     (initial : World) (origin : Nat) (hm : initial.mark = none)
-    (hc : initial.markCovers) (hempty : initial.charged = [])
+    (hc : initial.markCovers) (hempty : initial.charged = []) (hu : initial.prepaid = none)
     {w cursor spans boundary}
     (trace : LifecycleTrace p initial origin w cursor none spans (some boundary)) :
-    w.mark = some boundary ∧ (release w).mark = w.mark ∧
+    w.mark = some (max boundary w.unitEnd) ∧ (release w).mark = w.mark ∧
       (release w).charged = w.charged ∧ (release w).remaining = 0 := by
-  obtain ⟨_, hmark, _, _, _, hstop, _⟩ := lifecycle_initial_invariant p hs hk hd he hx initial origin
-    (Or.inr hm) hc hempty trace
-  have hmark := hmark.resolve_right (by rintro ⟨_, _, _, h⟩; cases h)
+  obtain ⟨-, hmark, -, -, -, hstop, -, -⟩ := lifecycle_initial_invariant p hs hk hd he hx initial
+    origin (Or.inr hm) hc hempty hu trace
+  have hmark := hmark.resolve_right (by rintro ⟨-, -, -, -, h⟩; cases h)
   exact ⟨by simpa [hstop boundary rfl] using hmark, rfl, rfl, rfl⟩
 
 end Provisiond.Funding

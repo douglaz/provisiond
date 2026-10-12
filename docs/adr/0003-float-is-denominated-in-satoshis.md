@@ -67,14 +67,15 @@ than resolved.
 
 ---
 
-¹ **Amended by `ADR-0011` (2026-08-12), and again 2026-09-02 for the count.** "At all times" has
-bounded exceptions, recorded rather than papered over. Two are timing: the persistence window
+¹ **Amended by `ADR-0011` (2026-08-12), again 2026-09-02 for the count, and qualified
+2026-10-12 by `ADR-0037` Q25.** "At all times" has
+exceptions, recorded rather than papered over. Two are timing: the persistence window
 (cancellation requires a deficiency to survive
 more than one derivation, so a real crash gets a few extra hours of partially-covered burn on
 machines already at the edge — measured in `PRV-13e`'s re-derivation intervals, not in billing
 periods), and the scheduled-cancellation branch (`LDG-63`), where billing
 cannot be stopped before its effective date and a commitment that available cannot top leaves the
-gap with the operator, bounded per machine by `PRV-31`.
+gap with the operator. For the exposure bound, see `LDG-63` and `ADR-0037` Q25.
 
 **The rest are the operator deficiencies `STO-37` enumerates, and that requirement is the canonical
 list rather than this footnote.** *There were four when `LDG-66` was written, six when it was last

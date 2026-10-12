@@ -33,7 +33,22 @@ govern them.
 to `timeout`, provider non-2xx responses to `provider` (or the more specific
 `authentication`, `not_found`, `conflict`, `rate_limited` where the status warrants it),
 and MUST attach the upstream HTTP status code to `details.status`. The lifecycle
-classifier reads that field to decide whether a failure was ambiguous (`OPS-11`).
+classifier uses `OPS-11`'s ambiguity rule.
+
+**Amended 2026-10-08 (`ADR-0035`): every driver error MUST carry `details.accepted`.**
+It is `true` once the provider answered successfully to the request performing this operation's
+mutation, and `false` where the driver establishes that request was not accepted (including a
+read-only operation with no mutation). For create this is the ordering request associated with
+its correlator (`PRV-26`), never a preceding key upload. Other mutations need no correlator:
+`PRV-26` says "This applies to create and to nothing else."
+A failure before any byte of the mutating request was sent MUST report `details.accepted: false`.
+A driver that cannot determine acceptance MUST report `details.accepted: null` with the mutating
+request's own failure mapped as above (`network`, `timeout`, or `provider` with its status), using
+`internal` only where no mapping applies. It MUST NOT report a later request's failure in place
+of the mutating request's own, omit `details.accepted`, or substitute `false` for unknown
+acceptance. Known acceptance MUST remain `true` on every later error, whatever its kind.
+Robot's `403 RATE_LIMIT_EXCEEDED` MUST map to `rate_limited`, retaining `details.status: 403`.
+The status and redaction obligations above and in `PRV-7` still apply.
 
 **PRV-6** A driver MUST NOT interpolate a caller-controlled value into a provider URL
 path without encoding it. Path segments MUST be percent-encoded, and the driver MUST
@@ -58,16 +73,35 @@ check and on every `GET /v1/providers`.
 
 **PRV-44** The descriptor is a typed, immutable value: `account`, `kind`, `capabilities`,
 `ordering_channels` (each with `correlator: operation_id | per_order_key | none`, `PRV-32`,
-`PRV-33`, `PRV-38`, and `offer_is_resource: true | false`, `PRV-42`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
+`PRV-33`, `PRV-38`, `offer_is_resource: true | false` (whether the offer names one machine, `PRV-42`), and
+`order_budget: {limit, per}`, `PRV-40`), `evidence_sources` per mutation kind in descending strength (`PRV-36`),
 `visibility_window` `{declared_seconds, sample_size, measured_on | unmeasured}` (`PRV-36`),
-`billing_stop_window` of the same shape (`PRV-13b`), `order_budget` `{limit, per}` (`PRV-40`),
 `cancellation_bound` per offer (`PRV-31`) — which MAY be reported on the offer instead —
+`traffic_bound` per offer (`ADR-0039`) — `unlimited`,
+`{allowance_bytes, headroom_bytes}` with nonnegative integer allowance bytes and
+`0 < headroom_bytes ≤ allowance_bytes`; the resulting limit is
+`allowance_bytes − headroom_bytes`, or explicit `null` where no bound is
+declared. Like `cancellation_bound`, it MAY be
+reported on the offer instead —
+`billing_unit` per offer (`ADR-0033`, added 2026-10-08) — `{seconds, native_floor}`: the provider's
+smallest charged span of machine time, in seconds — zero exactly where the provider charges exact
+elapsed time with no minimum, a unit of no length under which the arithmetic is unchanged: nothing
+is prepaid for time, `first_unit` is the floor alone or nothing (`PRV-13b`), and a machine's first
+seed writes its mark at the seed instant (`LDG-38`) — and the money minimum on its price, a string
+in the offer's currency as `DOM-9` carries every price and null where the offer has none; it is the
+per-contract fact `PRV-13c` lists as billing granularity, and like the bound it MAY be reported on
+the offer instead —
 `rescue_address_family` (`RSC-45`), and `surviving_attachments` (the kinds that survive deletion,
 each with `cleanup: api | manual`, `PRV-13a`). A field with nothing to declare says so explicitly.
 **A value the engine reads MUST come from here and never from `08-provider-notes.md`**, which is
 commentary on why a descriptor says what it says (`ADR-0018`). `WIR-29` exposes a subset of it.
 `CNF-18` iterates its fields as it iterates capabilities: a declared value has a working code path
 behind it.
+*Amended 2026-10-08 (`ADR-0037`): the billing-stop window is withdrawn.
+Amended 2026-10-09 (`ADR-0039`): the per-offer traffic bound is added. An allowance
+declaration alone does not make an offer sellable; the live-evidence condition is below.*
+*Amended 2026-10-09 (`ADR-0036`): `order_budget` is declared within each
+`ordering_channels[]` entry, not once at descriptor top level.*
 
 ### List offers
 
@@ -91,29 +125,42 @@ keys, optional user data, labels, and a provider-options object.
 persist a provider-generated root password, so a machine created without a key would be
 unreachable.
 
-**PRV-9** Where the provider requires SSH keys to be registered as account-level
-resources before they can be attached, the driver MUST create them, attach them, and
-then remove them — but it MUST NOT remove them until the provider has actually consumed
-the key material. For a synchronous create that copies key material at creation time,
-cleanup immediately after the create call returns is correct. For an *asynchronous*
-deploy that reads the key registration later, immediate cleanup produces a machine
-nobody can log into. The driver MUST know which of the two its provider is, and the
-adapter notes MUST record the answer. See `DEF-6`. **Every temporary key resource a driver
-registers — for a create or for rescue — MUST carry the operation id as its provider-side name or
-tag** (*added 2026-09-16, `pv-lld`*), so that `OPS-32`'s sweep can find one the engine did not
-remove: a crash between registration and cleanup leaks the resource, the session's cleanup token
-dies with the process (`DOM-11`), and `PRV-18`'s leaked-resource ids are attached only where the
-driver itself saw the failure. The image import carries the correlator for the same reason
-(`RSC-42`).
+**PRV-9** **Amended 2026-10-09 (`ADR-0040`); amended 2026-10-11 (`ADR-0040`, Q24); amended 2026-10-12 (`ADR-0040`, Q26).** Where the provider
+requires SSH keys to be registered as account-level resources before they can be attached, the driver
+MUST register and attach them as temporary provider-side resources. **A tagged temporary key still
+registered at the provider MUST be deleted by `OPS-32`'s sweep when, and only when, its operation
+has settled or its record has vanished, and no machine that operation produced still reads `provisioning`, whether or not an
+order was accepted. After acceptance, or after settlement without acceptance, the driver MUST NOT
+delete that key; the sweep is its only deleter.** On failure before acceptance, the
+driver MUST delete only a temporary key that its own operation successfully registered. A
+duplicate-fingerprint refusal or an indeterminate registration reply gives the driver no ownership
+evidence and MUST NOT trigger deletion by fingerprint. A post-acceptance `needs_reconciliation` operation
+retains its key until resolution settles it. A vanished operation record satisfies only the settlement
+condition; the sweep MUST still check the provisioning condition against retained `machines` rows.
+For an operation that produced a machine, its `machines.correlator_value` is the operation UUID on
+Hetzner Cloud and DigitalOcean, or its per-order correlator-key fingerprint on Robot. Every temporary
+key tagged with that operation id, including a caller key distinct from Robot's correlator key, has
+the same eligibility. The provider-side
+registration may contain a caller's create public key or a freshly generated rescue/correlator public
+key; it is distinct from the persisted recovery private key (`RSC-19`).
+
+**Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints blocks the caller's next same-key create on that account while any registration survives, until the sweep deletes it. The refusal precedes acceptance and sends no order. Cloud and Robot document this refusal (`08-provider-notes.md`); neither refusal was reproduced live. See `DEF-6`.
 
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request's provider options carry an explicit purchase acknowledgement, *and* the account
 is configured to allow ordering. Both, not either.
 
+**PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before sending a create order request,
+the driver MUST validate every value it forwards to the provider, including provider options,
+and MUST reject invalid values without sending that order request. This validation is in the
+driver, after the API's body validation, because the driver knows the provider's accepted values.
+
 **PRV-11** Ordering is generally not idempotent at the provider. Where create polls an
 order transaction to completion, timing out MUST produce a `timeout` error whose message
 states that the order may still be pending and MUST NOT be blindly repeated, and whose
-details carry the transaction identifier.
+details carry the transaction identifier. *Amended 2026-10-08 (`ADR-0035`): after acceptance this
+is an instance of `OPS-11`'s "the operation's mutating request was accepted by the provider",
+with `details.accepted` from `PRV-5`.*
 
 ### Get machine
 
@@ -121,7 +168,11 @@ details carry the transaction identifier.
 **Output** — the machine as the provider currently reports it.
 
 **PRV-12** Get machine MUST be read-only and free of side effects. It is called
-opportunistically after other actions and during reconciliation.
+opportunistically after other actions and during reconciliation. A read failure, including
+throttling, authentication rejection, a network error or deadline expiry, MUST remain distinct
+from provider-mapped absence of the known machine on the known provider account. A generic HTTP
+error or a response for another identity is not evidence that this machine is gone.
+*Amended 2026-10-11 (`ADR-0037`, Q22).*
 
 *`PRV-28` — adoption as get-machine plus a local row — is withdrawn with adopt (`ADR-0020`). What
 it said about attachment survives here because it is about resolution, not adoption:*
@@ -149,31 +200,94 @@ result, because "deleted" does not mean "billing stopped" there. A driver in the
 category MUST NOT declare `delete_machine`; modelling a contract termination as a synchronous
 API call is a business error, not a missing feature.
 
-**PRV-13a** Deleting a machine does not necessarily delete everything billable that was
-attached to it. A driver MUST declare which associated resources — volumes, snapshots,
-backups, reserved addresses — survive machine deletion and continue to bill, and MUST expose
-cleanup for every such resource the provider's API can delete. **AMENDED 2026-09-08
-(`ADR-0018`) — the declaration and the cleanup both had no carrier.** The kinds are declared in
-the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`, and the
-cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an
-operator procedure, and those are the `manual` ones. A control plane that reports a machine
-deleted while its storage continues to accrue cost is reporting a falsehood.
+**Amended 2026-10-11 (`ADR-0037`, Q22).** After an accepted cancellation returns an effective
+date, the driver MUST read that machine once on its known provider account and external identity.
+Provider-mapped absence, such as Robot `SERVER_NOT_FOUND`, records the machine gone at this read;
+the gone outcome stops its meter through `LDG-74` and closes any open episode under `OPS-48`.
+If the machine remains present, or this read fails for any reason including throttle,
+authentication, network error or deadline expiry, the accepted attempt settles `succeeded` as
+`cancellation_scheduled` with its effective date. Read failure does not turn the accepted dated
+cancellation into `needs_reconciliation` or establish absence. `PRV-36` owns the evidence rule;
+no second confirmation read is required. This result requires known acceptance and its date;
+`OPS-11` still classifies an unknown or failed mutation response.
+
+**Amended 2026-10-11 (`ADR-0037`, Q23a).** After a failed or present read-back, the meter
+runs to `LDG-38`'s stop boundary. Time beyond the funded wind-down is `LDG-74`'s
+sweep-interval residual, which the stored effective date ends no later than that date;
+any amount beyond the commitment meets `LDG-31`'s clamp. A failed read supplies no
+absence evidence and does not stop the meter.
+
+A calendar-day-only **effective** date names the end of that day in the zone the provider dates
+in; the driver MUST convert that local end-of-day instant to UTC. An explicit timestamp retains
+its instant. A `now` request is not evidence of a start-of-day stop. **Amended 2026-10-11 (`ADR-0037`, Q23c).** A provider's
+`earliest_cancellation_date` is a permitted-from date, not an effective stop instant: a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone. A date equal to the provider's today has passed and takes the ordinary branch. For a future earliest date, cost through that date runs to the end of its provider-local day; this pricing does not change the stored permitted-from instant or resize the commitment (`PRV-31`). Robot dates in
+`Europe/Berlin` (`docs/research/panels-2026-10/r40/zone-check.txt`; `ADR-0037`'s 2026-10-12 verification note).
+
+**PRV-13a** Deleting a machine does not necessarily delete everything billable that was attached to it. A driver MUST declare associated resources that survive deletion and may continue to bill, and MUST expose cleanup for every such resource the provider's API can delete. **Amended 2026-09-08 (`ADR-0018`):** the kinds are declared in the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`; cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an operator procedure as `manual`.
+
+**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V17 and §3, retrieved 2026-10-06).** The descriptor MUST declare these potentially surviving kinds for the applicable provider, with their cleanup classification:
+
+| Provider | Kinds and `cleanup` declarations |
+|---|---|
+| Hetzner Cloud | Primary IP `api`; Floating IP `api`; Volume `api`; Snapshot `api` |
+| Hetzner Robot | Additional IP `api`; subnet `api` |
+| DigitalOcean | Reserved IP `api`; floating IP `api`; snapshot `api`; volume `api`; volume snapshot `api`; backup `manual` |
+
+The declaration names kinds, not an assertion that every instance survives. Hetzner Cloud's read-back `auto_delete: true` is evidence that an individual Primary IP is deleted with its server; the descriptor remains unchanged. On 2026-10-11 an auction order's `primary_ipv4` add-on and included /64 were absent after its `now` cancellation; this settles batch B step 9 (`docs/research/provider-verify-2026-10.md` §5) only for that order, not separately ordered Additional IPs or subnets. Robot's possible-survivor declarations remain. DigitalOcean backup billing after Droplet destruction remains `[verify]`. The provider evidence and outstanding checks are in `08-provider-notes.md` and `docs/research/provider-verify-2026-10.md`.
+
+A DigitalOcean driver MUST NOT set `backups: true` on create, because retained backups have no documented deletion API. A control plane that reports a machine deleted while its storage continues to accrue cost is reporting a falsehood.
+
+**PRV-49** **Enabling attachment cleanup.** Before
+enabling a sold create path that can leave a billable attachment outliving its machine, the
+system MUST provide complete automatic discovery and cleanup for that path. It MUST capture
+attachment identities while the machine is present, enqueue `release_attachment` at every
+gone-write for billable survivors, distinguish an attachment list never completed from a
+completed list finding none, and cover disappearance before identity capture. Cleanup MUST NOT
+depend on manual operator recovery. This precondition applies to separately ordered Robot IPs
+and subnets, and to Cloud and DigitalOcean on re-admission. Current Robot offers that order
+the `primary_ipv4` add-on remain sold across Robot ordering channels. The observed absence is
+limited to the tested auction order; catalogue orders and provider termination retain the
+accepted accident-only residual recorded in `ADR-0037`, Q21. This precondition does not require a runtime refusal API for those current offers. The accepted residual
+for catalogue orders or provider termination is an accident that no adversary can cause: a stray address
+costs EUR 1.90 per month until noticed, with no operator cap (`ADR-0037`, Q23b).
 
 **PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own
-exposure before taking money. That requires, per product: an API path to stop the cost, a
-**measured** worst-case delay before cost actually stops, and cleanup for every billable
-attachment (`PRV-13a`, `PRV-45`). *"Measured" has a procedure (`F18`): the worst observed
-request-to-billing-stop latency over at least twenty real deletions on that product, in seconds,
-declared in the descriptor's `billing_stop_window` with its sample size and date (`PRV-44`) —
-re-declared when the provider changes the API. Until twenty samples exist, the driver MUST carry a
-declared conservative bound instead, marked as unmeasured.* The effective value is `PRV-36`'s
-`max(declared, max(observed))` over `STO-53`'s `billing_stop` samples.
+exposure before taking money, subject to `PRV-49`'s accepted residual: "an accident that no
+adversary can cause: a stray address costs EUR 1.90 per month until noticed, with no operator
+cap". *Amended 2026-10-11 (`ADR-0037`, Q23b).* That requires, per product: an API path to stop the cost, a bound
+on the time until the customer's meter stops, and cleanup for every billable attachment
+(`PRV-13a`, `PRV-45`); `PRV-49` is the enabling precondition for paths that can leave one
+outliving its machine. Traffic overage is operator exposure too. Under `ADR-0039`, an offer
+with `traffic_bound: unlimited` is sellable on this dimension; an allowance-bearing offer
+MUST NOT be sold until a live test establishes counter freshness and bounds traffic after
+the last reading through deletion under `ADR-0033`'s "priced, not amplified" criterion.
+An offer with no declared traffic bound MUST NOT be sold. An allowance-bearing offer
+that passes the live gate declares allowance less headroom; see `WIR-30` for the
+before-purchase disclosure. Crossing it would open an exposure-reducing cancellation
+with future reason `traffic_allowance` beside `rate_outage_bound` (`OPS-39`, `STO-52`);
+this path is deferred until re-admission, and no active reason or Fence branch is
+created by this amendment. Wind-down funds the customer's meter through the gone-write. Its
+latency allowance adds the waits in sequence: **`LDG-37`'s metering cadence + the mutating
+provider call's deadline + `PRV-36`'s effective visibility window + `OVR-19`'s resolution-read
+cadence + that read's own provider-call deadline + the worst-case machine-operation hold +
+time margin**. `OVR-19` owns the deadline: "The deployment MUST state and enforce a finite, positive
+provider-call deadline". Every term MUST enter the reserve at the customer rate, even when one
+bound exceeds another. The visibility window begins at the end of the mutating call's wait,
+whether a reply arrived or its deadline expired. `STO-53`'s dispatch-to-observation samples
+widen the effective window; their stored timestamps do not move its start back to dispatch.
+The provider's unit remainder is a different cost, absorbed by the operator under
+`ADR-0033`; the accepted accounting gaps belong to `LDG-75`. *Amended 2026-10-08 (`ADR-0037`).
+Amended 2026-10-09 (`ADR-0037`, Q13):
+sequential wind-down waits. Amended 2026-10-09 (`ADR-0039`): traffic exposure, the sale gate
+and conditional re-admission.*
 
 The reserve is computed **in the provider's billing currency** and converted once, when the
 commitment is opened or re-sized, into the ledger unit:
 
 ```
 reserve_native = setup_fee                              # at cost, no markup (ADR-0006)
+               + first_unit                             # the prepaid first billing unit, at the
+                                                        # customer rate (ADR-0033; defined below)
                + requested_runway × customer_rate       # PRV-13d, customer-chosen
                + wind_down_cost                         # see below
                + billable_attachments                   # PRV-13a
@@ -181,6 +295,14 @@ reserve_native = setup_fee                              # at cost, no markup (AD
 
 commitment_sats = to_ledger_unit( reserve_native × (1 + conversion_haircut) )
 ```
+
+The `billable_attachments` term has no v1 value: no attachment has its own customer rate.
+Enabling one requires an automatic, idempotent corrective credit for a stop learned behind the
+subject's mark (`LDG-38`), a worst-case effective-date bound per attachment kind, and a
+per-offer declaration of the kinds that an order creates. `PRV-44` describes
+`surviving_attachments` as "the kinds that survive deletion"; this per-driver descriptor is
+not an individual order's declaration.
+*Amended 2026-10-10 (`ADR-0037`, Q18).*
 
 *The `accrued_unbilled_usage` term was deleted from this formula on 2026-09-02.* Nothing produces
 it: the sizing happens at create, where by construction no usage has accrued, and once the meter was
@@ -191,14 +313,33 @@ what produced it". Deleted rather than tombstoned: nobody re-adds a zero term by
 
 **`customer_rate`, not provider cost.** The reserve must cover what the *customer* is committing
 to spend, and since `customer_rate ≥ provider_rate` by construction, committing the customer
-price also covers the operator's exposure. Using provider cost here would under-commit every
-machine by exactly the margin. **The setup fee is committed at cost and debited only on confirmed
-acceptance (`LDG-39`)**, because `ADR-0006` passes it through unmarked — the operator does not
-profit from a fee it did not earn — and it is also the one term that is entirely lost once the
-order lands, so it MUST be **fully committed before the order is placed**. *Both withdrawn
+price also covers the operator's time-price exposure on sellable offers; the traffic sale gate
+above is separately required. Using provider cost here would under-commit every
+machine by exactly the margin. **The setup fee is committed at cost and debited at successful
+settlement after acceptance** (amended 2026-10-08, `ADR-0035`; `LDG-39`: "an accepted but unresolved
+create MUST take the `needs_reconciliation` pending-obligation row"), because `ADR-0006` passes it
+through unmarked — the operator does not
+profit from a fee it did not earn — and it is also a term that is entirely lost once the order
+lands (the prepaid first unit, below, is another; *reworded 2026-10-08, `ADR-0033`*), so
+it MUST be **fully committed before the order is placed**. *Both withdrawn
 readings — "fully collected before the order" and "debited before the order is placed" — charged
 the customer for a fee the operator never incurred whenever the provider rejected the order
 outright or the create resolved absent.*
+
+**The prepaid first billing unit is at the customer rate, where the fee is at cost** (`ADR-0033`,
+added 2026-10-08). `first_unit` is the greater of `billing_unit.seconds` at the offer's recurring
+price and `native_floor` (`PRV-44`), with the margin `LDG-24` applies — "The margin is a percentage
+applied to machine time only (`ADR-0007`)" — because it is machine time; `ADR-0033`: "**Why the
+customer rate and not cost.** The customer receives that hour." Like the fee it is entirely lost
+once the order lands, so it MUST be **fully committed before the order is placed**, and like the fee
+it is debited at successful settlement after acceptance (amended 2026-10-08, `ADR-0035`), as its own
+kind and for the satoshi amount authorized here (`LDG-39`, `LDG-67`). On a floor-priced offer the floor
+prices the unit and moves no instant:
+`LDG-38` places an eligible first seed at "the seed instant plus the `billing_unit.seconds` the
+machine's own row carries". A customer whose unit was debited and whose machine outlives `seconds` but not
+what the floor's money bought at the provider pays the floor and then its metered seconds; the
+difference is bounded by the floor and falls on the customer, never on the operator, so it is
+priced and not amplified.
 
 **`F18` fixed: there is one haircut and it belongs to the conversion, not to the sum.** The
 earlier text trailed `× fx_haircut` after the formula without saying whether it multiplied the
@@ -223,13 +364,11 @@ nothing written provider-side, so there is no correlator to search for. That mis
 because the claim was used to shrink a number every machine's reserve depends on — a
 reconciliation error propagating into systematic under-reserving across the whole fleet.
 
-What is actually true is narrower and is now stated as `PRV-29`: a cancellation's outcome is
-recoverable **if and only if** the driver can read enough provider state to distinguish
-*rejected*, *accepted-pending*, *scheduled for a future date* and *complete*. Where it can, size
-`wind_down_cost` as **detection interval + measured confirmed-cancellation latency + margin**.
-**Where it cannot, the pager-latency figure stands** — and `PRV-13c`'s exception branch is
-exactly where it cannot, because a scheduled cancellation's cost runs to its effective date
-regardless.
+The criterion is `PRV-29`'s "bound the time after which its evidence is truthful". Where the
+driver can, size `wind_down_cost` from the sequential allowance above. **Where it cannot, the
+pager-latency figure stands.** Scheduled-cancellation protection
+remains the reserve formula's `cost_through_earliest_cancellation_date` (`PRV-13c`); see that
+requirement for the exception branch.
 
 **PRV-29** **AMENDED 2026-08-31 — the test is bounded freshness of evidence, not richness of
 state.** For any ambiguous mutation **other than create**, resolution MUST proceed by reading
@@ -261,13 +400,22 @@ the window bounds, so the old wording put the provider with the **fastest** dele
 post before buying anything.*
 
 **Mutation complete, resource absent, and billing stopped are three different facts** and MUST be
-evidenced separately. An action reporting `completed` does not establish that billing stopped, which
-is `LDG-32`'s test and `PRV-13a`'s attachments' as well.
+evidenced separately. For the customer's meter, the billing-stop evidence is the gone-write for
+a machine or `released_at` for a completed attachment release; a stored effective date stops
+the corresponding scheduled machine or attachment meter while the resource may remain present.
+Meter boundaries remain with `LDG-38` and `LDG-74` ("Billing stops at the observation instant").
+An action reporting `completed` does not establish that billing stopped.
+*Amended 2026-10-08 (`ADR-0037`): wind-down sizing above uses the effective visibility window;
+billing-stop evidence is named here. Amended 2026-10-09 (`ADR-0037`, Q14): the attachment date
+stops its customer meter separately from absence evidence.*
 
 **AMENDED 2026-08-15 — `wind_down_cost` MUST include the time the cancellation spends waiting for
-the machine.** Both sizings above measure from the moment the provider is *called*, and
-neither accounts for reaching that moment. An exposure-reducing cancellation is an ordinary
-operation: it holds the machine (`OPS-8`), and where a long-running operation already
+the machine.** The provider call cannot begin until the machine is available; a pager-latency
+fallback measured from that call must cover the earlier hold too. The sequential allowance above
+includes it explicitly. *Amended 2026-10-09 (`ADR-0037`, Q13): the visibility wait begins when
+the call's wait ends, so the old description of both paths starting at the call was incomplete.*
+An exposure-reducing cancellation is an ordinary operation: it holds the machine (`OPS-8`),
+and where a long-running operation already
 holds it — an install — the cancellation is deferred with a short delay (`OPS-8`), not failed
 and not escalated. The wait is therefore bounded by the deployment's longest
 machine-holding operation, which on the dedicated product is a full rescue-and-install
@@ -280,8 +428,6 @@ hold a machine under `OPS-8` — and it MUST be stated with the other deployment
 machine's burn for one install's duration — bounded, priceable, and cheaper than a mechanism that
 destroys an in-flight install to save it. `OPS-39`'s "pacing MAY delay such a cancellation
 briefly" is what this term prices; *briefly* is the install's length, and the reserve must say so.
-
-**Where billing is capped per period, that cap is a catastrophe bound worth having.**
 
 **PRV-13d** A create MAY carry a caller-requested **runway** — how long the machine should be
 guaranteed to run before an exhausted balance can cancel it. The deployment MUST enforce a floor
@@ -371,13 +517,18 @@ The note that followed, calling the derivation-count persistence rule "the contr
 is retired 2026-09-23 (`ADR-0027`): a count of derivations measured the wrong unit, and `LDG-58`'s
 window median is that control now.*
 
-**Where billing is capped per period, that cap is a catastrophe bound worth having.** If total
-failure to cancel costs at most `setup_fee + one period cap` per machine, record it: the
-reserve above is the expected case, and the cap is the provable upper bound.
+**For a sellable offer billed with a per-period cap, if total failure to cancel
+costs at most `setup_fee + one period cap` per machine, record that established
+catastrophe bound:** the reserve above is the expected case, and the stated formula
+is the provable upper bound. *Amended 2026-10-09 (`ADR-0039`): this conditional
+exposure bound applies to sellable offers.*
 
 **PRV-31** **A driver MUST declare, per offer and before any order, a worst-case cancellation
 bound** — the latest `earliest_cancellation_date` a machine bought from that offer can carry —
-and an offer with **no declared bound MUST NOT be sold on prepaid terms.** This closes `F26`'s
+and an offer with **no bound declared in either the descriptor or the offer MUST NOT be sold on
+prepaid terms.** In v1, an offer MUST NOT
+be sold on prepaid terms if either its descriptor-declared bound or its offer-reported bound is
+later than the provider's local today. This closes `F26`'s
 circularity: `PRV-13c` learns the per-machine constraint *after* ordering, while `LDG-12` forbids
 the order before the commitment exists, so for an offer that hides its terms the commitment could
 only be sized after the purchase it authorizes. The declared bound sizes the commitment at
@@ -390,15 +541,24 @@ the descriptor's `cancellation_bound` (`PRV-44`), or reported on the offer. In p
 dedicated servers have no minimum term and a new machine's date is normally today
 (`08-provider-notes.md`). *A clause here said adoption never needs the bound because an adopted
 machine's date is read before its commitment opens; adopt is withdrawn (`ADR-0020`), and the
-clause was false while it stood, since the commitment opened at enqueue.*
+clause was false while it stood, since the commitment opened at enqueue.* A missing declared
+cancellation bound in both the descriptor and the offer is an unsellable offer. Its pre-order refusal is
+`API-7`'s create-tail "`invalid_request`/`offer_not_sellable` when the named offer is
+not sellable under `PRV-13b` or `PRV-31`". This does not move a provider failure or a term
+learned after ordering into admission. *Amended 2026-10-09 (`ADR-0039`, Q12).*
+*Amended 2026-10-12 (`ADR-0037`, Q25): the v1 sale bound is provider-local today.*
 
 **PRV-13c** **A deployment MUST NOT encode any provider's current commercial terms as
-constants.** Minimum term, notice period, cancellation immediacy and billing granularity are
+constants.** Minimum term, notice period, cancellation immediacy, billing granularity,
+traffic allowance and traffic overage price are
 per-contract facts that change, differ between a provider's own product lines, and differ
-between one contract and the next.
+between one contract and the next. Billing granularity is declared per offer as `PRV-44`'s
+`billing_unit` (`ADR-0033`, 2026-10-08).
+The driver MUST report an allowance offer's `traffic_bound` from current provider terms in List offers (`PRV-44`). If an allowance offer is re-admitted, its current overage price is read with those terms at re-admission; the immutable descriptor performs no network I/O and carries no overage-price field; `08-provider-notes.md` is evidence, not runtime
+configuration. *Amended 2026-10-09 (`ADR-0039`).*
 
 The required shape is read-and-branch: order, then **read** the provider's per-machine
-cancellation constraint, and branch to the exception path when it is **materially in the
+cancellation constraint. `PRV-13` says "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone" and "For a future earliest date, cost through that date runs to the end of its provider-local day". Branch to the exception path when it is **materially in the
 future** — defined (`F18`) as later than now plus one re-derivation period plus the product's
 wind-down bound; anything nearer is indistinguishable from the ordinary exhaustion path and
 needs no exception —
@@ -416,11 +576,13 @@ read-and-branch shape is what makes a machine with an inherited contract safe wh
 
 ### List attachments / Release attachment
 
-**Input** — *list attachments*: `external_id`. *Release attachment*: an attachment's `kind` and
-`external_id`.
+**Input** — *list attachments*: machine `external_id`. *Get attachment*: attachment `kind` and
+`external_id`. *Release attachment*: an attachment's `kind` and `external_id`.
 **Output** — *list*: the attachments the provider still holds for that machine, each
-`{kind, external_id, billable, cleanup: api | manual}`. *Release*: an action result with
-delete's outcome classes.
+`{kind, external_id, billable, cleanup: api | manual}`. *Get attachment*: authoritative
+non-mutating presence or absence for that attachment identity, with `rate_limited` and other
+read failures distinct from absence. *Release*: an action result with delete's outcome classes
+and optional `effective_cancellation_date`.
 **Capability** — `delete_machine`. No capability of their own: a driver that can delete a
 machine can say what it left behind (`ADR-0018`).
 
@@ -435,8 +597,26 @@ with the resource gone and a release that failed ambiguously are two facts, and 
 cannot carry two statuses — the shape `ADR-0017` corrected on the episode. It holds the machine
 under `OPS-8`, MUST be safe to call twice — a provider answering "already deleted" is reporting
 the goal state, which `OPS-11` classifies as success — and its failures classify under `OPS-11`'s
-delete row. A successful release writes the row's `released_at` in its terminal transaction; a
-`manual` row is released only by an operator. For the exit write, see `LDG-38`.
+delete row. A successful completed release with no effective date MUST write the row's `released_at`
+in its terminal transaction, including the resolution transaction when resolved `applied`
+(`OPS-31`). A successful release, including one resolved `applied`, whose result carries an
+effective date MUST store that date on the attachment row in the same terminal or resolution
+transaction and MUST NOT write `released_at` merely from that result, whether the date is future
+or already passed. `PRV-13` owns conversion of day-only effective dates and the distinction
+from a `now` request and `earliest_cancellation_date`.
+A prior direct gone observation and its `released_at` MUST be preserved.
+Neither outcome changes the machine's gone state or schedules its episode. An unresolved release
+or one resolved `not_applied` or `abandoned` MUST NOT write either field as an applied release.
+`OPS-32` says "The sweep MUST also visit attachments of every machine still retained by
+`STO-18`" and owns the complete-pass, direct-read and observation transaction. Its
+`released_at` observation is distinct from an operator's initiation of `manual` provider
+cleanup. `LDG-38` owns the exit write, `LDG-32` commitment release and `STO-18` the
+tombstone gate.
+`PRV-49` is the enabling precondition for sold paths with outliving billable attachments.
+*Amended 2026-10-08 (`ADR-0035`): successful resolution has the same attachment-row effect as
+ordinary success; it does not record the machine gone. Amended 2026-10-09 (`ADR-0037`, Q14): date storage and
+automatic direct-read absence confirmation. Amended 2026-10-10 (`ADR-0037`, Q18): day-only dates.
+Amended 2026-10-11 (`ADR-0037`, Q21/Q22): enabling precondition and date-owner pointer.*
 
 ### Power
 
@@ -458,6 +638,8 @@ freshly generated single-use public key.
 **PRV-15** Begin rescue MUST both activate the rescue environment *and* initiate the
 reboot or reset needed to enter it. The rescue engine waits for SSH; it does not reboot.
 
+**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V4/V10, retrieved 2026-10-06):** On Hetzner Cloud the driver MUST read `rescue_enabled` and disable an existing rescue activation before re-enabling it, then reset within the documented 60-minute auto-disable interval. On Hetzner Robot it MUST read `active` with `GET /boot/{n}/rescue` and disable an active rescue with `DELETE /boot/{n}/rescue` before re-enabling. Repeated-enable behavior remains `[verify]` for both providers.
+
 **PRV-16** Begin rescue MUST populate the session's host keys with complete OpenSSH
 public host keys whenever the provider exposes them. A driver MUST NOT return an empty
 host-key list when the provider published keys the driver simply did not parse.
@@ -468,12 +650,7 @@ no key-based rescue), because it forces the workflow onto a password that a
 first-connection attacker can capture when host-key pinning is unavailable. It MUST NOT
 accept the ephemeral key and then ignore it. See `DEF-7`.
 
-**PRV-18** Begin rescue MUST clean up after itself on partial failure. If the rescue
-environment is activated but the reboot fails, the driver MUST attempt to deactivate
-rescue and remove any temporary key it registered. If that cleanup itself fails, the
-driver MUST attach the identifiers of the leaked resources to the error's details so an
-operator can find them. Where the engine dies instead, nothing attaches anything, and the
-tagged key resource is `OPS-32`'s to remove (`PRV-9`).
+**PRV-18** **Amended 2026-10-09 (`ADR-0040`, Q16); amended 2026-10-11 (`ADR-0040`, Q24).** Begin rescue MUST clean up after itself on partial failure. If the rescue environment is activated but the reboot fails, the driver MUST attempt to deactivate rescue. Before acceptance, the driver MUST attempt deletion only of a temporary key its own operation successfully registered (`PRV-9`). After acceptance, `OPS-32`'s sweep deletes it when eligible; the driver does not. If rescue deactivation fails, the driver MUST attach the identifier of the rescue environment left behind to the error's details. If an owned pre-acceptance key deletion fails, it MUST attach the identifier of the key left behind to those details. A key deliberately retained while deletion is ineligible or registration ownership is unknown is not a failed cleanup. Where the engine dies instead, nothing attaches anything, and the tagged key resource is `OPS-32`'s to remove when eligible (`PRV-9`).
 
 ### Refresh rescue session
 
@@ -494,15 +671,16 @@ key set, and MUST NOT replace key material with an empty value.
 **Output** — an action result.
 **Capability** — `rescue_ssh`.
 
-**PRV-21** End rescue MUST deactivate the rescue environment, reset or reboot into the
-installed system, and remove any temporary credential it registered, using the session's
-opaque cleanup token to find it. A credential this call never reached — the engine died first,
-or the call was lost — is found by its operation-id tag and removed by `OPS-32`'s sweep (`PRV-9`).
+**PRV-21** **Amended 2026-10-09 (`ADR-0040`, Q16); amended 2026-10-11 (`ADR-0040`, Q24).** End rescue MUST deactivate the rescue environment, reset or reboot into the
+installed system, and leave any temporary credential it registered for `OPS-32`'s sweep to remove when `PRV-9` permits deletion. The sweep finds it by its operation-id tag, including a credential this call never reached because the engine died first or the call was lost. The session's opaque cleanup token does not authorize a separate post-acceptance deletion.
 
 **PRV-22** Failure of end rescue is *always* ambiguous — the machine may be in rescue, may
 be rebooting into the new system, and a temporary credential may still be registered. The
 driver MUST surface it as an error rather than swallowing it, so the lifecycle can route
 the operation to reconciliation (`OPS-11`).
+**Amended 2026-10-11 (`ADR-0034`, Q20b).** A Robot throttled end-rescue call MUST emit a
+monitorable alarm identifying the provider account. The alarm does not settle the call or
+change its ambiguous error outcome.
 
 ### Rebuild
 
@@ -560,6 +738,20 @@ refuses for a machine whose cost cannot be stopped.
 to the machine before the driver is called (`API-16`). The driver MUST still encode it
 into the request path safely (`PRV-6`).
 
+After the ordinary authorization, capability and `API-16` validation, the worker MUST compare
+the requested PTR value with the machine's recorded value for that address under `OPS-8`'s
+serialization. An identical established value MUST settle `succeeded` without a provider call.
+Result shape: `WIR-10`. A missing or unknown value is not equality.
+
+The machine's `reverse_dns` map records provider-established values by address. Drivers MUST
+report those values when their machine read observes them, and the engine MUST store them;
+unknown or unobserved values are absent. A confirmed completed write or authoritative resolution
+MUST also record the established value. Enqueue, dispatch and acceptance alone MUST NOT establish it.
+Before dispatching a differing write, the engine MUST invalidate the prior entry; uncertainty
+MUST NOT leave that entry eligible for the no-op. Only provider evidence re-establishes it.
+An address removed from `public_ips` loses its entry. For a request that reaches the provider,
+classification remains under `OPS-11`: "On failure, the system MUST classify the error". *Amended 2026-10-08 (`ADR-0034`).*
+
 ### Carrying a correlator
 
 This is not an operation. It is an obligation on **create**, and it is what makes automated
@@ -573,7 +765,7 @@ cancellation too, and priced the reserve accordingly.
 
 A create MUST carry the operation's identifier into the provider, using whatever
 caller-controlled field that provider offers, and the driver MUST be able to find resources
-bearing it afterwards. Every provider examined offers **either a free caller-controlled field or
+bearing it afterwards. A Cherry Servers driver MUST page through the project server list and filter returned `tags` client-side; no server-side tag filter is documented (`docs/research/provider-verify-2026-10.md`, V21, retrieved 2026-10-06). Every provider examined offers **either a free caller-controlled field or
 a per-operation artifact that can serve as one** (`PRV-32`, `08-provider-notes.md`) — Hetzner
 Robot is the second case, because its only free field is disqualified by `PRV-30`. A driver that
 can find neither is asserting something unusual about its provider and MUST say so in its notes —
@@ -621,6 +813,8 @@ than on the resulting machine (the robot-style shape):
   poll timeout that carries it (`PRV-11`) — as an accelerator, never as a precondition;
 - treat the listing window as the horizon beyond which automatic resolution is impossible
   (`08-provider-notes.md`), and `OPS-31` as the only remaining road.
+
+**Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V7):** Robot-WS documents both order-channel listings as covering "within the last 30 days" [observed — Robot-WS, 2026-10-06]. For the automatic-recovery horizon, see `OPS-33`; a by-id fetch does not replace fingerprint search when a lost reply withheld the transaction id.
 
 **PRV-30** **CONFIRMED IN WRITING 2026-08-13 — no longer `[verify]`, and it removes a field the
 design was relying on.** A provider's caller-controlled field MUST NOT alter how the order is
@@ -702,7 +896,8 @@ representation matches nothing, forever, and fails silently into `PRV-33`.
 
 **Two residuals remain.** The **standard** channel's listing is unconfirmed with a real order —
 only auction was bought, and standard is where the setup fees are (`08-provider-notes.md`) — and
-the listing window is still `[verify]`.
+the documented listing horizon's rolling versus calendar alignment remains unspecified (`PRV-27`).
+For the automatic-recovery horizon, see `OPS-33`.
 
 **PRV-34** **Robot orders have a test mode, and the driver MUST use it for the order-request half
 of conformance testing — `CNF-180`, `CNF-147` and `CNF-281` place real orders, because test mode
@@ -753,25 +948,28 @@ The cost MUST be stated rather than hidden: for such a provider the `OPS-33` neg
 bounded by **operator response time**, not by an automatic lookup, and `OPS-26`'s rota is what
 determines how long a customer's balance stays committed behind a stuck order.
 
-**PRV-35** **A driver MUST report a machine's network restriction where the provider exposes one,
-and MUST declare that it cannot where the provider does not.** This is `DOM-27`'s status, refreshed
-on the same path and with the same cache semantics as every other machine field (`DOM-8`), and it
-is **not** part of `DOM-7`'s status mapping.
+**PRV-35** **A driver MUST report positive network-restriction evidence where the provider exposes
+it.** Its reading updates only `machines.provider_restricted` and `machines.provider_observed_at`
+through the normal refresh path (`DOM-8`), without replacing an operator record. Operator writes
+are specified by `WIR-47`. This is not part of `DOM-7`'s status mapping. On a successful read of
+mapped flags, the driver MUST report whether any is positive, including a false result when none
+is positive; the refresh path stores that combined result and when provisiond read the flags.
+Before a reading, both provider columns remain null. A false reading supplies no evidence of an
+unrestricted network.
 
 **Where it comes from, per launch driver — each `[verify]` against the live API before it is
 relied on:**
 
 | Driver | Signal | Confidence |
 |---|---|---|
-| Hetzner Cloud | `public_net.ipv4.blocked` and `public_net.ipv6.blocked` on the server object, separate from lifecycle `status` | **[verify]** — documented in the official client schema; high |
-| Hetzner Robot | `locked` on each IP and subnet; server status stays `ready`/`in process` | **[verify]** — documented; high |
+| Hetzner Cloud | `public_net.ipv4.blocked` and `public_net.ipv6.blocked` on the server object, separate from lifecycle `status`; a true flag is positive even if the other address family is null. A false flag with a null family establishes no unrestricted network. `server.locked` remains unmapped pending a written provider answer | **[verify]** — address flags documented in the official client schema; positive evidence only |
+| Hetzner Robot | `locked` on each IP and subnet; server status stays `ready`/`in process` | **[verify]** — mapping retained, but its documented “Status of locking” does not establish coverage of whole-machine locks; reduced confidence |
 | DigitalOcean | a Droplet `locked` boolean exists, but is documented only as preventing user actions | **[verify]** — **do not map it**. Nothing official connects it to abuse networking, and reading it as a restriction would report every in-flight resize as a block |
 
-**Where a driver has no signal the restriction is `unknown` until an operator records one**
-(`WIR-47`), and `unknown` MUST NOT be rendered as `none`. A field that is silently false when
-nobody looked is worse than no field: `none` is a claim, and only an observation can support it.
-Where a driver *does* report, the provider is authoritative and an operator entry is the fallback
-for a provider that cannot answer — not a competing current value.
+`unknown` MUST NOT be rendered as `none`. A false or unavailable provider signal cannot establish
+an unrestricted network. A clear read MUST preserve both operator columns.
+
+*Amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b).*
 
 *Added 2026-08-16, after `LDG-71` asserted that "nothing knows it is blocked" and a cross-model
 check found that Hetzner Cloud and Robot both do. The `DOM-7` exclusion survived that discovery;
@@ -808,9 +1006,11 @@ A stronger source, when consulted, overrides a weaker one. A weaker source never
 stronger one.
 
 **For the resource read the driver MUST declare a measured visibility window** in seconds, with
-sample size and date, under `PRV-13b`'s procedure — the worst observed request-to-observation
-latency over at least twenty real mutations — carrying a declared conservative bound marked
-**unmeasured** until twenty samples exist. **AMENDED 2026-09-08 (`ADR-0018`) — the effective
+sample size and date: the worst observed request-to-observation latency over at least twenty real
+mutations, re-declared when the provider changes the API — carrying a declared conservative bound
+marked **unmeasured** until twenty samples exist. *Procedure owned here from 2026-10-08
+(`ADR-0037`).*
+**AMENDED 2026-09-08 (`ADR-0018`) — the effective
 window is a max, not the declaration.** The declared value lives in the descriptor's
 `visibility_window` (`PRV-44`), immutable. The engine writes every ordinary mutation and every
 resolution as an observed sample to `provider_observations` (`STO-53`), and the effective window
@@ -818,20 +1018,28 @@ is `max(declared, max(observed))`. Widening by an observed sample that exceeds t
 thereby automatic; narrowing is a human re-declaring and archiving the samples.
 
 **Within the window, a read showing the pre-mutation state is no evidence and resolution stays
-pending.** `OPS-27`'s resolution MUST NOT take its first read before the window has elapsed. **A
-read showing the post-mutation state is evidence at any time, and MUST NOT be reverted by a later
+pending.** `OPS-27`'s resolution MUST NOT take its first read before the window has elapsed from
+the end of the mutating call's wait: its reply, or the provider-call deadline's expiry when no
+reply arrives. **A read showing the post-mutation state is evidence at any time, and MUST NOT be
+reverted by a later
 contrary read** — reads flap in both directions, and a resolution already reached on absence is not
 undone by a stale read. Beyond the window, a read still showing the pre-mutation state resolves
 the mutation as *not applied*.
+
+*Amended 2026-10-09 (`ADR-0037`, Q13): the visibility clock starts when the mutation call's
+wait ends, including the lost-reply deadline, while `STO-53` retains its dispatch-to-observation
+sample timestamps.*
 
 **Exceeding a declared window is a breach of the declaration, not a resolution.** It MUST be
 surfaced, it widens future sizing through `STO-53`, and it MUST NOT authorize a replay — `OPS-12`
 is untouched by this requirement.
 
-**Visibility and billing-stop are separate measurements and MUST NOT be conflated.** `PRV-13b`'s
-delete-to-billing-stop latency asks a different question, overlaps this one in time, and is still
-owed for every launch driver. *The 2026-08-31 DigitalOcean sample is a visibility sample, n=1,
-recorded as such in `08-provider-notes.md`; it is not a billing-stop sample.*
+*Trap retained 2026-10-08 (`ADR-0037`, accepted 2026-10-06): this paragraph formerly required a
+second measurement, delete-to-billing-stop latency, "still owed for every launch driver". That
+obligation is withdrawn. The 2026-08-31 DigitalOcean observation in `08-provider-notes.md` is a
+visibility sample, n=1; it did not establish when the provider stopped billing. Reading it as a
+billing-stop sample was the trap; removing the second measurement does not change what the
+observation established.*
 
 **PRV-38** **A provider with more than one ordering channel has more than one transaction listing,
 and a search of one is not a search of the provider.** Hetzner Robot's standard catalogue and
@@ -849,8 +1057,7 @@ for any of them, and the negative window has elapsed" — whose effect that tabl
 released in full (`LDG-32`)". So the customer's balance is released and the operation closed while a
 physical server bought on the other channel runs unrecorded at the operator's expense. `OPS-32`'s
 account sweep MUST therefore cover every channel too; it is the only thing that would ever find it,
-and that document states its interval as "the maximum time a customer can be billed for a machine
-that no longer exists" — here it bounds the mirror case, a machine nobody is billed for at all.
+and `LDG-74` says "The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence" — here it bounds the mirror case, a machine nobody is billed for at all.
 
 **PRV-39** **A provider that answers an empty search with an error status MUST have that answer
 translated into an empty result, never into an error kind.** Hetzner Robot returns
@@ -871,21 +1078,36 @@ an error status to report a non-error — and its rule reaches only mutations, b
 as "A provider rejection whose meaning is "already in the target state" MUST classify `succeeded`."
 Nothing is mutated here, so that rule does not reach it.*
 
-**PRV-40** **A driver MUST declare its provider's ordering rate limit, and the deployment MUST
-treat it as a capacity bound rather than discover it mid-order.** Hetzner Robot documents **20
-requests per day** on each of its two order endpoints, and 200 per hour on cancellation.
-**[observed 2026-09-04]**
+**PRV-40** **Amended 2026-10-09 (`ADR-0036`).** A driver MUST declare the provider's
+ordering limit in each ordering-channel descriptor entry (`PRV-44`). Robot documents 20
+requests per day on each of `server`, `server_market` and `server_addon`; its
+`403 RATE_LIMIT_EXCEEDED` reports `max_request` and `interval` (`08-provider-notes.md`).
+The declaration documents capacity and supplies the threshold for the exhaustion alarm raised after Robot's reported `403 RATE_LIMIT_EXCEEDED`. It MUST NOT be used
+as a locally counted substitute for Robot's accounting, whose credential scope, window
+reset and treatment of rejected or test requests are unverified.
 
-This is a ceiling on how many machines the whole deployment can provision in a day, shared across
-every tenant, and two things spend from it that nothing in this set counts: an ordinary create and
-every conformance run that places an order, including a simulated one.
+After Robot reports `403 RATE_LIMIT_EXCEEDED` for an account and ordering channel,
+the deployment MUST retain a closure for the reported `interval` and refuse subsequent
+creates on that account and channel before any provider call, with `rate_limited` and
+`retry_after_ms` for the remaining interval. It MUST raise a monitorable exhaustion alarm
+identifying the account and channel. A closure on one account or channel MUST NOT alone
+close another. This local isolation is a choice for admission, not a claim about Robot's
+undocumented upstream counter scope. A provider throttle encountered after an accepted
+mutation remains subject to `OPS-11`'s acceptance rule.
 
-The limit is declared in the descriptor's `order_budget` `{limit, per}` (`PRV-44`); the deployment
-MAY lower it and MUST NOT raise it (`OVR-19`). The deployment MUST refuse a create
-deterministically, before any provider call, once the budget is exhausted. `OPS-11` requires that
-shape: such a refusal is decided "before any driver call" and classifies `failed` for every
-operation kind, so nothing ambiguous is created and no reconciliation is owed. **A limit first
-encountered during an incident is encountered exactly when creates are being placed fastest.**
+**Amended 2026-10-10 (`ADR-0036`).** For a create already admitted and queued, the
+worker MUST read the stored closure for that account and ordering channel when it claims
+the operation (`OPS-5`), before any provider request, including a per-order key upload.
+If the channel is closed at that read, the worker MUST make no provider request and
+settle the existing operation `failed` with `rate_limited`,
+`details.retry_after_ms` equal to the remaining closure, and operation-view
+`retryable: true`. Its commitment MUST be released in full under `LDG-39`'s
+"Deterministic rejection before acceptance" case; no setup or first-unit charge is
+debited for an order the provider never accepted. A retry after expiry is a new
+operation, not an automatic requeue or another attempt by this operation. This is a
+plain read, not a conditional-write guard: if a closure commits after the read,
+the provider's own `403 RATE_LIMIT_EXCEEDED` may settle the create the same way.
+See `OPS-11` for classification after a provider has accepted a mutation.
 
 **PRV-41** **An authentication failure MUST NOT be retried against a provider that locks out on
 repeated failures.** Hetzner Robot blocks the **source IP for ten minutes after three failed login
@@ -908,36 +1130,24 @@ answers `401` without counting toward the lockout — four such responses on Rob
 left `/server` answering `200` immediately afterwards. **[observed 2026-09-04]** A driver that
 conflates them will back off from a condition no backoff repairs.*
 
-**PRV-42** **Where a provider's offer identifier *is* the resource identifier, resolution MUST be an
-identity read rather than a search, and the correlator is unnecessary.** On Hetzner Robot's auction
-channel the two are the same number: offer `3068756` provisioned as server `3068756` and offer
-`3068758` as server `3068758`, each leaving the offer feed on purchase. **[observed 2026-09-04,
-twice]** That market lists *specific physical machines*; the standard catalogue lists products, and
-there the server number is unknown until the order is filled.
+**PRV-42** **Amended 2026-10-09 (`ADR-0040`).** An `offer_is_resource` offer names one machine; the descriptor field records that property and does not select a resolution method. Hetzner Robot auction offer `3068756` provisioned as server `3068756` and offer `3068758` as server `3068758`, each leaving the feed on purchase. **[observed 2026-09-04, twice]** Equality of those numbers is an observation, not a prerequisite for resolution. A lost-reply auction create MUST be resolved through its per-order fingerprint on every ordering channel (`OPS-27`, `PRV-38`); the matched transaction supplies the delivered `server_number`, which is then read directly to confirm the machine. A read of the offer number that returns `not_found` cannot prove the order absent, and a positive read alone cannot prove this order produced the machine.
 
-Where the identity holds, an ambiguous create resolves by reading the resource directly:
+**Amended 2026-10-09 (`ADR-0036`).** At most one create may be in flight per
+`offer_is_resource` offer, across tenants. The create's admitting transaction MUST acquire
+a conditional-write claim on the account, channel and offer before opening a commitment
+or operation; a snapshot read alone does not enforce this. An unresolved create retains
+the claim until its outcome is known. If the claim fails, the create MUST use
+`API-7`'s "ordinary HTTP `409 conflict`/`state` error with `retryable: false`, no
+`details.refusals`, no synthesized pacing or `Retry-After`, and no commitment,
+operation or receipt" resource-offer guard response.
+Catalogue products do not take this claim.
 
-| Response | Outcome |
-|---|---|
-| the account owns it | `OPS-27`'s first row, "Exactly one resource across all of this operation's correlators", reached without a search and naming the machine exactly |
-| absent, past `PRV-36`'s effective visibility window | `OPS-27`'s resolved-absent |
+For every create, including catalogue products
+and `offer_is_resource` offers, the driver MUST confirm that the named offer is still
+listed before sending the order request; a missing offer MUST NOT be ordered. This
+is a dispatch check, not a provider lookup during `API-7`'s read-only tail collection.
 
-This is stronger than a correlator search on four counts: it is an identity lookup, so `OPS-29`'s
-"A correlator match MUST be exact" is satisfied by construction; it is not bounded by a transaction
-listing's retention, which removes `OPS-33`'s hardest limit on this channel; it needs no ordering
-permission, which a webservice user may not hold (`08-provider-notes.md`); and **it supplies
-per-attempt discrimination for free**, because a create has exactly one attempt (`ADR-0014`) and
-its identity is known before the order is sent.
-
-A driver MUST declare, per ordering channel, whether the offer identifier is the resource
-identifier — the descriptor's `ordering_channels[].offer_is_resource` (`PRV-44`; the declaration
-had no field to live in until 2026-09-08, while `CNF-285` already tested it) — and MUST prefer the
-identity read where it is. **This does not reach a catalogue
-channel**, where the offer is a product and `PRV-32`'s correlator remains the only road.
-
-*The absence answer is `PRV-39`'s case: `404 SERVER_NOT_FOUND` is an answer, not an error. And the
-identity rests on two observations of one provider — that it holds by rule rather than by
-coincidence is `[verify]` before a driver depends on it.*
+*Trap retained 2026-10-09 (`ADR-0040`): the withdrawn identity-resolution rule preferred an offer-number read and treated its absence past the visibility window as resolved-absent. That could release a commitment while a matched order was still in progress. The fingerprint search supplies order attribution and the delivered number.*
 
 **PRV-43** **A correlator match proves an order landed. It is never evidence that the resource still
 exists.** The transaction listing outlives the machine: after server `3068756` was cancelled and
@@ -950,9 +1160,7 @@ prior contents — `GET /order/server_market/transaction` still reported that or
 though it had succeeded", and gives the effect on the commitment as "Becomes the machine's running
 commitment". Applied to a destroyed machine that writes a `machines` row for something that is gone,
 opens a commitment against it and starts the meter — which is the defect `OPS-32` was amended to
-close, arriving by another road: "the meter reads the machine record, `DOM-8` refreshes that record
-only on an explicit caller operation, and nothing in this set refreshes on a schedule — so a machine
-the provider terminated went on draining its tenant's commitment until somebody happened to look."
+close, arriving by another road. `DOM-8` now says "`OPS-32`'s account sweep reads each provider account independently of any caller and MUST write what it saw (state, and `machines.state_observed_at`, `STO-48`)"; `OPS-32` writes present observations and confirmed absences.
 
 **Resolution MUST therefore establish that the resource currently exists by reading the resource
 itself, not the order that produced it**, and MUST interpret its absence through `PRV-36`'s declared
@@ -977,6 +1185,8 @@ A new driver is expected to:
    `unknown` (`DOM-7`).
 5. Encode every path segment (`PRV-6`).
 6. Declare, in the descriptor (`PRV-44`), every value the engine reads. The reasoning behind
-   each — does key material get copied at create time or read later (`PRV-9`)? does the
+   each — what is known about key-consumption timing (`PRV-9`)? does the
    provider publish rescue host keys (`PRV-16`)? is deletion an API call or a contract process
    (`PRV-13`)? — is commentary and goes in `08-provider-notes.md`.
+
+**PRV-48** **Added 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V16, retrieved 2026-10-06; `pv-ucs.9`).** A DigitalOcean driver MUST encode correlator tags in lowercase using only its documented characters and `:` or `_` as a separator, within the 255-character limit. It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag: the endpoint deletes every Droplet carrying that tag. Resolution uses the read-only tagged listing and any eventual deletion targets a verified individual Droplet id (`OPS-27`).

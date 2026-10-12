@@ -15,7 +15,8 @@ machine MUST be re-read directly before its absence is recorded" (`rereadBeforeA
 `absence_requires_three` is the theorem. The two windows are two fields of `Windows` — `PRV-36`'s
 visibility window and `OPS-33`'s negative window — and `Params.absenceWindow` names which one the
 sweep reads, because `OPS-32` says "It is `PRV-36`'s window and NOT `OPS-33`'s negative window,
-and the two must not be conflated".
+and the two must not be conflated". `Params.visibilityFromWaitEnd` selects the amended
+visibility origin; the negative window still reads `dispatchedAt`.
 
 What the guards decide: dropping the window guard records a live machine gone on a read taken
 inside the listing lag, and dropping the reread guard records a live machine gone on a listing
@@ -38,7 +39,8 @@ model omits: `OPS-27`'s search-authoritative absent row and its matched-and-gone
 absence about an operation with no machine record (the sweep here records absence about a machine
 record only) and its unresolved row, the escalation to an operator; `OPS-36`'s routing of a late
 attach through exhaustion (`Provisiond.Fence`) and `OPS-32`'s "A machine with no create of its own
-has no window at all" — both windows here run from the one create's dispatch; `PRV-36`'s
+has no window at all" — the model's negative window runs from the one create's dispatch and
+its visibility window from that call's wait end; `PRV-36`'s
 "`OPS-27`'s resolution MUST NOT take its first read before the window has elapsed" — a `found`
 read is evidence at any time and the model takes it at any time; `OPS-32`'s "what it observed
 *present* it may still record", `STO-48`'s observation instant on a listed machine; the
@@ -47,7 +49,9 @@ after a restore (`Provisiond.Restore`); the imported-image and key sweeps; the u
 report; `OPS-36`'s funding of the cancel, "bounded by the wind-down floor" — the model opens
 nothing, including `LDG-40`'s 2026-10-04 no-rate attach branch and its deficiency records;
 and the provider's `rate_limited` answer to a read — a read the engine issues while
-throttled is recorded as issued, not answered. -/
+throttled is recorded as issued, not answered. `ADR-0035` adds the provider-evidence input
+`matchedOrderInProgress` solely to exclude that case from negative-window release; order
+completion and the negative window's origin after completion are not modelled. -/
 
 namespace Provisiond.Reconcile
 
@@ -89,10 +93,11 @@ inductive Commitment
   deriving DecidableEq, Repr
 
 /-- Two windows, two fields. `visibility` is `PRV-36`'s effective window, "`max(declared,
-max(observed))`", listing lag in seconds, "measured from the dispatch of the create that produced
-its `external_id`" (`OPS-32`); `negative` is `OPS-33`'s bounded negative window, "derived per
+max(observed))`", listing lag in seconds, measured after the create call's wait ends
+(`OPS-32`); `negative` is `OPS-33`'s bounded negative window, "derived per
 provider from that provider's own allocation behaviour", whose origin `OPS-33` leaves unstated —
-the model starts both at the dispatch. -/
+the model starts the negative window at dispatch. A matched in-progress order is excluded by
+`negativeOnly`; the model does not choose a new window origin after it finishes. -/
 structure Windows where
   visibility : Nat
   negative   : Nat
@@ -122,29 +127,39 @@ before its absence is recorded". `absenceWindow`: `OPS-32`, 2026-09-04, "It is `
 and NOT `OPS-33`'s negative window" — a prohibition rather than a withdrawn draft, carried as a
 guard because the bead asks that "never one" be checkable, and
 `negative_window_bills_the_gone_machine` is what checks it. `readConfirmsMatch`: `OPS-27`,
-2026-09-05, "the first row MUST be confirmed by a direct read before it attaches anything". -/
+2026-09-05, "the first row MUST be confirmed by a direct read before it attaches anything".
+`negativeOnly`: `OPS-33`, 2026-10-08 (`ADR-0035`), "the negative window MUST NOT run against a
+matched order that is still in progress". `visibilityFromWaitEnd`: `PRV-36`, 2026-10-09
+(`ADR-0037`, Q13), visibility begins at the end of the mutating call's wait. -/
 structure Params where
   completePassOnly    : Bool
   pastWindowOnly      : Bool
   rereadBeforeAbsence : Bool
   absenceWindow       : WindowField
   readConfirmsMatch   : Bool
+  negativeOnly       : Bool
+  visibilityFromWaitEnd : Bool
   deriving DecidableEq, Repr
 
-/-- The sweep and the search as they stand, tagged to the sweep's own requirement though one
-field is `OPS-27`'s. One field per line: `ci.yml`'s controls flip one each. -/
+/-- The current guards; `Params` names their owners. Tagged to the sweep's requirement;
+the search and negative-release declarations retain their own tags. One field per line for
+`ci.yml`'s controls. -/
 @[req "OPS-32"]
 def current : Params := {
     completePassOnly    := true,
     pastWindowOnly      := true,
     rereadBeforeAbsence := true,
     absenceWindow       := .visibility,
-    readConfirmsMatch   := true }
+    readConfirmsMatch   := true,
+    negativeOnly       := true,
+    visibilityFromWaitEnd := true }
 
 structure World where
   now          : Nat
-  /-- The dispatch of the create that produced the `external_id`: both windows start here. -/
+  /-- The dispatch of the create that produced the `external_id`: negative window origin. -/
   dispatchedAt : Nat
+  /-- The reply or mutating-call deadline expiry: visibility window origin. -/
+  callWaitEndedAt : Nat
   windows      : Windows
   /-- The provider's fact: the machine exists. Not in the store. -/
   live         : Bool
@@ -152,6 +167,8 @@ structure World where
   commitment   : Commitment
   /-- `OPS-27`'s match: the order landed, on this candidate. -/
   orderLanded  : Option Candidate
+  /-- Provider evidence of a matched order still in progress, not a resource's absence. -/
+  matchedOrderInProgress : Bool := false
   /-- `OPS-32` yielded to `rate_limited` on its last pass, and the throttle has not lifted. -/
   throttled    : Bool
   /-- A read the engine issued while throttled: "retrying into it". -/
@@ -166,7 +183,8 @@ def World.negativeElapsed (w : World) : Bool :=
 
 /-- The window the sweep reads has elapsed. -/
 def pastWindow (p : Params) (w : World) : Bool :=
-  decide (w.dispatchedAt + w.windows.get p.absenceWindow ≤ w.now)
+  decide ((if p.absenceWindow = .visibility && p.visibilityFromWaitEnd
+           then w.callWaitEndedAt else w.dispatchedAt) + w.windows.get p.absenceWindow ≤ w.now)
 
 /-- `OPS-27`: "takes the union of what those searches return". The union, so the same resource on
 two channels is one candidate. -/
@@ -215,7 +233,8 @@ def searchStep (p : Params) (w : World) (channels : List (List Candidate)) : Wor
 def step (p : Params) (w : World) : Event → World
   | .advance d => { w with now := w.now + d, throttled := false }
   | .release =>
-    if w.negativeElapsed && w.knowledge.isNegative then { w with commitment := .closed } else w
+    if w.negativeElapsed && w.knowledge.isNegative &&
+        (!p.negativeOnly || !w.matchedOrderInProgress) then { w with commitment := .closed } else w
   | .search channels =>
     match w.knowledge with
     | .unknown => searchStep p w channels
@@ -241,13 +260,22 @@ theorem release_leaves_knowledge_unchanged (p : Params) (w : World) :
     (step p w .release).knowledge = w.knowledge := by
   simp only [step]; split <;> rfl
 
-/-- The release reads the negative window and the subject, and nothing else: a running
-machine's commitment is `OPS-27`'s first row's, not a negative search's. -/
+/-- The release reads the negative window and its subject, excluding a matched in-progress
+order under `ADR-0035`. A running machine's commitment is not a negative search's. -/
 @[req "OPS-33"]
 theorem release_on_negative_window (p : Params) (w : World) (h : w.commitment = .open) :
     (step p w .release).commitment = .closed ↔
-      w.negativeElapsed = true ∧ w.knowledge.isNegative = true := by
+      (w.negativeElapsed = true ∧ w.knowledge.isNegative = true) ∧
+        (p.negativeOnly = false ∨ w.matchedOrderInProgress = false) := by
   simp only [step]; split <;> simp_all
+
+/-- `OPS-33`: "the negative window MUST NOT run against a matched order that is still in
+progress". Advancing the model's clock cannot release that order through a negative search. -/
+@[req "OPS-33"]
+theorem in_progress_preserves_commitment (p : Params) (hp : p.negativeOnly = true)
+    (w : World) (h : w.matchedOrderInProgress = true) :
+    (step p w .release).commitment = w.commitment := by
+  simp [step, hp, h]
 
 /-- `OPS-36`: "the system MUST NOT open a fresh commitment sized to keep the machine running".
 No event reopens a closed one; the wind-down funding `OPS-36` does require is omitted, above. -/

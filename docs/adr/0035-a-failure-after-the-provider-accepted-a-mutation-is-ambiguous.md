@@ -78,4 +78,37 @@ debits the prepaid unit on confirmed acceptance. `OPS-11` was the one reader tha
     last-row failure is never `failed`.
 - Not covered here: a delete whose success is followed by a throttled attachment listing. Only that
   listing writes `machine_attachments`, so `LDG-32` can close while a surviving volume bills the
-  operator. That defect predates this one and has its own ticket.
+  operator. That defect predates this one and has its own ticket. **Answered 2026-10-11:**
+  `ADR-0037`'s Q21 amendment owns the accepted scope, observation and future enabling
+  precondition; this historical gap does not reopen this decision.
+
+## Amendment — 2026-10-08: unknown acceptance keeps its cause's kind (owner decision Q11)
+
+An rloop Manager blocked `pv-ucs.3` because its implementation of `PRV-5` said both that transport
+failures map to `network` and that a driver which cannot tell acceptance "MUST report `internal`". A
+four-reader panel (`docs/research/panels-2026-10/r27/`, unanimous on this point) found the Decision's
+sentence "A driver that cannot tell reports `internal`, which is already ambiguous" too broad.
+`internal` means a defect in this system, so it would point an operator at provisiond's own code for a
+connection that dropped, and a 5xx answer collides with the mapping of non-2xx responses to
+`provider` as well.
+
+- **A driver that cannot determine acceptance reports the mutating request's own failure, mapped as
+  `PRV-5` maps it** (`network`, `timeout`, `provider` with its status), with `details.accepted: null`.
+  `internal` is left for a reply no mapping covers. A driver never reports a later request's failure
+  in place of the mutating request's own, never omits the field, and never reports `false` for
+  acceptance it does not know.
+- **A failure before any byte of the mutating request was sent is `accepted: false`.** After the
+  provider accepted the mutation, acceptance stays `true` on every later error.
+- **Nothing else moves.** The outcome, `retryable`, resolution and `OPS-11`'s classification are
+  unchanged. `OPS-11` reads only `true`; `null` is evidence for the operator that something may have
+  reached the provider.
+
+Rejected: a two-valued field with no unknown (it loses "nothing reached the provider" against "it may
+have"); settling a pre-send `network` failure as `failed` (a behaviour change beyond the question).
+
+## Amendment — 2026-10-09: a resolved release that carries an effective date (from ADR-0037)
+
+The Decision's "A release that resolution finds applied writes `released_at`" holds for a release with
+no effective date. A release whose result carries an effective date writes the date and not
+`released_at`, per `ADR-0037` Decision 4 and its amendment of 2026-10-09; `OPS-32`'s sweep writes
+`released_at` when the attachment is observed gone.

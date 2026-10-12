@@ -84,3 +84,22 @@ None of its three reasons reaches this:
 - This closes the money threat (M1) only. The denial threats found beside it are separate: the
   shared provider request budget, the Robot order budget, provider quotas, and a throttled poll
   after an accepted order. So is the unregistered price of a tenant (`API-35`).
+
+## Formal scope note — 2026-10-08
+
+This records a narrowing in the implementation of the model, not an amendment of the Decision.
+The signatures of `Provisiond.Funding.lifecycle_invariant`, `Provisiond.Funding.lifecycle_coverage`
+and `Provisiond.Funding.release_follows_close` gained `initial.prepaid = none`. Their earlier
+initial-state domain was broader; adding that premise did not preserve it. The results exclude
+marked initial worlds with an already recorded prepaid interval, including the world immediately
+after a paid first seed. Describing a world as rebuilt from storage does not prove this premise
+or cover a resume inside an existing paid interval.
+
+`Provisiond.Funding.unmarked_lifecycle_coverage` covers the first seed from an initially unmarked
+world with no recorded unit, then arbitrary valid ticks, exits, re-entries and releases. It assigns
+completed-span seconds to either the prepaid interval or metered intervals, with no overlap;
+`Provisiond.Funding.unmarked_release_follows_close` supplies release ordering on those traces.
+`Provisiond.Witnesses.first_unit_lifecycle_covered` applies both to a paid execution.
+These results do not restore the excluded initial-state domain of the marked theorems. Funding
+assumes the actual customer debit as an input and does not model the settlement transaction that
+establishes it. This note supersedes ticket comment 246's D13 conclusion, “No theorem weakened.”

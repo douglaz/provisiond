@@ -352,6 +352,10 @@ says a deployment MUST state is listed here, with the requirement that mandates 
 validate every startup-validated row and refuse to run on a missing or out-of-range value; the rows
 marked human are procedures the deployment records rather than values the process reads.
 
+*Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
+2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
+activation funding minimum is registered.*
+
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
 | Rate source set | `LDG-61` | list of sources | yes |
@@ -369,6 +373,9 @@ marked human are procedures the deployment records rather than values the proces
 | Re-derivation interval | `PRV-13e` | duration | yes |
 | Account-sweep interval | `OPS-32`, `LDG-74` | duration | yes |
 | Worst-case operation hold, per product | `PRV-13b` | duration | yes |
+| Refresh freshness window | `DOM-8` | finite, positive duration; see `DOM-8` | yes |
+| Provider-call deadline | `OVR-19` | finite, positive duration | yes |
+| Resolution-read cadence, per provider account | `OVR-19` | finite, positive duration; maximum wait from a mutation's visibility-window end until its resolution read is issued | yes |
 | Margin | `LDG-24` | basis points | yes |
 | Runway floor | `PRV-13d` | duration | yes |
 | Image host allowlist | `SEC-19` | list of host patterns (`SEC-20`) | yes |
@@ -377,7 +384,8 @@ marked human are procedures the deployment records rather than values the proces
 | Autonomous per-principal ceilings and their interval | `SEC-39` | integers, duration | yes |
 | Operator-principal ceilings | `SEC-39` | integers | yes |
 | Lightning ceiling | `SEC-49` | satoshis | yes |
-| Order budget, per ordering account | `PRV-40` | `{limit, per}` — declared by the driver (`PRV-44`); the deployment may lower it | yes |
+| Order budget declaration, per provider account and ordering channel | `PRV-40`, `PRV-44` | `{limit, per}` — positive limit and finite, positive period in each channel descriptor; documentation and the alarm raised on the provider's reported 403, not a local admission counter | yes |
+| Activation funding minimum | `API-35`, `LDG-44` | positive integer satoshis | yes |
 | Enrolment per-source concurrency | `API-36` | integer | yes |
 | Pending-tenant ceiling | `API-41` | integer | yes |
 | Rescue timeouts | `RSC-35` | durations | yes |
@@ -406,6 +414,17 @@ marked human are procedures the deployment records rather than values the proces
 | Reconciliation rota | `OPS-26` | human | no |
 | Recovery directory | `RSC-20` | absolute path | yes |
 | Recovery-key inventory procedure | `RSC-21` | human | no |
+
+**The deployment MUST state and enforce a finite, positive provider-call deadline**, measured
+from dispatch for each provider call, including a call that never replies. The deployment MUST
+state and achieve a finite, positive resolution-read cadence per provider account: for a
+resolution-pending mutation, once its effective visibility window ends, its resolution read
+MUST be issued within that cadence. A missing, zero, negative, non-finite or malformed cadence
+MUST refuse startup as the deadline does. `PRV-13b` owns the sequential wind-down composition.
+Deadline expiry
+bounds the wait for a reply; it establishes neither the mutation's outcome nor that billing
+stopped. Classification and resolution remain with `OPS-11`, `PRV-5` and `PRV-36`; `OPS-12`'s
+"MUST NOT automatically retry an ambiguous mutation under any other name" still applies.
 
 **The maximum tolerated rate outage is read at the value in force when `LDG-64`'s deadline is
 computed, for an outage already open too.** Lowering it below the elapsed outage makes that

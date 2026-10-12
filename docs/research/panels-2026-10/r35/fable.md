@@ -1,0 +1,30 @@
+**Verdict: reject as framed. The smaller shape is to delete the bound from v1 and record it, beside Q18a's credit, as a precondition of an attachment customer rate. Parts (1) and (4) survive as consequences of deletion; (2), (3) and (5) are defects.**
+
+**Why.** Ask what the engine does differently with the bound declared versus absent. The reserve term it feeds, `02-provider-contract.md:244-246`, is "priced at that attachment's customer rate through its worst-case effective date". No such rate exists: `machine_attachments` has no rate column (`05-persistence.md:335-344`), the listing returns `{kind, external_id, billable, cleanup}` (`02:520`), `LDG-24` applies the margin "to machine time only" (`12-billing-and-ledger.md:1832`). The count is unknown too: `billable` is decided per instance by the listing the engine calls "on every delete" (`02:527-529`). So count × rate × bound is unknown × nothing × declared, and `LDG-33`'s term at `12:350` is the same zero. The bound's only consumer is a sale gate that reads its presence. A field declared so a gate can check it exists is a ritual, and the gate refuses v1 sales for forgetting the ritual.
+
+Q18a already placed this. The overcharge is unreachable because no rate exists; a rate is an enabling condition with the automatic credit as precondition. `PRV-45`'s sentence at `02:553`, "The bound funds that attachment's customer rate through the date", presupposes the rate. It is the other half of the gated feature, shipped first.
+
+**Q1, the trace.** No add-on: the order creates the server, no IPv4 (`RSC-45`, `06:501-505`). The descriptor is per driver, not per offer as the brief says: *describe capabilities* takes no input (`02:66-69`), and `attachment_cancellation_bound` is per kind, driver-wide (`02:82`). Robot declares "Additional IP `api`; subnet `api`" "conservatively as possible survivors pending research batch B, step 9" (`02:195-198`). With `primary_ipv4`: whether it is an "additional IP" or day-billed is "this note's inference, not stated" (`docs/research/provider-verify-2026-10.md:554`), and survival is step 9 (`:688`). Nothing before create says which kinds an order creates or which instances bill. Under HEAD every Robot offer refuses unless the driver declares, since "A field with nothing to declare says so explicitly" (`02:99`) then meets "without it, the offer MUST NOT be sold" (`02:552-553`). Under the fix every Robot offer sells once the driver types a number nothing reads. v1 is sellable either way; the refusal protects nothing.
+
+**Q2.** "Kinds the order creates" is not a field, and the kind table "names kinds, not an assertion that every instance survives" (`02:198`). Deciding it before create needs a per-offer declaration, more machinery. The hole is real but priced at zero: a provider-attached instance (Robot's conservative subnet row is this case) is listed at deletion and metered at no rate. No tenant verb attaches anything (`WIR-35`'s closed kind set, `13-wire-contract.md`). The hole opens only when a rate exists, the same enabling event.
+
+**Q3.** Covered above. The reserve sentence at `02:244-246` names a rate and a count that do not exist at create.
+
+**Q4.** "explicitly accepted and capped" occurs once in the set, `12:330`. No verb, row, field or cap. Proposal (5) would fill it with the clamp, which is an inversion: `LDG-31` says "the tenant is debited only up to the authority it granted, and the remainder is recorded as an operator deficiency" (`12:280-285`). The clamp caps the customer and leaves the operator uncapped, as astra said in r34. For v1 the acceptance already exists: `LDG-75` names "Robot add-ons billed per day or part thereof" as accepted gaps (`12:2115-2121`), and the cap is the provider's documented period, evidence at `research:591-592`, not a runtime value. Pointer defect: `API-7` (`04:266-267`), `DOM-9` (`01:183-186`), `WIR-30` (`13:1064-1065`) and `CNF-166` (`10:3033`) all say "sellable under `PRV-13b` or `PRV-31`". A `PRV-45` pointer to `LDG-32` names a refusal predicate `API-7` does not. `PRV-13b` already requires "cleanup for every billable attachment (`PRV-13a`, `PRV-45`)" (`02:202-205`), and every Robot kind is `api`.
+
+**Further defects.**
+- Zero bound, part (3): Q18a reads a day-only date as the end of that day UTC, and Robot's IP cancellation returns `cancellation_date` yyyy-MM-dd. No Robot kind is immediate; a `now` cancellation bills through 23:59:59Z. Zero would be a false declaration for the only v1 driver. My r34 line said otherwise and was wrong.
+- `10-conformance-checklist.md:3223-3224`, "Verify the per-kind bound declared at create and `LDG-31`'s clamp if a later date exceeds it": untestable, no rate, no attachment debit, no clamp.
+- ADR-0037 lines 126-128, "or the shortfall meets `LDG-31`'s clamp": describes an unreachable v1 case and reads as a sale permission.
+
+**Lean.** Nothing encodes the bound or the sale predicate: `offerSellable` is a Bool input (`Admission.lean:1055`); the `LDG-32` tags prove release arithmetic only (`Ledger.lean:172`, `Funding.lean:1535`). Deletion touches no proof. I did not run the gate; no proposed edit needs one.
+
+**Edits** (deleted outright, `README.md:179-181`):
+1. `02:82-83`: delete the `attachment_cancellation_bound` line.
+2. `02:551-555`: delete both sentences; `02:559` "date storage and bound" becomes "date storage".
+3. `02:244-246`: "The `billable_attachments` term has no v1 value: no attachment carries a customer rate. Enabling one requires the automatic credit (Q18a), a per-kind worst-case effective-date bound in `PRV-44`, and a per-offer declaration of the kinds an order creates; until then `LDG-32`'s sale rule is met by `cleanup: api`."
+4. `12:350`: revert to "surviving billable attachments (PRV-13a)".
+5. `10:3223-3224`: delete the sentence and `PRV-44` from the citations.
+6. ADR-0037: a dated clarification under the Q14 amendment, as `8c3087e` did for ADR-0038: no customer shortfall is reachable without an attachment rate; the bound is that rate's precondition.
+7. The Q18a precondition note: add the bound and the per-offer kinds declaration.
+8. `LDG-32`, `PRV-13b`, `API-7`: untouched.

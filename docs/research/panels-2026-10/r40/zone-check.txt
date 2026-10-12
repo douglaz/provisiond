@@ -1,0 +1,4 @@
+# Robot date-zone check, 2026-10-11 (read-only GET /server/{n}/cancellation on one pre-existing server; its number omitted)
+2026-10-11T21:30:50Z berlin=2026-10-11 utc=2026-10-11 robot={"earliest_cancellation_date":"2026-10-11"}
+2026-10-11T22:30:36Z berlin=2026-10-12 utc=2026-10-11 robot={"earliest_cancellation_date":"2026-10-12"}
+2026-10-11T23:30:14Z berlin=2026-10-12 utc=2026-10-11 robot={"earliest_cancellation_date":"2026-10-12"}

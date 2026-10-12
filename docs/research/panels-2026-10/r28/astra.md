@@ -1,0 +1,36 @@
+Amend — keep the proposed order; retain spending checks for known, priced unsellable offers.
+
+Ordering changes observable behavior: `API-7` says “Entry 0 is the headline” and “Pacing belongs to the headline” ([04-api-contract.md:273](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/04-api-contract.md#L273)). I propose A as `400 invalid_request`, `details.reason: offer_not_sellable`, `retryable: false`; B remains `429 rate_limited`, individually retryable. Account → offer → channel preserves resource-first ordering; offer before channel tells an agent to choose another offer rather than wait. However, headline and recovery are distinct: `WIR-9b` requires envelope retryability “true iff every refusal entry’s `retryable` is true” ([13-wire-contract.md:200](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/13-wire-contract.md#L200)). An account or budget headline therefore cannot authorize retries over a subordinate offer or balance refusal. Keeping computable spending diagnostics preserves independent information without another skip policy.
+
+Proposed outcomes below assume other checks pass; “cap” means a supplied cap.
+
+| Case | Ordered refusals / headline | Spending checks |
+|---|---|---|
+| Unhealthy account + A | Account, A; `409 conflict/state`; envelope false | Skip for `provider_account_not_healthy` |
+| A + closed budget | A, B; `400 invalid_request`; envelope false; budget delay stays subordinate | Run cap and balance |
+| Healthy, sellable, closed budget + insufficient balance | B, balance; `429 rate_limited`; envelope false; headline carries budget delay | Run |
+| A + no rate | A, rate; `400 invalid_request`; envelope false; no inherited halt pacing | Skip for `rate_unavailable` |
+| Standard offer; only auction endpoint throttled | No B; ordinary admission | Run |
+| Closed budget + solvency halt | B, solvency; `429`; envelope true; budget pacing | Run when priced |
+
+The framing needs these corrections:
+
+- **Unsellable does not already mean unchecked.** `WIR-9a` says “`because` is exactly `rate_unavailable` or `provider_account_not_healthy`” ([13-wire-contract.md:144](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/13-wire-contract.md#L144)). Your suppression therefore needs an amendment; my shape needs no new reason. Permanence alone is insufficient justification: `CNF-307` explicitly says “A fenced extension with a rate still evaluates cap and balance” ([10-conformance-checklist.md:1090](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/10-conformance-checklist.md#L1090)). For the brief’s known, priced offer, those diagnostics remain computable. They identify additional faults; they do not promise that funding makes the offer sellable.
+
+- **Listing exclusion does not establish an early `404`.** ADR-0039 lists both “offers are filtered and disclosed” and “The purchase tail refuses an unsellable offer” under “Edits owed” ([ADR-0039:68](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/docs/adr/0039-only-offers-with-no-traffic-overage-are-sold-until-a-counter-is-proven-fresh.md#L68)). Current `WIR-30` specifies the unhealthy-account `404`, without that traffic filter ([13-wire-contract.md:962](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/13-wire-contract.md#L962)). Treat a known excluded offer separately from an unknown identifier. A’s wire mapping is still a decision; my `400` is a proposal. “Permanent” also overstates ADR-0039’s “becomes sellable once a live test shows” condition ([ADR-0039:33](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/docs/adr/0039-only-offers-with-no-traffic-overage-are-sold-until-a-counter-is-proven-fresh.md#L33)).
+
+- **Admission-only does not locate B before the tail.** `API-7` calls tail failures “admission refusals” ([04-api-contract.md:281](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/04-api-contract.md#L281)). Its ceiling step explicitly sits “before the tail” ([04-api-contract.md:223](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/04-api-contract.md#L223)); `API-41` instead sheds “`POST /v1/enrol`” ([04-api-contract.md:881](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/04-api-contract.md#L881)). Neither establishes a general early-capacity rule. Keep B in the tail.
+
+- **B belongs to the selected channel.** ADR-0036 specifies throttle “on an account and channel” ([ADR-0036:35](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/docs/adr/0036-the-robot-order-budget-is-closed-by-the-providers-throttle-and-not-shared-out.md#L35)). An auction closure must not block standard orders. Read the cooldown from the existing snapshot: `API-7` requires collection “without an extra lock, ceiling slot, write or provider call” ([04-api-contract.md:262](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/04-api-contract.md#L262)).
+
+- **Pacing needs a capacity distinction.** Clarify B’s exemption from `API-50`’s “MUST never be throttled for rate”: another caller can close shared provider capacity despite obedient pacing ([04-api-contract.md:1202](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/04-api-contract.md#L1202)). Repair `DOM-20`’s claim that rate limiting “clears in milliseconds under the deployment’s own control” ([01-domain-model.md:609](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/01-domain-model.md#L609)).
+
+- **Do not make all `rate_limited` errors admission-only.** `OPS-11` explicitly retains a later throttle after acceptance as ambiguous ([03-operation-lifecycle.md:263](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/03-operation-lifecycle.md#L263)). Scope the addition to the local budget refusal.
+
+The strongest “don’t build this”: reuse existing error kinds and collection. Add neither a general priority framework nor an early validation stage nor a new skip reason.
+
+Edit `API-7`, `WIR-9a`, `OPS-11`, `API-50`, `DOM-20`; coordinate the already-owed `PRV-40`, `PRV-44`, `DOM-9`, `WIR-30` amendments. Extend `CNF-307`, `CNF-283`, `CNF-31b`; retain `CNF-69` and `CNF-152` as regressions.
+
+In [Admission.lean:1023](https://github.com/douglaz/provisiond/blob/023ed3fc743bd1d4926c92d9d571f943e65dc86e/tools/formal/Provisiond/Admission.lean#L1023), extend `TailRefusal`, `purchaseTail`, `tailAdmitted`, `TailRefusal.rank` and `.retryable`; update `empty_iff_admitted`, `ordered_without_duplicates`, `unpriced_checks_are_skipped`, `tail_agrees_with_policy`, and `account_retryability` for A’s false contribution. Preserve `UncheckedReason` and conjunction semantics. Add amendment guards and counterfactual witnesses; update `Witnesses.fencedHaltedNoRate`. Give simultaneously possible refusals distinct ranks. Keep HTTP/pacing assertions in conformance; the model omits serialization.
+
+Reviewed `023ed3f`; both required gate runs passed. Tracked files unchanged.

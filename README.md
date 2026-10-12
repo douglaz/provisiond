@@ -22,7 +22,7 @@ Lean — and CI runs the same script on every push:
 
 | Gate | What it refuses |
 |---|---|
-| `tools/check_ids.py` | A duplicate identifier, a citation to an id nothing defines, a gap in a namespace's sequence, an id far above its neighbours, a reference to an ADR that does not exist, a launch tier on a conformance item (withdrawn 2026-09-12, `F50`), a checkbox on a withdrawn, merged or split `CNF` id. It also prints the checklist's item count, which is the only place that count is kept |
+| `tools/check_ids.py` | A duplicate identifier, a citation to an id neither defined nor accounted for by the withdrawn index or the exact never-master reservation, a gap in a namespace's sequence outside those records, an id far above its neighbours, a reference to an ADR that does not exist, a launch tier on a conformance item (withdrawn 2026-09-12, `F50`), a checkbox on a withdrawn, merged or split `CNF` id. The never-master reservation also rejects live definitions and root-document citations. It prints the checklist's item count, which is the only place that count is kept |
 | `tools/check_fixtures.py` | A JSON example that does not parse, carries a `...` placeholder, repeats an object member, exceeds `WIR-1a`'s integer bound, spells a timestamp `+00:00`, or carries a malformed digest. Also structurally checks every Mermaid diagram, since one that is broken looks fine in source and fails in the browser |
 | `tools/check_obligations.py` | A duty assigned to another requirement's subject — "`LDG-62` MUST write `destroy_committed`" — where that requirement's own text names none of the machinery. *`OPS-42` did exactly this to `LDG-62` and the fence protecting a paying customer's machine silently did not exist. Two full-set cross-model reviews read past it; the other gates all passed, because the citation resolved and both requirements had conformance items. Only the relationship was broken.* Run `--selftest` in a full clone to watch it catch that commit |
 | `tools/check_coverage.py` | A fall in the number of requirements exercised by at least one conformance item, against a recorded baseline. *It overstated coverage by eight points on its first day — it attributed prose in the tier-assignment sections to whichever item preceded it. Fixed 2026-09-01; a gate that overstates is worse than no gate, because the ratchet then guards a number nobody earned.* |
@@ -181,8 +181,12 @@ changed is **deleted outright** — no marker, no tombstone paragraph. Nobody re
 columns by accident.
 
 **Deleting the text is not reusing the number.** The gap in the sequence *is* the tombstone. A
-deleted identifier goes in the index below so an old citation still resolves, and `tools/check_ids.py`
-reads that index — an id may be absent from the documents only if it is listed here.
+published requirement whose text is deleted goes in the withdrawn-identifier index below so an old
+citation still resolves. `tools/check_ids.py` reads that index. **Amended 2026-10-11 (`pv-ucs.2`; `docs/verification/pv-ucs.2-2026-10-11.md`):** identifiers removed before their revision reached master are a separate, narrow class.
+The gate's exact `UNMERGED_RESERVED` registry records them, permits their gaps and historical ADR
+mentions, and refuses their reuse or citation in live root documents. They are not withdrawn
+published requirements and get no withdrawal markers. All other missing identifiers and dangling
+citations remain errors.
 
 *The measurement behind the change: 61 of 719 requirements carried an amendment record and 199 lines
 carried a marker, about 2% of the set. Retention was never what made this large; 719 requirements
@@ -258,6 +262,10 @@ written by nothing, read by nothing, and left over from the `holds` model `LDG-3
 2026-08-12. Columns carry no identifier, so they are recorded here rather than listed above.
 `CNF-5` left this table 2026-09-09: it survives in the checklist as a marker bullet, which is the
 retained-trap case above, not a deletion.*
+
+*Amended 2026-10-08 (`ADR-0037`, accepted 2026-10-06): `provider_observations.kind` is dropped
+with the billing-stop sample kind. See `STO-53` for the amended table. Columns carry no
+requirement identifier.*
 
 ## Language and runtime
 

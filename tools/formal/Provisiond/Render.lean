@@ -51,12 +51,11 @@ def fenceToken : Bool → String
   | false => "**Unchanged**"
 
 /-- `OPS-48`'s rows in the table's order: the first column's required tokens, and the `(state,
-event)` steps the row states — two where a row folds a later transition into itself (the scheduled
-row and its tombstone), one per open state where a row applies to all of them. -/
+event)` steps the row states — one per open state where a row applies to all of them. -/
 def ops48Rows : List (String × List (Episode × Event)) :=
   [ ("`succeeded`", [(.attempting, .settled .gone)]),
     ("`succeeded`", [(.attempting, .settled .noMutation)]),
-    ("`succeeded`", [(.attempting, .settled .scheduled), (.scheduled, .tombstone)]),
+    ("`succeeded`", [(.attempting, .settled .scheduled)]),
     ("`failed`", [(.attempting, .settled .failed)]),
     ("`needs_reconciliation`", [(.attempting, .settled .needsReconciliation)]),
     ("`applied`", [(.uncertain, .resolved .applied false)]),
@@ -103,7 +102,7 @@ def ops48Table : Region :=
 def Event.label : Event → String
   | .settled .gone => "attempt succeeded, resource gone"
   | .settled .noMutation => "no mutation required, funded"
-  | .settled .scheduled => "attempt succeeded, future date"
+  | .settled .scheduled => "attempt succeeded, dated cancellation"
   | .settled .failed => "attempt failed"
   | .settled .needsReconciliation => "attempt needs_reconciliation"
   | .resolved .applied false => "resolved applied, gone"
@@ -114,7 +113,6 @@ def Event.label : Event → String
   | .retry => "operator retry, API-64"
   | .keep => "operator keep (API-68)"
   | .goneWrite => "machine recorded gone"
-  | .tombstone => "tombstoned at its effective date"
 
 /-- Every state change `episodeStep` makes from an open state, one edge each, in the enumerations'
 order. -/
