@@ -1,6 +1,6 @@
 # A lost auction order is resolved by its fingerprint, and a temporary key outlives an unsettled operation
 
-**Status:** accepted (2026-10-09, owner decision Q16 of the provider-research grill; `pv-ucs.9`); amended 2026-10-11 (Q24).
+**Status:** accepted (2026-10-09, owner decision Q16 of the provider-research grill; `pv-ucs.9`); amended 2026-10-11 (Q24) and 2026-10-12 (Q26).
 
 ## Context
 
@@ -93,3 +93,32 @@ it. A three-reader panel (`docs/research/panels-2026-10/r42/`) settled it.
 Rejected: a prompt deletion after a successful create, with the sweep as fallback (it reopens the
 fingerprint race, which no ownership check closes on Robot); reusing an already-registered identical key
 (one registration serving several operations needs shared ownership and a per-account lock).
+
+## Amendment — 2026-10-12: a retained-away operation row does not lift the provisioning guard (owner decision Q26)
+
+An rloop Manager blocked `pv-ucs.10` on a reachable state:
+1. A create settles while its machine still reads `provisioning`, which `CNF-303` permits.
+2. `STO-14`'s retention removes the settled operation row.
+3. The sweep then finds the tagged key with no operation record.
+
+Decision 2's bullet "A key whose operation record is gone is deleted, since an unrecorded machine is never
+attached" deletes the key. Its rule ("settled or vanished, and no machine it produced still reads
+`provisioning`") keeps it. A four-reader panel (`docs/research/panels-2026-10/r44/`) found that the rule is
+right and the bullet's reason is wrong. A row removed by retention had an attached machine. Only a row lost
+to a restore has none.
+
+- **A vanished operation record counts as settled. The provisioning guard still holds, and it is read from
+  `machines`, which retention never removes.**
+  - The machine an operation produced is found through `machines.correlator_value`: the operation's
+    `operation_uuid` on Hetzner Cloud and DigitalOcean, and the fingerprint of its per-order key on Robot.
+  - Every key the operation tagged carries the same operation id, so the rule is worded per operation,
+    not per key.
+- `STO-14` is unchanged, and no new column is added.
+- `Provisiond.Rescue.Session.keyEligible` becomes `(!recordPresent || settled) && !producedProvisioning`.
+- `CNF-303` covers retention removing the row while the machine still reads `provisioning`: the key
+  remains, and the sweep deletes it once an observation clears the guard.
+
+Rejected: a retention exception that keeps a settled operation while its machine reads `provisioning` (it
+makes a request-record purge read provider state, and the row could stay without bound); a new
+machine-to-operation column (`correlator_value` already links them); the vanished row overriding the
+guard.

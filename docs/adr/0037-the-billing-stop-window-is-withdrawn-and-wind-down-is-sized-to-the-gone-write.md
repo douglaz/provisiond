@@ -297,3 +297,11 @@ extra is reserved, yet it is protected through tomorrow's end. A four-reader pan
 Rejected: judging a still-future earliest date by its day end now (it changes `PRV-13c` for a case no v1
 offer reaches at purchase); a near-midnight conformance fixture; a deferred dispatch that waits for the
 permitted-from instant.
+
+*Verified 2026-10-12 (Q22's `[verify]`): Robot dates in `Europe/Berlin`. Three read-only reads of a
+cancellable server's `earliest_cancellation_date` were taken on 2026-10-11:*
+- *21:30:50Z, Berlin and UTC both on the 11th: `2026-10-11`.*
+- *22:30:36Z, Berlin on the 12th, UTC on the 11th: `2026-10-12`.*
+- *23:30:14Z, the same dates: `2026-10-12`.*
+
+*The date rolled over at Berlin's midnight, not UTC's (`docs/research/panels-2026-10/r40/zone-check.txt`).*
