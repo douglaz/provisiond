@@ -1,6 +1,6 @@
 # The billing-stop window is withdrawn, and wind-down is sized to the gone-write
 
-**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18) and 2026-10-11 (Q21, Q22, Q23, Q25). Amends `ADR-0035` (a release that carries an effective date) and
+**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18), 2026-10-11 (Q21, Q22, Q23, Q25) and 2026-10-12 (Q28). Amends `ADR-0035` (a release that carries an effective date) and
 `ADR-0018`.
 
 ## Context
@@ -305,3 +305,54 @@ cancellable server's `earliest_cancellation_date` were taken on 2026-10-11:*
 - *23:30:14Z, the same dates: `2026-10-12`.*
 
 *The date rolled over at Berlin's midnight, not UTC's (`docs/research/panels-2026-10/r40/zone-check.txt`).*
+
+## Amendment — 2026-10-12: Q23a after Robot's server-read counter proved account-wide (owner decision Q28)
+
+Q23a said: "A tenant can induce a failed read only if Robot's server-read counter is shared, which is
+unverified and settled by the live test. If it is shared, this is revisited." The live sessions of
+2026-10-12 settled it, and a four-reader panel revisited it (`docs/research/panels-2026-10/r45/`).
+
+**What the sessions showed.** After about 200 `GET /server/{n}` in an hour, Robot answered
+`403 RATE_LIMIT_EXCEEDED` (`max_requests` 200, `interval` 3600) to all of these:
+- `GET /server/{n}` for every server on the account, not only the one read;
+- `GET /server`, the account list;
+- `GET /server/{n}/cancellation`;
+- reads sent from a second source address, over IPv6.
+
+Unaffected were `GET /ip`, `GET /boot/{n}/rescue` and the cancellation itself
+(`POST /server/{n}/cancellation`). Reads recovered about an hour after the first request.
+
+So the `/server` read family shares one counter per account. Robot documents a single webservice user per
+account, so per-user and per-account are the same here, and the counter is not per source IP.
+
+**Q23a's money decision stands.** The tail is not funded, and no local read budget is built. As `ADR-0034`
+Q19 found, "A local count cannot hold a reserve" against traffic outside provisiond.
+
+**Its threat model is restated.** Tenants can add to the counter through provisiond in four ways:
+- refreshes at the edge of a sweep, while the freshness window only equals the sweep interval;
+- opportunistic reads after actions;
+- deletes of a fleet held over several days, at two shared reads each while a cancellation pre-read
+  exists;
+- refresh loops that retry failed reads.
+
+Any other user of the account's credential can add to it too. A blind sweep also cannot find a running
+machine provisiond never recorded: that is operator cost after `OPS-33` releases a create's commitment
+before the machine is attached. The tail on a destroyed server remains an uncollectable charge, not
+operator money.
+
+**Repairs.** The first is the one that removes operator-money exposure.
+- **No pre-read on Robot deletes.** The driver posts `cancellation_date=now&reserve_location=false` without
+  first reading `GET /server/{n}/cancellation`. With the pre-read, a blinded counter fails an exposure
+  delete before acceptance, and it stalls (`OPS-48`) while the machine bills the operator. The
+  reservation-possible branch stays unverified.
+- **One alarm rule.** Every Robot `403 RATE_LIMIT_EXCEEDED` raises a monitorable alarm naming the account
+  and request path. Its home is `PRV-5`; the alarms in `PRV-40` and `PRV-22` cite it.
+- **`DOM-8`: the refresh freshness window is at least twice the account-sweep interval**, and startup
+  refuses less. This closes the per-pass gap that `ADR-0034` Q20's "at no provider call whatever the fleet
+  size" overlooked.
+- **`PRV-12`: Robot makes no opportunistic `/server` read** outside `DOM-8`'s freshness check.
+- **`OPS-32` on Robot reads attachments through `GET /ip` and `GET /subnet`**, never `GET /server/{n}`.
+- **`08-provider-notes.md` records the observed scope.** Whether the window is fixed or rolling, and whether
+  refused requests count, stay unverified.
+
+Rejected: funding the tail; a local `/server` read budget or reserve; a separate alarm per requirement.

@@ -1,0 +1,31 @@
+# Rescue system capture, session 2 (installimage directive, keys, sshd auth, host keys)
+== alias/type installimage
+bash: cannot set terminal process group (2709): Inappropriate ioctl for device
+bash: no job control in this shell
+installimage is aliased to `/root/.oldroot/nfs/install/installimage'
+dir exists: /root/.oldroot/nfs/install
+== grep TAKE_OVER (bounded)
+/root/.oldroot/nfs/install/functions.sh:971:  local take_over_rescue_system_ssh_public_keys="$(grep -m 1 '^TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS' "$1" | awk '{ print tolower($2) }')"
+/root/.oldroot/nfs/install/functions.sh:972:  [[ "$take_over_rescue_system_ssh_public_keys" =~ ^yes$|^no$ ]] && export OPT_TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS="$take_over_rescue_system_ssh_public_keys"
+/root/.oldroot/nfs/install/functions.sh:974:  if [[ "$OPT_USE_SSHKEYS" != '1' ]] && [[ "${OPT_TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS:-yes}" == 'yes' ]] && [[ -s /root/.ssh/robot_user_keys ]]; then
+/root/.oldroot/nfs/install/get_options.sh:254:        export OPT_TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS='yes'
+/root/.oldroot/nfs/install/get_options.sh:256:        export OPT_TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS='no'
+/root/.oldroot/nfs/install/get_options.sh:303:[ "$OPT_TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS" ] && debug "# OPT_TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS: $OPT_TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS"
+== /root/.ssh
+total 8
+drwx------ 1 root root  80 Oct 12 18:03 .
+drwxr-xr-x 1 root root 100 Oct 12 18:03 ..
+-rw-r--r-- 1 root root 100 Oct 12 18:03 authorized_keys
+-rw-r--r-- 1 root root 100 Oct 12 18:03 robot_user_keys
+-- /root/.ssh/robot_user_keys
+256 MD5:e9:a8:64:46:0e:a4:06:d1:f1:75:8d:31:f6:85:80:04 pv-test-30f523f1-a (ED25519)
+-- /root/.ssh/authorized_keys
+256 MD5:e9:a8:64:46:0e:a4:06:d1:f1:75:8d:31:f6:85:80:04 pv-test-30f523f1-a (ED25519)
+== sshd password auth
+permitrootlogin yes
+passwordauthentication yes
+kbdinteractiveauthentication no
+== host keys
+256 MD5:a1:8d:59:61:5a:a3:ea:4e:06:21:e1:a9:1a:07:3e:4f rescue (ECDSA)
+256 MD5:97:15:65:0e:9a:62:15:42:f0:74:d9:2d:45:5d:2d:3d rescue (ED25519)
+3072 MD5:63:90:75:26:1f:bd:1d:d5:20:e0:f4:23:4d:e1:19:68 rescue (RSA)

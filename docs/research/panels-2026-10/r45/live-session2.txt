@@ -1,0 +1,39 @@
+# Robot live session 2, 2026-10-12 (runner summary; the pre-existing production server's number and IP redacted; rescue passwords redacted)
+2026-10-12T15:58:53Z pre-existing servers: [<prod-server>]
+2026-10-12T15:58:54Z PRODUCTS server -> 200 addons=["primary_ipv4"]
+2026-10-12T15:58:54Z PRODUCTS server_market -> 200 addons=["primary_ipv4"]
+2026-10-12T15:58:55Z KEY A upload -> 201 fp=e9:a8:64:46:0e:a4:06:d1:f1:75:8d:31:f6:85:80:04
+2026-10-12T15:58:55Z DUPLICATE KEY (same public key, other name) -> 409 {"error":{"status":409,"code":"KEY_ALREADY_EXISTS","message":"The key already exists"}}
+2026-10-12T15:58:55Z KEY B upload -> 201 fp=0d:d8:e0:0a:14:e9:1c:bc:4c:e8:f5:62:20:ca:3a:d1
+2026-10-12T15:58:56Z offer 3088292 at €70.0000/mo
+2026-10-12T15:58:57Z ORDER -> 201 tx=B20261012-3524658-3095543
+2026-10-12T16:01:59Z READY server=3088292 status=ready
+2026-10-12T16:01:59Z SERVER: {"server_ip":"142.132.201.47","status":"ready","cancelled":false}
+2026-10-12T16:02:00Z RESCUE BEFORE -> 200 {"active":false,"authorized_key":[],"host_key":[]}
+2026-10-12T16:02:01Z RESCUE ACTIVATE (key A) -> 200 {"active":true,"os":"linux","password":"<redacted>","authorized_key":[{"key":{"name":"pv-test-30f523f1-a","fingerprint":"e9:a8:64:46:0e:a4:06:d1:f1:75:8d:31:f6:85:80:04","type":"ED25519","size":256,"created_at":"2026-10-12 17:58:55"}}],"host_key":[]}
+2026-10-12T16:02:03Z RESET hw -> 200 {"reset":{"server_ip":"142.132.201.47","server_ipv6_net":"2a01:4f8:261:4d48::","server_number":3088292,"type":"hw","operating_status":"running"}}
+2026-10-12T16:03:34Z SSH into rescue: ok1 after ~70s
+2026-10-12T16:05:34Z RESCUE SSH capture: 6 lines in rescue-ssh.txt
+2026-10-12T16:05:35Z RESCUE RE-ACTIVATE while active (key B) -> 200 {"rescue":{"server_ip":"142.132.201.47","server_ipv6_net":"2a01:4f8:261:4d48::","server_number":3088292,"os":"linux","arch":64,"active":true,"password":"<redacted>","authorized_key":[{"key":{"name":"pv-test-30f523f1-b","fingerprint":"0d:d8:e0:0a:14:e9:1c:bc:4c:e8:f5:62:20:ca:3a:d1","type":"ED25519","size":256,"created_at":"2026-10-12 17:58:55"}}],"host_key":[],"boot_time":null}}
+2026-10-12T16:05:37Z RESCUE AFTER -> 200 {"active":true,"authorized_key":[{"key":{"name":"pv-test-30f523f1-b","fingerprint":"0d:d8:e0:0a:14:e9:1c:bc:4c:e8:f5:62:20:ca:3a:d1","type":"ED25519","size":256,"created_at":"2026-10-12 17:58:55"}}]}
+2026-10-12T16:06:43Z READ LIMIT: GET /server/3088292 refused after 199 requests -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T16:06:43Z SCOPE: GET /server/<pre-existing> -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T16:06:43Z SCOPE: GET /server (list) -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T16:06:43Z SCOPE: GET /server/{test}/cancellation -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T16:06:44Z SCOPE control: GET /ip -> 200 [{"ip":{"ip":"142.132.201.47","server_ip":"142.132.201.47","server_number":3088292,"locked":false,"separate_mac":null,"traffic_warnings":false,"traffic_hourly":200,"traffic_daily":2000,"traffic_monthly":20}},{"ip":{"ip":"<prod-ip>","server_ip":"<prod-ip>","server_number":<prod-server>,"locked":f
+2026-10-12T16:06:45Z SCOPE control: GET /boot/{test}/rescue -> 200 {"ok":true}
+2026-10-12T16:06:45Z CANCEL_SENT (no pre-read)
+2026-10-12T16:06:45Z CANCEL attempt 1 -> 200 {"cancellation":{"server_ip":null,"server_number":3088292,"server_name":"","earliest_cancellation_date":"2026-10-12","cancelled":true,"reservation_possible":false,"reserved":false,"cancellation_date":"2026-10-12","cancellation_reason":"Unspecified"}}
+2026-10-12T16:26:50Z DONE
+2026-10-12T16:26:50Z key delete e9:a8:64:46:0e:a4:06:d1:f1:75:8d:31:f6:85:80:04 -> 200
+2026-10-12T16:26:51Z key delete 0d:d8:e0:0a:14:e9:1c:bc:4c:e8:f5:62:20:ca:3a:d1 -> 200
+
+# read recovery checks
+2026-10-12T16:27:10Z GET /server/3088292 -> 403 "RATE_LIMIT_EXCEEDED"
+2026-10-12T16:32:10Z GET /server/3088292 -> 403 "RATE_LIMIT_EXCEEDED"
+2026-10-12T16:37:11Z GET /server/3088292 -> 403 "RATE_LIMIT_EXCEEDED"
+2026-10-12T16:42:11Z GET /server/3088292 -> 403 "RATE_LIMIT_EXCEEDED"
+2026-10-12T16:47:11Z GET /server/3088292 -> 403 "RATE_LIMIT_EXCEEDED"
+2026-10-12T16:52:11Z GET /server/3088292 -> 403 "RATE_LIMIT_EXCEEDED"
+2026-10-12T16:57:12Z GET /server/3088292 -> 403 "RATE_LIMIT_EXCEEDED"
+2026-10-12T17:02:12Z GET /server/3088292 -> 404 "SERVER_NOT_FOUND"

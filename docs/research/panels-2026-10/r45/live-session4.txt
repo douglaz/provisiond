@@ -1,0 +1,8 @@
+# Robot live session 4, 2026-10-12 (read-only IP-scope probe)
+2026-10-12T19:08:32Z baseline IPv6 GET /server -> 200
+2026-10-12T19:08:32Z baseline IPv4 GET /server -> 200
+2026-10-12T19:09:10Z IPv4 GET /server refused after 199 more requests -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T19:09:10Z IPv6 GET /server -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T19:09:15Z IPv6 GET /server -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T19:09:20Z IPv6 GET /server -> 403 {"status":403,"code":"RATE_LIMIT_EXCEEDED","max_requests":200,"interval":3600,"message":"rate limit exceeded"}
+2026-10-12T19:09:26Z IPv4 again -> 403
