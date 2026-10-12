@@ -151,7 +151,8 @@ the Robot cancellation guide, 2026-08-08]**
 current Robot launch offers is the provider's today, under `PRV-31` and `ADR-0037` Q25.
 Hetzner's supplied dedicated-server statement is "You can only cancel immediately".
 This is a provider fact for the current offer set, not a runtime constant or a declaration
-for an individually different contract. Robot's cancellation date zone remains `[verify]`.
+for an individually different contract. Robot's cancellation dates use `Europe/Berlin`
+(`docs/research/panels-2026-10/r40/zone-check.txt`; `ADR-0037`'s 2026-10-12 verification note).
 
 Consequences for a reseller: the delete-stops-cost arrow that hourly metering depends on
 genuinely exists here, so no separate term SKU is needed. The **setup fee** is the real prepaid
@@ -435,8 +436,9 @@ Notes that change driver code:
   Batch B step 9 is settled for this auction add-on only. The planned no-pre-read cancellation
   and reservation-possible branch, separately ordered IPs/subnets, catalogue orders,
   provider-initiated termination and invoice remain unverified. Robot's cancellation date zone
-  is proposed as **`Europe/Berlin` [verify]**: the key's `created_at` in this transaction
-  matches that zone's offset, but it does not verify the cancellation fields. `PRV-13` owns
+  is **`Europe/Berlin`**, verified separately by read-only cancellation-field observations across
+  Berlin midnight (`docs/research/panels-2026-10/r40/zone-check.txt`). The key's `created_at`
+  in this transaction alone did not verify those fields. `PRV-13` owns
   the effective-date conversion.
 
 - **Ordering is rate-limited: 20 requests per day** on each documented order endpoint:

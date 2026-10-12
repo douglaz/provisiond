@@ -908,7 +908,8 @@ structure World where
   /-- The `needs_reconciliation` record was closed: recovery is complete (`RSC-21`). -/
   resolved             : Bool
   status               : Claim.Status
-  /-- Whether the operation row still exists; no row means no attached machine in this model. -/
+  /-- Whether the operation row still exists. Retention may remove it while a produced machine
+  remains attached and reads provisioning. -/
   recordPresent        : Bool
   /-- A machine produced by this operation still reads provisioning. -/
   producedProvisioning : Bool
@@ -962,16 +963,17 @@ inductive Event
   | recoveryComplete
   deriving DecidableEq, Repr
 
-/-- `PRV-9`'s deletion eligibility. A vanished row is removable because its machine cannot be
-attached; a present row needs settlement and the produced machine past provisioning. The
+/-- `PRV-9` says "A vanished operation record satisfies only the settlement condition; the sweep
+MUST still check the provisioning condition against retained `machines` rows." An attached
+machine may outlive its operation row, so the provisioning guard applies in either case. The
 `sweepRemovesCredential` event performs the eligible deletion. This single-operation model has
-no provider fingerprint namespace, registration outcome or race, and does not prove duplicate
-refusal, scheduler liveness or cross-operation ownership. It does not model the provider's key
+no provider fingerprint namespace, registration ownership outcome or race, and does not prove duplicate
+refusal, scheduler liveness or cross-operation races. It does not model the provider's key
 resource itself or the persisted recovery private key. -/
 @[req "PRV-9"]
 def keyEligible (w : World) : Bool :=
-  !w.recordPresent ||
-    ((w.status == .succeeded || w.status == .failed) && !w.producedProvisioning)
+  (!w.recordPresent || w.status == .succeeded || w.status == .failed) &&
+    !w.producedProvisioning
 
 /-- The step. `RSC-19`'s branch writes the key on the uncertain paths and on no other; the crash
 writes nothing; `RSC-21`'s removal is the operator's and waits for recovery. -/
@@ -1013,8 +1015,8 @@ def begin (operation : OperationId) (address : String) (port : Nat) : World :=
     exitAttempted := false, uncertain := false, resolved := false, status := .running,
     recordPresent := true, producedProvisioning := false, dead := false }
 
-/-- `PRV-9`: an in-progress or reconciliation-pending operation keeps the registered key;
-a settled operation with a provisioning machine keeps it as well. -/
+/-- In this model, an in-progress or reconciliation-pending operation keeps the registered key;
+a provisioning machine keeps it even after settlement or operation-row retention. -/
 @[req "PRV-9"]
 theorem sweep_retains_ineligible (p : Params) (hp : p.temporaryKeyEligibility = true)
     (w : World) (h : keyEligible w = false) :
@@ -1022,8 +1024,9 @@ theorem sweep_retains_ineligible (p : Params) (hp : p.temporaryKeyEligibility = 
       w.credentialRegistered := by
   simp [step, hp, h]
 
-/-- `PRV-9` and `OPS-32`: an eligible tagged registration is removed when the model's sweep
-event runs, including a vanished operation row. This theorem does not prove the sweep runs. -/
+/-- An eligible tagged registration is removed when the model's sweep
+event runs, including after its operation row vanishes once the provisioning guard clears.
+This theorem does not prove the sweep runs. -/
 @[req "PRV-9"]
 theorem sweep_removes_eligible (w : World) (h : keyEligible w = true) :
     (step current w .sweepRemovesCredential).credentialRegistered = false := by

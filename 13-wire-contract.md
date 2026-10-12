@@ -897,8 +897,8 @@ and the resolution cleared the fence on a machine still billing*).
 On `release_attachment`, `applied` MUST carry `effective_cancellation_date` when the operator
 established a scheduled release, for example
 `{"resolution": "applied", "effective_cancellation_date": "2026-10-31T22:59:59Z", "operator_ref": "opref-7d41cc"}`
-for Robot's day-only `cancellation_date` of `2026-10-31` if its date zone is verified as
-`Europe/Berlin` (`PRV-13`; zone `[verify]`). `PRV-13` owns conversion of day-only effective dates;
+for Robot's day-only `cancellation_date` of `2026-10-31` in its verified `Europe/Berlin`
+date zone (`PRV-13`; `docs/research/panels-2026-10/r40/zone-check.txt`). `PRV-13` owns conversion of day-only effective dates;
 the wire value follows `WIR-1`'s UTC timestamp convention.
 `PRV-45` says a dated result "MUST store that date on the attachment row" and "MUST NOT write
 `released_at` merely from that result". Without the date, `applied`

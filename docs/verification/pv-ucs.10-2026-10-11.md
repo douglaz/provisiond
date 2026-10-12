@@ -167,3 +167,93 @@ The unpiped full gate after this record and the tracker flush exited 0: all seve
 gates passed, with 799 tagged Lean declarations, 336 conformance items, no new
 coverage or citation findings, and four rendered regions matching Lean. The
 flushed JSONL changed only `pv-ucs.10` relative to HEAD and kept it `in_progress`.
+
+## Continuation — 2026-10-12 UTC (Q26 and final review residue)
+
+This continuation records the work after `3fd2be0`, with master `903053d` as the
+publication comparison. It supersedes this record's earlier **outstanding** Robot
+date-zone note: the owner supplied the read-only observations in
+`docs/research/panels-2026-10/r40/zone-check.txt`, and `ADR-0037` records their
+2026-10-12 verification. No provider API was called in this continuation. The
+older dated evidence and its earlier `[verify]` status remain historical.
+
+### Edits and text inspection
+
+`PRV-9` now says: “A tagged temporary key still registered at the provider MUST be
+deleted by `OPS-32`'s sweep when, and only when, its operation has settled or its
+record has vanished, and no machine that operation produced still reads
+`provisioning`, whether or not an order was accepted.” It reads the guard through
+retained `machines.correlator_value` and applies one operation's eligibility to all
+keys it tagged, including distinct Robot caller and correlator keys. A missing row
+satisfies only settlement. The sole sweep deleter, owned pre-acceptance failure
+cleanup, retained-row lost-registration-reply case, same-key refusal interval, and
+unresolved protection remain. `OPS-32` and `DEF-6` carry the exact new quotation;
+`CNF-303` exercises retention while provisioning, then a later observation and
+sweep deletion with the row still absent.
+
+`Rescue.Session.keyEligible` now conjoins the settlement-or-missing-row test with
+the provisioning guard. Its row documentation and eligibility theorem comments no
+longer infer that an absent operation row means an absent machine. The
+`temporary_key_eligibility_witness` covers the combined absent-row/provisioning
+state and removal after the guard clears, in addition to its earlier cases. No
+theorem statement was weakened.
+
+`CNF-166` now admits the legal v1 positive offer and checks that the earliest-date
+contribution to `protected_sats` is zero before and after an earlier actual date,
+with the commitment unchanged. Its missing-bound and both future-bound refusals,
+purchase-write/order absence, cap and balance suppression remain. `CNF-63` retains
+separate start-storage and future-day pricing fixtures; `CNF-147` retains its
+provider-deviation case. No future-bound v1 sale or near-midnight fixture was added.
+
+`PRV-13`, both live provider-note passages, `CNF-63`, `CNF-328`, and `WIR-35` now
+cite the supplied Robot zone observation without a live `[verify]` qualification.
+The `CNF-328` instant remains an isolated fixture. This verifies the date zone,
+not key-consumption timing, duplicate-key refusals, attachment survival on other
+paths, invoice billing, counter scope, or untested no-pre-read/reservation paths.
+Current root-document consumers were searched for stale zone and vanished-row
+qualifications; the cumulative work-list passages were inspected by identifier
+against `903053d`. Earlier branch repairs remained in place, with no new
+never-master marker or checked conformance box.
+
+### Verification actually run
+
+- The unpiped `nix develop --command bash tools/check-all.sh` exited 0 before edits
+  and after the normative/formal edits. Each run passed all gates, including the
+  full Lean build. `git diff --check` exited 0 after the edits. The final gate
+  after this record and tracker flush is reported below.
+- The current `.github/workflows/ci.yml` supplied the complete negative-control
+  inventory. Every standalone `Prove` step passed its asserted diagnostic,
+  including publication, identifier, obligation, citation, formal, rendering,
+  acceptance, and migration controls. The acceptance control refuted each of its
+  named witnesses separately. Every listed source-guard row across all shard
+  assignments produced exactly one `Provisiond/Witnesses.lean` refutation with its
+  expected proposition token; the source list, rather than a prose count, is the
+  completeness authority.
+- The rehearsal used one repository-local copy at `.pv-ucs10-rehearsal`, omitting
+  `.git`, `.rloop`, and `.beads`. It entered `nix develop path:<copy>` once, placed
+  temporary files inside the copy, restored mutated source bytes and copied formal
+  artifacts between rows, and passed a clean copied build after the final control.
+  The copy and its temporary harness were removed. An initial harness treated the
+  literal `++` in one expected token as a regular expression and stopped after
+  Lean had produced the expected refutation; the literal comparison was corrected
+  and that row and the remaining rows passed. A previous rehearsal attempt was
+  stopped during an unnecessarily repeated clean rebuild; it reported no gate
+  failure. Neither harness adjustment changed CI or specification sources.
+- Restoring the old `!recordPresent || (settled && !producedProvisioning)` predicate
+  in the copy made the new combined-state witness fail with a single
+  `Witnesses.lean` `decide` refutation that named `recordPresent := false` and
+  `producedProvisioning := true`. Restoring the current predicate rebuilt cleanly.
+
+The Lean model is a single-operation eligibility model. It does not establish
+provider registration ownership, duplicate-fingerprint behavior, scheduler
+liveness, or cross-operation races. This record proves gate behavior and consistency
+of the specification edits, not implementation conformance; checklist boxes stay
+unchecked. The ticket remains `in_progress` for the independent Panel and Manager.
+
+After the tracker note was flushed, the unpiped full gate exited 0 with all gates
+passing. A final quotation and orphan-fixture clarification in `OPS-32`, the Lean
+docstrings and `CNF-303` was followed by another unpiped full gate, also exit 0:
+the Lean build succeeded, tagged declarations and rendered regions matched, and
+the identifier, fixture, obligation, coverage and citation checks all passed with
+no new findings. `git diff --check` exited 0; `.beads/issues.jsonl` changed only
+`pv-ucs.10` relative to HEAD, retained its history, and left it `in_progress`.

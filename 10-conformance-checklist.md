@@ -311,7 +311,7 @@ not optional hardening — they are the only structural defence there is.
       `needs_reconciliation`. A generic HTTP error and a mismatched identity establish no
       absence. Separately lose the mutation's acceptance or date and assert no scheduled
       success is inferred. Convert a day-only effective date in the provider's date zone to
-      its end-of-day UTC wire instant; retain an explicit timestamp's instant and convert a day-only permitted-from `earliest_cancellation_date=2026-10-31` to the stored start `2026-10-30T23:00:00Z` in an isolated Europe/Berlin fixture. At provider-local noon on October 31, the date has passed, so take the ordinary branch; infer no meter stop from that field. In a separate future-day fixture, price cost through the end of the earliest date's provider-local day while keeping the stored permitted-from start distinct. Robot's date zone remains `[verify]`.
+      its end-of-day UTC wire instant; retain an explicit timestamp's instant and convert a day-only permitted-from `earliest_cancellation_date=2026-10-31` to the stored start `2026-10-30T23:00:00Z` in an isolated Europe/Berlin fixture. At provider-local noon on October 31, the date has passed, so take the ordinary branch; infer no meter stop from that field. In a separate future-day fixture, price cost through the end of the earliest date's provider-local day while keeping the stored permitted-from start distinct. Robot's date zone is verified by `docs/research/panels-2026-10/r40/zone-check.txt`.
       (`PRV-12`, `PRV-13`, `OPS-11`,
       `PRV-36`)
 - [ ] **CNF-64** — **Amended 2026-10-11 (`ADR-0037`, Q21/Q22/Q23a).** After a dated
@@ -2437,14 +2437,17 @@ rather than acquiring a default.
       dispatched", and an implementation that waits for the dispatch renders that row `none`.
       (`OPS-45`, `OPS-15`, `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
 - [ ] **CNF-303** — **The sweep deletes every eligible tagged key still registered.**
-      *Amended 2026-10-12 (`ADR-0040`, Q24).* Kill the
+      *Amended 2026-10-12 (`ADR-0040`, Q24/Q26).* Kill the
       engine after registering a tagged caller key for an accepted create and a tagged rescue key; the
       sweep retains each while its operation is `needs_reconciliation`, `queued` or `running`. After
-      successful settlement, keep the create's machine in `provisioning` and assert the key remains;
-      once a later observation clears that guard, assert the sweep deletes it. Before that sweep, retry
+      successful settlement, keep the create's machine in `provisioning`; let retention remove its
+      settled operation row and assert the sweep retains every key that operation tagged, including
+      distinct caller and Robot correlator keys. Read the guard through retained
+      `machines.correlator_value`: operation UUID for Cloud and DigitalOcean, per-order correlator-key
+      fingerprint for Robot. Once a later observation clears `provisioning`, assert the sweep deletes
+      every surviving eligible registration with the row still absent. Before that sweep, retry
       a create with the same caller fingerprint: Cloud and Robot refuse the duplicate before acceptance,
-      with no order request or charge. The successful create's driver makes no prompt deletion. Delete a
-      tagged key whose operation row vanished through the sweep. On a pre-acceptance failure, delete
+      with no order request or charge. The successful create's driver makes no prompt deletion. On a pre-acceptance failure, delete
       only a key successfully registered by that operation; a failed owned deletion reports its
       identifier in begin-rescue error details and the sweep subsequently removes it. Return Robot `409
       KEY_ALREADY_EXISTS`, and separately lose the registration reply: in both cases assert the driver
@@ -2452,6 +2455,7 @@ rather than acquiring a default.
       ownership. In the lost-reply case, the provider has registered and tagged the key; settle the
       operation without an order while retaining its row. A same-key create is refused before an
       order while that registration survives; once eligible, the sweep deletes the retained key.
+      Also remove a tagged orphan whose operation row is absent and which produced no recorded machine.
       For an accepted rescue activation followed by reboot failure, keep the operation
       unresolved and its key registered while begin rescue attempts deactivation; exercise successful
       and failed deactivation and its error details. After eligibility, the sweep removes the retained
@@ -3119,8 +3123,9 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       its `WIR-9a` refusal and skipped-check entries, no commitment or other purchase write,
       and no provider order. A bound learned only after an order is not a pre-order refusal.
       An otherwise sellable offer with a bound no later than provider-local today and a
-      sellable traffic bound opens a commitment sized to that bound; a shorter actual
-      date then **lowers `protected_sats` against rather than resizing** (`PRV-31`, `LDG-33`).
+      sellable traffic bound is admitted and opens a commitment sized to that bound. Show that
+      the earliest-date contribution to `protected_sats` is zero before and after a shorter actual
+      date is read, while the commitment remains unchanged (`PRV-13`, `PRV-31`, `LDG-33`).
       Preserve cap and balance suppression for an unsellable offer under `API-7`.
       (`PRV-31`, `PRV-13c`, `LDG-12`, `API-7`, `WIR-9a`, `DOM-9`, `WIR-30`, `CNF-307`)
       *Amended 2026-10-09 (`ADR-0039`): the no-bound sale refusal uses the
@@ -3320,7 +3325,7 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       `2026-10-31T12:00:00Z` and have the provider return day-only
       `cancellation_date=2026-10-31`; assert the stored effective boundary is
       `2026-10-31T22:59:59Z` in this isolated fixture, which assumes provider zone
-      `Europe/Berlin` regardless of the live Robot zone's `[verify]` status, with
+      `Europe/Berlin` (also verified for Robot by `docs/research/panels-2026-10/r40/zone-check.txt`), with
       `released_at` still null until release evidence when there was no earlier gone
       observation, rather than noon or the start of that day. Separately return an explicit
       provider timestamp and keep its stated instant. Resolve a scheduled release `applied`

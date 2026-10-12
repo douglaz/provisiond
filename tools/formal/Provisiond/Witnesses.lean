@@ -3027,9 +3027,10 @@ def crashedSession : List Session.Event := openSession ++ [.crash]
 def failedExitSession : List Session.Event :=
   [.armExit, .beginRescue false, .remoteCommand, .endRescue false]
 
-/-- `PRV-9`: the guard preserves the registration after a crash pending reconciliation and
-after settlement while its machine is provisioning. Settlement past provisioning and a vanished
-operation permit removal. Disabling the guard admits premature deletion of the crashed key. -/
+/-- The tagged eligibility guard preserves the registration after a crash pending reconciliation and
+after settlement while its machine is provisioning, even if retention removes the operation row.
+Once provisioning clears, the sweep can remove it with that row still absent. Disabling the guard
+admits premature deletion of the crashed key. -/
 @[req "PRV-9"]
 theorem temporary_key_eligibility_witness :
     let w := Session.run Rescue.current rescueSession crashedSession
@@ -3040,6 +3041,12 @@ theorem temporary_key_eligibility_witness :
       .sweepRemovesCredential).credentialRegistered = false ∧
     (Session.step Rescue.current { settled with producedProvisioning := true }
       .sweepRemovesCredential).credentialRegistered = true ∧
+    (Session.step Rescue.current
+      { settled with recordPresent := false, producedProvisioning := true }
+      .sweepRemovesCredential).credentialRegistered = true ∧
+    (Session.step Rescue.current
+      { settled with recordPresent := false, producedProvisioning := false }
+      .sweepRemovesCredential).credentialRegistered = false ∧
     (Session.step Rescue.current settled .sweepRemovesCredential).credentialRegistered = false ∧
     (Session.step Rescue.current { clean with recordPresent := false }
       .sweepRemovesCredential).credentialRegistered = false := by decide

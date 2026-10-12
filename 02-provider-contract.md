@@ -125,18 +125,22 @@ keys, optional user data, labels, and a provider-options object.
 persist a provider-generated root password, so a machine created without a key would be
 unreachable.
 
-**PRV-9** **Amended 2026-10-09 (`ADR-0040`); amended 2026-10-11 (`ADR-0040`, Q24).** Where the provider
+**PRV-9** **Amended 2026-10-09 (`ADR-0040`); amended 2026-10-11 (`ADR-0040`, Q24); amended 2026-10-12 (`ADR-0040`, Q26).** Where the provider
 requires SSH keys to be registered as account-level resources before they can be attached, the driver
 MUST register and attach them as temporary provider-side resources. **A tagged temporary key still
 registered at the provider MUST be deleted by `OPS-32`'s sweep when, and only when, its operation
-has settled or vanished and no machine it produced still reads `provisioning`, whether or not an
+has settled or its record has vanished, and no machine that operation produced still reads `provisioning`, whether or not an
 order was accepted. After acceptance, or after settlement without acceptance, the driver MUST NOT
 delete that key; the sweep is its only deleter.** On failure before acceptance, the
 driver MUST delete only a temporary key that its own operation successfully registered. A
 duplicate-fingerprint refusal or an indeterminate registration reply gives the driver no ownership
 evidence and MUST NOT trigger deletion by fingerprint. A post-acceptance `needs_reconciliation` operation
-retains its key until resolution settles it. The sweep MUST delete a tagged key whose operation record
-has vanished, because no machine from an unrecorded operation can be attached. The provider-side
+retains its key until resolution settles it. A vanished operation record satisfies only the settlement
+condition; the sweep MUST still check the provisioning condition against retained `machines` rows.
+For an operation that produced a machine, its `machines.correlator_value` is the operation UUID on
+Hetzner Cloud and DigitalOcean, or its per-order correlator-key fingerprint on Robot. Every temporary
+key tagged with that operation id, including a caller key distinct from Robot's correlator key, has
+the same eligibility. The provider-side
 registration may contain a caller's create public key or a freshly generated rescue/correlator public
 key; it is distinct from the persisted recovery private key (`RSC-19`).
 
@@ -216,8 +220,8 @@ absence evidence and does not stop the meter.
 A calendar-day-only **effective** date names the end of that day in the zone the provider dates
 in; the driver MUST convert that local end-of-day instant to UTC. An explicit timestamp retains
 its instant. A `now` request is not evidence of a start-of-day stop. **Amended 2026-10-11 (`ADR-0037`, Q23c).** A provider's
-`earliest_cancellation_date` is a permitted-from date, not an effective stop instant: a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone. A date equal to the provider's today has passed and takes the ordinary branch. For a future earliest date, cost through that date runs to the end of its provider-local day; this pricing does not change the stored permitted-from instant or resize the commitment (`PRV-31`). Robot's proposed zone is recorded as
-`Europe/Berlin` **[verify]** in `08-provider-notes.md`.
+`earliest_cancellation_date` is a permitted-from date, not an effective stop instant: a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone. A date equal to the provider's today has passed and takes the ordinary branch. For a future earliest date, cost through that date runs to the end of its provider-local day; this pricing does not change the stored permitted-from instant or resize the commitment (`PRV-31`). Robot dates in
+`Europe/Berlin` (`docs/research/panels-2026-10/r40/zone-check.txt`; `ADR-0037`'s 2026-10-12 verification note).
 
 **PRV-13a** Deleting a machine does not necessarily delete everything billable that was attached to it. A driver MUST declare associated resources that survive deletion and may continue to bill, and MUST expose cleanup for every such resource the provider's API can delete. **Amended 2026-09-08 (`ADR-0018`):** the kinds are declared in the descriptor's `surviving_attachments` (`PRV-44`), each with `cleanup: api | manual`; cleanup is `PRV-45`'s *release attachment*. Only resources the API cannot reach may be left to an operator procedure as `manual`.
 

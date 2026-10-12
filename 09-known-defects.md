@@ -97,7 +97,7 @@ One adapter deleted the temporary account-level SSH keys immediately after issui
 asynchronous deploy and an asynchronous rebuild. Where key material is read later rather
 than copied at request time, this produces machines nobody can log into.
 
-**Prohibition** (*amended 2026-10-09 and 2026-10-11, `ADR-0040`, Q16/Q24*) — apply `PRV-9`'s cleanup rule: "A tagged temporary key still registered at the provider MUST be deleted by `OPS-32`'s sweep when, and only when, its operation has settled or vanished and no machine it produced still reads `provisioning`, whether or not an order was accepted." Provider-consumption timing remains `[verify]` until measured; record evidence in `08-provider-notes.md`.
+**Prohibition** (*amended 2026-10-09, 2026-10-11 and 2026-10-12, `ADR-0040`, Q16/Q24/Q26*) — apply `PRV-9`'s cleanup rule: "A tagged temporary key still registered at the provider MUST be deleted by `OPS-32`'s sweep when, and only when, its operation has settled or its record has vanished, and no machine that operation produced still reads `provisioning`, whether or not an order was accepted." Provider-consumption timing remains `[verify]` until measured; record evidence in `08-provider-notes.md`.
 
 *Reference: `crates/providers/src/cherry.rs:398`, `:523`.*
 
