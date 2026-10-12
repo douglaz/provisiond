@@ -1988,9 +1988,12 @@ earlier of its `effective_cancellation_date` and any gone observation", while `L
 "A machine **still present after its date** has its meter stopped and is billing the operator".
 Where available cannot fund the top-up, the shortfall is **operator-borne** — there is no
 customer action to wait for and no faster cancellation to route to — and MUST be surfaced to the
-operator as a named deficiency, bounded per machine by `PRV-31`'s declared worst case. This is
+operator as a named deficiency. `PRV-31`'s "worst-case cancellation bound" limits this exposure
+only where the machine's read date lies within that declared bound; cost beyond it after a
+provider deviation is operator-borne. This is
 one of the two exceptions `ADR-0003`'s amended matching claim names.
 *Clarified 2026-10-11 (`ADR-0037`, Q21/Q22).*
+*Qualified 2026-10-12 (`ADR-0037`, Q25): the declaration does not bound provider deviation.*
 
 **LDG-16** **AMENDED (`ADR-0011`), again 2026-09-21 (`ADR-0026`), again 2026-09-23
 (`ADR-0027`), and again 2026-09-25 (`ADR-0028`).** A rate or price movement MUST NOT have its own cancellation machinery; it reaches

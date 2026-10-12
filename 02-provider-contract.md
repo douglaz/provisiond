@@ -127,9 +127,11 @@ unreachable.
 
 **PRV-9** **Amended 2026-10-09 (`ADR-0040`); amended 2026-10-11 (`ADR-0040`, Q24).** Where the provider
 requires SSH keys to be registered as account-level resources before they can be attached, the driver
-MUST register and attach them as temporary provider-side resources. **After acceptance, a temporary key
-MUST be deleted when, and only when, its operation has settled or vanished and no machine it produced
-still reads `provisioning`; `OPS-32`'s sweep is its only deleter.** On failure before acceptance, the
+MUST register and attach them as temporary provider-side resources. **A tagged temporary key still
+registered at the provider MUST be deleted by `OPS-32`'s sweep when, and only when, its operation
+has settled or vanished and no machine it produced still reads `provisioning`, whether or not an
+order was accepted. After acceptance, or after settlement without acceptance, the driver MUST NOT
+delete that key; the sweep is its only deleter.** On failure before acceptance, the
 driver MUST delete only a temporary key that its own operation successfully registered. A
 duplicate-fingerprint refusal or an indeterminate registration reply gives the driver no ownership
 evidence and MUST NOT trigger deletion by fingerprint. A post-acceptance `needs_reconciliation` operation
@@ -519,7 +521,10 @@ exposure bound applies to sellable offers.*
 
 **PRV-31** **A driver MUST declare, per offer and before any order, a worst-case cancellation
 bound** — the latest `earliest_cancellation_date` a machine bought from that offer can carry —
-and an offer with **no declared bound MUST NOT be sold on prepaid terms.** This closes `F26`'s
+and an offer with **no bound declared in either the descriptor or the offer MUST NOT be sold on
+prepaid terms.** In v1, an offer MUST NOT
+be sold on prepaid terms if either its descriptor-declared bound or its offer-reported bound is
+later than the provider's local today. This closes `F26`'s
 circularity: `PRV-13c` learns the per-machine constraint *after* ordering, while `LDG-12` forbids
 the order before the commitment exists, so for an offer that hides its terms the commitment could
 only be sized after the purchase it authorizes. The declared bound sizes the commitment at
@@ -533,10 +538,11 @@ dedicated servers have no minimum term and a new machine's date is normally toda
 (`08-provider-notes.md`). *A clause here said adoption never needs the bound because an adopted
 machine's date is read before its commitment opens; adopt is withdrawn (`ADR-0020`), and the
 clause was false while it stood, since the commitment opened at enqueue.* A missing declared
-cancellation bound is a descriptor-decidable unsellable offer. Its pre-order refusal is
+cancellation bound in both the descriptor and the offer is an unsellable offer. Its pre-order refusal is
 `API-7`'s create-tail "`invalid_request`/`offer_not_sellable` when the named offer is
 not sellable under `PRV-13b` or `PRV-31`". This does not move a provider failure or a term
 learned after ordering into admission. *Amended 2026-10-09 (`ADR-0039`, Q12).*
+*Amended 2026-10-12 (`ADR-0037`, Q25): the v1 sale bound is provider-local today.*
 
 **PRV-13c** **A deployment MUST NOT encode any provider's current commercial terms as
 constants.** Minimum term, notice period, cancellation immediacy, billing granularity,
@@ -548,7 +554,7 @@ The driver MUST report an allowance offer's `traffic_bound` from current provide
 configuration. *Amended 2026-10-09 (`ADR-0039`).*
 
 The required shape is read-and-branch: order, then **read** the provider's per-machine
-cancellation constraint. `PRV-13` says "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone" and "For a future earliest date, cost through that date runs to the end of its provider-local day". Branch to the exception path when the stored permitted-from instant is **materially in the
+cancellation constraint. `PRV-13` says "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone" and "For a future earliest date, cost through that date runs to the end of its provider-local day". Branch to the exception path when it is **materially in the
 future** — defined (`F18`) as later than now plus one re-derivation period plus the product's
 wind-down bound; anything nearer is indistinguishable from the ordinary exhaustion path and
 needs no exception —

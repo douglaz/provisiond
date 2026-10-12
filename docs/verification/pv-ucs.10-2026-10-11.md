@@ -109,3 +109,61 @@ and conformance work. These are recorded on `pv-ucs.10` without creating new bea
 After the verification record and tracker sync, the unpiped full gate exited 0:
 all seven gates passed, with 799 tagged Lean declarations, 336 conformance items,
 no new coverage or citation findings, and four rendered regions matching Lean.
+
+## Continuation — 2026-10-12 UTC (Q24 completion and Q25)
+
+This continuation records the work after `bedd9a5`; the comparison baseline for
+never-master markers remains `903053d`. The Manager's existing
+`.beads/issues.jsonl` claim was preserved. The ticket stays `in_progress` for independent
+Panel/Manager review. No provider call, service implementation, or live conformance test
+was performed, and no checklist box was ticked.
+
+### Final text inspection
+
+| Work-list portion | Disposition |
+|---|---|
+| 1–7 | Round 1 repairs retained. Checked the named never-master markers against `903053d`, the API and wire tombstones, the ADR-0034 quotation, research pointers, scoped Lean heartbeats and README reservation source. |
+| 8–16 | Round 1 repairs retained. `DOM-8` now says “refreshed by explicit refresh operations, opportunistically after actions, and by the account sweep described below”, matching its present-state write and the OPS-32/PRV-43 references. Future observations remain stale; the Berlin wire fixture, pure descriptor, allowance offer, withdrawal field refusal, attachment precondition, reported-403 alarm and supplied Robot product-list note remain. |
+| 17–19 / Q23a–c | Round 1's failed-read-back meter/clamp case and uncapped attachment residual remain. `PRV-13` says “a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone” and “For a future earliest date, cost through that date runs to the end of its provider-local day”; `CNF-63` retains separate fixtures, and `CNF-147` retains its injected deviation without resizing the commitment. |
+| Q24 | `PRV-9` now requires sweep deletion “whether or not an order was accepted” and says “After acceptance, or after settlement without acceptance, the driver MUST NOT delete that key; the sweep is its only deleter.” OPS-32 and DEF-6 quote the affirmative sentence. CNF-303 now exercises the retained-row lost-reply trace and same-key refusal before sweep deletion, alongside its unresolved, provisioning, vanished-row, successful-create and owned-failure cases. PRV-18 and PRV-21 remain scoped to their existing rescue duties. |
+| Q25 | `PRV-31` says “an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or its offer-reported bound is later than the provider's local today”; the missing-bound refusal remains. `DOM-9` says “The customer offer listing MUST include only offers sellable under `PRV-13b` and `PRV-31`”, and `API-7` names “`invalid_request`/`offer_not_sellable` when the named offer is not sellable under `PRV-13b` or `PRV-31`”. CNF-166 covers both future-bound sources, the missing-bound case and an otherwise sellable positive case, with CNF-307 for cap, balance and refusal ordering. Provider notes declare today's bound for Robot's launch offers from the supplied immediate-cancellation statement, retaining the date-zone `[verify]` mark. PRV-13c's selector is back to “when it is materially in the future”; LDG-38's quotation matches. `LDG-63` says the declared bound “limits this exposure only where the machine's read date lies within that declared bound; cost beyond it after a provider deviation is operator-borne”; ADR-0003 and ADR-0011 point there. |
+
+The amendments to wording present at `903053d` carry dated owner-ADR markers in
+DOM-8, PRV-31, LDG-63, CNF-166 and CNF-303. The Q24 quote repair to branch-only
+wording does not carry a new publication marker.
+
+No future-dated v1 offer, near-midnight fixture, deferred dispatch, corrective-credit
+mechanism, shared-key ownership or second deleter was introduced. The Q23c stored
+permitted-from start and priced-through day end remain separate. The only Round 1 selector
+reversal is the one Q25 authorized.
+
+### Formal scope and controls
+
+`Rescue.keyEligible` has no acceptance field, so its existing eligibility theorem still
+supports the acceptance-independent guard. Its model explicitly omits registration outcome,
+provider fingerprint namespace, scheduler liveness and cross-operation ownership; it does
+not prove CNF-303's lost-reply/provider trace. `Admission.offerSaleGuard` models a generic
+unsellable offer, not Q25's provider-local bound comparison. No Lean declaration or theorem
+was changed, and no `CNF` identifier was added under `tools/formal/`.
+
+The unpiped `nix develop --command bash tools/check-all.sh` exited 0 at the start of
+this continuation and again after the normative edits: seven gates passed, with 799
+tagged declarations, 336 conformance items, and no new citation or coverage finding.
+`git diff --check` exited 0 after the edits.
+
+The then-current `.github/workflows/ci.yml` supplied the negative-control inventory.
+One repository-local copy excluded `.git`, `.rloop` and `.beads`; the host adaptation
+used `nix develop path:<copy>` and kept temporary files inside that copy. Every
+standalone `Prove` step passed its expected diagnostic assertions (32 of 32), including
+both accepted-failure mutations. The copied build passed after those controls. The
+first source-row attempt stopped at index 0 because the local rehearsal harness required
+a stricter literal diagnostic than CI's `decide.` match; no gate or spec failed. After
+correcting that harness assertion, source indices 0–95 each produced one expected
+`Provisiond/Witnesses.lean` refutation with its named token (96 of 96). Source bytes were
+restored and a clean copied build passed between rows and after the final row. The copy
+was removed. This is gate-negative-control evidence, not implementation conformance.
+
+The unpiped full gate after this record and the tracker flush exited 0: all seven
+gates passed, with 799 tagged Lean declarations, 336 conformance items, no new
+coverage or citation findings, and four rendered regions matching Lean. The
+flushed JSONL changed only `pv-ucs.10` relative to HEAD and kept it `in_progress`.

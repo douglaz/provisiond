@@ -125,9 +125,11 @@ be stored alongside the state, and any system reselling the machine MUST treat t
 between acceptance and that date as continuing cost.
 
 **DOM-8** Machine state is a *cache* of provider truth, refreshed by explicit refresh
-operations and opportunistically after actions. The system MUST NOT treat it as
+operations, opportunistically after actions, and by the account sweep described below. The system
+MUST NOT treat it as
 authoritative when deciding whether a destructive action is safe; that decision belongs
 to the caller, expressed through the destructive acknowledgement (`API-14`).
+*Amended 2026-10-12 (`ADR-0034`, Q20): the cache summary names the sweep's observation.*
 
 **AMENDED 2026-09-02 — one thing does refresh without a caller, and the cache now carries its own
 age.** `OPS-32`'s account sweep reads each provider account independently of any caller and MUST

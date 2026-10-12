@@ -147,6 +147,12 @@ cap — the same shape as the cloud product, not term billing. The per-server
 for a newly ordered machine. **[observed — verified against current Hetzner product pages and
 the Robot cancellation guide, 2026-08-08]**
 
+**Launch-set cancellation declaration** — the driver's declared worst-case bound for the
+current Robot launch offers is the provider's today, under `PRV-31` and `ADR-0037` Q25.
+Hetzner's supplied dedicated-server statement is "You can only cancel immediately".
+This is a provider fact for the current offer set, not a runtime constant or a declaration
+for an individually different contract. Robot's cancellation date zone remains `[verify]`.
+
 Consequences for a reseller: the delete-stops-cost arrow that hourly metering depends on
 genuinely exists here, so no separate term SKU is needed. The **setup fee** is the real prepaid
 exposure — commonly charged on standard servers, undocumented as refundable, so treat it as non-refundable. For commitment and settlement, see `LDG-39`, including "an accepted but

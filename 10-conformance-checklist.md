@@ -2436,7 +2436,8 @@ rather than acquiring a default.
       one made at the dispatch instead: `OPS-45` states "false, written before begin rescue … is
       dispatched", and an implementation that waits for the dispatch renders that row `none`.
       (`OPS-45`, `OPS-15`, `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
-- [ ] **CNF-303** — **Temporary provider-side key cleanup has one owner after acceptance.** Kill the
+- [ ] **CNF-303** — **The sweep deletes every eligible tagged key still registered.**
+      *Amended 2026-10-12 (`ADR-0040`, Q24).* Kill the
       engine after registering a tagged caller key for an accepted create and a tagged rescue key; the
       sweep retains each while its operation is `needs_reconciliation`, `queued` or `running`. After
       successful settlement, keep the create's machine in `provisioning` and assert the key remains;
@@ -2448,7 +2449,10 @@ rather than acquiring a default.
       identifier in begin-rescue error details and the sweep subsequently removes it. Return Robot `409
       KEY_ALREADY_EXISTS`, and separately lose the registration reply: in both cases assert the driver
       neither deletes by fingerprint nor sends an order, since it cannot establish registration
-      ownership. For an accepted rescue activation followed by reboot failure, keep the operation
+      ownership. In the lost-reply case, the provider has registered and tagged the key; settle the
+      operation without an order while retaining its row. A same-key create is refused before an
+      order while that registration survives; once eligible, the sweep deletes the retained key.
+      For an accepted rescue activation followed by reboot failure, keep the operation
       unresolved and its key registered while begin rescue attempts deactivation; exercise successful
       and failed deactivation and its error details. After eligibility, the sweep removes the retained
       key. Verify operation-id tags, and keep provider-side public registrations distinct from persisted
@@ -3108,15 +3112,20 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       operator is shown all candidates, and the recorded choice names which duplicate was kept
       and why the others are believed spurious. (`OPS-38`, `OPS-31`)
 
-- [ ] **CNF-166** — A create against an offer with no declared cancellation bound is refused
-      as `400 invalid_request` with `details.reason: offer_not_sellable` in the purchase
-      tail before any provider call, and a create against one with a cancellation bound
-      and sellable traffic bound opens a commitment sized to
-      that bound, which the machine's actual date then **lowers `protected_sats` against rather
-      than resizing** (`PRV-31`, `LDG-33`). (`PRV-31`,
-      `PRV-13c`, `LDG-12`, `API-7`, `WIR-9a`)
+- [ ] **CNF-166** — Withhold from the customer offer listing an offer with no cancellation
+      bound, a descriptor-declared bound later than provider-local today, and an offer-reported
+      bound later than provider-local today. For each, create with a remembered offer id and
+      assert the purchase-tail `400 invalid_request` with `details.reason: offer_not_sellable`,
+      its `WIR-9a` refusal and skipped-check entries, no commitment or other purchase write,
+      and no provider order. A bound learned only after an order is not a pre-order refusal.
+      An otherwise sellable offer with a bound no later than provider-local today and a
+      sellable traffic bound opens a commitment sized to that bound; a shorter actual
+      date then **lowers `protected_sats` against rather than resizing** (`PRV-31`, `LDG-33`).
+      Preserve cap and balance suppression for an unsellable offer under `API-7`.
+      (`PRV-31`, `PRV-13c`, `LDG-12`, `API-7`, `WIR-9a`, `DOM-9`, `WIR-30`, `CNF-307`)
       *Amended 2026-10-09 (`ADR-0039`): the no-bound sale refusal uses the
       create-tail offer reason.*
+      *Amended 2026-10-12 (`ADR-0037`, Q25): future-bound listing and create cases.*
 
 - [ ] **CNF-167** — A rate halving increases **no** commitment anywhere in the fleet, except
       machines on the scheduled-cancellation branch. What moves is every affected machine's
