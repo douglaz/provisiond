@@ -1509,10 +1509,11 @@ rather than acquiring a default.
       `403 RATE_LIMIT_EXCEEDED` with `interval` on one account's auction order request.
       During the reported interval, each subsequent create there is refused by the
       `API-7` tail before any provider call, with `rate_limited`, `retry_after_ms`, no
-      commitment, balance change, machine, operation or receipt. The upstream Robot
-      throttle response satisfies `PRV-5`'s "every Robot `403 RATE_LIMIT_EXCEEDED` MUST
-      raise a monitorable alarm naming the provider account and request path"; the alarm
-      may include the ordering channel. Subsequent local refusals make no provider
+      commitment, balance change, machine, operation or receipt. Assert the initial upstream
+      Robot throttle raises the alarm required by `PRV-5`: "every Robot
+      `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider
+      account and request path". The alarm may include the ordering channel.
+      Subsequent local refusals make no provider
       request and need no new provider-throttle alarm. Re-evaluate after the interval;
       do not treat the descriptor limit as a local counter. A closed auction channel alone does not
       refuse a standard-channel create or another account's create. For a mutation
@@ -3570,7 +3571,14 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       keeps waiting. Return a record with at least one ECDSA, ED25519 or RSA SHA256
       fingerprint and a non-null `boot_time` string different verbatim from the baseline:
       accept its pins, including when the string looks earlier than reset, without
-      interpreting time. With no baseline record, accept the first qualifying record.
+      interpreting time. Independently set up two new sessions before any pins are accepted
+      for either session. In each, the pre-activation baseline record has a non-null
+      `boot_time` string B and a nonempty fingerprint set K; K supplies test inputs, not
+      accepted session pins. In the first session, return after reset a non-null string C
+      different verbatim from B with exactly the same fingerprint set K, and assert K is
+      accepted as the session's pins. In the second, return after reset the same string B
+      with a different nonempty fingerprint set J, and assert the session keeps awaiting
+      pins. With no baseline record, accept the first qualifying record.
       A record with fingerprints but null or missing `boot_time`, and a changed string
       without fingerprints, leave the session awaiting pins. Fail the baseline lookup
       with an error other than no record and assert begin rescue fails before activation,
