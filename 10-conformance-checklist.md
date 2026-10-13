@@ -1510,9 +1510,9 @@ rather than acquiring a default.
       During the reported interval, each subsequent create there is refused by the
       `API-7` tail before any provider call, with `rate_limited`, `retry_after_ms`, no
       commitment, balance change, machine, operation or receipt. Assert the initial upstream
-      Robot throttle raises the alarm required by `PRV-5`: "every Robot
+      Robot throttle raises `PRV-5`'s "every Robot
       `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider
-      account and request path". The alarm may include the ordering channel.
+      account and request path" alarm. The alarm may include the ordering channel.
       Subsequent local refusals make no provider
       request and need no new provider-throttle alarm. Re-evaluate after the interval;
       do not treat the descriptor limit as a local counter. A closed auction channel alone does not
