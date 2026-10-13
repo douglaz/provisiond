@@ -189,6 +189,114 @@ provider deletes, the attempt settles. -/
 def cancellationTrace : List Fence.Event :=
   [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
 
+/-- The actual fence/dispatch prefix, then known dated acceptance and one read-back.
+The provider's physical `applied` input is independent of acceptance and the read answer. -/
+def datedCancellationTrace (applied : Bool) (answer : Fence.ReadBack) : List Fence.Event :=
+  [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete applied none,
+   .datedAccepted 10, .readBack answer, .settle]
+
+/-- Pin independent fence guards used by the prefix; leave the targeted dated guard live. -/
+def datedGuards (p : Params) : Params :=
+  { p with recheckInsideFence := true, fenceHolds := .episodeId, fenceOnOpenEpisode := true,
+           abortPredicate := .date, suspensionKey := .currentState, sweepNeedsRate := true,
+           ownIdClause := true, goneOrClosedFirst := true }
+
+/-- Isolation for the scheduling guard: the read-back policy is enabled independently. -/
+def datedFailurePolicy (p : Params) : Params :=
+  { datedGuards p with datedReadBack := true }
+
+/-- Isolation for the read-back guard: the dated scheduling policy is enabled independently. -/
+def datedAbsencePolicy (p : Params) : Params :=
+  { datedGuards p with datedAcceptanceSchedules := true }
+
+/-- `PRV-13`: "Read failure does not turn the accepted dated cancellation into
+`needs_reconciliation` or establish absence". The physical machine remains present. -/
+@[req "PRV-13"]
+theorem dated_failure_guarded :
+    let w := run (datedFailurePolicy Fence.current) fenceWorld (datedCancellationTrace false .failed)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some .scheduled ∧
+    w.m.fence = some (.episode ⟨1⟩) ∧ w.m.gone = false ∧ w.m.destroyed = false ∧
+    w.effectiveDate = some 10 := by decide
+
+/-- Changing only the dated scheduling guard restores ADR-0037 Q22's rejected
+"`now` is immediate" policy, closing and clearing while the physical machine remains. -/
+@[req "PRV-13"]
+theorem dated_failure_unguarded :
+    let p := datedFailurePolicy { Fence.current with datedAcceptanceSchedules := false }
+    let w := run p fenceWorld (datedCancellationTrace false .failed)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some (.closed .resourceGone) ∧
+    w.m.fence = none ∧ w.m.gone = true ∧ w.m.destroyed = false := by decide
+
+/-- The mapped absence answer reaches the existing gone settlement at the read-back,
+without a visibility-window wait or another confirmation. Physical deletion is supplied. -/
+@[req "PRV-13"]
+theorem dated_absence_guarded :
+    let w := run (datedAbsencePolicy Fence.current) fenceWorld (datedCancellationTrace true .mappedNotFound)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some (.closed .resourceGone) ∧
+    w.m.fence = none ∧ w.m.gone = true ∧ w.m.destroyed = true ∧ w.now = 0 := by decide
+
+/-- Changing only consumption of the read-back skips available absence evidence; the
+physically destroyed machine remains recorded scheduled with its date and its fence. -/
+@[req "PRV-13"]
+theorem dated_absence_unguarded :
+    let p := datedAbsencePolicy { Fence.current with datedReadBack := false }
+    let w := run p fenceWorld (datedCancellationTrace true .mappedNotFound)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some .scheduled ∧
+    w.m.fence = some (.episode ⟨1⟩) ∧ w.m.gone = false ∧ w.m.destroyed = true ∧
+    w.effectiveDate = some 10 := by decide
+
+/-- Both guards pinned here: their current switches are tested only by their designated pairs.
+Every result in this fixture starts with actual dispatch and dated acceptance. -/
+def datedLifecyclePolicy : Params :=
+  { datedGuards Fence.current with datedAcceptanceSchedules := true, datedReadBack := true }
+
+/-- Present and failed answers reach identical scheduled worlds, including the returned date.
+Acceptance alone and a second read are inert; an unknown response keeps its ordinary path. -/
+@[req "PRV-13"]
+theorem dated_present_and_failed_witness :
+    let p := datedLifecyclePolicy
+    let w := run p fenceWorld (datedCancellationTrace false .failed)
+    let accepted := run p fenceWorld [.sweep, .claim, .fenceTxn, .fenceWrite,
+      .providerDelete false none, .datedAccepted 10]
+    let answered := readBack p accepted .failed
+    w = run p fenceWorld (datedCancellationTrace false .present) ∧
+    w.effectiveDate = some 10 ∧ accepted.m.destroyed = false ∧ accepted.m.gone = false ∧
+    settle p accepted = accepted ∧ readBack p answered .mappedNotFound = answered ∧
+    (run p fenceWorld [.sweep, .claim, .fenceTxn, .fenceWrite,
+      .providerDelete false none, .settle]).attempt.map (·.row.status) =
+        some .needsReconciliation := by decide
+
+/-- `STO-8a`: "Passing the date alone does not establish absence." From a scheduled execution,
+time before, at and after the date keeps the episode and actual fence; a later evidenced
+gone-write closes and clears on either side of the date through the existing lifecycle. -/
+@[req "OPS-48"]
+theorem dated_episode_lifecycle_witness :
+    let p := datedLifecyclePolicy
+    let scheduled := run p fenceWorld (datedCancellationTrace false .failed)
+    let before := run p scheduled [.advance 5]
+    let atDate := run p scheduled [.advance 10]
+    let after := run p scheduled [.advance 20]
+    [before, atDate, after].all (fun w => w.episode.map (·.state) == some .scheduled &&
+      w.m.fence == scheduled.m.fence && !w.m.gone && w.effectiveDate == some 10) = true ∧
+    [goneWrite before, goneWrite after].all (fun w =>
+      w.episode.map (·.state) == some (.closed .resourceGone) &&
+      w.m.fence == none && w.m.gone) = true := by decide
+
+/-- A gone-write wins while the accepted result awaits settlement. The later scheduled
+settlement succeeds with its date, preserving the permanent resource-gone close and null fence. -/
+@[req "OPS-48"]
+theorem dated_late_settlement_witness :
+    let p := datedLifecyclePolicy
+    let w := run p fenceWorld [.sweep, .claim, .fenceTxn, .fenceWrite,
+      .providerDelete false none, .datedAccepted 10, .readBack .failed, .goneWrite, .settle]
+    w.episode.map (·.state) = some (.closed .resourceGone) ∧
+    w.m.fence = none ∧ w.m.gone = true ∧ w.m.destroyed = false ∧
+    w.attempt.map (·.row.status) = some .succeeded ∧ w.effectiveDate = some 10 := by decide
+
 /-- The sweep routes, the worker claims, the re-check aborts, the attempt settles. -/
 def abortTrace : List Fence.Event := [.sweep, .claim, .fenceTxn, .fenceWrite, .settle]
 

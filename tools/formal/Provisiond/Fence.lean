@@ -114,7 +114,20 @@ with the resource gone leave `World.outageOpen` as it was, so a machine recorded
 show an open record. No modelled outcome turns on it while `OPS-41`'s first step is
 in the order: an attempt on a machine recorded gone is settled there, before the step that
 contends on the record, and `meterOpens` and `outageBound` each stop at a machine recorded gone.
-The provider's answer is classified as
+Dated dispatch uses the same `providerDelete` physical `applied` fact as immediate dispatch.
+`datedAccepted` supplies known acceptance and its returned effective instant, abstracted as natural
+time; date-zone conversion is assumed, not implemented. `readBack` consumes exactly one mapped
+answer on the known provider account and external identity. Its mapping and provider truth are
+assumptions, not properties of this model. `PRV-13` says "Read failure does not turn the accepted
+dated cancellation into `needs_reconciliation` or establish absence". The result reaches `finish`
+and `Tables.episodeStep`, preserving the actual fence for scheduled settlement. No acceptance or
+failed read manufactures physical destruction. `datedAcceptanceSchedules` disables this distinction
+to retain ADR-0037 Q22's rejected "`now` is immediate" policy; `datedReadBack` disables consumption
+of available mapped absence evidence. No visibility window or second confirmation gates absence.
+This path proves outcome obligations, not meter arithmetic, stop-instant accounting, attachment
+cleanup, retention, actual provider behaviour or the correctness of driver mapping. For meter stop boundaries,
+see `LDG-38` and `Provisiond.Funding`. The ordinary provider
+answer is classified as
 `succeeded` on a reply, `failed` on a refusal and `needs_reconciliation` on a lost reply —
 `OPS-11`'s table is `Provisiond.Tables`'s and is not repeated. A machine is "funded" where a rate
 exists and re-deriving `LDG-33` at it puts the date strictly in the future; whole satoshis per
@@ -254,6 +267,12 @@ both withdrawn traces. `rederiveFirst` controls the transaction entry: off check
 grace before entering the ordinary re-check, even for a funded machine. `OPS-41` says
 "The worker re-derives and applies the predicate above **first**". -/
 structure Params where
+  /-- `PRV-13` Q22: "the accepted attempt settles `succeeded` as
+  `cancellation_scheduled` with its effective date". -/
+  datedAcceptanceSchedules : Bool
+  /-- `PRV-13` Q22: "the driver MUST read that machine once on its known provider account
+  and external identity". -/
+  datedReadBack : Bool
   /-- API-64 retry branch, subject to the separate fence guard (2026-10-04/05). -/
   retryDeletes : Bool
   /-- OPS-41 step 2 reads an existing episode fence (2026-10-05, Q14). -/
@@ -290,6 +309,8 @@ structure Params where
 per line: `ci.yml`'s controls flip one each. -/
 @[req "OPS-42"]
 def current : Params := {
+    datedAcceptanceSchedules := true,
+    datedReadBack := true,
     retryDeletes        := true,
     retryNeedsFence     := true,
     keepWritesDate      := true,
@@ -330,6 +351,13 @@ def Params.abort (p : Params) (now commitment prot rate : Nat) : Bool :=
   | .date => abortDate Runway.current now none commitment prot rate
   | .sats => abortSats commitment prot rate
 
+/-- The driver-mapped answer on the known provider account and external identity.
+`mappedNotFound` assumes the driver mapping and provider truth; neither is proved here.
+`failed` includes generic HTTP errors, throttle, authentication, network and deadline failure. -/
+inductive ReadBack
+  | mappedNotFound | present | failed
+  deriving DecidableEq, Repr
+
 /-- Where the worker is. `holding`: claimed, `OPS-8`'s hold on the machine, before the fence
 transaction. It carries the claim number and nothing the worker read at the claim: `OPS-41`'s
 order is decided "inside the fence transaction and on what that transaction reads, never on its
@@ -337,7 +365,8 @@ claim snapshot". `readUnfenced`: the split variant's phase between a read that l
 cancellation through and its write, with the date the read derived. `fenced`: the fence written —
 the only phase a provider call leaves from. `noMutation`: `OPS-41`'s abort, with the re-derived
 date where the re-check derived one, to be settled `succeeded`. `dispatched`: the provider call
-made, holding its reply or its loss. -/
+made, holding its reply or its loss. `awaitingReadBack` holds known dated acceptance;
+`datedResult` holds its one mapped answer, ready for the existing terminal transaction. -/
 inductive Phase
   | idle
   | holding (mine : ClaimNumber)
@@ -345,6 +374,8 @@ inductive Phase
   | fenced (mine : ClaimNumber)
   | noMutation (mine : ClaimNumber) (date : Option Nat)
   | dispatched (mine : ClaimNumber) (reply : Option Bool)
+  | awaitingReadBack (mine : ClaimNumber) (date : Nat)
+  | datedResult (mine : ClaimNumber) (date : Nat) (answer : ReadBack)
   deriving DecidableEq, Repr
 
 structure World where
@@ -380,6 +411,9 @@ structure World where
   attempt     : Option Attempt
   phase       : Phase
   nextId      : Nat
+  /-- Returned effective instant, abstracted as natural time; conversion is assumed.
+  Stored by the dated terminal transaction, with no metering arithmetic here. -/
+  effectiveDate : Option Nat := none
   deriving DecidableEq, Repr
 
 def World.episodeOpen (w : World) : Bool := w.episode.any (·.state.isOpen)
@@ -803,6 +837,37 @@ def providerDelete (p : Params) (w : World) (applied : Bool) (reply : Option Boo
       { w with m := { w.m with destroyed := w.m.destroyed || applied }, phase := .dispatched n reply }
   | _ => w
 
+/-- `PRV-13`: "This result requires known acceptance and its date". The dated reply
+arrives after dispatch, replacing the unresolved reply with one read-back obligation.
+It never asserts physical destruction; that fact belongs to the dispatch's `applied` input.
+A refusal or an immediate-success reply cannot enter this exception. -/
+@[req "PRV-13"]
+def datedAccepted (w : World) (date : Nat) : World :=
+  match w.phase with
+  | .dispatched n none => { w with phase := .awaitingReadBack n date }
+  | _ => w
+
+/-- `PRV-13`: "the driver MUST read that machine once on its known provider account and
+external identity". One answer consumes that obligation; subsequent answers are inert.
+With `datedReadBack` disabled, available absence evidence is skipped. The answer is a driver
+mapping assumption, not a raw status code or a proof of provider behaviour. -/
+@[req "PRV-13"]
+def readBack (p : Params) (w : World) (answer : ReadBack) : World :=
+  match w.phase with
+  | .awaitingReadBack n date =>
+      { w with phase := .datedResult n date (if p.datedReadBack then answer else .present) }
+  | _ => w
+
+/-- `PRV-13`: "Read failure does not turn the accepted dated cancellation into
+`needs_reconciliation` or establish absence". `PRV-36`: "A read showing the post-mutation
+state is evidence at any time". No visibility-window wait enters this branch.
+Disabling `datedAcceptanceSchedules` restores ADR-0037 Q22's rejected "`now` is immediate"
+policy: recorded gone without manufacturing physical destruction. -/
+@[req "PRV-13"]
+def ofDated (p : Params) (answer : ReadBack) : Settled × Written :=
+  if !p.datedAcceptanceSchedules || answer == .mappedNotFound then (.gone, .succeeded)
+  else (.scheduled, .succeeded)
+
 /-- How the reply settles the attempt: `OPS-48`'s first column and `STO-3`'s written state. -/
 def ofReply : Option Bool → Settled × Written
   | some true => (.gone, .succeeded)
@@ -828,6 +893,65 @@ def finish (w : World) (n : ClaimNumber) (a : Attempt) (s : Settled) (wr : Writt
   | none => { w with attempt := some { a with row := row }, phase := .idle,
                      m := { w.m with gone := w.m.gone || s == .gone } }
 
+/-- The dated result goes through `finish` and the existing `OPS-48` table. The date is
+retained even if an earlier gone-write has already closed the episode permanently. -/
+@[req "PRV-13"]
+def finishDated (p : Params) (w : World) (n : ClaimNumber) (a : Attempt)
+    (date : Nat) (answer : ReadBack) : World :=
+  { finish w n a (ofDated p answer).1 (ofDated p answer).2 with effectiveDate := some date }
+
+/-- The dated terminal transaction preserves the physical fact for every policy and answer. -/
+@[req "PRV-13"]
+theorem finishDated_preserves_destruction (p : Params) (w : World) (n : ClaimNumber)
+    (a : Attempt) (date : Nat) (answer : ReadBack) :
+    (finishDated p w n a date answer).m.destroyed = w.m.destroyed := by
+  unfold finishDated finish applyRow; (repeat' split) <;> rfl
+
+/-- Returned dates are retained regardless of whether absence closes the episode. -/
+@[req "PRV-13"]
+theorem finishDated_keeps_date (p : Params) (w : World) (n : ClaimNumber)
+    (a : Attempt) (date : Nat) (answer : ReadBack) :
+    (finishDated p w n a date answer).effectiveDate = some date := rfl
+
+/-- `PRV-13`: "the accepted attempt settles `succeeded` as `cancellation_scheduled` with
+its effective date". Under the dated guard, either non-absence answer applies the existing
+scheduled row, preserves the actual fence (including null) and records no new gone fact. -/
+@[req "PRV-13"]
+theorem dated_scheduled_row (p : Params) (hg : p.datedAcceptanceSchedules = true)
+    (w : World) (n : ClaimNumber) (a : Attempt) (date : Nat) (answer : ReadBack)
+    (hn : answer ≠ .mappedNotFound) (ep : EpisodeRow) (hep : w.episode = some ep)
+    (hid : ep.id = a.ep) (hs : ep.state = .attempting) :
+    (finishDated p w n a date answer).episode = some { ep with state := .scheduled } ∧
+    (finishDated p w n a date answer).m.fence = w.m.fence ∧
+    (finishDated p w n a date answer).m.gone = w.m.gone ∧
+    (finishDated p w n a date answer).effectiveDate = some date := by
+  simp [finishDated, ofDated, hg, hn, finish, hep, hid, hs, applyRow, episodeStep]
+
+/-- `PRV-36`: "A read showing the post-mutation state is evidence at any time".
+The mapped answer has no date/clock premise; the existing terminal row closes and clears.
+Driver mapping and provider truth remain input assumptions. -/
+@[req "PRV-13"]
+theorem dated_gone_row (p : Params) (w : World) (n : ClaimNumber) (a : Attempt)
+    (date : Nat) (ep : EpisodeRow) (hep : w.episode = some ep) (hid : ep.id = a.ep)
+    (hs : ep.state = .attempting) :
+    (finishDated p w n a date .mappedNotFound).episode =
+      some { ep with state := .closed .resourceGone } ∧
+    (finishDated p w n a date .mappedNotFound).m.fence = none ∧
+    (finishDated p w n a date .mappedNotFound).m.gone = true := by
+  simp [finishDated, ofDated, finish, hep, hid, hs, applyRow, episodeStep, close]
+
+/-- The existing claim guard permits a running accepted attempt to settle succeeded,
+for every dated answer and policy. Stale-claim publication remains Claim's own obligation. -/
+@[req "PRV-13"]
+theorem dated_attempt_succeeds (p : Params) (w : World) (n : ClaimNumber) (a : Attempt)
+    (date : Nat) (answer : ReadBack) (hr : a.row.status = .running)
+    (hc : a.row.claim = n) :
+    (finishDated p w n a date answer).attempt.map (·.row.status) = some .succeeded := by
+  have outcome : (ofDated p answer).2 = .succeeded := by
+    unfold ofDated; split <;> rfl
+  unfold finishDated finish applyRow
+  (repeat' split) <;> simp [workerWrite, workerGuard, Claim.holds, Written.status, hr, hc, outcome]
+
 /-- `OPS-41`'s abort write: "write that re-derived `runway_until` to the machine row". -/
 def writeAbortDate (w : World) (d : Nat) : World := { w with m := { w.m with runwayUntil := d } }
 
@@ -844,6 +968,7 @@ def settle (p : Params) (w : World) : World :=
     | true, some d => writeAbortDate (finish w n a .noMutation .succeeded) d
     | _, _ => finish w n a .noMutation .succeeded
   | .dispatched n reply, some a => finish w n a (ofReply reply).1 (ofReply reply).2
+  | .datedResult n date answer, some a => finishDated p w n a date answer
   | _, _ => w
 
 /-- OPS-15 interruption before the fence transaction; no fence premise. This represents the
@@ -1021,6 +1146,8 @@ inductive Event
   | fenceWrite
   | extend (sats : Nat)
   | providerDelete (applied : Bool) (reply : Option Bool)
+  | datedAccepted (date : Nat)
+  | readBack (answer : ReadBack)
   | interrupt | resolve (v : Verb) | failBeforeFence
   | settle | retry | keep | goneWrite | suspend | resume
   | rateLost (start : Nat) | rateRestored (r : Nat) | meterOpens | setMaxOutage (bound : Nat)
@@ -1038,6 +1165,8 @@ def step (p : Params) (w : World) : Event → World
   | .fenceWrite => fenceWrite p w
   | .extend s => extend p w s
   | .providerDelete a r => providerDelete p w a r
+  | .datedAccepted date => datedAccepted w date
+  | .readBack answer => readBack p w answer
   | .interrupt => interrupt w
   | .resolve v => resolve w v
   | .failBeforeFence => failBeforeFence w
@@ -1056,6 +1185,27 @@ def step (p : Params) (w : World) : Event → World
 def run (p : Params) (w : World) : List Event → World
   | [] => w
   | e :: es => run p (step p w e) es
+
+/-- Known dated acceptance and its one read-back compose with the actual terminal path.
+The read-back guard is enabled here; the scheduling guard remains arbitrary.
+No time or visibility premise delays mapped post-mutation evidence. -/
+@[req "PRV-13"]
+theorem dated_execution_settles (p : Params) (hg : p.datedReadBack = true)
+    (w : World) (n : ClaimNumber) (a : Attempt) (date : Nat) (answer : ReadBack)
+    (hph : w.phase = .dispatched n none) (ha : w.attempt = some a) :
+    run p w [.datedAccepted date, .readBack answer, .settle] =
+      finishDated p { w with phase := .datedResult n date answer } n a date answer := by
+  simp [run, step, datedAccepted, readBack, settle, hph, ha, hg]
+
+/-- `STO-8a`: "Passing the date alone does not establish absence." For any world and
+any elapsed duration, clock advancement preserves machine, episode and returned date.
+In particular this applies to scheduled worlds reached by `dated_execution_settles`. -/
+@[req "STO-8a"]
+theorem advance_preserves_cancellation (p : Params) (w : World) (seconds : Nat) :
+    (step p w (.advance seconds)).m = w.m ∧
+    (step p w (.advance seconds)).episode = w.episode ∧
+    (step p w (.advance seconds)).effectiveDate = w.effectiveDate := by
+  exact ⟨rfl, rfl, rfl⟩
 
 /-! ## Both commit orderings -/
 
@@ -1310,12 +1460,14 @@ theorem open_outage_keeps_its_start (p : Params) (w : World) (hr : w.rate = none
     | extend s =>
       obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h1, h2⟩ := extend_frame p w s
       exact ⟨h1, h2⟩
+    | datedAccepted date => simp only [step]; unfold datedAccepted; split <;> simp
+    | readBack answer => simp only [step]; unfold readBack; split <;> simp
     | providerDelete a r => simp only [step]; unfold providerDelete; (repeat' split) <;> simp_all
     | interrupt => simp only [step]; unfold interrupt finish applyRow; (repeat' split) <;> simp_all
     | failBeforeFence => simp only [step]; unfold failBeforeFence finish applyRow; (repeat' split) <;> simp_all
     | resolve v => simp only [step]; unfold resolve applyRow; (repeat' split) <;> simp_all
     | settle =>
-      simp only [step]; unfold settle writeAbortDate finish applyRow; (repeat' split) <;> simp_all
+      simp only [step]; unfold settle finishDated writeAbortDate finish applyRow; (repeat' split) <;> simp_all
     | retry => simp only [step]; unfold retry; (repeat' split) <;> simp_all
     | keep => simp only [step]; unfold keep writeAbortDate applyRow; (repeat' split) <;> simp_all
     | goneWrite => simp only [step]; unfold goneWrite applyRow; (repeat' split) <;> simp_all
@@ -1341,6 +1493,8 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
   | pass window start =>
     exfalso; unfold step pass rateRestored loseRate at h; (repeat' split at h) <;> simp_all
   | restoreRecord r => exfalso; simp [step, hw] at h
+  | datedAccepted date => exfalso; unfold step datedAccepted at h; (repeat' split at h) <;> simp_all
+  | readBack answer => exfalso; unfold step readBack at h; (repeat' split at h) <;> simp_all
   | providerDelete applied reply =>
     simp only [step] at h
     unfold providerDelete at h
@@ -1366,7 +1520,7 @@ theorem destroyed_only_by_provider_from_fenced (p : Params) (w : World) (e : Eve
   | failBeforeFence => exfalso; unfold step failBeforeFence finish applyRow at h; (repeat' split at h) <;> simp_all
   | resolve v => exfalso; unfold step resolve applyRow at h; (repeat' split at h) <;> simp_all
   | settle =>
-    exfalso; unfold step settle writeAbortDate finish applyRow at h
+    exfalso; unfold step settle finishDated writeAbortDate finish applyRow at h
     (repeat' split at h) <;> simp_all
   | retry => exfalso; unfold step retry at h; (repeat' split at h) <;> simp_all
   | keep => exfalso; unfold step keep writeAbortDate applyRow at h; (repeat' split at h) <;> simp_all
@@ -1431,13 +1585,15 @@ theorem fenced_only_by_fence_txn (p : Params) (hp : p.recheckInsideFence = true)
   | fenceWrite =>
     exfalso; unfold step fenceWrite writeFence at h; (repeat' split at h) <;> simp_all
   | extend s => exfalso; rw [step, (extend_frame p w s).1] at h; exact hw h
+  | datedAccepted date => exfalso; unfold step datedAccepted at h; (repeat' split at h) <;> simp_all
+  | readBack answer => exfalso; unfold step readBack at h; (repeat' split at h) <;> simp_all
   | providerDelete a r =>
     exfalso; unfold step providerDelete at h; (repeat' split at h) <;> simp_all
   | interrupt => exfalso; unfold step interrupt finish applyRow at h; (repeat' split at h) <;> simp_all
   | failBeforeFence => exfalso; unfold step failBeforeFence finish applyRow at h; (repeat' split at h) <;> simp_all
   | resolve v => exfalso; unfold step resolve applyRow at h; (repeat' split at h) <;> simp_all
   | settle =>
-    exfalso; unfold step settle writeAbortDate finish applyRow at h
+    exfalso; unfold step settle finishDated writeAbortDate finish applyRow at h
     (repeat' split at h) <;> simp_all
   | retry => exfalso; unfold step retry at h; (repeat' split at h) <;> simp_all
   | keep => exfalso; unfold step keep writeAbortDate applyRow at h; (repeat' split at h) <;> simp_all
@@ -1531,6 +1687,8 @@ theorem fenced_waits_for_the_provider (p : Params) (w : World) (n : ClaimNumber)
   | pass window start =>
     simp only [step]; unfold pass rateRestored loseRate; (repeat' split) <;> simp
   | restoreRecord r => simp [step]
+  | datedAccepted date => simp [step, datedAccepted, hph]
+  | readBack answer => simp [step, readBack, hph]
   | providerDelete a r => exact absurd rfl (he a r)
   | goneWrite => exact absurd rfl hg
   | sweep => unfold step sweep enqueue; (repeat' split) <;> simp_all
@@ -1737,6 +1895,10 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
   | extend s =>
     obtain ⟨-, -, -, -, -, hf, he, -, -, hn, -⟩ := extend_frame p w s
     exact inv_same w _ hf he hn hw
+  | datedAccepted date =>
+    simp only [step]; unfold datedAccepted; split <;> exact inv_same w _ rfl rfl rfl hw
+  | readBack answer =>
+    simp only [step]; unfold readBack; split <;> exact inv_same w _ rfl rfl rfl hw
   | providerDelete a r =>
     obtain ⟨h1, h2, h3⟩ := providerDelete_frame p w a r
     exact inv_same w _ h1 h2 h3 hw
@@ -1770,6 +1932,7 @@ theorem inv_step (p : Params) (hh : p.fenceHolds = .episodeId) (ho : p.fenceOnOp
       · exact inv_same _ _ rfl rfl rfl (finish_inv w _ _ _ _ hw)
       · exact finish_inv w _ _ _ _ hw
     · exact finish_inv w _ _ _ _ hw
+    · exact inv_same _ _ rfl rfl rfl (finish_inv w _ _ _ _ hw)
     · exact hw
   | retry =>
     simp only [step]; unfold retry
@@ -1926,6 +2089,8 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (hkeep : p.keepGuard
   | extend s =>
     left; obtain ⟨-, -, -, -, -, -, he, -⟩ := extend_frame p w s
     rw [step, he]; exact hep
+  | datedAccepted date => left; simp only [step]; unfold datedAccepted; split <;> exact hep
+  | readBack answer => left; simp only [step]; unfold readBack; split <;> exact hep
   | providerDelete a rp => left; rw [step, (providerDelete_frame p w a rp).2.1]; exact hep
   | interrupt =>
     left; simp only [step]; unfold interrupt; split
@@ -1953,6 +2118,7 @@ theorem closed_step (p : Params) (hg : p.retryGuard = true) (hkeep : p.keepGuard
       · unfold writeAbortDate; simpa using hfin _ _ _ _
       · exact hfin _ _ _ _
     · exact hfin _ _ _ _
+    · unfold finishDated; simpa using hfin _ _ _ _
     · exact hep
   | retry =>
     left; simp only [step]; unfold retry

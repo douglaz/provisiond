@@ -432,6 +432,10 @@ jobs:
       # token of its proposition. Fence.lean's own theorems take each guard as a hypothesis
       # and stay green, and every witness asserts only what its own parameter decides, so no
       # neighbouring witness fails for want of the flipped one. The rows:
+      #   datedAcceptanceSchedules (PRV-13, 2026-10-11, ADR-0037 Q22): the failed read
+      #     falsely records gone while physically present -- dated_failure_guarded;
+      #   datedReadBack (PRV-13, 2026-10-11, ADR-0037 Q22): skipping mapped absence
+      #     leaves the episode scheduled -- dated_absence_guarded;
       #   recheckInsideFence (2026-09-02): the extension commits in the gap, the paid machine
       #     is deleted -- fence_first_witness on paidMachineTrace;
       #   fenceHolds (2026-09-08): the retry's write affects no row -- retry_executes_witness;
@@ -676,6 +680,8 @@ jobs:
           set -uo pipefail
           fail=0
           rows=$(cat <<'ROWS'
+          Fence|datedAcceptanceSchedules|true|false|datedCancellationTrace false ReadBack.failed
+          Fence|datedReadBack|true|false|datedCancellationTrace true ReadBack.mappedNotFound
           Fence|recheckInsideFence|true|false|fenceWorld paidMachineTrace
           Fence|fenceHolds|.episodeId|.attemptId|fenceWorld retryTrace
           Fence|fenceOnOpenEpisode|true|false|goneRaceTrace
