@@ -712,6 +712,8 @@ jobs:
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
           Reconcile|absenceWindow|.visibility|.negative|Event.advance 20, Event.sweep true false Answer.notFound
           Reconcile|visibilityFromWaitEnd|true|false|lateAcceptedWorld
+          Reconcile|visibilityUsesObserved|true|false|run p observedWindowWorld
+          Reconcile|successfulConfirmationOnly|true|false|Event.sweep true false Answer.failed
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           Ledger|clampAtAuthority|true|false|seizureBalances
           Ledger|serializedAuthorization|true|false|skewTrace

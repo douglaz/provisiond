@@ -1418,7 +1418,8 @@ One create, dispatched at 0 with its reply lost; `PRV-36`'s visibility window is
 DigitalOcean measurement), `OPS-33`'s negative window 1000. Every witness pair here flips one
 field of `Reconcile.current`, and each asserts the fields its own parameter decides, as the
 fence's and the restore's do. The absence witnesses advance past both windows or neither, so that
-`absenceWindow` decides one witness alone. -/
+`absenceWindow` decides one witness alone. The observed-maximum and failed-confirmation
+pairs pin the other sweep guards with `sweepEvidenceGuards`. -/
 
 section Reconcile
 open Provisiond.Reconcile
@@ -1429,7 +1430,7 @@ def mach : Candidate := { account := acct, externalId := ⟨7⟩ }
 /-- The operation with its outcome unknown: nothing known, the commitment open. -/
 def unknownWorld (live : Bool) : Reconcile.World :=
   { now := 0, dispatchedAt := 0, callWaitEndedAt := 0,
-    windows := { visibility := 8, negative := 1000 }, live := live,
+    windows := { declaredVisibility := 8, negative := 1000 }, live := live,
     knowledge := .unknown, commitment := .open, orderLanded := none, throttled := false,
     retriedIntoThrottle := false, meterStoppedAt := none }
 
@@ -1457,6 +1458,52 @@ theorem late_acceptance_dispatch_origin_unsafe :
     let w := Reconcile.run p lateAcceptedWorld [.sweep true false .notFound]
     w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 8 ∧
     lateAcceptedWorld.negativeElapsed = false := by decide
+
+/-- Pin the unrelated sweep guards so each CI row refutes its own witness only. -/
+def sweepEvidenceGuards (p : Reconcile.Params) : Reconcile.Params := { p with
+    completePassOnly := true, pastWindowOnly := true, rereadBeforeAbsence := true,
+    absenceWindow := .visibility, visibilityFromWaitEnd := true }
+
+/-- Declaration 8, supplied observed sample 20; the fixture's wait end is 0. -/
+def observedWindowWorld : Reconcile.World :=
+  { attachedWorld true with windows :=
+      { declaredVisibility := 8, observedVisibility := [20], negative := 1000 } }
+
+/-- `PRV-36`: "the effective window is `max(declared, max(observed))`". The complete unlisted
+pass at wait-end + 10 cannot record absence; the live machine keeps its running meter. -/
+@[req "OPS-32"]
+theorem observed_maximum_refuses_absence :
+    let p := { sweepEvidenceGuards Reconcile.current with successfulConfirmationOnly := true }
+    let w := Reconcile.run p observedWindowWorld [.advance 10, .sweep true false .notFound]
+    w.knowledge = .observedPresent mach ∧ w.commitment = .open ∧
+    w.meterStoppedAt = none ∧ w.live = true := by decide
+
+/-- Disabling only the observed maximum records a live machine absent at instant 10. -/
+@[req "OPS-32"]
+theorem declared_only_stops_live_meter :
+    let p := { sweepEvidenceGuards Reconcile.current with
+      successfulConfirmationOnly := true, visibilityUsesObserved := false }
+    let w := Reconcile.run p observedWindowWorld [.advance 10, .sweep true false .notFound]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 10 ∧
+    w.commitment = .closed ∧ w.live = true := by decide
+
+/-- `OPS-32`: "a failed direct absence confirmation cannot record absence". Every other
+guard is enabled; the complete unlisted pass is past the applicable visibility window. -/
+@[req "OPS-32"]
+theorem failed_confirmation_refuses_absence :
+    let p := { sweepEvidenceGuards Reconcile.current with visibilityUsesObserved := true }
+    let w := Reconcile.run p (attachedWorld true) [.advance 10, .sweep true false .failed]
+    w.knowledge = .observedPresent mach ∧ w.commitment = .open ∧
+    w.meterStoppedAt = none ∧ w.live = true := by decide
+
+/-- Disabling only successful confirmation mistakes failure for absence, stopping a live meter. -/
+@[req "OPS-32"]
+theorem failed_confirmation_stops_live_meter :
+    let p := { sweepEvidenceGuards Reconcile.current with
+      visibilityUsesObserved := true, successfulConfirmationOnly := false }
+    let w := Reconcile.run p (attachedWorld true) [.advance 10, .sweep true false .failed]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 10 ∧
+    w.commitment = .closed ∧ w.live = true := by decide
 
 /-- `OPS-33`'s positive witness: the negative window elapses, the commitment is released, and the
 resource is still `unknown` — release is not absence. Then the sweep "MUST continue searching

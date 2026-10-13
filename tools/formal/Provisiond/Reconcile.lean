@@ -12,8 +12,11 @@ correlator match "is proof that an order landed, not that the resource exists": 
 account completely may record an absence" (`completePassOnly`), "it may record an absence only
 about a machine past `PRV-36`'s effective visibility window" (`pastWindowOnly`), and "A missing
 machine MUST be re-read directly before its absence is recorded" (`rereadBeforeAbsence`);
-`absence_requires_three` is the theorem. The two windows are two fields of `Windows` — `PRV-36`'s
-visibility window and `OPS-33`'s negative window — and `Params.absenceWindow` names which one the
+`absence_requires_three` is the theorem, with `successfulConfirmationOnly` enabled for
+`OPS-32`'s "a failed direct absence confirmation cannot record absence".
+`visibilityUsesObserved` computes the effective visibility maximum from supplied samples.
+`Windows` carries the inputs for `PRV-36`'s visibility window and the separate `OPS-33`
+negative window — and `Params.absenceWindow` names which one the
 sweep reads, because `OPS-32` says "It is `PRV-36`'s window and NOT `OPS-33`'s negative window,
 and the two must not be conflated". `Params.visibilityFromWaitEnd` selects the amended
 visibility origin; the negative window still reads `dispatchedAt`.
@@ -92,14 +95,17 @@ inductive Commitment
   | closed
   deriving DecidableEq, Repr
 
-/-- Two windows, two fields. `visibility` is `PRV-36`'s effective window, "`max(declared,
-max(observed))`", listing lag in seconds, measured after the create call's wait ends
+/-- Visibility inputs and a separate negative window. `PRV-36`'s effective window is
+"`max(declared, max(observed))`": `declaredVisibility` and supplied `observedVisibility`
+durations feed `effectiveVisibility`, listing lag in seconds, measured after the create
+call's wait ends
 (`OPS-32`); `negative` is `OPS-33`'s bounded negative window, "derived per
 provider from that provider's own allocation behaviour", whose origin `OPS-33` leaves unstated —
 the model starts the negative window at dispatch. A matched in-progress order is excluded by
 `negativeOnly`; the model does not choose a new window origin after it finishes. -/
 structure Windows where
-  visibility : Nat
+  declaredVisibility : Nat
+  observedVisibility : List Nat := []
   negative   : Nat
   deriving DecidableEq, Repr
 
@@ -109,14 +115,23 @@ inductive WindowField
   | negative
   deriving DecidableEq, Repr
 
-def Windows.get (ws : Windows) : WindowField → Nat
-  | .visibility => ws.visibility
+/-- `PRV-36`: "the effective window is `max(declared, max(observed))`". Samples are given
+inputs; the `STO-53` sample write path remains outside this model. Their maximum does not
+prove a bound on future provider behaviour. With the guard off, use the declaration alone. -/
+@[req "PRV-36"]
+def Windows.effectiveVisibility (ws : Windows) (useObserved : Bool) : Nat :=
+  if useObserved then max ws.declaredVisibility (ws.observedVisibility.foldr max 0)
+  else ws.declaredVisibility
+
+def Windows.get (ws : Windows) (useObserved : Bool) : WindowField → Nat
+  | .visibility => ws.effectiveVisibility useObserved
   | .negative   => ws.negative
 
 /-- A direct read of a candidate, `PRV-12`'s *get machine*. -/
 inductive Answer
   | found
   | notFound
+  | failed
   deriving DecidableEq, Repr
 
 /-- The dated amendments this module carries. `completePassOnly`: `OPS-32`, 2026-09-02, "Only a
@@ -130,7 +145,10 @@ guard because the bead asks that "never one" be checkable, and
 2026-09-05, "the first row MUST be confirmed by a direct read before it attaches anything".
 `negativeOnly`: `OPS-33`, 2026-10-08 (`ADR-0035`), "the negative window MUST NOT run against a
 matched order that is still in progress". `visibilityFromWaitEnd`: `PRV-36`, 2026-10-09
-(`ADR-0037`, Q13), visibility begins at the end of the mutating call's wait. -/
+(`ADR-0037`, Q13), visibility begins at the end of the mutating call's wait.
+`visibilityUsesObserved`: `PRV-36`, 2026-09-08 (`ADR-0018`), "the effective window
+is `max(declared, max(observed))`". `successfulConfirmationOnly`: `OPS-32`, 2026-10-10
+(`ADR-0034`, Q20), "a failed direct absence confirmation cannot record absence". -/
 structure Params where
   completePassOnly    : Bool
   pastWindowOnly      : Bool
@@ -139,6 +157,8 @@ structure Params where
   readConfirmsMatch   : Bool
   negativeOnly       : Bool
   visibilityFromWaitEnd : Bool
+  visibilityUsesObserved : Bool
+  successfulConfirmationOnly : Bool
   deriving DecidableEq, Repr
 
 /-- The current guards; `Params` names their owners. Tagged to the sweep's requirement;
@@ -152,7 +172,9 @@ def current : Params := {
     absenceWindow       := .visibility,
     readConfirmsMatch   := true,
     negativeOnly       := true,
-    visibilityFromWaitEnd := true }
+    visibilityFromWaitEnd := true,
+    visibilityUsesObserved := true,
+    successfulConfirmationOnly := true }
 
 structure World where
   now          : Nat
@@ -184,7 +206,8 @@ def World.negativeElapsed (w : World) : Bool :=
 /-- The window the sweep reads has elapsed. -/
 def pastWindow (p : Params) (w : World) : Bool :=
   decide ((if p.absenceWindow = .visibility && p.visibilityFromWaitEnd
-           then w.callWaitEndedAt else w.dispatchedAt) + w.windows.get p.absenceWindow ≤ w.now)
+           then w.callWaitEndedAt else w.dispatchedAt) +
+           w.windows.get p.visibilityUsesObserved p.absenceWindow ≤ w.now)
 
 /-- `OPS-27`: "takes the union of what those searches return". The union, so the same resource on
 two channels is one candidate. -/
@@ -208,12 +231,14 @@ inductive Event
 
 /-- The sweep on a machine record. The listing narrows the candidates — an unlisted machine on a
 complete pass, or on any pass without the completeness guard; the engine rereads each candidate;
-the reread's `not_found` is the evidence where the reread guard holds, the listing's omission
-where it does not; the record needs the window and the completeness the guards demand. -/
+the reread's `not_found` is the evidence where both reread and successful-confirmation guards
+hold; disabling only successful confirmation also admits a failed read. The listing's omission
+is evidence without the reread guard; the record needs the window and the completeness the guards demand. -/
 @[req "OPS-32"]
 def sweepStep (p : Params) (w : World) (complete listed : Bool) (a : Answer) : World :=
   let candidate := !listed && (complete || !p.completePassOnly)
-  let evidence  := if p.rereadBeforeAbsence then candidate && a = .notFound else !listed
+  let confirms := if p.successfulConfirmationOnly then a = .notFound else a ≠ .found
+  let evidence  := if p.rereadBeforeAbsence then candidate && confirms else !listed
   let record    := evidence && (!p.pastWindowOnly || pastWindow p w)
                    && (!p.completePassOnly || complete)
   { w with throttled := !complete,
@@ -316,10 +341,12 @@ theorem search_never_observes (p : Params) (hp : p.readConfirmsMatch = true) (w 
 /-! ## Absence is three conjuncts -/
 
 /-- `OPS-32`, with its three guards: the one step that records an absence is a complete pass that
-did not list the machine, whose reread answered `not_found`, past the window. -/
+did not list the machine, whose reread answered `not_found`, past the window.
+The additional hypothesis `h4` enables `successfulConfirmationOnly`. -/
 @[req "OPS-32"]
 theorem absence_requires_three (p : Params) (h1 : p.completePassOnly = true)
-    (h2 : p.pastWindowOnly = true) (h3 : p.rereadBeforeAbsence = true) (w : World) (e : Event)
+    (h2 : p.pastWindowOnly = true) (h3 : p.rereadBeforeAbsence = true)
+    (h4 : p.successfulConfirmationOnly = true) (w : World) (e : Event)
     (h0 : w.knowledge ≠ .authoritativeAbsence)
     (h : (step p w e).knowledge = .authoritativeAbsence) :
     e = .sweep true false .notFound ∧ pastWindow p w = true := by
@@ -335,38 +362,75 @@ theorem absence_requires_three (p : Params) (h1 : p.completePassOnly = true)
   | sweep complete listed a =>
     simp only [step] at h
     split at h
-    · simp only [sweepStep, h1, h2, h3] at h
+    · simp only [sweepStep, h1, h2, h3, h4] at h
       cases complete <;> cases listed <;> cases a <;> simp_all
     · exact absurd h h0
 
-/-- The window and the reread alone: an absence is recorded on a `not_found` reread past the
+/-- The window and the reread, with successful confirmation enabled: an absence is recorded on a `not_found` reread past the
 window, whatever the pass did. This is why the completeness guard stops no meter by itself — a
-reread past `PRV-36`'s window is authoritative — and why its own witness is the throttle. -/
+reread past `PRV-36`'s window is authoritative — and why its own witness is the throttle.
+The additional hypothesis `h4` enables `successfulConfirmationOnly`. -/
 @[req "OPS-32"]
 theorem absence_needs_reread_past_window (p : Params) (h2 : p.pastWindowOnly = true)
-    (h3 : p.rereadBeforeAbsence = true) (w : World) (complete listed : Bool) (a : Answer)
+    (h3 : p.rereadBeforeAbsence = true) (h4 : p.successfulConfirmationOnly = true)
+    (w : World) (complete listed : Bool) (a : Answer)
     (h0 : w.knowledge ≠ .authoritativeAbsence)
     (h : (step p w (.sweep complete listed a)).knowledge = .authoritativeAbsence) :
     listed = false ∧ a = .notFound ∧ pastWindow p w = true := by
   simp only [step] at h
   split at h
-  · simp only [sweepStep, h2, h3] at h
+  · simp only [sweepStep, h2, h3, h4] at h
     cases complete <;> cases listed <;> cases a <;> simp_all
   · exact absurd h h0
 
 /-- `PRV-36`, "A read of provider state is not authoritative about a mutation the driver issued
 until that provider's effective visibility window has elapsed", as the hypothesis `hRead`: past
 the window, a `not_found` read is the provider's fact. Under it, an absence the sweep records is
-about a machine that is gone. -/
+about a machine that is gone. The additional hypothesis `h4` enables
+`successfulConfirmationOnly`; the provider fact remains the explicit hypothesis `hRead`. -/
 @[req "PRV-36"]
 theorem absence_sound (p : Params) (h2 : p.pastWindowOnly = true)
-    (h3 : p.rereadBeforeAbsence = true) (w : World) (complete listed : Bool) (a : Answer)
+    (h3 : p.rereadBeforeAbsence = true) (h4 : p.successfulConfirmationOnly = true)
+    (w : World) (complete listed : Bool) (a : Answer)
     (hRead : pastWindow p w = true → a = .notFound → w.live = false)
     (h0 : w.knowledge ≠ .authoritativeAbsence)
     (h : (step p w (.sweep complete listed a)).knowledge = .authoritativeAbsence) :
     w.live = false :=
-  have ⟨_, ha, hw⟩ := absence_needs_reread_past_window p h2 h3 w complete listed a h0 h
+  have ⟨_, ha, hw⟩ := absence_needs_reread_past_window p h2 h3 h4 w complete listed a h0 h
   hRead hw ha
+
+/-- `OPS-32`: "it may record an absence only about a machine past `PRV-36`'s effective
+visibility window". With the completeness, window, reread and successful-confirmation guards,
+the visibility field, wait-end origin and observed-maximum guard enabled, the existing transition
+can establish a new absence only after wait-end plus the computed maximum. Samples are inputs;
+the `STO-53` sample write path is omitted and no future provider bound is proved. -/
+@[req "OPS-32"]
+theorem absence_past_effective_visibility (p : Params) (h1 : p.completePassOnly = true)
+    (h2 : p.pastWindowOnly = true) (h3 : p.rereadBeforeAbsence = true)
+    (h4 : p.successfulConfirmationOnly = true) (hv : p.absenceWindow = .visibility)
+    (ho : p.visibilityFromWaitEnd = true) (hm : p.visibilityUsesObserved = true)
+    (w : World) (e : Event) (h0 : w.knowledge ≠ .authoritativeAbsence)
+    (h : (step p w e).knowledge = .authoritativeAbsence) :
+    e = .sweep true false .notFound ∧
+      w.callWaitEndedAt + max w.windows.declaredVisibility
+        (w.windows.observedVisibility.foldr max 0) ≤ w.now := by
+  have ⟨he, hw⟩ := absence_requires_three p h1 h2 h3 h4 w e h0 h
+  exact ⟨he, by simpa [pastWindow, Windows.get, Windows.effectiveVisibility, hv, ho, hm] using hw⟩
+
+/-- `OPS-32`: "a failed direct absence confirmation cannot record absence". With rereading
+and successful confirmation enabled, a failed answer preserves knowledge, commitment and meter
+through the existing sweep transition, whatever the listing and window say. -/
+@[req "OPS-32"]
+theorem failed_confirmation_records_nothing (p : Params)
+    (hr : p.rereadBeforeAbsence = true) (hs : p.successfulConfirmationOnly = true)
+    (w : World) (complete listed : Bool) :
+    (step p w (.sweep complete listed .failed)).knowledge = w.knowledge ∧
+    (step p w (.sweep complete listed .failed)).commitment = w.commitment ∧
+    (step p w (.sweep complete listed .failed)).meterStoppedAt = w.meterStoppedAt := by
+  simp only [step]
+  split
+  · simp [sweepStep, hr, hs]
+  · exact ⟨rfl, rfl, rfl⟩
 
 /-- `OPS-32`: "An interrupted pass MUST record nothing about absence", and — the guard's own
 force — issues no reread into the throttle that interrupted it. -/
