@@ -2768,7 +2768,7 @@ guard that could be removed, so neither is one of `ci.yml`'s rows. -/
 section Rescue
 open Provisiond.Rescue
 
-/-- The ordinary accept-new result cannot authorize Robot while it awaits current-boot
+/-- The ordinary accept-new result cannot authorize Robot while it awaits accepted
 provider pins, even with explicit opt-in or caller keys. Matching the presented identity
 abstracts a provider fingerprint match; it does not prove SHA256 or SSH authentication. -/
 @[req "PRV-20"]
@@ -2779,6 +2779,15 @@ theorem robot_awaiting_pins_witness :
     Trust.permitsPresented true [] [⟨1⟩] true ⟨1⟩ = true ∧
     Trust.permitsPresented true [] [⟨1⟩] true ⟨2⟩ = false ∧
     Trust.permitsPresented true [⟨1⟩] [⟨2⟩] false ⟨2⟩ = false := by decide
+
+/-- `RSC-3`'s single-source strict pinning rejects a different presented identity and
+admits the matching one. The both-supplied pin-set choice remains outside this check. -/
+@[req "RSC-3"]
+theorem single_source_presented_key_witness :
+    Trust.permitsPresented false [⟨1⟩] [] false ⟨2⟩ = false ∧
+    Trust.permitsPresented false [⟨1⟩] [] false ⟨1⟩ = true ∧
+    Trust.permitsPresented false [] [⟨1⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented false [] [⟨1⟩] false ⟨1⟩ = true := by decide
 
 /-- The caller pinned one key and the driver published two, which overlap: `RSC-3`'s third row. -/
 def pinnedConn : Trust.Conn :=

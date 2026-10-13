@@ -252,8 +252,8 @@ stateDiagram-v2
 
 Ephemeral connection details for a provider's rescue environment: address, port,
 username, authentication material, provider host-key pins (complete keys or SHA256
-fingerprints), whether provider pins are required and still awaited, an opaque
-cleanup token, and an optional expiry.
+fingerprints), whether provider pins are required and still awaited, opaque
+driver refresh state, a cleanup token, and an optional expiry.
 
 **DOM-11** A rescue session carries a live credential. It MUST NOT be persisted, MUST
 NOT be logged, and MUST NOT appear in an operation result or error. Its in-memory

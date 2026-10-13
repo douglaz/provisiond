@@ -6,7 +6,7 @@ provider through the rescue lifecycle, and installs an image over SSH.
 ## Sequence
 
 1. Generate a single-use Ed25519 keypair scoped to this one operation.
-2. Ask the driver to activate rescue and initiate the reboot (`PRV-15`).
+2. Ask the driver to begin rescue (`PRV-15`), including Robot's pre-activation baseline read, activation and reboot.
 3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or
    the caller's policy resolves the question. A session awaiting provider keys cannot
    select first-use trust (`PRV-20`).
@@ -31,6 +31,10 @@ sequenceDiagram
 
     W->>W: Generate a single-use keypair<br/>scoped to this one operation
     W->>D: begin rescue
+    opt Robot
+        D->>P: read last-rescue boot_time baseline
+        Note over D,P: Read failure other than no record aborts before activation.
+    end
     D->>P: activate rescue AND reset
     Note over D,P: PRV-15 — activation includes the reboot.<br/>The machine is now down.
     loop until pins arrive, trust policy resolves, or RSC-9's deadline
@@ -86,7 +90,7 @@ against the SHA256 digest of the SSH key actually presented, with its algorithm;
 match the engine pins that presented full key for the connection. If caller full keys
 and driver fingerprints both exist, overlap means a caller key's algorithm and SHA256
 digest match a provider pin; a nonoverlap aborts before connecting. The actual Robot
-connection must match a current provider pin, even when a caller key is supplied.
+connection must match an accepted provider pin, even when a caller key is supplied.
 
 **RSC-4** Caller-supplied keys and the first-use-trust opt-in MUST be mutually exclusive
 in the request (`API-13`).
@@ -115,7 +119,7 @@ boot timeout, not from an unrelated hard-coded constant. Bare metal routinely ta
 several minutes to POST and reach a rescue environment, and a provider that only
 publishes keys after boot (`PRV-19`) will otherwise fail every pinned install. See
 `DEF-5`.
-For Robot, the wait continues for current-boot pins until this deadline; their absence
+For Robot, the wait continues for eligible pins until this deadline; their absence
 at the deadline is an `integrity` failure (`PRV-20`).
 
 ## Credentials

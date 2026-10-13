@@ -22,8 +22,8 @@ one each. The temporary-key model carries an operation-row presence bit and a pr
 provisioning bit; it does not model provider consumption time, tag lookup, or an actual machine read.
 
 What the model omits: `RSC-6`'s canonicalization (a key here is its canonical `algorithm base64`
-pair, reduced to an identity), SHA256 computation and real SSH authentication; `PRV-19`'s
-`boot_time` parsing and current-reset comparison; and `RSC-7`/`RSC-8`'s known-hosts file;
+pair, reduced to an identity), SHA256 computation and real SSH authentication; `PRV-15`'s
+baseline read and `PRV-19`'s opaque `boot_time` record selection; and `RSC-7`/`RSC-8`'s known-hosts file;
 `RSC-9`'s deadline and `PRV-19`'s polling, so the driver publishing pins is one event with no clock; which set is pinned
 where both are supplied and they overlap, because `RSC-3` does not say and inventing one would put
 a rule in `tools/formal/` that no requirement owns; `RSC-20`'s directory (absolute, owner-only,
@@ -102,20 +102,27 @@ def decision (caller driver : List HostKey) (optIn : Bool) : Decision :=
   | c :: cs, d :: ds => if overlaps (c :: cs) (d :: ds) then .pinOverlapping else .abortIntegrity
 
 /-- `PRV-20`'s required-provider-pins state removes the ordinary table's accept-new
-permission. Driver identities stand for current provider pins only; this model does not
-establish how Robot's boot-time comparison admitted them. -/
+permission. Driver identities stand for accepted provider pins only; this model does not
+establish how Robot selected the last-rescue record. -/
 @[req "PRV-20"]
 def sessionDecision (providerPinsRequired : Bool) (caller driver : List HostKey)
     (optIn : Bool) : Decision :=
   if providerPinsRequired && driver.isEmpty then .abortIntegrity else decision caller driver optIn
 
-/-- Identity comparison abstracts the presented SSH key matching a current provider pin.
-The actual SHA256 computation and SSH handshake are outside this model. -/
+/-- Identity comparison abstracts permission for the presented SSH key. Caller-only and
+driver-only sessions require membership in their sole pin set; a provider-required session
+also requires a match to an accepted provider pin. The both-supplied overlap row remains
+limited to overlap, without choosing which set is pinned. SHA256 computation, record
+selection and the SSH handshake are outside this model. -/
 @[req "RSC-3"]
 def permitsPresented (providerPinsRequired : Bool) (caller driver : List HostKey)
     (optIn : Bool) (presented : HostKey) : Bool :=
-  connects (sessionDecision providerPinsRequired caller driver optIn) &&
-    (!providerPinsRequired || driver.contains presented)
+  match sessionDecision providerPinsRequired caller driver optIn with
+  | .pinCaller => caller.contains presented
+  | .pinDriver => driver.contains presented
+  | .pinOverlapping => !providerPinsRequired || driver.contains presented
+  | .acceptNew => true
+  | .abortIntegrity => false
 
 /-- Every key set over a two-key universe: enough to reach all five rows, with the both-supplied row
 both overlapping and not. -/

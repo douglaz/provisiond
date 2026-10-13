@@ -1509,9 +1509,12 @@ rather than acquiring a default.
       `403 RATE_LIMIT_EXCEEDED` with `interval` on one account's auction order request.
       During the reported interval, each subsequent create there is refused by the
       `API-7` tail before any provider call, with `rate_limited`, `retry_after_ms`, no
-      commitment, balance change, machine, operation or receipt, and an account/channel
-      identifying monitorable alarm. Re-evaluate after the interval; do not treat the
-      descriptor limit as a local counter. A closed auction channel alone does not
+      commitment, balance change, machine, operation or receipt. The upstream Robot
+      throttle response satisfies `PRV-5`'s "every Robot `403 RATE_LIMIT_EXCEEDED` MUST
+      raise a monitorable alarm naming the provider account and request path"; the alarm
+      may include the ordering channel. Subsequent local refusals make no provider
+      request and need no new provider-throttle alarm. Re-evaluate after the interval;
+      do not treat the descriptor limit as a local counter. A closed auction channel alone does not
       refuse a standard-channel create or another account's create. For a mutation
       accepted before a provider throttle, assert the `OPS-11` classification. Admit
       and queue create A before the closure, then close A's
@@ -1528,10 +1531,12 @@ rather than acquiring a default.
       shared and retained through its reported interval. Then commit a closure
       just after A's plain claim-time read: no conditional-write channel recheck
       blocks dispatch, and Robot's own `403 RATE_LIMIT_EXCEEDED` settles the
-      unaccepted order the same way. (`PRV-40`, `STO-58`, `API-7`, `OPS-5`,
+      unaccepted order the same way, raising the upstream throttle alarm above.
+      (`PRV-40`, `PRV-5`, `STO-58`, `API-7`, `OPS-5`,
       `OPS-11`, `LDG-39`, `WIR-9a`)
       *Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): provider-reported closure
-      replaces local daily counting and reaches queued creates at worker claim.*
+      replaces local daily counting and reaches queued creates at worker claim. Amended
+      2026-10-13 (`ADR-0037`, Q28): the alarm follows `PRV-5`.*
 - [ ] **CNF-284** — **An authentication failure is attempted once.** Give a driver a bad credential
       and assert it makes exactly one attempt and escalates, with no scheduled re-attempt. Asserted
       by counting requests, not by reading the code. On a provider that locks out on repeated
@@ -3557,19 +3562,30 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       "The decrement clamps at zero and the excess is the
       operator's" as an operator cap on that residual. (`PRV-49`, `PRV-13b`, `PRV-45`, `LDG-31`, `LDG-32`)
 
-- [ ] **CNF-355** — **Added 2026-10-12 (`ADR-0041`, Q27).** **Robot rescue pins arrive after this boot.** Return `host_key: []`
-      from activation and `GET /boot/{n}/rescue`. Before reset, make `/rescue/last`
-      return 404 and an earlier session's fingerprints; after reset, reject a record
-      whose `boot_time` equals or precedes this session's reset. Then publish current-boot
-      SHA256 ECDSA, ED25519 and RSA fingerprints and connect with a presented full key
-      matching one of them. Assert the matched presented key is pinned for the connection;
-      no full public key is synthesized from a fingerprint. Supply caller full keys in
-      separate overlapping and nonoverlapping cases: compare their algorithm and SHA256
-      digest to provider pins, and require the actual connection to match a current pin.
-      Refuse a mismatched presented key before authentication. Repeat with no current-boot
-      pins through `RSC-9`'s boot-derived deadline; fail `integrity` even with explicit
-      first-use opt-in. An empty or stale later refresh and retry never clear an
-      established pin or enable first-use trust. (`PRV-16`, `PRV-19`, `PRV-20`, `RSC-3`,
+- [ ] **CNF-355** — **Added 2026-10-12 (`ADR-0041`, Q27).** **Robot rescue pins follow a changed last-rescue record.**
+      Return `host_key: []` from activation and ordinary `GET /boot/{n}/rescue`; the
+      session awaits provider pins. Before activation, read `/rescue/last` and keep
+      its `boot_time` string only as in-memory driver refresh state, not pin material or
+      durable state. Return the same baseline record after reset and assert the session
+      keeps waiting. Return a record with at least one ECDSA, ED25519 or RSA SHA256
+      fingerprint and a non-null `boot_time` string different verbatim from the baseline:
+      accept its pins, including when the string looks earlier than reset, without
+      interpreting time. With no baseline record, accept the first qualifying record.
+      A record with fingerprints but null or missing `boot_time`, and a changed string
+      without fingerprints, leave the session awaiting pins. Fail the baseline lookup
+      with an error other than no record and assert begin rescue fails before activation,
+      with nothing to clean up. Assert the existing active-read and disable-before-enable
+      procedure still runs when needed. Connect with a presented full key matching an
+      accepted provider pin's algorithm and SHA256 digest; pin that presented full key
+      for the connection without synthesizing a key from a fingerprint. Supply caller
+      full keys in separate overlapping and nonoverlapping cases: compare their algorithm
+      and SHA256 digest to provider pins, refuse nonoverlap, and require the actual Robot
+      connection to match a provider pin. Refuse a mismatched presented key before
+      authentication. Keep waiting through `RSC-9`'s boot-derived deadline when eligible
+      pins never arrive; fail `integrity` even with explicit first-use opt-in. Later
+      empty, unchanged or differing records after acceptance, retry and timeout never
+      replace or clear the accepted pins or enable first-use trust.
+      (`PRV-15`, `DOM-11`, `PRV-16`, `PRV-19`, `PRV-20`, `RSC-3`,
       `RSC-5`, `RSC-6`, `RSC-9`, `WIR-20`, `WIR-40`)
 - [ ] **CNF-356** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot cancellation needs no `/server` pre-read.** Block the shared
       `/server` read family and issue a Robot delete. Assert no

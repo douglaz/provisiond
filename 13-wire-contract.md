@@ -678,15 +678,15 @@ and a `provider_native` body that supplies one is an unknown field for that vari
 | `trust` | Meaning |
 |---|---|
 | `{"use_provider_keys": true}` | Pin driver-published keys or fingerprints, including pins arriving after boot. **Abort `integrity` if required pins do not arrive** before `RSC-9`'s deadline (`PRV-16`, `PRV-19`, `PRV-20`) |
-| `{"expected_host_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIhostkeyxxxxxxxxxxxxxxxxxxxxxxxx"]}` | Pin caller-supplied full keys; Robot also requires a current provider pin (`RSC-3`, `PRV-20`) |
+| `{"expected_host_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIhostkeyxxxxxxxxxxxxxxxxxxxxxxxx"]}` | Pin caller-supplied full keys; Robot also requires an accepted provider pin (`RSC-3`, `PRV-20`) |
 | `{"accept_unpinned": true}` | First-use trust where available; Robot awaiting provider pins cannot use it (`PRV-20`) |
 
 *Amended 2026-10-12 (`ADR-0041`): Robot's provider pins arrive after boot as
 fingerprints; the caller full-key form remains available.*
 
 **The provider-keys variant was missing and its absence was a silent security downgrade.** It is
-`RSC-3`'s *strongest* row and the ordinary one on Hetzner Robot, where current-boot
-fingerprints arrive through refresh after reset (`PRV-19`, `ADR-0041`). Caller-supplied
+`RSC-3`'s *strongest* row and the ordinary one on Hetzner Robot, where provider
+fingerprints become eligible through refresh after reset (`PRV-19`, `ADR-0041`). Caller-supplied
 full keys remain usable: `RSC-3` says "They MUST overlap. No overlap is an `integrity` failure, and the engine MUST abort before connecting."
 `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust". With
 only two variants, every install on the flagship product had to declare `accept_unpinned` — the

@@ -661,6 +661,8 @@ reboot or reset needed to enter it. The rescue engine waits for SSH; it does not
 
 **Amended 2026-10-09 (`docs/research/provider-verify-2026-10.md`, V4/V10, retrieved 2026-10-06):** On Hetzner Cloud the driver MUST read `rescue_enabled` and disable an existing rescue activation before re-enabling it, then reset within the documented 60-minute auto-disable interval. On Hetzner Robot it MUST read `active` with `GET /boot/{n}/rescue` and disable an active rescue with `DELETE /boot/{n}/rescue` before re-enabling. Repeated-enable behavior remains `[verify]` for Cloud; Robot accepted a second activation for the next boot on 2026-10-12 (`docs/research/panels-2026-10/r45/live-session2.txt`). The disable-before-enable procedure remains required.
 
+**Amended 2026-10-13 (`ADR-0041`, Q29).** On Robot, before activation, begin rescue MUST read `GET /boot/{server-number}/rescue/last` and retain its `boot_time` string as the baseline for this session, or no baseline when no record exists. Any other failure of this read MUST fail begin rescue before activation, with nothing to clean up. The baseline is driver refresh state in the in-memory session, never host-key pin material or durable state (`DOM-11`). The active-read and disable-before-enable procedure above still applies.
+
 **PRV-16** **Amended 2026-10-12 (`ADR-0041`).** Begin rescue MUST populate the session's
 host-key pins with complete OpenSSH public host keys whenever the provider exposes
 complete keys, and with published SHA256 fingerprints when it exposes only fingerprints.
@@ -689,19 +691,28 @@ only publishes once the rescue environment is running. The default implementatio
 the session unchanged.
 **Amended 2026-10-12 (`ADR-0041`).** Robot refresh MUST read
 `GET /boot/{server-number}/rescue/last` and accept its SHA256 fingerprint pins only
-when its `boot_time` is strictly later than this session's reset. A missing last record,
-missing or non-later `boot_time`, and an earlier session's record leave the session
-awaiting keys. Activation and `GET /boot/{n}/rescue` supply none. Empty or stale
-later responses remain subject to `PRV-20`'s "Refresh MUST NOT downgrade a session".
+when the record contains at least one fingerprint and a non-null `boot_time` string
+different verbatim from this session's pre-activation baseline. With no baseline record,
+the first record satisfying both conditions is eligible. The driver MUST NOT parse
+`boot_time` as an instant, compare it with reset, or use a changed fingerprint set as
+the freshness detector. An unchanged record, no record, no fingerprints, or a null or
+missing `boot_time` leaves the session awaiting pins. Activation and
+`GET /boot/{n}/rescue` supply none. Later responses remain subject to `PRV-20`'s
+"Refresh MUST NOT downgrade a session".
 
 **PRV-20** Refresh MUST NOT downgrade a session: it MUST NOT clear an already-known host-key
 pin set, and MUST NOT replace pin material with an empty value.
-**Amended 2026-10-12 (`ADR-0041`).** The same rule protects fingerprint pins. An
+**Amended 2026-10-12 (`ADR-0041`).** The same rule protects fingerprint pins. Once
+accepted, Robot pins MUST NOT be replaced by a later differing record, cleared by an
+empty response, or downgraded on retry or timeout. An
 awaiting Robot session cannot become eligible for first-use trust, even with the
-caller's explicit first-use opt-in. If current-boot pins have not arrived by `RSC-9`'s
+caller's explicit first-use opt-in. If eligible pins have not arrived by `RSC-9`'s
 deadline ("The deadline for waiting on driver-published host keys MUST be derived from the boot
 timeout"), connection fails `integrity`; a presented key whose SHA256 fingerprint
-matches none of the current pins is refused.
+and algorithm match none of the accepted pins MUST be refused before authentication.
+The engine MUST pin the matching presented full key for the connection. Robot never falls back
+to first-use trust, including when caller keys are supplied. The presented-key match
+is what makes the connection safe (`ADR-0041`); record selection determines when to try it.
 
 ### End rescue
 

@@ -872,6 +872,34 @@ jobs:
           grep -A3 'proved that the proposition' build.log | grep -q 'validFreshness freshnessBoundGuards 20 20 = false'
           echo "lake build correctly refuted the old one-sweep minimum"
 
+      # RSC-3's single-source rows require the presented key to be in the sole pin set.
+      # Reinstating the previous broad connection permission must refute that witness.
+      - name: Prove the Lean build rejects single-source host-key mismatch permission
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/Rescue.lean')
+          source = path.read_text()
+          fixed = '  match sessionDecision providerPinsRequired caller driver optIn with\n  | .pinCaller => caller.contains presented\n  | .pinDriver => driver.contains presented\n  | .pinOverlapping => !providerPinsRequired || driver.contains presented\n  | .acceptNew => true\n  | .abortIntegrity => false'
+          broken = '  connects (sessionDecision providerPinsRequired caller driver optIn) &&\n    (!providerPinsRequired || driver.contains presented)'
+          assert source.count(fixed) == 1 and broken not in source
+          path.write_text(source.replace(fixed, broken))
+          assert path.read_text().count(broken) == 1
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::the former single-source host-key permission passed"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented false [{ n := 1 }] [] false { n := 2 } = false'
+          echo "lake build correctly refuted the single-source presented-key witness"
+
       # The rendering gate (pv-vwe.8, ADR-0025): a hand edit inside a marked region is
       # red for that region, and the same edit one line outside it is not. The scratch
       # copy carries tools/formal/.lake from this shard's formal preparation above, which is
