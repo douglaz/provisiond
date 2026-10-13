@@ -3849,6 +3849,77 @@ theorem without_sale_guard_unsellable_offer_is_admitted :
     (purchaseTail { Admission.current with offerSaleGuard := false }
       true .healthy false false false false true true false false).refusals = [] := by decide
 
+/-- Pin unrelated tail guards so a cancellation guard mutation refutes only its own witness. -/
+def cancellationTailGuards (g : Admission.Guards) : Admission.Guards :=
+  { g with richTailCollection := true, offerSaleGuard := true, channelClosureGuard := true }
+
+/-- An otherwise clean create, with both priced checks present and the computed sale input. -/
+def cancellationCreate (g : Admission.Guards) (descriptor offer : Option Nat) :=
+  purchaseTailForOffer g true .healthy true descriptor offer 10
+    false false false true true false false
+
+def cancellationCreateAdmitted (g : Admission.Guards) (descriptor offer : Option Nat) :=
+  tailAdmittedForOffer g true .healthy true descriptor offer 10
+    false false false true true false false
+
+/-- The no-declaration pair holds the future-bound guard enabled in both settings. -/
+def declarationSaleGuards (g : Admission.Guards) : Admission.Guards :=
+  { cancellationTailGuards g with cancellationFutureGuard := true }
+
+@[req "PRV-31"]
+theorem missing_cancellation_bounds_refused :
+    (cancellationCreate (declarationSaleGuards Admission.current) none none).refusals =
+      [.offerNotSellable] ∧
+    (cancellationCreate (declarationSaleGuards Admission.current) none none).notChecked =
+      [(.commitmentCap, .unsellable), (.balance, .unsellable)] ∧
+    cancellationCreateAdmitted (declarationSaleGuards Admission.current) none none = false := by decide
+
+@[req "PRV-31"]
+theorem without_declaration_guard_missing_bounds_admitted :
+    (cancellationCreate (declarationSaleGuards
+      { Admission.current with cancellationDeclarationGuard := false }) none none).refusals = [] ∧
+    cancellationCreateAdmitted (declarationSaleGuards
+      { Admission.current with cancellationDeclarationGuard := false }) none none = true := by decide
+
+/-- The future-bound pair holds the declaration guard enabled in both settings. -/
+def futureSaleGuards (g : Admission.Guards) : Admission.Guards :=
+  { cancellationTailGuards g with cancellationDeclarationGuard := true }
+
+@[req "PRV-31"]
+theorem either_future_cancellation_bound_refused :
+    (cancellationCreate (futureSaleGuards Admission.current) (some 11) (some 10)).refusals =
+      [.offerNotSellable] ∧
+    (cancellationCreate (futureSaleGuards Admission.current) (some 10) (some 11)).refusals =
+      [.offerNotSellable] ∧
+    (cancellationCreate (futureSaleGuards Admission.current) (some 11) (some 10)).notChecked =
+      [(.commitmentCap, .unsellable), (.balance, .unsellable)] ∧
+    (cancellationCreate (futureSaleGuards Admission.current) (some 10) (some 11)).notChecked =
+      [(.commitmentCap, .unsellable), (.balance, .unsellable)] ∧
+    cancellationCreateAdmitted (futureSaleGuards Admission.current) (some 11) (some 10) = false ∧
+    cancellationCreateAdmitted (futureSaleGuards Admission.current) (some 10) (some 11) = false := by decide
+
+@[req "PRV-31"]
+theorem without_future_guard_either_future_bound_admitted :
+    (cancellationCreate (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 11) (some 10)).refusals = [] ∧
+    (cancellationCreate (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 10) (some 11)).refusals = [] ∧
+    cancellationCreateAdmitted (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 11) (some 10) = true ∧
+    cancellationCreateAdmitted (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 10) (some 11) = true := by decide
+
+/-- `PRV-31` names the descriptor source "or reported on the offer". Equality with today
+is admitted from both sources together, and from either source alone. -/
+@[req "PRV-31"]
+theorem today_cancellation_bounds_admitted :
+    (cancellationCreate (cancellationTailGuards Admission.current) (some 10) (some 10)).refusals = [] ∧
+    cancellationCreateAdmitted (cancellationTailGuards Admission.current) (some 10) (some 10) = true ∧
+    (cancellationCreate (cancellationTailGuards Admission.current) (some 10) none).refusals = [] ∧
+    cancellationCreateAdmitted (cancellationTailGuards Admission.current) (some 10) none = true ∧
+    (cancellationCreate (cancellationTailGuards Admission.current) none (some 10)).refusals = [] ∧
+    cancellationCreateAdmitted (cancellationTailGuards Admission.current) none (some 10) = true := by decide
+
 /-- The create-only channel closure takes its own place between the offer and solvency.
 Its Boolean is the named account/channel snapshot; isolation and expiry remain conformance. -/
 def closedChannelCreate (g : Admission.Guards) :=

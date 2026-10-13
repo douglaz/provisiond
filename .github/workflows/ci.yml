@@ -764,6 +764,8 @@ jobs:
           Admission|completeCheckToLift|true|false|incompletePassingTrace
           Admission|richTailCollection|true|false|fencedHaltedNoRate
           Admission|offerSaleGuard|true|false|offerNotSellable
+          Admission|cancellationDeclarationGuard|true|false|declarationSaleGuards Admission.current
+          Admission|cancellationFutureGuard|true|false|futureSaleGuards Admission.current
           Admission|channelClosureGuard|true|false|channelClosed
           Admission|reverseDnsCeiling|true|false|reverseDnsAdmission
           ProviderTraffic|reuseFresh|true|false|freshClaim
