@@ -41,5 +41,6 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r44 | Operation retention versus the provisioning guard on a temporary key (`manager-blocker.md` is the pv-ucs.10 Run report it answers) | `ADR-0040` amendment of 2026-10-12 (Q26) |
 | r45 | Q23a after Robot's server-read counter proved account-wide; with the 2026-10-12 live sessions 2–4 (read limit, rescue V10/V11, rescue host keys, IP scope; one pre-existing server's number and IP and the rescue passwords redacted) | `ADR-0037` amendment of 2026-10-12 (Q28); `ADR-0041` (Q27) |
 | r46 | Telling a fresh Robot last-rescue record from a stale one (`manager-blocker.md` is the pv-wd0 Run report it answers) | `ADR-0041` (Q29) |
+| r47 | What remains of the formal layer (`pv-vwe`'s seven unwritten candidates) and `pv-erp` (`evaluation.md` is the sub-agent read under review) | owner decision Q30: five formal follow-ups, `pv-vwe` closed |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.
