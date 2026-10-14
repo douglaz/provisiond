@@ -70,7 +70,7 @@ remain fresh; caller-supplied create keys are distinct and no substitute-key pol
 (V3).
 
 **Rescue host keys** — not exposed through the API. **[observed]** Consequence: callers
-MUST supply `expected_rescue_host_keys` out of band or explicitly accept first-use trust
+MUST supply `trust.expected_host_keys` out of band or explicitly accept first-use trust
 (`SEC-23`).
 
 **Rescue activation** — enable-rescue action, then a separate reset action to boot into

@@ -563,6 +563,8 @@ jobs:
       #   awaitingProviderPins (PRV-20, 2026-10-12, ADR-0041): the awaiting Robot session
       #     reaches accept-new with explicit opt-in -- robot_awaiting_pins_witness on
       #     Trust.sessionDecision Rescue.current true;
+      #   overlapCallerPins (RSC-3, 2026-10-14, ADR-0041 Q33): an overlapping session admits
+      #     a driver-pinned key outside the caller's keys -- overlap_caller_pins_witness on overlapDriverKeys;
       #   coalesceWrite (OPS-45, 2026-09-12, ADR-0022): the null-guarded repeat after a lost reply
       #     affects no row, reads as overtaken, and the phase never runs --
       #     coalesced_repeat_moves_nothing on rawInstall lostReplyThenRepeat;
@@ -753,6 +755,7 @@ jobs:
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
           Rescue|awaitingProviderPins|true|false|Trust.sessionDecision Rescue.current true
+          Rescue|overlapCallerPins|true|false|overlapDriverKeys
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
           Rescue|markerBeforePhase|true|false|rawInstall phaseWithoutMarker
           Rescue|secondMarkerBeforeSession|true|false|Rescue.current rescueSession crashedSession
@@ -923,7 +926,8 @@ jobs:
           grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented Rescue.current false [{ n := 1 }] [] false { n := 2 } = false'
           echo "lake build correctly refuted the single-source presented-key witness"
 
-      # Reinstating the former overlap arm must refute overlap_presented_key_witness.
+      # Restore the former non-provider permission in the enabled overlap branch: a key
+      # in neither set must refute overlap_presented_key_witness; Robot's intersection stays enforced.
       - name: Prove the Lean build rejects overlap host-key mismatch permission
         if: matrix.shard == 2
         run: |
@@ -935,8 +939,8 @@ jobs:
           from pathlib import Path
           path = Path('Provisiond/Rescue.lean')
           source = path.read_text()
-          fixed = '  | .pinOverlapping => (caller.contains presented || driver.contains presented) &&\n      (!providerPinsRequired || driver.contains presented)'
-          broken = '  | .pinOverlapping => !providerPinsRequired || driver.contains presented'
+          fixed = '      if p.overlapCallerPins then caller.contains presented && driver.contains presented'
+          broken = '      if p.overlapCallerPins then !providerPinsRequired || (caller.contains presented && driver.contains presented)'
           assert source.count(fixed) == 1 and broken not in source
           path.write_text(source.replace(fixed, broken))
           assert path.read_text().count(broken) == 1

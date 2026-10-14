@@ -7,9 +7,11 @@ provider through the rescue lifecycle, and installs an image over SSH.
 
 1. Generate a single-use Ed25519 keypair scoped to this one operation.
 2. Ask the driver to begin rescue (`PRV-15`), including Robot's pre-activation baseline read, activation and reboot.
-3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or
-   the caller's policy resolves the question. `PRV-20` says "An awaiting Robot session
-   cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in."
+3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or,
+   for a driver that permits it, the caller's policy resolves the question. For Robot,
+   only accepted provider pins resolve the wait: `PRV-20` says "An awaiting Robot session
+   cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in"
+   and "Robot never falls back to first-use trust, including when caller keys are supplied".
 4. Establish the host-key trust decision, and refuse to connect if it cannot be made.
 5. Wait for rescue SSH to answer, then collect an inventory report (block devices, UEFI
    presence).
@@ -79,12 +81,13 @@ holds a credential that grants root on the customer's machine.
 
 | Condition | Behaviour |
 |---|---|
-| Caller supplied expected host keys | Pin exactly those. Strict checking. |
+| Caller supplied expected host keys and the driver published none | Pin exactly those. Strict checking. |
 | Driver published host keys and caller supplied none | Pin the driver's. Strict checking. |
-| Caller supplied keys *and* driver published keys | They MUST overlap. No overlap is an `integrity` failure, and the engine MUST abort before connecting. |
+| Caller supplied keys *and* driver published keys | They MUST overlap. No overlap is an `integrity` failure, and the engine MUST abort before connecting. On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys. |
 | Neither, and the caller explicitly opted into first-use trust | Accept-new. Permitted, but it is a documented downgrade. |
 | Neither, and no explicit opt-in | Abort with an `integrity` error. |
 
+**Amended 2026-10-14 (`ADR-0041`, Q33).**
 **Amended 2026-10-12 (`ADR-0041`).** `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust"; the first-use row does not apply to that session.
 `PRV-20` says "a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins
 MUST be refused before authentication" and "The engine MUST pin the matching presented full key for the connection".

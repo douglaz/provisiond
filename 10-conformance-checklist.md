@@ -223,7 +223,8 @@ not optional hardening — they are the only structural defence there is.
 
 - [ ] **CNF-36** — Every row of the host-key decision table in `RSC-3` is covered, including
       the two abort cases: no keys and no opt-in; and caller keys that do not overlap
-      driver keys.
+      driver keys. Where caller keys overlap driver pins, a presented key that matches a
+      driver pin but is not one of the caller's keys is refused before authentication. (`RSC-3`)
 - [ ] **CNF-37** — A pinned connection is never downgraded to first-use trust, including
       when the driver returns an empty key set on a later refresh. (`RSC-5`, `PRV-20`)
 - [ ] **CNF-38** — Host-key comparison is canonical: the same key with a different comment,
@@ -3603,6 +3604,17 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       pins never arrive; fail `integrity` even with explicit first-use opt-in. Later
       empty, unchanged or differing records after acceptance, retry and timeout never
       replace or clear the accepted pins or enable first-use trust.
+      **Amended 2026-10-14 (`ADR-0041`, Q33): only overlapping caller keys are pinned.**
+      Supply one ed25519 caller full key and an eligible provider record with SHA256
+      host-key fingerprints for that key and an ecdsa key. Assert the client offers only
+      the ed25519 host-key algorithm, and the pinned set is exactly the overlapping caller
+      key. Separately assert that a rescue host presenting the provider-pinned ecdsa key
+      is refused before authentication: no credential is sent and that key is not pinned.
+      Repeat with the caller's ed25519 key and a second, different ed25519 host-key
+      fingerprint in the provider record; presenting that second key is refused before
+      authentication, with no credential sent and that key not pinned. Separately, supply
+      an RSA caller key overlapping an RSA host-key fingerprint and assert the client
+      offers `rsa-sha2-512,rsa-sha2-256`.
       (`PRV-15`, `DOM-11`, `PRV-16`, `PRV-19`, `PRV-20`, `RSC-3`,
       `RSC-5`, `RSC-6`, `RSC-9`, `WIR-20`, `WIR-40`)
 - [ ] **CNF-356** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot cancellation needs no `/server` pre-read.** Block the shared

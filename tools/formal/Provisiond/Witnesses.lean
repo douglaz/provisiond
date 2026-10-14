@@ -3111,16 +3111,21 @@ end Wire
 `RSC-3`'s trust decision, `RSC-26`'s disk identity, `OPS-45`'s two markers on the claim model and
 `RSC-19`'s recovery key. One install request runs the markers: the caller chose the disk carrying
 stable identifier 2 from an inventory whose fingerprint is 100. `RSC-26`'s duplicate case needs a
-second device set, so `duplicateRequest` is a second request, over fingerprint 102.
+second device set, so `Provisiond.Witnesses.duplicateRequest` is a second request, over fingerprint 102.
 
-Every field of `Rescue.current` has a witness pair that flips it and asserts what that field
+Every field of `Provisiond.Rescue.current` has a witness pair that flips it and asserts what that field
 decides, as `ci.yml`'s other rows do. The
-`RSC-5` pair (`Trust.run` against `Trust.runRedecided`) and the `RSC-26` pair (`Disk.resolve`
-against `Disk.resolveFirst`) flip no field: what they refute is an alternative definition, not a
+`RSC-5` pair (`Provisiond.Rescue.Trust.run` against `Provisiond.Rescue.Trust.runRedecided`) and the `RSC-26` pair (`Provisiond.Rescue.Disk.resolve`
+against `Provisiond.Rescue.Disk.resolveFirst`) flip no field: what they refute is an alternative definition, not a
 guard that could be removed, so neither is one of `ci.yml`'s rows. The presented-key witnesses
-`single_source_presented_key_witness` and `overlap_presented_key_witness` also refute alternative
-definitions; their controls are standalone steps, not `ROWS` lines. The awaiting-pins pair flips
-`awaitingProviderPins` and has its own row. -/
+`Provisiond.Witnesses.single_source_presented_key_witness` and
+`Provisiond.Witnesses.overlap_presented_key_witness` also refute alternative definitions;
+their controls are standalone steps, not `ROWS` lines. The overlap standalone step restores
+non-provider permission without membership in either set in the enabled branch.
+The awaiting-pins pair flips `Provisiond.Rescue.Params.awaitingProviderPins` and has its own row.
+The pair `Provisiond.Witnesses.overlap_caller_pins_witness` and
+`Provisiond.Witnesses.overlap_caller_pins_without_guard` flips
+`Provisiond.Rescue.Params.overlapCallerPins` and has its own Rescue row. -/
 
 section Rescue
 open Provisiond.Rescue
@@ -3154,7 +3159,7 @@ theorem robot_awaiting_pins_without_guard :
     Trust.permitsPresented awaitingPinsDisabled true [] [] true ⟨2⟩ = true := by decide
 
 /-- `RSC-3`'s single-source strict pinning rejects a different presented identity and
-admits the matching one. The both-supplied pin-set choice remains outside this check. -/
+admits the matching one. -/
 @[req "RSC-3"]
 theorem single_source_presented_key_witness :
     Trust.permitsPresented Rescue.current false [⟨1⟩] [] false ⟨2⟩ = false ∧
@@ -3163,11 +3168,32 @@ theorem single_source_presented_key_witness :
     Trust.permitsPresented Rescue.current false [] [⟨1⟩] false ⟨1⟩ = true := by decide
 
 /-- `RSC-3`'s "They MUST overlap" row refuses a presented key in neither set and admits
-one in the overlap, without choosing which supplied set is pinned. -/
+one in the overlap. -/
 @[req "RSC-3"]
 theorem overlap_presented_key_witness :
     Trust.permitsPresented Rescue.current false [⟨1⟩] [⟨1⟩] false ⟨2⟩ = false ∧
     Trust.permitsPresented Rescue.current false [⟨1⟩] [⟨1⟩] false ⟨1⟩ = true := by decide
+
+/-- The driver pins include a key outside the caller's supplied set. -/
+def overlapDriverKeys : List Trust.HostKey := [⟨1⟩, ⟨2⟩]
+
+/-- With the intersection guard, the provider-only key is refused and the overlapping caller
+key is admitted. A caller-only key is also refused: `RSC-3` says "The actual Robot connection
+MUST match an accepted provider pin, even when a caller key is supplied." -/
+@[req "RSC-3"]
+theorem overlap_caller_pins_witness :
+    Trust.permitsPresented Rescue.current true [⟨1⟩] overlapDriverKeys false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current true [⟨1⟩] overlapDriverKeys false ⟨1⟩ = true ∧
+    Trust.permitsPresented Rescue.current true [⟨1⟩, ⟨3⟩] overlapDriverKeys false ⟨3⟩ = false := by decide
+
+/-- The pre-Q33 overlap permission with only the caller-membership guard disabled. -/
+def overlapCallerPinsDisabled : Rescue.Params :=
+  { Rescue.current with overlapCallerPins := false }
+
+/-- Without the guard, the same provider-only key is admitted. -/
+@[req "RSC-3"]
+theorem overlap_caller_pins_without_guard :
+    Trust.permitsPresented overlapCallerPinsDisabled true [⟨1⟩] overlapDriverKeys false ⟨2⟩ = true := by decide
 
 /-- The caller pinned one key and the driver published two, which overlap: `RSC-3`'s third row. -/
 def pinnedConn : Trust.Conn :=
