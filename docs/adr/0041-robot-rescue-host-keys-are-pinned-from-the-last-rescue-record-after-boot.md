@@ -73,3 +73,31 @@ Two live sessions on 2026-10-12 contradicted half of it. The record is in
 - The last-rescue reads use `GET /boot/…`, a counter separate from the `/server` reads (`ADR-0034`).
 - The next live session rescues one server twice, to settle whether keys change per boot, and captures
   the `404`'s error code.
+
+## Amendment — 2026-10-14: with caller keys too, only a key in both sets is accepted (owner decision Q33)
+
+The decision above says the engine "connects only to a host whose presented key matches a published SHA256
+fingerprint". A caller may also supply expected host keys (`WIR-20`'s `trust.expected_host_keys`), and
+`RSC-3`'s both-supplied row says only "They MUST overlap". Nothing said which presented key is then acceptable:
+`WIR-20` promises "Pin caller-supplied full keys", while `PRV-20` makes a provider match necessary without
+saying it is enough, and the formal model reduced to "any provider pin" on Robot. A branch review raised it
+(pv-f6g) and a four-reader panel decided it unanimously (`docs/research/panels-2026-10/r50/`).
+
+**Decision.** When the caller supplied keys and the provider published fingerprints, the presented key MUST be
+one of the caller's keys **and** match an accepted provider pin; the engine pins exactly the caller keys whose
+algorithm and SHA256 digest match a provider pin, and offers SSH only their algorithms. A key that matches a
+provider pin but is not one of the caller's is refused before authentication.
+
+**Why.** Under "any provider pin", the caller's keys never limit what is accepted; they can only make a session
+fail. A forged record listing the caller's real fingerprint and an attacker's own would pass the overlap check
+and admit the attacker's key. The client, not the server, chooses the host-key algorithm (RFC 4253 §7.1), so an
+honest server presents the overlapping key when the engine offers only its algorithm (an RSA key needs
+`rsa-sha2-512,rsa-sha2-256`); a session fails only if that key cannot be negotiated.
+
+**Not decided now.** If the planned double rescue shows that Robot's rescue keys change on every boot, a caller
+cannot know them in advance and every Robot request carrying caller keys fails `integrity` after activation has
+already rebooted the server. Whether to refuse caller keys for Robot at admission is decided then.
+
+Rejected: accepting any provider-pinned key once the sets overlap (it turns `WIR-20`'s promise into a consistency
+check and leaves the caller's keys without effect); refusing caller keys for Robot now (it settles a `[verify]`
+by fiat).
