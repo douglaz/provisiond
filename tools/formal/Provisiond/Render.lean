@@ -178,12 +178,12 @@ def ldg31Table : Region :=
   let rows : List (String × Ledger.Event) :=
     [ ("`topup` +72,000", .topup 72000),
       ("commitment opened, 72,000", .openCommitment 72000),
-      ("one hour consumed: `usage_debit` −100, commitment → 71,900", .usageDebit 100),
-      ("machine deleted at that increment end, commitment closed", .closeCommitment) ]
+      ("one hour consumed: `usage_debit` −100, commitment → 71,900", .usageDebit 0 100),
+      ("machine deleted at that increment end, commitment closed", .closeCommitment 0) ]
   let (_, lines) := rows.foldl (fun (b, acc) (label, e) =>
     let (b', line) := ledgerRow b label e
     (b', acc ++ [line]))
-    (({ sum := 0, reserved := 0, deficiency := 0, snapshot := 0 } : Ledger.Balances),
+    (({ sum := 0, commitments := [], deficiency := 0, snapshot := 0 } : Ledger.Balances),
      ([] : List String))
   { decl := "Provisiond.Render.ldg31Table", kind := "render",
     text := "\n".intercalate

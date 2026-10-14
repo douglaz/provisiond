@@ -1,6 +1,6 @@
 import Provisiond.Req
-/-! `LDG-9`'s available balance and the conservation laws around one tenant's one commitment, in
-whole satoshis: `LDG-31`'s pairing with its clamp, `LDG-32`'s release of the exact remainder,
+/-! `LDG-9`'s available balance and the conservation laws around one tenant's identified
+commitments, in whole satoshis: `LDG-31`'s pairing with its clamp, `LDG-32`'s release of the exact remainder,
 `LDG-35`'s authorization read against the commit that follows it, and `LDG-10`'s floor. Then one
 tenant's entries, and `LDG-70`'s read of them, "`balance_after` on the greatest `seq` for that
 tenant", against the sum `Balances.sum` stands for: `drift_identity` says what their difference is
@@ -32,13 +32,35 @@ The serialization is `LDG-35`'s, whose amendment says "`LDG-70` requires every a
 inside this serialization", and `serializedAuthorization` models it for the open; this guard is
 which row the append reads. Their witnesses are in `Provisiond.Witnesses`.
 
-What the model omits: more than one commitment (`Provisiond.Funding` carries the one metered
-subject's); the fee kinds `LDG-31` also pairs, which route through `clamp` the same way; the
-concurrency `LDG-35` orders, modelled as one stale read and not as two interleaved transactions, and
+Additional guards, with no dated amendment carrying these rules:
+`allCommitmentsAuthorize`: the disabled open subtracts only the first open slot, in allocation
+order, from the ledger sum; `LDG-9` defines
+"available = Σ(ledger entries) − Σ(reserved amount of open commitments)".
+`closeOwnCommitment`: the disabled close clears every open slot; `LDG-32` says
+"A commitment MUST be closed, and its remaining amount released in full".
+`LDG-28` says
+"Releasing a commitment returns **the exact satoshi amount still reserved**".
+`clampOwnCommitment`: the disabled debit clamps against the tenant's derived total, spends the
+named slot first, and consumes any excess from the other slots in allocation order; `LDG-31`
+says "the commitment decrements to zero, the tenant is debited only up to the authority it granted,
+and the remainder is recorded as an **operator deficiency**". The clamp paragraph itself is undated.
+
+Commitment identifiers are list positions, allocated by appending a fresh slot; `some amount`
+is open and `none` is closed, retained so identifiers are never reused. They identify reservations,
+not machines. A debit or close naming a closed or nonexistent slot leaves the entire state alone;
+no requirement is modelled for that omitted case. This totalization never moves the tenant's balance.
+`Provisiond.Funding` stays single-commitment: it carries one metered subject's remaining amount and
+calls only `Ledger.clamp`.
+
+What the model omits: machines and the per-machine rule (`LDG-30`: "A machine MUST have at most
+one `open` commitment at a time"); operation identity before a machine exists; setup fee and first
+unit targeting; commitment growth; account termination's bulk close; attachments keeping a
+commitment open; corrections; `LDG-34`'s conditional write; the fee kinds `LDG-31` also pairs,
+which route through `clamp` the same way; the concurrency `LDG-35` orders, modelled as one stale read and not as two interleaved transactions, and
 the same for an append; the `version` of `STO-28`'s conditional write. Of `LDG-70`: any storage — no
 SQL, and not the `(tenant_id, seq desc)` index the read is served from; an entry's kind, id and
 causes — an `Entry` is its sequence number, amount and `balance_after`; one state for the entries
-and the commitment — `Book` and `Balances` are separate, joined only by the hypothesis that
+and the commitments — `Book` and `Balances` are separate, joined only by the hypothesis that
 `Balances.sum` is the entries' sum; of the uses `LDG-70` names, "every create, every extend and
 every metered posting" and `GET /v1/balance`, all but the create's open; a refused append —
 `Book.step` takes any amount, and `LDG-10`'s floors are proved of `Balances`; a second tenant, and
@@ -53,6 +75,9 @@ structure Guards where
   clampAtAuthority        : Bool
   serializedAuthorization : Bool
   appendReadsLatest       : Bool
+  allCommitmentsAuthorize : Bool
+  closeOwnCommitment      : Bool
+  clampOwnCommitment      : Bool
   deriving DecidableEq, Repr
 
 /-- The rules as they stand. One field per line: `ci.yml`'s controls flip one each. -/
@@ -61,18 +86,141 @@ def current : Guards := {
     nativeCostSplit         := true,
     clampAtAuthority        := true,
     serializedAuthorization := true,
-    appendReadsLatest       := true }
+    appendReadsLatest       := true,
+    allCommitmentsAuthorize := true,
+    closeOwnCommitment      := true,
+    clampOwnCommitment      := true }
 
-/-- The two sums `LDG-9` subtracts, the operator's satoshi deficiency beside them, and the
-balance a transaction read before it committed. -/
+/-- Slots retain closed commitments; their positions are the allocated identifiers. -/
+abbrev Commitments := List (Option Int)
+
+namespace Commitments
+
+def remaining : Commitments → Nat → Int
+  | [], _ => 0
+  | x :: _, 0 => x.getD 0
+  | _ :: xs, i + 1 => remaining xs i
+
+def isOpen : Commitments → Nat → Bool
+  | [], _ => false
+  | x :: _, 0 => x.isSome
+  | _ :: xs, i + 1 => isOpen xs i
+
+def total : Commitments → Int
+  | [] => 0
+  | x :: xs => x.getD 0 + total xs
+
+/-- The first open slot, in allocation order, for the disabled aggregate authorization. -/
+def first : Commitments → Int
+  | [] => 0
+  | none :: xs => first xs
+  | some n :: _ => n
+
+/-- An update cannot reopen a closed slot or invent a missing slot. -/
+def change : Commitments → Nat → (Int → Option Int) → Commitments
+  | [], _, _ => []
+  | x :: xs, 0, f => (x.bind f) :: xs
+  | x :: xs, i + 1, f => x :: change xs i f
+
+def nonneg (cs : Commitments) : Prop := ∀ i, 0 ≤ cs.remaining i
+
+theorem total_change (cs : Commitments) (i : Nat) (f : Int → Option Int) :
+    (cs.change i f).total = cs.total - cs.remaining i +
+      (if cs.isOpen i then (f (cs.remaining i)).getD 0 else 0) := by
+  induction cs generalizing i with
+  | nil => simp [change, total, remaining, isOpen]
+  | cons x xs ih =>
+    cases i with
+    | zero => cases x <;> simp [change, total, remaining, isOpen] <;> omega
+    | succ i => simp only [change, total, remaining, isOpen, ih]; omega
+
+theorem remaining_change_self (cs : Commitments) (i : Nat) (f : Int → Option Int) :
+    (cs.change i f).remaining i =
+      (if cs.isOpen i then (f (cs.remaining i)).getD 0 else 0) := by
+  induction cs generalizing i with
+  | nil => simp [change, remaining, isOpen]
+  | cons x xs ih =>
+    cases i with
+    | zero => cases x <;> simp [change, remaining, isOpen]
+    | succ i => exact ih i
+
+theorem remaining_change_other (cs : Commitments) (i j : Nat) (f : Int → Option Int)
+    (h : j ≠ i) : (cs.change i f).remaining j = cs.remaining j := by
+  induction cs generalizing i j with
+  | nil => simp [change, remaining]
+  | cons x xs ih =>
+    cases i <;> cases j <;> simp_all [change, remaining]
+
+theorem isOpen_change_close (cs : Commitments) (i : Nat) :
+    (cs.change i (fun _ => none)).isOpen i = false := by
+  induction cs generalizing i with
+  | nil => rfl
+  | cons x xs ih => cases i with
+    | zero => cases x <;> rfl
+    | succ i => exact ih i
+
+theorem remaining_of_closed (cs : Commitments) (i : Nat) (h : cs.isOpen i = false) :
+    cs.remaining i = 0 := by
+  induction cs generalizing i with
+  | nil => rfl
+  | cons x xs ih => cases i with
+    | zero => cases x <;> simp_all [isOpen, remaining]
+    | succ i => exact ih i h
+
+theorem total_nonneg (cs : Commitments) (h : cs.nonneg) : 0 ≤ cs.total := by
+  induction cs with
+  | nil => exact Int.le_refl 0
+  | cons x xs ih =>
+    have hx := h 0
+    have ht := ih (fun i => h (i + 1))
+    simp only [remaining, total] at *
+    omega
+
+theorem total_append (cs : Commitments) (n : Int) :
+    (cs ++ [some n]).total = cs.total + n := by
+  induction cs with
+  | nil => simp [total]
+  | cons x xs ih => simp only [List.cons_append, total, ih]; omega
+
+theorem nonneg_append (cs : Commitments) (n : Int) (h : cs.nonneg) (hn : 0 ≤ n) :
+    (cs ++ [some n]).nonneg := by
+  induction cs with
+  | nil => intro i; cases i <;> simp [remaining, hn]
+  | cons x xs ih =>
+    intro i
+    cases i with
+    | zero => exact h 0
+    | succ i => exact ih (fun j => h (j + 1)) i
+
+theorem nonneg_change (cs : Commitments) (i : Nat) (f : Int → Option Int)
+    (h : cs.nonneg) (hf : 0 ≤ (f (cs.remaining i)).getD 0) : (cs.change i f).nonneg := by
+  intro j
+  by_cases hj : j = i
+  · subst j; rw [remaining_change_self]; split <;> omega
+  · rw [remaining_change_other cs i j f hj]; exact h j
+
+/-- The disabled ownership clamp drains other slots in allocation order. -/
+def drain : Commitments → Int → Commitments
+  | [], _ => []
+  | none :: xs, n => none :: drain xs n
+  | some r :: xs, n =>
+    let spent := min n (max r 0)
+    some (r - spent) :: drain xs (n - spent)
+
+end Commitments
+
+/-- The ledger sum, identified commitments, deficiency and earlier authorization read. -/
 structure Balances where
-  sum        : Int
-  reserved   : Int
+  sum         : Int
+  commitments : Commitments
   /-- `STO-37`'s `clamped_sats`, summed: the operator's, in satoshis, and not an entry. -/
-  deficiency : Int
-  /-- `LDG-35`'s authorization read, as an earlier transaction took it. -/
-  snapshot   : Int
+  deficiency  : Int
+  snapshot    : Int
   deriving DecidableEq, Repr
+
+/-- `LDG-9`: "Σ(reserved amount of open commitments)", derived rather than stored. -/
+@[req "LDG-9"]
+def Balances.reserved (b : Balances) : Int := b.commitments.total
 
 /-- `LDG-9`: `available = Σ(ledger entries) − Σ(reserved amount of open commitments)`. -/
 @[req "LDG-9"]
@@ -92,31 +240,43 @@ inductive Event
   | topup (sats : Int)
   | read
   | openCommitment (sats : Int)
-  | usageDebit (sats : Int)
-  | closeCommitment
+  | usageDebit (commitment : Nat) (sats : Int)
+  | closeCommitment (commitment : Nat)
   deriving DecidableEq, Repr
 
 /-- `LDG-31`: posting a debit "MUST decrement that commitment by the same amount, in one
-transaction" — the one step that moves both sums, clamped at the authority granted. The open is
-`LDG-9`'s "`available ≥ required_commitment`", read where the guard says. A close releases the one
-commitment in full (`LDG-32`). -/
+transaction"; `LDG-9` authorizes by "`available ≥ required_commitment`".
+The fresh identifier is the list length before an admitted open. A debit or close on a closed or
+missing identifier is inert, a totalization outside the modelled requirement scope. -/
 @[req "LDG-31"]
 def step (g : Guards) (b : Balances) : Event → Balances
   | .topup n => { b with sum := b.sum + n }
   | .read => { b with snapshot := b.available }
   | .openCommitment n =>
-    let authorized := if g.serializedAuthorization then b.available else b.snapshot
-    if n ≤ authorized then { b with reserved := b.reserved + n } else b
-  | .usageDebit n =>
-    if g.clampAtAuthority then
-      let (entry, overflow) := clamp b.reserved n
-      { b with sum := b.sum - entry, reserved := b.reserved - entry,
-               deficiency := b.deficiency + overflow }
-    else
-      -- The seizure: the whole debit leaves the balance, the commitment reaches zero, and what
-      -- the commitment did not cover came from `available`.
-      { b with sum := b.sum - n, reserved := max (b.reserved - n) 0 }
-  | .closeCommitment => { b with reserved := 0 }
+    let reserved := if g.allCommitmentsAuthorize then b.reserved else b.commitments.first
+    let authorized := if g.serializedAuthorization then b.sum - reserved else b.snapshot
+    if n ≤ authorized then { b with commitments := b.commitments ++ [some n] } else b
+  | .usageDebit i n =>
+    if b.commitments.isOpen i then
+      if g.clampAtAuthority then
+        let authority := if g.clampOwnCommitment then b.commitments.remaining i else b.reserved
+        let (entry, overflow) := clamp authority n
+        let cs := if g.clampOwnCommitment then
+            b.commitments.change i (fun r => some (r - entry))
+          else
+            let own := min entry (max (b.commitments.remaining i) 0)
+            (b.commitments.change i (fun r => some (r - own))).drain (entry - own)
+        { b with sum := b.sum - entry, commitments := cs,
+                 deficiency := b.deficiency + overflow }
+      else
+        { b with sum := b.sum - n,
+                 commitments := b.commitments.change i (fun r => some (max (r - n) 0)) }
+    else b
+  | .closeCommitment i =>
+    if b.commitments.isOpen i then
+      { b with commitments := if g.closeOwnCommitment then
+          b.commitments.change i (fun _ => none) else b.commitments.map (fun _ => none) }
+    else b
 
 def run (g : Guards) (b : Balances) (evs : List Event) : Balances := evs.foldl (step g) b
 
@@ -143,22 +303,36 @@ theorem clamp_nonneg (remaining debit : Int) (hd : 0 ≤ debit) :
     0 ≤ (clamp remaining debit).1 ∧ 0 ≤ (clamp remaining debit).2 := by
   simp only [clamp]; omega
 
-/-- `LDG-31`: "consumption leaves `available` **unchanged**", for every balance and every debit,
-with the clamp — the clamped entry and the clamped decrement are the same number. -/
+/-- `LDG-31`: "consumption leaves `available` **unchanged**", for every balance and debit.
+The added ownership-guard hypothesis keeps the named decrement equal to the entry. -/
 @[req "LDG-31"]
 theorem usage_leaves_available_unchanged (g : Guards) (hg : g.clampAtAuthority = true)
-    (b : Balances) (n : Int) :
-    (step g b (.usageDebit n)).available = b.available := by
-  simp only [step, hg, clamp, Balances.available, ite_true]; omega
+    (ho : g.clampOwnCommitment = true) (b : Balances) (i : Nat) (n : Int) :
+    (step g b (.usageDebit i n)).available = b.available := by
+  by_cases hi : b.commitments.isOpen i = true
+  · simp only [step, hi, hg, ho, ite_true, Balances.available, Balances.reserved,
+      Commitments.total_change, clamp, Option.getD_some]; omega
+  · simp [step, hi]
 
-/-- The clamp writes the remainder to the deficiency and nowhere else: the commitment never goes
-below zero, and the deficiency grows by exactly what the tenant was not debited. -/
+/-- Every open amount stays nonnegative and therefore so does their sum; deficiency grows by
+exactly the unposted amount, for a named open slot (the debit pairing
+scope). The added ownership-guard hypothesis scopes the clamp to its slot.
+The old remainder hypothesis and conclusion become pointwise floors as well as the total floor. -/
 @[req "LDG-31"]
-theorem usage_clamps_at_zero (g : Guards) (hg : g.clampAtAuthority = true) (b : Balances)
-    (n : Int) (hr : 0 ≤ b.reserved) :
-    0 ≤ (step g b (.usageDebit n)).reserved ∧
-    (step g b (.usageDebit n)).deficiency - b.deficiency = n - (b.sum - (step g b (.usageDebit n)).sum) := by
-  simp only [step, hg, clamp, ite_true]; omega
+theorem usage_clamps_at_zero (g : Guards) (hg : g.clampAtAuthority = true)
+    (ho : g.clampOwnCommitment = true) (b : Balances) (i : Nat)
+    (n : Int) (hr : b.commitments.nonneg) (hi : b.commitments.isOpen i = true) :
+    (step g b (.usageDebit i n)).commitments.nonneg ∧
+    0 ≤ (step g b (.usageDebit i n)).reserved ∧
+    (step g b (.usageDebit i n)).deficiency - b.deficiency =
+      n - (b.sum - (step g b (.usageDebit i n)).sum) := by
+  have hf : 0 ≤ b.commitments.remaining i - (clamp (b.commitments.remaining i) n).1 := by
+    have := hr i
+    simp only [clamp]; omega
+  have hp := Commitments.nonneg_change b.commitments i
+    (fun r => some (r - (clamp (b.commitments.remaining i) n).1)) hr hf
+  simp only [step, hi, hg, ho, ite_true]
+  exact ⟨hp, Commitments.total_nonneg _ hp, by simp only [clamp]; omega⟩
 
 /-- `LDG-66`: the deficiency "MUST NOT alter any tenant balance" — `available` does not read it. -/
 @[req "LDG-66"]
@@ -167,56 +341,189 @@ theorem deficiency_is_not_a_balance (b : Balances) (d : Int) :
 
 /-! ## The release -/
 
-/-- `LDG-32`: "closed, and its remaining amount released in full" — `available` rises by exactly
-the remainder, on every balance. -/
+/-- `LDG-32`: "closed, and its remaining amount released in full". With the added own-close
+hypothesis, available rises by the named remainder, that slot closes, other remainders are
+unchanged, and the derived sum falls by exactly that remainder. -/
 @[req "LDG-32"]
-theorem close_releases_exact_remainder (g : Guards) (b : Balances) :
-    (step g b .closeCommitment).available = b.available + b.reserved ∧
-    (step g b .closeCommitment).reserved = 0 := by
-  simp [step, Balances.available]
+theorem close_releases_exact_remainder (g : Guards) (ho : g.closeOwnCommitment = true)
+    (b : Balances) (i : Nat) :
+    (step g b (.closeCommitment i)).available = b.available + b.commitments.remaining i ∧
+    (step g b (.closeCommitment i)).commitments.isOpen i = false ∧
+    (∀ j, j ≠ i → (step g b (.closeCommitment i)).commitments.remaining j =
+      b.commitments.remaining j) ∧
+    (step g b (.closeCommitment i)).reserved = b.reserved - b.commitments.remaining i := by
+  by_cases hi : b.commitments.isOpen i = true
+  · simp only [step, hi, ho, ite_true]
+    have ht := Commitments.total_change b.commitments i (fun _ => none)
+    simp only [hi, ite_true, Option.getD_none, Int.add_zero] at ht
+    refine ⟨?_, Commitments.isOpen_change_close ..,
+      fun j hj => Commitments.remaining_change_other _ i j _ hj, ht⟩
+    simp only [Balances.available, Balances.reserved, ht]; omega
+  · have hi' : b.commitments.isOpen i = false := Bool.eq_false_iff.mpr hi
+    have hr := Commitments.remaining_of_closed _ _ hi'
+    simp [step, hi, hr]
 
 /-! ## The authorization -/
 
-/-- `LDG-9`: the open "is the only authorization a create receives", and under `LDG-35`'s
-serialization it is read at the commit: a commitment that opened was funded by the available
-balance of the state it committed against. -/
+/-- `LDG-9`: the open "is the only authorization a create receives". With the added aggregate
+hypothesis and serialization, a changed reservation was funded at commit. -/
 @[req "LDG-35"]
 theorem open_authorized_at_commit (g : Guards) (hg : g.serializedAuthorization = true)
-    (b : Balances) (n : Int) (h : (step g b (.openCommitment n)).reserved ≠ b.reserved) :
+    (ha : g.allCommitmentsAuthorize = true) (b : Balances) (n : Int)
+    (h : (step g b (.openCommitment n)).reserved ≠ b.reserved) :
     n ≤ b.available := by
-  simp only [step, hg, ite_true] at h
+  simp only [step, hg, ha, ite_true] at h
   by_cases hn : n ≤ b.available
   · exact hn
-  · simp [hn] at h
+  · change ¬n ≤ b.sum - b.reserved at hn
+    simp [hn] at h
 
-/-- What an event must satisfy for `LDG-10` to survive it: the amounts are nonnegative. -/
+/-- What an event must satisfy for the floors to survive: nonnegative amounts. -/
 def Event.nonneg : Event → Prop
-  | .topup n | .openCommitment n | .usageDebit n => 0 ≤ n
-  | .read | .closeCommitment => True
+  | .topup n | .openCommitment n | .usageDebit _ n => 0 ≤ n
+  | .read | .closeCommitment _ => True
 
-/-- `LDG-10`: "A balance MUST NOT go negative, and `available` MUST NOT go negative" — under the
-clamp and the serialized authorization, both floors survive every event with nonnegative amounts,
-and so does the commitment's. -/
+/-- `LDG-10`: "A balance MUST NOT go negative, and `available` MUST NOT go negative".
+The added aggregate, own-close and own-clamp hypotheses keep both floors and every open amount's
+floor across each event. The old scalar floor becomes pointwise nonnegativity plus its sum. -/
 @[req "LDG-10"]
 theorem floors_preserved (g : Guards) (hc : g.clampAtAuthority = true)
-    (hs : g.serializedAuthorization = true) (b : Balances) (e : Event) (he : e.nonneg)
-    (h : 0 ≤ b.available ∧ 0 ≤ b.reserved) :
-    0 ≤ (step g b e).available ∧ 0 ≤ (step g b e).reserved := by
-  cases e <;> simp only [Event.nonneg] at he <;>
-    simp only [step, hc, hs, clamp, Balances.available, ite_true] at * <;> (repeat' split) <;>
-    (try dsimp only) <;> omega
+    (hs : g.serializedAuthorization = true) (ha : g.allCommitmentsAuthorize = true)
+    (hl : g.closeOwnCommitment = true) (ho : g.clampOwnCommitment = true)
+    (b : Balances) (e : Event) (he : e.nonneg)
+    (h : 0 ≤ b.available ∧ b.commitments.nonneg) :
+    0 ≤ (step g b e).available ∧ (step g b e).commitments.nonneg ∧
+    0 ≤ (step g b e).reserved := by
+  cases e with
+  | topup n =>
+    refine ⟨?_, h.2, Commitments.total_nonneg _ h.2⟩
+    simp only [step, Balances.available, Balances.reserved]
+    have hav := h.1
+    change 0 ≤ b.sum - b.commitments.total at hav
+    change 0 ≤ n at he
+    omega
+  | read => exact ⟨h.1, h.2, Commitments.total_nonneg _ h.2⟩
+  | openCommitment n =>
+    simp only [step, hs, ha, ite_true]
+    split
+    · rename_i hn
+      have hp := Commitments.nonneg_append b.commitments n h.2 he
+      refine ⟨?_, hp, Commitments.total_nonneg _ hp⟩
+      simp only [Balances.available, Balances.reserved, Commitments.total_append]
+      change n ≤ b.sum - b.commitments.total at hn
+      omega
+    · exact ⟨h.1, h.2, Commitments.total_nonneg _ h.2⟩
+  | usageDebit i n =>
+    have hu := usage_leaves_available_unchanged g hc ho b i n
+    by_cases hi : b.commitments.isOpen i = true
+    · have hp := (usage_clamps_at_zero g hc ho b i n h.2 hi).1
+      exact ⟨by rw [hu]; exact h.1, hp, Commitments.total_nonneg _ hp⟩
+    · simp only [step, hi, Bool.false_eq_true, ite_false]
+      exact ⟨h.1, h.2, Commitments.total_nonneg _ h.2⟩
+  | closeCommitment i =>
+    have hr := close_releases_exact_remainder g hl b i
+    refine ⟨by rw [hr.1]; have := h.1; have := h.2 i; omega, ?_, ?_⟩
+    · intro j
+      by_cases hj : j = i
+      · subst j; rw [Commitments.remaining_of_closed _ _ hr.2.1]; exact Int.le_refl 0
+      · rw [hr.2.2.1 j hj]; exact h.2 j
+    · rw [hr.2.2.2]
+      by_cases hi : b.commitments.isOpen i = true
+      · have hp := Commitments.nonneg_change b.commitments i (fun _ => none) h.2 (by simp)
+        have ht := Commitments.total_change b.commitments i (fun _ => none)
+        simp only [hi, ite_true, Option.getD_none, Int.add_zero] at ht
+        change 0 ≤ b.commitments.total - b.commitments.remaining i
+        rw [← ht]; exact Commitments.total_nonneg _ hp
+      · rw [Commitments.remaining_of_closed _ _ (Bool.eq_false_iff.mpr hi)]
+        simpa [Balances.reserved] using Commitments.total_nonneg _ h.2
 
-/-- `LDG-10` over a whole ledger. -/
+/-- The event floors over a whole trace, with the same added guard hypotheses and pointwise
+image of the old scalar hypothesis as `floors_preserved`; the total floor is retained too. -/
 @[req "LDG-10"]
 theorem run_floors (g : Guards) (hc : g.clampAtAuthority = true)
-    (hs : g.serializedAuthorization = true) (b : Balances) (evs : List Event)
-    (he : ∀ e ∈ evs, e.nonneg) (h : 0 ≤ b.available ∧ 0 ≤ b.reserved) :
-    0 ≤ (run g b evs).available ∧ 0 ≤ (run g b evs).reserved := by
+    (hs : g.serializedAuthorization = true) (ha : g.allCommitmentsAuthorize = true)
+    (hl : g.closeOwnCommitment = true) (ho : g.clampOwnCommitment = true)
+    (b : Balances) (evs : List Event) (he : ∀ e ∈ evs, e.nonneg)
+    (h : 0 ≤ b.available ∧ b.commitments.nonneg) :
+    0 ≤ (run g b evs).available ∧ (run g b evs).commitments.nonneg ∧
+    0 ≤ (run g b evs).reserved := by
   induction evs generalizing b with
-  | nil => exact h
+  | nil => exact ⟨h.1, h.2, Commitments.total_nonneg _ h.2⟩
   | cons e evs ih =>
-    exact ih (step g b e) (fun e' h' => he e' (List.mem_cons_of_mem _ h'))
-      (floors_preserved g hc hs b e (he e (List.mem_cons_self ..)) h)
+    have hp := floors_preserved g hc hs ha hl ho b e (he e (List.mem_cons_self ..)) h
+    exact ih (step g b e) (fun e' h' => he e' (List.mem_cons_of_mem _ h')) ⟨hp.1, hp.2.1⟩
+
+/-! ## Recovery of the scalar statements on one open commitment
+
+Each declaration below derives the pre-revision statement from its generalized theorem, for
+arbitrary ledger sum, remainder, deficiency and snapshot. Only the new enabled-guard hypotheses
+are added. An event's named identifier remains unrestricted except the debit's sole open slot. -/
+
+def single (sum remaining deficiency snapshot : Int) : Balances :=
+  { sum, commitments := [some remaining], deficiency, snapshot }
+
+theorem single_nonneg (sum remaining deficiency snapshot : Int) (hr : 0 ≤ remaining) :
+    (single sum remaining deficiency snapshot).commitments.nonneg := by
+  intro i
+  cases i <;> simp [single, Commitments.remaining, hr]
+
+theorem usage_leaves_available_unchanged_single (g : Guards) (hg : g.clampAtAuthority = true)
+    (ho : g.clampOwnCommitment = true) (sum remaining deficiency snapshot n : Int) :
+    let b := single sum remaining deficiency snapshot
+    (step g b (.usageDebit 0 n)).available = b.available :=
+  usage_leaves_available_unchanged g hg ho _ 0 n
+
+theorem usage_clamps_at_zero_single (g : Guards) (hg : g.clampAtAuthority = true)
+    (ho : g.clampOwnCommitment = true) (sum remaining deficiency snapshot n : Int)
+    (hr : 0 ≤ (single sum remaining deficiency snapshot).reserved) :
+    let b := single sum remaining deficiency snapshot
+    0 ≤ (step g b (.usageDebit 0 n)).reserved ∧
+    (step g b (.usageDebit 0 n)).deficiency - b.deficiency =
+      n - (b.sum - (step g b (.usageDebit 0 n)).sum) := by
+  have hp := usage_clamps_at_zero g hg ho (single sum remaining deficiency snapshot) 0 n
+    (single_nonneg _ _ _ _ (by simpa [single, Balances.reserved, Commitments.total] using hr)) rfl
+  exact hp.2
+
+theorem close_releases_exact_remainder_single (g : Guards) (ho : g.closeOwnCommitment = true)
+    (sum remaining deficiency snapshot : Int) :
+    let b := single sum remaining deficiency snapshot
+    (step g b (.closeCommitment 0)).available = b.available + b.reserved ∧
+    (step g b (.closeCommitment 0)).reserved = 0 := by
+  have hp := close_releases_exact_remainder g ho (single sum remaining deficiency snapshot) 0
+  refine ⟨?_, ?_⟩
+  · simpa [single, Balances.reserved, Commitments.total, Commitments.remaining] using hp.1
+  · simpa [single, Balances.reserved, Commitments.total, Commitments.remaining] using hp.2.2.2
+
+theorem open_authorized_at_commit_single (g : Guards) (hg : g.serializedAuthorization = true)
+    (ha : g.allCommitmentsAuthorize = true) (sum remaining deficiency snapshot n : Int)
+    (h : (step g (single sum remaining deficiency snapshot) (.openCommitment n)).reserved ≠
+      (single sum remaining deficiency snapshot).reserved) :
+    n ≤ (single sum remaining deficiency snapshot).available :=
+  open_authorized_at_commit g hg ha _ n h
+
+theorem floors_preserved_single (g : Guards) (hc : g.clampAtAuthority = true)
+    (hs : g.serializedAuthorization = true) (ha : g.allCommitmentsAuthorize = true)
+    (hl : g.closeOwnCommitment = true) (ho : g.clampOwnCommitment = true)
+    (sum remaining deficiency snapshot : Int) (e : Event) (he : e.nonneg)
+    (h : 0 ≤ (single sum remaining deficiency snapshot).available ∧
+         0 ≤ (single sum remaining deficiency snapshot).reserved) :
+    let b := single sum remaining deficiency snapshot
+    0 ≤ (step g b e).available ∧ 0 ≤ (step g b e).reserved := by
+  have hp := floors_preserved g hc hs ha hl ho (single sum remaining deficiency snapshot) e he
+    ⟨h.1, single_nonneg _ _ _ _ (by simpa [single, Balances.reserved, Commitments.total] using h.2)⟩
+  exact ⟨hp.1, hp.2.2⟩
+
+theorem run_floors_single (g : Guards) (hc : g.clampAtAuthority = true)
+    (hs : g.serializedAuthorization = true) (ha : g.allCommitmentsAuthorize = true)
+    (hl : g.closeOwnCommitment = true) (ho : g.clampOwnCommitment = true)
+    (sum remaining deficiency snapshot : Int) (evs : List Event) (he : ∀ e ∈ evs, e.nonneg)
+    (h : 0 ≤ (single sum remaining deficiency snapshot).available ∧
+         0 ≤ (single sum remaining deficiency snapshot).reserved) :
+    let b := single sum remaining deficiency snapshot
+    0 ≤ (run g b evs).available ∧ 0 ≤ (run g b evs).reserved := by
+  have hp := run_floors g hc hs ha hl ho (single sum remaining deficiency snapshot) evs he
+    ⟨h.1, single_nonneg _ _ _ _ (by simpa [single, Balances.reserved, Commitments.total] using h.2)⟩
+  exact ⟨hp.1, hp.2.2⟩
 
 /-! ## The entries and the read -/
 
@@ -464,7 +771,7 @@ theorem divergence_names_a_stale_append (g : Guards) (ps : List Posting)
 /-- `LDG-9`'s open, "`available ≥ required_commitment`", with `Σ(ledger entries)` read as `read`:
 `step`'s `openCommitment` against a balance the caller names. -/
 def openAgainst (read : Int) (b : Balances) (n : Int) : Balances :=
-  if n ≤ read - b.reserved then { b with reserved := b.reserved + n } else b
+  if n ≤ read - b.reserved then { b with commitments := b.commitments ++ [some n] } else b
 
 /-- Under the guard, the available balance computed from the read is `LDG-9`'s, for every
 `Balances` whose `sum` is the entries' sum. -/
@@ -475,13 +782,26 @@ theorem read_available_is_available (g : Guards) (hg : g.appendReadsLatest = tru
   rw [read_is_sum g hg, ← hb]; rfl
 
 /-- So an open against the read is `step`'s own under `LDG-35`'s serialization, and
-`open_authorized_at_commit` and `floors_preserved` hold of it as they stand. -/
+`open_authorized_at_commit` and `floors_preserved` apply with their guard hypotheses.
+The added aggregate-authorization hypothesis makes the open read all reservations. -/
 @[req "LDG-70"]
 theorem open_against_read_is_the_serialized_open (g : Guards)
-    (ha : g.appendReadsLatest = true) (hs : g.serializedAuthorization = true) (ps : List Posting)
+    (ha : g.appendReadsLatest = true) (hs : g.serializedAuthorization = true)
+    (hr : g.allCommitmentsAuthorize = true) (ps : List Posting)
     (b : Balances) (hb : b.sum = (Book.empty.run g ps).sum) (n : Int) :
     openAgainst (Book.empty.run g ps).read b n = step g b (.openCommitment n) := by
-  simp only [openAgainst, step, hs, ite_true, read_available_is_available g ha ps b hb]
+  simp only [openAgainst, step, hs, hr, ite_true, read_available_is_available g ha ps b hb]
+  rfl
+
+/-- The pre-revision serialized-read equality on one open commitment, recovered from the
+generalized theorem with only the added aggregate-authorization hypothesis. -/
+theorem open_against_read_is_the_serialized_open_single (g : Guards)
+    (ha : g.appendReadsLatest = true) (hs : g.serializedAuthorization = true)
+    (hr : g.allCommitmentsAuthorize = true) (ps : List Posting)
+    (sum remaining deficiency snapshot : Int) (hb : sum = (Book.empty.run g ps).sum) (n : Int) :
+    let b := single sum remaining deficiency snapshot
+    openAgainst (Book.empty.run g ps).read b n = step g b (.openCommitment n) :=
+  open_against_read_is_the_serialized_open g ha hs hr ps _ hb n
 
 /-- `LDG-31`'s native split for a computed positive debit; the caller supplies the clamped
 customer debit. The 2026-10-04 guard retains a full native cost on the entry when disabled,

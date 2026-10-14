@@ -518,6 +518,12 @@ jobs:
       # seed), Ledger.current and Funding.current:
       #   clampAtAuthority (LDG-31's clamp paragraph): the excess is taken from available
       #     balance, the seizure -- clamp_witness on seizureBalances;
+      #   allCommitmentsAuthorize (LDG-9, rule undated): only the first open slot counts,
+      #     so a third open overcommits -- aggregate_authorization_witness on twoCommitmentTrace;
+      #   closeOwnCommitment (LDG-32/LDG-28, release rule undated): closing A releases B too --
+      #     own_close_witness on twoCommitmentTrace;
+      #   clampOwnCommitment (LDG-31, clamp paragraph undated): A's overrun consumes B --
+      #     own_clamp_witness on twoCommitmentTrace;
       #   serializedAuthorization (LDG-35, the primitive of ADR-0015, 2026-09-06): two opens
       #     commit against one read -- serialized_authorization_witness on skewTrace;
       #   appendReadsLatest (LDG-70, the rule undated): an append computes balance_after from
@@ -722,6 +728,9 @@ jobs:
           Reconcile|successfulConfirmationOnly|true|false|Event.sweep true false Answer.failed
           Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
           Ledger|clampAtAuthority|true|false|seizureBalances
+          Ledger|allCommitmentsAuthorize|true|false|aggregateGuards Ledger.current
+          Ledger|closeOwnCommitment|true|false|ownCloseGuards Ledger.current
+          Ledger|clampOwnCommitment|true|false|ownClampGuards Ledger.current
           Ledger|serializedAuthorization|true|false|skewTrace
           Ledger|appendReadsLatest|true|false|staleDebitTrace
           Funding|keyFrom|.payment|.observation|replayTrace

@@ -1776,15 +1776,15 @@ section Funding
 open Provisiond.Funding
 
 /-- Balance 100, commitment 30 remaining: the computed debit of 100 exceeds the authority. -/
-def seizureBalances : Ledger.Balances := { sum := 100, reserved := 30, deficiency := 0, snapshot := 0 }
+def seizureBalances : Ledger.Balances := { sum := 100, commitments := [some 30], deficiency := 0, snapshot := 0 }
 
 /-- `LDG-31`'s clamp: the tenant is debited 30, the commitment reaches zero, 70 is the
 operator's, and `available` is what it was. -/
 @[req "LDG-31"]
 theorem clamp_witness :
-    Ledger.step Ledger.current seizureBalances (.usageDebit 100) =
-      { sum := 70, reserved := 0, deficiency := 70, snapshot := 0 } ∧
-    (Ledger.step Ledger.current seizureBalances (.usageDebit 100)).available =
+    Ledger.step Ledger.current seizureBalances (.usageDebit 0 100) =
+      { sum := 70, commitments := [some 0], deficiency := 70, snapshot := 0 } ∧
+    (Ledger.step Ledger.current seizureBalances (.usageDebit 0 100)).available =
       seizureBalances.available := by decide
 
 /-- Without it the excess is taken from available balance — `LDG-31`: "It MUST NOT be" — the same
@@ -1793,13 +1793,13 @@ seizure `ADR-0011` exists to forbid, arriving through the meter". -/
 @[req "LDG-31"]
 theorem seizure_without_clamp :
     (Ledger.step { Ledger.current with clampAtAuthority := false } seizureBalances
-      (.usageDebit 100)).available = 0 := by decide
+      (.usageDebit 0 100)).available = 0 := by decide
 
 /-- `LDG-35`'s trace: a top-up of 100, an authorization read, and two commitments of 100 each
 committing against it. -/
 def skewTrace : List Ledger.Event := [.topup 100, .read, .openCommitment 100, .openCommitment 100]
 
-def zeroBalances : Ledger.Balances := { sum := 0, reserved := 0, deficiency := 0, snapshot := 0 }
+def zeroBalances : Ledger.Balances := { sum := 0, commitments := [], deficiency := 0, snapshot := 0 }
 
 /-- Serialized, the second open reads the balance the first one spent and is refused: one
 commitment, `available` at zero. -/
@@ -1814,6 +1814,86 @@ balance and each commit, leaving twice the balance reserved and one machine unfu
 theorem write_skew_without_serialization :
     let b := Ledger.run { Ledger.current with serializedAuthorization := false } zeroBalances skewTrace
     b.reserved = 200 ∧ b.available = -100 := by decide
+
+/-- Reach A (slot 0) = 30 and B (slot 1) = 40 through the actual open transition. -/
+def twoCommitmentTrace : List Ledger.Event := [.topup 100, .openCommitment 30, .openCommitment 40]
+
+/-- Read only the aggregate authorization guard; pin every unrelated guard. -/
+def aggregateGuards (g : Ledger.Guards) : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := g.allCommitmentsAuthorize,
+    closeOwnCommitment := true, clampOwnCommitment := true }
+
+/-- Read only the own-close guard; pin every unrelated guard. -/
+def ownCloseGuards (g : Ledger.Guards) : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := true,
+    closeOwnCommitment := g.closeOwnCommitment, clampOwnCommitment := true }
+
+/-- Read only the own-clamp guard, including pinning the authority clamp and serialization. -/
+def ownClampGuards (g : Ledger.Guards) : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := true,
+    closeOwnCommitment := true, clampOwnCommitment := g.clampOwnCommitment }
+
+/-- `LDG-9`: "Σ(reserved amount of open commitments)". A third open of 40 is refused after
+30 and 40 are already reserved against 100. -/
+@[req "LDG-9"]
+theorem aggregate_authorization_witness :
+    let g := aggregateGuards Ledger.current
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.openCommitment 40)
+    b.commitments.remaining 0 = 30 ∧ b.commitments.remaining 1 = 40 ∧
+    next = b ∧ next.reserved = 70 ∧ next.available = 30 := by decide
+
+/-- Without the aggregate guard the open subtracts only the first open slot's 30 and admits
+40: total reservation 110, available −10. -/
+@[req "LDG-9"]
+theorem only_one_commitment_authorizes :
+    let g := aggregateGuards { Ledger.current with allCommitmentsAuthorize := false }
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.openCommitment 40)
+    next.commitments.remaining 2 = 40 ∧ next.reserved = 110 ∧ next.available = -10 := by decide
+
+/-- `LDG-32`: "closed, and its remaining amount released in full". Closing A releases its 30
+and preserves B's 40. -/
+@[req "LDG-32"]
+theorem own_close_witness :
+    let g := ownCloseGuards Ledger.current
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.closeCommitment 0)
+    b.commitments.remaining 0 = 30 ∧ b.commitments.remaining 1 = 40 ∧
+    next.commitments.isOpen 0 = false ∧ next.commitments.isOpen 1 = true ∧
+    next.commitments.remaining 1 = 40 ∧ next.reserved = 40 ∧ next.available = 60 := by decide
+
+/-- Without the own-close guard, closing A closes every slot, releasing B's 40 too. -/
+@[req "LDG-32"]
+theorem close_releases_every_commitment :
+    let g := ownCloseGuards { Ledger.current with closeOwnCommitment := false }
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.closeCommitment 0)
+    next.commitments.isOpen 1 = false ∧ next.reserved = 0 ∧ next.available = 100 := by decide
+
+/-- `LDG-31`: "the commitment decrements to zero". A debit of 50 on A posts 30 and records
+20 deficiency; B retains its 40. Available cannot distinguish this pair and is not asserted. -/
+@[req "LDG-31"]
+theorem own_clamp_witness :
+    let g := ownClampGuards Ledger.current
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.usageDebit 0 50)
+    b.commitments.remaining 0 = 30 ∧ b.commitments.remaining 1 = 40 ∧
+    next.commitments.remaining 0 = 0 ∧ next.commitments.remaining 1 = 40 ∧
+    next.sum = 70 ∧ next.deficiency = 20 := by decide
+
+/-- Without the own-clamp guard, the debit clamps against the total 70, posts 50, spends A's
+30 then 20 of B, and records no deficiency. B retains 20, less than its own authority. -/
+@[req "LDG-31"]
+theorem debit_consumes_another_commitment :
+    let g := ownClampGuards { Ledger.current with clampOwnCommitment := false }
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.usageDebit 0 50)
+    next.commitments.remaining 0 = 0 ∧ next.commitments.remaining 1 = 20 ∧
+    next.sum = 50 ∧ next.deficiency = 0 := by decide
 
 /-- `LDG-70`'s trace: a top-up of 17, a transaction reading the latest row, and two debits of 10
 and 7 appended after it. -/
