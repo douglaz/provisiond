@@ -280,7 +280,10 @@ never an implicit default.
 
 The accepted dated cancellation read-back (`PRV-13`) is an evidence read after a successful
 mutating response. Failure of that read alone does not enter this failure classifier; the
-settlement for the known accepted date belongs to `PRV-13`. This exception does not reclassify
+settlement for the known accepted date belongs to `PRV-13`. `PRV-13c` also states: "A failed
+post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and
+MUST NOT change the create's settlement." *Amended 2026-10-14 (`ADR-0037`, Q31).*
+This exception does not reclassify
 unknown acceptance or a later failure of the mutating request. *Clarified 2026-10-11
 (`ADR-0037`, Q22).*
 
@@ -531,6 +534,17 @@ time when the obligation is next read, a debit without the machine row charges a
 machine no tenant owns, a machine row without its debit runs a create nobody paid for, and an
 attach whose cancellation never reached the queue is an unfunded machine billing with nothing
 scheduled to stop it.
+
+*Amended 2026-10-14 (`ADR-0037`, Q31).* At every entry point to the landed-order transaction
+above, `PRV-13c`'s "once, when the create settles, after `OPS-27`'s confirming read"
+places the post-order read after confirmation and before that transaction begins, outside
+any store transaction and with no tenant primitive held (`STO-55`: "MUST NOT hold a transaction
+open across a provider, rail or rescue-host call"; `LDG-69`: "MUST NOT wait on a running
+operation's hold on its machine (`OPS-8`), the completion of a child operation (`API-58`,
+`WIR-39`), or any provider call"). The machine row in that transaction carries the returned
+date or null under `PRV-13c`'s "A successful post-order read MUST supply
+`machines.earliest_cancellation_date`" and "After a failed post-order read, the column MUST
+remain null until such a response supplies the date".
 
 *Amended 2026-10-04 (`pv-gip.27`, J1): the flowchart and atomic attach include `LDG-40`'s
 no-rate branch, "open no commitment, regardless of available balance". Verification: `CNF-308`.*

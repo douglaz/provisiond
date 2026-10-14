@@ -3253,7 +3253,9 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       `PRV-7`, `PRV-26`, `DOM-18`)
 - [ ] **CNF-323** — **A refused read does not erase an accepted mutation.** For every kind in
       `OPS-11`'s last row, accept the mutation, then inject each of `rate_limited`, `not_found`,
-      `authentication`, and a provider 4xx. Assert `needs_reconciliation`, no automatic repeat,
+      `authentication`, and a provider 4xx on a read outside `OPS-11`'s evidence-read
+      exceptions (`PRV-13`, `PRV-13c`); for create, fail `OPS-27`'s "direct read" or
+      "search the correlator across every ordering channel". Assert `needs_reconciliation`, no automatic repeat,
       and `retryable: false`. Separately supply the goal-state answer on a goal-state mutation and assert `succeeded`.
       Contrast rejection before acceptance, including the ancillary-key case in `CNF-322`,
       with transport failure and unknown acceptance under `PRV-5`'s mapped-cause rule:
@@ -3264,6 +3266,7 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       Timeout polling an accepted order: assert kind `timeout`, acceptance true, the transaction
       identifier retained and the message warning that the order may remain pending and must
       not be repeated. (`OPS-11`, `OPS-12`, `API-51`, `PRV-5`, `PRV-11`)
+      *Amended 2026-10-14 (`ADR-0037`, Q31): scope the injected read to the classifier.*
 - [ ] **CNF-324** — **Accepted creates settle only on one verified resource.** After acceptance,
       exercise settle-time searches across every ordering channel with zero, one and many exact
       matches, a failed search, and a non-authoritative search. Only one resource confirmed by a
@@ -3275,14 +3278,17 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       search that releases under its window, continuing to search afterwards. (`OPS-27`,
       `OPS-29`, `OPS-33`, `OPS-38`, `PRV-36`, `PRV-38`)
 - [ ] **CNF-325** — **Accepted but unresolved creates keep their obligations pending.** With a
-      setup fee and a nonzero prepaid unit, accept the order then fail its read or settle-time
-      search. Assert no debit yet, both amounts still reserved and both obligations parked.
+      setup fee and a nonzero prepaid unit, accept the order then fail `OPS-27`'s confirming
+      "direct read" or settle-time "search the correlator across every ordering channel",
+      outside `OPS-11`'s evidence-read exceptions (`PRV-13`, `PRV-13c`). Assert no debit yet,
+      both amounts still reserved and both obligations parked.
       Resolve observed with the create's commitment open: assert both debits and paired
       decrements, the machine/terminal writes and clearing both parked obligations commit
       atomically. Repeat after negative-window release: assert the separate operator deficiencies
       and no charge to available balance or a wind-down commitment. Exercise absent with and
       without provider evidence of each charge, and abandoned; retain the zero-unit exceptions
       in `CNF-315`/`CNF-316`. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-32`, `LDG-66`, `OPS-27`, `OPS-33`)
+      *Amended 2026-10-14 (`ADR-0037`, Q31): fail confirmation or search before settlement.*
 - [ ] **CNF-326** — **Applied completed-release resolution ends that attachment's meter.** Accept a
       release, fail its follow-up read, and resolve it `applied` on evidence of completed release
       with no effective date. Assert the attachment's `released_at`
@@ -3607,7 +3613,24 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       absence, which records gone at that read, and presence, which remains scheduled.
       Separately refuse an ordinary `GET /server/{n}` and assert the same alarm.
       Retain the post-order future-earliest-date and deviation cases of `CNF-147`.
-      (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `OPS-48`)
+      **Amended 2026-10-14 (`ADR-0037`, Q31): failed post-order constraint read.**
+      In separate cases, accept a Robot auction-channel order with a v1 bound of
+      provider-local today, complete the authoritative settle-time search and successful
+      confirming `GET /server/{n}`, then inject `403 RATE_LIMIT_EXCEEDED` and a network
+      error respectively on the post-order `GET /server/{n}/cancellation` response only.
+      Keep the shared `/server` read family available for these cases.
+      Compare each with an otherwise identical create whose post-order read succeeds
+      with today's date: assert the same `succeeded` status, ledger entries, commitment
+      and attached machine row, with only `earliest_cancellation_date` null in the failed
+      case. Assert no `needs_reconciliation` and no entry into the failure classifier.
+      Price the earliest-date term from the declared bound: its contribution is zero
+      for this v1 offer, as in `CNF-166`; the commitment remains unchanged.
+      On the `403` case, assert the alarm names the provider account and request path.
+      Assert exactly one `GET /server/{n}/cancellation` for each create, no retry and
+      no later constraint read by resolution, refresh, the sweep or another operation.
+      Then accept a cancellation whose response supplies the per-machine date and assert
+      `earliest_cancellation_date` now holds it.
+      (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `PRV-31`, `OPS-11`, `OPS-27`, `OPS-48`)
 - [ ] **CNF-357** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot optional reads and attachments use their own evidence.**
       With fresh post-action `state_observed_at`, assert no opportunistic
       `GET /server/{n}`; with a stale observation, exercise the existing read and
