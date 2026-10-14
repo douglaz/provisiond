@@ -642,22 +642,34 @@ theorem close_releases_exact_remainder_single (g : Guards)
     simp [step, single, ho, Balances.available, Balances.reserved, Commitments.isOpen,
       Commitments.change, Commitments.total] <;> omega
 
+/-- On a sole open slot, first-slot and aggregate authorization read the same remainder. -/
+theorem step_single_allCommitmentsAuthorize (g : Guards)
+    (sum remaining deficiency snapshot : Int) (e : Event) :
+    step g (single sum remaining deficiency snapshot) e =
+      step { g with allCommitmentsAuthorize := true }
+        (single sum remaining deficiency snapshot) e := by
+  cases e <;> simp [step, single, Balances.reserved, Commitments.total, Commitments.first]
+
 theorem open_authorized_at_commit_single (g : Guards) (hg : g.serializedAuthorization = true)
-    (ha : g.allCommitmentsAuthorize = true) (sum remaining deficiency snapshot n : Int)
+    (sum remaining deficiency snapshot n : Int)
     (h : (step g (single sum remaining deficiency snapshot) (.openCommitment n)).reserved ≠
       (single sum remaining deficiency snapshot).reserved) :
-    n ≤ (single sum remaining deficiency snapshot).available :=
-  open_authorized_at_commit g hg ha _ n h
+    n ≤ (single sum remaining deficiency snapshot).available := by
+  rw [step_single_allCommitmentsAuthorize] at h
+  exact open_authorized_at_commit { g with allCommitmentsAuthorize := true } hg rfl _ n h
 
 theorem floors_preserved_single (g : Guards) (hc : g.clampAtAuthority = true)
-    (hs : g.serializedAuthorization = true) (ha : g.allCommitmentsAuthorize = true)
+    (hs : g.serializedAuthorization = true)
     (sum remaining deficiency snapshot : Int) (e : Event) (he : e.nonneg)
     (h : 0 ≤ (single sum remaining deficiency snapshot).available ∧
          0 ≤ (single sum remaining deficiency snapshot).reserved) :
     let b := single sum remaining deficiency snapshot
     0 ≤ (step g b e).available ∧ 0 ≤ (step g b e).reserved := by
-  have hp := floors_preserved g hc hs ha (single sum remaining deficiency snapshot) e he
+  have hp := floors_preserved { g with allCommitmentsAuthorize := true } hc hs rfl
+    (single sum remaining deficiency snapshot) e he
     ⟨h.1, single_nonneg _ _ _ _ (by simpa [single, Balances.reserved, Commitments.total] using h.2)⟩
+  dsimp only
+  rw [step_single_allCommitmentsAuthorize]
   exact ⟨hp.1, hp.2.2⟩
 
 theorem run_floors_single (g : Guards) (hc : g.clampAtAuthority = true)
@@ -939,15 +951,17 @@ theorem open_against_read_is_the_serialized_open (g : Guards)
   simp only [openAgainst, step, hs, hr, ite_true, read_available_is_available g ha ps b hb]
   rfl
 
-/-- The pre-revision serialized-read equality on one open commitment, recovered from the
-generalized theorem with only the added aggregate-authorization hypothesis. -/
+/-- The serialized-read equality on one open commitment: first-slot and aggregate authorization
+read the same remainder, so either aggregate-authorization setting gives the same open. -/
 theorem open_against_read_is_the_serialized_open_single (g : Guards)
     (ha : g.appendReadsLatest = true) (hs : g.serializedAuthorization = true)
-    (hr : g.allCommitmentsAuthorize = true) (ps : List Posting)
+    (ps : List Posting)
     (sum remaining deficiency snapshot : Int) (hb : sum = (Book.empty.run g ps).sum) (n : Int) :
     let b := single sum remaining deficiency snapshot
-    openAgainst (Book.empty.run g ps).read b n = step g b (.openCommitment n) :=
-  open_against_read_is_the_serialized_open g ha hs hr ps _ hb n
+    openAgainst (Book.empty.run g ps).read b n = step g b (.openCommitment n) := by
+  dsimp only
+  simp [openAgainst, step, hs, single, Balances.reserved, Commitments.total,
+    Commitments.first, read_is_sum g ha, ← hb]
 
 /-- `LDG-31`'s native split for a computed positive debit; the caller supplies the clamped
 customer debit. The 2026-10-04 guard retains a full native cost on the entry when disabled,

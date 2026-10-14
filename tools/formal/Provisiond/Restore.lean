@@ -672,7 +672,8 @@ theorem step_quarantined_restore (p : Params) (hq : p.quarantineOnRestore = true
 runs and whatever the lost interval held, no irreversible kind is ordered twice — and the run may
 contain crashes, since a successor that comes up while the record is open repeats the pass before
 it claims. The claim is permitted only after the pass, and the pass leaves no irreversible kind
-`queued`. -/
+`queued`. The hypothesis `hb : p.recordDecidesBoot = true` is necessary:
+`Provisiond.Witnesses.crash_inside_procedure_is_the_naive_boot` refutes the conclusion without it. -/
 @[req "OPS-15"]
 theorem quarantine_before_first_claim (p : Params) (hq : p.quarantineOnRestore = true)
     (hb : p.recordDecidesBoot = true) (t : RestoreTrace) (evs : List Event) :
@@ -730,7 +731,9 @@ theorem step_gen_restore (p : Params) (hb : p.bumpOnRestore = true) (g : Nat) (w
 /-- `STO-54`'s step (3), "before the first `api` request": with the bump, a token of the
 generation the backup held — which is the generation a revocation inside the interval had
 replaced — is served by no run of the procedure, crashes included. A request is permitted only
-after step (3), and the mark that permits it is the same mark that says the bump has happened. -/
+after step (3), and the mark that permits it is the same mark that says the bump has happened.
+The hypothesis `hr : p.recordDecidesBoot = true` is necessary:
+`Provisiond.Witnesses.request_before_bump_on_naive_boot` refutes the conclusion without it. -/
 @[req "STO-54"]
 theorem bumped_before_first_request (p : Params) (hb : p.bumpOnRestore = true)
     (hr : p.recordDecidesBoot = true) (t : RestoreTrace) (evs : List Event) :
@@ -797,7 +800,9 @@ theorem step_absence_restore (p : Params) (ht : p.twoPassAbsence = true) (w : Wo
 effective window is what may record absence." With the rule, an absence the engine records
 was recorded on a pass after the first, with the window elapsed since a complete one. A crash does
 not reset the count: the passes are `provider_observations` the store holds, and the successor is
-under the same rule while the record is open. -/
+under the same rule while the record is open. The hypothesis `hr : p.recordDecidesBoot = true`
+is necessary: `Provisiond.Witnesses.first_pass_absence_on_naive_boot` refutes the conclusion
+without it. -/
 @[req "STO-54"]
 theorem no_absence_on_first_pass (p : Params) (ht : p.twoPassAbsence = true)
     (hr : p.recordDecidesBoot = true) (t : RestoreTrace)
@@ -832,17 +837,33 @@ theorem step_parent_restore (p : Params) (hx : p.exceptionFrozen = true) (w : Wo
     · exact hn
   all_goals (simp only [step]; (try split) <;> exact hn)
 
+/-- The parent flag stays clear in either boot mode with the exception frozen. Restore-mode
+claims use `Provisiond.Restore.step_parent_restore`; restart-mode claims never set the flag. -/
+theorem step_parent_any (p : Params) (hx : p.exceptionFrozen = true) (w : World)
+    (hn : w.parentResumedUnconfirmed = false) (e : Event) :
+    (step p w e).parentResumedUnconfirmed = false := by
+  cases hf : w.fault with
+  | restore => exact step_parent_restore p hx w hf hn e
+  | restart =>
+    cases e
+    case claim i =>
+      simp only [step]
+      split
+      · simp [hn, hf, Fault.isRestore]
+      · exact hn
+    all_goals (simp only [step, afterCrash]; (try split) <;> exact hn)
+
 /-- `OPS-15` on a restore: a `suspend_tenant` parent "waits for operator confirmation and is not
-claimed". With the exception frozen, no run of the procedure claims a parent before the operator
-confirmed — and a crash inside the procedure does not hand the parent to a successor that takes
-the restart exception instead. -/
+claimed". With the exception frozen, no claim made in restore mode resumes an unconfirmed
+parent, whatever the boot rule. The flag records only restore-mode claims. Under
+`recordDecidesBoot`, a successor stays in restore mode by `Provisiond.Restore.step_continuing`;
+`Provisiond.Witnesses.crash_inside_procedure_continues_it` executes that crash trace. -/
 @[req "OPS-15"]
 theorem parent_waits_for_confirmation (p : Params) (hx : p.exceptionFrozen = true)
-    (hr : p.recordDecidesBoot = true) (t : RestoreTrace) (evs : List Event) :
+    (t : RestoreTrace) (evs : List Event) :
     (run p (bootRestore t) evs).parentResumedUnconfirmed = false :=
-  (run_preserves p (fun w => w.continuing ∧ w.parentResumedUnconfirmed = false)
-    (fun w e ⟨hf, hn⟩ => ⟨step_continuing p hr w hf e, step_parent_restore p hx w hf.2 hn e⟩)
-    (bootRestore t) ⟨⟨by simp [bootRestore, boot, RestoreTrace.store], rfl⟩, rfl⟩ evs).2
+  run_preserves p (fun w => w.parentResumedUnconfirmed = false)
+    (fun w e hn => step_parent_any p hx w hn e) (bootRestore t) rfl evs
 
 /-! ## The freeze -/
 

@@ -1215,7 +1215,9 @@ theorem extend_guard (w : World) (sats : Nat) (hs : w.suspended = false) (hf : w
 
 /-- An admitted extension grows the commitment by what it took from available and writes the
 re-derived date (`LDG-62`, 2026-09-05: "an extension that grew the commitment and wrote no date
-left the stored one in the past"). -/
+left the stored one in the past"). The hypothesis `hd : p.extendWritesDate = true` is necessary:
+`Provisiond.Witnesses.extension_without_date_refutes_extend_admitted` refutes the conclusion
+without it. -/
 @[req "LDG-62"]
 theorem extend_admitted (p : Params) (hd : p.extendWritesDate = true) (w : World) (r : Nat)
     (hr : w.rate = some r) (hs : w.suspended = false) (sats : Nat) (hf : w.m.fence = none)
@@ -2009,7 +2011,9 @@ exemption false, whether the attempt is ordinary or retried. The guard is an exp
 so its mutation reaches the counterfactual witness. The rate is the world's and not a claim
 snapshot's — `OPS-41`: "never on
 its claim snapshot" — and a machine recorded gone or under a closed episode is settled by the
-first step with no mutation either, so neither is a hypothesis. -/
+first step with no mutation either, so neither is a hypothesis. The hypothesis
+`hk : p.suspensionKey = .currentState` is necessary:
+`Provisiond.Witnesses.holding_extension_with_episode_reasons` refutes the conclusion without it. -/
 @[req "OPS-42"]
 theorem extension_first (p : Params) (hguard : p.retryNeedsFence = true)
     (w : World)
@@ -2051,7 +2055,10 @@ theorem fence_names_open_episode (p : Params) (hh : p.fenceHolds = .episodeId)
   (inv_run p hh ho w0 (inv_init w0 h0) es).1
 
 /-- One step on a closed episode: it is untouched, or superseded by a fresh one opened
-`attempting` under the counter's next id. Nothing puts a closed episode back in an open state. -/
+`attempting` under the counter's next id. Nothing puts a closed episode back in an open state.
+The hypotheses `hg : p.retryGuard = true` and `hkeep : p.keepGuard = true` are necessary:
+`Provisiond.Witnesses.retry_reopens_closed_episode` refutes the conclusion without `hg`, and
+`Provisiond.Witnesses.keep_rewrites_closed_episode` refutes it without `hkeep`. -/
 theorem closed_step (p : Params) (hg : p.retryGuard = true) (hkeep : p.keepGuard = true)
     (w : World) (ep : EpisodeRow) (hep : w.episode = some ep) (r : CloseReason) (hc : ep.state = .closed r) (e : Event) :
     (step p w e).episode = some ep ∨

@@ -511,6 +511,22 @@ theorem successful_extension_witness :
     w.balance = 900 ∧ sweep Fence.current w = w ∧
     w'.m.commitment = 100 ∧ w'.m.runwayUntil = 0 ∧ sweep Fence.current w' ≠ w' := by decide
 
+/-- Pin the date-write counterfactual and the extension's rate rule. -/
+def extensionWithoutDateParams : Fence.Params :=
+  { Fence.current with extendWritesDate := false, extendNeedsRate := true }
+
+/-- Refutes `Provisiond.Fence.extend_admitted` without `hd : p.extendWritesDate = true`.
+The trace is the disabled half of `Provisiond.Witnesses.successful_extension_witness`, with
+the retained hypotheses and the expected date evaluated explicitly. -/
+@[req "LDG-62"]
+theorem extension_without_date_refutes_extend_admitted :
+    let p := extensionWithoutDateParams
+    fenceWorld.rate = some 1 ∧ fenceWorld.suspended = false ∧ fenceWorld.m.fence = none ∧
+    100 ≤ fenceWorld.balance ∧
+    (extend p fenceWorld 100).m.runwayUntil = 0 ∧
+    fenceWorld.now + Runway.runwaySeconds (fenceWorld.m.commitment + 100) fenceWorld.prot 1 = 100 := by
+  decide
+
 /-- `OPS-42`'s "Extension first": the worker's read sees the grown commitment, aborts, makes no
 provider call, settles `succeeded` closing the episode `funded`, and the customer has what it
 paid for. -/
@@ -674,6 +690,29 @@ theorem suspension_keyed_on_current_state_witness :
     s.m.destroyed = true ∧ s.m.commitment = 100 ∧
     w'.m.destroyed = true ∧ w'.balance = 900 := by decide
 
+/-- Pin the historical suspension key, the retained retry guard, and the guards the
+holding-then-extend trace reads. Other controls must refute only their own witness. -/
+def holdingExtensionParams : Fence.Params :=
+  { operatorGuards Fence.current with
+    suspensionKey := .episodeReasons,
+    retryDeletes := true, retryNeedsFence := true, graceAtClaim := true,
+    pausedGraceInFence := true, pauseFundingGrace := true, extendNeedsRate := true }
+
+/-- Refutes `Provisiond.Fence.extension_first` without `hk : p.suspensionKey = .currentState`.
+The worker is already holding its claim when the resumed tenant extends; the historical
+episode reason then fences a funded machine despite every retained hypothesis. -/
+@[req "OPS-42"]
+theorem holding_extension_with_episode_reasons :
+    let p := holdingExtensionParams
+    let w := run p fenceWorld [.suspend, .resume, .claim]
+    let a : Attempt :=
+      { op := ⟨2⟩, ep := ⟨1⟩,
+        row := { status := .running, claim := ⟨1⟩, record := 0, revision := 1 } }
+    p.retryNeedsFence = true ∧ w.phase = .holding ⟨1⟩ ∧ w.rate = some 1 ∧
+    w.attempt = some a ∧ a.retried = false ∧ w.suspended = false ∧ w.m.fence = none ∧
+    100 ≤ w.balance ∧ p.abort w.now (w.m.commitment + 100) w.prot 1 = true ∧
+    (fenceTxn p (extend p w 100) none).phase = .fenced ⟨1⟩ := by decide
+
 /-- `OPS-41`'s fifth step on a machine carrying an open record. With no rate returning, the
 conditional write affects the record's row and the cancellation proceeds: the funded machine is
 destroyed at the bound. With restoration committing after the fence transaction read no rate and
@@ -741,6 +780,45 @@ theorem retry_guard_witness :
     (w.attempt.map (·.op)) = some ⟨2⟩ ∧
     w'.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
     (w'.attempt.map (·.op)) = some ⟨3⟩ ∧ w'.m.gone = true := by decide
+
+/-- Pin the guards read on the way to the closed episode, retaining both close guards until
+the individual refutation overrides one. -/
+def closedEpisodeRefutationParams : Fence.Params :=
+  { operatorGuards Fence.current with
+    rederiveFirst := true, retryDeletes := true,
+    retryNeedsFence := true, graceAtClaim := true, pausedGraceInFence := true,
+    pauseFundingGrace := true, keepGuard := true, keepWritesDate := true }
+
+def closedRetryRefutationParams : Fence.Params :=
+  { closedEpisodeRefutationParams with retryGuard := false }
+
+/-- Refutes `Provisiond.Fence.closed_step` without `hg : p.retryGuard = true`, retaining
+`hkeep : p.keepGuard = true`. The reopened episode keeps id 1 rather than the next id 3. -/
+@[req "OPS-48"]
+theorem retry_reopens_closed_episode :
+    let p := closedRetryRefutationParams
+    let w := run p fenceWorld goneAfterStallTrace
+    p.keepGuard = true ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    w.nextId = 3 ∧
+    (step p w .retry).episode =
+      some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } := by decide
+
+def closedKeepRefutationParams : Fence.Params :=
+  { closedEpisodeRefutationParams with keepGuard := false }
+
+/-- Refutes `Provisiond.Fence.closed_step` without `hkeep : p.keepGuard = true`, retaining
+`hg : p.retryGuard = true`. Keep replaces an existing close instead of preserving its row
+or opening an attempting episode under the next id. -/
+@[req "OPS-48"]
+theorem keep_rewrites_closed_episode :
+    let p := closedKeepRefutationParams
+    let w := run p fenceWorld goneAfterStallTrace
+    p.retryGuard = true ∧ w.phase = .idle ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    w.nextId = 3 ∧
+    (step p w .keep).episode =
+      some { id := ⟨1⟩, state := .closed .kept, reasons := [.exhausted] } := by decide
 
 /-! ### The rate outage (`ADR-0029`)
 
@@ -1131,6 +1209,31 @@ operation runs twice", reached through the crash window the procedure itself ope
 theorem crash_inside_procedure_is_the_naive_boot :
     (Restore.run { Restore.current with recordDecidesBoot := false } (bootRestore restoreTrace)
       [.lock, .crash, .lock, .startupPass, .claim ⟨0⟩]).secondOrder = true := by decide
+
+/-- Pin the naive boot and the retained guards for the request and absence refutations. -/
+def naiveBootRefutationParams : Restore.Params :=
+  { recordDecidesBoot := false, quarantineOnRestore := true, exceptionFrozen := true,
+    bumpOnRestore := true, twoPassAbsence := true }
+
+/-- Refutes `Provisiond.Restore.bumped_before_first_request` without
+`hr : p.recordDecidesBoot = true`, retaining `hb : p.bumpOnRestore = true`.
+The successor serves the restored generation before any bump. -/
+@[req "STO-54"]
+theorem request_before_bump_on_naive_boot :
+    let p := naiveBootRefutationParams
+    p.bumpOnRestore = true ∧ restoreTrace.store.credentialGen = 0 ∧
+    (Restore.run p (bootRestore restoreTrace) [.lock, .crash, .request 0]).servedGens = [0] := by
+  decide
+
+/-- Refutes `Provisiond.Restore.no_absence_on_first_pass` without
+`hr : p.recordDecidesBoot = true`, retaining `ht : p.twoPassAbsence = true` and the initially
+clear recorded-gone flag. One complete pass after the crash records absence. -/
+@[req "STO-54"]
+theorem first_pass_absence_on_naive_boot :
+    let p := naiveBootRefutationParams
+    let w := Restore.run p (bootRestore restoreTrace) [.lock, .crash, .lock, .sweep true false]
+    p.twoPassAbsence = true ∧ restoreTrace.store.machine.recordedGone = false ∧
+    w.store.machine.recordedGone = true ∧ w.completePasses = 1 := by decide
 
 /-- The marks, `STO-54` 2026-09-20: the record carries which steps have completed, so a crash after
 step (3) does not run step (3) again. The mark stands, `api` keeps serving — the listener is not
