@@ -43,9 +43,9 @@ read provider-account or machine rows, compute a price, serialize responses or e
 "A missing declared cancellation bound in both the descriptor and the offer is an unsellable offer"
 and "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
 its offer-reported bound is later than the provider's local today." The bounds and today are
-natural-number day ordinals supplied by the caller. The named assumption `providerLocalDates`
-is that these inputs use the provider's local calendar and preserve its day order; conversion
-from zones or instants is not modelled or established by the numerical properties.
+natural-number day ordinals supplied by the caller, taken as provider-local and preserving
+the provider's day order. Conversion from zones or instants is not modelled or established
+by the numerical properties.
 `PRV-13b` remains an input in full, including traffic and live evidence, the API stop path,
 meter-stop bound and attachment cleanup: it requires "an API path to stop the cost, a bound on
 the time until the customer's meter stops, and cleanup for every billable attachment".
@@ -1077,8 +1077,8 @@ def boundNotLater (today : Nat) : Option Nat → Bool
 /-- `PRV-31`: "A missing declared cancellation bound in both the descriptor and the offer is
 an unsellable offer." "In v1, an offer MUST NOT be sold on prepaid terms if either its
 descriptor-declared bound or its offer-reported bound is later than the provider's local today."
-The inputs are day ordinals under the unmodelled `providerLocalDates` assumption described in
-the module docstring. No precedence between the sources is needed for this sale decision.
+The inputs are day ordinals taken as provider-local; conversion from zones or instants is
+not modelled. No precedence between the sources is needed for this sale decision.
 "This does not move a provider failure or a term learned after ordering into admission." -/
 @[req "PRV-31"]
 def cancellationSellable (g : Guards) (descriptor offer : Option Nat) (today : Nat) : Bool :=
@@ -1086,7 +1086,7 @@ def cancellationSellable (g : Guards) (descriptor offer : Option Nat) (today : N
     (!g.cancellationFutureGuard || (boundNotLater today descriptor && boundNotLater today offer))
 
 /-- Over every numerical input, assuming both cancellation guards enabled. The
-`providerLocalDates` interpretation remains an assumption, not a conversion theorem. -/
+day ordinals are taken as provider-local; conversion from zones or instants is not modelled. -/
 @[req "PRV-31"]
 theorem cancellation_sellable_iff (g : Guards)
     (hd : g.cancellationDeclarationGuard = true) (hf : g.cancellationFutureGuard = true)
@@ -1159,18 +1159,19 @@ def tailAdmittedForOffer (g : Guards) (create : Bool) (account : AccountStatus.S
 
 /-- For every bound, today and remaining provider-terms verdict, an otherwise clean create
 has no refusals and is admitted exactly when the composed sale input is true. Assumes the
-collection and sale guards enabled; the cancellation guards need not be enabled. -/
+sale guard enabled; the collection and cancellation guards need not be enabled. -/
 @[req "API-7"]
 theorem computed_sale_reaches_clean_create (g : Guards)
-    (hr : g.richTailCollection = true) (hs : g.offerSaleGuard = true)
+    (hs : g.offerSaleGuard = true)
     (terms : Bool) (descriptor offer : Option Nat) (today : Nat) :
     ((purchaseTailForOffer g true .healthy terms descriptor offer today
       false false false true true false false).refusals = [] ↔
       offerSellable g terms descriptor offer today = true) ∧
     tailAdmittedForOffer g true .healthy terms descriptor offer today
       false false false true true false false = offerSellable g terms descriptor offer today := by
-  cases h : offerSellable g terms descriptor offer today <;>
-    simp [purchaseTailForOffer, tailAdmittedForOffer, purchaseTail, tailAdmitted, hr, hs, h]
+  cases g.richTailCollection <;>
+    cases h : offerSellable g terms descriptor offer today <;>
+      simp [purchaseTailForOffer, tailAdmittedForOffer, purchaseTail, tailAdmitted, hs, h]
 
 /-- For every snapshot, either unsellable dimension refuses the real create tail, records
 `.unsellable` for every present priced check and prevents admission. Assumes collection and

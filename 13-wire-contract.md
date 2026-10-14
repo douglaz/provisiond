@@ -677,9 +677,9 @@ and a `provider_native` body that supplies one is an unknown field for that vari
 
 | `trust` | Meaning |
 |---|---|
-| `{"use_provider_keys": true}` | Pin driver-published keys or fingerprints, including pins arriving after boot. **Abort `integrity` if required pins do not arrive** before `RSC-9`'s deadline (`PRV-16`, `PRV-19`, `PRV-20`) |
-| `{"expected_host_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIhostkeyxxxxxxxxxxxxxxxxxxxxxxxx"]}` | Pin caller-supplied full keys; Robot also requires an accepted provider pin (`RSC-3`, `PRV-20`) |
-| `{"accept_unpinned": true}` | First-use trust where available; Robot awaiting provider pins cannot use it (`PRV-20`) |
+| `{"use_provider_keys": true}` | Pin driver-published keys or fingerprints, including pins arriving after boot (`PRV-16`, `PRV-19`). `PRV-20` says "If eligible pins have not arrived by `RSC-9`'s deadline"; the outcome is "connection fails `integrity`" |
+| `{"expected_host_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIhostkeyxxxxxxxxxxxxxxxxxxxxxxxx"]}` | Pin caller-supplied full keys (`RSC-3`); `PRV-20` says "a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins MUST be refused before authentication" |
+| `{"accept_unpinned": true}` | First-use trust where available; `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in" |
 
 *Amended 2026-10-12 (`ADR-0041`): Robot's provider pins arrive after boot as
 fingerprints; the caller full-key form remains available.*

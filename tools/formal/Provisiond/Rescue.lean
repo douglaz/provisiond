@@ -57,6 +57,46 @@ theorem foldl_preserves {σ α : Type} (f : σ → α → σ) (I : σ → Prop)
   | nil => exact hs
   | cons a as ih => exact ih _ (hI s a hs)
 
+/-! ## The dated amendments
+
+One field per line, because `ci.yml`'s controls match that shape. -/
+
+/-- The parameter fields below carry dated-amendment guards and the design `RSC-19` refuses.
+`awaitingProviderPins`: `PRV-20`, amended 2026-10-12, `ADR-0041` — "An awaiting Robot session
+cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in".
+`temporaryKeyEligibility`: `PRV-9`, 2026-10-09, `ADR-0040` — the temporary-key sweep waits for an eligible operation and no provisioning machine.
+`coalesceWrite`: `OPS-45`, 2026-09-12, `ADR-0022` — "The write sets the marker only where it is
+null", by "`COALESCE(write_started_at, now)` under the worker guard, never a guard on the marker
+being null".
+`markerBeforePhase`: `OPS-45`, reworded 2026-09-15 — the marker is written "at the moment a phase
+begins that could have altered the machine, and before that phase runs", so it "establishes that
+preservation is no longer proven, not that a byte landed". `secondMarkerBeforeSession`: `OPS-45`,
+2026-09-16 — "**false, written before begin rescue (`PRV-15`) is dispatched**". `partialCleanupMovesNothing`:
+`OPS-45` — "**A driver's report that it cleaned up after a partial activation (`PRV-18`) does not
+move this marker**". `persistAtActivation` is not a guard but the design `RSC-19`'s 2026-09-15
+paragraph refuses, and it stands `false`: persisting the key from activation is what would cost
+`DOM-11`'s exception "a root credential on disk for the whole of every install". -/
+structure Params where
+  coalesceWrite              : Bool
+  markerBeforePhase          : Bool
+  secondMarkerBeforeSession  : Bool
+  partialCleanupMovesNothing : Bool
+  persistAtActivation        : Bool
+  temporaryKeyEligibility   : Bool
+  awaitingProviderPins      : Bool
+  deriving DecidableEq, Repr
+
+/-- The rules as they stand. -/
+@[req "OPS-45"]
+def current : Params := {
+    coalesceWrite              := true,
+    markerBeforePhase          := true,
+    secondMarkerBeforeSession  := true,
+    partialCleanupMovesNothing := true,
+    persistAtActivation        := false,
+    temporaryKeyEligibility   := true,
+    awaitingProviderPins      := true }
+
 /-! ## Trust: `RSC-3`, `RSC-4`, `RSC-5` -/
 
 namespace Trust
@@ -101,26 +141,32 @@ def decision (caller driver : List HostKey) (optIn : Bool) : Decision :=
   | [], _ :: _ => .pinDriver
   | c :: cs, d :: ds => if overlaps (c :: cs) (d :: ds) then .pinOverlapping else .abortIntegrity
 
-/-- `PRV-20`'s required-provider-pins state removes the ordinary table's accept-new
-permission. Driver identities stand for accepted provider pins only; this model does not
+/-- `awaitingProviderPins` enforces `PRV-20`'s "An awaiting Robot session cannot become
+eligible for first-use trust, even with the caller's explicit first-use opt-in": with the guard
+enabled, a provider-required session with no accepted pins aborts; without it the ordinary table
+decides. Driver identities stand for accepted provider pins only; this model does not
 establish how Robot selected the last-rescue record. -/
 @[req "PRV-20"]
-def sessionDecision (providerPinsRequired : Bool) (caller driver : List HostKey)
+def sessionDecision (p : Params) (providerPinsRequired : Bool) (caller driver : List HostKey)
     (optIn : Bool) : Decision :=
-  if providerPinsRequired && driver.isEmpty then .abortIntegrity else decision caller driver optIn
+  if p.awaitingProviderPins && providerPinsRequired && driver.isEmpty then .abortIntegrity
+  else decision caller driver optIn
 
 /-- Identity comparison abstracts permission for the presented SSH key. Caller-only and
-driver-only sessions require membership in their sole pin set; a provider-required session
-also requires a match to an accepted provider pin. The both-supplied overlap row remains
-limited to overlap, without choosing which set is pinned. SHA256 computation, record
-selection and the SSH handshake are outside this model. -/
+driver-only sessions require membership in their sole pin set. The overlap row refuses a
+presented key in neither set, which every reading refuses, without choosing which set is pinned.
+A provider-required session also needs a match to an accepted provider pin: `PRV-20` says
+"a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins MUST be
+refused before authentication". SHA256 computation, record selection and the SSH handshake are
+outside this model. -/
 @[req "RSC-3"]
-def permitsPresented (providerPinsRequired : Bool) (caller driver : List HostKey)
+def permitsPresented (p : Params) (providerPinsRequired : Bool) (caller driver : List HostKey)
     (optIn : Bool) (presented : HostKey) : Bool :=
-  match sessionDecision providerPinsRequired caller driver optIn with
+  match sessionDecision p providerPinsRequired caller driver optIn with
   | .pinCaller => caller.contains presented
   | .pinDriver => driver.contains presented
-  | .pinOverlapping => !providerPinsRequired || driver.contains presented
+  | .pinOverlapping => (caller.contains presented || driver.contains presented) &&
+      (!providerPinsRequired || driver.contains presented)
   | .acceptNew => true
   | .abortIntegrity => false
 
@@ -354,42 +400,6 @@ theorem resolves_only_the_named_disk (req : Request) (inv : Inventory) (disk : D
   exact huniq found hmem.1 (by simpa using hmem.2)
 
 end Disk
-
-/-! ## The dated amendments
-
-One field per line, because `ci.yml`'s controls match that shape. -/
-
-/-- The guards `OPS-45` and `RSC-19` gained by dated amendment, and the one design `RSC-19` refuses.
-`temporaryKeyEligibility`: `PRV-9`, 2026-10-09, `ADR-0040` — the temporary-key sweep waits for an eligible operation and no provisioning machine.
-`coalesceWrite`: `OPS-45`, 2026-09-12, `ADR-0022` — "The write sets the marker only where it is
-null", by "`COALESCE(write_started_at, now)` under the worker guard, never a guard on the marker
-being null".
-`markerBeforePhase`: `OPS-45`, reworded 2026-09-15 — the marker is written "at the moment a phase
-begins that could have altered the machine, and before that phase runs", so it "establishes that
-preservation is no longer proven, not that a byte landed". `secondMarkerBeforeSession`: `OPS-45`,
-2026-09-16 — "**false, written before begin rescue (`PRV-15`) is dispatched**". `partialCleanupMovesNothing`:
-`OPS-45` — "**A driver's report that it cleaned up after a partial activation (`PRV-18`) does not
-move this marker**". `persistAtActivation` is not a guard but the design `RSC-19`'s 2026-09-15
-paragraph refuses, and it stands `false`: persisting the key from activation is what would cost
-`DOM-11`'s exception "a root credential on disk for the whole of every install". -/
-structure Params where
-  coalesceWrite              : Bool
-  markerBeforePhase          : Bool
-  secondMarkerBeforeSession  : Bool
-  partialCleanupMovesNothing : Bool
-  persistAtActivation        : Bool
-  temporaryKeyEligibility   : Bool
-  deriving DecidableEq, Repr
-
-/-- The rules as they stand. -/
-@[req "OPS-45"]
-def current : Params := {
-    coalesceWrite              := true,
-    markerBeforePhase          := true,
-    secondMarkerBeforeSession  := true,
-    partialCleanupMovesNothing := true,
-    persistAtActivation        := false,
-    temporaryKeyEligibility   := true }
 
 /-! ## `OPS-45`'s two markers, on the claim model -/
 

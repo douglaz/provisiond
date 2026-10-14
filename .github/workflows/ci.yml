@@ -560,6 +560,8 @@ jobs:
       #   closedSummary (STO-50, 2026-09-06): the live row's payload sits in the summary that
       #     outlives the purge -- closed_summary_witness on secretRow.
       # Rescue and install (pv-vwe.7), Rescue.current:
+      #   awaitingProviderPins (PRV-20, 2026-10-12, ADR-0041): the awaiting Robot session
+      #     reaches accept-new with explicit opt-in -- robot_awaiting_pins_witness;
       #   coalesceWrite (OPS-45, 2026-09-12, ADR-0022): the null-guarded repeat after a lost reply
       #     affects no row, reads as overtaken, and the phase never runs --
       #     coalesced_repeat_moves_nothing on rawInstall lostReplyThenRepeat;
@@ -749,6 +751,7 @@ jobs:
           Runway|startAtMark|true|false|insideTheUnitDate
           Wire|endpointInPreimage|true|false|deleteOnA
           Wire|closedSummary|true|false|secretRow
+          Rescue|awaitingProviderPins|true|false|Trust.sessionDecision Rescue.current true
           Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
           Rescue|markerBeforePhase|true|false|rawInstall phaseWithoutMarker
           Rescue|secondMarkerBeforeSession|true|false|Rescue.current rescueSession crashedSession
@@ -904,8 +907,8 @@ jobs:
           from pathlib import Path
           path = Path('Provisiond/Rescue.lean')
           source = path.read_text()
-          fixed = '  match sessionDecision providerPinsRequired caller driver optIn with\n  | .pinCaller => caller.contains presented\n  | .pinDriver => driver.contains presented\n  | .pinOverlapping => !providerPinsRequired || driver.contains presented\n  | .acceptNew => true\n  | .abortIntegrity => false'
-          broken = '  connects (sessionDecision providerPinsRequired caller driver optIn) &&\n    (!providerPinsRequired || driver.contains presented)'
+          fixed = '  | .pinCaller => caller.contains presented\n  | .pinDriver => driver.contains presented'
+          broken = '  | .pinCaller => !providerPinsRequired || caller.contains presented\n  | .pinDriver => !providerPinsRequired || driver.contains presented'
           assert source.count(fixed) == 1 and broken not in source
           path.write_text(source.replace(fixed, broken))
           assert path.read_text().count(broken) == 1
@@ -916,8 +919,34 @@ jobs:
           fi
           test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
           grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
-          grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented false [{ n := 1 }] [] false { n := 2 } = false'
+          grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented Rescue.current false [{ n := 1 }] [] false { n := 2 } = false'
           echo "lake build correctly refuted the single-source presented-key witness"
+
+      - name: Prove the Lean build rejects overlap host-key mismatch permission
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/Rescue.lean')
+          source = path.read_text()
+          fixed = '  | .pinOverlapping => (caller.contains presented || driver.contains presented) &&\n      (!providerPinsRequired || driver.contains presented)'
+          broken = '  | .pinOverlapping => !providerPinsRequired || driver.contains presented'
+          assert source.count(fixed) == 1 and broken not in source
+          path.write_text(source.replace(fixed, broken))
+          assert path.read_text().count(broken) == 1
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::the former overlap host-key permission passed"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented Rescue.current false [{ n := 1 }] [{ n := 1 }] false { n := 2 } = false'
+          echo "lake build correctly refuted the overlap presented-key witness"
 
       # The rendering gate (pv-vwe.8, ADR-0025): a hand edit inside a marked region is
       # red for that region, and the same edit one line outside it is not. The scratch

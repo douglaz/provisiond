@@ -1778,14 +1778,32 @@ open Provisiond.Funding
 /-- Balance 100, commitment 30 remaining: the computed debit of 100 exceeds the authority. -/
 def seizureBalances : Ledger.Balances := { sum := 100, commitments := [some 30], deficiency := 0, snapshot := 0 }
 
-/-- `LDG-31`'s clamp: the tenant is debited 30, the commitment reaches zero, 70 is the
-operator's, and `available` is what it was. -/
+def zeroBalances : Ledger.Balances := { sum := 0, commitments := [], deficiency := 0, snapshot := 0 }
+
+/-- The released-slot trace, including a debit after its commitment closes. -/
+def closedSlotTrace : List Ledger.Event :=
+  [.topup 100, .openCommitment 30, .closeCommitment 0, .usageDebit 0 50]
+
+/-- `LDG-31`'s "the commitment decrements to zero": the tenant is debited 30, 70 is the
+operator's, and `available` is what it was. Debits naming closed or never-allocated slots
+record the whole signed amount as deficiency and leave sum and slots unchanged. -/
 @[req "LDG-31"]
 theorem clamp_witness :
     Ledger.step Ledger.current seizureBalances (.usageDebit 0 100) =
       { sum := 70, commitments := [some 0], deficiency := 70, snapshot := 0 } ∧
     (Ledger.step Ledger.current seizureBalances (.usageDebit 0 100)).available =
-      seizureBalances.available := by decide
+      seizureBalances.available ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).sum = 100 ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).reserved = 0 ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).deficiency = 50 ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).commitments.isOpen 0 = false ∧
+    Ledger.step Ledger.current seizureBalances (.usageDebit 9 50) =
+      { seizureBalances with deficiency := 50 } ∧
+    Ledger.step Ledger.current seizureBalances (.usageDebit 9 (-5)) =
+      { seizureBalances with deficiency := -5 } ∧
+    Ledger.step Ledger.current { seizureBalances with commitments := [none, some 30] }
+      (.usageDebit 0 (-5)) =
+      { seizureBalances with commitments := [none, some 30], deficiency := -5 } := by decide
 
 /-- Without it the excess is taken from available balance — `LDG-31`: "It MUST NOT be" — the same
 debit takes 100 from the tenant, and `available` falls by the 70 nobody authorized: "the automatic
@@ -1798,8 +1816,6 @@ theorem seizure_without_clamp :
 /-- `LDG-35`'s trace: a top-up of 100, an authorization read, and two commitments of 100 each
 committing against it. -/
 def skewTrace : List Ledger.Event := [.topup 100, .read, .openCommitment 100, .openCommitment 100]
-
-def zeroBalances : Ledger.Balances := { sum := 0, commitments := [], deficiency := 0, snapshot := 0 }
 
 /-- Serialized, the second open reads the balance the first one spent and is refused: one
 commitment, `available` at zero. -/
@@ -2998,7 +3014,10 @@ Every field of `Rescue.current` has a witness pair that flips it and asserts wha
 decides, as `ci.yml`'s other rows do. The
 `RSC-5` pair (`Trust.run` against `Trust.runRedecided`) and the `RSC-26` pair (`Disk.resolve`
 against `Disk.resolveFirst`) flip no field: what they refute is an alternative definition, not a
-guard that could be removed, so neither is one of `ci.yml`'s rows. -/
+guard that could be removed, so neither is one of `ci.yml`'s rows. The presented-key witnesses
+`single_source_presented_key_witness` and `overlap_presented_key_witness` also refute alternative
+definitions; their controls are standalone steps, not `ROWS` lines. The awaiting-pins pair flips
+`awaitingProviderPins` and has its own row. -/
 
 section Rescue
 open Provisiond.Rescue
@@ -3009,20 +3028,43 @@ abstracts a provider fingerprint match; it does not prove SHA256 or SSH authenti
 @[req "PRV-20"]
 theorem robot_awaiting_pins_witness :
     Trust.decision [] [] true = .acceptNew ∧
-    Trust.sessionDecision true [] [] true = .abortIntegrity ∧
-    Trust.sessionDecision true [⟨1⟩] [] false = .abortIntegrity ∧
-    Trust.permitsPresented true [] [⟨1⟩] true ⟨1⟩ = true ∧
-    Trust.permitsPresented true [] [⟨1⟩] true ⟨2⟩ = false ∧
-    Trust.permitsPresented true [⟨1⟩] [⟨2⟩] false ⟨2⟩ = false := by decide
+    Trust.sessionDecision Rescue.current true [] [] true = .abortIntegrity ∧
+    Trust.sessionDecision Rescue.current true [⟨1⟩] [] false = .abortIntegrity ∧
+    Trust.permitsPresented Rescue.current true [] [⟨1⟩] true ⟨1⟩ = true ∧
+    Trust.permitsPresented Rescue.current true [] [⟨1⟩] true ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current true [⟨1⟩] [⟨2⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current true [] [] true ⟨2⟩ = false := by decide
+
+/-- The same awaiting session with only the guard disabled reaches accept-new and permits the
+presented key; caller keys reach the ordinary pin-caller row. -/
+def awaitingPinsDisabled : Rescue.Params :=
+  { Rescue.current with awaitingProviderPins := false }
+
+@[req "PRV-20"]
+theorem robot_awaiting_pins_without_guard :
+    Trust.decision [] [] true = .acceptNew ∧
+    Trust.sessionDecision awaitingPinsDisabled true [] [] true = .acceptNew ∧
+    Trust.sessionDecision awaitingPinsDisabled true [⟨1⟩] [] false = .pinCaller ∧
+    Trust.permitsPresented awaitingPinsDisabled true [] [⟨1⟩] true ⟨1⟩ = true ∧
+    Trust.permitsPresented awaitingPinsDisabled true [] [⟨1⟩] true ⟨2⟩ = false ∧
+    Trust.permitsPresented awaitingPinsDisabled true [⟨1⟩] [⟨2⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented awaitingPinsDisabled true [] [] true ⟨2⟩ = true := by decide
 
 /-- `RSC-3`'s single-source strict pinning rejects a different presented identity and
 admits the matching one. The both-supplied pin-set choice remains outside this check. -/
 @[req "RSC-3"]
 theorem single_source_presented_key_witness :
-    Trust.permitsPresented false [⟨1⟩] [] false ⟨2⟩ = false ∧
-    Trust.permitsPresented false [⟨1⟩] [] false ⟨1⟩ = true ∧
-    Trust.permitsPresented false [] [⟨1⟩] false ⟨2⟩ = false ∧
-    Trust.permitsPresented false [] [⟨1⟩] false ⟨1⟩ = true := by decide
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [] false ⟨1⟩ = true ∧
+    Trust.permitsPresented Rescue.current false [] [⟨1⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current false [] [⟨1⟩] false ⟨1⟩ = true := by decide
+
+/-- `RSC-3`'s "They MUST overlap" row refuses a presented key in neither set and admits
+one in the overlap, without choosing which supplied set is pinned. -/
+@[req "RSC-3"]
+theorem overlap_presented_key_witness :
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [⟨1⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [⟨1⟩] false ⟨1⟩ = true := by decide
 
 /-- The caller pinned one key and the driver published two, which overlap: `RSC-3`'s third row. -/
 def pinnedConn : Trust.Conn :=
@@ -3989,8 +4031,9 @@ theorem without_future_guard_either_future_bound_admitted :
     cancellationCreateAdmitted (futureSaleGuards
       { Admission.current with cancellationFutureGuard := false }) (some 10) (some 11) = true := by decide
 
-/-- `PRV-31` names the descriptor source "or reported on the offer". Equality with today
-is admitted from both sources together, and from either source alone. -/
+/-- `PRV-31` says "The bound is declared in the descriptor's `cancellation_bound` (`PRV-44`),
+or reported on the offer." Equality with today is admitted from both sources together, and from
+either source alone. -/
 @[req "PRV-31"]
 theorem today_cancellation_bounds_admitted :
     (cancellationCreate (cancellationTailGuards Admission.current) (some 10) (some 10)).refusals = [] ∧

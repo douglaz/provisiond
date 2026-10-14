@@ -19,7 +19,10 @@ tenant is debited only up to the authority it granted, and the remainder is reco
 **operator deficiency**"; the remainder "MUST NOT be taken from available balance", which without
 the clamp it is — "the automatic seizure `ADR-0011` exists to forbid". (The dated amendment
 beside it, 2026-09-02, is the pairing rule's "has no exception"; the clamp paragraph itself is
-undated.)
+undated.) The guard also governs debits naming closed or missing slots: enabled, the
+whole signed amount goes to deficiency with sum and slots unchanged; disabled, the whole debit
+leaves sum with slots unchanged. `LDG-31`'s amendment says "there is no debit left that pairs with
+nothing", and its clamp paragraph says "It MUST NOT be taken from available balance".
 `serializedAuthorization`: `LDG-35`, "The authorization read and the commitment write MUST be
 serialized per tenant" — the primitive was chosen on 2026-09-06 (`ADR-0015`), the rule is undated;
 without it the open authorizes against `snapshot`, the balance an earlier transaction read — "two
@@ -47,8 +50,10 @@ and the remainder is recorded as an **operator deficiency**". The clamp paragrap
 
 Commitment identifiers are list positions, allocated by appending a fresh slot; `some amount`
 is open and `none` is closed, retained so identifiers are never reused. They identify reservations,
-not machines. A debit or close naming a closed or nonexistent slot leaves the entire state alone;
-no requirement is modelled for that omitted case. This totalization never moves the tenant's balance.
+not machines. A debit naming a closed or nonexistent slot records its whole signed amount as
+deficiency under `clampAtAuthority`, leaving sum and every slot unchanged; with that guard off it
+subtracts the whole amount from sum and leaves every slot unchanged. A close naming such a slot
+leaves the entire state alone.
 `Provisiond.Funding` stays single-commitment: it carries one metered subject's remaining amount and
 calls only `Ledger.clamp`.
 
@@ -345,8 +350,10 @@ inductive Event
 /-- `LDG-31`: posting a debit "MUST decrement that commitment by the same amount, in one
 transaction"; `LDG-9` authorizes by "`available ≥ required_commitment`".
 `LDG-32` says "A commitment MUST be closed, and its remaining amount released in full".
-The fresh identifier is the list length before an admitted open. A debit or close on a closed or
-missing identifier is inert, a totalization outside the modelled requirement scope. -/
+The fresh identifier is the list length before an admitted open. A debit on a closed or missing
+identifier adds its whole signed amount to deficiency under `clampAtAuthority`, leaving sum and
+slots unchanged; without the guard it subtracts the whole debit from sum and leaves slots
+unchanged. A close on a closed or missing identifier is inert. -/
 @[req "LDG-31"]
 def step (g : Guards) (b : Balances) : Event → Balances
   | .topup n => { b with sum := b.sum + n }
@@ -370,7 +377,10 @@ def step (g : Guards) (b : Balances) : Event → Balances
       else
         { b with sum := b.sum - n,
                  commitments := b.commitments.change i (fun r => some (max (r - n) 0)) }
-    else b
+    else if g.clampAtAuthority then
+      { b with deficiency := b.deficiency + n }
+    else
+      { b with sum := b.sum - n }
   | .closeCommitment i =>
     if b.commitments.isOpen i then
       { b with commitments := if g.closeOwnCommitment then
@@ -413,47 +423,50 @@ theorem usage_leaves_available_unchanged (g : Guards) (hg : g.clampAtAuthority =
     by_cases hi : b.commitments.isOpen i = true
     · simp only [step, hi, hg, ho, ite_true, Balances.available, Balances.reserved,
         Commitments.total_change, clamp, Option.getD_some]; omega
-    · simp [step, hi]
+    · simp [step, hi, hg, Balances.available, Balances.reserved]
   | false =>
     by_cases hi : b.commitments.isOpen i = true
     · have h := Commitments.off_total b.commitments i n _ _ hi rfl rfl
       simp only [step, hi, hg, ho, ite_true, Bool.false_eq_true, ite_false, Balances.available,
         Balances.reserved, clamp, h]
       omega
-    · simp [step, hi]
+    · simp [step, hi, hg, Balances.available, Balances.reserved]
 
 /-- Every open amount stays nonnegative and therefore so does their sum; deficiency grows by
-exactly the unposted amount, for a named open slot (the debit pairing
-scope), with either ownership-guard setting.
+exactly the unposted amount for any named slot, including closed or missing slots, with
+either ownership-guard setting.
 The old remainder hypothesis and conclusion become pointwise floors as well as the total floor. -/
 @[req "LDG-31"]
 theorem usage_clamps_at_zero (g : Guards) (hg : g.clampAtAuthority = true)
     (b : Balances) (i : Nat)
-    (n : Int) (hr : b.commitments.nonneg) (hi : b.commitments.isOpen i = true) :
+    (n : Int) (hr : b.commitments.nonneg) :
     (step g b (.usageDebit i n)).commitments.nonneg ∧
     0 ≤ (step g b (.usageDebit i n)).reserved ∧
     (step g b (.usageDebit i n)).deficiency - b.deficiency =
       n - (b.sum - (step g b (.usageDebit i n)).sum) := by
-  cases ho : g.clampOwnCommitment with
-  | true =>
-    have hf : 0 ≤ b.commitments.remaining i - (clamp (b.commitments.remaining i) n).1 := by
-      have := hr i
-      simp only [clamp]; omega
-    have hp := Commitments.nonneg_change b.commitments i
-      (fun r => some (r - (clamp (b.commitments.remaining i) n).1)) hr hf
-    simp only [step, hi, hg, ho, ite_true]
-    exact ⟨hp, Commitments.total_nonneg _ hp, by simp only [clamp]; omega⟩
-  | false =>
-    have hri := hr i
-    have ht := Commitments.total_nonneg _ hr
-    have hc := Commitments.nonneg_change b.commitments i
-      (fun r => some (r - min (min n (max b.commitments.total 0)) (max (b.commitments.remaining i) 0)))
-      hr (by simp only [Option.getD_some]; omega)
-    have hd := Commitments.drain_nonneg _
-      (min n (max b.commitments.total 0) -
-        min (min n (max b.commitments.total 0)) (max (b.commitments.remaining i) 0)) (by omega) hc
-    simp only [step, hi, hg, ho, ite_true, Bool.false_eq_true, ite_false, Balances.reserved, clamp]
-    exact ⟨hd, Commitments.total_nonneg _ hd, by omega⟩
+  by_cases hi : b.commitments.isOpen i = true
+  · cases ho : g.clampOwnCommitment with
+    | true =>
+      have hf : 0 ≤ b.commitments.remaining i - (clamp (b.commitments.remaining i) n).1 := by
+        have := hr i
+        simp only [clamp]; omega
+      have hp := Commitments.nonneg_change b.commitments i
+        (fun r => some (r - (clamp (b.commitments.remaining i) n).1)) hr hf
+      simp only [step, hi, hg, ho, ite_true]
+      exact ⟨hp, Commitments.total_nonneg _ hp, by simp only [clamp]; omega⟩
+    | false =>
+      have hri := hr i
+      have ht := Commitments.total_nonneg _ hr
+      have hc := Commitments.nonneg_change b.commitments i
+        (fun r => some (r - min (min n (max b.commitments.total 0)) (max (b.commitments.remaining i) 0)))
+        hr (by simp only [Option.getD_some]; omega)
+      have hd := Commitments.drain_nonneg _
+        (min n (max b.commitments.total 0) -
+          min (min n (max b.commitments.total 0)) (max (b.commitments.remaining i) 0)) (by omega) hc
+      simp only [step, hi, hg, ho, ite_true, Bool.false_eq_true, ite_false, Balances.reserved, clamp]
+      exact ⟨hd, Commitments.total_nonneg _ hd, by omega⟩
+  · simp only [step, hi, hg, Bool.false_eq_true, ite_false, ite_true, Balances.reserved]
+    exact ⟨hr, Commitments.total_nonneg _ hr, by omega⟩
 
 /-- `LDG-66`: the deficiency "MUST NOT alter any tenant balance" — `available` does not read it. -/
 @[req "LDG-66"]
@@ -535,11 +548,8 @@ theorem floors_preserved (g : Guards) (hc : g.clampAtAuthority = true)
     · exact ⟨h.1, h.2, Commitments.total_nonneg _ h.2⟩
   | usageDebit i n =>
     have hu := usage_leaves_available_unchanged g hc b i n
-    by_cases hi : b.commitments.isOpen i = true
-    · have hp := (usage_clamps_at_zero g hc b i n h.2 hi).1
-      exact ⟨by rw [hu]; exact h.1, hp, Commitments.total_nonneg _ hp⟩
-    · simp only [step, hi, Bool.false_eq_true, ite_false]
-      exact ⟨h.1, h.2, Commitments.total_nonneg _ h.2⟩
+    have hp := usage_clamps_at_zero g hc b i n h.2
+    exact ⟨by rw [hu]; exact h.1, hp.1, hp.2.1⟩
   | closeCommitment i =>
     cases hl : g.closeOwnCommitment with
     | true =>
@@ -593,10 +603,10 @@ theorem run_floors (g : Guards) (hc : g.clampAtAuthority = true)
 
 /-! ## Recovery of the scalar statements on one open commitment
 
-Each declaration below derives the pre-revision statement from its generalized theorem, for
-arbitrary ledger sum, remainder, deficiency and snapshot. Each carries exactly the new
-enabled-guard hypotheses of its generalized theorem. An event's named identifier remains
-unrestricted except the debit's sole open slot. -/
+The declarations below recover the pre-revision statements for arbitrary ledger sum, remainder,
+deficiency and snapshot, deriving them from the generalized theorems where applicable. The enabled-guard hypotheses are
+retained where needed; the sole-slot close agrees with the bulk close in either guard setting.
+An event's named identifier remains unrestricted except the debit's sole open slot. -/
 
 def single (sum remaining deficiency snapshot : Int) : Balances :=
   { sum, commitments := [some remaining], deficiency, snapshot }
@@ -620,18 +630,17 @@ theorem usage_clamps_at_zero_single (g : Guards) (hg : g.clampAtAuthority = true
     (step g b (.usageDebit 0 n)).deficiency - b.deficiency =
       n - (b.sum - (step g b (.usageDebit 0 n)).sum) := by
   have hp := usage_clamps_at_zero g hg (single sum remaining deficiency snapshot) 0 n
-    (single_nonneg _ _ _ _ (by simpa [single, Balances.reserved, Commitments.total] using hr)) rfl
+    (single_nonneg _ _ _ _ (by simpa [single, Balances.reserved, Commitments.total] using hr))
   exact hp.2
 
-theorem close_releases_exact_remainder_single (g : Guards) (ho : g.closeOwnCommitment = true)
+theorem close_releases_exact_remainder_single (g : Guards)
     (sum remaining deficiency snapshot : Int) :
     let b := single sum remaining deficiency snapshot
     (step g b (.closeCommitment 0)).available = b.available + b.reserved ∧
     (step g b (.closeCommitment 0)).reserved = 0 := by
-  have hp := close_releases_exact_remainder g ho (single sum remaining deficiency snapshot) 0
-  refine ⟨?_, ?_⟩
-  · simpa [single, Balances.reserved, Commitments.total, Commitments.remaining] using hp.1
-  · simpa [single, Balances.reserved, Commitments.total, Commitments.remaining] using hp.2.2.2
+  cases ho : g.closeOwnCommitment <;>
+    simp [step, single, ho, Balances.available, Balances.reserved, Commitments.isOpen,
+      Commitments.change, Commitments.total] <;> omega
 
 theorem open_authorized_at_commit_single (g : Guards) (hg : g.serializedAuthorization = true)
     (ha : g.allCommitmentsAuthorize = true) (sum remaining deficiency snapshot n : Int)

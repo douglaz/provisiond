@@ -8,8 +8,8 @@ provider through the rescue lifecycle, and installs an image over SSH.
 1. Generate a single-use Ed25519 keypair scoped to this one operation.
 2. Ask the driver to begin rescue (`PRV-15`), including Robot's pre-activation baseline read, activation and reboot.
 3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or
-   the caller's policy resolves the question. A session awaiting provider keys cannot
-   select first-use trust (`PRV-20`).
+   the caller's policy resolves the question. `PRV-20` says "An awaiting Robot session
+   cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in."
 4. Establish the host-key trust decision, and refuse to connect if it cannot be made.
 5. Wait for rescue SSH to answer, then collect an inventory report (block devices, UEFI
    presence).
@@ -85,20 +85,22 @@ holds a credential that grants root on the customer's machine.
 | Neither, and the caller explicitly opted into first-use trust | Accept-new. Permitted, but it is a documented downgrade. |
 | Neither, and no explicit opt-in | Abort with an `integrity` error. |
 
-**Amended 2026-10-12 (`ADR-0041`).** `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust"; the first-use row does not apply to that session. A driver fingerprint pin is matched
-against the SHA256 digest of the SSH key actually presented, with its algorithm; on a
-match the engine pins that presented full key for the connection. If caller full keys
+**Amended 2026-10-12 (`ADR-0041`).** `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust"; the first-use row does not apply to that session.
+`PRV-20` says "a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins
+MUST be refused before authentication" and "The engine MUST pin the matching presented full key for the connection".
+If caller full keys
 and driver fingerprints both exist, overlap means a caller key's algorithm and SHA256
 digest match a provider pin; a nonoverlap aborts before connecting. The actual Robot
-connection must match an accepted provider pin, even when a caller key is supplied.
+connection MUST match an accepted provider pin, even when a caller key is supplied.
+`PRV-20` says "Robot never falls back to first-use trust, including when caller keys are supplied".
 
 **RSC-4** Caller-supplied keys and the first-use-trust opt-in MUST be mutually exclusive
 in the request (`API-13`).
 
 **RSC-5** A pinned connection MUST NEVER be silently downgraded to first-use trust — not
 on retry, not on timeout, not when the driver returns an empty key set later.
-This also applies to a fingerprint pin and to Robot's awaiting-pins state: `PRV-20`
-says "Refresh MUST NOT downgrade a session".
+`PRV-20` says "The same rule protects fingerprint pins", "An awaiting Robot session cannot
+become eligible for first-use trust", and "Refresh MUST NOT downgrade a session".
 
 **RSC-6** Host keys MUST be canonicalized before comparison: parse out the algorithm and
 the base64 blob, discard comments and any leading host pattern, and compare the
@@ -119,8 +121,8 @@ boot timeout, not from an unrelated hard-coded constant. Bare metal routinely ta
 several minutes to POST and reach a rescue environment, and a provider that only
 publishes keys after boot (`PRV-19`) will otherwise fail every pinned install. See
 `DEF-5`.
-For Robot, the wait continues for eligible pins until this deadline; their absence
-at the deadline is an `integrity` failure (`PRV-20`).
+`PRV-20` says "If eligible pins have not arrived by `RSC-9`'s deadline"; the outcome is
+"connection fails `integrity`".
 
 ## Credentials
 
