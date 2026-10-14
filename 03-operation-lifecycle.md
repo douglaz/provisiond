@@ -283,8 +283,8 @@ mutating response. Failure of that read alone does not enter this failure classi
 settlement for the known accepted date belongs to `PRV-13`. `PRV-13c` also states: "A failed
 post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and
 MUST NOT change the create's settlement." *Amended 2026-10-14 (`ADR-0037`, Q31).*
-This exception does not reclassify
-unknown acceptance or a later failure of the mutating request. *Clarified 2026-10-11
+This exception does not reclassify unknown acceptance or a later failure of the mutating
+request. *Clarified 2026-10-11
 (`ADR-0037`, Q22).*
 
 **AMENDED 2026-08-31 — "a 4xx means the provider did not act" is false, and believing it strands a
@@ -542,7 +542,7 @@ any store transaction and with no tenant primitive held (`STO-55`: "MUST NOT hol
 open across a provider, rail or rescue-host call"; `LDG-69`: "MUST NOT wait on a running
 operation's hold on its machine (`OPS-8`), the completion of a child operation (`API-58`,
 `WIR-39`), or any provider call"). The machine row in that transaction carries the returned
-date or null under `PRV-13c`'s "A successful post-order read MUST supply
+date or null under `PRV-13c`'s "The system MUST record a successful post-order read's date in
 `machines.earliest_cancellation_date`" and "After a failed post-order read, the column MUST
 remain null until such a response supplies the date".
 

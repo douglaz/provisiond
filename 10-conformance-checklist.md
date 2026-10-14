@@ -206,8 +206,10 @@ not optional hardening — they are the only structural defence there is.
       null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
       with acceptance false. A local `PRV-40` closure is a pre-provider refusal with no
       operation to classify; a driver-emitted `rate_limited` remains in the classifier,
-      including after accepted mutation.
+      including after accepted mutation, except the accepted dated cancellation read-back
+      and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph).
       *Amended 2026-10-09 (`ADR-0036`): local closure is a refusal occurrence without an operation.*
+      *Amended 2026-10-14 (`ADR-0037`, Q31).*
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
@@ -3253,8 +3255,9 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       `PRV-7`, `PRV-26`, `DOM-18`)
 - [ ] **CNF-323** — **A refused read does not erase an accepted mutation.** For every kind in
       `OPS-11`'s last row, accept the mutation, then inject each of `rate_limited`, `not_found`,
-      `authentication`, and a provider 4xx on a read outside `OPS-11`'s evidence-read
-      exceptions (`PRV-13`, `PRV-13c`); for create, fail `OPS-27`'s "direct read" or
+      `authentication`, and a provider 4xx on a read other than the accepted dated cancellation
+      read-back and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph);
+      for create, fail `OPS-27`'s "direct read" or
       "search the correlator across every ordering channel". Assert `needs_reconciliation`, no automatic repeat,
       and `retryable: false`. Separately supply the goal-state answer on a goal-state mutation and assert `succeeded`.
       Contrast rejection before acceptance, including the ancillary-key case in `CNF-322`,
@@ -3280,7 +3283,8 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
 - [ ] **CNF-325** — **Accepted but unresolved creates keep their obligations pending.** With a
       setup fee and a nonzero prepaid unit, accept the order then fail `OPS-27`'s confirming
       "direct read" or settle-time "search the correlator across every ordering channel",
-      outside `OPS-11`'s evidence-read exceptions (`PRV-13`, `PRV-13c`). Assert no debit yet,
+      outside the accepted dated cancellation read-back and post-order read
+      (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph). Assert no debit yet,
       both amounts still reserved and both obligations parked.
       Resolve observed with the create's commitment open: assert both debits and paired
       decrements, the machine/terminal writes and clearing both parked obligations commit
@@ -3627,7 +3631,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       for this v1 offer, as in `CNF-166`; the commitment remains unchanged.
       On the `403` case, assert the alarm names the provider account and request path.
       Assert exactly one `GET /server/{n}/cancellation` for each create, no retry and
-      no later constraint read by resolution, refresh, the sweep or another operation.
+      no later constraint read by resolution, refresh or the sweep.
       Then accept a cancellation whose response supplies the per-machine date and assert
       `earliest_cancellation_date` now holds it.
       (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `PRV-31`, `OPS-11`, `OPS-27`, `OPS-48`)

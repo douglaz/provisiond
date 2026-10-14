@@ -596,11 +596,12 @@ classifier and MUST NOT change the create's settlement. On failure, the declared
 MUST remain the priced term (`PRV-31`: "The declared bound sizes the commitment at create").
 Absorbing the failure MUST NOT suppress `PRV-5`'s "raise a monitorable alarm naming the
 provider account and request path" where its trigger applies.
-The post-order read MUST NOT be retried; no resolution pass, refresh, sweep or later
-operation MAY read that machine's cancellation constraint again.
-A successful post-order read MUST supply `machines.earliest_cancellation_date`; a later
-accepted cancellation's response (`PRV-13`) MUST supply the per-machine date to that column.
-These are its only writers. After a failed post-order read, the column MUST remain null
+The post-order read MUST NOT be retried; a resolution pass, a refresh and the sweep MUST NOT
+read that machine's cancellation constraint again. For reads on a cancellation's own path,
+see `PRV-13`.
+The system MUST record a successful post-order read's date in `machines.earliest_cancellation_date`.
+An accepted cancellation's response (`PRV-13`) that carries the per-machine date supplies it
+to that column. After a failed post-order read, the column MUST remain null
 until such a response supplies the date.
 
 *This requirement exists because a specification, a reviewing model, and a researching model
