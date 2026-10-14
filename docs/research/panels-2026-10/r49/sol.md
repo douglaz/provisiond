@@ -1,0 +1,21 @@
+**Vote: AMEND WITH CHANGES.**
+
+The repository establishes the hypothesis shape, but not permission to change an existing statement. ADR-0025 says “A proof is about the model under its stated hypotheses” and requires the guard’s refused/admitted pair (`ADR-0025:59–67,118–120`). AGENTS calls weakening “a semantic change like any other”; it does **not** itself prescribe owner approval (`AGENTS.md:14–17`). Neither CONTEXT’s assumption/property definitions nor README’s requirement conventions supply the missing allowance (`CONTEXT.md:440–450`; `README.md:139–194`).
+
+The framing needs two corrections. Ledger explicitly identifies “Additional guards, with no dated amendment carrying these rules” (`Ledger.lean:38–49`). Also, `2d2a0d0` removed six hypothesis occurrences across four tagged theorems, plus their scalar helpers; “four” counts theorems, not hypotheses. `70ce84d` confirms the two further removals and unrelated `hi`. The original allowance is recorded in `pv-0uk`, comment 330; the reported Manager instructions are unavailable in this clone.
+
+At `5407f68`, **142 declarations** carry explicit enabled-guard hypotheses: **141 quantified over guard records**, including `AccountStatus.Rules`, and one assuming fixed `Claim.current.claimTerm`. This excludes three explicitly disabled-guard declarations; the complete source inventory is inventory.md:3 (reader scratch file `inventory.md`, not kept).
+
+Applied to existing signatures, the necessity test rejects at least three: `Ledger.open_authorized_at_commit_single`, `floors_preserved_single`, and `open_against_read_is_the_serialized_open_single`. Scratch Lean proved their unchanged conclusions without aggregate authorization (Check.lean:11 (reader scratch file `Check.lean`, not kept)). Conversely, concrete counterexamples establish necessity for the generalized close, authorization and floor properties (Check.lean:46 (reader scratch file `Check.lean`, not kept)). Reconcile explicitly names `h4` and its field (`Reconcile.lean:345`); Ledger identifies additions descriptively (`Ledger.lean:478,502,520`). Some declarations have no individual docstring (`ProviderTraffic.lean:76,83,108`).
+
+“False without it” is checkable by proving a counterexample that satisfies **every remaining hypothesis** and negates the affected conclusion. Retain that proof alongside the model, preferably reusing the existing absence witness when sufficient. This follows ADR-0025’s executable-witness practice (`ADR-0025:118–120,149–152`). A hypothesis-deletion build failure proves only that the existing proof or callers broke; reviewer judgment must establish relevance. Existing CI flips `current` and requires one targeted witness refutation, not theorem-assumption minimality (`.github/workflows/ci.yml:843–859`).
+
+Put the rule **only in ADR-0025**, retaining AGENTS’ existing pointer: “One rule, one home; everywhere else points at it” (`AGENTS.md:33`). Proposed text:
+
+> Within an owner-authorized amendment or model revision, an existing theorem quantified over a guard record MAY gain the newly introduced guard’s enabled-hypothesis only when a retained, checked Lean counterexample satisfies every other hypothesis and falsifies its unchanged conclusion with that guard disabled. Its docstring names the hypothesis, field and counterexample declaration. Other hypotheses, conclusions and the guarantee at `current` remain unchanged. Removing an unnecessary hypothesis is a strengthening and MAY be done with a checked proof. Other weakenings require owner authorization; this allowance does not authorize changes to the model or definitions.
+
+This adds explicit authorization and evidence without another CI mechanism. Both required gate runs passed; tracked files are unchanged (verification.md:3 (reader scratch file `verification.md`, not kept)).
+
+**Strongest case for the other side (written on request)**
+
+NO AMENDMENT: ADR-0025 already makes hypotheses explicit and demands negative witnesses. Review each semantic revision under AGENTS instead of creating an exception and additional witness obligations. An unchanged specialization at `current` may preserve the intended property despite reduced generality (`ADR-0025:59–67,118–120`; `AGENTS.md:14–17`). This is not my position.

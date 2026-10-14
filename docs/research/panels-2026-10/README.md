@@ -43,5 +43,6 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r46 | Telling a fresh Robot last-rescue record from a stale one (`manager-blocker.md` is the pv-wd0 Run report it answers) | `ADR-0041` (Q29) |
 | r47 | What remains of the formal layer (`pv-vwe`'s seven unwritten candidates) and `pv-erp` (`evaluation.md` is the sub-agent read under review) | owner decision Q30: five formal follow-ups, `pv-vwe` closed |
 | r48 | Q31: keep or drop Robot's post-order cancellation read (`PRV-13c`), raised by the branch review before the robot-live PR | owner decision Q31: keep it as one attempt at settlement with an absorbed failure (`ADR-0037`, 2026-10-14) |
+| r49 | Q32: when may a theorem assume a guard is on (`ADR-0025`), raised by the branch review | owner decision Q32: a hypothesis `current` satisfies is not a weakening; one added to an existing theorem must be needed and cite its refuting witness (`ADR-0025`, 2026-10-14) |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.
