@@ -99,8 +99,8 @@ in the request (`API-13`).
 
 **RSC-5** A pinned connection MUST NEVER be silently downgraded to first-use trust — not
 on retry, not on timeout, not when the driver returns an empty key set later.
-`PRV-20` says "The same rule protects fingerprint pins", "An awaiting Robot session cannot
-become eligible for first-use trust", and "Refresh MUST NOT downgrade a session".
+`PRV-20` says "Refresh MUST NOT downgrade a session", "The same rule protects fingerprint pins",
+and "An awaiting Robot session cannot become eligible for first-use trust".
 
 **RSC-6** Host keys MUST be canonicalized before comparison: parse out the algorithm and
 the base64 blob, discard comments and any leading host pattern, and compare the
@@ -121,7 +121,7 @@ boot timeout, not from an unrelated hard-coded constant. Bare metal routinely ta
 several minutes to POST and reach a rescue environment, and a provider that only
 publishes keys after boot (`PRV-19`) will otherwise fail every pinned install. See
 `DEF-5`.
-`PRV-20` says "If eligible pins have not arrived by `RSC-9`'s deadline"; the outcome is
+For Robot, `PRV-20` says "If eligible pins have not arrived by `RSC-9`'s deadline"; the outcome is
 "connection fails `integrity`".
 
 ## Credentials

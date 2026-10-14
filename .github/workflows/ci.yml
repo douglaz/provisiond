@@ -561,7 +561,8 @@ jobs:
       #     outlives the purge -- closed_summary_witness on secretRow.
       # Rescue and install (pv-vwe.7), Rescue.current:
       #   awaitingProviderPins (PRV-20, 2026-10-12, ADR-0041): the awaiting Robot session
-      #     reaches accept-new with explicit opt-in -- robot_awaiting_pins_witness;
+      #     reaches accept-new with explicit opt-in -- robot_awaiting_pins_witness on
+      #     Trust.sessionDecision Rescue.current true;
       #   coalesceWrite (OPS-45, 2026-09-12, ADR-0022): the null-guarded repeat after a lost reply
       #     affects no row, reads as overtaken, and the phase never runs --
       #     coalesced_repeat_moves_nothing on rawInstall lostReplyThenRepeat;
@@ -895,7 +896,7 @@ jobs:
           echo "lake build correctly refuted the old one-sweep minimum"
 
       # RSC-3's single-source rows require the presented key to be in the sole pin set.
-      # Reinstating the previous broad connection permission must refute that witness.
+      # Weakening only the two single-source arms must refute that witness.
       - name: Prove the Lean build rejects single-source host-key mismatch permission
         if: matrix.shard == 2
         run: |
@@ -922,6 +923,7 @@ jobs:
           grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented Rescue.current false [{ n := 1 }] [] false { n := 2 } = false'
           echo "lake build correctly refuted the single-source presented-key witness"
 
+      # Reinstating the former overlap arm must refute overlap_presented_key_witness.
       - name: Prove the Lean build rejects overlap host-key mismatch permission
         if: matrix.shard == 2
         run: |
