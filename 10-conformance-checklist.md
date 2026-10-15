@@ -3646,7 +3646,13 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       no later constraint read by resolution, refresh or the sweep.
       Then accept a cancellation whose response supplies the per-machine date and assert
       `earliest_cancellation_date` now holds it.
-      (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `PRV-31`, `OPS-11`, `OPS-27`, `OPS-48`)
+      Repeat the successful read and the network-error case at `OPS-27`'s other two entry
+      points: resolving-observed after a lost order reply, and `OPS-36`'s late attach of a
+      machine whose commitment `OPS-33` released. At each, assert the date, or null on
+      failure, is written with the machine row in the landed-order transaction, and that a
+      failed read changes nothing else.
+      (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `PRV-31`, `OPS-11`, `OPS-27`, `OPS-33`,
+      `OPS-36`, `OPS-48`)
 - [ ] **CNF-357** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot optional reads and attachments use their own evidence.**
       With fresh post-action `state_observed_at`, assert no opportunistic
       `GET /server/{n}`; with a stale observation, exercise the existing read and
