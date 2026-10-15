@@ -62,14 +62,7 @@ Two live sessions on 2026-10-12 contradicted half of it. The record is in
 - `08-provider-notes.md`'s claim is corrected, with the timings as observed.
 - `PRV-15`, `PRV-16`, `PRV-19` and `PRV-20` are reconciled with the baseline and a fingerprint-only pin.
   `RSC-*` pinning cites it.
-- A CNF item covers the cases:
-  - an empty activation;
-  - the baseline record served again after the reset, so the session keeps waiting;
-  - a changed record that pins;
-  - a first record after a no-record baseline;
-  - a mismatch at connect;
-  - a failed baseline read, which sends no activation;
-  - keys never arriving within the deadline.
+- `CNF-355` covers the cases.
 - The last-rescue reads use `GET /boot/…`, a counter separate from the `/server` reads (`ADR-0034`).
 - The next live session rescues one server twice, to settle whether keys change per boot, and captures
   the `404`'s error code.

@@ -381,8 +381,7 @@ leaves the column null and `LDG-33`'s term prices nothing.
   caps machine orders at 20 per day on each of the two ordering endpoints, with no hourly pacing, so at most
   about 40 reads can land in one hour: roughly 20% of the counter, more only if deliveries from earlier days
   bunch. Each follows an order whose first unit the tenant paid for.
-- **Conformance:** a failed post-order read is tested: the create settles as it would have, the declared bound
-  is priced, on a `403` the alarm is raised, and no retry is sent.
+- **Conformance:** `CNF-356` tests a failed post-order read.
 
 *Clarified 2026-10-15 (owner decision, panel `docs/research/panels-2026-10/r51/`): no new alarm. Q28's one alarm
 rule stands, so a non-`403` failure of this read raises none; on a settled Robot machine the null
