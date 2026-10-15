@@ -386,6 +386,25 @@ leaves the column null and `LDG-33`'s term prices nothing.
 rule stands, so a non-`403` failure of this read raises none; on a settled Robot machine the null
 `earliest_cancellation_date` in `WIR-11`'s machine view is what marks the term unverified.*
 
+*Clarified 2026-10-15 (owner decision Q34, panel `docs/research/panels-2026-10/r52/`): "once" counts from the
+settlement that commits.* The PR's review found that a crash between a successful read and the landed-order
+commit leaves the result nowhere: `STO-55` keeps provider calls outside transactions, and `OPS-49` throws an
+interrupted worker's outcome away. Recovery then reaches the read again and cannot tell a lost result from a
+read never made. Decision:
+- The pass whose landed-order transaction commits makes the one read, after its confirming read. An interrupted
+  worker's read is discarded with the rest of its outcome, as its confirming read is, and the committing pass
+  reads again. Once the machine row is stored, no resolution pass, refresh or sweep reads the constraint.
+- A settlement with no confirming read (the operator's synchronous `observed` attach, `WIR-35`) makes no
+  post-order read and stores the date as null.
+- "The declared bound remains the priced term" gets its home in `LDG-33`'s formula: where the column is null,
+  the cost-through-earliest-date term is priced from the offer's declared bound (`PRV-31`).
+
+This changes the count from one read per delivered order to one per committing settlement: at most one extra
+read for each create in flight at a crash, bounded by the worker count, beside the confirming read recovery
+already repeats on the same counter. Rejected: a durable "attempt used" marker written before the read (it has
+its own crash window, and a read, unlike `OPS-45`'s disk write, can simply be made again); treating a lost
+result as a failed read without a marker (recovery cannot tell it from a read never made).
+
 **Why keep it.** Only this read learns of a deviating contract while the tenant's committed satoshis can still
 cover it. `PRV-31` forbids resizing the commitment, so the read can only move satoshis from advertised runway
 into `protected_sats`, but that is the protection `PRV-13c` exists for. Dropping it for Robot would turn "Robot

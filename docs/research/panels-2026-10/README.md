@@ -46,5 +46,6 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 | r49 | Q32: when may a theorem assume a guard is on (`ADR-0025`), raised by the branch review | owner decision Q32: a hypothesis `current` satisfies is not a weakening; one added to an existing theorem must be needed and cite its refuting witness (`ADR-0025`, 2026-10-14) |
 | r50 | Q33: which presented host key a Robot session may accept when the caller also supplied keys (`RSC-3`, `WIR-20`, `PRV-20`), raised by `pv-f6g` | owner decision Q33: only a key in both sets (`ADR-0041`, 2026-10-14); refusing caller keys for Robot deferred to the double-rescue test |
 | r51 | Q31's alarm: should a non-rate-limit failure of Robot's post-order read raise an alarm, raised by the second branch review | owner decision: no new alarm; `ADR-0037` Q31's wording corrected to "where its trigger applies" (2026-10-15) |
+| r52 | Q34: the PR #3 codex finding that Robot's one-shot post-order read is not crash-recoverable | owner decision Q34: the pass whose landed-order transaction commits makes the one read; operator attach writes null; `LDG-33` prices the declared bound where the date is null (`ADR-0037`, 2026-10-15) |
 
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit.

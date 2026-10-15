@@ -1,0 +1,19 @@
+Reviewed `74ad5f7`: **FAIL — blocker.** The recovery gap is real; the bot’s proposed journal is not the only remedy.
+
+1. **Today’s crash path.** `STO-55` says “MUST NOT hold a transaction open across a provider” call; `LDG-69` forbids waiting on “any provider call” under tenant serialization. Consequently, the read precedes the landed-order commit. `OPS-49` retains the outcome “in memory”; that does not survive a crash. `OPS-15` then says “move every `running` operation to `needs_reconciliation`”. Resolution searches and confirms again; `OPS-27` says “At every entry point” its transaction includes the read’s “date or the null after a failed read”, including `OPS-36` late attachment. Recovery therefore reaches the prescribed read location again. But `PRV-13c` simultaneously requires “MUST NOT be retried” and “MUST record a successful post-order read’s date”. Nothing specifies how recovery distinguishes an unattempted read from a lost successful result. These clauses leave that window unresolved. (`STO-55`; `LDG-69`; `OPS-49`; `OPS-15`; `OPS-27`; `PRV-13c`.)
+
+2. **Fix comparison.**
+   - **(a): right failure policy, incomplete protocol.** Calling the lost result failed permits null, but recovery still cannot identify whether dispatch happened. Conservatively skipping every uncertain recovered create also skips some *unattempted* reads, weakening “MUST read … once”. Q31’s “a failed read of any kind” supports absorbed interruption, but does not settle that additional choice. Make it explicit with owner agreement. (`PRV-13c`; `ADR-0037`, Q31.)
+   - **(b): less storage suffices.** A durable pre-dispatch *opportunity consumed* bit plus (a) can enforce at-most-once dispatch. An interrupted reservation must count as failure even if dispatch never occurred. A full result journal is unnecessary; journalling after receipt alone merely moves the receive-before-durability window. This is a proposed protocol satisfying the amended `PRV-13c`, not an existing requirement.
+   - **(c): “exactly one” recovery re-read also needs durable bookkeeping.** Otherwise repeated crashes permit repeated reads without new orders. `ADR-0036` bounds order requests, not recovery executions; `OPS-33` additionally permits delayed deliveries. Robot’s shared read counter limits throughput, not this protocol’s lifetime attempt count. (`ADR-0036`; `OPS-33`; `08-provider-notes.md:478`.)
+   - **(d): existing machinery covers live-process store retries only:** `OPS-49` says “never the provider call”. A broader skip-on-recovery exception avoids durable read bookkeeping but needs an explicit acceptance of missed first reads. Dropping Robot’s read altogether reopens Q31’s expressly rejected alternative. (`OPS-49`; `ADR-0037`, Q31.)
+
+3. **Other defects:** I established no additional independent blocker of comparable weight in the requested Q31 scope (`PRV-13c`, `OPS-11`, `OPS-27`, the column row, `CNF-147`/`CNF-356`).
+
+4. **Recommendation:** resolve the recovery policy before merging. Prefer (a) with the smallest protocol preserving the intended read opportunity; choose broader skipped reads explicitly if avoiding bookkeeping matters more. Add restart fault cases before dispatch, after receipt and before commit to `CNF-356`, including its resolution/late-attach paths. Then merge after clean gates and focused review.
+
+**Strongest case for the other side (written on request)**
+
+Merge with a follow-up: `PRV-31` already excludes bounds “later than the provider’s local today”, and Q31 already accepts an unverified term after ordinary read failure. Crash loss has that same accepted economic outcome. Interpret “failed read” end-to-end and leave internal bookkeeping to implementation. (`PRV-31`; `ADR-0037`, Q31.)
+
+Both required unpiped gate runs passed. Tracked files remain unchanged.
