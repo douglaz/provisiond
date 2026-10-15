@@ -8,7 +8,7 @@ Readers: fable, opus (claude xhigh), astra, sol (codex xhigh); clones at 32c77dc
 | | Verdict | Readers |
 |---|---|---|
 | (a) capability gating | DECLINE 3–1 | astra would write it narrowly on `Rescue.Install.step.beginRescue` |
-| (b) `PRV-36`/`STO-53` effective-window maximum | **WRITE 4–0**, and owed: ADR-0018 added the max by dated amendment (`OPS-32` "read 'declared' until 2026-09-08") and ADR-0025 makes every such guard a model parameter. `Windows.visibility` → `pastWindow` → `sweepStep`; pair: declared 8, observed 20, sweep at 10 (opus proved it in scratch) |
+| (b) `PRV-36`/`STO-53` effective-window maximum | **WRITE 4–0**, and owed: ADR-0018 added the max by dated amendment (`OPS-32` "read 'declared' until 2026-09-08") and ADR-0025 makes every such guard a model parameter. | `Windows.visibility` → `pastWindow` → `sweepStep`; pair: declared 8, observed 20, sweep at 10 (opus proved it in scratch) |
 | (c) `OPS-40` signed-URL gates | DECLINE 3–1 | astra would write it; the model has no clock (`Rescue.lean:27`) |
 | (d) `WIR-45` secrecy | DECLINE 4–0 | |
 | (e) `STO-17` uniqueness key | DECLINE 4–0 | |

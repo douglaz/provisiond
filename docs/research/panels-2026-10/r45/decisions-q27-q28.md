@@ -4,7 +4,7 @@ Q27 (grill Q5) ACCEPTED 2026-10-12 — Robot rescue host-key pinning:
 - Observed (sessions 2/3): the activation response and GET /boot/{n}/rescue carry host_key [] (before
   and after boot); GET /boot/{n}/rescue/last publishes the booted session's host keys (SHA256 base64
   fingerprints, ECDSA/ED25519/RSA) with boot_time, available by the time port 22 opens (~60 s after
-  the reset); they matched SSH exactly; every rescue boot generates fresh keys; the activation is
+  the reset); they matched SSH exactly; whether keys are fresh per boot is unverified (`ADR-0041`); the activation is
   consumed at boot (active -> false within 30 s).
 - Rule: the Robot driver's begin-rescue returns no host keys; PRV-19 refresh reads the last-rescue
   record and populates host keys only when its boot_time is later than the session's reset; connect
