@@ -590,20 +590,34 @@ dispatch path."
 
 *Amended 2026-10-14 (`ADR-0037`, Q31).*
 *Amended 2026-10-15 (`pv-sgj`): the cancellation-response writer sentence gained its MUST keyword.*
-The driver MUST read the per-machine cancellation
+*Amended 2026-10-15 (`ADR-0037`, Q34).*
+For a settlement that makes a confirming read, the driver MUST read the per-machine cancellation
 constraint once, when the create settles, after `OPS-27`'s confirming read. `OPS-27` says "the first row
 MUST be confirmed by a direct read before it attaches anything".
 A failed post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s
-classifier and MUST NOT change the create's settlement. On failure, the declared bound
-MUST remain the priced term. `PRV-31` says "The declared bound sizes the commitment at create".
+classifier and MUST NOT change the create's settlement.
+For pricing a null column, `LDG-33` says "or, where `machines.earliest_cancellation_date` is null, through the offer's declared bound (`PRV-31`)".
 Absorbing the failure MUST NOT suppress `PRV-5`'s "raise a monitorable alarm naming the
 provider account and request path" where its trigger applies.
-The post-order read MUST NOT be retried; a resolution pass, a refresh and the sweep MUST NOT
-read that machine's cancellation constraint again. For reads on a cancellation's own path,
-see `PRV-13`.
-The system MUST record a successful post-order read's date in `machines.earliest_cancellation_date`.
+Here a settlement pass means the execution reaching any entry point in `OPS-27`'s
+landed-order transaction paragraph. The settlement pass whose landed-order transaction commits
+MUST make the one post-order read, after its confirming read. Within a settlement pass the
+post-order read MUST NOT be repeated. Its result MUST be retained through whole-transaction repeats:
+`OPS-49` says "with the provider's outcome retained in memory".
+On interruption by engine exit or crash (`OPS-15`), the worker's read MUST be discarded with
+the rest of its outcome; `OPS-49` says "the outcome in hand is thrown away".
+If the store does not hold the machine row, a later settlement pass that makes a confirming
+read MUST read the constraint again after that confirming read.
+Once the store holds the machine row, a resolution pass, a refresh and the sweep MUST NOT
+read that machine's cancellation constraint. For reads on a cancellation's own path, see `PRV-13`.
+A settlement with no confirming read — the operator's synchronous `observed` attach
+(`WIR-35`'s "attaches a discovered resource (`OPS-27`)") — MUST make no post-order read and
+MUST store the date as null; this is the exception to the committing settlement pass's read.
+The landed-order transaction MUST write the date of a successful read the committing pass holds,
+otherwise null, in `machines.earliest_cancellation_date` with the machine row.
+The system MUST record the date of the committing pass's successful post-order read in `machines.earliest_cancellation_date`.
 An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it
-to that column. After a failed post-order read, the column MUST remain null
+to that column. After the committing pass's failed post-order read, the column MUST remain null
 until such a response supplies the date.
 
 *This requirement exists because a specification, a reviewing model, and a researching model

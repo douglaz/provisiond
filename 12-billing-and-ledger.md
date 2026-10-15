@@ -350,6 +350,8 @@ protected_sats = at the current rate, rounded up:
                  + surviving billable attachments (PRV-13a)
                  + cost through any effective cancellation date (DOM-19)
                  + cost through any future permitted-from date to its provider-local day end (PRV-13, PRV-13c)
+                   or, where `machines.earliest_cancellation_date` is null, through the offer's declared bound (`PRV-31`)
+                   (in either case only if later than provider-local today, to that date's provider-local day end)
 usable_sats    = max(0, reserved_sats − protected_sats)
 mark           = the machine subject's latest high-water mark (LDG-72); none before its first seed
 runway_until   = max(now, mark) + floor(usable_sats / current_customer_rate)
@@ -357,6 +359,7 @@ runway_until   = max(now, mark) + floor(usable_sats / current_customer_rate)
 ```
 
 *Amended 2026-10-11 (`ADR-0037`, Q23c): the stored permitted-from start and priced-through end are distinct; the commitment remains fixed.*
+*Amended 2026-10-15 (`ADR-0037`, Q34).*
 
 **The derivation counts from the later of now and the machine's mark** (`ADR-0033`, amended
 2026-10-08; formalized as `Provisiond.Runway.runwayUntil`). `mark` is the machine subject's latest
@@ -381,7 +384,7 @@ added for the case (*stated 2026-10-08, `ADR-0033`*). Every writer of `runway_un
 included.
 
 **The two date terms are not additive.** Where both an effective cancellation date (`DOM-19`) and
-an earliest cancellation date still in the future (`PRV-13c`) apply to the same machine, the
+the future permitted-from date or declared bound used by the formula above apply to the same machine, the
 protected cost runs to the **later** of the two and is counted once. The earliest date is a
 minimum-term constraint that exists from create (`PRV-31`), not something a cancellation creates,
 so the cost of running to it is unavoidable from the moment the machine exists and MUST NOT be

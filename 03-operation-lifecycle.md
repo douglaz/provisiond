@@ -537,9 +537,10 @@ scheduled to stop it.
 
 *Amended 2026-10-14 (`ADR-0037`, Q31).*
 *Amended 2026-10-15 (`pv-sgj`): the landed-order transaction's placement sentence gained its MUST keyword.*
+*Amended 2026-10-15 (`ADR-0037`, Q34).*
 At every entry point to the landed-order transaction above, that transaction MUST include
-the post-order read's column write, its date or the null after a failed read, with the machine row.
-`PRV-13c` says "The system MUST record a successful post-order read's date in `machines.earliest_cancellation_date`", "An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it to that column" and "After a failed post-order read, the column MUST remain null until such a response supplies the date".
+the column write with the machine row: `PRV-13c` says "The landed-order transaction MUST write the date of a successful read the committing pass holds, otherwise null, in `machines.earliest_cancellation_date` with the machine row".
+`PRV-13c` says "The system MUST record the date of the committing pass's successful post-order read in `machines.earliest_cancellation_date`", "An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it to that column" and "After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date".
 `PRV-13c` says "once, when the create settles, after `OPS-27`'s confirming read".
 
 *Amended 2026-10-04 (`pv-gip.27`, J1): the flowchart and atomic attach include `LDG-40`'s

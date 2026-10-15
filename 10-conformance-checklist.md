@@ -3642,17 +3642,37 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       Price the earliest-date term from the declared bound: its contribution is zero
       for this v1 offer, as in `CNF-166`; the commitment remains unchanged.
       On the `403` case, assert the alarm names the provider account and request path.
-      Assert exactly one `GET /server/{n}/cancellation` for each create, no retry and
-      no later constraint read by resolution, refresh or the sweep.
       Then accept a cancellation whose response supplies the per-machine date and assert
       `earliest_cancellation_date` now holds it.
       Repeat the successful read and the network-error case at `OPS-27`'s other two entry
-      points: resolving-observed after a lost order reply, and `OPS-36`'s late attach of a
+      points: automatic `OPS-27` resolving-observed after a lost order reply, and `OPS-36`'s late attach of a
       machine whose commitment `OPS-33` released. At each, assert the date, or null on
       failure, is written with the machine row in the landed-order transaction, and that a
       failed read changes nothing else.
+      **Amended 2026-10-15 (`ADR-0037`, Q34): the committing settlement's read.**
+      This replaces Q31's per-create read count.
+      Assert each settlement pass that reaches the post-order read makes at most one
+      `GET /server/{n}/cancellation`, after its confirming read. Assert the committing
+      pass's own result — its date, or null on its own failure — is written with the
+      machine row in the landed-order transaction. Once the store holds the machine
+      row, assert no constraint read follows by resolution, refresh or the sweep.
+      In separate crash cases, kill the engine after a successful post-order read and
+      after a failed post-order read, each before the landed-order commit. After restart
+      (`OPS-15`), assert the committing automatic resolution pass makes one constraint
+      read after its confirming read. Exercise success and failure of that pass's read;
+      assert its date, or null on its own failure, is written with the machine row in
+      the landed-order transaction. Including the interrupted read, assert two constraint
+      reads for each create in these cases and no constraint read after settlement.
+      Separately force whole-transaction repeats under `OPS-49` and assert they retain
+      the post-order read's result without repeating that read. Also lose the reply to
+      a committed landed-order transaction, exhaust the store-error bound and restart;
+      assert the stored machine row prevents a later constraint read.
+      On a create in `needs_reconciliation`, use the operator's synchronous `observed`
+      resolution (`WIR-35`). Assert no `GET /server/{n}/cancellation` and that
+      `earliest_cancellation_date` is written null. Assert the earliest-date term is
+      priced from the declared bound under `LDG-33`, contributing zero for the v1 offer.
       (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `PRV-31`, `OPS-11`, `OPS-27`, `OPS-33`,
-      `OPS-36`, `OPS-48`)
+      `OPS-36`, `OPS-48`, `OPS-15`, `OPS-49`, `WIR-35`, `LDG-33`)
 - [ ] **CNF-357** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot optional reads and attachments use their own evidence.**
       With fresh post-action `state_observed_at`, assert no opportunistic
       `GET /server/{n}`; with a stale observation, exercise the existing read and
