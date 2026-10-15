@@ -375,14 +375,18 @@ leaves the column null and `LDG-33`'s term prices nothing.
   `OPS-27`'s confirming read.
 - **Failure:** a failed read of any kind, `rate_limited` included, does not enter `OPS-11`'s classifier and does
   not change the create's settlement. The declared bound of `PRV-31` remains the priced term, `PRV-5`'s alarm
-  is raised, and the read is not retried. A later accepted cancellation's response (`PRV-13`) supplies the
-  per-machine date.
+  is raised where its trigger applies (a Robot `403`), and the read is not retried. A later accepted
+  cancellation's response (`PRV-13`) supplies the per-machine date.
 - **Threat model:** Q28's list of what spends the account's `/server` counter gains these reads. `ADR-0036`
   caps machine orders at 20 per day on each of the two ordering endpoints, with no hourly pacing, so at most
   about 40 reads can land in one hour: roughly 20% of the counter, more only if deliveries from earlier days
   bunch. Each follows an order whose first unit the tenant paid for.
 - **Conformance:** a failed post-order read is tested: the create settles as it would have, the declared bound
-  is priced, the alarm is raised, and no retry is sent.
+  is priced, on a `403` the alarm is raised, and no retry is sent.
+
+*Clarified 2026-10-15 (owner decision, panel `docs/research/panels-2026-10/r51/`): no new alarm. Q28's one alarm
+rule stands, so a non-`403` failure of this read raises none; on a settled Robot machine the null
+`earliest_cancellation_date` in `WIR-11`'s machine view is what marks the term unverified.*
 
 **Why keep it.** Only this read learns of a deviating contract while the tenant's committed satoshis can still
 cover it. `PRV-31` forbids resizing the commitment, so the read can only move satoshis from advertised runway
