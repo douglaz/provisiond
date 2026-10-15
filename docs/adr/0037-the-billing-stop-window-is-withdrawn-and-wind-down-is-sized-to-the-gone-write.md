@@ -377,10 +377,9 @@ leaves the column null and `LDG-33`'s term prices nothing.
   not change the create's settlement. The declared bound of `PRV-31` remains the priced term, `PRV-5`'s alarm
   is raised where its trigger applies (a Robot `403`), and the read is not retried. A later accepted
   cancellation's response (`PRV-13`) supplies the per-machine date.
-- **Threat model:** Q28's list of what spends the account's `/server` counter gains these reads. `ADR-0036`
-  caps machine orders at 20 per day on each of the two ordering endpoints, with no hourly pacing, so at most
-  about 40 reads can land in one hour: roughly 20% of the counter, more only if deliveries from earlier days
-  bunch. Each follows an order whose first unit the tenant paid for.
+- **Threat model:** Q28's list of what spends the account's `/server` counter gains these reads, one per
+  delivered order. `ADR-0036` caps machine orders per endpoint per day with no hourly pacing, so a day's
+  deliveries can land in one hour. Each follows an order whose first unit the tenant paid for.
 - **Conformance:** `CNF-356` tests a failed post-order read.
 
 *Clarified 2026-10-15 (owner decision, panel `docs/research/panels-2026-10/r51/`): no new alarm. Q28's one alarm
