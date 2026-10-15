@@ -63,7 +63,7 @@ One field per line, because `ci.yml`'s controls match that shape. -/
 /-- The parameter fields below carry dated-amendment guards and the design `RSC-19` refuses.
 `Provisiond.Rescue.Params.awaitingProviderPins`: `PRV-20`, amended 2026-10-12, `ADR-0041` — "An awaiting Robot session
 cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in".
-`Provisiond.Rescue.Params.overlapCallerPins`: `RSC-3`, amended 2026-10-14, `ADR-0041` (Q33) — "On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys."
+`Provisiond.Rescue.Params.overlapCallerPins`: `ADR-0041` (Q33), 2026-10-14. `RSC-3` says "On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys."
 `Provisiond.Rescue.Params.temporaryKeyEligibility`: `PRV-9`, 2026-10-09, `ADR-0040` — the temporary-key sweep waits for an eligible operation and no provisioning machine.
 `Provisiond.Rescue.Params.coalesceWrite`: `OPS-45`, 2026-09-12, `ADR-0022` — "The write sets the marker only where it is
 null", by "`COALESCE(write_started_at, now)` under the worker guard, never a guard on the marker

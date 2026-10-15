@@ -7,8 +7,8 @@ provider through the rescue lifecycle, and installs an image over SSH.
 
 1. Generate a single-use Ed25519 keypair scoped to this one operation.
 2. Ask the driver to begin rescue (`PRV-15`), including Robot's pre-activation baseline read, activation and reboot.
-3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or,
-   for a driver that permits it, the caller's policy resolves the question. For Robot,
+3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or
+   the caller's policy resolves the question. For Robot,
    only accepted provider pins resolve the wait: `PRV-20` says "An awaiting Robot session
    cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in"
    and "Robot never falls back to first-use trust, including when caller keys are supplied".
@@ -87,7 +87,8 @@ holds a credential that grants root on the customer's machine.
 | Neither, and the caller explicitly opted into first-use trust | Accept-new. Permitted, but it is a documented downgrade. |
 | Neither, and no explicit opt-in | Abort with an `integrity` error. |
 
-**Amended 2026-10-14 (`ADR-0041`, Q33).**
+**Amended 2026-10-14 (`ADR-0041`, Q33).** Row 1's Condition excludes driver pins; the both-supplied row gained its closing sentence.
+
 **Amended 2026-10-12 (`ADR-0041`).** `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust"; the first-use row does not apply to that session.
 `PRV-20` says "a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins
 MUST be refused before authentication" and "The engine MUST pin the matching presented full key for the connection".
