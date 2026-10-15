@@ -328,7 +328,8 @@ account, so per-user and per-account are the same here, and the counter is not p
 **Q23a's money decision stands.** The tail is not funded, and no local read budget is built. As `ADR-0034`
 Q19 found, "A local count cannot hold a reserve" against traffic outside provisiond.
 
-**Its threat model is restated.** Tenants can add to the counter through provisiond in four ways:
+**Its threat model is restated, as it stood before the repairs below.** Tenants could add to the counter
+through provisiond in these ways:
 - refreshes at the edge of a sweep, while the freshness window only equals the sweep interval;
 - opportunistic reads after actions;
 - deletes of a fleet held over several days, at two shared reads each while a cancellation pre-read
@@ -377,8 +378,8 @@ leaves the column null and `LDG-33`'s term prices nothing.
   not change the create's settlement. The declared bound of `PRV-31` remains the priced term, `PRV-5`'s alarm
   is raised where its trigger applies (a Robot `403`), and the read is not retried. A later accepted
   cancellation's response (`PRV-13`) supplies the per-machine date.
-- **Threat model:** Q28's list of what spends the account's `/server` counter gains these reads, one per
-  delivered order. `ADR-0036` caps machine orders per endpoint per day with no hourly pacing, so a day's
+- **Threat model:** these reads also spend the account's `/server` counter, one per
+  delivered order (one per committing settlement, by the Q34 clarification below). `ADR-0036` caps machine orders per endpoint per day with no hourly pacing, so a day's
   deliveries can land in one hour. Each follows an order whose first unit the tenant paid for.
 - **Conformance:** `CNF-356` tests a failed post-order read.
 
