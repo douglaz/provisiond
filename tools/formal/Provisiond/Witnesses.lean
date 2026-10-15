@@ -713,6 +713,30 @@ theorem holding_extension_with_episode_reasons :
     100 ≤ w.balance ∧ p.abort w.now (w.m.commitment + 100) w.prot 1 = true ∧
     (fenceTxn p (extend p w 100) none).phase = .fenced ⟨1⟩ := by decide
 
+/-- Pin every fence parameter read by the holding retry's extension and transaction. -/
+def holdingRetryWithoutFenceParams : Fence.Params :=
+  { holdingExtensionParams with
+    suspensionKey := .currentState, retryNeedsFence := false,
+    rederiveFirst := true }
+
+/-- Refutes `Provisiond.Fence.extension_first` without `hguard : p.retryNeedsFence = true`.
+The retry already holds its claim, its fence is null, and its extension is funded. -/
+@[req "OPS-42"]
+theorem holding_retry_without_fence_refutes_extension_first :
+    let p := holdingRetryWithoutFenceParams
+    let a : Attempt :=
+      { op := ⟨2⟩, ep := ⟨1⟩,
+        row := { status := .running, claim := ⟨1⟩, record := 0, revision := 1 }, retried := true }
+    let w : World :=
+      { fenceWorld with
+        phase := .holding ⟨1⟩, attempt := some a,
+        episode := some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } }
+    p.retryNeedsFence = false ∧ p.suspensionKey = .currentState ∧
+    w.phase = .holding ⟨1⟩ ∧ w.rate = some 1 ∧ w.attempt = some a ∧
+    w.suspended = false ∧ w.m.fence = none ∧ 100 ≤ w.balance ∧
+    p.abort w.now (w.m.commitment + 100) w.prot 1 = true ∧
+    (fenceTxn p (extend p w 100) none).phase = .fenced ⟨1⟩ := by decide
+
 /-- `OPS-41`'s fifth step on a machine carrying an open record. With no rate returning, the
 conditional write affects the record's row and the cancellation proceeds: the funded machine is
 destroyed at the bound. With restoration committing after the fence transaction read no rate and
@@ -1992,6 +2016,41 @@ theorem close_releases_every_commitment :
     let b := Ledger.run g zeroBalances twoCommitmentTrace
     let next := Ledger.step g b (.closeCommitment 0)
     next.commitments.isOpen 1 = false ∧ next.reserved = 0 ∧ next.available = 100 := by decide
+
+/-- Pin both serialization rules and every ledger guard for the aggregate counterfactual. -/
+def aggregateRefutationGuards : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := false,
+    closeOwnCommitment := true, clampOwnCommitment := true }
+
+/-- Refutes `Provisiond.Ledger.run_floors_single` without `ha : g.allCommitmentsAuthorize = true`.
+The sole initial slot is nonnegative and funded; the trace opens more slots. -/
+@[req "LDG-10"]
+theorem aggregate_without_guard_refutes_run_floors_single :
+    let g := aggregateRefutationGuards
+    let b := Ledger.single 100 30 0 0
+    let evs : List Ledger.Event := [.openCommitment 40, .openCommitment 40]
+    g.clampAtAuthority = true ∧ g.serializedAuthorization = true ∧
+    g.allCommitmentsAuthorize = false ∧ (∀ e ∈ evs, e.nonneg) ∧
+    (0 ≤ b.available ∧ 0 ≤ b.reserved) ∧
+    ¬ (0 ≤ (Ledger.run g b evs).available ∧ 0 ≤ (Ledger.run g b evs).reserved) := by
+  dsimp only
+  simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq,
+    Ledger.Event.nonneg]
+  decide
+
+/-- Refutes `Provisiond.Ledger.open_against_read_is_the_serialized_open` without
+`hr : g.allCommitmentsAuthorize = true`, including its posting history and sum equality. -/
+@[req "LDG-70"]
+theorem aggregate_without_guard_refutes_open_against_read :
+    let g := aggregateRefutationGuards
+    let ps : List Ledger.Posting := [.append 100]
+    let b : Ledger.Balances :=
+      { sum := 100, commitments := [some 30, some 40], deficiency := 0, snapshot := 0 }
+    g.appendReadsLatest = true ∧ g.serializedAuthorization = true ∧
+    g.allCommitmentsAuthorize = false ∧ b.sum = (Ledger.Book.empty.run g ps).sum ∧
+    Ledger.openAgainst (Ledger.Book.empty.run g ps).read b 40 ≠
+      Ledger.step g b (.openCommitment 40) := by decide
 
 /-- `LDG-31`: "the commitment decrements to zero". A debit of 50 on A posts 30 and records
 20 deficiency; B retains its 40. Available cannot distinguish this pair and is not asserted. -/

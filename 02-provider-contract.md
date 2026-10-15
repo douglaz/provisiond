@@ -584,23 +584,25 @@ needs no exception —
 cost-through-that-date, or not be sold on prepaid terms at all. **That cost is part of
 `protected_sats` (`LDG-33`), not spendable runway** — the whole point of reading the date is that
 the satoshis covering it are never advertised as runtime.
-This post-order discovery is distinct from `PRV-13`'s Robot cancellation request:
-"MUST NOT issue `GET /server/{n}/cancellation` as a pre-read in that cancellation
+This post-order discovery is distinct from the Robot cancellation request.
+`PRV-13` says "MUST NOT issue `GET /server/{n}/cancellation` as a pre-read in that cancellation
 dispatch path."
 
-*Amended 2026-10-14 (`ADR-0037`, Q31).* The driver MUST read the per-machine cancellation
-constraint once, when the create settles, after `OPS-27`'s confirming read ("the first row
-MUST be confirmed by a direct read before it attaches anything").
+*Amended 2026-10-14 (`ADR-0037`, Q31).*
+*Amended 2026-10-15 (`pv-sgj`): the cancellation-response writer sentence gained its MUST keyword.*
+The driver MUST read the per-machine cancellation
+constraint once, when the create settles, after `OPS-27`'s confirming read. `OPS-27` says "the first row
+MUST be confirmed by a direct read before it attaches anything".
 A failed post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s
 classifier and MUST NOT change the create's settlement. On failure, the declared bound
-MUST remain the priced term (`PRV-31`: "The declared bound sizes the commitment at create").
+MUST remain the priced term. `PRV-31` says "The declared bound sizes the commitment at create".
 Absorbing the failure MUST NOT suppress `PRV-5`'s "raise a monitorable alarm naming the
 provider account and request path" where its trigger applies.
 The post-order read MUST NOT be retried; a resolution pass, a refresh and the sweep MUST NOT
 read that machine's cancellation constraint again. For reads on a cancellation's own path,
 see `PRV-13`.
 The system MUST record a successful post-order read's date in `machines.earliest_cancellation_date`.
-An accepted cancellation's response (`PRV-13`) that carries the per-machine date supplies it
+An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it
 to that column. After a failed post-order read, the column MUST remain null
 until such a response supplies the date.
 

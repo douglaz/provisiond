@@ -2007,8 +2007,10 @@ it makes no provider call at all." With the read inside the fence transaction, a
 store admitted before it is what the re-check reads; where that grown commitment funds the
 machine at the rate the transaction reads, it decides no mutation, writes no fence, and the
 provider call is inert. The admitted extension's null fence directly makes the guarded retry
-exemption false, whether the attempt is ordinary or retried. The guard is an explicit hypothesis
-so its mutation reaches the counterfactual witness. The rate is the world's and not a claim
+exemption false, whether the attempt is ordinary or retried. The hypothesis
+`hguard : p.retryNeedsFence = true` is necessary:
+`Provisiond.Witnesses.holding_retry_without_fence_refutes_extension_first` refutes the conclusion
+without it. The rate is the world's and not a claim
 snapshot's — `OPS-41`: "never on
 its claim snapshot" — and a machine recorded gone or under a closed episode is settled by the
 first step with no mutation either, so neither is a hypothesis. The hypothesis

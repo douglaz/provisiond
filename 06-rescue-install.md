@@ -87,7 +87,7 @@ holds a credential that grants root on the customer's machine.
 | Neither, and the caller explicitly opted into first-use trust | Accept-new. Permitted, but it is a documented downgrade. |
 | Neither, and no explicit opt-in | Abort with an `integrity` error. |
 
-**Amended 2026-10-14 (`ADR-0041`, Q33).** Row 1's Condition excludes driver pins; the both-supplied row gained its closing sentence.
+**Amended 2026-10-14 (`ADR-0041`, Q33).** Row 1's Condition excludes driver pins; the both-supplied row gained its closing sentence. The first branch-review fixes on 2026-10-14 (`pv-f6g`, `70ce84d`) also changed the 2026-10-12 note's lowercase must to MUST.
 
 **Amended 2026-10-12 (`ADR-0041`).** `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust"; the first-use row does not apply to that session.
 `PRV-20` says "a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins
@@ -125,8 +125,7 @@ boot timeout, not from an unrelated hard-coded constant. Bare metal routinely ta
 several minutes to POST and reach a rescue environment, and a provider that only
 publishes keys after boot (`PRV-19`) will otherwise fail every pinned install. See
 `DEF-5`.
-For Robot, `PRV-20` says "If eligible pins have not arrived by `RSC-9`'s deadline"; the outcome is
-"connection fails `integrity`".
+For Robot, `PRV-20` says "If eligible pins have not arrived by `RSC-9`'s deadline … connection fails `integrity`".
 
 ## Credentials
 

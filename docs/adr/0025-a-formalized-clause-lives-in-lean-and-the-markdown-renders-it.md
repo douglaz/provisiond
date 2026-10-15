@@ -194,10 +194,16 @@ not need. A four-reader panel weighed it (`docs/research/panels-2026-10/r49/`); 
 Tooling cannot enforce the second point: every hypothesis is referenced by its proof, so Lean reports none
 unused, and a CI row that deletes a hypothesis goes red on true statements too. The witness is the evidence.
 
-Applied now: the three `_single` ledger theorems lose the `allCommitmentsAuthorize` hypothesis they do not need
-(`open_authorized_at_commit_single`, `floors_preserved_single`,
-`open_against_read_is_the_serialized_open_single`), and the seven older docstrings that do not name an added
-guard hypothesis (in `Restore.lean` and `Fence.lean`) name it and cite its witness. `AGENTS.md` points here.
+Applied now:
+- The `_single` ledger theorems `open_authorized_at_commit_single`, `floors_preserved_single` and
+  `open_against_read_is_the_serialized_open_single` lose the `allCommitmentsAuthorize` hypothesis they do not need.
+- The docstrings of `Restore.quarantine_before_first_claim`, `Restore.bumped_before_first_request`,
+  `Restore.no_absence_on_first_pass`, `Fence.extend_admitted`, `Fence.closed_step` and
+  `Fence.extension_first` name their added guard hypothesis and cite its witness; pv-7j4 named
+  `Fence.extension_first`'s `hk`.
+- For `Restore.parent_waits_for_confirmation`, pv-7j4 removed the hypothesis instead of naming it.
+
+`AGENTS.md` points here.
 
 Rejected: no amendment (the rule would stay in run instructions a reviewer of the repository cannot read); a
 CI mutation that deletes hypotheses (it tests proof scripts, not statements); recording the counterexample only

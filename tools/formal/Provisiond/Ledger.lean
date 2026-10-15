@@ -21,8 +21,8 @@ the clamp it is — "the automatic seizure `ADR-0011` exists to forbid". (The da
 beside it, 2026-09-02, is the pairing rule's "has no exception"; the clamp paragraph itself is
 undated.) The guard also governs debits naming closed or missing slots: enabled, the
 whole signed amount goes to deficiency with sum and slots unchanged; disabled, the whole debit
-leaves sum with slots unchanged. `LDG-31`'s amendment says "there is no debit left that pairs with
-nothing", and its clamp paragraph says "It MUST NOT be taken from available balance".
+leaves sum with slots unchanged. `LDG-31` says "there is no debit left that pairs with
+nothing" and "It MUST NOT be taken from available balance".
 `serializedAuthorization`: `LDG-35`, "The authorization read and the commitment write MUST be
 serialized per tenant" — the primitive was chosen on 2026-09-06 (`ADR-0015`), the rule is undated;
 without it the open authorizes against `snapshot`, the balance an earlier transaction read — "two
@@ -475,9 +475,9 @@ theorem deficiency_is_not_a_balance (b : Balances) (d : Int) :
 
 /-! ## The release -/
 
-/-- `LDG-32`: "closed, and its remaining amount released in full". With the added own-close
-hypothesis, available rises by the named remainder, that slot closes, other remainders are
-unchanged, and the derived sum falls by exactly that remainder. -/
+/-- `LDG-32`: "closed, and its remaining amount released in full". With `ho : g.closeOwnCommitment = true`, available rises by the named remainder, that slot closes, other remainders are
+unchanged, and the derived sum falls by exactly that remainder.
+`Provisiond.Witnesses.close_releases_every_commitment` refutes this statement without `ho`. -/
 @[req "LDG-32"]
 theorem close_releases_exact_remainder (g : Guards) (ho : g.closeOwnCommitment = true)
     (b : Balances) (i : Nat) :
@@ -499,8 +499,8 @@ theorem close_releases_exact_remainder (g : Guards) (ho : g.closeOwnCommitment =
 
 /-! ## The authorization -/
 
-/-- `LDG-9`: the open "is the only authorization a create receives". With the added aggregate
-hypothesis and serialization, a changed reservation was funded at commit. -/
+/-- `LDG-9`: the open "is the only authorization a create receives". With `ha : g.allCommitmentsAuthorize = true` and serialization, a changed reservation was funded at commit.
+`Provisiond.Witnesses.only_one_commitment_authorizes` refutes the statement without `ha`. -/
 @[req "LDG-35"]
 theorem open_authorized_at_commit (g : Guards) (hg : g.serializedAuthorization = true)
     (ha : g.allCommitmentsAuthorize = true) (b : Balances) (n : Int)
@@ -518,7 +518,8 @@ def Event.nonneg : Event → Prop
   | .read | .closeCommitment _ => True
 
 /-- `LDG-10`: "A balance MUST NOT go negative, and `available` MUST NOT go negative".
-The added aggregate-authorization hypothesis keeps the open funded at commit.
+The hypothesis `ha : g.allCommitmentsAuthorize = true` keeps the open funded at commit;
+`Provisiond.Witnesses.only_one_commitment_authorizes` refutes the statement without it.
 The old scalar floor becomes pointwise nonnegativity plus its sum across each event. -/
 @[req "LDG-10"]
 theorem floors_preserved (g : Guards) (hc : g.clampAtAuthority = true)
@@ -586,8 +587,9 @@ theorem floors_preserved (g : Guards) (hc : g.clampAtAuthority = true)
       · simp only [step, hi, Bool.false_eq_true, ite_false]
         exact ⟨h.1, h.2, Commitments.total_nonneg _ h.2⟩
 
-/-- The event floors over a whole trace, with the added aggregate-authorization hypothesis and
-pointwise image of the old scalar hypothesis; the total floor is retained too. -/
+/-- The event floors over a whole trace, with `ha : g.allCommitmentsAuthorize = true` and the
+pointwise image of the old scalar hypothesis; the total floor is retained too.
+`Provisiond.Witnesses.only_one_commitment_authorizes` refutes the statement without `ha`. -/
 @[req "LDG-10"]
 theorem run_floors (g : Guards) (hc : g.clampAtAuthority = true)
     (hs : g.serializedAuthorization = true) (ha : g.allCommitmentsAuthorize = true)
@@ -672,6 +674,9 @@ theorem floors_preserved_single (g : Guards) (hc : g.clampAtAuthority = true)
   rw [step_single_allCommitmentsAuthorize]
   exact ⟨hp.1, hp.2.2⟩
 
+/-- The trace floors from a sole open slot need `ha : g.allCommitmentsAuthorize = true`:
+`Provisiond.Witnesses.aggregate_without_guard_refutes_run_floors_single` refutes the statement
+without it, because later opens create more slots. -/
 theorem run_floors_single (g : Guards) (hc : g.clampAtAuthority = true)
     (hs : g.serializedAuthorization = true) (ha : g.allCommitmentsAuthorize = true)
     (sum remaining deficiency snapshot : Int) (evs : List Event) (he : ∀ e ∈ evs, e.nonneg)
@@ -941,7 +946,9 @@ theorem read_available_is_available (g : Guards) (hg : g.appendReadsLatest = tru
 
 /-- So an open against the read is `step`'s own under `LDG-35`'s serialization, and
 `open_authorized_at_commit` and `floors_preserved` apply with their guard hypotheses.
-The added aggregate-authorization hypothesis makes the open read all reservations. -/
+The hypothesis `hr : g.allCommitmentsAuthorize = true` makes the open read all reservations.
+`Provisiond.Witnesses.aggregate_without_guard_refutes_open_against_read` refutes the statement
+without `hr`, with a posting history satisfying the sum equality. -/
 @[req "LDG-70"]
 theorem open_against_read_is_the_serialized_open (g : Guards)
     (ha : g.appendReadsLatest = true) (hs : g.serializedAuthorization = true)
