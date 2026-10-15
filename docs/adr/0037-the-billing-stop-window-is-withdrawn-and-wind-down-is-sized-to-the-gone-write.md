@@ -1,6 +1,6 @@
 # The billing-stop window is withdrawn, and wind-down is sized to the gone-write
 
-**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18) and 2026-10-11 (Q21, Q22, Q23, Q25). Amends `ADR-0035` (a release that carries an effective date) and
+**Status:** accepted (2026-10-06, owner decision Q6 of the provider-research grill); amended 2026-10-09 (Q13, Q14), 2026-10-10 (Q18), 2026-10-11 (Q21, Q22, Q23, Q25) and 2026-10-12 (Q28). Amends `ADR-0035` (a release that carries an effective date) and
 `ADR-0018`.
 
 ## Context
@@ -305,3 +305,112 @@ cancellable server's `earliest_cancellation_date` were taken on 2026-10-11:*
 - *23:30:14Z, the same dates: `2026-10-12`.*
 
 *The date rolled over at Berlin's midnight, not UTC's (`docs/research/panels-2026-10/r40/zone-check.txt`).*
+
+## Amendment — 2026-10-12: Q23a after Robot's server-read counter proved account-wide (owner decision Q28)
+
+Q23a said: "A tenant can induce a failed read only if Robot's server-read counter is shared, which is
+unverified and settled by the live test. If it is shared, this is revisited." The live sessions of
+2026-10-12 settled it, and a four-reader panel revisited it (`docs/research/panels-2026-10/r45/`).
+
+**What the sessions showed.** After about 200 `GET /server/{n}` in an hour, Robot answered
+`403 RATE_LIMIT_EXCEEDED` (`max_requests` 200, `interval` 3600) to all of these:
+- `GET /server/{n}` for every server on the account, not only the one read;
+- `GET /server`, the account list;
+- `GET /server/{n}/cancellation`;
+- reads sent from a second source address, over IPv6.
+
+Unaffected were `GET /ip`, `GET /boot/{n}/rescue` and the cancellation itself
+(`POST /server/{n}/cancellation`). Reads recovered about an hour after the first request.
+
+So the `/server` read family shares one counter per account. Robot documents a single webservice user per
+account, so per-user and per-account are the same here, and the counter is not per source IP.
+
+**Q23a's money decision stands.** The tail is not funded, and no local read budget is built. As `ADR-0034`
+Q19 found, "A local count cannot hold a reserve" against traffic outside provisiond.
+
+**Its threat model is restated, as it stood before the repairs below.** Tenants could add to the counter
+through provisiond in these ways:
+- refreshes at the edge of a sweep, while the freshness window only equals the sweep interval;
+- opportunistic reads after actions;
+- deletes of a fleet held over several days, at two shared reads each while a cancellation pre-read
+  exists;
+- refresh loops that retry failed reads.
+
+Any other user of the account's credential can add to it too. A blind sweep also cannot find a running
+machine provisiond never recorded: that is operator cost after `OPS-33` releases a create's commitment
+before the machine is attached. The tail on a destroyed server remains an uncollectable charge, not
+operator money.
+
+**Repairs.** The first is the one that removes operator-money exposure.
+- **No pre-read on Robot deletes.** The driver posts `cancellation_date=now&reserve_location=false` without
+  first reading `GET /server/{n}/cancellation`. With the pre-read, a blinded counter fails an exposure
+  delete before acceptance, and it stalls (`OPS-48`) while the machine bills the operator. The
+  reservation-possible branch stays unverified.
+- **One alarm rule.** Every Robot `403 RATE_LIMIT_EXCEEDED` raises a monitorable alarm naming the account
+  and request path. Its home is `PRV-5`; the alarms in `PRV-40` and `PRV-22` cite it.
+- **`DOM-8`: the refresh freshness window is at least twice the account-sweep interval**, and startup
+  refuses less. This closes the per-pass gap that `ADR-0034` Q20's "at no provider call whatever the fleet
+  size" overlooked.
+- **`PRV-12`: Robot makes no opportunistic `/server` read** outside `DOM-8`'s freshness check.
+- **`OPS-32` on Robot reads attachments through `GET /ip` and `GET /subnet`**, never `GET /server/{n}`.
+- **`08-provider-notes.md` records the observed scope.** Whether the window is fixed or rolling, and whether
+  refused requests count, stay unverified.
+
+Rejected: funding the tail; a local `/server` read budget or reserve; a separate alarm per requirement.
+
+## Amendment — 2026-10-14: Robot's post-order cancellation read is one attempt, and its failure is absorbed (owner decision Q31)
+
+Q28 removed the cancellation pre-read from Robot deletes and kept `PRV-13c`'s post-order read: "That separate
+post-order read remains required." A branch review asked whether v1 should keep it at all: on every Robot
+server observed it returns the provider's today, and `PRV-31` already refuses to sell an offer whose bound is
+later. A four-reader panel weighed it (`docs/research/panels-2026-10/r48/`): three kept it, one dropped it.
+
+**What the panel found.** The spec says "order, then **read**" but never says when the read runs or what its
+failure does. Nothing writes `machines.earliest_cancellation_date`. If the read runs inside the accepted create,
+`PRV-5`'s "Known acceptance MUST remain `true` on every later error" sends every delivered create to
+`needs_reconciliation` during an hour the shared `/server` counter is spent. If it runs anywhere else, a failure
+leaves the column null and `LDG-33`'s term prices nothing.
+
+**Decision: keep the read, as one attempt with an absorbed failure.**
+- **Where:** the driver reads the per-machine cancellation constraint once, when the create settles, after
+  `OPS-27`'s confirming read.
+- **Failure:** a failed read of any kind, `rate_limited` included, does not enter `OPS-11`'s classifier and does
+  not change the create's settlement. The declared bound of `PRV-31` remains the priced term, `PRV-5`'s alarm
+  is raised where its trigger applies (a Robot `403`), and the read is not retried. A later accepted
+  cancellation's response (`PRV-13`) supplies the per-machine date.
+- **Threat model:** these reads also spend the account's `/server` counter, one per
+  delivered order (one per committing settlement, by the Q34 clarification below). `ADR-0036` caps machine orders per endpoint per day with no hourly pacing, so a day's
+  deliveries can land in one hour. Each follows an order whose first unit the tenant paid for.
+- **Conformance:** `CNF-356` tests a failed post-order read.
+
+*Clarified 2026-10-15 (owner decision, panel `docs/research/panels-2026-10/r51/`): no new alarm. Q28's one alarm
+rule stands, so a non-`403` failure of this read raises none; on a settled Robot machine the null
+`earliest_cancellation_date` in `WIR-11`'s machine view is what marks the term unverified.*
+
+*Clarified 2026-10-15 (owner decision Q34, panel `docs/research/panels-2026-10/r52/`): "once" counts from the
+settlement that commits.* The PR's review found that a crash between a successful read and the landed-order
+commit leaves the result nowhere: `STO-55` keeps provider calls outside transactions, and `OPS-49` throws an
+interrupted worker's outcome away. Recovery then reaches the read again and cannot tell a lost result from a
+read never made. Decision:
+- The pass whose landed-order transaction commits makes the one read, after its confirming read. An interrupted
+  worker's read is discarded with the rest of its outcome, as its confirming read is, and the committing pass
+  reads again. Once the machine row is stored, no resolution pass, refresh or sweep reads the constraint.
+- A settlement with no confirming read (the operator's synchronous `observed` attach, `WIR-35`) makes no
+  post-order read and stores the date as null.
+- "The declared bound remains the priced term" gets its home in `LDG-33`'s formula: where the column is null,
+  the cost-through-earliest-date term is priced from the offer's declared bound (`PRV-31`).
+
+This changes the count from one read per delivered order to one per committing settlement: at most one extra
+read for each create in flight at a crash, bounded by the worker count, beside the confirming read recovery
+already repeats on the same counter. Rejected: a durable "attempt used" marker written before the read (it has
+its own crash window, and a read, unlike `OPS-45`'s disk write, can simply be made again); treating a lost
+result as a failed read without a marker (recovery cannot tell it from a read never made).
+
+**Why keep it.** Only this read learns of a deviating contract while the tenant's committed satoshis can still
+cover it. `PRV-31` forbids resizing the commitment, so the read can only move satoshis from advertised runway
+into `protected_sats`, but that is the protection `PRV-13c` exists for. Dropping it for Robot would turn "Robot
+cancels today" into the constant `PRV-13c` forbids.
+
+Rejected: dropping the read for Robot and taking the date from the delete's cancellation response, since the
+deviation would be learned only after its runtime was advertised; and keeping it with a failure that waits in
+`needs_reconciliation`, since a spent hour would stall every delivered server.

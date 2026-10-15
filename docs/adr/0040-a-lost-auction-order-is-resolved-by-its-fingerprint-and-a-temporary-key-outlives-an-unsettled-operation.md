@@ -88,7 +88,9 @@ it. A three-reader panel (`docs/research/panels-2026-10/r42/`) settled it.
   registration reply, when the fingerprint may belong to another operation.
 - The Consequence "A caller's key held by an unresolved operation blocks that caller's next create"
   widens: any surviving registration of that key blocks it, until the sweep deletes it. Hetzner Cloud
-  and Robot document the refusal; it has not been reproduced live.
+  and Robot document the refusal. *Confidence updated 2026-10-12:* Robot returned
+  `409 KEY_ALREADY_EXISTS` when the same public key was uploaded under another name
+  (`docs/research/panels-2026-10/r45/live-session2.txt`); Cloud remains untested live.
 
 Rejected: a prompt deletion after a successful create, with the sweep as fallback (it reopens the
 fingerprint race, which no ownership check closes on Robot); reusing an already-registered identical key

@@ -206,8 +206,10 @@ not optional hardening — they are the only structural defence there is.
       null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
       with acceptance false. A local `PRV-40` closure is a pre-provider refusal with no
       operation to classify; a driver-emitted `rate_limited` remains in the classifier,
-      including after accepted mutation.
+      including after accepted mutation, except the accepted dated cancellation read-back
+      and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph).
       *Amended 2026-10-09 (`ADR-0036`): local closure is a refusal occurrence without an operation.*
+      *Amended 2026-10-14 (`ADR-0037`, Q31).*
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
@@ -221,7 +223,8 @@ not optional hardening — they are the only structural defence there is.
 
 - [ ] **CNF-36** — Every row of the host-key decision table in `RSC-3` is covered, including
       the two abort cases: no keys and no opt-in; and caller keys that do not overlap
-      driver keys.
+      driver keys. Where caller keys overlap driver pins, a presented key that matches a
+      driver pin but is not one of the caller's keys is refused before authentication. (`RSC-3`)
 - [ ] **CNF-37** — A pinned connection is never downgraded to first-use trust, including
       when the driver returns an empty key set on a later refresh. (`RSC-5`, `PRV-20`)
 - [ ] **CNF-38** — Host-key comparison is canonical: the same key with a different comment,
@@ -231,7 +234,7 @@ not optional hardening — they are the only structural defence there is.
       (`RSC-9`, `DEF-5`)
 - [ ] **CNF-40** — A rescue password never appears in a command line. Assert on the spawned
       process's argument vector. (`RSC-11`)
-- [ ] **CNF-41** — For each applicable generated installer, assert the installed system does not inherit the ephemeral rescue credential. For Robot installimage, inspect the generated config: it contains `SSHKEYS_URL` for the caller's keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`, and does not copy rescue authorized keys into the installed system. This is a generated-config check; deployed rescue installimage remains `[verify]`. (`RSC-12`, `RSC-13`; Robot directive observed in `docs/research/provider-verify-2026-10.md` V11, 2026-10-06)
+- [ ] **CNF-41** — For each applicable generated installer, assert the installed system does not inherit the ephemeral rescue credential. For Robot installimage, inspect the generated config: it contains `SSHKEYS_URL` for the caller's keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`, and does not copy rescue authorized keys into the installed system. This is a generated-config check; the deployed script was inspected on 2026-10-12, but no end-to-end installation or exact upstream commit match was tested. (`RSC-12`, `RSC-13`; Robot directive observed in `docs/research/provider-verify-2026-10.md` V11, 2026-10-06)
 - [ ] **CNF-42** — A rootfs install with no authorized keys is rejected; a raw-disk install
       *with* authorized keys is rejected. (`RSC-13`, `RSC-14`)
 - [ ] **CNF-43** — A digest mismatch on the rootfs path aborts before the installer runs.
@@ -1509,9 +1512,13 @@ rather than acquiring a default.
       `403 RATE_LIMIT_EXCEEDED` with `interval` on one account's auction order request.
       During the reported interval, each subsequent create there is refused by the
       `API-7` tail before any provider call, with `rate_limited`, `retry_after_ms`, no
-      commitment, balance change, machine, operation or receipt, and an account/channel
-      identifying monitorable alarm. Re-evaluate after the interval; do not treat the
-      descriptor limit as a local counter. A closed auction channel alone does not
+      commitment, balance change, machine, operation or receipt. Assert the initial upstream
+      Robot throttle raises `PRV-5`'s "every Robot
+      `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider
+      account and request path" alarm. The alarm may include the ordering channel.
+      Subsequent local refusals make no provider
+      request and need no new provider-throttle alarm. Re-evaluate after the interval;
+      do not treat the descriptor limit as a local counter. A closed auction channel alone does not
       refuse a standard-channel create or another account's create. For a mutation
       accepted before a provider throttle, assert the `OPS-11` classification. Admit
       and queue create A before the closure, then close A's
@@ -1528,10 +1535,12 @@ rather than acquiring a default.
       shared and retained through its reported interval. Then commit a closure
       just after A's plain claim-time read: no conditional-write channel recheck
       blocks dispatch, and Robot's own `403 RATE_LIMIT_EXCEEDED` settles the
-      unaccepted order the same way. (`PRV-40`, `STO-58`, `API-7`, `OPS-5`,
+      unaccepted order the same way, raising the upstream throttle alarm above.
+      (`PRV-40`, `PRV-5`, `STO-58`, `API-7`, `OPS-5`,
       `OPS-11`, `LDG-39`, `WIR-9a`)
       *Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): provider-reported closure
-      replaces local daily counting and reaches queued creates at worker claim.*
+      replaces local daily counting and reaches queued creates at worker claim. Amended
+      2026-10-13 (`ADR-0037`, Q28): the alarm follows `PRV-5`.*
 - [ ] **CNF-284** — **An authentication failure is attempted once.** Give a driver a bad credential
       and assert it makes exactly one attempt and escalates, with no scheduled re-attempt. Asserted
       by counting requests, not by reading the code. On a provider that locks out on repeated
@@ -2460,7 +2469,7 @@ rather than acquiring a default.
       unresolved and its key registered while begin rescue attempts deactivation; exercise successful
       and failed deactivation and its error details. After eligibility, the sweep removes the retained
       key. Verify operation-id tags, and keep provider-side public registrations distinct from persisted
-      recovery private keys. These are implementation obligations; no live duplicate refusal is claimed.
+      recovery private keys. These are implementation obligations; Robot reproduced a live duplicate refusal on 2026-10-12 (`docs/research/panels-2026-10/r45/live-session2.txt`), while Cloud has not.
       (`PRV-9`, `PRV-18`, `PRV-21`, `OPS-32`, `DEF-6`)
 - [ ] **CNF-251** — **The credential boundary is a module edge, not a comment.** `api` does not depend
       on `providers` or `rescue`, depends on `engine` only through a trait whose signatures mention
@@ -3247,7 +3256,10 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       `PRV-7`, `PRV-26`, `DOM-18`)
 - [ ] **CNF-323** — **A refused read does not erase an accepted mutation.** For every kind in
       `OPS-11`'s last row, accept the mutation, then inject each of `rate_limited`, `not_found`,
-      `authentication`, and a provider 4xx. Assert `needs_reconciliation`, no automatic repeat,
+      `authentication`, and a provider 4xx on a read other than the accepted dated cancellation
+      read-back and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph);
+      for create, fail `OPS-27`'s "direct read" or
+      "search the correlator across every ordering channel". Assert `needs_reconciliation`, no automatic repeat,
       and `retryable: false`. Separately supply the goal-state answer on a goal-state mutation and assert `succeeded`.
       Contrast rejection before acceptance, including the ancillary-key case in `CNF-322`,
       with transport failure and unknown acceptance under `PRV-5`'s mapped-cause rule:
@@ -3258,6 +3270,7 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       Timeout polling an accepted order: assert kind `timeout`, acceptance true, the transaction
       identifier retained and the message warning that the order may remain pending and must
       not be repeated. (`OPS-11`, `OPS-12`, `API-51`, `PRV-5`, `PRV-11`)
+      *Amended 2026-10-14 (`ADR-0037`, Q31): scope the injected read to the classifier.*
 - [ ] **CNF-324** — **Accepted creates settle only on one verified resource.** After acceptance,
       exercise settle-time searches across every ordering channel with zero, one and many exact
       matches, a failed search, and a non-authoritative search. Only one resource confirmed by a
@@ -3269,14 +3282,18 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       search that releases under its window, continuing to search afterwards. (`OPS-27`,
       `OPS-29`, `OPS-33`, `OPS-38`, `PRV-36`, `PRV-38`)
 - [ ] **CNF-325** — **Accepted but unresolved creates keep their obligations pending.** With a
-      setup fee and a nonzero prepaid unit, accept the order then fail its read or settle-time
-      search. Assert no debit yet, both amounts still reserved and both obligations parked.
+      setup fee and a nonzero prepaid unit, accept the order then fail `OPS-27`'s confirming
+      "direct read" or settle-time "search the correlator across every ordering channel",
+      outside the accepted dated cancellation read-back and post-order read
+      (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph). Assert no debit yet,
+      both amounts still reserved and both obligations parked.
       Resolve observed with the create's commitment open: assert both debits and paired
       decrements, the machine/terminal writes and clearing both parked obligations commit
       atomically. Repeat after negative-window release: assert the separate operator deficiencies
       and no charge to available balance or a wind-down commitment. Exercise absent with and
       without provider evidence of each charge, and abandoned; retain the zero-unit exceptions
       in `CNF-315`/`CNF-316`. (`LDG-39`, `LDG-67`, `LDG-31`, `LDG-32`, `LDG-66`, `OPS-27`, `OPS-33`)
+      *Amended 2026-10-14 (`ADR-0037`, Q31): fail confirmation or search before settlement.*
 - [ ] **CNF-326** — **Applied completed-release resolution ends that attachment's meter.** Accept a
       release, fail its follow-up read, and resolve it `applied` on evidence of completed release
       with no effective date. Assert the attachment's `released_at`
@@ -3422,10 +3439,14 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       identical subsequent no-op. Remove the address and assert its entry disappears. Exercise
       deterministic and ambiguous provider failures with the existing classifications.
       (`PRV-25`, `PRV-12`, `PRV-36`, `OPS-11`, `OPS-31`)
-- [ ] **CNF-339** — **Refresh freshness is validated at startup.** Missing, malformed,
+- [ ] **CNF-339** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **Refresh freshness is validated at startup.** Missing, malformed,
       non-finite, zero or negative freshness durations refuse startup. A positive window
-      shorter than the account-sweep interval also refuses startup; equality and a longer
-      valid window start successfully. (`DOM-8`, `OVR-19`, `OPS-32`)
+      shorter than twice the account-sweep interval also refuses startup. Exercise a
+      window equal to one interval, just below two intervals, exactly two intervals
+      and above two intervals: reject the first two and accept the latter two. At
+      the next sweep boundary, claim refresh before the sweep writes: the old
+      one-interval window is stale at equality while the two-interval window
+      reuses the prior observation. (`DOM-8`, `OVR-19`, `OPS-32`)
 
 ## Traffic sale scope (`ADR-0039`, added 2026-10-09)
 
@@ -3479,10 +3500,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       separately to retain `API-63`'s guard, and race extension with cancellation
       to retain `LDG-62`'s.
       (`PRV-42`, `STO-27`, `STO-58`, `API-63`, `LDG-62`, `API-7`)
-- [ ] **CNF-344** — **Each channel declares its own order budget.** Enumerate the
+- [ ] **CNF-344** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **Each channel declares its own order budget.** Enumerate the
       descriptor's ordering channels and assert each has a positive `limit` and finite,
       positive `per`; no top-level `order_budget` substitutes for a missing channel
-      entry. Verify the declared limit documents capacity; Robot's reported `403 RATE_LIMIT_EXCEEDED` raises the exhaustion alarm naming account and channel and closes the local gate. No local request count raises that alarm.
+      entry. Verify the declared limit documents capacity; Robot's reported `403 RATE_LIMIT_EXCEEDED` raises `PRV-5`'s alarm naming account and request path (and channel where useful) and closes the local gate. No local request count raises that alarm.
       Another channel's mere declaration authorizes no new ordering capability.
       (`PRV-44`, `PRV-40`, `DOM-10`)
 - [ ] **CNF-345** — **Activation minimum is registered and validated.** Omit, zero,
@@ -3497,7 +3518,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 
 - [ ] **CNF-346** — **DigitalOcean correlator tags never drive bulk deletion** (`docs/research/provider-verify-2026-10.md`, V16, 2026-10-06). Exercise create, ambiguous resolution and cleanup with a lowercase correlator tag satisfying the DO-spec charset and length, using `:` or `_` as a separator; assert no call to `DELETE /v2/droplets?tag_name=` occurs and any delete names a verified individual Droplet id. (`PRV-48`, `OPS-27`)
 - [ ] **CNF-347** — **Survivor kinds and individual evidence stay distinct** (`docs/research/provider-verify-2026-10.md`, V17 and §3, updated 2026-10-11 under `ADR-0037`, Q21). For each applicable provider, inspect the immutable descriptor and assert the `PRV-13a` table's kinds and `api`/`manual` classifications: Cloud Primary IP is `api` regardless of any instance's `auto_delete`, Robot Additional IP and subnet are `api` possible survivors, and DigitalOcean backup is `manual`. Separately, exercise attachment listing after deletion: a Cloud Primary IP read back with `auto_delete: true` and then absent after deletion is not reported as surviving; one that remains with `auto_delete: false` is reported with its identity and `cleanup: api`. Exercise a Robot case with a separately ordered Additional IP or subnet that survives and one with none as isolated fixtures; do not infer survival for every instance from the descriptor. Assert release follows each listed billable `api` attachment. For the observed auction `primary_ipv4` add-on and included /64, return a complete empty post-cancellation listing and assert no survivor row or release is invented. Inspect DigitalOcean create requests and assert `backups: true` is never sent; leave backup billing `[verify]` and separately ordered Robot attachments unverified. (`PRV-13a`, `PRV-44`, `PRV-45`)
-- [ ] **CNF-348** — **Existing rescue activation is disabled before re-enabling** (`docs/research/provider-verify-2026-10.md`, V4/V10, 2026-10-06). On Cloud read `rescue_enabled`, disable when true, then enable and reset inside its 60-minute interval. On Robot read `active`, use `DELETE /boot/{n}/rescue` when true, then re-enable and reset. Do not assume repeated-enable behavior. (`PRV-15`)
+- [ ] **CNF-348** — **Existing rescue activation is disabled before re-enabling** (`docs/research/provider-verify-2026-10.md`, V4/V10, 2026-10-06). On Cloud read `rescue_enabled`, disable when true, then enable and reset inside its 60-minute interval. On Robot read `active`, use `DELETE /boot/{n}/rescue` when true, then re-enable and reset. Robot accepted a second activation for the next boot in the 2026-10-12 live session; Cloud remains unverified. (`PRV-15`)
 - [ ] **CNF-349** — **Cherry correlator lookup scans the project list** (`docs/research/provider-verify-2026-10.md`, V21, 2026-10-06). Exercise more than one page with the matching tag on a later page; assert the driver filters client-side and returns the exact operation match, without assuming a server-side tag query. (`PRV-26`, `OPS-27`)
 - [ ] **CNF-350** — **Operator recording and withdrawal keep the server's time and replay receipt.**
       With the provider never read, record at t1 using `{"status":"restricted","operator_ref":"ref-1"}`;
@@ -3518,23 +3539,26 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 
 ## Provider traffic follow-through (`ADR-0034`, Q20 and Q20b)
 
-- [ ] **CNF-351** — **The complete sweep supplies refresh observations.** With N managed Robot
+- [ ] **CNF-351** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **The complete sweep supplies refresh observations.** With N managed Robot
       machines observed present by a successful complete pass, exercise refresh loops across
       the covered sweep interval, after the pass has written its observations: assert one
       `GET /server`, N present-writes of state and `state_observed_at`, and zero
       `GET /server/{server-number}` caused by those refreshes. Keep claim times within each
       observation's freshness window and provider listing successful. Do not count an initially
       stale machine before its sweep observation. Stop the sweep and show successful reads
-      fall back to one per machine per window. (`OPS-32`, `DOM-8`, `STO-48`)
-- [ ] **CNF-352** — **Failed sweep reads establish no absence or freshness.** Interrupt an
+      fall back to one per machine per window. Run a refresh claim at the next
+      sweep boundary before that sweep writes: the previous observation remains
+      fresh under the validated two-interval minimum. (`OPS-32`, `DOM-8`, `STO-48`)
+- [ ] **CNF-352** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **Failed sweep reads establish no absence or freshness.** Interrupt an
       account enumeration and assert no absence is recorded. Complete an enumeration that
       omits a managed machine, then return `403 RATE_LIMIT_EXCEEDED` on its direct confirming
       read: assert no gone write, no absence-dependent ledger or episode effects, and no
-      advance of `state_observed_at`. (`OPS-32`, `STO-48`, `LDG-74`)
-- [ ] **CNF-353** — **A throttled Robot rescue exit alarms without settling.** Return a Robot
+      advance of `state_observed_at`; assert the account-and-path alarm on that
+      Robot throttle. (`OPS-32`, `STO-48`, `LDG-74`, `PRV-5`)
+- [ ] **CNF-353** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **A throttled Robot rescue exit alarms without settling.** Return a Robot
       throttle from end rescue. Assert a monitorable alarm naming the provider account and
-      the existing ambiguous error and reconciliation outcome; assert no silent retry or
-      successful settlement. (`PRV-22`, `OPS-11`)
+      request path under `PRV-5`, and the existing ambiguous error and reconciliation
+      outcome; assert no silent retry or successful settlement. (`PRV-22`, `PRV-5`, `OPS-11`)
 - [ ] **CNF-354** — **Attachment cleanup is an enabling precondition.** Inspect each proposed sold
       create path able to leave a billable attachment after its machine is gone, including separately
       ordered Robot IPs or subnets and Cloud or DigitalOcean re-admission. Before enabling that path,
@@ -3549,3 +3573,114 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       1.90/month per-stray-address residual until noticed. Do not treat `LDG-31`'s
       "The decrement clamps at zero and the excess is the
       operator's" as an operator cap on that residual. (`PRV-49`, `PRV-13b`, `PRV-45`, `LDG-31`, `LDG-32`)
+
+- [ ] **CNF-355** — **Added 2026-10-12 (`ADR-0041`, Q27).** **Robot rescue pins follow a changed last-rescue record.**
+      Return `host_key: []` from activation and ordinary `GET /boot/{n}/rescue`; the
+      session awaits provider pins. Before activation, read `/rescue/last` and keep
+      its `boot_time` string only as in-memory driver refresh state, not pin material or
+      durable state. Return the same baseline record after reset and assert the session
+      keeps waiting. Return a record with at least one ECDSA, ED25519 or RSA SHA256
+      fingerprint and a non-null `boot_time` string different verbatim from the baseline:
+      accept its pins, including when the string looks earlier than reset, without
+      interpreting time. Independently set up two new sessions before any pins are accepted
+      for either session. In each, the pre-activation baseline record has a non-null
+      `boot_time` string B and a nonempty fingerprint set K; K supplies test inputs, not
+      accepted session pins. In the first session, return after reset a non-null string C
+      different verbatim from B with exactly the same fingerprint set K, and assert K is
+      accepted as the session's pins. In the second, return after reset the same string B
+      with a different nonempty fingerprint set J, and assert the session keeps awaiting
+      pins. With no baseline record, accept the first qualifying record.
+      A record with fingerprints but null or missing `boot_time`, and a changed string
+      without fingerprints, leave the session awaiting pins. Fail the baseline lookup
+      with an error other than no record and assert begin rescue fails before activation,
+      with nothing to clean up. Assert the existing active-read and disable-before-enable
+      procedure still runs when needed. Connect with a presented full key matching an
+      accepted provider pin's algorithm and SHA256 digest; pin that presented full key
+      for the connection without synthesizing a key from a fingerprint. Supply caller
+      full keys in separate overlapping and nonoverlapping cases: compare their algorithm
+      and SHA256 digest to provider pins, refuse nonoverlap, and require the actual Robot
+      connection to match a provider pin. Refuse a mismatched presented key before
+      authentication. Keep waiting through `RSC-9`'s boot-derived deadline when eligible
+      pins never arrive; fail `integrity` even with explicit first-use opt-in. Later
+      empty, unchanged or differing records after acceptance, retry and timeout never
+      replace or clear the accepted pins or enable first-use trust.
+      **Amended 2026-10-14 (`ADR-0041`, Q33): only overlapping caller keys are pinned.**
+      Supply one ed25519 caller full key and an eligible provider record with SHA256
+      host-key fingerprints for that key and an ecdsa key. Assert the client offers only
+      the ed25519 host-key algorithm, and the pinned set is exactly the overlapping caller
+      key. Separately assert that a rescue host presenting the provider-pinned ecdsa key
+      is refused before authentication: no credential is sent and that key is not pinned.
+      Repeat with the caller's ed25519 key and a second, different ed25519 host-key
+      fingerprint in the provider record; presenting that second key is refused before
+      authentication, with no credential sent and that key not pinned. Separately, supply
+      an RSA caller key overlapping an RSA host-key fingerprint and assert the client
+      offers `rsa-sha2-512,rsa-sha2-256`.
+      (`PRV-15`, `DOM-11`, `PRV-16`, `PRV-19`, `PRV-20`, `RSC-3`,
+      `RSC-5`, `RSC-6`, `RSC-9`, `WIR-20`, `WIR-40`)
+- [ ] **CNF-356** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot cancellation needs no `/server` pre-read.** Block the shared
+      `/server` read family and issue a Robot delete. Assert no
+      `GET /server/{n}/cancellation` pre-read occurs in the deletion dispatch path,
+      and the request sends
+      `cancellation_date=now&reserve_location=false`. Accept a dated response, then
+      fail its one required direct machine read with `403 RATE_LIMIT_EXCEEDED`:
+      the attempt remains `succeeded`/`cancellation_scheduled` with the converted
+      effective date and `PRV-5`'s alarm names account and path. Neither uncertainty
+      nor a stalled episode follows the absorbed read failure. Contrast mapped
+      absence, which records gone at that read, and presence, which remains scheduled.
+      Separately refuse an ordinary `GET /server/{n}` and assert the same alarm.
+      Retain the post-order future-earliest-date and deviation cases of `CNF-147`.
+      **Amended 2026-10-14 (`ADR-0037`, Q31): failed post-order constraint read.**
+      In separate cases, accept a Robot auction-channel order with a v1 bound of
+      provider-local today, complete the authoritative settle-time search and successful
+      confirming `GET /server/{n}`, then inject `403 RATE_LIMIT_EXCEEDED` and a network
+      error respectively on the post-order `GET /server/{n}/cancellation` response only.
+      Keep the shared `/server` read family available for these cases.
+      Compare each with an otherwise identical create whose post-order read succeeds
+      with today's date: assert the same `succeeded` status, ledger entries, commitment
+      and attached machine row, with only `earliest_cancellation_date` null in the failed
+      case. Assert no `needs_reconciliation` and no entry into the failure classifier.
+      Price the earliest-date term from the declared bound: its contribution is zero
+      for this v1 offer, as in `CNF-166`; the commitment remains unchanged.
+      On the `403` case, assert the alarm names the provider account and request path.
+      Then accept a cancellation whose response supplies the per-machine date and assert
+      `earliest_cancellation_date` now holds it.
+      Repeat the successful read and the network-error case at `OPS-27`'s other two entry
+      points: automatic `OPS-27` resolving-observed after a lost order reply, and `OPS-36`'s late attach of a
+      machine whose commitment `OPS-33` released. At each, assert the date, or null on
+      failure, is written with the machine row in the landed-order transaction, and that a
+      failed read changes nothing else.
+      **Amended 2026-10-15 (`ADR-0037`, Q34): the committing settlement's read.**
+      This replaces Q31's per-create read count.
+      Assert each settlement pass that reaches the post-order read makes at most one
+      `GET /server/{n}/cancellation`, after its confirming read. Assert the committing
+      pass's own result — its date, or null on its own failure — is written with the
+      machine row in the landed-order transaction. Once the store holds the machine
+      row, assert no constraint read follows by resolution, refresh or the sweep.
+      In separate crash cases, kill the engine after a successful post-order read and
+      after a failed post-order read, each before the landed-order commit. After restart
+      (`OPS-15`), assert the committing automatic resolution pass makes one constraint
+      read after its confirming read. Exercise success and failure of that pass's read;
+      assert its date, or null on its own failure, is written with the machine row in
+      the landed-order transaction. Including the interrupted read, assert two constraint
+      reads for each create in these cases and no constraint read after settlement.
+      Separately force whole-transaction repeats under `OPS-49` and assert they retain
+      the post-order read's result without repeating that read. Also lose the reply to
+      a committed landed-order transaction, exhaust the store-error bound and restart;
+      assert the stored machine row prevents a later constraint read.
+      On a create in `needs_reconciliation`, use the operator's synchronous `observed`
+      resolution (`WIR-35`). Assert no `GET /server/{n}/cancellation` and that
+      `earliest_cancellation_date` is written null. Assert the earliest-date term is
+      priced from the declared bound under `LDG-33`, contributing zero for the v1 offer.
+      (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `PRV-31`, `OPS-11`, `OPS-27`, `OPS-33`,
+      `OPS-36`, `OPS-48`, `OPS-15`, `OPS-49`, `WIR-35`, `LDG-33`)
+- [ ] **CNF-357** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot optional reads and attachments use their own evidence.**
+      With fresh post-action `state_observed_at`, assert no opportunistic
+      `GET /server/{n}`; with a stale observation, exercise the existing read and
+      mapped failure behavior, without using cached presence as mutation or absence
+      proof. Visit attachments for every retained machine, including one already
+      recorded gone. Assert Robot listing and direct attachment reads use `GET /ip`
+      and `GET /subnet`, never `GET /server/{n}`. During a failed account pass, let
+      `/ip` work but assert it cannot record all attachments absent; require a
+      complete pass, complete machine attachment listing and direct confirmation
+      before each `released_at`. Retain `STO-18`'s tombstone and `LDG-32`'s
+      commitment rules. (`PRV-12`, `DOM-8`, `OPS-32`, `PRV-45`, `STO-18`, `LDG-32`)

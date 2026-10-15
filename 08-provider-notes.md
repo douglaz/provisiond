@@ -70,7 +70,7 @@ remain fresh; caller-supplied create keys are distinct and no substitute-key pol
 (V3).
 
 **Rescue host keys** — not exposed through the API. **[observed]** Consequence: callers
-MUST supply `expected_rescue_host_keys` out of band or explicitly accept first-use trust
+MUST supply `trust.expected_host_keys` out of band or explicitly accept first-use trust
 (`SEC-23`).
 
 **Rescue activation** — enable-rescue action, then a separate reset action to boot into
@@ -105,8 +105,7 @@ comes with unlimited traffic; its 10 Gbit uplink has a traffic allowance
 `ADR-0039`. The documented counter counts a TCP stream only after it
 disconnects. A held stream could therefore outrun a reading; live testing
 must establish a usable freshness bound before an allowance offer is
-re-admitted. No such test is claimed here. **[Read-only product-list observation supplied
-by `pv-ucs.10`, 2026-10-11; not reproduced in this Run]** Robot's
+re-admitted. No such test is claimed here. **[observed — Robot live session 2, 2026-10-12; `docs/research/panels-2026-10/r45/live-session2.txt`]** Robot's
 `GET /order/server/product` and `GET /order/server_market/product` list only
 `primary_ipv4` as an orderable add-on. The 10 Gbit uplink cannot be bought through
 `provider_options` on those offers; `ADR-0039`'s exclusion still governs allowance
@@ -125,19 +124,22 @@ namespaced so the create path can route (`DOM-9` note). Orders are transactions 
 **Ordering is not idempotent.** A timed-out order poll MUST NOT be retried blindly
 (`PRV-11`). **[design]**
 
-**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** A duplicate fingerprint is refused with `409 KEY_ALREADY_EXISTS` **[documented — Robot-WS; not reproduced live]**. In the 2026-10-11 auction order, the transaction still listed the fingerprint in `authorized_key[]` after deletion of the temporary key; batch B step 6 settles that observation (`docs/research/panels-2026-10/r39/live-result.txt`). `ADR-0040` retains the per-order fingerprint correlator, and `PRV-9` owns key deletion. A newly generated per-order correlator key is distinct from a caller's create key.
+**Key material** — Robot account keys carry caller-set `name` and fingerprint; `authorized_key[]` supplies fingerprints to orders. **[observed — Robot-WS, 2026-10-06]** A duplicate fingerprint is refused with `409 KEY_ALREADY_EXISTS` **[documented — Robot-WS; reproduced live 2026-10-12 by uploading the same public key under another name (`docs/research/panels-2026-10/r45/live-session2.txt`)]**. In the 2026-10-11 auction order, the transaction still listed the fingerprint in `authorized_key[]` after deletion of the temporary key; batch B step 6 settles that observation (`docs/research/panels-2026-10/r39/live-result.txt`). `ADR-0040` retains the per-order fingerprint correlator, and `PRV-9` owns key deletion. A newly generated per-order correlator key is distinct from a caller's create key.
 
-**Rescue host keys** — published in the rescue activation response and in a
-"last rescue" lookup. **[observed]** This is the only provider in the reference set that
-supports pinning without out-of-band material, and it is why `PRV-19` (refresh) exists.
+**Rescue host keys — observed 2026-10-12** (`docs/research/panels-2026-10/r45/live-session2.txt`, `docs/research/panels-2026-10/r45/live-session3.txt`, `docs/research/panels-2026-10/r45/rescue-ssh-session2.txt`; decision: `ADR-0041`). Activation and ordinary `GET /boot/{n}/rescue` returned `host_key: []`, including after boot. The pre-activation `GET /boot/{n}/rescue/last` returned `404`; no earlier-session record was observed, and the `404` error code or meaning beyond no returned record remains **[verify]**. After boot, `/rescue/last` returned ECDSA, ED25519 and RSA SHA256 fingerprints with `boot_time`; all captured fingerprints matched the presented SSH keys. `active: false` was first read 44 seconds after reset. Port 22 opened at 87 seconds, and the record was read at 90 seconds, three seconds later; the capture does not establish when the fingerprints first became available. Each tested server was rescued once and the two servers presented different host keys; whether the same server gets fresh keys on every rescue boot remains **[verify]**. These observations establish no latency guarantee. `PRV-15`, `PRV-16`, `PRV-19`, `PRV-20` and `RSC-9` own the baseline, pinning and deadline.
 
 **Rescue activation** — enable rescue with an authorized key fingerprint, then an
 out-of-band hard reset to enter it. Exiting is disable-rescue plus another hard reset.
 **[observed]**
 
-**Rescue activation when rescue is already enabled** — read `GET /boot/{n}/rescue` for `active` and disable with `DELETE /boot/{n}/rescue` before re-enabling. **[observed — Robot-WS, 2026-10-06]** Repeated-enable behavior remains **[verify]** (V10).
+**Rescue authentication — observed 2026-10-12.** The rescue sshd reported
+`passwordauthentication yes` and `permitrootlogin yes`; every captured activation
+returned a root password, redacted in the live record (`docs/research/panels-2026-10/r45/live-session2.txt`,
+`rescue-ssh-session2.txt`). `PRV-7` and `SEC-3` own credential exposure.
 
-**OS installer** — Robot installimage's generated config uses `SSHKEYS_URL` for caller keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no` to exclude rescue keys. **[observed — installimage e15b5ea, 2026-10-06]** `RSC-12`/`RSC-13` own the obligation. Whether the deployed rescue installer matches that source remains **[verify]** (batch B, step 7).
+**Rescue activation when rescue is already enabled** — read `GET /boot/{n}/rescue` for `active` and disable with `DELETE /boot/{n}/rescue` before re-enabling. **[observed — Robot-WS, 2026-10-06]** A second activation while active returned 200 and replaced the activation key and password for the next boot, not the running rescue system **[observed — Robot live session 2, 2026-10-12]** (V10). `PRV-15` retains disable-before-enable.
+
+**OS installer** — Robot installimage's generated config uses `SSHKEYS_URL` for caller keys and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no` to exclude rescue keys. **[observed — installimage e15b5ea, 2026-10-06]** `RSC-12`/`RSC-13` own the obligation. The deployed `/root/.oldroot/nfs/install` script was inspected on 2026-10-12: it accepts `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no` to disable takeover and defaults to yes; `robot_user_keys` and `authorized_keys` held exactly the activation key (`docs/research/panels-2026-10/r45/rescue-ssh-session2.txt`). This does not prove an exact upstream commit or an end-to-end installation (batch B, step 7).
 
 **Deletion** — **usually immediate.** Current standard (AX/EX/SX/DX/GEX) and auction dedicated
 servers have **no minimum term**. `POST /server/{server-number}/cancellation` with
@@ -415,11 +417,16 @@ Notes that change driver code:
   | `in process` → `ready` | **7 min 24 s** and **4 min 03 s** | `OPS-33` says robot-style orders "poll through an `in process` state with no documented bound". These are the first real numbers; they differ by nearly 2×, which is the argument against hard-coding one |
   | offer id vs server number | **identical, both times** — auction offer `3068756` became server `3068756`, `3068758` became `3068758`, and each listing left the feed on purchase | The auction market lists *specific machines*, not SKUs. The standard catalogue does not work this way. `PRV-42` records this observation; its separate admission rule says "At most one create may be in flight per `offer_is_resource` offer, across tenants." `ADR-0040` resolves lost replies by fingerprint |
   | `earliest_cancellation_date` on delivery | **same day**, both | Confirms the cancellation note above |
-  | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible. The planned delete path includes `GET /server/{id}/cancellation` first. Whether explicitly sending `reserve_location=false` succeeds without that pre-read remains **[verify]** (batch B); the mandatory branch was not exercised |
+  | `reservation_possible` | `false` on both | The cancellation call takes a `reserve_location` parameter that is **mandatory** where reservation is possible. The 2026-10-12 live cancellation POST with `cancellation_date=now&reserve_location=false` succeeded without a pre-read during a blocked `/server` read family (`docs/research/panels-2026-10/r45/live-session2.txt`). The reservation-possible branch remains **[verify]**; `PRV-13` owns the request and accepted-date read-back |
   | `server_ip` on delivery | **`null`** — no IPv4 | Hetzner's docs: "If you do not specify the parameter, the server will be ordered without an IPv4 address by default." `addon[]=primary_ipv4` is priced separately; `RSC-45` owns what a driver must do about it |
   | after cancellation | `GET /server/{n}` → `404 SERVER_NOT_FOUND`; account list back to its prior contents | Immediate destroy, no scheduled tail |
   | the transaction afterwards | **still `status: "ready", server_number: N`** while `GET /server/N` answered `404` | The listing outlives the machine; `PRV-43` owns the consequence |
   | `cancellation_reason` | provider advertises a 9-item enum and accepted the unlisted value `"Other"` | Do not model it as a closed set |
+
+  **Further delivery observations, 2026-10-12.** Session 2 reached `ready` in about three
+  minutes, and session 3 in about twenty minutes (`docs/research/panels-2026-10/r45/live-session2.txt`,
+  `live-session3.txt`). These extend the earlier 4–7-minute samples; none is a maximum
+  or completes the visibility-measurement campaign.
 
 - **Auction add-on cancellation observed 2026-10-11 (`ADR-0037`, Q21/Q22).** Offer
   `3084954` was ordered with `addon[]=primary_ipv4` at 03:47:38Z and delivered as ready
@@ -433,8 +440,8 @@ Notes that change driver code:
   the included /64 was checked absent at +20 seconds. `ADR-0037` records a subsequent
   45-minute IPv4 watch; the summary log contains only its initial lines and no minute-by-minute
   subnet watch. This is an API absence observation, not invoice billing evidence.
-  Batch B step 9 is settled for this auction add-on only. The planned no-pre-read cancellation
-  and reservation-possible branch, separately ordered IPs/subnets, catalogue orders,
+  Batch B step 9 is settled for this auction add-on only. The no-pre-read call succeeded
+  in the reservation-impossible case on 2026-10-12; the reservation-possible branch, separately ordered IPs/subnets, catalogue orders,
   provider-initiated termination and invoice remain unverified. Robot's cancellation date zone
   is **`Europe/Berlin`**, verified separately by read-only cancellation-field observations across
   Berlin midnight (`docs/research/panels-2026-10/r40/zone-check.txt`). The key's `created_at`
@@ -468,11 +475,18 @@ Notes that change driver code:
   | `GET /ip`, `GET /ip/{ip}`, `GET /subnet`, `GET /subnet/{net-ip}` | 5000 per hour, documented on each path |
   | `GET`, `POST`, `DELETE /ip/{ip}/cancellation`; `GET`, `POST /subnet/{net-ip}/cancellation`; `DELETE /subnet/{ip}/cancellation` | 200 per hour, documented on each method/path |
 
-  **[verify]** For every row and every listed method/path: whether its count is per
-  provider account, webservice user or source IP; whether server-number paths share a
-  counter across machines; and whether distinct methods or paths share a counter.
+  **[observed — Robot live sessions 2 and 4, 2026-10-12]** `GET /server`,
+  `GET /server/{n}` across server numbers, and `GET /server/{n}/cancellation` shared
+  the 200/hour account counter. IPv6 was refused after IPv4 exhaustion; source-IP
+  separation did not apply. Robot documents one webservice user per account. `GET /ip`
+  and `GET /boot/{n}/rescue` still answered, and the cancellation POST succeeded.
+  The sessions did not probe every endpoint in this table or establish order/reset
+  counting. Whether the window is fixed or rolling and whether refused requests count
+  remain **[verify]**; recovery about an hour after the first read and no visible
+  extension during the block establish neither a maximum outage nor an algorithm.
+  `ADR-0037` Q28 owns the threat model and the unfunded tail.
   Reset's scope, including per-account versus per-server, is unknown. The separate
-  order-POST daily limits above remain distinct. Batch B records the planned checks.
+  order-POST daily limits above remain distinct. Batch B records the remaining checks.
 
 - **Three failed logins block the source IP for ten minutes, across the whole API** — not merely
   the endpoint that failed. **[observed 2026-09-04 — Hetzner Robot webservice documentation]**

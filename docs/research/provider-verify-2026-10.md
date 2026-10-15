@@ -63,8 +63,8 @@ Proposed markers use the corpus's dated form, `[observed — <source>, <date>]`,
 | V7 | Hetzner Robot | `02-provider-contract.md:705`, `08-provider-notes.md:415` · `PRV-27`, `OPS-33` | transaction listing is time-bounded (30 days) | CONFIRMED | Marker becomes `[observed — Robot-WS, 2026-10-06]`. The bound is first-party: "within the last 30 days", on both channels |
 | V8 | Hetzner Robot | `PRV-42`, `ADR-0040` | auction offer id equals server number by rule | UNDETERMINABLE | An equal-number auction order was observed 2026-10-11 (offer/server `3084954`); no provider-wide rule follows. Lost-reply resolution still searches the per-order fingerprint |
 | V9 | Hetzner Robot | `PRV-9`, `PRV-32`, `OPS-32` | key carries a caller-set name; the transaction still lists the fingerprint after the key is deleted | CONFIRMED FOR TESTED TRANSACTION | The 2026-10-11 auction transaction retained `authorized_key[]` with the fingerprint after temporary-key deletion (batch B step 6). `ADR-0040` and key eligibility remain unchanged |
-| V10 | Hetzner Robot | `08-provider-notes.md:115` · none named | enabling rescue while already enabled: error or re-arm | UNDETERMINABLE | Design around it: `GET /boot/{n}/rescue` shows `active`, so `DELETE` first. The live test is optional |
-| V11 | Hetzner Robot | `08-provider-notes.md:121` · `RSC-12` | installimage config keys and the directive that stops rescue keys being copied | PARTIAL | Directive found in the official source: `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`. Whether the live rescue system runs that source needs a live check |
+| V10 | Hetzner Robot | `PRV-15` | enabling rescue while already enabled | OBSERVED 2026-10-12 | A second activation returned 200 and replaced the key and password for the next boot only; retain disable-before-enable (`docs/research/panels-2026-10/r45/live-session2.txt`) |
+| V11 | Hetzner Robot | `RSC-12`, `RSC-13` | installimage config keys and the directive that stops rescue keys being copied | DEPLOYED SCRIPT INSPECTED 2026-10-12 | `/root/.oldroot/nfs/install` honors the directive, defaults to yes, accepts no; rescue key files held exactly the activation key. No end-to-end installation or exact upstream commit was verified (`docs/research/panels-2026-10/r45/rescue-ssh-session2.txt`) |
 | V12 | Hetzner Robot | `08-provider-notes.md:153` · `PRV-13c`, `DOM-19` | worst case across contracts; `cancellation_date=now` when the earliest date is in the future | PARTIAL | "30 days to the end of the month" is documented as "the longest period". The API's behaviour for `now` before the earliest date is not documented, so the "handle both" rule stands |
 | V13 | Hetzner (both) | `08-provider-notes.md:175` · none named | anonymous downstream customers permitted | UNDETERMINABLE | The terms are silent. Needs a written answer from Hetzner |
 | V14 | DigitalOcean | `01-domain-model.md:277` · `DOM-23` | no abuse-case API, as with Hetzner | PARTIAL | The channel is settled: email, support ticket, networking disabled. That no API exists cannot be proven from public sources. `DOM-23` is unaffected either way |
@@ -267,9 +267,9 @@ every provider transaction.
 `404 SERVER_NOT_FOUND`, `404 BOOT_NOT_AVAILABLE`, `500 BOOT_ACTIVATION_FAILED`. No "already active" error
 is listed. `GET /boot/{n}/rescue` and `DELETE /boot/{n}/rescue` both return `active`.
 
-**Verdict.** UNDETERMINABLE. Not documented.
+**Verdict (updated 2026-10-12).** A second live activation while rescue was active returned 200 with a new authorized key and password. The running rescue environment retained its earlier credentials; the replacement applies to the next boot (`docs/research/panels-2026-10/r45/live-session2.txt`).
 
-**Consequence.** Read `active` and `DELETE` before re-enabling. The live test is optional.
+**Consequence.** `PRV-15` retains the read-active, disable-before-enable procedure.
 
 ### V11 — installimage keys and the no-takeover directive
 
@@ -294,18 +294,16 @@ prevents the installer from copying rescue authorized keys into the installed sy
   last changed 2020-05-18) documents `DRIVE1`, `SWRAID`/`SWRAIDLEVEL`, `HOSTNAME`, `/autosetup`. It does
   not mention the takeover directive.
 
-**Verdict.** PARTIAL.
+**Verdict (updated 2026-10-12).** Deployed script inspected; no end-to-end installation or exact upstream-commit identity established. The deployed `/root/.oldroot/nfs/install` code honors `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS`, defaults to yes and accepts no. `/root/.ssh/robot_user_keys` and `authorized_keys` held exactly the activation key (`docs/research/panels-2026-10/r45/rescue-ssh-session2.txt`).
 - Confirmed in the official source:
   - the directive is `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no` in the config, or `-t no`;
   - takeover defaults to `yes`;
   - setting `SSHKEYS_URL` also suppresses takeover.
-- Not settled:
-  - whether the rescue system runs this commit;
-  - whether `/root/.ssh/robot_user_keys` holds exactly the activation key.
+- Still not settled: whether that deployed code is the exact inspected upstream commit, or whether a complete installation excludes the ephemeral rescue key.
 
 **Consequence.** `RSC-12`'s configuration should emit both lines: `SSHKEYS_URL` pointing at the caller's
 keys, which `RSC-13` requires, and `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`. The redundancy is
-deliberate. The marker becomes `[observed — installimage e15b5ea, 2026-10-06]`, with the live check of batch B, step 7.
+deliberate. The marker becomes `[observed — installimage e15b5ea, 2026-10-06]`, with deployed-code inspection in batch B, step 7; an end-to-end install remains untested.
 
 ### V12 — Robot cancellation worst case, and `now` before the earliest date
 
@@ -332,10 +330,7 @@ deliberate. The marker becomes `[observed — installimage e15b5ea, 2026-10-06]`
   - individual or custom contracts, which the T&C leave open;
   - the API's answer to `now` before the earliest date.
 
-**Consequence.** `PRV-13c`'s "read `earliest_cancellation_date` and branch" stands. The universal worst
-case can be declared as 30 days to the end of the month unless the contract says otherwise. The `now`
-behaviour needs a server whose earliest date is in the future, and current products give none ("You
-can only cancel immediately"). It is untestable on new orders and may be moot for them.
+**Consequence (updated 2026-10-12).** `PRV-13c` says "The required shape is read-and-branch: order, then **read** the provider's per-machine cancellation constraint." This post-order read remains. `PRV-13` says "MUST NOT issue `GET /server/{n}/cancellation` as a pre-read in that cancellation dispatch path" and "After an accepted cancellation returns an effective date, the driver MUST read that machine once on its known provider account and external identity." The no-pre-read POST was accepted in the reservation-impossible case (`docs/research/panels-2026-10/r45/live-session2.txt`); the reservation-possible branch and `now` against a future earliest date remain `[verify]`.
 
 ### V13 — Hetzner: anonymous downstream customers
 
@@ -678,7 +673,16 @@ because no account action can settle them.
     sufficient for `ADR-0033`'s "priced, not amplified" criterion. Counter freshness,
     location accounting and the deletion residual remain unverified.
 
-**Batch B — Hetzner Robot (partially run 2026-10-11; remaining steps are plans)**
+**Batch B — Hetzner Robot (sessions through 2026-10-12; unfinished steps remain plans)**
+
+The 2026-10-12 live record also observed both product-list channels listing only
+`primary_ipv4` as an add-on; this is a dated sample, not a permanent guarantee.
+The later auction orders reached `ready` in about three and twenty minutes, extending
+rather than bounding the earlier delivery samples. The rescue sshd reported
+`passwordauthentication yes` and `permitrootlogin yes`, and each activation returned
+an explicitly redacted root password (`docs/research/panels-2026-10/r45/live-session2.txt`,
+`live-session3.txt`, `rescue-ssh-session2.txt`). `PRV-7` and `SEC-3` own credential exposure.
+
 1. `POST /key` with `name=pv-<uuid>` (V9). Read it back.
 2. `GET /order/server_market/product`. Pick the cheapest offer and record its `id`.
 3. Order it with `authorized_key[]=<fp>`, `addon[]=primary_ipv4` and `test=false`. Without the add-on
@@ -688,25 +692,24 @@ because no account action can settle them.
 4. Poll until `ready`. Check `server_number == offer id` (V8, one more sample).
 5. `DELETE /key/{fp}` (V9).
 6. `GET /order/server_market/transaction`. Check that `authorized_key[]` still shows the fingerprint (V9). **Observed:** it did after the temporary key was deleted.
-7. `POST /boot/{n}/rescue` with a key, `reset`, and SSH in. Run
-   `grep -n TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS` over the installimage scripts in the rescue system.
-   Compare `/root/.ssh/robot_user_keys` with the activation fingerprint (V11).
-8. With rescue still active, `POST /boot/{n}/rescue` again with a different key (V10). Record the
-   response, then `GET /boot/{n}/rescue`.
-9. **Auction add-on survival observed; no-pre-read and reservation branches untested.** The
-   planned experiment was: without a `GET /server/{n}/cancellation` pre-read, first try
-   `POST /server/{n}/cancellation` with `cancellation_date=now` and
-   `reserve_location=false`. Record the response, UTC time and resulting cancellation
-   state. If Robot rejects it, use the existing pre-read path to complete cleanup;
-   do not infer that the pre-read is dispensable. A reservation-possible branch
-   unavailable on this server remains unverified. Check `GET /ip` for whether the
-   add-on IPv4 outlives the server. The runner instead read cancellation state first,
-   observed `reservation_possible=false`, then posted `cancellation_date=now` with
-   `reserve_location=false`. Robot returned HTTP 200 with
-   `cancellation_date: 2026-10-11`; the server and main/add-on IPv4 were absent at +1 second,
-   and the included /64 was checked absent at +20 seconds. The no-pre-read path and
-   reservation-possible branch remain `[verify]`. Separately ordered IPs/subnets,
-   catalogue orders, provider-initiated termination and the invoice remain untested.
+7. **Deployed script inspected 2026-10-12 (V11).** After activation, reset and SSH,
+   `/root/.oldroot/nfs/install` showed the takeover directive and its default-yes/no behavior;
+   `/root/.ssh/robot_user_keys` and `authorized_keys` held exactly the activation key.
+   No end-to-end installation or exact upstream-commit match was tested
+   (`docs/research/panels-2026-10/r45/rescue-ssh-session2.txt`).
+8. **Repeated activation observed 2026-10-12 (V10).** While active, a second POST
+   returned 200 with a different key and password for the next boot; the running
+   rescue environment retained its earlier credentials. `PRV-15` still specifies
+   disable-before-enable (`docs/research/panels-2026-10/r45/live-session2.txt`).
+9. **Auction add-on survival and a no-pre-read cancellation observed.** On 2026-10-11
+   the runner read cancellation state first (`reservation_possible=false`) and then posted
+   `cancellation_date=now&reserve_location=false`; the server and main/add-on IPv4
+   were absent at +1 second, and the included /64 at +20 seconds. On 2026-10-12,
+   while the shared `/server` read family was blocked, a POST with those same fields
+   succeeded without any preceding cancellation GET (`docs/research/panels-2026-10/r45/live-session2.txt`).
+   `PRV-13` owns this path and the accepted-date read-back. The reservation-possible
+   branch, separately ordered IPs/subnets, catalogue orders, provider-initiated
+   termination and invoice remain `[verify]`.
 10. On the next invoice, check the server's hourly unit and how its hours are counted, and any
     add-on's day unit and part-day counting. Record what the invoice establishes about the grid,
     not a billing-stop latency (`ADR-0037`, `ADR-0033`; amended 2026-10-08).
@@ -730,20 +733,24 @@ because no account action can settle them.
     scope, rolling versus calendar reset, rejected-request and test-request counting, and
     post-403 window behavior remain unsettled until measured. Never infer them from this
     written procedure alone.
-13. **Endpoint-limit scope checks (`ADR-0034`, Q20/Q20b; not run):** use the
+13. **Endpoint-limit scope checks (`ADR-0034`, Q20/Q20b; partially run 2026-10-12):** use the
     method/path inventory in `08-provider-notes.md` as the list of limits to check.
-    Arrange separately authorized test accounts, webservice users, source IPs and
-    endpoint-specific fixtures before this part of Batch B; the auction order above
-    alone cannot resolve every counter's scope.
+    For remaining limits, arrange authorized test accounts, source IPs and
+    endpoint-specific fixtures; Robot documents one webservice user per account.
     For each listed limit, record UTC timestamp, method/path, provider account,
     webservice user, source IP, server number where applicable, response code and
-    returned throttle details. Compare controlled requests across distinct users,
-    accounts and source IPs to determine the counting scope; compare server-number
-    paths to learn whether their counts share a counter. In particular determine
+    returned throttle details. Compare controlled requests across accounts and
+    source IPs where relevant, and across server-number paths. In particular determine
     whether `POST /reset/{server-number}` counts per account or per server; if per
     account, revisit Q20b's accepted v1 residual with the owner. Keep the order-POST
     experiment in step 12 separate from the order-transaction GET checks here.
-    No counting scope is inferred from the written plan.
+    The `/server` read-family account and source-IP scope is now observed across
+    sessions 2 and 4 (`docs/research/panels-2026-10/r45/`): 200/hour shared by
+    `GET /server`, `GET /server/{n}` and `GET /server/{n}/cancellation`, including
+    an IPv6 refusal after IPv4 exhaustion. `GET /ip` and rescue `/boot` reads
+    answered during that block, and the cancellation POST succeeded. One webservice
+    user per account is documented. Other endpoints, order/reset scope, fixed versus
+    rolling windows and refused-request counting remain `[verify]`.
 
 **Batch C — DigitalOcean (one `s-1vcpu-512mb` Droplet, under $0.01)**
 1. Create a key named `pv-<uuid>`. Create a Droplet with it and tag `pv:<uuid>`. Record the time of the

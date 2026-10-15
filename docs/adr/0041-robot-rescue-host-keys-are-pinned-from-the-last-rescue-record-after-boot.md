@@ -1,0 +1,96 @@
+# Robot rescue host keys are pinned from the last-rescue record after boot
+
+**Status:** accepted (2026-10-12 and 2026-10-13, owner decisions Q27 and Q29 of the post-PR-2 grill).
+
+## Context
+
+`08-provider-notes.md` said Robot rescue host keys are "published in the rescue activation response and
+in a 'last rescue' lookup", marked observed. It called Robot the only provider in the reference set that
+supports pinning without out-of-band material. `PRV-16` and `PRV-19` were written around that claim.
+
+Two live sessions on 2026-10-12 contradicted half of it. The record is in
+`docs/research/panels-2026-10/r45/`.
+
+- **The activation response carries no keys.** It has `"host_key": []`, and so does
+  `GET /boot/{server-number}/rescue`, both before and after the rescue system booted.
+- **`GET /boot/{server-number}/rescue/last` publishes the booted session's keys** as SHA256 fingerprints
+  (ECDSA, ED25519, RSA), together with a `boot_time`. In the one session that polled it, the record was
+  read 90 seconds after the reset, three seconds after port 22 opened. All three fingerprints matched the
+  keys the rescue system presented over SSH.
+- **Before the first rescue of a server, the read answered `404`.** What a `404` means beyond "no record
+  was returned" is not documented.
+- **The activation is consumed at boot.** `active` read `false` at the first check, 44 seconds after the
+  reset.
+- **`boot_time` carries no zone.** `"2026-10-12 19:17:49"` for a boot at about 17:17:49Z fits Berlin summer
+  time, and a Berlin local hour repeats once a year.
+- **Robot publishes fingerprints, not complete public keys.**
+- **Not established:** whether a server's rescue host keys change on every boot. Each test server was
+  rescued once, and the two servers' keys differed.
+
+## Decision
+
+- **The presented-key match is what makes the connection safe.** The engine connects only to a host whose
+  presented key matches a published SHA256 fingerprint. A stale or foreign record ends in a refused
+  connection, never in trust. Freshness only decides when to connect.
+- **Begin rescue reads a baseline before activating.** It reads the last-rescue record and keeps its
+  `boot_time` string as the session's baseline; there is none when no record exists. Any other failure of
+  that read fails begin rescue before activation, with nothing to clean up.
+- **Begin rescue returns no host keys on Robot.** Activation exposes none, so `PRV-16`'s "whenever the
+  provider exposes them" is met by an empty set, and the session is marked as awaiting keys.
+- **`PRV-19`'s refresh accepts a changed record.** It populates the session's host keys only when the
+  record lists at least one fingerprint and its `boot_time` string differs from the baseline. The strings
+  are compared verbatim and never parsed as an instant.
+- **The pin is the published SHA256 fingerprints.** Matching fingerprints, then pinning the presented key
+  for that connection, is enough; no complete public key is needed from the provider.
+- **No keys within the deadline fails closed.** If no changed record with keys appears before the rescue
+  deadline, the session fails. Robot never falls back to first-use trust.
+
+## Considered and rejected
+
+- **First-use trust on Robot, as on Cloud and DigitalOcean.** It discards the one provider where real
+  pinning is available.
+- **Reading keys from the activation response.** They are not there.
+- **Comparing `boot_time` with the reset as instants.** The field has no zone, a local hour repeats, and
+  the comparison guards nothing the presented-key match does not (panel
+  `docs/research/panels-2026-10/r46/`, split 2–2).
+- **Detecting the new record by a changed fingerprint set.** If a server's rescue keys are fixed, every
+  repeat rescue would be rejected.
+- **Reading the baseline after activation.** A failure there leaves an activation to clean up.
+
+## Consequences
+
+- `08-provider-notes.md`'s claim is corrected, with the timings as observed.
+- `PRV-15`, `PRV-16`, `PRV-19` and `PRV-20` are reconciled with the baseline and a fingerprint-only pin.
+  `RSC-*` pinning cites it.
+- `CNF-355` covers the cases.
+- The last-rescue reads use `GET /boot/…`, a counter separate from the `/server` reads (`ADR-0034`).
+- The next live session rescues one server twice, to settle whether keys change per boot, and captures
+  the `404`'s error code.
+
+## Amendment — 2026-10-14: with caller keys too, only a key in both sets is accepted (owner decision Q33)
+
+The decision above says the engine "connects only to a host whose presented key matches a published SHA256
+fingerprint". A caller may also supply expected host keys (`WIR-20`'s `trust.expected_host_keys`), and
+`RSC-3`'s both-supplied row says only "They MUST overlap". Nothing said which presented key is then acceptable:
+`WIR-20` promises "Pin caller-supplied full keys", while `PRV-20` makes a provider match necessary without
+saying it is enough, and the formal model reduced to "any provider pin" on Robot. A branch review raised it
+(pv-f6g) and a four-reader panel decided it unanimously (`docs/research/panels-2026-10/r50/`).
+
+**Decision.** When the caller supplied keys and the provider published fingerprints, the presented key MUST be
+one of the caller's keys **and** match an accepted provider pin; the engine pins exactly the caller keys whose
+algorithm and SHA256 digest match a provider pin, and offers SSH only their algorithms. A key that matches a
+provider pin but is not one of the caller's is refused before authentication.
+
+**Why.** Under "any provider pin", the caller's keys never limit what is accepted; they can only make a session
+fail. A forged record listing the caller's real fingerprint and an attacker's own would pass the overlap check
+and admit the attacker's key. The client, not the server, chooses the host-key algorithm (RFC 4253 §7.1), so an
+honest server presents the overlapping key when the engine offers only its algorithm (an RSA key needs
+`rsa-sha2-512,rsa-sha2-256`); a session fails only if that key cannot be negotiated.
+
+**Not decided now.** If the planned double rescue shows that Robot's rescue keys change on every boot, a caller
+cannot know them in advance and every Robot request carrying caller keys fails `integrity` after activation has
+already rebooted the server. Whether to refuse caller keys for Robot at admission is decided then.
+
+Rejected: accepting any provider-pinned key once the sets overlap (it turns `WIR-20`'s promise into a consistency
+check and leaves the caller's keys without effect); refusing caller keys for Robot now (it settles a `[verify]`
+by fiat).

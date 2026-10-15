@@ -170,3 +170,41 @@ witness and the theorem share one set of definitions and cannot drift from each 
 - `11-open-findings.md`: `F52`'s open sub-decision — whether tenants are told a restore interval is
   running — closes as *no notice*, a dated clause on `STO-54`'s unrepaired list, which carries the
   reasons.
+
+## Amendment — 2026-10-14: which guard hypotheses are not a weakening (owner decision Q32)
+
+The guard bullet above makes every guard a parameter with a refused/admitted pair, and `ci.yml`'s rows flip
+`current` and require exactly one red: "Fence.lean's own theorems take each guard as a hypothesis and stay
+green". Nothing said whether adding such a hypothesis to an existing theorem is the weakening `AGENTS.md`
+describes ("weakening a statement to make a proof pass is a semantic change like any other"). The allowance
+lived in run instructions and ticket comments, and three ledger theorems on this branch carried one they did
+not need. A four-reader panel weighed it (`docs/research/panels-2026-10/r49/`); all four amended with changes.
+
+**Decision.**
+- A theorem quantified over a parameter record takes the fields it needs as hypotheses, so that a `ci.yml` row
+  reds only its own witness. The set's claim is the theorem at `current`, so a hypothesis `current` satisfies is
+  not a weakening. This covers every field, dated or not, and a field whose `current` value is `false`.
+- A guard hypothesis added to an **existing** theorem must be one without which the statement is false. Its
+  docstring names the hypothesis and cites the witness that refutes the statement without it: usually the
+  guard's own admitted-without witness, otherwise a short `decide` refutation in `Witnesses.lean`.
+- Removing an unneeded hypothesis is always allowed.
+- Adding any other hypothesis to an existing theorem, or narrowing its conclusion, is the weakening
+  `AGENTS.md` describes.
+
+Tooling cannot enforce the second point: every hypothesis is referenced by its proof, so Lean reports none
+unused, and a CI row that deletes a hypothesis goes red on true statements too. The witness is the evidence.
+
+Applied now:
+- The `_single` ledger theorems `open_authorized_at_commit_single`, `floors_preserved_single` and
+  `open_against_read_is_the_serialized_open_single` lose the `allCommitmentsAuthorize` hypothesis they do not need.
+- The docstrings of `Restore.quarantine_before_first_claim`, `Restore.bumped_before_first_request`,
+  `Restore.no_absence_on_first_pass`, `Fence.extend_admitted`, `Fence.closed_step` and
+  `Fence.extension_first` name their added guard hypothesis and cite its witness; pv-7j4 named
+  `Fence.extension_first`'s `hk`.
+- For `Restore.parent_waits_for_confirmation`, pv-7j4 removed the hypothesis instead of naming it.
+
+`AGENTS.md` points here.
+
+Rejected: no amendment (the rule would stay in run instructions a reviewer of the repository cannot read); a
+CI mutation that deletes hypotheses (it tests proof scripts, not statements); recording the counterexample only
+on the ticket (a reviewer of the code cannot read it).

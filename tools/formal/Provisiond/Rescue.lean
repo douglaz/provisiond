@@ -3,35 +3,35 @@ import Provisiond.Tables
 /-! `ADR-0025`'s M7: the rescue path as four models — `RSC-3`'s host-key trust decision, `RSC-26`'s
 disk identity, `OPS-45`'s two markers on the claim model, and `RSC-19`'s recovery key. Each is its
 own state, events and step, so a theorem about one cannot be cited for another, and each composes
-on a module that already owns what it needs: `Claim.holds` for `STO-3`'s guard, `Tables.Markers`
-and `Tables.installRow` for `OPS-11`'s classification, `Tables.Kind` for `WIR-10a`'s enum.
-`OPS-45`'s pre-dispatch arming appears in both `Install.step` and `Session.step`, under the one
-`secondMarkerBeforeSession` field, because each carries a different half of it: `Install`
+on a module that already owns what it needs: `Provisiond.Claim.holds` for `STO-3`'s guard, `Provisiond.Tables.Markers`
+and `Provisiond.Tables.installRow` for `OPS-11`'s classification, `Provisiond.Tables.Kind` for `WIR-10a`'s enum.
+`OPS-45`'s pre-dispatch arming appears in both `Provisiond.Rescue.Install.step` and `Provisiond.Rescue.Session.step`, under the one
+`Provisiond.Rescue.Params.secondMarkerBeforeSession` field, because each carries a different half of it: the install model
 carries the write under `STO-3`'s guard and its acknowledgment before the dispatch — "each
-acknowledged by the store before the provider call it precedes is made" — while `Session` carries
+acknowledged by the store before the provider call it precedes is made" — while the session model carries
 the column as `OPS-15`'s pass renders it, which is what `WIR-9a`'s `rescue_exit` reads off.
 
 Physical and cryptographic facts are **named hypotheses** on the theorems that need them
 (`CONTEXT.md`, *Assumption*): that a stable identifier names one disk is
-`resolves_only_the_named_disk`'s `huniq`, not a definition's silent assumption and not an `axiom` —
+`Provisiond.Rescue.Disk.resolves_only_the_named_disk`'s `huniq`, not a definition's silent assumption and not an `axiom` —
 the project declares none.
 
-`Params` lists the guards dated amendments added and the one design `RSC-19` refuses, each a field
+`Provisiond.Rescue.Params` lists the guards dated amendments added and the one design `RSC-19` refuses, each a field
 so that removing it is a one-token change a witness theorem exercises; `ci.yml`'s controls flip
 one each. The temporary-key model carries an operation-row presence bit and a produced-machine
 provisioning bit; it does not model provider consumption time, tag lookup, or an actual machine read.
 
 What the model omits: `RSC-6`'s canonicalization (a key here is its canonical `algorithm base64`
-pair, reduced to an identity) and `RSC-7`/`RSC-8`'s known-hosts file; `RSC-9`'s deadline and
-`PRV-19`'s polling, so the driver publishing keys is one event with no clock; which set is pinned
-where both are supplied and they overlap, because `RSC-3` does not say and inventing one would put
-a rule in `tools/formal/` that no requirement owns; `RSC-20`'s directory (absolute, owner-only,
+pair, reduced to an identity), SHA256 computation and real SSH authentication; `PRV-15`'s
+baseline read and `PRV-19`'s opaque `boot_time` record selection; and `RSC-7`/`RSC-8`'s known-hosts file;
+`RSC-9`'s deadline and `PRV-19`'s polling, so the driver publishing pins is one event with no clock;
+host-key algorithm negotiation in the SSH handshake; `RSC-20`'s directory (absolute, owner-only,
 encrypted storage) — a deployment fact, so what is persisted here is a key named by an operation
 id and nothing about where it sits; the image fetch and `RSC-25`/`RSC-29`'s digest verification;
 `RSC-22`/`RSC-23`'s layout validation, of which only the `drives[].identifier` resolution is here;
-`OPS-49`'s bounded repeat and the worker guard's own terms (`Claim`); `OPS-11`'s classification
-(`Tables`), which this projects into and does not re-model; the wire row (`Wire`); `RSC-39`–`RSC-44`
-and the catalogue re-host (`pv-vwe.13`); a crash inside `STO-54`'s procedure (`Provisiond.Restore`
+`OPS-49`'s bounded repeat and the worker guard's own terms (the claim model); `OPS-11`'s classification
+(the table model), which this projects into and does not re-model; the wire row (the wire model); `RSC-39`–`RSC-44`
+and the catalogue re-host (`pv-vwe.13`); a crash inside `STO-54`'s procedure (the restore model
 carries it) and
 re-activating rescue on a machine already in rescue (`pv-lhj`), so no event here is a second
 activation. One tenant, one machine, one engine (`OPS-47`) throughout.
@@ -39,11 +39,11 @@ activation. One tenant, one machine, one engine (`OPS-47`) throughout.
 Two conservatisms the models make visible rather than hide, and `OPS-45` states both. Of the first
 marker: "it establishes that preservation is no longer proven, not that a byte landed" — a process
 that dies between the write and the phase leaves a set marker over an untouched disk, which is
-`marker_set_over_an_untouched_disk`. Of the second, written the same way: "`false` is the
+`Provisiond.Witnesses.marker_set_over_an_untouched_disk`. Of the second, written the same way: "`false` is the
 conservative value as much as the open-session one: a process that dies between that write and the
 dispatch leaves `false` over a machine that was never rebooted into rescue", which is
-`false_over_a_machine_never_in_rescue`. The direction the column does foreclose is the paragraph's
-"Null is the only value that means no session was opened", and that is `none_means_no_session`. -/
+`Provisiond.Witnesses.false_over_a_machine_never_in_rescue`. The direction the column does foreclose is the paragraph's
+"Null is the only value that means no session was opened", and that is `Provisiond.Rescue.Install.none_means_no_session`. -/
 
 namespace Provisiond.Rescue
 open Provisiond.Claim Provisiond.Tables
@@ -55,6 +55,50 @@ theorem foldl_preserves {σ α : Type} (f : σ → α → σ) (I : σ → Prop)
   induction as generalizing s with
   | nil => exact hs
   | cons a as ih => exact ih _ (hI s a hs)
+
+/-! ## The dated amendments
+
+One field per line, because `ci.yml`'s controls match that shape. -/
+
+/-- The parameter fields below carry dated-amendment guards and the design `RSC-19` refuses.
+`Provisiond.Rescue.Params.awaitingProviderPins`: amended 2026-10-12, `ADR-0041`.
+`PRV-20` says "An awaiting Robot session
+cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in".
+`Provisiond.Rescue.Params.overlapCallerPins`: `ADR-0041` (Q33), 2026-10-14. `RSC-3` says "On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys."
+`Provisiond.Rescue.Params.temporaryKeyEligibility`: `PRV-9`, 2026-10-09, `ADR-0040` — the temporary-key sweep waits for an eligible operation and no provisioning machine.
+`Provisiond.Rescue.Params.coalesceWrite`: `OPS-45`, 2026-09-12, `ADR-0022` — "The write sets the marker only where it is
+null", by "`COALESCE(write_started_at, now)` under the worker guard, never a guard on the marker
+being null".
+`Provisiond.Rescue.Params.markerBeforePhase`: `OPS-45`, reworded 2026-09-15 — the marker is written "at the moment a phase
+begins that could have altered the machine, and before that phase runs", so it "establishes that
+preservation is no longer proven, not that a byte landed". `Provisiond.Rescue.Params.secondMarkerBeforeSession`: `OPS-45`,
+2026-09-16 — "**false, written before begin rescue (`PRV-15`) is dispatched**". `Provisiond.Rescue.Params.partialCleanupMovesNothing`:
+`OPS-45` — "**A driver's report that it cleaned up after a partial activation (`PRV-18`) does not
+move this marker**". `Provisiond.Rescue.Params.persistAtActivation` is not a guard but the design `RSC-19`'s 2026-09-15
+paragraph refuses, and it stands `false`: persisting the key from activation is what would cost
+`DOM-11`'s exception "a root credential on disk for the whole of every install". -/
+structure Params where
+  coalesceWrite              : Bool
+  markerBeforePhase          : Bool
+  secondMarkerBeforeSession  : Bool
+  partialCleanupMovesNothing : Bool
+  persistAtActivation        : Bool
+  temporaryKeyEligibility   : Bool
+  awaitingProviderPins      : Bool
+  overlapCallerPins         : Bool
+  deriving DecidableEq, Repr
+
+/-- The rules as they stand. -/
+@[req "OPS-45"]
+def current : Params := {
+    coalesceWrite              := true,
+    markerBeforePhase          := true,
+    secondMarkerBeforeSession  := true,
+    partialCleanupMovesNothing := true,
+    persistAtActivation        := false,
+    temporaryKeyEligibility   := true,
+    awaitingProviderPins      := true,
+    overlapCallerPins         := true }
 
 /-! ## Trust: `RSC-3`, `RSC-4`, `RSC-5` -/
 
@@ -68,9 +112,9 @@ structure HostKey where n : Nat deriving DecidableEq, Repr
 def overlaps (caller driver : List HostKey) : Bool :=
   caller.any (fun k => driver.contains k)
 
-/-- `RSC-3`'s five rows as five decisions. `pinOverlapping` is the both-supplied row that overlaps:
-the requirement says "They MUST overlap" and does not say which set is then pinned, so the decision
-carries the mode and the pinned set is not modelled. -/
+/-- `RSC-3`'s five rows as five decisions. The both-supplied row says "They MUST overlap";
+its pin-overlapping mode's presented-key membership is checked by
+`Provisiond.Rescue.Trust.permitsPresented`. -/
 inductive Decision
   | pinCaller
   | pinDriver
@@ -86,8 +130,8 @@ def connects : Decision → Bool
   | .pinCaller | .pinDriver | .pinOverlapping | .acceptNew => true
   | .abortIntegrity => false
 
-/-- `RSC-3`'s table, a total function of the caller's keys, the driver's published keys and the
-explicit first-use opt-in. "Caller supplied expected host keys" is the first row, "Driver published
+/-- `RSC-3`'s ordinary-session table, a total function of the caller's keys, the driver's published keys and the
+explicit first-use opt-in. "Caller supplied expected host keys and the driver published none" is the first row, "Driver published
 host keys and caller supplied none" the second, "Caller supplied keys *and* driver published keys"
 the third — where "No overlap is an `integrity` failure, and the engine MUST abort before
 connecting" — "Neither, and the caller explicitly opted into first-use trust" the fourth, and
@@ -99,6 +143,42 @@ def decision (caller driver : List HostKey) (optIn : Bool) : Decision :=
   | _ :: _, [] => .pinCaller
   | [], _ :: _ => .pinDriver
   | c :: cs, d :: ds => if overlaps (c :: cs) (d :: ds) then .pinOverlapping else .abortIntegrity
+
+/-- `awaitingProviderPins` enforces `PRV-20`'s "An awaiting Robot session cannot become
+eligible for first-use trust, even with the caller's explicit first-use opt-in": with the guard
+enabled, a provider-required session with no accepted pins aborts; without it the ordinary table
+decides. Driver identities stand for accepted provider pins only; this model does not
+establish how Robot selected the last-rescue record. -/
+@[req "PRV-20"]
+def sessionDecision (p : Params) (providerPinsRequired : Bool) (caller driver : List HostKey)
+    (optIn : Bool) : Decision :=
+  if p.awaitingProviderPins && providerPinsRequired && driver.isEmpty then .abortIntegrity
+  else decision caller driver optIn
+
+/-- Identity comparison abstracts permission for the presented SSH key. Caller-only and
+driver-only sessions require membership in their sole pin set. With
+`Provisiond.Rescue.Params.overlapCallerPins` enabled, the overlap row requires membership in
+both sets; disabled, it restores the pre-Q33 permission. At `Provisiond.Rescue.current`, this
+intersection subsumes the overlap arm's former provider-pins-required conjunct: every admitted
+key is in the driver set. Provider-required waiting is enforced by
+`Provisiond.Rescue.Trust.sessionDecision` under `Provisiond.Rescue.Params.awaitingProviderPins`;
+the driver-only arm already requires driver membership, and that waiting guard prevents the
+caller-only arm while provider pins are required. `PRV-20` says "a presented key whose SHA256
+fingerprint and algorithm match none of the accepted pins MUST be refused before authentication".
+SHA256 computation, record selection and host-key algorithm negotiation in the SSH handshake
+are outside this model. -/
+@[req "RSC-3"]
+def permitsPresented (p : Params) (providerPinsRequired : Bool) (caller driver : List HostKey)
+    (optIn : Bool) (presented : HostKey) : Bool :=
+  match sessionDecision p providerPinsRequired caller driver optIn with
+  | .pinCaller => caller.contains presented
+  | .pinDriver => driver.contains presented
+  | .pinOverlapping =>
+      if p.overlapCallerPins then caller.contains presented && driver.contains presented
+      else (caller.contains presented || driver.contains presented) &&
+        (!providerPinsRequired || driver.contains presented)
+  | .acceptNew => true
+  | .abortIntegrity => false
 
 /-- Every key set over a two-key universe: enough to reach all five rows, with the both-supplied row
 both overlapping and not. -/
@@ -330,42 +410,6 @@ theorem resolves_only_the_named_disk (req : Request) (inv : Inventory) (disk : D
   exact huniq found hmem.1 (by simpa using hmem.2)
 
 end Disk
-
-/-! ## The dated amendments
-
-One field per line, because `ci.yml`'s controls match that shape. -/
-
-/-- The guards `OPS-45` and `RSC-19` gained by dated amendment, and the one design `RSC-19` refuses.
-`temporaryKeyEligibility`: `PRV-9`, 2026-10-09, `ADR-0040` — the temporary-key sweep waits for an eligible operation and no provisioning machine.
-`coalesceWrite`: `OPS-45`, 2026-09-12, `ADR-0022` — "The write sets the marker only where it is
-null", by "`COALESCE(write_started_at, now)` under the worker guard, never a guard on the marker
-being null".
-`markerBeforePhase`: `OPS-45`, reworded 2026-09-15 — the marker is written "at the moment a phase
-begins that could have altered the machine, and before that phase runs", so it "establishes that
-preservation is no longer proven, not that a byte landed". `secondMarkerBeforeSession`: `OPS-45`,
-2026-09-16 — "**false, written before begin rescue (`PRV-15`) is dispatched**". `partialCleanupMovesNothing`:
-`OPS-45` — "**A driver's report that it cleaned up after a partial activation (`PRV-18`) does not
-move this marker**". `persistAtActivation` is not a guard but the design `RSC-19`'s 2026-09-15
-paragraph refuses, and it stands `false`: persisting the key from activation is what would cost
-`DOM-11`'s exception "a root credential on disk for the whole of every install". -/
-structure Params where
-  coalesceWrite              : Bool
-  markerBeforePhase          : Bool
-  secondMarkerBeforeSession  : Bool
-  partialCleanupMovesNothing : Bool
-  persistAtActivation        : Bool
-  temporaryKeyEligibility   : Bool
-  deriving DecidableEq, Repr
-
-/-- The rules as they stand. -/
-@[req "OPS-45"]
-def current : Params := {
-    coalesceWrite              := true,
-    markerBeforePhase          := true,
-    secondMarkerBeforeSession  := true,
-    partialCleanupMovesNothing := true,
-    persistAtActivation        := false,
-    temporaryKeyEligibility   := true }
 
 /-! ## `OPS-45`'s two markers, on the claim model -/
 

@@ -189,6 +189,114 @@ provider deletes, the attempt settles. -/
 def cancellationTrace : List Fence.Event :=
   [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete true (some true), .settle]
 
+/-- The actual fence/dispatch prefix, then known dated acceptance and one read-back.
+The provider's physical `applied` input is independent of acceptance and the read answer. -/
+def datedCancellationTrace (applied : Bool) (answer : Fence.ReadBack) : List Fence.Event :=
+  [.sweep, .claim, .fenceTxn, .fenceWrite, .providerDelete applied none,
+   .datedAccepted 10, .readBack answer, .settle]
+
+/-- Pin independent fence guards used by the prefix; leave the targeted dated guard live. -/
+def datedGuards (p : Params) : Params :=
+  { p with recheckInsideFence := true, fenceHolds := .episodeId, fenceOnOpenEpisode := true,
+           abortPredicate := .date, suspensionKey := .currentState, sweepNeedsRate := true,
+           ownIdClause := true, goneOrClosedFirst := true }
+
+/-- Isolation for the scheduling guard: the read-back policy is enabled independently. -/
+def datedFailurePolicy (p : Params) : Params :=
+  { datedGuards p with datedReadBack := true }
+
+/-- Isolation for the read-back guard: the dated scheduling policy is enabled independently. -/
+def datedAbsencePolicy (p : Params) : Params :=
+  { datedGuards p with datedAcceptanceSchedules := true }
+
+/-- `PRV-13`: "Read failure does not turn the accepted dated cancellation into
+`needs_reconciliation` or establish absence". The physical machine remains present. -/
+@[req "PRV-13"]
+theorem dated_failure_guarded :
+    let w := run (datedFailurePolicy Fence.current) fenceWorld (datedCancellationTrace false .failed)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some .scheduled ∧
+    w.m.fence = some (.episode ⟨1⟩) ∧ w.m.gone = false ∧ w.m.destroyed = false ∧
+    w.effectiveDate = some 10 := by decide
+
+/-- Changing only the dated scheduling guard restores ADR-0037 Q22's rejected
+"`now` is immediate" policy, closing and clearing while the physical machine remains. -/
+@[req "PRV-13"]
+theorem dated_failure_unguarded :
+    let p := datedFailurePolicy { Fence.current with datedAcceptanceSchedules := false }
+    let w := run p fenceWorld (datedCancellationTrace false .failed)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some (.closed .resourceGone) ∧
+    w.m.fence = none ∧ w.m.gone = true ∧ w.m.destroyed = false := by decide
+
+/-- The mapped absence answer reaches the existing gone settlement at the read-back,
+without a visibility-window wait or another confirmation. Physical deletion is supplied. -/
+@[req "PRV-13"]
+theorem dated_absence_guarded :
+    let w := run (datedAbsencePolicy Fence.current) fenceWorld (datedCancellationTrace true .mappedNotFound)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some (.closed .resourceGone) ∧
+    w.m.fence = none ∧ w.m.gone = true ∧ w.m.destroyed = true ∧ w.now = 0 := by decide
+
+/-- Changing only consumption of the read-back skips available absence evidence; the
+physically destroyed machine remains recorded scheduled with its date and its fence. -/
+@[req "PRV-13"]
+theorem dated_absence_unguarded :
+    let p := datedAbsencePolicy { Fence.current with datedReadBack := false }
+    let w := run p fenceWorld (datedCancellationTrace true .mappedNotFound)
+    w.attempt.map (·.row.status) = some .succeeded ∧
+    w.episode.map (·.state) = some .scheduled ∧
+    w.m.fence = some (.episode ⟨1⟩) ∧ w.m.gone = false ∧ w.m.destroyed = true ∧
+    w.effectiveDate = some 10 := by decide
+
+/-- Both guards pinned here: their current switches are tested only by their designated pairs.
+Every result in this fixture starts with actual dispatch and dated acceptance. -/
+def datedLifecyclePolicy : Params :=
+  { datedGuards Fence.current with datedAcceptanceSchedules := true, datedReadBack := true }
+
+/-- Present and failed answers reach identical scheduled worlds, including the returned date.
+Acceptance alone and a second read are inert; an unknown response keeps its ordinary path. -/
+@[req "PRV-13"]
+theorem dated_present_and_failed_witness :
+    let p := datedLifecyclePolicy
+    let w := run p fenceWorld (datedCancellationTrace false .failed)
+    let accepted := run p fenceWorld [.sweep, .claim, .fenceTxn, .fenceWrite,
+      .providerDelete false none, .datedAccepted 10]
+    let answered := readBack p accepted .failed
+    w = run p fenceWorld (datedCancellationTrace false .present) ∧
+    w.effectiveDate = some 10 ∧ accepted.m.destroyed = false ∧ accepted.m.gone = false ∧
+    settle p accepted = accepted ∧ readBack p answered .mappedNotFound = answered ∧
+    (run p fenceWorld [.sweep, .claim, .fenceTxn, .fenceWrite,
+      .providerDelete false none, .settle]).attempt.map (·.row.status) =
+        some .needsReconciliation := by decide
+
+/-- `STO-8a`: "Passing the date alone does not establish absence." From a scheduled execution,
+time before, at and after the date keeps the episode and actual fence; a later evidenced
+gone-write closes and clears on either side of the date through the existing lifecycle. -/
+@[req "OPS-48"]
+theorem dated_episode_lifecycle_witness :
+    let p := datedLifecyclePolicy
+    let scheduled := run p fenceWorld (datedCancellationTrace false .failed)
+    let before := run p scheduled [.advance 5]
+    let atDate := run p scheduled [.advance 10]
+    let after := run p scheduled [.advance 20]
+    [before, atDate, after].all (fun w => w.episode.map (·.state) == some .scheduled &&
+      w.m.fence == scheduled.m.fence && !w.m.gone && w.effectiveDate == some 10) = true ∧
+    [goneWrite before, goneWrite after].all (fun w =>
+      w.episode.map (·.state) == some (.closed .resourceGone) &&
+      w.m.fence == none && w.m.gone) = true := by decide
+
+/-- A gone-write wins while the accepted result awaits settlement. The later scheduled
+settlement succeeds with its date, preserving the permanent resource-gone close and null fence. -/
+@[req "OPS-48"]
+theorem dated_late_settlement_witness :
+    let p := datedLifecyclePolicy
+    let w := run p fenceWorld [.sweep, .claim, .fenceTxn, .fenceWrite,
+      .providerDelete false none, .datedAccepted 10, .readBack .failed, .goneWrite, .settle]
+    w.episode.map (·.state) = some (.closed .resourceGone) ∧
+    w.m.fence = none ∧ w.m.gone = true ∧ w.m.destroyed = false ∧
+    w.attempt.map (·.row.status) = some .succeeded ∧ w.effectiveDate = some 10 := by decide
+
 /-- The sweep routes, the worker claims, the re-check aborts, the attempt settles. -/
 def abortTrace : List Fence.Event := [.sweep, .claim, .fenceTxn, .fenceWrite, .settle]
 
@@ -403,6 +511,22 @@ theorem successful_extension_witness :
     w.balance = 900 ∧ sweep Fence.current w = w ∧
     w'.m.commitment = 100 ∧ w'.m.runwayUntil = 0 ∧ sweep Fence.current w' ≠ w' := by decide
 
+/-- Pin the date-write counterfactual and the extension's rate rule. -/
+def extensionWithoutDateParams : Fence.Params :=
+  { Fence.current with extendWritesDate := false, extendNeedsRate := true }
+
+/-- Refutes `Provisiond.Fence.extend_admitted` without `hd : p.extendWritesDate = true`.
+The trace is the disabled half of `Provisiond.Witnesses.successful_extension_witness`, with
+the retained hypotheses and the expected date evaluated explicitly. -/
+@[req "LDG-62"]
+theorem extension_without_date_refutes_extend_admitted :
+    let p := extensionWithoutDateParams
+    fenceWorld.rate = some 1 ∧ fenceWorld.suspended = false ∧ fenceWorld.m.fence = none ∧
+    100 ≤ fenceWorld.balance ∧
+    (extend p fenceWorld 100).m.runwayUntil = 0 ∧
+    fenceWorld.now + Runway.runwaySeconds (fenceWorld.m.commitment + 100) fenceWorld.prot 1 = 100 := by
+  decide
+
 /-- `OPS-42`'s "Extension first": the worker's read sees the grown commitment, aborts, makes no
 provider call, settles `succeeded` closing the episode `funded`, and the customer has what it
 paid for. -/
@@ -566,6 +690,53 @@ theorem suspension_keyed_on_current_state_witness :
     s.m.destroyed = true ∧ s.m.commitment = 100 ∧
     w'.m.destroyed = true ∧ w'.balance = 900 := by decide
 
+/-- Pin the historical suspension key, the retained retry guard, and the guards the
+holding-then-extend trace reads. Other controls must refute only their own witness. -/
+def holdingExtensionParams : Fence.Params :=
+  { operatorGuards Fence.current with
+    suspensionKey := .episodeReasons,
+    retryDeletes := true, retryNeedsFence := true, graceAtClaim := true,
+    pausedGraceInFence := true, pauseFundingGrace := true, extendNeedsRate := true }
+
+/-- Refutes `Provisiond.Fence.extension_first` without `hk : p.suspensionKey = .currentState`.
+The worker is already holding its claim when the resumed tenant extends; the historical
+episode reason then fences a funded machine despite every retained hypothesis. -/
+@[req "OPS-42"]
+theorem holding_extension_with_episode_reasons :
+    let p := holdingExtensionParams
+    let w := run p fenceWorld [.suspend, .resume, .claim]
+    let a : Attempt :=
+      { op := ⟨2⟩, ep := ⟨1⟩,
+        row := { status := .running, claim := ⟨1⟩, record := 0, revision := 1 } }
+    p.retryNeedsFence = true ∧ w.phase = .holding ⟨1⟩ ∧ w.rate = some 1 ∧
+    w.attempt = some a ∧ a.retried = false ∧ w.suspended = false ∧ w.m.fence = none ∧
+    100 ≤ w.balance ∧ p.abort w.now (w.m.commitment + 100) w.prot 1 = true ∧
+    (fenceTxn p (extend p w 100) none).phase = .fenced ⟨1⟩ := by decide
+
+/-- Pin every fence parameter read by the holding retry's extension and transaction. -/
+def holdingRetryWithoutFenceParams : Fence.Params :=
+  { holdingExtensionParams with
+    suspensionKey := .currentState, retryNeedsFence := false,
+    rederiveFirst := true }
+
+/-- Refutes `Provisiond.Fence.extension_first` without `hguard : p.retryNeedsFence = true`.
+The retry already holds its claim, its fence is null, and its extension is funded. -/
+@[req "OPS-42"]
+theorem holding_retry_without_fence_refutes_extension_first :
+    let p := holdingRetryWithoutFenceParams
+    let a : Attempt :=
+      { op := ⟨2⟩, ep := ⟨1⟩,
+        row := { status := .running, claim := ⟨1⟩, record := 0, revision := 1 }, retried := true }
+    let w : World :=
+      { fenceWorld with
+        phase := .holding ⟨1⟩, attempt := some a,
+        episode := some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } }
+    p.retryNeedsFence = false ∧ p.suspensionKey = .currentState ∧
+    w.phase = .holding ⟨1⟩ ∧ w.rate = some 1 ∧ w.attempt = some a ∧
+    w.suspended = false ∧ w.m.fence = none ∧ 100 ≤ w.balance ∧
+    p.abort w.now (w.m.commitment + 100) w.prot 1 = true ∧
+    (fenceTxn p (extend p w 100) none).phase = .fenced ⟨1⟩ := by decide
+
 /-- `OPS-41`'s fifth step on a machine carrying an open record. With no rate returning, the
 conditional write affects the record's row and the cancellation proceeds: the funded machine is
 destroyed at the bound. With restoration committing after the fence transaction read no rate and
@@ -633,6 +804,45 @@ theorem retry_guard_witness :
     (w.attempt.map (·.op)) = some ⟨2⟩ ∧
     w'.episode = some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } ∧
     (w'.attempt.map (·.op)) = some ⟨3⟩ ∧ w'.m.gone = true := by decide
+
+/-- Pin the guards read on the way to the closed episode, retaining both close guards until
+the individual refutation overrides one. -/
+def closedEpisodeRefutationParams : Fence.Params :=
+  { operatorGuards Fence.current with
+    rederiveFirst := true, retryDeletes := true,
+    retryNeedsFence := true, graceAtClaim := true, pausedGraceInFence := true,
+    pauseFundingGrace := true, keepGuard := true, keepWritesDate := true }
+
+def closedRetryRefutationParams : Fence.Params :=
+  { closedEpisodeRefutationParams with retryGuard := false }
+
+/-- Refutes `Provisiond.Fence.closed_step` without `hg : p.retryGuard = true`, retaining
+`hkeep : p.keepGuard = true`. The reopened episode keeps id 1 rather than the next id 3. -/
+@[req "OPS-48"]
+theorem retry_reopens_closed_episode :
+    let p := closedRetryRefutationParams
+    let w := run p fenceWorld goneAfterStallTrace
+    p.keepGuard = true ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    w.nextId = 3 ∧
+    (step p w .retry).episode =
+      some { id := ⟨1⟩, state := .attempting, reasons := [.exhausted] } := by decide
+
+def closedKeepRefutationParams : Fence.Params :=
+  { closedEpisodeRefutationParams with keepGuard := false }
+
+/-- Refutes `Provisiond.Fence.closed_step` without `hkeep : p.keepGuard = true`, retaining
+`hg : p.retryGuard = true`. Keep replaces an existing close instead of preserving its row
+or opening an attempting episode under the next id. -/
+@[req "OPS-48"]
+theorem keep_rewrites_closed_episode :
+    let p := closedKeepRefutationParams
+    let w := run p fenceWorld goneAfterStallTrace
+    p.retryGuard = true ∧ w.phase = .idle ∧
+    w.episode = some { id := ⟨1⟩, state := .closed .resourceGone, reasons := [.exhausted] } ∧
+    w.nextId = 3 ∧
+    (step p w .keep).episode =
+      some { id := ⟨1⟩, state := .closed .kept, reasons := [.exhausted] } := by decide
 
 /-! ### The rate outage (`ADR-0029`)
 
@@ -1023,6 +1233,31 @@ operation runs twice", reached through the crash window the procedure itself ope
 theorem crash_inside_procedure_is_the_naive_boot :
     (Restore.run { Restore.current with recordDecidesBoot := false } (bootRestore restoreTrace)
       [.lock, .crash, .lock, .startupPass, .claim ⟨0⟩]).secondOrder = true := by decide
+
+/-- Pin the naive boot and the retained guards for the request and absence refutations. -/
+def naiveBootRefutationParams : Restore.Params :=
+  { recordDecidesBoot := false, quarantineOnRestore := true, exceptionFrozen := true,
+    bumpOnRestore := true, twoPassAbsence := true }
+
+/-- Refutes `Provisiond.Restore.bumped_before_first_request` without
+`hr : p.recordDecidesBoot = true`, retaining `hb : p.bumpOnRestore = true`.
+The successor serves the restored generation before any bump. -/
+@[req "STO-54"]
+theorem request_before_bump_on_naive_boot :
+    let p := naiveBootRefutationParams
+    p.bumpOnRestore = true ∧ restoreTrace.store.credentialGen = 0 ∧
+    (Restore.run p (bootRestore restoreTrace) [.lock, .crash, .request 0]).servedGens = [0] := by
+  decide
+
+/-- Refutes `Provisiond.Restore.no_absence_on_first_pass` without
+`hr : p.recordDecidesBoot = true`, retaining `ht : p.twoPassAbsence = true` and the initially
+clear recorded-gone flag. One complete pass after the crash records absence. -/
+@[req "STO-54"]
+theorem first_pass_absence_on_naive_boot :
+    let p := naiveBootRefutationParams
+    let w := Restore.run p (bootRestore restoreTrace) [.lock, .crash, .lock, .sweep true false]
+    p.twoPassAbsence = true ∧ restoreTrace.store.machine.recordedGone = false ∧
+    w.store.machine.recordedGone = true ∧ w.completePasses = 1 := by decide
 
 /-- The marks, `STO-54` 2026-09-20: the record carries which steps have completed, so a crash after
 step (3) does not run step (3) again. The mark stands, `api` keeps serving — the listener is not
@@ -1418,7 +1653,8 @@ One create, dispatched at 0 with its reply lost; `PRV-36`'s visibility window is
 DigitalOcean measurement), `OPS-33`'s negative window 1000. Every witness pair here flips one
 field of `Reconcile.current`, and each asserts the fields its own parameter decides, as the
 fence's and the restore's do. The absence witnesses advance past both windows or neither, so that
-`absenceWindow` decides one witness alone. -/
+`absenceWindow` decides one witness alone. The observed-maximum and failed-confirmation
+pairs pin the other sweep guards with `sweepEvidenceGuards`. -/
 
 section Reconcile
 open Provisiond.Reconcile
@@ -1429,7 +1665,7 @@ def mach : Candidate := { account := acct, externalId := ⟨7⟩ }
 /-- The operation with its outcome unknown: nothing known, the commitment open. -/
 def unknownWorld (live : Bool) : Reconcile.World :=
   { now := 0, dispatchedAt := 0, callWaitEndedAt := 0,
-    windows := { visibility := 8, negative := 1000 }, live := live,
+    windows := { declaredVisibility := 8, negative := 1000 }, live := live,
     knowledge := .unknown, commitment := .open, orderLanded := none, throttled := false,
     retriedIntoThrottle := false, meterStoppedAt := none }
 
@@ -1457,6 +1693,52 @@ theorem late_acceptance_dispatch_origin_unsafe :
     let w := Reconcile.run p lateAcceptedWorld [.sweep true false .notFound]
     w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 8 ∧
     lateAcceptedWorld.negativeElapsed = false := by decide
+
+/-- Pin the unrelated sweep guards so each CI row refutes its own witness only. -/
+def sweepEvidenceGuards (p : Reconcile.Params) : Reconcile.Params := { p with
+    completePassOnly := true, pastWindowOnly := true, rereadBeforeAbsence := true,
+    absenceWindow := .visibility, visibilityFromWaitEnd := true }
+
+/-- Declaration 8, supplied observed sample 20; the fixture's wait end is 0. -/
+def observedWindowWorld : Reconcile.World :=
+  { attachedWorld true with windows :=
+      { declaredVisibility := 8, observedVisibility := [20], negative := 1000 } }
+
+/-- `PRV-36`: "the effective window is `max(declared, max(observed))`". The complete unlisted
+pass at wait-end + 10 cannot record absence; the live machine keeps its running meter. -/
+@[req "OPS-32"]
+theorem observed_maximum_refuses_absence :
+    let p := { sweepEvidenceGuards Reconcile.current with successfulConfirmationOnly := true }
+    let w := Reconcile.run p observedWindowWorld [.advance 10, .sweep true false .notFound]
+    w.knowledge = .observedPresent mach ∧ w.commitment = .open ∧
+    w.meterStoppedAt = none ∧ w.live = true := by decide
+
+/-- Disabling only the observed maximum records a live machine absent at instant 10. -/
+@[req "OPS-32"]
+theorem declared_only_stops_live_meter :
+    let p := { sweepEvidenceGuards Reconcile.current with
+      successfulConfirmationOnly := true, visibilityUsesObserved := false }
+    let w := Reconcile.run p observedWindowWorld [.advance 10, .sweep true false .notFound]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 10 ∧
+    w.commitment = .closed ∧ w.live = true := by decide
+
+/-- `OPS-32`: "a failed direct absence confirmation cannot record absence". Every other
+guard is enabled; the complete unlisted pass is past the applicable visibility window. -/
+@[req "OPS-32"]
+theorem failed_confirmation_refuses_absence :
+    let p := { sweepEvidenceGuards Reconcile.current with visibilityUsesObserved := true }
+    let w := Reconcile.run p (attachedWorld true) [.advance 10, .sweep true false .failed]
+    w.knowledge = .observedPresent mach ∧ w.commitment = .open ∧
+    w.meterStoppedAt = none ∧ w.live = true := by decide
+
+/-- Disabling only successful confirmation mistakes failure for absence, stopping a live meter. -/
+@[req "OPS-32"]
+theorem failed_confirmation_stops_live_meter :
+    let p := { sweepEvidenceGuards Reconcile.current with
+      visibilityUsesObserved := true, successfulConfirmationOnly := false }
+    let w := Reconcile.run p (attachedWorld true) [.advance 10, .sweep true false .failed]
+    w.knowledge = .authoritativeAbsence ∧ w.meterStoppedAt = some 10 ∧
+    w.commitment = .closed ∧ w.live = true := by decide
 
 /-- `OPS-33`'s positive witness: the negative window elapses, the commitment is released, and the
 resource is still `unknown` — release is not absence. Then the sweep "MUST continue searching
@@ -1621,16 +1903,34 @@ section Funding
 open Provisiond.Funding
 
 /-- Balance 100, commitment 30 remaining: the computed debit of 100 exceeds the authority. -/
-def seizureBalances : Ledger.Balances := { sum := 100, reserved := 30, deficiency := 0, snapshot := 0 }
+def seizureBalances : Ledger.Balances := { sum := 100, commitments := [some 30], deficiency := 0, snapshot := 0 }
 
-/-- `LDG-31`'s clamp: the tenant is debited 30, the commitment reaches zero, 70 is the
-operator's, and `available` is what it was. -/
+def zeroBalances : Ledger.Balances := { sum := 0, commitments := [], deficiency := 0, snapshot := 0 }
+
+/-- The released-slot trace, including a debit after its commitment closes. -/
+def closedSlotTrace : List Ledger.Event :=
+  [.topup 100, .openCommitment 30, .closeCommitment 0, .usageDebit 0 50]
+
+/-- `LDG-31`'s "the commitment decrements to zero": the tenant is debited 30, 70 is the
+operator's, and `available` is what it was. Debits naming closed or never-allocated slots
+record the whole signed amount as deficiency and leave sum and slots unchanged. -/
 @[req "LDG-31"]
 theorem clamp_witness :
-    Ledger.step Ledger.current seizureBalances (.usageDebit 100) =
-      { sum := 70, reserved := 0, deficiency := 70, snapshot := 0 } ∧
-    (Ledger.step Ledger.current seizureBalances (.usageDebit 100)).available =
-      seizureBalances.available := by decide
+    Ledger.step Ledger.current seizureBalances (.usageDebit 0 100) =
+      { sum := 70, commitments := [some 0], deficiency := 70, snapshot := 0 } ∧
+    (Ledger.step Ledger.current seizureBalances (.usageDebit 0 100)).available =
+      seizureBalances.available ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).sum = 100 ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).reserved = 0 ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).deficiency = 50 ∧
+    (Ledger.run Ledger.current zeroBalances closedSlotTrace).commitments.isOpen 0 = false ∧
+    Ledger.step Ledger.current seizureBalances (.usageDebit 9 50) =
+      { seizureBalances with deficiency := 50 } ∧
+    Ledger.step Ledger.current seizureBalances (.usageDebit 9 (-5)) =
+      { seizureBalances with deficiency := -5 } ∧
+    Ledger.step Ledger.current { seizureBalances with commitments := [none, some 30] }
+      (.usageDebit 0 (-5)) =
+      { seizureBalances with commitments := [none, some 30], deficiency := -5 } := by decide
 
 /-- Without it the excess is taken from available balance — `LDG-31`: "It MUST NOT be" — the same
 debit takes 100 from the tenant, and `available` falls by the 70 nobody authorized: "the automatic
@@ -1638,13 +1938,11 @@ seizure `ADR-0011` exists to forbid, arriving through the meter". -/
 @[req "LDG-31"]
 theorem seizure_without_clamp :
     (Ledger.step { Ledger.current with clampAtAuthority := false } seizureBalances
-      (.usageDebit 100)).available = 0 := by decide
+      (.usageDebit 0 100)).available = 0 := by decide
 
 /-- `LDG-35`'s trace: a top-up of 100, an authorization read, and two commitments of 100 each
 committing against it. -/
 def skewTrace : List Ledger.Event := [.topup 100, .read, .openCommitment 100, .openCommitment 100]
-
-def zeroBalances : Ledger.Balances := { sum := 0, reserved := 0, deficiency := 0, snapshot := 0 }
 
 /-- Serialized, the second open reads the balance the first one spent and is refused: one
 commitment, `available` at zero. -/
@@ -1659,6 +1957,121 @@ balance and each commit, leaving twice the balance reserved and one machine unfu
 theorem write_skew_without_serialization :
     let b := Ledger.run { Ledger.current with serializedAuthorization := false } zeroBalances skewTrace
     b.reserved = 200 ∧ b.available = -100 := by decide
+
+/-- Reach A (slot 0) = 30 and B (slot 1) = 40 through the actual open transition. -/
+def twoCommitmentTrace : List Ledger.Event := [.topup 100, .openCommitment 30, .openCommitment 40]
+
+/-- Read only the aggregate authorization guard; pin every unrelated guard. -/
+def aggregateGuards (g : Ledger.Guards) : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := g.allCommitmentsAuthorize,
+    closeOwnCommitment := true, clampOwnCommitment := true }
+
+/-- Read only the own-close guard; pin every unrelated guard. -/
+def ownCloseGuards (g : Ledger.Guards) : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := true,
+    closeOwnCommitment := g.closeOwnCommitment, clampOwnCommitment := true }
+
+/-- Read only the own-clamp guard, including pinning the authority clamp and serialization. -/
+def ownClampGuards (g : Ledger.Guards) : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := true,
+    closeOwnCommitment := true, clampOwnCommitment := g.clampOwnCommitment }
+
+/-- `LDG-9`: "Σ(reserved amount of open commitments)". A third open of 40 is refused after
+30 and 40 are already reserved against 100. -/
+@[req "LDG-9"]
+theorem aggregate_authorization_witness :
+    let g := aggregateGuards Ledger.current
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.openCommitment 40)
+    b.commitments.remaining 0 = 30 ∧ b.commitments.remaining 1 = 40 ∧
+    next = b ∧ next.reserved = 70 ∧ next.available = 30 := by decide
+
+/-- Without the aggregate guard the open subtracts only the first open slot's 30 and admits
+40: total reservation 110, available −10. -/
+@[req "LDG-9"]
+theorem only_one_commitment_authorizes :
+    let g := aggregateGuards { Ledger.current with allCommitmentsAuthorize := false }
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.openCommitment 40)
+    next.commitments.remaining 2 = 40 ∧ next.reserved = 110 ∧ next.available = -10 := by decide
+
+/-- `LDG-32`: "closed, and its remaining amount released in full". Closing A releases its 30
+and preserves B's 40. -/
+@[req "LDG-32"]
+theorem own_close_witness :
+    let g := ownCloseGuards Ledger.current
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.closeCommitment 0)
+    b.commitments.remaining 0 = 30 ∧ b.commitments.remaining 1 = 40 ∧
+    next.commitments.isOpen 0 = false ∧ next.commitments.isOpen 1 = true ∧
+    next.commitments.remaining 1 = 40 ∧ next.reserved = 40 ∧ next.available = 60 := by decide
+
+/-- Without the own-close guard, closing A closes every slot, releasing B's 40 too. -/
+@[req "LDG-32"]
+theorem close_releases_every_commitment :
+    let g := ownCloseGuards { Ledger.current with closeOwnCommitment := false }
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.closeCommitment 0)
+    next.commitments.isOpen 1 = false ∧ next.reserved = 0 ∧ next.available = 100 := by decide
+
+/-- Pin both serialization rules and every ledger guard for the aggregate counterfactual. -/
+def aggregateRefutationGuards : Ledger.Guards :=
+  { nativeCostSplit := true, clampAtAuthority := true, serializedAuthorization := true,
+    appendReadsLatest := true, allCommitmentsAuthorize := false,
+    closeOwnCommitment := true, clampOwnCommitment := true }
+
+/-- Refutes `Provisiond.Ledger.run_floors_single` without `ha : g.allCommitmentsAuthorize = true`.
+The sole initial slot is nonnegative and funded; the trace opens more slots. -/
+@[req "LDG-10"]
+theorem aggregate_without_guard_refutes_run_floors_single :
+    let g := aggregateRefutationGuards
+    let b := Ledger.single 100 30 0 0
+    let evs : List Ledger.Event := [.openCommitment 40, .openCommitment 40]
+    g.clampAtAuthority = true ∧ g.serializedAuthorization = true ∧
+    g.allCommitmentsAuthorize = false ∧ (∀ e ∈ evs, e.nonneg) ∧
+    (0 ≤ b.available ∧ 0 ≤ b.reserved) ∧
+    ¬ (0 ≤ (Ledger.run g b evs).available ∧ 0 ≤ (Ledger.run g b evs).reserved) := by
+  dsimp only
+  simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq,
+    Ledger.Event.nonneg]
+  decide
+
+/-- Refutes `Provisiond.Ledger.open_against_read_is_the_serialized_open` without
+`hr : g.allCommitmentsAuthorize = true`, including its posting history and sum equality. -/
+@[req "LDG-70"]
+theorem aggregate_without_guard_refutes_open_against_read :
+    let g := aggregateRefutationGuards
+    let ps : List Ledger.Posting := [.append 100]
+    let b : Ledger.Balances :=
+      { sum := 100, commitments := [some 30, some 40], deficiency := 0, snapshot := 0 }
+    g.appendReadsLatest = true ∧ g.serializedAuthorization = true ∧
+    g.allCommitmentsAuthorize = false ∧ b.sum = (Ledger.Book.empty.run g ps).sum ∧
+    Ledger.openAgainst (Ledger.Book.empty.run g ps).read b 40 ≠
+      Ledger.step g b (.openCommitment 40) := by decide
+
+/-- `LDG-31`: "the commitment decrements to zero". A debit of 50 on A posts 30 and records
+20 deficiency; B retains its 40. Available cannot distinguish this pair and is not asserted. -/
+@[req "LDG-31"]
+theorem own_clamp_witness :
+    let g := ownClampGuards Ledger.current
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.usageDebit 0 50)
+    b.commitments.remaining 0 = 30 ∧ b.commitments.remaining 1 = 40 ∧
+    next.commitments.remaining 0 = 0 ∧ next.commitments.remaining 1 = 40 ∧
+    next.sum = 70 ∧ next.deficiency = 20 := by decide
+
+/-- Without the own-clamp guard, the debit clamps against the total 70, posts 50, spends A's
+30 then 20 of B, and records no deficiency. B retains 20, less than its own authority. -/
+@[req "LDG-31"]
+theorem debit_consumes_another_commitment :
+    let g := ownClampGuards { Ledger.current with clampOwnCommitment := false }
+    let b := Ledger.run g zeroBalances twoCommitmentTrace
+    let next := Ledger.step g b (.usageDebit 0 50)
+    next.commitments.remaining 0 = 0 ∧ next.commitments.remaining 1 = 20 ∧
+    next.sum = 50 ∧ next.deficiency = 0 := by decide
 
 /-- `LDG-70`'s trace: a top-up of 17, a transaction reading the latest row, and two debits of 10
 and 7 appended after it. -/
@@ -2757,16 +3170,89 @@ end Wire
 `RSC-3`'s trust decision, `RSC-26`'s disk identity, `OPS-45`'s two markers on the claim model and
 `RSC-19`'s recovery key. One install request runs the markers: the caller chose the disk carrying
 stable identifier 2 from an inventory whose fingerprint is 100. `RSC-26`'s duplicate case needs a
-second device set, so `duplicateRequest` is a second request, over fingerprint 102.
+second device set, so `Provisiond.Witnesses.duplicateRequest` is a second request, over fingerprint 102.
 
-Every field of `Rescue.current` has a witness pair that flips it and asserts what that field
+Every field of `Provisiond.Rescue.current` has a witness pair that flips it and asserts what that field
 decides, as `ci.yml`'s other rows do. The
-`RSC-5` pair (`Trust.run` against `Trust.runRedecided`) and the `RSC-26` pair (`Disk.resolve`
-against `Disk.resolveFirst`) flip no field: what they refute is an alternative definition, not a
-guard that could be removed, so neither is one of `ci.yml`'s rows. -/
+`RSC-5` pair (`Provisiond.Rescue.Trust.run` against `Provisiond.Rescue.Trust.runRedecided`) and the `RSC-26` pair (`Provisiond.Rescue.Disk.resolve`
+against `Provisiond.Rescue.Disk.resolveFirst`) flip no field: what they refute is an alternative definition, not a
+guard that could be removed, so neither is one of `ci.yml`'s rows. The presented-key witnesses
+`Provisiond.Witnesses.single_source_presented_key_witness` and
+`Provisiond.Witnesses.overlap_presented_key_witness` also refute alternative definitions;
+their controls are standalone steps, not `ROWS` lines. The overlap standalone step restores
+non-provider permission without membership in either set in the enabled branch.
+The awaiting-pins pair flips `Provisiond.Rescue.Params.awaitingProviderPins` and has its own row.
+The pair `Provisiond.Witnesses.overlap_caller_pins_witness` and
+`Provisiond.Witnesses.overlap_caller_pins_without_guard` flips
+`Provisiond.Rescue.Params.overlapCallerPins` and has its own Rescue row. -/
 
 section Rescue
 open Provisiond.Rescue
+
+/-- The ordinary accept-new result cannot authorize Robot while it awaits accepted
+provider pins, even with explicit opt-in or caller keys. Matching the presented identity
+abstracts a provider fingerprint match; it does not prove SHA256 or SSH authentication. -/
+@[req "PRV-20"]
+theorem robot_awaiting_pins_witness :
+    Trust.decision [] [] true = .acceptNew ∧
+    Trust.sessionDecision Rescue.current true [] [] true = .abortIntegrity ∧
+    Trust.sessionDecision Rescue.current true [⟨1⟩] [] false = .abortIntegrity ∧
+    Trust.permitsPresented Rescue.current true [] [⟨1⟩] true ⟨1⟩ = true ∧
+    Trust.permitsPresented Rescue.current true [] [⟨1⟩] true ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current true [⟨1⟩] [⟨2⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current true [] [] true ⟨2⟩ = false := by decide
+
+/-- The same awaiting session with only the guard disabled reaches accept-new and permits the
+presented key; caller keys reach the ordinary pin-caller row. -/
+def awaitingPinsDisabled : Rescue.Params :=
+  { Rescue.current with awaitingProviderPins := false }
+
+@[req "PRV-20"]
+theorem robot_awaiting_pins_without_guard :
+    Trust.decision [] [] true = .acceptNew ∧
+    Trust.sessionDecision awaitingPinsDisabled true [] [] true = .acceptNew ∧
+    Trust.sessionDecision awaitingPinsDisabled true [⟨1⟩] [] false = .pinCaller ∧
+    Trust.permitsPresented awaitingPinsDisabled true [] [⟨1⟩] true ⟨1⟩ = true ∧
+    Trust.permitsPresented awaitingPinsDisabled true [] [⟨1⟩] true ⟨2⟩ = false ∧
+    Trust.permitsPresented awaitingPinsDisabled true [⟨1⟩] [⟨2⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented awaitingPinsDisabled true [] [] true ⟨2⟩ = true := by decide
+
+/-- `RSC-3`'s single-source strict pinning rejects a different presented identity and
+admits the matching one. -/
+@[req "RSC-3"]
+theorem single_source_presented_key_witness :
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [] false ⟨1⟩ = true ∧
+    Trust.permitsPresented Rescue.current false [] [⟨1⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current false [] [⟨1⟩] false ⟨1⟩ = true := by decide
+
+/-- `RSC-3`'s "They MUST overlap" row refuses a presented key in neither set and admits
+one in the overlap. -/
+@[req "RSC-3"]
+theorem overlap_presented_key_witness :
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [⟨1⟩] false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current false [⟨1⟩] [⟨1⟩] false ⟨1⟩ = true := by decide
+
+/-- The driver pins include a key outside the caller's supplied set. -/
+def overlapDriverKeys : List Trust.HostKey := [⟨1⟩, ⟨2⟩]
+
+/-- With the intersection guard, the provider-only key is refused and the overlapping caller
+key is admitted. A caller-only key is also refused: `RSC-3` says "The actual Robot connection
+MUST match an accepted provider pin, even when a caller key is supplied." -/
+@[req "RSC-3"]
+theorem overlap_caller_pins_witness :
+    Trust.permitsPresented Rescue.current true [⟨1⟩] overlapDriverKeys false ⟨2⟩ = false ∧
+    Trust.permitsPresented Rescue.current true [⟨1⟩] overlapDriverKeys false ⟨1⟩ = true ∧
+    Trust.permitsPresented Rescue.current true [⟨1⟩, ⟨3⟩] overlapDriverKeys false ⟨3⟩ = false := by decide
+
+/-- The pre-Q33 overlap permission with only the caller-membership guard disabled. -/
+def overlapCallerPinsDisabled : Rescue.Params :=
+  { Rescue.current with overlapCallerPins := false }
+
+/-- Without the guard, the same provider-only key is admitted. -/
+@[req "RSC-3"]
+theorem overlap_caller_pins_without_guard :
+    Trust.permitsPresented overlapCallerPinsDisabled true [⟨1⟩] overlapDriverKeys false ⟨2⟩ = true := by decide
 
 /-- The caller pinned one key and the driver published two, which overlap: `RSC-3`'s third row. -/
 def pinnedConn : Trust.Conn :=
@@ -3673,6 +4159,78 @@ theorem without_sale_guard_unsellable_offer_is_admitted :
     (purchaseTail { Admission.current with offerSaleGuard := false }
       true .healthy false false false false true true false false).refusals = [] := by decide
 
+/-- Pin unrelated tail guards so a cancellation guard mutation refutes only its own witness. -/
+def cancellationTailGuards (g : Admission.Guards) : Admission.Guards :=
+  { g with richTailCollection := true, offerSaleGuard := true, channelClosureGuard := true }
+
+/-- An otherwise clean create, with both priced checks present and the computed sale input. -/
+def cancellationCreate (g : Admission.Guards) (descriptor offer : Option Nat) :=
+  purchaseTailForOffer g true .healthy true descriptor offer 10
+    false false false true true false false
+
+def cancellationCreateAdmitted (g : Admission.Guards) (descriptor offer : Option Nat) :=
+  tailAdmittedForOffer g true .healthy true descriptor offer 10
+    false false false true true false false
+
+/-- The no-declaration pair holds the future-bound guard enabled in both settings. -/
+def declarationSaleGuards (g : Admission.Guards) : Admission.Guards :=
+  { cancellationTailGuards g with cancellationFutureGuard := true }
+
+@[req "PRV-31"]
+theorem missing_cancellation_bounds_refused :
+    (cancellationCreate (declarationSaleGuards Admission.current) none none).refusals =
+      [.offerNotSellable] ∧
+    (cancellationCreate (declarationSaleGuards Admission.current) none none).notChecked =
+      [(.commitmentCap, .unsellable), (.balance, .unsellable)] ∧
+    cancellationCreateAdmitted (declarationSaleGuards Admission.current) none none = false := by decide
+
+@[req "PRV-31"]
+theorem without_declaration_guard_missing_bounds_admitted :
+    (cancellationCreate (declarationSaleGuards
+      { Admission.current with cancellationDeclarationGuard := false }) none none).refusals = [] ∧
+    cancellationCreateAdmitted (declarationSaleGuards
+      { Admission.current with cancellationDeclarationGuard := false }) none none = true := by decide
+
+/-- The future-bound pair holds the declaration guard enabled in both settings. -/
+def futureSaleGuards (g : Admission.Guards) : Admission.Guards :=
+  { cancellationTailGuards g with cancellationDeclarationGuard := true }
+
+@[req "PRV-31"]
+theorem either_future_cancellation_bound_refused :
+    (cancellationCreate (futureSaleGuards Admission.current) (some 11) (some 10)).refusals =
+      [.offerNotSellable] ∧
+    (cancellationCreate (futureSaleGuards Admission.current) (some 10) (some 11)).refusals =
+      [.offerNotSellable] ∧
+    (cancellationCreate (futureSaleGuards Admission.current) (some 11) (some 10)).notChecked =
+      [(.commitmentCap, .unsellable), (.balance, .unsellable)] ∧
+    (cancellationCreate (futureSaleGuards Admission.current) (some 10) (some 11)).notChecked =
+      [(.commitmentCap, .unsellable), (.balance, .unsellable)] ∧
+    cancellationCreateAdmitted (futureSaleGuards Admission.current) (some 11) (some 10) = false ∧
+    cancellationCreateAdmitted (futureSaleGuards Admission.current) (some 10) (some 11) = false := by decide
+
+@[req "PRV-31"]
+theorem without_future_guard_either_future_bound_admitted :
+    (cancellationCreate (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 11) (some 10)).refusals = [] ∧
+    (cancellationCreate (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 10) (some 11)).refusals = [] ∧
+    cancellationCreateAdmitted (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 11) (some 10) = true ∧
+    cancellationCreateAdmitted (futureSaleGuards
+      { Admission.current with cancellationFutureGuard := false }) (some 10) (some 11) = true := by decide
+
+/-- `PRV-31` says "The bound is declared in the descriptor's `cancellation_bound` (`PRV-44`),
+or reported on the offer." Equality with today is admitted from both sources together, and from
+either source alone. -/
+@[req "PRV-31"]
+theorem today_cancellation_bounds_admitted :
+    (cancellationCreate (cancellationTailGuards Admission.current) (some 10) (some 10)).refusals = [] ∧
+    cancellationCreateAdmitted (cancellationTailGuards Admission.current) (some 10) (some 10) = true ∧
+    (cancellationCreate (cancellationTailGuards Admission.current) (some 10) none).refusals = [] ∧
+    cancellationCreateAdmitted (cancellationTailGuards Admission.current) (some 10) none = true ∧
+    (cancellationCreate (cancellationTailGuards Admission.current) none (some 10)).refusals = [] ∧
+    cancellationCreateAdmitted (cancellationTailGuards Admission.current) none (some 10) = true := by decide
+
 /-- The create-only channel closure takes its own place between the offer and solvency.
 Its Boolean is the named account/channel snapshot; isolation and expiry remain conformance. -/
 def closedChannelCreate (g : Admission.Guards) :=
@@ -3848,8 +4406,8 @@ the claim at 110 is inside the validated window. Listing success, pass completio
 claim timing are inputs; the witness proves local reuse, not scheduler reliability. -/
 def sweepRefresh (g : ProviderTraffic.Guards) : Option Cache :=
   let g := { g with reuseFresh := true, checkAtClaim := true, preserveAge := true, successfulOnly := true }
-  if validFreshness g 20 20 then
-    some (claimRefresh g 20 110 none true (sweepPresent g 100 {}))
+  if validFreshness g 40 20 then
+    some (claimRefresh g 40 110 none true (sweepPresent g 100 {}))
   else none
 
 @[req "OPS-32"]
@@ -3864,6 +4422,25 @@ theorem without_present_write_refresh_reads :
 /-- A five-unit window expires before the next twenty-unit sweep. Startup rejects that
 configuration; if the validation guard is removed, it is admitted and a claim at 110 reads. -/
 def shortWindowValidation (g : ProviderTraffic.Guards) : Bool := validFreshness g 5 20
+
+/-- The old one-sweep minimum admits a claim exactly at the next sweep boundary,
+before that sweep has written its observation. The strict freshness age test then reads.
+Twice the interval keeps that prior observation fresh at this ordering boundary. -/
+def freshnessBoundGuards : ProviderTraffic.Guards :=
+  { ProviderTraffic.current with reuseFresh := true, checkAtClaim := true, preserveAge := true, successfulOnly := true, sweepWritesPresent := true, windowAtLeastTwoSweeps := true }
+
+@[req "DOM-8"]
+theorem two_sweep_minimum_boundary :
+    validFreshness freshnessBoundGuards 20 20 = false ∧
+    validFreshness freshnessBoundGuards 39 20 = false ∧
+    validFreshness freshnessBoundGuards 40 20 = true ∧
+    validFreshness freshnessBoundGuards 41 20 = true ∧
+    validFreshness freshnessBoundGuards 0 20 = false ∧
+    validFreshness freshnessBoundGuards 40 0 = false ∧
+    (claimRefresh freshnessBoundGuards 20 120 none true
+      (sweepPresent freshnessBoundGuards 100 {})).reads = 1 ∧
+    (claimRefresh freshnessBoundGuards 40 120 none true
+      (sweepPresent freshnessBoundGuards 100 {})).reads = 0 := by decide
 def shortWindowRefresh : Cache :=
   claimRefresh ProviderTraffic.current 5 110 none true
     (sweepPresent ProviderTraffic.current 100 {})
@@ -3874,7 +4451,7 @@ theorem short_window_is_rejected_and_loses_reuse :
     shortWindowRefresh.reads = 1 := by decide
 @[req "DOM-8"]
 theorem without_window_guard_accepts_bad_window :
-    shortWindowValidation { ProviderTraffic.current with windowAtLeastSweep := false } = true := by decide
+    shortWindowValidation { ProviderTraffic.current with windowAtLeastTwoSweeps := false } = true := by decide
 
 def establishedPtr : Option Ptr := some ⟨"host.example", true⟩
 def establishedPtrNoop (g : ProviderTraffic.Guards) : Bool :=

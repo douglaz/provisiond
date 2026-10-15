@@ -14,7 +14,8 @@ A formalized clause's home is its Lean declaration in `tools/formal/`, tagged `@
 (`ADR-0025`). Change the declaration and the Markdown together; a theorem that stops proving is
 the gate telling you the amendment contradicts a property the set claims — read the theorem
 before weakening it, since weakening a statement to make a proof pass is a semantic change like
-any other. Never put a `CNF` identifier in `tools/formal/`.
+any other. `ADR-0025` says which guard hypotheses are not. Never put a `CNF` identifier in
+`tools/formal/`.
 
 Green is evidence only because the workflow breaks a document on every run and asserts the gates
 reject it — one negative-control step per gate that has one, and `.github/workflows/ci.yml` holds

@@ -177,3 +177,9 @@ cycles.
 
 Rejected: a local admission cap on reset-producing operations that holds room for outstanding exits (a
 local count, for a harm that may not exist).
+
+*Note 2026-10-12 (`ADR-0037` Q28):*
+- *Robot's `/server` read counter is account-wide, and the cancellation POST is unaffected by it.*
+- *Q20's window becomes "at least twice the account-sweep interval".*
+- *Q20b's live check is answered: `reserve_location=false` without the pre-read was accepted where
+  reservation was impossible, and the pre-read is removed.*

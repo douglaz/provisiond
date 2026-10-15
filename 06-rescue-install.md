@@ -6,9 +6,12 @@ provider through the rescue lifecycle, and installs an image over SSH.
 ## Sequence
 
 1. Generate a single-use Ed25519 keypair scoped to this one operation.
-2. Ask the driver to activate rescue and initiate the reboot (`PRV-15`).
+2. Ask the driver to begin rescue (`PRV-15`), including Robot's pre-activation baseline read, activation and reboot.
 3. Poll the driver's session refresh (`PRV-19`) until host-key material is available or
-   the caller's policy resolves the question.
+   the caller's policy resolves the question. For Robot,
+   only accepted provider pins resolve the wait: `PRV-20` says "An awaiting Robot session
+   cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in"
+   and "Robot never falls back to first-use trust, including when caller keys are supplied".
 4. Establish the host-key trust decision, and refuse to connect if it cannot be made.
 5. Wait for rescue SSH to answer, then collect an inventory report (block devices, UEFI
    presence).
@@ -30,15 +33,19 @@ sequenceDiagram
 
     W->>W: Generate a single-use keypair<br/>scoped to this one operation
     W->>D: begin rescue
+    opt Robot
+        D->>P: read last-rescue boot_time baseline
+        Note over D,P: Read failure other than no record aborts before activation.
+    end
     D->>P: activate rescue AND reset
     Note over D,P: PRV-15 — activation includes the reboot.<br/>The machine is now down.
-    loop until host keys appear or RSC-9's deadline
+    loop until pins arrive, trust policy resolves, or RSC-9's deadline
         W->>D: refresh session
-        D-->>W: host keys, if the provider publishes them
+        D-->>W: full keys or fingerprints, if published
     end
     W->>W: Host-key trust decision, RSC-3
-    Note over W: No pinned key and no explicit opt-in?<br/>ABORT with integrity, before connecting.
-    W->>R: connect, strict host-key checking
+    Note over W: Awaiting provider pins at deadline?<br/>ABORT with integrity, even with opt-in.
+    W->>R: connect using the chosen host-key trust
     R-->>W: inventory with stable identifiers<br/>+ inventory_fingerprint
     W->>W: Re-read inventory, RSC-26.<br/>Zero or MORE THAN ONE match?<br/>ABORT integrity, no bytes written.
     R->>I: fetch the image
@@ -68,27 +75,43 @@ lives behind the driver interface.
 
 This is the security-critical decision in the whole workflow. The rescue environment
 holds a credential that grants root on the customer's machine.
+*Amended 2026-10-12 (`ADR-0041`): provider fingerprint pins can arrive after boot.*
 
 **RSC-3** The engine MUST NOT connect unless one of these is true:
 
 | Condition | Behaviour |
 |---|---|
-| Caller supplied expected host keys | Pin exactly those. Strict checking. |
+| Caller supplied expected host keys and the driver published none | Pin exactly those. Strict checking. |
 | Driver published host keys and caller supplied none | Pin the driver's. Strict checking. |
-| Caller supplied keys *and* driver published keys | They MUST overlap. No overlap is an `integrity` failure, and the engine MUST abort before connecting. |
+| Caller supplied keys *and* driver published keys | They MUST overlap. No overlap is an `integrity` failure, and the engine MUST abort before connecting. On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys. |
 | Neither, and the caller explicitly opted into first-use trust | Accept-new. Permitted, but it is a documented downgrade. |
 | Neither, and no explicit opt-in | Abort with an `integrity` error. |
+
+**Amended 2026-10-14 (`ADR-0041`, Q33).** Row 1's Condition excludes driver pins; the both-supplied row gained its closing sentence. The first branch-review fixes on 2026-10-14 (`pv-f6g`, `70ce84d`) also changed the 2026-10-12 note's lowercase must to MUST.
+
+**Amended 2026-10-12 (`ADR-0041`).** `PRV-20` says "An awaiting Robot session cannot become eligible for first-use trust"; the first-use row does not apply to that session.
+`PRV-20` says "a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins
+MUST be refused before authentication" and "The engine MUST pin the matching presented full key for the connection".
+If caller full keys
+and driver fingerprints both exist, overlap means a caller key's algorithm and SHA256
+digest match a provider pin; a nonoverlap aborts before connecting. The actual Robot
+connection MUST match an accepted provider pin, even when a caller key is supplied.
+`PRV-20` says "Robot never falls back to first-use trust, including when caller keys are supplied".
 
 **RSC-4** Caller-supplied keys and the first-use-trust opt-in MUST be mutually exclusive
 in the request (`API-13`).
 
 **RSC-5** A pinned connection MUST NEVER be silently downgraded to first-use trust — not
 on retry, not on timeout, not when the driver returns an empty key set later.
+`PRV-20` says "Refresh MUST NOT downgrade a session", "The same rule protects fingerprint pins",
+and "An awaiting Robot session cannot become eligible for first-use trust".
 
 **RSC-6** Host keys MUST be canonicalized before comparison: parse out the algorithm and
 the base64 blob, discard comments and any leading host pattern, and compare the
 `algorithm base64` pair. Comparing raw strings makes a formatting difference look like an
 attack, and vice versa.
+For a fingerprint pin, compare the algorithm and SHA256 digest of the canonical
+presented key; a digest is not a complete key (`PRV-16`).
 
 **RSC-7** The known-hosts entry MUST be written with the correct host/port form for
 non-default ports and for literal IPv6 addresses.
@@ -102,6 +125,7 @@ boot timeout, not from an unrelated hard-coded constant. Bare metal routinely ta
 several minutes to POST and reach a rescue environment, and a provider that only
 publishes keys after boot (`PRV-19`) will otherwise fail every pinned install. See
 `DEF-5`.
+For Robot, `PRV-20` says "If eligible pins have not arrived by `RSC-9`'s deadline … connection fails `integrity`".
 
 ## Credentials
 
@@ -113,11 +137,11 @@ in the process table.
 
 **RSC-12** The installed system MUST NOT inherit the ephemeral rescue credential. Where
 the provider's installer offers to copy rescue authorized keys into the target, the
-generated configuration MUST explicitly disable that. For Hetzner Robot installimage, the generated config MUST contain `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`; the directive is [observed — installimage e15b5ea, 2026-10-06], while the deployed rescue installer remains `[verify]`.
+generated configuration MUST explicitly disable that. For Hetzner Robot installimage, the generated config MUST contain `TAKE_OVER_RESCUE_SYSTEM_SSH_PUBLIC_KEYS no`; the directive was observed in installimage e15b5ea on 2026-10-06 and in the deployed script on 2026-10-12 (`docs/research/panels-2026-10/r45/rescue-ssh-session2.txt`); no end-to-end installation or exact upstream commit match was tested.
 
 **RSC-13** A rootfs install MUST require at least one caller-supplied authorized key for
 the installed system, precisely because of `RSC-12` — otherwise the result is a machine
-nobody can reach. On Hetzner Robot installimage, the generated config MUST set `SSHKEYS_URL` to the caller-key source [observed — installimage e15b5ea, 2026-10-06]; the deployed rescue installer remains `[verify]`.
+nobody can reach. On Hetzner Robot installimage, the generated config MUST set `SSHKEYS_URL` to the caller-key source [observed — installimage e15b5ea, 2026-10-06]; the deployed script was inspected on 2026-10-12 (`docs/research/panels-2026-10/r45/rescue-ssh-session2.txt`); no end-to-end installation was tested.
 
 **RSC-14** A raw-disk install MUST reject caller-supplied authorized keys. The filesystem
 layout inside an arbitrary raw image is unknown, so keys cannot be injected generically.

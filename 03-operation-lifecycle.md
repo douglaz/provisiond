@@ -280,8 +280,11 @@ never an implicit default.
 
 The accepted dated cancellation read-back (`PRV-13`) is an evidence read after a successful
 mutating response. Failure of that read alone does not enter this failure classifier; the
-settlement for the known accepted date belongs to `PRV-13`. This exception does not reclassify
-unknown acceptance or a later failure of the mutating request. *Clarified 2026-10-11
+settlement for the known accepted date belongs to `PRV-13`. `PRV-13c` says "A failed
+post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and
+MUST NOT change the create's settlement." *Amended 2026-10-14 (`ADR-0037`, Q31).*
+This exception does not reclassify unknown acceptance or a later failure of the mutating
+request. *Clarified 2026-10-11
 (`ADR-0037`, Q22).*
 
 **AMENDED 2026-08-31 — "a 4xx means the provider did not act" is false, and believing it strands a
@@ -531,6 +534,14 @@ time when the obligation is next read, a debit without the machine row charges a
 machine no tenant owns, a machine row without its debit runs a create nobody paid for, and an
 attach whose cancellation never reached the queue is an unfunded machine billing with nothing
 scheduled to stop it.
+
+*Amended 2026-10-14 (`ADR-0037`, Q31).*
+*Amended 2026-10-15 (`pv-sgj`): the landed-order transaction's placement sentence gained its MUST keyword.*
+*Amended 2026-10-15 (`ADR-0037`, Q34).*
+At every entry point to the landed-order transaction above, that transaction MUST include
+the column write with the machine row: `PRV-13c` says "The landed-order transaction MUST write the date of a successful read the committing pass holds, otherwise null, in `machines.earliest_cancellation_date` with the machine row".
+`PRV-13c` says "The system MUST record the date of the committing pass's successful post-order read in `machines.earliest_cancellation_date`", "An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it to that column" and "After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date".
+`PRV-13c` says "once, when the create settles, after `OPS-27`'s confirming read".
 
 *Amended 2026-10-04 (`pv-gip.27`, J1): the flowchart and atomic attach include `LDG-40`'s
 no-rate branch, "open no commitment, regardless of available balance". Verification: `CNF-308`.*
@@ -1398,7 +1409,11 @@ permit an observation transaction: write `released_at` at the observation instan
 read that finds the attachment or fails, writes no absence. This does not dispatch a release
 mutation or change the machine's state. `LDG-32` owns commitment closure and `STO-18` remains
 the tombstone gate; an operator still initiates a `manual` cleanup where one is required.
-*Amended 2026-10-09 (`ADR-0037`, Q14): automatic attachment absence confirmation.*
+*Amended 2026-10-09 (`ADR-0037`, Q14): automatic attachment absence confirmation.
+Amended 2026-10-12 (`ADR-0037`, Q28): on Robot, attachment listing and direct reads
+MUST use `GET /ip` and `GET /subnet`, never `GET /server/{n}`. A successful attachment
+endpoint read during a failed account pass does not establish a complete pass or authorize
+absence writes.*
 
 **A missing machine MUST be re-read directly before its absence is recorded.** The listing narrows
 the candidates; it never establishes one. *Added 2026-09-04, replacing a pass-start eligibility

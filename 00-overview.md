@@ -354,7 +354,8 @@ marked human are procedures the deployment records rather than values the proces
 
 *Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
 2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
-activation funding minimum is registered.*
+activation funding minimum is registered. Amended 2026-10-12 (`ADR-0037`, Q28):
+refresh freshness has a two-sweep minimum.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -373,7 +374,7 @@ activation funding minimum is registered.*
 | Re-derivation interval | `PRV-13e` | duration | yes |
 | Account-sweep interval | `OPS-32`, `LDG-74` | duration | yes |
 | Worst-case operation hold, per product | `PRV-13b` | duration | yes |
-| Refresh freshness window | `DOM-8` | finite, positive duration; see `DOM-8` | yes |
+| Refresh freshness window | `DOM-8` | finite, positive duration at least twice the account-sweep interval | yes |
 | Provider-call deadline | `OVR-19` | finite, positive duration | yes |
 | Resolution-read cadence, per provider account | `OVR-19` | finite, positive duration; maximum wait from a mutation's visibility-window end until its resolution read is issued | yes |
 | Margin | `LDG-24` | basis points | yes |

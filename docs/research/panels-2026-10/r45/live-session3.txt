@@ -1,0 +1,30 @@
+# Robot live session 3, 2026-10-12 (rescue host keys; runner summary, redacted)
+2026-10-12T16:56:21Z pre-existing servers (via /ip): [<prod-server>]
+2026-10-12T16:56:21Z key -> 201 fp=35:3c:11:5d:b6:51:cd:c2:10:e9:6d:7d:74:ea:c8:5d
+2026-10-12T16:56:22Z offer 3086901 at €72.0000/mo
+2026-10-12T16:56:23Z ORDER -> 201 tx=B20261012-3524715-3095588
+2026-10-12T17:16:33Z READY server=3086901 ip=94.130.206.147 status=ready
+2026-10-12T17:16:34Z STATUS before activation -> 200 {"active":false,"host_key":[],"boot_time":null}
+2026-10-12T17:16:35Z LAST before activation -> 404 {"active":null,"host_key":null,"boot_time":null}
+2026-10-12T17:16:36Z ACTIVATE -> 200 {"active":true,"host_key":[],"boot_time":null}
+2026-10-12T17:16:37Z STATUS after activation -> 200 {"active":true,"host_key":[],"boot_time":null}
+2026-10-12T17:16:40Z RESET hw -> 200
+2026-10-12T17:17:24Z STATUS +30s -> 200 {"active":false,"host_key":[],"boot_time":null}
+2026-10-12T17:18:07Z STATUS +60s -> 200 {"active":false,"host_key":[],"boot_time":null}
+2026-10-12T17:18:07Z port 22 open after ~60s
+  256 MD5:0a:31:70:17:16:ad:b4:79:c9:3f:da:94:dd:5c:2d:45 94.130.206.147 (ECDSA)
+  3072 MD5:27:aa:07:36:15:26:bc:c3:c4:a6:95:d0:68:00:0c:42 94.130.206.147 (RSA)
+  256 MD5:6f:57:c6:e6:bf:6f:cf:2e:ec:14:5b:f4:f7:1f:88:67 94.130.206.147 (ED25519)
+2026-10-12T17:18:09Z STATUS after boot (+0 s) -> 200 {"active":false,"host_key":[],"boot_time":null}
+2026-10-12T17:18:10Z LAST after boot (+0 s) -> 200 {"active":false,"host_key":[{"key":{"fingerprint":"BsOONEvdnopwgousokJudkeGq7uIPDgKmJ6CYMLMZGY","type":"ECDSA","size":256}},{"key":{"fingerprint":"P4qMCubFC1O2pO3faOMKh5eLi143l88UukJKWeegbAA","type":"ED25519","size":256}},{"key":{"fingerprint":"r8EtbF3rV3afx0RPO+w8qHzeUEYf/8mD1SUtxSDiIBs","type":"RSA","size":3072}}],"boot_time":"2026-10-12 19:17:49"}
+2026-10-12T17:19:11Z STATUS after boot (+60 s) -> 200 {"active":false,"host_key":[],"boot_time":null}
+2026-10-12T17:19:12Z LAST after boot (+60 s) -> 200 {"active":false,"host_key":[{"key":{"fingerprint":"BsOONEvdnopwgousokJudkeGq7uIPDgKmJ6CYMLMZGY","type":"ECDSA","size":256}},{"key":{"fingerprint":"P4qMCubFC1O2pO3faOMKh5eLi143l88UukJKWeegbAA","type":"ED25519","size":256}},{"key":{"fingerprint":"r8EtbF3rV3afx0RPO+w8qHzeUEYf/8mD1SUtxSDiIBs","type":"RSA","size":3072}}],"boot_time":"2026-10-12 19:17:49"}
+2026-10-12T17:22:14Z STATUS after boot (+180 s) -> 200 {"active":false,"host_key":[],"boot_time":null}
+2026-10-12T17:22:15Z LAST after boot (+180 s) -> 200 {"active":false,"host_key":[{"key":{"fingerprint":"BsOONEvdnopwgousokJudkeGq7uIPDgKmJ6CYMLMZGY","type":"ECDSA","size":256}},{"key":{"fingerprint":"P4qMCubFC1O2pO3faOMKh5eLi143l88UukJKWeegbAA","type":"ED25519","size":256}},{"key":{"fingerprint":"r8EtbF3rV3afx0RPO+w8qHzeUEYf/8mD1SUtxSDiIBs","type":"RSA","size":3072}}],"boot_time":"2026-10-12 19:17:49"}
+2026-10-12T17:27:16Z STATUS after boot (+300 s) -> 200 {"active":false,"host_key":[],"boot_time":null}
+2026-10-12T17:27:18Z LAST after boot (+300 s) -> 200 {"active":false,"host_key":[{"key":{"fingerprint":"BsOONEvdnopwgousokJudkeGq7uIPDgKmJ6CYMLMZGY","type":"ECDSA","size":256}},{"key":{"fingerprint":"P4qMCubFC1O2pO3faOMKh5eLi143l88UukJKWeegbAA","type":"ED25519","size":256}},{"key":{"fingerprint":"r8EtbF3rV3afx0RPO+w8qHzeUEYf/8mD1SUtxSDiIBs","type":"RSA","size":3072}}],"boot_time":"2026-10-12 19:17:49"}
+2026-10-12T17:27:18Z SSH host keys: Warning: Permanently added '94.130.206.147' (ED25519) to the list of known hosts. rescue 256 MD5:0a:31:70:17:16:ad:b4:79:c9:3f:da:94:dd:5c:2d:45 rescue (ECDSA) 256 SHA256:BsOONEvdnopwgousokJudkeGq7uIPDgKmJ6CYMLMZGY rescue (ECDSA) 256 MD5:6f:57:c6:e6:bf:6f:cf:2e:ec:14:5b:f4:f7:1f:88:67 rescue (ED25519) 256 SHA256:P4qMCubFC1O2pO3faOMKh5eLi143l88UukJKWeegbAA rescue (ED25519) 3072 MD5:27:aa:07:36:15:26:bc:c3:c4:a6:95:d0:68:00:0c:42 rescue (RSA) 3072 SHA256:r8EtbF3rV3afx0RPO+w8qHzeUEYf/8mD1SUtxSDiIBs rescue (RSA) 
+2026-10-12T17:27:18Z CANCEL_SENT
+2026-10-12T17:27:19Z CANCEL attempt 1 -> 200
+2026-10-12T17:27:19Z DONE
+2026-10-12T17:27:20Z key delete -> 200

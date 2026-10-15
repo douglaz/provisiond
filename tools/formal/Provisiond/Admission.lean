@@ -38,6 +38,17 @@ stored result", and what that stored result was is outside.
 
 The tail. `purchaseTail` carries `API-7`'s refusal collection over snapshot inputs; it does not
 read provider-account or machine rows, compute a price, serialize responses or execute a write.
+`purchaseTailForOffer` and `tailAdmittedForOffer` compute its offer Boolean with
+`cancellationSellable`, conjoined with the supplied `PRV-13b` sale verdict. `PRV-31` says
+"A missing declared cancellation bound in both the descriptor and the offer is an unsellable offer"
+and "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
+its offer-reported bound is later than the provider's local today." The bounds and today are
+natural-number day ordinals supplied by the caller, taken as provider-local and preserving
+the provider's day order. Conversion from zones or instants is not modelled or established
+by the numerical properties.
+`PRV-13b` remains an input in full, including traffic and live evidence, the API stop path,
+meter-stop bound and attachment cleanup: it requires "an API path to stop the cost, a bound on
+the time until the customer's meter stops, and cleanup for every billable attachment".
 Its closed-channel Boolean is for the named create's account and channel. It does not prove
 account/channel isolation, clock expiry, a database race, HTTP serialization or Robot's behavior.
 The commitment and enqueue belong to `Provisiond.Fence` and `Provisiond.Ledger`.
@@ -257,7 +268,7 @@ def limitUnder (override : Bool) (deployment : Nat) : Option Nat :=
 
 /-! ## `API-7`'s pipeline -/
 
-/-- The rules `API-7` gained or lost by dated amendment, one field each.
+/-- The rules carried by this model, one dated amendment per field.
 
 `listenerSplit` (`WIR-34`): an operator route answers `404` to a customer-authenticated request.
 `operatorSkipsTenantSteps` (2026-09-04): "**Every operator verb skips 2 and 5b**, whether or not it
@@ -279,7 +290,15 @@ stored date passed during the outage".
 
 `solvencyUsesValuedTerms` (`LDG-40`, 2026-10-03, `ADR-0029`): "the solvency check" now
 "MUST continue over the terms it can value". Its off position restores the withdrawn row,
-"**the solvency check** (MUST fail closed)". -/
+"**the solvency check** (MUST fail closed)".
+
+`cancellationDeclarationGuard` (`PRV-31`, F26, 2026-08-12): off, absence from both sources
+is sellable on the cancellation dimension, retaining the circularity "for an offer that hides
+its terms the commitment could only be sized after the purchase it authorizes".
+`cancellationFutureGuard` (`PRV-31`, 2026-10-12, `ADR-0037` Q25): off, a later declared or
+reported bound remains sellable, retaining the rule before Q25. The enabled rule is
+"In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
+its offer-reported bound is later than the provider's local today." -/
 structure Guards where
   listenerSplit            : Bool
   operatorSkipsTenantSteps : Bool
@@ -295,6 +314,8 @@ structure Guards where
   sweepRoutesNothingWithoutRate : Bool
   richTailCollection      : Bool
   offerSaleGuard          : Bool
+  cancellationDeclarationGuard : Bool
+  cancellationFutureGuard  : Bool
   /-- `ADR-0036` (2026-10-09): a stored channel closure refuses only a create. -/
   channelClosureGuard     : Bool
   completeCheckToLift     : Bool
@@ -319,6 +340,8 @@ def current : Guards := {
     sweepRoutesNothingWithoutRate := true,
     richTailCollection      := true,
     offerSaleGuard          := true,
+    cancellationDeclarationGuard := true,
+    cancellationFutureGuard  := true,
     channelClosureGuard     := true,
     completeCheckToLift     := true,
     solvencyUsesValuedTerms  := true }
@@ -1045,9 +1068,50 @@ structure TailResult where
   notChecked : List (PricedCheck × UncheckedReason)
   deriving DecidableEq, Repr
 
+/-- A missing source contributes no future bound. The strict comparison retains equality
+with today as sellable; `PRV-31` says "later than the provider's local today". -/
+def boundNotLater (today : Nat) : Option Nat → Bool
+  | none => true
+  | some bound => !decide (today < bound)
+
+/-- `PRV-31`: "A missing declared cancellation bound in both the descriptor and the offer is
+an unsellable offer." "In v1, an offer MUST NOT be sold on prepaid terms if either its
+descriptor-declared bound or its offer-reported bound is later than the provider's local today."
+The inputs are day ordinals taken as provider-local; conversion from zones or instants is
+not modelled. No precedence between the sources is needed for this sale decision.
+"This does not move a provider failure or a term learned after ordering into admission." -/
+@[req "PRV-31"]
+def cancellationSellable (g : Guards) (descriptor offer : Option Nat) (today : Nat) : Bool :=
+  (!g.cancellationDeclarationGuard || descriptor.isSome || offer.isSome) &&
+    (!g.cancellationFutureGuard || (boundNotLater today descriptor && boundNotLater today offer))
+
+/-- Over every numerical input, assuming both cancellation guards enabled. The
+day ordinals are taken as provider-local; conversion from zones or instants is not modelled. -/
+@[req "PRV-31"]
+theorem cancellation_sellable_iff (g : Guards)
+    (hd : g.cancellationDeclarationGuard = true) (hf : g.cancellationFutureGuard = true)
+    (descriptor offer : Option Nat) (today : Nat) :
+    cancellationSellable g descriptor offer today = true ↔
+      (descriptor ≠ none ∨ offer ≠ none) ∧
+      (∀ bound, descriptor = some bound → bound ≤ today) ∧
+      (∀ bound, offer = some bound → bound ≤ today) := by
+  cases descriptor <;> cases offer <;>
+    simp [cancellationSellable, boundNotLater, hd, hf, Nat.not_lt]
+
+/-- `API-7` refuses when "not sellable under `PRV-13b` or `PRV-31`". The supplied
+`providerTermsSellable` verdict carries all of the former's conditions, including traffic;
+only the cancellation dimension is computed here. -/
+@[req "API-7"]
+def offerSellable (g : Guards) (providerTermsSellable : Bool)
+    (descriptor offer : Option Nat) (today : Nat) : Bool :=
+  providerTermsSellable && cancellationSellable g descriptor offer today
+
 /-- Only purchase tails reach this function; `create = false` denotes extend-runway.
 `API-7`: "collect every applicable refusal once". The collection guard retains the former
 single refusal as its off position. The sale guard's off position omits the offer refusal.
+`offerSellable` remains a Bool so the tail also accepts a supplied snapshot verdict;
+`purchaseTailForOffer` feeds it the computed cancellation decision and the remaining
+provider-terms input. Date conversion, provider failures and post-order terms are outside.
 `cap` and `balance` are check failures, ignored when price is unavailable.
 `channelClosed` is the stored local closure, not a fresh provider call. -/
 @[req "API-7"]
@@ -1076,6 +1140,65 @@ def tailAdmitted (g : Guards) (create : Bool) (account : AccountStatus.Status)
   (if create then account == .healthy && (!g.offerSaleGuard || offerSellable) &&
       (!g.channelClosureGuard || !channelClosed) else !fenced) &&
     !halted && rate && !(capPresent && cap) && !balance
+
+/-- Compose the computed sale input with the real tail, preserving its snapshot parameters. -/
+@[req "API-7"]
+def purchaseTailForOffer (g : Guards) (create : Bool) (account : AccountStatus.Status)
+    (providerTermsSellable : Bool) (descriptor offer : Option Nat) (today : Nat)
+    (channelClosed fenced halted rate capPresent cap balance : Bool) : TailResult :=
+  purchaseTail g create account (offerSellable g providerTermsSellable descriptor offer today)
+    channelClosed fenced halted rate capPresent cap balance
+
+/-- The same computed input reaches admission, with the tail's unchanged snapshot parameters. -/
+@[req "API-7"]
+def tailAdmittedForOffer (g : Guards) (create : Bool) (account : AccountStatus.Status)
+    (providerTermsSellable : Bool) (descriptor offer : Option Nat) (today : Nat)
+    (channelClosed fenced halted rate capPresent cap balance : Bool) : Bool :=
+  tailAdmitted g create account (offerSellable g providerTermsSellable descriptor offer today)
+    channelClosed fenced halted rate capPresent cap balance
+
+/-- For every bound, today and remaining provider-terms verdict, an otherwise clean create
+has no refusals and is admitted exactly when the composed sale input is true. Assumes the
+sale guard enabled; the collection and cancellation guards need not be enabled. -/
+@[req "API-7"]
+theorem computed_sale_reaches_clean_create (g : Guards)
+    (hs : g.offerSaleGuard = true)
+    (terms : Bool) (descriptor offer : Option Nat) (today : Nat) :
+    ((purchaseTailForOffer g true .healthy terms descriptor offer today
+      false false false true true false false).refusals = [] ↔
+      offerSellable g terms descriptor offer today = true) ∧
+    tailAdmittedForOffer g true .healthy terms descriptor offer today
+      false false false true true false false = offerSellable g terms descriptor offer today := by
+  cases g.richTailCollection <;>
+    cases h : offerSellable g terms descriptor offer today <;>
+      simp [purchaseTailForOffer, tailAdmittedForOffer, purchaseTail, tailAdmitted, hs, h]
+
+/-- For every snapshot, either unsellable dimension refuses the real create tail, records
+`.unsellable` for every present priced check and prevents admission. Assumes collection and
+sale guards enabled; cancellation guards are not needed to propagate an unsellable verdict. -/
+@[req "API-7"]
+theorem either_sale_rule_refuses (g : Guards)
+    (hr : g.richTailCollection = true) (hs : g.offerSaleGuard = true)
+    (terms : Bool) (descriptor offer : Option Nat) (today : Nat)
+    (account : AccountStatus.Status) (channelClosed fenced halted rate capPresent cap balance : Bool)
+    (hu : terms = false ∨ cancellationSellable g descriptor offer today = false) :
+    .offerNotSellable ∈ (purchaseTailForOffer g true account terms descriptor offer today
+      channelClosed fenced halted rate capPresent cap balance).refusals ∧
+    (purchaseTailForOffer g true account terms descriptor offer today
+      channelClosed fenced halted rate capPresent cap balance).refusals.contains .cap = false ∧
+    (purchaseTailForOffer g true account terms descriptor offer today
+      channelClosed fenced halted rate capPresent cap balance).refusals.contains .balance = false ∧
+    (capPresent = true → (.commitmentCap, .unsellable) ∈
+      (purchaseTailForOffer g true account terms descriptor offer today
+        channelClosed fenced halted rate capPresent cap balance).notChecked) ∧
+    (.balance, .unsellable) ∈ (purchaseTailForOffer g true account terms descriptor offer today
+      channelClosed fenced halted rate capPresent cap balance).notChecked ∧
+    tailAdmittedForOffer g true account terms descriptor offer today
+      channelClosed fenced halted rate capPresent cap balance = false := by
+  have ho : offerSellable g terms descriptor offer today = false := by
+    rcases hu with ht | hc <;> simp [offerSellable, *]
+  cases account <;>
+    simp [purchaseTailForOffer, tailAdmittedForOffer, purchaseTail, tailAdmitted, hr, hs, ho]
 
 /-- Extend-runway has no offer sale or ordering-channel check. -/
 @[req "API-7"]

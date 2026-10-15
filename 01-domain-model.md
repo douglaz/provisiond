@@ -140,8 +140,9 @@ the sentence above — the state is still a cache and still not authorization fo
 provider had destroyed it, and its owner's commitment drained regardless. **A reader MUST take the
 staleness bound from `state_observed_at` rather than from the fact of a caller having asked.**
 
-A deployment MUST state a finite, positive refresh freshness window no shorter than the
-account-sweep interval (`OVR-19`, `OPS-32`). Startup MUST refuse a shorter window. When a worker
+A deployment MUST state a finite, positive refresh freshness window at least twice the
+account-sweep interval (`OVR-19`, `OPS-32`), amended 2026-10-12 (`ADR-0037`, Q28).
+Startup MUST refuse a window below that minimum. When a worker
 claims a refresh, it MUST check the machine's current `state_observed_at`: a non-null observation at or before claim time
 whose age is less than that window MUST settle the operation `succeeded` without a provider call.
 A null or future timestamp supplies no fresh observation; an observation at or beyond the window is stale.
@@ -250,8 +251,9 @@ stateDiagram-v2
 ### Rescue session
 
 Ephemeral connection details for a provider's rescue environment: address, port,
-username, authentication material, any host keys the provider published, an opaque
-cleanup token, and an optional expiry.
+username, authentication material, provider host-key pins (complete keys or SHA256
+fingerprints), whether provider pins are required and still awaited, opaque
+driver refresh state, a cleanup token, and an optional expiry.
 
 **DOM-11** A rescue session carries a live credential. It MUST NOT be persisted, MUST
 NOT be logged, and MUST NOT appear in an operation result or error. Its in-memory
