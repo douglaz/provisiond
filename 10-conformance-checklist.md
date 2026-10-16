@@ -2546,15 +2546,51 @@ rather than acquiring a default.
       `API-36`, `API-41`, `ADR-0005`)
 - [ ] **CNF-241** — **A create is refused rather than bought at a price nobody authorized.** With the
       offer's provider price raised between accept and claim so the open commitment no longer covers
-      `PRV-13b`'s reserve, the worker fails the operation deterministically **with no provider call
-      and no ordering request**, `conflict` with `details.reason: "price_moved"`, and the error
-      names the shortfall. With the price unchanged or lower, it proceeds. **With the provider's
+      `PRV-13b`'s reserve, and with the offer still sellable, the worker fails the operation
+      deterministically **with no provider mutation and no ordering request**, `conflict` with
+      `details.reason: "price_moved"`, and the error names the shortfall. With the offer still
+      sellable and the price unchanged or lower, it proceeds. **With the offer still sellable, the provider's
       price unchanged and the satoshi rate moved — in either direction — it proceeds**: that is the
       case a build comparing satoshi reserves refuses, and under a falling market it refused every
-      resubmission (added 2026-09-05). **Restart the process between acceptance and claim and
+      resubmission (added 2026-09-05). **Restart the process between API acceptance and claim and
       assert the gate still runs**, from the attempt entry's recorded native price — a build that
-      keeps it in memory cannot compare anything after a restart. No commitment grows in any case. (`OPS-43`, `PRV-13b`,
-      `ADR-0011`, `LDG-2`)
+      keeps it in memory cannot compare anything after a restart.
+
+      **Sale re-test at claim.** Admit a create at the API and leave it `queued` and unclaimed.
+      With the provider's price unchanged, change the terms before claim (`OPS-5`):
+
+      - (a) Re-declare the descriptor's `cancellation_bound` later than provider-local today
+        across a restart: restart the process with that descriptor while the create is still
+        `queued` and unclaimed.
+      - (b) Change the provider feed's `traffic_bound` for the named offer to an allowance,
+        once without a restart and once across a restart while the create is still `queued`
+        and unclaimed.
+
+      In each case assert the operation settles `failed`, with `invalid_request`,
+      `details.reason: "offer_not_sellable"`, and `retryable: false` on both the error and the
+      operation view. Its error obeys `WIR-9`'s "exactly
+      `kind`/`message`/`retryable`/`details` and nothing else" inner-object shape, embedded under
+      `WIR-10b`, with no `details.refusals` or `details.not_checked` and no cap or balance result
+      or amount derived from the offer's price. Assert no provider mutation: no per-order key
+      upload and no order request; the List offers read is permitted. The commitment is released
+      in full, with no setup-fee or first-unit debit. These cases catch a build re-testing the
+      `request_summary` snapshot, which passes the old terms and orders in (a) and (b), and an
+      admission-only build, which also orders. The no-key-upload assertion catches a build that
+      uploads a key before the re-test.
+
+      **Order of checks.** In another create admitted and left `queued` and unclaimed, raise
+      the provider's price past what the reserve covers and make the offer unsellable before
+      claim. Assert the failure and release asserted above, with `offer_not_sellable` and not
+      `price_moved`; a build comparing price first yields `price_moved` instead. **Control.** A still-sellable offer with unchanged terms
+      and an unchanged provider price proceeds to the order, both without and across a restart.
+      Each restart in this item occurs while the create is `queued` and unclaimed, between API
+      acceptance and claim; it is not a restore or an interruption after claim.
+      No commitment grows in any case. (`OPS-43`, `PRV-13b`, `PRV-31`, `PRV-40`, `LDG-39`,
+      `LDG-32`, `WIR-9`, `WIR-9a`, `WIR-10b`, `OPS-11`, `OPS-5`, `ADR-0011`, `LDG-2`)
+
+      *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added
+      claim-time sale-re-test failures, ordering and control cases, including queued restarts;
+      provider reads are permitted before a refusal.*
 - [ ] **CNF-242** — **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
       are cancelled and a payment attempted against one fails back with the payer's funds intact; an

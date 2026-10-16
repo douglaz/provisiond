@@ -110,7 +110,7 @@ sequenceDiagram
     E->>DB: claim atomically, OPS-5
     E->>E: re-validate, OPS-23
     E->>DB: write provider_account and the<br/>correlator BEFORE the call, OPS-35, PRV-26
-    E->>DB: re-check the provider's price, OPS-43
+    E->>P: List offers read, sale re-test,<br/>price re-check, OPS-43
     E->>P: create
     alt reply arrives
         P-->>E: machine
