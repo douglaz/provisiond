@@ -432,8 +432,8 @@ Every path that writes the machine row from the create copies that snapshot valu
 `machines.declared_cancellation_bound` in the same transaction as `offer_id`, including the operator's
 synchronous `observed` attach (`WIR-35`). The `machines` column row in `05-persistence.md` owns the
 writers, "never re-resolved afterwards", and the null-read rule. The fallback reads the machine's
-copy. A null copy contributes no earliest-date term, with no fallback to the live offer, descriptor
-or create snapshot. `earliest_cancellation_date` keeps its existing meaning and writers.
+copy. Where `earliest_cancellation_date` is also null, a null copy contributes no earliest-date term,
+with no fallback to the live offer, descriptor or create snapshot. `earliest_cancellation_date` keeps its existing meaning and writers.
 
 This supersedes the Q34 clarification's "priced from the offer's declared bound (`PRV-31`)".
 `LDG-33` now names the source: "or, where `machines.earliest_cancellation_date` is null, through `machines.declared_cancellation_bound`".
