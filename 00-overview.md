@@ -110,7 +110,7 @@ sequenceDiagram
     E->>DB: claim atomically, OPS-5
     E->>E: re-validate, OPS-23
     E->>DB: write provider_account and the<br/>correlator BEFORE the call, OPS-35, PRV-26
-    E->>DB: re-check the provider's price, OPS-43
+    E->>P: List offers read, sale re-test,<br/>price re-check, OPS-43
     E->>P: create
     alt reply arrives
         P-->>E: machine
@@ -122,7 +122,7 @@ sequenceDiagram
     end
 ```
 
-**Step 9 is the one that decides the architecture.** Authorizing the purchase and opening the
+**Step 6 is the one that decides the architecture.** Authorizing the purchase and opening the
 commitment must be a single transaction, and `ADR-0001` chose one deployable because two stores
 cannot give you one.
 
@@ -197,7 +197,7 @@ an operation** — the queue's record and its enqueue primitive belong to `engin
 through the same narrow trait `api` uses — so a component that must both read a balance and enqueue
 work belongs in **`api` or `engine`**, both of which can do each, and `OVR-17` says which for each
 component. *`api` doing exactly that is the ordinary create path: `LDG-11` opens the commitment and
-enqueues the operation in one transaction, which is step 9 of the diagram above and the reason
+enqueues the operation in one transaction, which is step 6 of the diagram above and the reason
 `ADR-0001` chose one deployable.*
 
 ## Deployment assumptions
