@@ -350,7 +350,7 @@ protected_sats = at the current rate, rounded up:
                  + surviving billable attachments (PRV-13a)
                  + cost through any effective cancellation date (DOM-19)
                  + cost through any future permitted-from date to its provider-local day end (PRV-13, PRV-13c)
-                   or, where `machines.earliest_cancellation_date` is null, through the offer's declared bound (`PRV-31`)
+                   or, where `machines.earliest_cancellation_date` is null, through `machines.declared_cancellation_bound`
                    (in either case only if later than provider-local today, to that date's provider-local day end)
 usable_sats    = max(0, reserved_sats − protected_sats)
 mark           = the machine subject's latest high-water mark (LDG-72); none before its first seed
@@ -360,6 +360,13 @@ runway_until   = max(now, mark) + floor(usable_sats / current_customer_rate)
 
 *Amended 2026-10-11 (`ADR-0037`, Q23c): the stored permitted-from start and priced-through end are distinct; the commitment remains fixed.*
 *Amended 2026-10-15 (`ADR-0037`, Q34).*
+*Amended 2026-10-16 (`ADR-0037`, `pv-tsb`): the null-date fallback reads the machine's stored declared bound.*
+
+**Why the fallback reads the machine's copy.** `WIR-30` says "an offer is a live listing that can change or disappear between the two";
+`08-provider-notes.md` records "each listing left the feed on purchase". A live offer therefore cannot
+supply the accepted term reliably, nor can a descriptor re-declared after acceptance. The create's
+snapshot is not a durable reader source either: `STO-14` requires "remove **settled** operations older than a configured age".
+The `05-persistence.md` `machines.declared_cancellation_bound` row owns the copy's writers and null-read rule.
 
 **The derivation counts from the later of now and the machine's mark** (`ADR-0033`, amended
 2026-10-08; formalized as `Provisiond.Runway.runwayUntil`). `mark` is the machine subject's latest

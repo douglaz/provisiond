@@ -596,7 +596,8 @@ constraint once, when the create settles, after `OPS-27`'s confirming read. `OPS
 MUST be confirmed by a direct read before it attaches anything".
 A failed post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s
 classifier and MUST NOT change the create's settlement.
-For pricing a null column, `LDG-33` says "or, where `machines.earliest_cancellation_date` is null, through the offer's declared bound (`PRV-31`)".
+For pricing a null column, `LDG-33` says "or, where `machines.earliest_cancellation_date` is null, through `machines.declared_cancellation_bound`".
+*Amended 2026-10-16 (`ADR-0037`, `pv-tsb`).*
 Absorbing the failure MUST NOT suppress `PRV-5`'s "raise a monitorable alarm naming the
 provider account and request path" where its trigger applies.
 Here a settlement pass means the execution reaching any entry point in `OPS-27`'s
