@@ -2556,11 +2556,11 @@ rather than acquiring a default.
       assert the gate still runs**, from the attempt entry's recorded native price — a build that
       keeps it in memory cannot compare anything after a restart.
 
-      **Sale re-test at claim.** Run the cases below, including the order-of-checks case, the
-      control and all restart variants, on an ordering channel whose descriptor entry declares
-      `correlator: per_order_key` (`PRV-44`: "each with `correlator: operation_id | per_order_key | none`").
-      A per-order key upload is then on the order path (`PRV-32`: "`PRV-9` already requires the
-      driver to register a temporary key per order"), so the no-key-upload assertion can fail.
+      **Sale re-test at claim.** Run cases (a) and (b), the order-of-checks case and the control
+      below, in every variant each names, on a `correlator: per_order_key` ordering channel
+      (`PRV-44`: "each with `correlator: operation_id | per_order_key | none`"). A per-order key
+      upload is then on the order path (`PRV-32`: "`PRV-9` already requires the driver to
+      register a temporary key per order"), so the no-key-upload assertion can fail.
       Admit a create at the API and leave it `queued` and unclaimed.
       With the provider's price unchanged, change the terms before claim (`OPS-5`):
 
@@ -2593,15 +2593,15 @@ rather than acquiring a default.
       and an unchanged provider price proceeds to the order, both without and across a restart.
       Each restart in this item occurs while the create is `queued` and unclaimed, between API
       acceptance and claim; it is not a restore or an interruption after claim.
-      No commitment grows in any case. (`OPS-43`, `PRV-13b`, `PRV-31`, `PRV-40`, `LDG-39`,
-      `LDG-32`, `WIR-9`, `WIR-9a`, `WIR-10b`, `OPS-11`, `OPS-5`, `ADR-0011`, `LDG-2`)
+      No commitment grows in any case. (`OPS-43`, `PRV-13b`, `PRV-31`, `PRV-40`, `PRV-44`,
+      `PRV-32`, `LDG-39`, `LDG-32`, `WIR-9`, `WIR-9a`, `WIR-10b`, `OPS-11`, `OPS-5`, `ADR-0011`,
+      `LDG-2`)
 
       *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added
-      claim-time sale-re-test failures, ordering and control cases, including queued restarts;
-      made the offer's report the traffic case's only traffic-bound source and ran the sale
-      re-test cases on a `per_order_key` channel. The List offers
-      read is permitted before this item's `offer_not_sellable` and `price_moved` refusals,
-      after the stored channel-closure check.*
+      claim-time sale-re-test failures, ordering and control cases, including queued restarts,
+      run on a `per_order_key` channel; the price case now bars a provider mutation rather than
+      any provider call, because `OPS-43`'s step 2, "Obtain the current driver List offers
+      result", reads the provider.*
 - [ ] **CNF-242** — **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
       are cancelled and a payment attempted against one fails back with the payer's funds intact; an

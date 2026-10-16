@@ -688,10 +688,11 @@ The worker MUST order the following steps as listed:
 5. Perform any per-order key upload or other provider mutation.
 
 The sale re-test and price comparison apply to the named offer as that result lists it. At
-claim (`OPS-5`), `PRV-42`'s presence check ("the driver MUST confirm that the named offer is
+claim (`OPS-5`), `PRV-42`'s dispatch check ("the driver MUST confirm that the named offer is
 still listed before sending the order request") reads that same step-2 List offers result.
-For an offer absent from that result, the worker MUST make no step-5 provider mutation,
-including any per-order key upload or order request.
+`PRV-42` says "a missing offer MUST NOT be ordered"; for an offer absent from that result, the
+worker MUST NOT perform any other step-5 provider mutation either, including a per-order key
+upload.
 
 If the re-test finds the offer unsellable, the worker MUST fail the operation deterministically
 before any provider mutation, with `invalid_request`, `details.reason: "offer_not_sellable"`
@@ -741,11 +742,10 @@ and had no such rule, so the operator absorbed the difference silently and learn
 invoice.*
 
 *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added the
-claim-time sale re-test and its inputs, ordered it before the price comparison and provider
-mutations, and specified its deterministic failure and commitment release; tied `PRV-42`'s
-presence check at claim to the step-2 result, barred any step-5 provider mutation for an offer
-absent from it, made the commitment release a pointer, and removed the snapshot exclusion and
-the write prohibition.*
+claim-time sale re-test, its inputs and the five-step claim order; tied `PRV-42`'s dispatch
+check at claim to the step-2 result and barred any step-5 provider mutation for an offer absent
+from it; specified the re-test's deterministic failure and pointed at `LDG-39` for the
+commitment release.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
@@ -1675,12 +1675,12 @@ previous-release `api` may not have written is a deterministic failure in the wo
 passed check** (added 2026-09-12, `ADR-0024`): a create admitted without `OPS-43`'s accepted-price
 fields fails before dispatch rather than dispatching at whatever the offer says now.
 
-The worker's claim-time sale re-test is `OPS-43`'s, and an exception to the pre-driver timing
-above: it runs on the result of `OPS-43`'s step 2, "Obtain the current driver List offers
-result", after that read.
+The worker's claim-time sale re-test is an exception to this requirement's "before the driver
+is called": it is `OPS-43`'s, and runs on the result of `OPS-43`'s step 2, "Obtain the current
+driver List offers result", after that read.
 
-*Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): made the
-claim-time sale re-test's timing exception explicit in the pointer.*
+*Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added the
+pointer to `OPS-43`'s claim-time sale re-test and its timing exception.*
 
 ## Fairness and retention
 
