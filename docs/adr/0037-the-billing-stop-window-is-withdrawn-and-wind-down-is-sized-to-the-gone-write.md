@@ -399,6 +399,7 @@ read never made. Decision:
   post-order read and stores the date as null.
 - "The declared bound remains the priced term" gets its home in `LDG-33`'s formula: where the column is null,
   the cost-through-earliest-date term is priced from the offer's declared bound (`PRV-31`).
+  *Superseded 2026-10-16 (pv-tsb): the term is now priced from the machine's stored copy; see the amendment below.*
 
 This changes the count from one read per delivered order to one per committing settlement: at most one extra
 read for each create in flight at a crash, bounded by the worker count, beside the confirming read recovery
@@ -438,8 +439,8 @@ This supersedes the Q34 clarification's "priced from the offer's declared bound 
 `LDG-33` now names the source: "or, where `machines.earliest_cancellation_date` is null, through `machines.declared_cancellation_bound`".
 The argument for reading the machine's copy is owned by `LDG-33`.
 
-Rejected: reading the live offer or descriptor at re-derivation (see `LDG-33`'s argument about live
-offers leaving the feed and descriptors being re-declared); writing the bound into
+Rejected: reading the live offer or descriptor at re-derivation (`LDG-33` says "A live offer therefore cannot
+supply the accepted term reliably, nor can a descriptor re-declared after acceptance"); writing the bound into
 `earliest_cancellation_date` (`PRV-13c`: "After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date";
-the 2026-10-15 r51 clarification above makes that null the unverified marker: "on a settled Robot
+the 2026-10-15 r51 clarification above says "on a settled Robot
 machine the null `earliest_cancellation_date` in `WIR-11`'s machine view is what marks the term unverified").
