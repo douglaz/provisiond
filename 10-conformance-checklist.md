@@ -3639,7 +3639,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       with today's date: assert the same `succeeded` status, ledger entries, commitment
       and attached machine row, with only `earliest_cancellation_date` null in the failed
       case. Assert no `needs_reconciliation` and no entry into the failure classifier.
-      Price the earliest-date term from the declared bound: its contribution is zero
+      Price the earliest-date term from `machines.declared_cancellation_bound`: its contribution is zero
       for this v1 offer, as in `CNF-166`; the commitment remains unchanged.
       On the `403` case, assert the alarm names the provider account and request path.
       Then accept a cancellation whose response supplies the per-machine date and assert
@@ -3670,9 +3670,81 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       On a create in `needs_reconciliation`, use the operator's synchronous `observed`
       resolution (`WIR-35`). Assert no `GET /server/{n}/cancellation` and that
       `earliest_cancellation_date` is written null. Assert the earliest-date term is
-      priced from the declared bound under `LDG-33`, contributing zero for the v1 offer.
+      priced from `machines.declared_cancellation_bound` under `LDG-33`, contributing zero for the v1 offer.
+      **Amended 2026-10-16 (`ADR-0037`, `pv-tsb`): the stored declared bound.**
+      At settle-time success (`OPS-27`), withdraw the offer after the order is placed
+      and before the landed-order transaction; repeat with the offer re-listed with a
+      reported bound later than the snapshot's value in that interval.
+      At automatic `OPS-27` resolving-observed after a lost order reply, withdraw the
+      offer after the order is placed and before attach; repeat with the offer re-listed
+      with a reported bound later than the snapshot's value in that interval.
+      At `OPS-36`'s late attach of a machine whose commitment `OPS-33` released, withdraw
+      the offer after the order is placed and before attach; repeat with the offer
+      re-listed with a reported bound later than the snapshot's value in that interval.
+      At each of these paths, exercise both success and failure of the post-order read
+      and assert `declared_cancellation_bound` equals the create's `request_summary` offer
+      snapshot value, copied in the same transaction as `offer_id` and the machine row.
+      On a create in `needs_reconciliation`, withdraw the offer after the order is placed
+      and before the operator's synchronous `observed` attach (`WIR-35`); repeat with the
+      offer re-listed with a reported bound later than the snapshot's value in that interval.
+      Assert `declared_cancellation_bound` is copied from that operation's `request_summary`
+      offer snapshot in the same transaction as `offer_id` and the machine row, while
+      `earliest_cancellation_date` is written null.
+      Separately on automatic `OPS-27` resolving-observed, `OPS-36` late attach and the
+      operator's synchronous `observed` attach (`WIR-35`), re-declare the descriptor's
+      `cancellation_bound` to a date later than the snapshot's value across a restart
+      after the order is placed and before attach. At each, assert
+      `declared_cancellation_bound` still equals the create's `request_summary` offer snapshot value.
+      In separate cases, sell from a v1 offer and fail the committing pass's post-order
+      read, leaving `earliest_cancellation_date` null and the accepted bound copied to
+      `declared_cancellation_bound`. Withdraw the offer from the driver's offer listing in
+      one case; in another, re-list it with a later reported bound. On the next re-derivation,
+      assert the earliest-date term and `runway_until` are derived from the stored copy
+      and re-derivation succeeds. Record the driver's offer calls during re-derivation
+      and assert none occur; repeat with those calls configured to fail.
+      For the later-bound comparison, keep the clock, current rate, remaining commitment,
+      mark and other protected terms fixed, with no effective cancellation date and enough
+      remaining commitment for positive usable runway even through the later bound.
+      Assert a live-offer read would protect cost through that later date's provider-local
+      day end and derive an earlier `runway_until` than the stored-copy result.
+      Separately re-declare the descriptor's `cancellation_bound` to a later date across a
+      restart. With the same fixed inputs, assert the term and `runway_until` are unchanged.
+      Instrument descriptor-bound access during re-derivation and assert no access supplies
+      the term; repeat with that access configured to fail. Startup may load the descriptor;
+      the observation covers re-derivation's bound access.
+      Separately inject a machine with null `earliest_cancellation_date` and a future
+      provider-local date in `declared_cancellation_bound`, stored in `PRV-13`'s representation:
+      "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone".
+      This fixture is injected, not sold under the v1 sale rule. With no effective cancellation
+      date, assert `protected_sats` includes cost through that future date's provider-local
+      day end at the current rate, and the commitment is unchanged. Keep enough commitment
+      for positive usable runway so ignoring the copy also gives a different `runway_until`.
+      Null the copy in the injected fixture, giving the live offer, descriptor and retained
+      create snapshot future bounds: assert no earliest-date term and no offer or descriptor bound
+      access, using the same instrumentation and failing-access cases.
+      Repeat the non-null and null-copy derivations after removing the settled create
+      under `STO-14`; assert their respective results are unchanged. While the create is
+      still retained, also instrument reads of its `request_summary` and assert none occur
+      during either re-derivation; repeat with those reads configured to fail.
+      Finally accept creates with both a descriptor bound and an offer-reported bound,
+      different but both sellable: once with the descriptor's bound later, once with the
+      offer's, with the earlier bound before provider-local today in each run.
+      In each run, assert the admitting transaction's `request_summary`
+      offer snapshot carries the later bound, resolved to a provider-local date at API
+      acceptance in the representation quoted above; exercise the attach cases above
+      with this snapshot and assert the machine takes the snapshot's value.
+      The wrong builds: one that reads the live offer fails on withdrawal or changes the
+      term after re-listing; one that reads the descriptor changes the term after restart;
+      one that ignores the column misses the injected future term; one that falls back
+      on null invents a term from sources the machine did not copy; one that reads the
+      create snapshot fails after retention or the instrumented read failure; one that
+      omits a writer leaves the copy absent on that attach path; one that snapshots the
+      earlier bound, always takes the descriptor or always takes the offer fails the
+      acceptance cases with each source later; one that
+      re-resolves the offer or the descriptor at attach takes a value the sale never
+      admitted, or finds no offer to read.
       (`PRV-5`, `PRV-12`, `PRV-13`, `PRV-13c`, `PRV-31`, `OPS-11`, `OPS-27`, `OPS-33`,
-      `OPS-36`, `OPS-48`, `OPS-15`, `OPS-49`, `WIR-35`, `LDG-33`)
+      `OPS-36`, `OPS-48`, `OPS-15`, `OPS-49`, `WIR-35`, `LDG-33`, `STO-50`, `STO-14`)
 - [ ] **CNF-357** — **Added 2026-10-12 (`ADR-0037`, Q28).** **Robot optional reads and attachments use their own evidence.**
       With fresh post-action `state_observed_at`, assert no opportunistic
       `GET /server/{n}`; with a stale observation, exercise the existing read and

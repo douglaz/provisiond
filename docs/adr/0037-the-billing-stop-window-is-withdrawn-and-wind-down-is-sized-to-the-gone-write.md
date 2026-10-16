@@ -399,6 +399,7 @@ read never made. Decision:
   post-order read and stores the date as null.
 - "The declared bound remains the priced term" gets its home in `LDG-33`'s formula: where the column is null,
   the cost-through-earliest-date term is priced from the offer's declared bound (`PRV-31`).
+  *Superseded 2026-10-16 (pv-tsb): the term is now priced from the machine's stored copy; see the amendment below.*
 
 This changes the count from one read per delivered order to one per committing settlement: at most one extra
 read for each create in flight at a crash, bounded by the worker count, beside the confirming read recovery
@@ -414,3 +415,32 @@ cancels today" into the constant `PRV-13c` forbids.
 Rejected: dropping the read for Robot and taking the date from the delete's cancellation response, since the
 deviation would be learned only after its runtime was advertised; and keeping it with a failure that waits in
 `needs_reconciliation`, since a spent hour would stall every delivered server.
+
+## Amendment — 2026-10-16: the declared cancellation bound is stored with the machine (owner decision, pv-tsb triage)
+
+The PR #3 codex review (P2) found that the null-date fallback had no durable source. pv-tsb was filed,
+and the owner settled the shape at triage on 2026-10-16.
+
+**Decision.** At API acceptance, the admitting transaction snapshots the declared cancellation bound
+as a provider-local date, taking the later of the descriptor's `cancellation_bound` and the
+offer-reported bound where both exist. The snapshot uses `PRV-13`'s representation: "a day-only value
+MUST be stored as the UTC instant at the start of that day in the provider's date zone". The
+`operations.request_summary` row in `05-persistence.md` owns that snapshot rule; `STO-50` includes
+"The offer snapshot also includes the declared cancellation bound".
+
+Every path that writes the machine row from the create copies that snapshot value into the nullable
+`machines.declared_cancellation_bound` in the same transaction as `offer_id`, including the operator's
+synchronous `observed` attach (`WIR-35`). The `machines` column row in `05-persistence.md` owns the
+writers, "never re-resolved afterwards", and the null-read rule. The fallback reads the machine's
+copy. Where `earliest_cancellation_date` is also null, a null copy contributes no earliest-date term,
+with no fallback to the live offer, descriptor or create snapshot. `earliest_cancellation_date` keeps its existing meaning and writers.
+
+This supersedes the Q34 clarification's "priced from the offer's declared bound (`PRV-31`)".
+`LDG-33` now names the source: "or, where `machines.earliest_cancellation_date` is null, through `machines.declared_cancellation_bound`".
+The argument for reading the machine's copy is owned by `LDG-33`.
+
+Rejected: reading the live offer or descriptor at re-derivation (`LDG-33` says "A live offer therefore cannot
+supply the accepted term reliably, nor can a descriptor re-declared after acceptance"); writing the bound into
+`earliest_cancellation_date` (`PRV-13c`: "After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date";
+the 2026-10-15 r51 clarification above says "on a settled Robot
+machine the null `earliest_cancellation_date` in `WIR-11`'s machine view is what marks the term unverified").
