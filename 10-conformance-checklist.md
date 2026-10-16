@@ -2556,15 +2556,23 @@ rather than acquiring a default.
       assert the gate still runs**, from the attempt entry's recorded native price — a build that
       keeps it in memory cannot compare anything after a restart.
 
-      **Sale re-test at claim.** Admit a create at the API and leave it `queued` and unclaimed.
+      **Sale re-test at claim.** Run the cases below, including the order-of-checks case, the
+      control and all restart variants, on an ordering channel whose descriptor entry declares
+      `correlator: per_order_key` (`PRV-44`: "each with `correlator: operation_id | per_order_key | none`").
+      A per-order key upload is then on the order path (`PRV-32`: "`PRV-9` already requires the
+      driver to register a temporary key per order"), so the no-key-upload assertion can fail.
+      Admit a create at the API and leave it `queued` and unclaimed.
       With the provider's price unchanged, change the terms before claim (`OPS-5`):
 
       - (a) Re-declare the descriptor's `cancellation_bound` later than provider-local today
         across a restart: restart the process with that descriptor while the create is still
         `queued` and unclaimed.
-      - (b) Change the provider feed's `traffic_bound` for the named offer to an allowance,
-        once without a restart and once across a restart while the create is still `queued`
-        and unclaimed.
+      - (b) With the descriptor's `traffic_bound` for the named offer explicit `null`
+        (`PRV-44`: "or explicit `null` where no bound is declared"), the offer reports
+        `traffic_bound: unlimited` at API acceptance. Before claim (`OPS-5`), change the
+        offer-reported value to an allowance, once without a restart and once across a restart
+        while the create is still `queued` and unclaimed. Leave the descriptor unchanged in
+        both variants.
 
       In each case assert the operation settles `failed`, with `invalid_request`,
       `details.reason: "offer_not_sellable"`, and `retryable: false` on both the error and the
@@ -2590,7 +2598,10 @@ rather than acquiring a default.
 
       *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added
       claim-time sale-re-test failures, ordering and control cases, including queued restarts;
-      provider reads are permitted before a refusal.*
+      made the offer's report the traffic case's only traffic-bound source and ran the sale
+      re-test cases on a `per_order_key` channel. The List offers
+      read is permitted before this item's `offer_not_sellable` and `price_moved` refusals,
+      after the stored channel-closure check.*
 - [ ] **CNF-242** — **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
       are cancelled and a payment attempted against one fails back with the payer's funds intact; an

@@ -673,10 +673,8 @@ re-test the create's named offer for sale under `PRV-13b` and `PRV-31`, applying
 create-tail verdict: "`invalid_request`/`offer_not_sellable` when the named offer is
 not sellable under `PRV-13b` or `PRV-31`". The inputs are the descriptor the worker runs with
 (`PRV-44`: "The descriptor is a typed, immutable value") and one current driver List offers
-result taken at claim. The create's `request_summary` offer snapshot is not an input to this
-re-test; `OPS-13` says "it is retained as **evidence**, not as a comparison field". Date bounds
-MUST resolve against provider-local today at the time of the check. The re-test MUST write
-nothing, including to `request_summary` or any machine column.
+result taken at claim. Date bounds MUST resolve against provider-local today at the time of
+the check.
 
 The worker MUST order the following steps as listed:
 
@@ -689,8 +687,11 @@ The worker MUST order the following steps as listed:
    price comparison.
 5. Perform any per-order key upload or other provider mutation.
 
-The sale re-test and price comparison apply to the named offer as that result lists it. For
-an offer absent from the result, see `PRV-42`: "a missing offer MUST NOT be ordered".
+The sale re-test and price comparison apply to the named offer as that result lists it. At
+claim (`OPS-5`), `PRV-42`'s presence check ("the driver MUST confirm that the named offer is
+still listed before sending the order request") reads that same step-2 List offers result.
+For an offer absent from that result, the worker MUST make no step-5 provider mutation,
+including any per-order key upload or order request.
 
 If the re-test finds the offer unsellable, the worker MUST fail the operation deterministically
 before any provider mutation, with `invalid_request`, `details.reason: "offer_not_sellable"`
@@ -701,7 +702,7 @@ under `OPS-11`'s create row: "`needs_reconciliation` if the failure is *ambiguou
 the object `WIR-10b` embeds in an operation view". It carries neither `details.refusals` nor
 `details.not_checked`; `WIR-9a` introduces those keys "**On create and extend-runway tail
 refusals**". Its details obey `WIR-9a`'s "no cap or balance result or amount derived from the
-withheld offer's price". The commitment MUST be released in full under `LDG-39`'s
+withheld offer's price". The commitment is released in full under `LDG-39`'s
 "Deterministic rejection before acceptance" case — before provider acceptance — with no setup
 fee or first unit debited: that row says "**Never debited**; released with the commitment
 (`LDG-32`)". `LDG-32` requires "A commitment MUST be closed, and its remaining amount released
@@ -741,7 +742,10 @@ invoice.*
 
 *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added the
 claim-time sale re-test and its inputs, ordered it before the price comparison and provider
-mutations, and specified its deterministic failure and commitment release.*
+mutations, and specified its deterministic failure and commitment release; tied `PRV-42`'s
+presence check at claim to the step-2 result, barred any step-5 provider mutation for an offer
+absent from it, made the commitment release a pointer, and removed the snapshot exclusion and
+the write prohibition.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
@@ -1671,7 +1675,12 @@ previous-release `api` may not have written is a deterministic failure in the wo
 passed check** (added 2026-09-12, `ADR-0024`): a create admitted without `OPS-43`'s accepted-price
 fields fails before dispatch rather than dispatching at whatever the offer says now.
 
-For the worker's claim-time sale re-test, including when it runs, see `OPS-43`.
+The worker's claim-time sale re-test is `OPS-43`'s, and an exception to the pre-driver timing
+above: it runs on the result of `OPS-43`'s step 2, "Obtain the current driver List offers
+result", after that read.
+
+*Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): made the
+claim-time sale re-test's timing exception explicit in the pointer.*
 
 ## Fairness and retention
 
