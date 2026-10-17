@@ -160,7 +160,7 @@ _Avoid_: flag, evidence, witness
 The create's write-once `operations.about_to_order_at` timestamp, distinct from a **marker** or
 correlator. Set means only that dispatch may have begun; a migration backfill is not a measured
 dispatch time. `OPS-43` owns the live write, `STO-13` the backfill, and `OPS-15` the null-only
-restart settlement. This glossary is not normative. *Added 2026-10-17 (`pv-k4l`, `ADR-0042`).*
+restart settlement. *Added 2026-10-17 (`pv-k4l`, `ADR-0042`).*
 _Avoid_: marker, evidence, flag, fence
 
 **Evidence**:

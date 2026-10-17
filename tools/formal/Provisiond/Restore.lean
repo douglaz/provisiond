@@ -26,8 +26,10 @@ The create restart arm is the 2026-10-17 amendment to `OPS-15`: "A create found 
 startup with `about_to_order_at` null MUST be settled `failed`, on a restart only."
 
 What the model omits: the promoted-standby condition and the money release. The safety of the
-restart arm is **not proved**: `Live` has no step-8-before-step-9 order, so that the arm never
-fails an applied create rests on `OPS-43`'s order as an assumption.
+restart arm is **not proved**, and the model admits its failure: `Live` has no step 8, so a create
+claimed, applied and then interrupted reaches the restart arm with the column null and settles
+`failed`. Only `OPS-43`'s "Step 9 MUST begin only after step 8's transaction is acknowledged."
+excludes that trace.
 Also omitted: `Provisiond.Reconcile`'s knowledge type — absence here is the machine's
 `recordedGone` Boolean, and `OPS-32`'s own three conjuncts (a complete pass, `PRV-36`'s window,
 the direct reread) are that module's, so on a restart the sweep records an absence on a complete

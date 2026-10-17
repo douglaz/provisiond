@@ -1413,8 +1413,8 @@ primitives cannot supply this. They do not cover a tenant with no machines in th
 the check and the commitment sat in different transactions, so a create could pass the health check,
 have the termination commit behind it, and open a commitment against a dead account.* **A create claimed but not yet dispatched narrows the unreachable case to a dispatched order**:
 in `OPS-43`'s step 8, the correlator transaction (`PRV-26`: "before the order is
-sent"), which writes `about_to_order_at` on every ordering channel, including `correlator: none`
-— the last write before the ordering call — the worker MUST repeat the admission check as a
+sent"), where "on every ordering channel, including `correlator: none`, the worker MUST set
+`operations.about_to_order_at`" (`OPS-43`) — the last write before the ordering call — the worker MUST repeat the admission check as a
 conditional write on `STO-47`'s row guarded on `healthy`, and where it affects no row MUST fail the
 operation deterministically — `conflict`, with `details.reason: "account_terminated"` where the status is
 `terminated` and `"state"` for the two recoverable statuses, since presenting an unreachable
@@ -1426,7 +1426,7 @@ create still `running` with the column null has not passed the conditional-write
 `OPS-43`'s claim order it may fail at step 1, "Read the provider account's stored status", at
 another preceding check, or at this conditional write. Interruption can instead leave the create
 unresolved (`OPS-15`: "the engine MUST move every `running` operation to `needs_reconciliation`"),
-except for the restart exception (`OPS-15`: "A create found `running` at startup with
+except for the create exception (`OPS-15`: "A create found `running` at startup with
 `about_to_order_at` null MUST be settled `failed`, on a restart only.").
 A claimed create with `about_to_order_at` set MUST be treated as potentially dispatched (*added 2026-09-05; a
 `running` operation sat between "queued, never claimed" and "already dispatched" and matched neither,

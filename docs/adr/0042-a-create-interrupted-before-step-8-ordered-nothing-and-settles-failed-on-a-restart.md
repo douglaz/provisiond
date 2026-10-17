@@ -1,4 +1,4 @@
-# A create interrupted before step 8 ordered nothing, and settles `failed`
+# A create interrupted before step 8 ordered nothing, and settles `failed` on a restart
 
 **Status:** accepted (2026-10-17, the owner's decision; `pv-k4l`; panels r56 and r56b,
 `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`).
@@ -25,7 +25,7 @@ upload, then the order" at step 9. That boundary includes the first mutation, no
   every existing running create before new components start, and "No binary that claims without
   writing this column may run against the store after the backfill". This is the conservative
   backfill the bead's Agent Brief requires (items 5 and 10b), taken from panel reader sol's
-  round-r56b draft, not a two-release writer/read rollout.
+  round-r56b draft.
 - `API-63` owns termination's dispatch test: "A claimed create with `about_to_order_at` set MUST
   be treated as potentially dispatched".
 

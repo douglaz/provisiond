@@ -383,8 +383,7 @@ state whose only exits refused it.*
 
 **A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a
 restart only.** It MUST carry an `internal` error naming the restart, with `retryable: true` on both
-the error and the operation view (`OPS-23`: "`retryable: true` on both the error and the operation
-view"). `OPS-16` applies: "MUST NOT overwrite an error already recorded on the operation". This is
+the error and the operation view. `OPS-16` applies: "MUST NOT overwrite an error already recorded on the operation". This is
 not an `OPS-11` classification: `OPS-45` says "an operation interrupted rather than classified is
 `OPS-15`'s". Such a create made no provider mutation and is not ambiguous; it never enters
 `needs_reconciliation` and runs no resolution or correlator matching.
@@ -742,8 +741,9 @@ The worker MUST order the following steps as listed:
    The write MUST NOT be guarded on the column being null: a whole-transaction repeat after a
    lost reply affects one row and changes nothing. If this operation-row write affects zero rows,
    something else moved the operation: step 9 MUST NOT run and the worker MUST exit. This differs
-   from the zero-row `STO-47` check above, which fails deterministically and releases; a create
-   that fails that check commits no `about_to_order_at`.
+   from the zero-row `STO-47` check above, of which `API-63` says "where it affects no row MUST
+   fail the operation deterministically"; a create that fails that check commits no
+   `about_to_order_at`.
    Step 9 MUST begin only after step 8's transaction is acknowledged. A lost acknowledgement
    MUST take `OPS-49`'s "repeat the **whole transaction**" path, never speculative dispatch.
 9. Perform the per-order key upload, then the order. Here **per-order key upload** means every
@@ -1379,7 +1379,8 @@ operator-resolved loss.
 inventory, power, reverse DNS, delete and release attachment (`PRV-45`) — and nothing else.** It does **not** reach `create`:
 there is no machine yet, the question is whether a *resource was produced*, and the answer
 comes from `OPS-27`'s correlator search rather than from anything the engine can record about
-itself. Nor does it reach `suspend_tenant`, which mutates no provider (`OPS-11`). *Until
+itself (*except, since 2026-10-17, the null `about_to_order_at` that `OPS-15` settles on a restart;
+see the note below*). Nor does it reach `suspend_tenant`, which mutates no provider (`OPS-11`). *Until
 2026-09-08 this sentence excluded `adopt` on the same grounds, which were false for a machine that
 already exists; adopt is withdrawn (`ADR-0020`).* **Scoping this is
 not a formality**: read unscoped, "the marker is unset, so settle `failed`" would settle every

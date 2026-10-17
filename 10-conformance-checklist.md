@@ -168,7 +168,9 @@ not optional hardening — they are the only structural defence there is.
       the row, which is the evidence the term is doing work. (`OPS-8`, `OPS-6`, `STO-51`, `STO-3`)
 - [ ] **CNF-29** — **AMENDED 2026-09-08 (`ADR-0016`) — the sweep has no deadline; the startup pass
       is the sweep.** Every operation found `running` when the engine starts is, subject to the
-      exceptions below, moved to `needs_reconciliation` — never back to `queued` — and the count is logged. Kill the engine
+      exceptions below, moved to `needs_reconciliation` — never back to `queued`, except a
+      `suspend_tenant` parent, which `OPS-15` says "MUST be returned to `queued`" on a restart —
+      and the count is logged. Kill the engine
       with an operation of each dispatching kind `running`, restart, and assert each one — **except
       a `refresh`, which settles `failed`** (`ADR-0020`): assert its row is `failed` with an
       `internal` error and that `WIR-35`'s resolve refuses it by kind — **and a create whose
@@ -176,7 +178,7 @@ not optional hardening — they are the only structural defence there is.
       `internal` error, `retryable: true` on error and operation view, full commitment release and
       resource-offer exclusion freed. A set column stays `needs_reconciliation`; the null exception
       stays off while a restore record is open.
-      (`OPS-15`) *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the create exception and qualified the startup outcome; the exclusion control uses an open restore record; `ADR-0042`.*
+      (`OPS-15`) *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the create exception and qualified the startup outcome, naming the `suspend_tenant` return to `queued` the summary had missed; the exclusion control uses an open restore record; `ADR-0042`.*
 - [ ] **CNF-30** — The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
       different stakes: rows where a misclassification causes a repeated provider mutation, and

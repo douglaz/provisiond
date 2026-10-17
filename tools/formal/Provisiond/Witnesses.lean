@@ -1255,15 +1255,16 @@ theorem create_failed_without_restart_guard :
       (bootRestore aboutToOrderRestore) [.lock, .startupPass]
     (w.store.ops ⟨0⟩).status = .failed ∧ (w.store.ops ⟨0⟩).applied = true := by decide
 
-/-- Pin all parameters for the crash refutation so no `current` witness shares the boot control. -/
-def createNaiveBootParams : Restore.Params :=
-  { quarantineOnRestore := true, exceptionFrozen := true, bumpOnRestore := true,
-    twoPassAbsence := true, recordDecidesBoot := false, createExceptionOnRestart := true }
+/-- Pin the naive boot and the retained guards for the create, request and absence refutations, so
+no `current` witness shares the boot control. -/
+def naiveBootRefutationParams : Restore.Params :=
+  { recordDecidesBoot := false, quarantineOnRestore := true, exceptionFrozen := true,
+    bumpOnRestore := true, twoPassAbsence := true, createExceptionOnRestart := true }
 
 /-- Refutes the restore-trace theorem without `hb`: crash before the pass changes the mode. -/
 @[req "OPS-15"]
 theorem create_failed_on_naive_successor :
-    let w := Restore.run createNaiveBootParams (bootRestore aboutToOrderRestore)
+    let w := Restore.run naiveBootRefutationParams (bootRestore aboutToOrderRestore)
       [.lock, .crash, .lock, .startupPass]
     (w.store.ops ⟨0⟩).status = .failed ∧ (w.store.ops ⟨0⟩).applied = true := by decide
 
@@ -1285,11 +1286,6 @@ theorem legacy_create_failed_without_backfill :
     (Restore.passOp Restore.current .restart (Restore.migrateCreate
       { kind := .createMachine, status := .running, applied := true })).status =
       .needsReconciliation := by decide
-
-/-- Pin the naive boot and the retained guards for the request and absence refutations. -/
-def naiveBootRefutationParams : Restore.Params :=
-  { recordDecidesBoot := false, quarantineOnRestore := true, exceptionFrozen := true,
-    bumpOnRestore := true, twoPassAbsence := true, createExceptionOnRestart := true }
 
 /-- Refutes `Provisiond.Restore.bumped_before_first_request` without
 `hr : p.recordDecidesBoot = true`, retaining `hb : p.bumpOnRestore = true`.
