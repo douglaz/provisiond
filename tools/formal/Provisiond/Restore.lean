@@ -22,7 +22,15 @@ from the fault the engine came up on and the steps done.
 change a witness theorem exercises (`ADR-0025`). Every model here is one tenant, one machine, one
 engine (`OPS-47`), and time does not advance: `now` is the restore instant.
 
-What the model omits: `Provisiond.Reconcile`'s knowledge type — absence here is the machine's
+The create restart arm is the 2026-10-17 amendment to `OPS-15`: "A create found `running` at
+startup with `about_to_order_at` null MUST be settled `failed`, on a restart only."
+
+What the model omits: the promoted-standby condition and the money release. The safety of the
+restart arm is **not proved**, and the model admits its failure: `Live` has no step 8, so a create
+claimed, applied and then interrupted reaches the restart arm with the column null and settles
+`failed`. Only `OPS-43`'s "Step 9 MUST begin only after step 8's transaction is acknowledged."
+excludes that trace.
+Also omitted: `Provisiond.Reconcile`'s knowledge type — absence here is the machine's
 `recordedGone` Boolean, and `OPS-32`'s own three conjuncts (a complete pass, `PRV-36`'s window,
 the direct reread) are that module's, so on a restart the sweep records an absence on a complete
 pass alone; when the record closes, which `STO-56` gives to the operator once the obligations that
@@ -67,6 +75,9 @@ structure Op where
   kind    : Kind
   status  : Status
   applied : Bool
+  /-- `operations.about_to_order_at` set; `OPS-43`: "MUST set `operations.about_to_order_at` to
+  `COALESCE(about_to_order_at, <transaction time>)`". The live model does not write it. -/
+  aboutToOrder : Bool := false
   deriving DecidableEq, Repr
 
 /-- The one machine: its stored date, and whether the sweep recorded it gone. -/
@@ -252,13 +263,16 @@ exception below does not fire on a restore". `bumpOnRestore`: `STO-54`, 2026-09-
 tenant's credential generation is bumped". `twoPassAbsence`: `STO-54`, 2026-09-12, "The first pass
 may record nothing about absence". `recordDecidesBoot`: `STO-54`, 2026-09-20, "a process that
 starts while a restore record is open is continuing that incident, not restarting"; without it the
-successor of a crash inside the procedure is an ordinary restart, which is the naive boot. -/
+successor of a crash inside the procedure is an ordinary restart, which is the naive boot.
+`createExceptionOnRestart`: `OPS-15`, 2026-10-17, "It does not fire while a restore record is
+open"; without it a restored null-column create may settle `failed` despite an applied order. -/
 structure Params where
   quarantineOnRestore : Bool
   exceptionFrozen     : Bool
   bumpOnRestore       : Bool
   twoPassAbsence      : Bool
   recordDecidesBoot   : Bool
+  createExceptionOnRestart : Bool
   deriving DecidableEq, Repr
 
 /-- The procedure as it stands. One field per line: `ci.yml`'s controls flip one each. -/
@@ -268,7 +282,8 @@ def current : Params := {
     exceptionFrozen     := true,
     bumpOnRestore       := true,
     twoPassAbsence      := true,
-    recordDecidesBoot   := true }
+    recordDecidesBoot   := true,
+    createExceptionOnRestart := true }
 
 structure World where
   fault            : Fault
@@ -329,13 +344,18 @@ def permits (p : Params) (w : World) : Permissions :=
 
 /-- `OPS-15`'s pass on one row. `running`: a `refresh` "MUST be settled `failed`"; a
 `suspend_tenant` parent "MUST be returned to `queued`" on a restart and on a restore "waits for
-operator confirmation" — left `running` here until `Event.confirmParents`; every other kind to
-`needs_reconciliation`. `queued`: untouched on a restart; on a restore the irreversible kinds
+operator confirmation" — left `running` here until `Event.confirmParents`. A create follows
+"A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a
+restart only." Every remaining running kind goes to `needs_reconciliation`. `queued`: untouched on a restart; on a restore the irreversible kinds
 are quarantined. -/
 @[req "OPS-15"]
 def passOp (p : Params) (f : Fault) (o : Op) : Op :=
   match o.status, o.kind with
   | .running, .refresh => { o with status := .failed }
+  | .running, .createMachine =>
+    if (!f.isRestore || !p.createExceptionOnRestart) && !o.aboutToOrder then
+      { o with status := .failed }
+    else { o with status := .needsReconciliation }
   | .running, .suspendTenant =>
     if f.isRestore && p.exceptionFrozen then o else { o with status := .queued }
   | .running, _ => { o with status := .needsReconciliation }
@@ -528,15 +548,87 @@ theorem run_preserves (p : Params) (I : World → Prop) (hI : ∀ w e, I w → I
   | nil => exact hw
   | cons e es ih => exact ih _ (hI w e hw)
 
+/-- `STO-13`'s one-time backfill population: "every existing `running` create, preserving
+any value already set". `true` represents the migration instant, not a measured dispatch time. -/
+@[req "STO-13"]
+def migrateCreate (o : Op) : Op :=
+  if o.kind = .createMachine ∧ o.status = .running then { o with aboutToOrder := true } else o
+
+/-- Every create in the backfill's population takes the conservative restart path, for any
+parameters. `Provisiond.Witnesses.legacy_create_failed_without_backfill` is the null legacy row
+without this definition's write. -/
+@[req "STO-13"]
+theorem claimed_legacy_create_stays_unresolved (p : Params) (o : Op)
+    (hk : o.kind = .createMachine) (hs : o.status = .running) :
+    (passOp p .restart (migrateCreate o)).status = .needsReconciliation := by
+  simp [migrateCreate, hk, hs, passOp, Fault.isRestore]
+
+/-- One restore-mode event preserves a create's kind and does not introduce `failed`.
+This helper does not assume the column is set. -/
+theorem step_create_not_failed (p : Params) (hx : p.createExceptionOnRestart = true)
+    (w : World) (hf : w.fault = .restore) (j : OperationId)
+    (h : (w.store.ops j).kind = .createMachine ∧ (w.store.ops j).status ≠ .failed) (e : Event) :
+    ((step p w e).store.ops j).kind = .createMachine ∧
+    ((step p w e).store.ops j).status ≠ .failed := by
+  cases e with
+  | startupPass =>
+    simp only [step]
+    split
+    · obtain ⟨hk, hs⟩ := h
+      cases st : (w.store.ops j).status <;>
+        simp_all [passOp, Fault.isRestore, irreversible] <;>
+        (try (split <;> simp_all))
+    · exact h
+  | claim i =>
+    simp only [step]
+    split
+    · simp only [Store.modify]
+      split
+      · simp_all
+      · exact h
+    · exact h
+  | confirmParents =>
+    simp only [step]
+    split
+    · simp [h.1, h.2]
+    · exact h
+  | lock => exact h
+  | completeProcedure _ => simp only [step]; split <;> exact h
+  | request _ => simp only [step]; split <;> exact h
+  | sweep _ _ => simp only [step]; split <;> exact h
+  | windowElapses => exact h
+  | crash => exact h
+
+/-- `OPS-15`: "It does not fire while a restore record is open". For every restore trace and
+run, including crashes, a create not failed in the restored store is not failed after the run.
+The hypothesis `hx : p.createExceptionOnRestart = true` is necessary:
+`Provisiond.Witnesses.create_failed_without_restart_guard` refutes it without that guard.
+The hypothesis `hb : p.recordDecidesBoot = true` is necessary:
+`Provisiond.Witnesses.create_failed_on_naive_successor` refutes it without that guard. -/
+@[req "OPS-15"]
+theorem restore_trace_never_fails_create (p : Params)
+    (hx : p.createExceptionOnRestart = true) (hb : p.recordDecidesBoot = true)
+    (t : RestoreTrace) (j : OperationId) (hk : (t.store.ops j).kind = .createMachine)
+    (hs : (t.store.ops j).status ≠ .failed) (evs : List Event) :
+    ((run p (bootRestore t) evs).store.ops j).status ≠ .failed :=
+  (run_preserves p
+    (fun w => w.continuing ∧
+      (w.store.ops j).kind = .createMachine ∧ (w.store.ops j).status ≠ .failed)
+    (fun w e ⟨hc, ho⟩ =>
+      ⟨step_continuing p hb w hc e, step_create_not_failed p hx w hc.2 j ho e⟩)
+    (bootRestore t)
+    ⟨⟨by simp [bootRestore, boot, RestoreTrace.store], rfl⟩, hk, hs⟩ evs).2.2
+
 theorem passOp_kind (p : Params) (f : Fault) (o : Op) : (passOp p f o).kind = o.kind := by
-  obtain ⟨k, st, a⟩ := o
+  obtain ⟨k, st, a, c⟩ := o
   cases st <;> cases k <;> simp [passOp] <;> split <;> rfl
 
 theorem passOp_restart_queued (p : Params) (o : Op)
     (h : (passOp p .restart o).status = .queued) :
     passOp p .restart o = o ∨ o.kind = .suspendTenant := by
-  obtain ⟨k, st, a⟩ := o
-  cases st <;> cases k <;> simp_all [passOp, Fault.isRestore]
+  obtain ⟨k, st, a, c⟩ := o
+  cases st <;> cases k <;> simp_all [passOp, Fault.isRestore] <;>
+    (try (split at h <;> simp_all))
 
 theorem step_safe_restart (p : Params) (w : World) (hf : w.fault = .restart) (hs : w.safe)
     (hn : w.secondOrder = false) (e : Event) :
@@ -615,8 +707,9 @@ theorem passOp_restore_quarantines (p : Params) (hq : p.quarantineOnRestore = tr
     (o : Op) (h : (passOp p .restore o).status = .queued) :
     irreversible (passOp p .restore o).kind = false := by
   rw [passOp_kind]
-  obtain ⟨k, st, a⟩ := o
-  cases st <;> cases k <;> simp_all [passOp, Fault.isRestore, irreversible]
+  obtain ⟨k, st, a, c⟩ := o
+  cases st <;> cases k <;> simp_all [passOp, Fault.isRestore, irreversible] <;>
+    (try (split at h <;> simp_all))
 
 theorem step_quarantined_restore (p : Params) (hq : p.quarantineOnRestore = true) (w : World)
     (hf : w.fault = .restore) (hs : w.passDone = true → w.quarantined)

@@ -40,8 +40,10 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   2026-09-12: this write was not in the list, and unguarded by the claim number a retried defer
   landing after a re-claim pulled the second execution's operation back to `queued`.*
 - **The startup pass** (`OPS-15`) moves every `running` operation to its startup state —
-  `needs_reconciliation`, or `failed` for a `refresh` (`ADR-0020`) — guarded on
-  `(id, status = running)` and carrying **no claim term**: it is made by no execution. It runs
+  `needs_reconciliation`, or `failed` for a `refresh` (`ADR-0020`) and, on a restart,
+  for the create exception (`OPS-15`: "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.") — guarded on
+  `(id, status = running)`, with `(kind = create, about_to_order_at IS NULL)` additionally inside
+  the create settlement's conditional write, and carrying **no claim term**: it is made by no execution. It runs
   before the process makes any claim, so nothing contends with it.
 - **Resolution out of `needs_reconciliation`** is not a worker write (`OPS-3`): it is guarded on
   `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s write-once rule
@@ -60,6 +62,14 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
 - **The restore quarantine** (`STO-54`, `OPS-15`) moves a `queued` create, install or rescue
   inventory to `needs_reconciliation`, guarded on `(id, status = queued)`, and carries no claim
   term: it runs before any claim. *Added 2026-09-12.*
+
+**Step 8's `operations`-row write** (`OPS-43`) is also a worker write, though it moves no status.
+It is guarded on the first branch alone (`OPS-43`: "guarded on `(id, status = running,
+claim_number = mine)`"), and its `COALESCE` preserves a set value. A whole-transaction repeat after
+a lost reply changes no column and advances neither `revision` nor `updated_at` (`OPS-43`: "a
+whole-transaction repeat after a lost reply affects one row and changes nothing").
+
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): included the create startup guard and step-8 worker write; the latter moves no status, and its repeat advances neither `revision` nor `updated_at`.*
 
 **STO-4** The store MUST enforce uniqueness of `(scope_kind, scope_id, key)` on `STO-35`'s
 `idempotency_records` — the tenant or the operator identity as the scope (`API-10`). *"Of
@@ -380,6 +390,7 @@ from every inventory query that filters out deleted rows. *Amended 2026-10-11 (`
 | `machine_id` | UUID | nullable; set on completion for create |
 | `provider_account` | text | nullable |
 | `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (`ADR-0014`): a create has one attempt and one correlator. Written in `API-63`'s correlator transaction, which is `OPS-43`'s step 8, after its step-4 List offers read and before the order (`PRV-26`: "before the order is sent"; `API-63`: "the last write before the ordering call"), and null for every operation kind other than create. The `provider_account` write retains `OPS-35`'s "before any driver call". *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): aligned correlator timing with the correlator transaction, after List offers and before the order.* *`F36` and `ADR-0014` record what the withdrawn per-attempt list cost* |
+| `about_to_order_at` | timestamp | nullable; create only, null on every other kind. Written once in `OPS-43`'s step 8, `API-63`'s correlator transaction, on every ordering channel including `correlator: none`; the only other writer is `STO-13`'s one-time migration backfill. **Never cleared; survives the request-data purge** on entry to a settled state or `needs_reconciliation`. It is a column outside `request`, not a correlator or one of `OPS-45`'s markers; nothing copies it to a machine or renders it on the wire. `OPS-43`: "MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`". *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the all-channel column; `ADR-0042`.* |
 | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
 | `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**, and — *added 2026-10-16, `pv-tsb`* — the **declared cancellation bound**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted — the create's record of the unit's duration, from which `machines.billing_unit_seconds` takes the copy the machine's first seed reads, at create or at attach (`LDG-67`, `LDG-39`, `LDG-38`; `ADR-0033`, 2026-10-08). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. The declared cancellation bound MUST be resolved to a provider-local date at API acceptance, in the create's admitting transaction, taking the later of the descriptor's `cancellation_bound` and the offer-reported bound where both exist: `PRV-31`'s sale refusal tests "if either its descriptor-declared bound or its offer-reported bound is later than the provider's local today". The snapshot uses `PRV-13`'s representation: "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone". *Amended 2026-10-16 (`ADR-0037`, `pv-tsb`).* *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
 | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
@@ -1404,6 +1415,21 @@ future date; an engine at N re-derives by the new one, gets a past date, sets th
 
 *Until 2026-09-12 this read "MUST be safe to run concurrently with a running instance of the
 previous version, or startup MUST take an exclusive lock", and nobody chose a half.*
+
+**The `about_to_order_at` backfill is an exception to the concurrent-migration rule above**, which
+runs a migration "while the previous release's engine and `api` keep running". Before enabling
+`OPS-15`'s create exception or `API-63`'s dispatch test on the column, the migration MUST stop every
+previous-release component, then fill `operations.about_to_order_at` with the migration instant
+for every existing `running` create, preserving any value already set, and only then permit the
+first new-release component to start. Those legacy running rows MUST NOT be read as
+"null, so never dispatched". Backfilled values mean potentially dispatched, not a
+measured dispatch time. A binary that claims without writing this column MUST NOT run against the
+store after the backfill, and a previous-release component MUST NOT restart after it;
+rollback past this release is inadmissible. This is a shared-predicate
+contract step, and the migration MUST declare that order (`ADR-0024`: "Stop everything, migrate,
+start everything. The degenerate case, and the right one for the shared-predicate class.").
+
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): specified the conservative one-time backfill and its stop-everything order; `ADR-0042`.*
 
 ## Retention and encryption
 

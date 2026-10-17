@@ -497,6 +497,9 @@ jobs:
       #     crash_inside_procedure_continues_it on [.lock, .crash, .lock, .startupPass]; what that
       #     successor's pass then does to the executed create is the quarantine's row above, which
       #     is why this witness asserts the mode and the serve and not the row.
+      #   createExceptionOnRestart (OPS-15, 2026-10-17, ADR-0042): the restored backup's null
+      #     column must not fail a create whose order the provider holds --
+      #     create_reconciled_on_restore on [.lock, .startupPass].
       # Reconciliation knowledge (pv-vwe.5), Reconcile.current, the same shape:
       #   completePassOnly (OPS-32, 2026-09-02): the interrupted pass rereads into the throttle,
       #     the 2026-08-31 "yield to rate_limited" sentence, since PRV-36 leaves this guard no
@@ -724,6 +727,7 @@ jobs:
           Restore|bumpOnRestore|true|false|Event.request 0, Event.completeProcedure
           Restore|twoPassAbsence|true|false|Event.sweep true false, Event.windowElapses
           Restore|recordDecidesBoot|true|false|Event.crash, Event.lock
+          Restore|createExceptionOnRestart|true|false|bootRestore aboutToOrderRestore
           Reconcile|completePassOnly|true|false|w.retriedIntoThrottle = false
           Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
