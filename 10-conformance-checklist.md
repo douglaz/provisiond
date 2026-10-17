@@ -204,8 +204,9 @@ not optional hardening — they are the only structural defence there is.
       "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`", assert that a
       pre-send `network` failure yields `needs_reconciliation` despite `details.accepted: false`;
       null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
-      with acceptance false. A local `PRV-40` closure is a pre-provider refusal with no
-      operation to classify; a driver-emitted `rate_limited` remains in the classifier,
+      with acceptance false. At admission, a local `PRV-40` closure is a pre-provider refusal
+      with no operation to classify; at claim it settles the queued operation `failed`
+      (`CNF-283`); a driver-emitted `rate_limited` remains in the classifier,
       including after accepted mutation, except the accepted dated cancellation read-back
       and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph).
       *Amended 2026-10-09 (`ADR-0036`): local closure is a refusal occurrence without an operation.*
@@ -215,7 +216,28 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
       enqueue and claim. (`OPS-2`, `STO-5`)
 - [ ] **CNF-34** — Validation is enforced in the worker even when the stored request bypasses
-      the API layer. (`OPS-23`)
+      the API layer. On separate creates, store records missing a caller-supplied field —
+      `acknowledge_purchase` (`WIR-17`: "`acknowledge_purchase` MUST be literal `true`") — and
+      an api-filled admission field, using the accepted-price fields in `request_summary`
+      (`OPS-43`: "the accepted recurring price, its currency and its period"). For the caller
+      field assert `invalid_request` naming the field and `retryable: false`; for the api-filled
+      field assert `conflict`, `details.reason: "incomplete_record"` and `retryable: true`.
+      Assert the same kind, applicable reason and `retryable` on the error and the operation
+      view (`WIR-9b`), `failed`, no driver call, and the create's commitment released in full
+      with no setup-fee or first-unit debit.
+      Repeat the caller-field case on an install, using `API-14`'s "explicit destructive
+      acknowledgement". Assert the same `invalid_request` naming the field and `retryable: false`
+      on the error and view, `failed`, no driver call, both marker columns still null,
+      `disk_effect: "none"` and `rescue_exit: "none"`. The install fixture uses that caller
+      acknowledgement; an api-filled install case applies only if the release names a field the
+      `api` writes at install admission, and the fixture must identify that field. It asserts
+      `conflict`/`incomplete_record`, `retryable: true` and the same untouched-install outcome.
+      Complete-record controls on create and install proceed. (`OPS-23`, `OPS-43`, `API-14`,
+      `WIR-17`, `WIR-9a`, `WIR-9b`, `OPS-11`, `OPS-45`, `LDG-39`)
+      *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
+      added missing-field fixtures, error/view agreement, commitment release,
+      install marker outcomes and complete-record controls.*
+
 - [ ] **CNF-35** — `GET /v1/operations?status=needs_reconciliation` returns them, paginated.
       (`API-23`, `DEF-8`)
 
@@ -1533,7 +1555,8 @@ rather than acquiring a default.
       opens a new operation; A is not automatically requeued or attempted again.
       Repeat after engine restart and across API replicas to prove the closure is
       shared and retained through its reported interval. Then commit a closure
-      just after A's plain claim-time read: no conditional-write channel recheck
+      just after A's plain claim-time channel-closure read (`OPS-43`'s step 2, "Read the stored
+      channel closure"): no conditional-write channel recheck
       blocks dispatch, and Robot's own `403 RATE_LIMIT_EXCEEDED` settles the
       unaccepted order the same way, raising the upstream throttle alarm above.
       (`PRV-40`, `PRV-5`, `STO-58`, `API-7`, `OPS-5`,
@@ -1541,6 +1564,9 @@ rather than acquiring a default.
       *Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): provider-reported closure
       replaces local daily counting and reaches queued creates at worker claim. Amended
       2026-10-13 (`ADR-0037`, Q28): the alarm follows `PRV-5`.*
+      *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
+      identified the channel-closure read in the after-read barrier.*
+
 - [ ] **CNF-284** — **An authentication failure is attempted once.** Give a driver a bad credential
       and assert it makes exactly one attempt and escalates, with no scheduled re-attempt. Asserted
       by counting requests, not by reading the code. On a provider that locks out on repeated
@@ -1630,7 +1656,8 @@ rather than acquiring a default.
       never available balance. (`LDG-38`, `LDG-31`, `PRV-45`, `API-65`)
 - [ ] **CNF-188** — An unreachable provider account or rejected credentials leave commitments
       **open**, with the carried exposure recorded as an **operator deficiency** (`LDG-66`); only
-      confirmed termination closes them and returns their reserved satoshis to available. Run it
+      confirmed termination closes them and returns their reserved satoshis to available. A queued
+      create claimed meanwhile still fails and releases its own (`OPS-43`'s step 1, `API-63`). Run it
       against `07-security-requirements.md` itself, because that amendment was written on
       2026-08-13, failed to apply, and shipped as prose claiming it had. *Absorbed `CNF-114` and
       `CNF-195`, which each tested the same table.* (`SEC-46`, `LDG-66`, `LDG-32`)
@@ -2346,10 +2373,18 @@ rather than acquiring a default.
       `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
       that claims it afterwards dispatches against revoked credentials and freezes the customer's
       money for `OPS-33`'s window. **Fourth**: claim a create, commit the termination before its
-      correlator entry is written, and assert it fails `account_terminated` with no provider call;
+      correlator entry is written, and assert it fails `account_terminated` with no provider mutation;
+      the List offers read is permitted;
       then commit the termination *after* the entry is written and before the call, and assert the
       termination treats that attempt as potentially dispatched — neither failed nor released, and
       resolved through `OPS-36`'s late attach.
+      **Account-read cases:** admit a create and leave it `queued` and unclaimed, record
+      `credentials_rejected` before claim, then claim it. Assert `OPS-43`'s step 1, "Read the
+      provider account's stored status", fails it `conflict` with `details.reason: "state"`,
+      `failed`, no provider request and full commitment release. On a fresh account, claim a
+      create, let the List offers read complete, then commit termination before the correlator
+      entry. Assert `conflict`, `details.reason: "account_terminated"`, `failed`, full commitment
+      release, and no provider mutation: no per-order key upload and no order request.
       **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
       **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
@@ -2371,6 +2406,10 @@ rather than acquiring a default.
       `CNF-243` each fault-injected a transition nothing could perform — as did `CNF-114`, before it
       was merged into `CNF-188` as the duplicate it was. (`API-63`, `WIR-50`,
       `STO-47`, `SEC-46`, `LDG-32`, `API-62`)
+      *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
+      permitted List offers in the pre-entry barrier and added the account-read
+      refusal and post-listing termination cases.*
+
 - [ ] **CNF-279** — **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
       machine whose pinned host key does not match: `RSC-3` aborts **before connecting**, the
@@ -2600,8 +2639,11 @@ rather than acquiring a default.
       *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added
       claim-time sale-re-test failures, ordering and control cases, including queued restarts,
       run on a `per_order_key` channel; the price case now bars a provider mutation rather than
-      any provider call, because `OPS-43`'s step 2, "Obtain the current driver List offers
+      any provider call, because `OPS-43`'s step 4, "Obtain the current driver List offers
       result", reads the provider.*
+      *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
+      updated the List offers step reference to the claim order.*
+
 - [ ] **CNF-242** — **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
       are cancelled and a payment attempted against one fails back with the payer's funds intact; an
@@ -3183,10 +3225,18 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       the earliest-date contribution to `protected_sats` is zero before and after a shorter actual
       date is read, while the commitment remains unchanged (`PRV-13`, `PRV-31`, `LDG-33`).
       Preserve cap and balance suppression for an unsellable offer under `API-7`.
+      Separately create with an offer id the provider has never listed, absent from every source
+      admission could read. Assert the purchase-tail `400 invalid_request` with
+      `details.reason: "offer_not_sellable"`, its `WIR-9a` refusal entry, and `not_checked` entries
+      for balance and, when supplied, the commitment cap, each with `because: "offer_not_sellable"`.
+      Cap and balance do not run; there is no commitment, purchase write or provider order.
       (`PRV-31`, `PRV-13c`, `LDG-12`, `API-7`, `WIR-9a`, `DOM-9`, `WIR-30`, `CNF-307`)
       *Amended 2026-10-09 (`ADR-0039`): the no-bound sale refusal uses the
       create-tail offer reason.*
       *Amended 2026-10-12 (`ADR-0037`, Q25): future-bound listing and create cases.*
+      *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
+      added a never-listed offer id and its purchase-tail refusal and
+      skipped-check entries.*
 
 - [ ] **CNF-167** — A rate halving increases **no** commitment anywhere in the fleet, except
       machines on the scheduled-cancellation branch. What moves is every affected machine's
@@ -3526,15 +3576,37 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
 
 ## Robot ordering (`ADR-0036`, added 2026-10-09)
 
-- [ ] **CNF-342** — **Bad forwarded values never reach an order request.** Bypass API
-      validation with a stored create carrying each invalid provider-forwarded value,
-      including provider options; separately omit the required purchase acknowledgement.
-      Assert the driver rejects each before the order request. For a valid request, remove the named auction offer
-      from the listing after admission but before dispatch; assert the driver confirms
-      listing and sends no order request. Repeat for an ordinary catalogue offer
-      removed after admission, with the same pre-order listing check and refusal;
-      a catalogue create takes no resource-offer exclusion. Neither check adds a provider lookup to
-      `API-7`'s rich-tail collection. (`PRV-47`, `PRV-10`, `PRV-42`, `API-7`)
+- [ ] **CNF-342** — **Bad forwarded values and absent offers cause no provider mutation.**
+      Run on `CNF-241`'s `correlator: per_order_key` ordering channel. Use stored creates
+      carrying provider-forwarded values that pass API boundary validation but the driver
+      rejects, including a provider-options object containing a value the provider does not
+      accept. For each, assert the driver rejects it at `OPS-43`'s step 7, "Run `PRV-47`'s
+      driver validation", with no provider mutation: no per-order key upload and no order
+      request. The List offers read is permitted. For a stored create carrying a
+      provider-forwarded value that API boundary validation rejects, assert it fails at
+      `OPS-43`'s step 3 instead, with no provider request at all.
+      Separately omit the caller-supplied purchase acknowledgement. Assert rejection at
+      `OPS-43`'s step 3, "Repeat boundary validation under `OPS-23`": `invalid_request` naming
+      the field, `retryable: false` on the error and operation view, `failed`, commitment
+      released in full and no provider request at all, including no List offers read.
+      For a valid request, remove the named auction offer after admission and before claim
+      (`OPS-5`), while the create is `queued` and unclaimed. Repeat for an ordinary catalogue
+      offer removed in that same window. Detect absence at `OPS-43`'s step 5, "Check for the
+      named offer's absence from that result", using the step-4 List offers result. In each
+      case assert `invalid_request`, `details.reason: "offer_not_sellable"`, `retryable: false`
+      on both the error and operation view, `failed`, commitment released in full with no
+      setup-fee or first-unit debit, and the resource-offer exclusion freed where the create holds
+      one. A catalogue create takes no resource-offer exclusion. Assert no per-order key upload
+      and no order request; the List offers read is permitted. The inner error has no
+      `details.refusals` or `details.not_checked` and no cap or balance result or amount derived
+      from the offer's price. Neither check adds a provider lookup to `API-7`'s rich-tail collection.
+      (`PRV-47`, `PRV-10`, `PRV-42`, `API-7`, `OPS-43`, `OPS-23`, `OPS-5`, `STO-58`, `LDG-39`,
+      `WIR-9`, `WIR-9a`, `WIR-9b`, `WIR-10b`)
+      *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
+      separated acknowledgement, forwarded-value and queued offer-removal
+      cases; split forwarded-value fixtures into boundary-valid values the driver rejects at
+      step 7 and boundary-invalid values rejected at step 3; asserted absence outcomes and no key upload on a per-order-key channel.*
+
 - [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
       tenants and two replicas on one `offer_is_resource` account/channel/offer.
       Both read an open snapshot; at the admitting conditional-write barrier exactly

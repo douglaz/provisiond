@@ -1806,10 +1806,10 @@ human.
 row that `API-34`'s time-to-live could never reclaim.
 
 **LDG-67** **A pending fee obligation is a record, not an entry.** `LDG-39`'s ambiguous row parks
-the setup fee on the operation until resolution, and that home is **the attempt's entry in
-`operations.request_summary`**: each attempt's entry MUST carry the fee in the provider's currency
-(`LDG-2`), because it is not yet a satoshi obligation, **and the satoshi amount authorized for that
-attempt**, so a resolution that debits the fee debits what the customer actually authorized rather
+the setup fee on the operation until resolution, and that home is **the create's record in
+`operations.request_summary`**: that record MUST carry the fee in the provider's currency
+(`LDG-2`), because it is not yet a satoshi obligation, **and the satoshi amount authorized for the
+create**, so a resolution that debits the fee debits what the customer actually authorized rather
 than a re-conversion at whatever the rate has since become — **which is the case where the create's
 own commitment is still open**; once `OPS-33` has released it the fee is not debited at all
 (`LDG-39`, amended 2026-09-02) and that figure is what the operator deficiency records instead.
@@ -1822,8 +1822,7 @@ choose that path"; and the `billing_unit.seconds` the offer declared when the cr
 (`PRV-44`) — the create's record of the unit's duration, from which the machine's row copies
 `machines.billing_unit_seconds` (`05-persistence.md`), the copy its first seed reads; `LDG-38` holds
 why the seed reads that copy and neither the live offer nor this record.
-**The outstanding obligation is the latest attempt's entry, and resolution debits the matched
-attempt's.** *Until 2026-09-05 `operations` also carried three scalar columns as "the copy of the
+**The outstanding obligation is the create's record, and resolution debits it.** *Until 2026-09-05 `operations` also carried three scalar columns as "the copy of the
 latest attempt's fee" — a second representation of a figure the entries already held, and the same
 shape `LDG-73` was withdrawn for. They are gone; nothing needed a scalar that a read of the latest
 entry does not answer.*

@@ -151,13 +151,18 @@ key; it is distinct from the persisted recovery private key (`RSC-19`).
 **Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints blocks the caller's next same-key create on that account while any registration survives, until the sweep deletes it. The refusal precedes acceptance and sends no order. Cloud and Robot document this refusal (`08-provider-notes.md`); Robot reproduced it on 2026-10-12 (`docs/research/panels-2026-10/r45/live-session2.txt`), while Cloud has not been reproduced live. See `DEF-6`.
 
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
-request's provider options carry an explicit purchase acknowledgement, *and* the account
+request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
+`acknowledge_purchase`), *and* the account
 is configured to allow ordering. Both, not either.
 
-**PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before sending a create order request,
+**PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before any provider mutation for a create,
 the driver MUST validate every value it forwards to the provider, including provider options,
-and MUST reject invalid values without sending that order request. This validation is in the
+and MUST reject invalid values without any provider mutation for that create, including a
+per-order key upload or order request. This validation is in the
 driver, after the API's body validation, because the driver knows the provider's accepted values.
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): validation now
+precedes any provider mutation for the create, including key upload.*
 
 **PRV-11** Ordering is generally not idempotent at the provider. Where create polls an
 order transaction to completion, timing out MUST produce a `timeout` error whose message
@@ -797,7 +802,8 @@ three**, because each fails independently and two of them cost money:
 
 - **import** — submit the URL, then poll to a usable state, both **with the operation yielded**
   (`RSC-41`, `OPS-8`) and inside that requirement's stated maximum wait;
-- **build** — the switch-over, holding the machine, re-validated first (`OPS-23`); this is where
+- **build** — the switch-over, holding the machine, re-validated again first (`OPS-23`, whose
+  "before the driver is called" already put a check before the import); this is where
   the driver may reuse whatever it uses for *Rebuild*, but the capability gate is the catalogue one
   (`DOM-10`), because the caller's promise is `DOM-28`'s and not `native_rebuild`'s;
 - **delete the imported image** — called on settle and on entry to `needs_reconciliation`

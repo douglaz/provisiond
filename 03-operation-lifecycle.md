@@ -624,7 +624,8 @@ API is weaker.**
 
 **OPS-38** Correlator matching MUST define cardinality: zero, one, or many — counted over every
 correlator the operation recorded and every ordering channel the driver can reach (`OPS-27`,
-`PRV-38`).
+`PRV-38`). A create that recorded none has no count: `OPS-27`'s row for "no verified
+correlator exists for the operation's ordering channel" applies, and it is **Unresolved**.
 
 **AMENDED 2026-09-05 — the union over attempts is gone; the cardinality check is not**
 (`ADR-0014`). A create records one correlator, so there is no union over attempts left to take. **Many
@@ -671,32 +672,60 @@ bound.
 **Sale re-test at claim.** At claim (`OPS-5`), before any provider mutation, the worker MUST
 re-test the create's named offer for sale under `PRV-13b` and `PRV-31`, applying `API-7`'s
 create-tail verdict: "`invalid_request`/`offer_not_sellable` when the named offer is
-not sellable under `PRV-13b` or `PRV-31`". The inputs are the descriptor the worker runs with
+not sellable under `PRV-13b` or `PRV-31`, or absent from the offers the check reads".
+The inputs are the descriptor the worker runs with
 (`PRV-44`: "The descriptor is a typed, immutable value") and one current driver List offers
 result taken at claim. Date bounds MUST resolve against provider-local today at the time of
 the check.
 
 The worker MUST order the following steps as listed:
 
-1. Read the stored channel closure (`PRV-40`: "the worker MUST read the stored closure for that
+1. Read the provider account's stored status (`STO-47`). This is a plain read, not a
+   conditional-write guard; the guard remains the conditional write at step 8. If the status
+   is not `healthy`, fail `conflict`, with `API-63`'s "`details.reason: "account_terminated"`
+   where the status is `terminated` and `"state"` for the two recoverable statuses". Make no
+   provider request and release the commitment in full under `LDG-39`'s "Deterministic rejection
+   before acceptance" case.
+2. Read the stored channel closure (`PRV-40`: "the worker MUST read the stored closure for that
    account and ordering channel when it claims the operation (`OPS-5`), before any provider
    request, including a per-order key upload").
-2. Obtain the current driver List offers result.
-3. Re-test the named offer for sale on that result and the running descriptor.
-4. Compare its price using that same List offers result, as below. An unsellable offer gets no
+3. Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
+   MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
+   "explicit purchase acknowledgement" and "the account is configured to allow ordering",
+   `PRV-8`'s "at least one SSH public key", and the missing-field checks defined in `OPS-23`.
+4. Obtain the current driver List offers result.
+5. Check for the named offer's absence from that result, applying the create-tail verdict quoted
+   above; if present, re-test the named offer for sale on that result and the running descriptor.
+6. Compare its price using that same List offers result, as below. An unsellable offer gets no
    price comparison.
-5. Perform any per-order key upload or other provider mutation.
+7. Run `PRV-47`'s driver validation: "the driver MUST validate every value it forwards to the
+   provider, including provider options".
+8. Perform `API-63`'s conditional write on `STO-47`'s row, in the correlator transaction:
+   "the worker MUST repeat the admission check as a conditional write on `STO-47`'s row guarded
+   on `healthy`". It remains "the last write before the ordering call" (`API-63`).
+9. Perform the per-order key upload, then the order. Here **per-order key upload** means every
+   temporary key registration required for this create (`PRV-9`: "the driver MUST register and
+   attach them as temporary provider-side resources").
+
+The first failing check stops subsequent checks; its owning classification governs disposition.
+Claim-time refusals are not collected: the error carries neither `details.refusals` nor
+`details.not_checked`. The order differs from admission: a create both closed and unsellable
+fails `rate_limited` at claim (`PRV-40`: "If the channel is closed at that read, the worker MUST
+make no provider request and settle the existing operation `failed` with `rate_limited`") but
+`offer_not_sellable` at admission, where `API-7` orders "`invalid_request`/`offer_not_sellable`"
+before "`rate_limited` when the offer's account and ordering channel are closed under `PRV-40`".
 
 The sale re-test and price comparison apply to the named offer as that result lists it. At
 claim (`OPS-5`), `PRV-42`'s dispatch check ("the driver MUST confirm that the named offer is
-still listed before sending the order request") reads that same step-2 List offers result.
+still listed before sending the order request") reads that same step-4 List offers result.
 `PRV-42` says "a missing offer MUST NOT be ordered"; for an offer absent from that result, the
-worker MUST NOT perform any other step-5 provider mutation either, including a per-order key
+worker MUST NOT perform any step-9 provider mutation either, including a per-order key
 upload.
 
-If the re-test finds the offer unsellable, the worker MUST fail the operation deterministically
-before any provider mutation, with `invalid_request`, `details.reason: "offer_not_sellable"`
-and `retryable: false` on both the error and the operation view. The operation settles `failed`
+If the offer is absent from that result or the re-test finds it unsellable, the worker MUST fail
+the operation deterministically before any provider mutation, with `invalid_request`,
+`details.reason: "offer_not_sellable"` and `retryable: false` on both the error and the operation
+view. The operation settles `failed`
 under `OPS-11`'s create row: "`needs_reconciliation` if the failure is *ambiguous*, otherwise
 `failed`". The error is `WIR-9`'s inner object under `WIR-10b`: "The inner
 `error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is
@@ -708,6 +737,9 @@ withheld offer's price". The commitment is released in full under `LDG-39`'s
 fee or first unit debited: that row says "**Never debited**; released with the commitment
 (`LDG-32`)". `LDG-32` requires "A commitment MUST be closed, and its remaining amount released
 in full" on, among its terminal outcomes, "the create fails deterministically".
+Where the create holds a resource-offer exclusion, settlement frees it (`STO-58`: "Its lifetime
+follows the winning create's outcome settlement"; `PRV-42`: "An unresolved create retains the
+claim until its outcome is known").
 
 After the sale re-test passes, and before any per-order key upload or other provider mutation,
 the worker MUST re-read the offer's current price from that same List offers result **in the
@@ -746,6 +778,10 @@ claim-time sale re-test, its inputs and the five-step claim order; tied `PRV-42`
 check at claim to the step-2 result and barred any step-5 provider mutation for an offer absent
 from it; specified the re-test's deterministic failure and pointed at `LDG-39` for the
 commitment release.*
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): completed the
+claim order and its precedence, placed validation and account checks, and extended the offer
+failure outcome to absence with resource-offer exclusion settlement.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
@@ -1675,12 +1711,38 @@ previous-release `api` may not have written is a deterministic failure in the wo
 passed check** (added 2026-09-12, `ADR-0024`): a create admitted without `OPS-43`'s accepted-price
 fields fails before dispatch rather than dispatching at whatever the offer says now.
 
-The worker's claim-time sale re-test is an exception to this requirement's "before the driver
-is called": it is `OPS-43`'s, and runs on the result of `OPS-43`'s step 2, "Obtain the current
-driver List offers result", after that read.
+For create, install, power and delete, a missing required field MUST fail as follows:
+
+- A field the `api` itself writes when it admits the operation fails `conflict`, with
+  `details.reason: "incomplete_record"` and `retryable: true` on both the error and the operation
+  view. The accepted-price fields above are such fields; the worker-written correlator is not.
+- A field the caller must supply fails `invalid_request` naming the field, with
+  `retryable: false` on both the error and the operation view.
+
+These missing-field failures settle `failed` under `OPS-11`, whose create row ends "otherwise
+`failed`" and whose install row gives `failed` "for any failure at all while `OPS-45`'s two
+markers say the disk is untouched and no rescue session was left open". On a create, the commitment is
+released in full under `LDG-39`'s "Deterministic rejection before acceptance" case, whose fee
+and first-unit outcome is "**Never debited**; released with the commitment (`LDG-32`)".
+Install, power and delete release no commitment here. On an install, these checks MUST run
+before either `OPS-45` marker is written: its rescue marker is "**false, written before begin
+rescue (`PRV-15`) is dispatched**". The install settles `failed` with `disk_effect: "none"`
+and `rescue_exit: "none"` (`WIR-9a`: "`none` where this operation is established to have written
+nothing to the target disk" and "`none` only where no rescue session was opened"). A release
+that adds a required field MUST state whether the caller supplies it or the `api` writes it
+at admission.
+
+The worker's claim-time absence check and sale re-test at `OPS-43`'s step 5, "Check for the named
+offer's absence from that result", are exceptions to this requirement's "before the driver is
+called": they run on the result of `OPS-43`'s step 4, "Obtain the current driver List offers
+result", after that read.
 
 *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added the
 pointer to `OPS-43`'s claim-time sale re-test and its timing exception.*
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): distinguished
+caller-supplied and api-filled admission fields, their failure outcomes, and install marker
+timing; included offer absence in the timing exception.*
 
 ## Fairness and retention
 

@@ -452,6 +452,8 @@ satoshis back while the operator keeps paying for machines that are still runnin
 termination" in prose and had no row for the ordinary case, so the requirement modelled three
 conditions while the column that now holds them admits four — and an implementer reconciling them
 had to guess whether "not one of these three" was a state or the absence of one.
+**Retained** is what recording the status does. A queued create against an `account_unreachable`
+or `credentials_rejected` account still fails when claimed (`OPS-43`'s step 1; `API-63`: "releasing its commitment").
 
 **AMENDED 2026-09-02 — these are states a deployment can now be *in*.** The table above modelled
 three conditions, released a tenant's money on one of them, and named no verb, no column and no

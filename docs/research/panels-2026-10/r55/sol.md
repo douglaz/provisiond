@@ -1,0 +1,23 @@
+**Bug**, but qualify “two conformant engines”: the checklist says “Every item gates” (`10-conformance-checklist.md:10`). The requirements permit divergent readings; `CNF-278` rejects one.
+
+1. **Already forced.** `API-63` requires its conditional write alongside the correlator entry, “the last write before the ordering call,” and failure “with no provider mutation”: therefore before step 5, but not necessarily before step 2. `OPS-23` already requires validation “before the driver is called”; its missing-field check therefore precedes step 2. Its “deterministic failure” names no kind. `PRV-47` promises rejection “without sending that order request,” which does not forbid an earlier key upload. For absence, `OPS-43` already forbids “any other step-5 provider mutation,” but its outcome paragraph begins “If the re-test finds the offer unsellable.” Other checks needing placement include `PRV-10`’s “explicit purchase acknowledgement” and “account is configured to allow ordering,” and `PRV-8`’s “at least one SSH public key.” Preserve `OPS-35`’s account persistence “before any driver call.”
+
+2. **My proposed order:** closure read → plain provider-account status read → `OPS-23` validation → `PRV-10` and driver `PRV-47` validation → List offers → presence/sale verdict → price comparison → authoritative `API-63` transaction → mutations. This preserves `OPS-43`’s settled relative order. The early status read avoids contacting credentials already recorded unhealthy; it does not replace the conditional write.
+
+   Name missing persisted fields `internal`/`incomplete_create_record`, `retryable: false`, with an explicit deterministic `failed` exception in `OPS-11`. Otherwise its “error kind is `network`, `timeout`, or `internal`” ambiguity rule conflicts with the intended outcome; `internal` accurately denotes a stored-record problem rather than caller error (`DOM-17`: “Defect in this system”).
+
+   Stop at the first failed check, using its prescribed classification; do not collect worker refusals. Qualify `API-63`’s “will fail at it” to operations reaching that check. A termination after the early read can consequently lose precedence to sale or price failure.
+
+3. **Absent offer:** propose `invalid_request`, `details.reason: "offer_not_sellable"`, `retryable: false`, `failed`; release the commitment fully, without setup-fee or first-unit debit. Apply this only to absence from a successful listing. `LDG-39` supplies “Deterministic rejection before acceptance”; `LDG-32` requires release when “the create fails deterministically.”
+
+   Admission is also silent on this specific outcome: `API-13` checks offer identifier “1–256 characters”; `DOM-9` says a remembered ID “still meets `API-7`’s create tail,” without defining absence. Put the shared verdict in `API-7`, referenced by `OPS-43` for claim settlement. Add no lookup inside the tail, which requires collection “without … provider call” (`API-7`). Explicitly extend the existing refusal semantics: `WIR-9a` currently says “The offer cannot be bought on the same request.”
+
+4. **Dependencies:** make `pv-qga` depend on pv-14b’s completed order; keep its failed-read classification separate. `pv-nd6` and `pv-2s6` can proceed independently of pv-14b, while remaining coordinated with each other as their descriptions request.
+
+5. **Draft `CNF-278`, fourth barrier:** “With preceding checks passing, pause immediately before the correlator transaction, commit termination, then resume: assert `failed`, `conflict`/`account_terminated`, full commitment release and no provider mutation; the earlier List offers read is permitted. Retain the post-entry barrier asserting potentially dispatched treatment under `API-63`.”
+
+   **Draft `CNF-342`:** “Exercise driver-only invalid forwarded values, missing acknowledgement, disabled ordering and missing required stored fields separately; assert each prescribed refusal before any provider mutation. For auction and catalogue offers absent from the successful step-2 result, assert the new absence outcome and full release without debit. Use an otherwise valid `per_order_key` channel and assert neither key upload nor order request.”
+
+**Strongest case for the other side (written on request)**
+
+An early account conditional write alone avoids duplicated checks. Absence fits `DOM-17`’s “Named resource does not exist,” making `not_found` clearer than sale ineligibility; a catalogue offer might return, weakening `retryable: false`. Naming incomplete records `invalid_request` would also avoid introducing an `OPS-11` exception.

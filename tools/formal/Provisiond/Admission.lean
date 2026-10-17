@@ -39,9 +39,9 @@ stored result", and what that stored result was is outside.
 The tail. `purchaseTail` carries `API-7`'s refusal collection over snapshot inputs; it does not
 read provider-account or machine rows, compute a price, serialize responses or execute a write.
 `purchaseTailForOffer` and `tailAdmittedForOffer` compute its offer Boolean with
-`cancellationSellable`, conjoined with the supplied `PRV-13b` sale verdict. `PRV-31` says
-"A missing declared cancellation bound in both the descriptor and the offer is an unsellable offer"
-and "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
+`cancellationSellable`, conjoined with the supplied verdict on `PRV-13b` and the offer's presence.
+`PRV-31` says "A missing declared cancellation bound in both the descriptor and the offer is an
+unsellable offer" and "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
 its offer-reported bound is later than the provider's local today." The bounds and today are
 natural-number day ordinals supplied by the caller, taken as provider-local and preserving
 the provider's day order. Conversion from zones or instants is not modelled or established
@@ -1099,8 +1099,9 @@ theorem cancellation_sellable_iff (g : Guards)
     simp [cancellationSellable, boundNotLater, hd, hf, Nat.not_lt]
 
 /-- `API-7` refuses when "not sellable under `PRV-13b` or `PRV-31`". The supplied
-`providerTermsSellable` verdict carries all of the former's conditions, including traffic;
-only the cancellation dimension is computed here. -/
+`providerTermsSellable` verdict carries all of the former's conditions, including traffic. It
+also carries `API-7`'s absence clause, "or absent from the offers the check reads", which is
+not a `PRV-13b` condition. Only the cancellation dimension is computed here. -/
 @[req "API-7"]
 def offerSellable (g : Guards) (providerTermsSellable : Bool)
     (descriptor offer : Option Nat) (today : Nat) : Bool :=
