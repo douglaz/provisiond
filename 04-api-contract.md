@@ -635,7 +635,7 @@ did not run. *`system_reason: tenant_suspended` was the withdrawn form and it pr
 operation view no strict parser should accept.* The value stays legal on the step-(3)
 cancellations, which the system really did request (`OPS-39`). This transition is also **not** a
 worker classification: nothing was claimed and no driver was called, so `OPS-11`'s install row —
-which sends `conflict` to `needs_reconciliation` — does not reach it, and the operation goes
+which sends `conflict` to `needs_reconciliation` "once the write-started marker is set" — does not reach it, and the operation goes
 straight to `failed` as stated. **Not being a classification does not exempt the database write**:
 it is `STO-3`'s fifth named case (fourth until the defer was listed on 2026-09-12), guarded on its full predicate — `(id, status = queued,
 requested_by = caller, tenant suspended, this suspension's parent still unsettled)`, quoted rather

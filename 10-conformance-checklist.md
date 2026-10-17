@@ -204,8 +204,9 @@ not optional hardening — they are the only structural defence there is.
       "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`", assert that a
       pre-send `network` failure yields `needs_reconciliation` despite `details.accepted: false`;
       null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
-      with acceptance false. A local `PRV-40` closure is a pre-provider refusal with no
-      operation to classify; a driver-emitted `rate_limited` remains in the classifier,
+      with acceptance false. At admission, a local `PRV-40` closure is a pre-provider refusal
+      with no operation to classify; at claim it settles the queued operation `failed`
+      (`CNF-283`); a driver-emitted `rate_limited` remains in the classifier,
       including after accepted mutation, except the accepted dated cancellation read-back
       and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph).
       *Amended 2026-10-09 (`ADR-0036`): local closure is a refusal occurrence without an operation.*
@@ -1655,7 +1656,8 @@ rather than acquiring a default.
       never available balance. (`LDG-38`, `LDG-31`, `PRV-45`, `API-65`)
 - [ ] **CNF-188** — An unreachable provider account or rejected credentials leave commitments
       **open**, with the carried exposure recorded as an **operator deficiency** (`LDG-66`); only
-      confirmed termination closes them and returns their reserved satoshis to available. Run it
+      confirmed termination closes them and returns their reserved satoshis to available. A queued
+      create claimed meanwhile still fails and releases its own (`OPS-43`'s step 1, `API-63`). Run it
       against `07-security-requirements.md` itself, because that amendment was written on
       2026-08-13, failed to apply, and shipped as prose claiming it had. *Absorbed `CNF-114` and
       `CNF-195`, which each tested the same table.* (`SEC-46`, `LDG-66`, `LDG-32`)
@@ -3580,7 +3582,9 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       rejects, including a provider-options object containing a value the provider does not
       accept. For each, assert the driver rejects it at `OPS-43`'s step 7, "Run `PRV-47`'s
       driver validation", with no provider mutation: no per-order key upload and no order
-      request. The List offers read is permitted.
+      request. The List offers read is permitted. For a stored create carrying a
+      provider-forwarded value that API boundary validation rejects, assert it fails at
+      `OPS-43`'s step 3 instead, with no provider request at all.
       Separately omit the caller-supplied purchase acknowledgement. Assert rejection at
       `OPS-43`'s step 3, "Repeat boundary validation under `OPS-23`": `invalid_request` naming
       the field, `retryable: false` on the error and operation view, `failed`, commitment
@@ -3591,7 +3595,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       named offer's absence from that result", using the step-4 List offers result. In each
       case assert `invalid_request`, `details.reason: "offer_not_sellable"`, `retryable: false`
       on both the error and operation view, `failed`, commitment released in full with no
-      setup-fee or first-unit debit, and the resource-offer claim freed where the create holds
+      setup-fee or first-unit debit, and the resource-offer exclusion freed where the create holds
       one. A catalogue create takes no resource-offer exclusion. Assert no per-order key upload
       and no order request; the List offers read is permitted. The inner error has no
       `details.refusals` or `details.not_checked` and no cap or balance result or amount derived
@@ -3600,8 +3604,8 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       `WIR-9`, `WIR-9a`, `WIR-9b`, `WIR-10b`)
       *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
       separated acknowledgement, forwarded-value and queued offer-removal
-      cases; restricted forwarded-value fixtures to boundary-valid values rejected by the
-      driver; asserted absence outcomes and no key upload on a per-order-key channel.*
+      cases; split forwarded-value fixtures into boundary-valid values the driver rejects at
+      step 7 and boundary-invalid values rejected at step 3; asserted absence outcomes and no key upload on a per-order-key channel.*
 
 - [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
       tenants and two replicas on one `offer_is_resource` account/channel/offer.

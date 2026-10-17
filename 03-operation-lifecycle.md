@@ -624,7 +624,8 @@ API is weaker.**
 
 **OPS-38** Correlator matching MUST define cardinality: zero, one, or many — counted over every
 correlator the operation recorded and every ordering channel the driver can reach (`OPS-27`,
-`PRV-38`).
+`PRV-38`). A create that recorded none has no count: `OPS-27`'s row for "no verified
+correlator exists for the operation's ordering channel" applies, and it is **Unresolved**.
 
 **AMENDED 2026-09-05 — the union over attempts is gone; the cardinality check is not**
 (`ADR-0014`). A create records one correlator, so there is no union over attempts left to take. **Many
@@ -704,8 +705,7 @@ The worker MUST order the following steps as listed:
    on `healthy`". It remains "the last write before the ordering call" (`API-63`).
 9. Perform the per-order key upload, then the order. Here **per-order key upload** means every
    temporary key registration required for this create (`PRV-9`: "the driver MUST register and
-   attach them as temporary provider-side resources"): Robot's correlator key, caller keys,
-   and Hetzner Cloud's tagged caller key.
+   attach them as temporary provider-side resources").
 
 The first failing check stops subsequent checks; its owning classification governs disposition.
 Claim-time refusals are not collected: the error carries neither `details.refusals` nor
@@ -737,7 +737,7 @@ withheld offer's price". The commitment is released in full under `LDG-39`'s
 fee or first unit debited: that row says "**Never debited**; released with the commitment
 (`LDG-32`)". `LDG-32` requires "A commitment MUST be closed, and its remaining amount released
 in full" on, among its terminal outcomes, "the create fails deterministically".
-Where the create holds a resource-offer claim, settlement frees it (`STO-58`: "Its lifetime
+Where the create holds a resource-offer exclusion, settlement frees it (`STO-58`: "Its lifetime
 follows the winning create's outcome settlement"; `PRV-42`: "An unresolved create retains the
 claim until its outcome is known").
 
@@ -781,7 +781,7 @@ commitment release.*
 
 *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): completed the
 claim order and its precedence, placed validation and account checks, and extended the offer
-failure outcome to absence with resource-offer claim settlement.*
+failure outcome to absence with resource-offer exclusion settlement.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
@@ -1716,11 +1716,12 @@ For create, install, power and delete, a missing required field MUST fail as fol
 - A field the `api` itself writes when it admits the operation fails `conflict`, with
   `details.reason: "incomplete_record"` and `retryable: true` on both the error and the operation
   view. The accepted-price fields above are such fields; the worker-written correlator is not.
-- A field the caller must supply fails with the current release's boundary response for that
-  body: `invalid_request` naming the field, with `retryable: false` on both the error and the
-  operation view.
+- A field the caller must supply fails `invalid_request` naming the field, with
+  `retryable: false` on both the error and the operation view.
 
-These missing-field failures settle `failed` under `OPS-11`. On a create, the commitment is
+These missing-field failures settle `failed` under `OPS-11`, whose create row ends "otherwise
+`failed`" and whose install row gives `failed` "for any failure at all while `OPS-45`'s two
+markers say the disk is untouched and no rescue session was left open". On a create, the commitment is
 released in full under `LDG-39`'s "Deterministic rejection before acceptance" case, whose fee
 and first-unit outcome is "**Never debited**; released with the commitment (`LDG-32`)".
 Install, power and delete release no commitment here. On an install, these checks MUST run

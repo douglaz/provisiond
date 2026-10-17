@@ -985,9 +985,10 @@ returns it nothing it can buy from" — and used it to justify the whole re-assi
 implemented it: `STO-47` had exactly one writer and no reader anywhere in the set, so a terminated
 provider account went on advertising its offers, and a create against it reached a driver holding
 credentials the provider has revoked. The claim was load-bearing for `API-62`'s rationale and was
-never true.* **A create naming an account that is not `healthy` MUST be refused
+never true.* **At admission, a create naming an account that is not `healthy` MUST be refused
 `conflict` with `details.reason: "state"`** — the catalogue read is advisory and a termination can
-land between the two calls, so omission from the listing is not by itself the control.
+land between the two calls, so omission from the listing is not by itself the control. At claim,
+`OPS-43`'s step 1 and `API-63` govern.
 `{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
 "capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "install_rootfs_via_rescue", "install_raw_disk_via_rescue", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
 `DOM-22`). **This view is a subset of the driver's descriptor (`PRV-44`)**: `kind` and
