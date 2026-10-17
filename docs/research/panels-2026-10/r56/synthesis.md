@@ -404,3 +404,57 @@ Still queued for the owner after the shape:
    needs-triage bead.
 5. **Category:** `bug`. pv-k4l is `ready-for-agent`, with its agent brief in the bead's comment.
 6. **The README ADR index** is brought up to `0041` in this change, in scope.
+
+## Round r56c: the restart exception when an error is already recorded, 2026-10-17
+
+PR #7's first codex round (P2, discussion_r4303379206) found that the exception's first wording ("MUST carry
+an `internal` error naming the restart, with `retryable: true` on both the error and the operation view")
+collided with `OPS-16`'s "fills in an error only where none exists". `d4e9bc5` scoped the restart error
+to a create with none recorded and made the view's `retryable` equal a recorded error's. The owner asked
+for a short round on that choice before deciding the merge. The brief and the four answers are in `r56c/`.
+The same readers ran at the same models and efforts, on fresh clones at `16eaff1` (PR #7's tip). Everything
+r56 and r56b settled was off-limits. The manager's four arguments for (a) were put as claims to break.
+Each reader ran `tools/check-all.sh` unpiped; all four logs show exit 0, and no reader edited a tracked
+file. Every quote below was checked against `16eaff1`.
+
+- **(a)**, as at `16eaff1`: the recorded error stays, and the view's `retryable` equals it.
+- **(b)**: the recorded error stays, and the view always says `retryable: true` after the restart.
+
+### Picks
+
+| | fable | opus | astra | sol |
+|---|---|---|---|---|
+| Pick | (a) | (a) | (a) | (a) |
+| Strongest reason | (b) has no carrier: the `operations` table has no `retryable` column, and with an error present the pass leaves no row-level trace, so (b) needs a new column or an edit to the error | (b) cannot be satisfied: `WIR-9`'s inner error "is the object `WIR-10b` embeds in an operation view", and `WIR-9b` makes "the envelope's MUST equal" the view's | a restart does not repair a defective request; `OPS-43`'s unsellable refusal carries "`retryable: false` on both the error and the operation view" | proving no dispatch establishes safety; it does not repair an invalid request |
+| Real path to the state | none; only `OPS-23`'s record "edited in the store" | none; creates never defer (`OPS-8` defers where "another running operation holds the machine") | none specified; a search, not an impossibility proof | none specified; a writer inventory, not an invariant |
+| `CNF-358`'s case | keep, labelled injected, citing `CNF-30` | keep, labelled injected; `CNF-30` already tests `OPS-16` | keep, labelled injected | keep, labelled injected |
+| Rule by error kind | no: `WIR-9a` already fixes the value per kind | no: a second copy of `WIR-9a` | no | no |
+
+### The manager's claims
+
+1. **`OPS-16` decides only the error:** held, 4-0.
+2. **`DOM-17` decides the view:** broken, 4-0. `DOM-17` says "Every error MUST carry … a boolean
+   `retryable`": it defines the error's field, and the view's belongs to `API-20` ("`retryable`
+   (`API-51`)") (fable, opus). A recorded `false` does not say which of "safe and sensible" failed, so
+   equality is a policy choice, not a deduction (astra, sol).
+3. **`WIR-9b` does not decide it:** held by fable, astra and sol; broken by opus. `WIR-9` says every non-2xx
+   response "is exactly" `{error, correlation_id}`, and its inner error "is the object `WIR-10b` embeds
+   in an operation view", so the envelope's `retryable` is that error's and `WIR-9b` binds the view to it.
+   fable: (b) is "unanchored, not forbidden".
+4. **Only `CNF-358` reaches the state:** held, 4-0, as a search result.
+
+### Defects found at `16eaff1`
+
+1. **03:388-389's reason is false** (opus; astra and sol on claim 2). "because the restart says nothing new
+   about whether 'repeating the *same request* is safe and sensible' (`DOM-17`)" denies what the restart
+   shows: nothing was ordered, so repeating is safe.
+2. **`CNF-29` restates the restart outcome unscoped** (opus). 10:177-178 still asserts "the restart-naming
+   `internal` error, `retryable: true` on error and operation view"; `d4e9bc5` did not scope it.
+3. **`CNF-358`'s recorded error is not labelled as injected** (all four).
+
+### Manager's recommendation after r56c
+
+Keep (a), 4-0. Before merging, fix the three defects in PR #7, since they are this PR's own text:
+delete 03:388-389's "because" clause, scope `CNF-29`'s outcome to a create with no recorded error, and
+label `CNF-358`'s recorded error as injected, citing `CNF-30`. That costs a push, a CI run and a codex
+round.
