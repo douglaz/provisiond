@@ -109,8 +109,9 @@ sequenceDiagram
 
     E->>DB: claim atomically, OPS-5
     E->>E: re-validate, OPS-23
-    E->>DB: write provider_account and the<br/>correlator BEFORE the call, OPS-35, PRV-26
+    E->>DB: write provider_account BEFORE<br/>any driver call, OPS-35
     E->>P: List offers read, sale re-test,<br/>price re-check, OPS-43
+    E->>DB: write correlator before the order,<br/>API-63, PRV-26
     E->>P: create
     alt reply arrives
         P-->>E: machine

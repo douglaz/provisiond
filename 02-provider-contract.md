@@ -154,10 +154,14 @@ key; it is distinct from the persisted recovery private key (`RSC-19`).
 request's provider options carry an explicit purchase acknowledgement, *and* the account
 is configured to allow ordering. Both, not either.
 
-**PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before sending a create order request,
+**PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before any provider mutation for a create,
 the driver MUST validate every value it forwards to the provider, including provider options,
-and MUST reject invalid values without sending that order request. This validation is in the
+and MUST reject invalid values without any provider mutation for that create, including a
+per-order key upload or order request. This validation is in the
 driver, after the API's body validation, because the driver knows the provider's accepted values.
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): validation now
+precedes any provider mutation for the create, including key upload.*
 
 **PRV-11** Ordering is generally not idempotent at the provider. Where create polls an
 order transaction to completion, timing out MUST produce a `timeout` error whose message
@@ -1195,6 +1199,10 @@ operation, not an automatic requeue or another attempt by this operation. This i
 plain read, not a conditional-write guard: if a closure commits after the read,
 the provider's own `403 RATE_LIMIT_EXCEEDED` may settle the create the same way.
 See `OPS-11` for classification after a provider has accepted a mutation.
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): for claim
+ordering and precedence, see `OPS-43`: "The first failing check stops subsequent checks; its
+owning classification governs disposition".*
 
 **PRV-41** **An authentication failure MUST NOT be retried against a provider that locks out on
 repeated failures.** Hetzner Robot blocks the **source IP for ten minutes after three failed login

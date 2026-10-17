@@ -264,11 +264,14 @@ transaction, without an extra lock, ceiling slot, write or provider call. `detai
 (`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
 against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
 then, on create only, `invalid_request`/`offer_not_sellable` when the named offer is
-not sellable under `PRV-13b` or `PRV-31`;
+not sellable under `PRV-13b` or `PRV-31`, or absent from the offers the check reads;
 then, on create only, `rate_limited` when the offer's account and ordering channel
 are closed under `PRV-40`;
 `halted`/`solvency`; `halted`/`rate_unavailable`; the commitment-cap refusal (`WIR-17`, `WIR-24`);
 `insufficient_balance`. See `ADR-0030` for the order's rationale and `LDG-40` for halt retention.
+An offer absent from the offers the check reads is an unsellable offer for every rule in this
+tail, including cap and balance suppression and the `WIR-9a` `offer_not_sellable` refusal and
+`not_checked` entries. No additional lookup is made for this verdict.
 Both halted entries may appear; no duplicate
 means no repeated refusal/check, not unique kind strings. The cap and balance checks MUST NOT
 run without a rate, nor for create against an unhealthy account or unsellable offer:
@@ -286,6 +289,10 @@ request/key evaluates afresh. Admission retains the conditional-write guards in 
 `LDG-62` and `PRV-42`; collection does not replace them with read-only guards. These are admission refusals
 (`OPS-11`), never lists in operation views. Steps 1–5c still stop at their first refusal; see
 those steps for their rationale. Deposit behavior and other tails are unchanged.
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): included an offer
+absent from the offers the tail reads in the unsellable verdict throughout the tail, without
+an added lookup.*
 
 **Amended 2026-10-10 (`ADR-0036`).** After an otherwise successful tail collection,
 a create whose resource-offer conditional write affects no row (`PRV-42`) MUST receive an
@@ -1405,18 +1412,22 @@ reproduce.* *Added 2026-09-04: per-tenant
 primitives cannot supply this. They do not cover a tenant with no machines in the account yet, and
 the check and the commitment sat in different transactions, so a create could pass the health check,
 have the termination commit behind it, and open a commitment against a dead account.* **A create claimed but not yet dispatched narrows the unreachable case to a dispatched order**:
-in the transaction that records the attempt's correlator entry (`OPS-35`, `PRV-26`) — the last
-write before the ordering call — the worker MUST repeat the admission check as a conditional write
-on `STO-47`'s row guarded on `healthy`, and where it affects no row MUST fail the operation
-deterministically — `conflict`, with `details.reason: "account_terminated"` where the status is
+in the transaction that records the create's correlator entry (`PRV-26`: "before the order is
+sent") — the last write before the ordering call — the worker MUST repeat the admission check as a
+conditional write on `STO-47`'s row guarded on `healthy`, and where it affects no row MUST fail the
+operation deterministically — `conflict`, with `details.reason: "account_terminated"` where the status is
 `terminated` and `"state"` for the two recoverable statuses, since presenting an unreachable
 account as a permanent termination is false — releasing its commitment,
 with no provider mutation. `LDG-69` keeps the provider call outside that transaction, so a
 termination can still commit between the write and the call; that residue is the dispatched case
 below, **and the correlator entry is what tells the termination which case it is**: a claimed
-attempt with no entry has not passed the check and will fail at it, and one with an entry MUST be
-treated as potentially dispatched (*added 2026-09-05; a `running` operation sat between "queued, never claimed" and "already
-dispatched" and matched neither, so it ordered with credentials already known to be dead; the
+create with no entry has not passed the conditional-write check and does not dispatch. Under
+`OPS-43`'s claim order it may fail at step 1, "Read the provider account's stored status", at
+another preceding check, or at this conditional write. Interruption can instead leave the create
+unresolved (`OPS-15`: "the engine MUST move every `running` operation to `needs_reconciliation`").
+A claimed create with an entry MUST be treated as potentially dispatched (*added 2026-09-05; a
+`running` operation sat between "queued, never claimed" and "already dispatched" and matched neither,
+so it ordered with credentials already known to be dead; the
 transaction is named so a crash between the check and the correlator entry cannot leave an attempt
 recorded with no admission behind it*). **A create
 already dispatched to the provider when the termination commits is not reachable by any lock**, and
@@ -1424,6 +1435,10 @@ is `OPS-36`'s late attach: the machine appears under a terminated account, `OPS-
 enqueues the cleanup cancellation, that cancellation fails against the revoked credential, and
 its episode goes `stalled` (`OPS-48`) into `OPS-26`'s listing. That is the honest end for it, and it is stated so the
 machine is *somewhere* rather than orphaned in silence.
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): qualified the
+claimed create with no correlator entry against claim precedence and interruption; retained the
+conditional-write guard in the correlator transaction.*
 
 **The transaction MUST hold the `LDG-35` primitive of every tenant in `WIR-50`'s
 `affected_tenants`, acquired in ascending tenant-identifier order** — the ordering `LDG-35` already
