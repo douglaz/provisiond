@@ -156,6 +156,13 @@ machine. Never cleared: the first is write-once, the second is armed `false` bef
 moves to `true` on a clean exit, never back.
 _Avoid_: flag, evidence, witness
 
+**About-to-order time**:
+The create's write-once `operations.about_to_order_at` timestamp, distinct from a **marker** or
+correlator. Set means only that dispatch may have begun; a migration backfill is not a measured
+dispatch time. `OPS-43` owns the live write, `STO-13` the backfill, and `OPS-15` the null-only
+restart settlement. This glossary is not normative. *Added 2026-10-17 (`pv-k4l`, `ADR-0042`).*
+_Avoid_: marker, evidence, flag, fence
+
 **Evidence**:
 What settles an unknown outcome — a provider observation (`OPS-27`'s correlator match, `PRV-36`'s
 sources) or the basis an operator records with a resolution verb (`STO-19`). Not a **marker**,
@@ -175,7 +182,7 @@ _Avoid_: rollback, preserved (say `disk_effect: none`), data loss (which is a co
 **Restore**:
 Bringing the store back from a backup, landing at some instant before the failure. A recovery
 incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no committed
-work and the classifier settles what was in flight at startup; a restore loses an interval, and the
+work and the startup pass settles what was in flight at startup; a restore loses an interval, and the
 engine brought up on it naïvely performs destructive actions on state the restore rewrote.
 The **restore record** is the row that makes the incident recognizable to a process rather than to
 an operator: open from before either component starts until the operator closes it, carrying the

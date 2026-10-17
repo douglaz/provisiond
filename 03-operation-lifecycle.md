@@ -231,6 +231,8 @@ failure classification. Asynchronous surface: `API-7`; result bodies: `WIR-10`.
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` **where no rescue session was left open** (the paragraph below), **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. **`failed` past the write-started marker, where rescue exited cleanly, asserts that the install did not complete and nothing about the disk** (*2026-09-15, `pv-x8r`*): the deterministic caller kinds stay `failed` there because the engine knows what it did — an installer that rejected the layout it had begun partitioning for is a known outcome — and `needs_reconciliation` is the state for an outcome nobody knows (`CONTEXT.md`), whose only truthful verb here would be `abandoned`, which settles `failed` after a human looked. It does not mean `not_applied`, which `OPS-31` refuses there. What the disk holds is `OPS-45`'s marker's fact, rendered to the caller as `WIR-9a`'s `disk_effect`; the state does not carry it. |
 | create, power, reverse-DNS, delete, release attachment | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
 
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): the restart settlement is outside this classification; see `OPS-15`: "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only."*
+
 **The table MUST be total, and seven kinds added later were missing.** `insufficient_balance`,
 `not_activated`, `halted`, `gone`, `suspended`, — added 2026-09-02 — `ceiling_exceeded`
 (`DOM-20`, `DOM-21`, `SEC-39`) and — added 2026-09-12 — `overloaded` (`STO-55`) are
@@ -342,9 +344,9 @@ finding that the selection rule had no discriminator wherever the correlator was
 ## Interrupted workers
 
 With one writer (`OPS-47`), an operation found `running` at engine startup was interrupted, and its
-provider call is uncertain.
+provider call may be uncertain; the exceptions below name the rows that take a different startup path.
 
-**OPS-15** **AMENDED 2026-09-08 (`ADR-0016`) — the startup pass is the sweep.** At startup, before
+**OPS-15** **AMENDED 2026-09-08 (`ADR-0016`) — the startup pass is the sweep.** Subject to the exceptions below, at startup, before
 any claim, the engine MUST move every `running` operation to `needs_reconciliation` — with one
 writer, any `running` row at startup is interrupted — guarded on `(id, status = running)`
 (`STO-3`), and MUST log the count it found. It MUST NOT move them back to `queued`: a crashed
@@ -379,7 +381,37 @@ nothing the provider may have done that nobody recorded, and `WIR-35`'s resolve 
 by kind. *Added 2026-09-08 (`ADR-0020`): until then this pass sent an interrupted refresh to a
 state whose only exits refused it.*
 
-**`suspend_tenant` is the other exception, and on a restart it MUST NOT require an operator.** A
+**A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a
+restart only.** It MUST carry an `internal` error naming the restart, with `retryable: true` on both
+the error and the operation view (`OPS-23`: "`retryable: true` on both the error and the operation
+view"). `OPS-16` applies: "MUST NOT overwrite an error already recorded on the operation". This is
+not an `OPS-11` classification: `OPS-45` says "an operation interrupted rather than classified is
+`OPS-15`'s". Such a create made no provider mutation and is not ambiguous; it never enters
+`needs_reconciliation` and runs no resolution or correlator matching.
+
+For each such row the pass MUST take the tenant's `LDG-35` primitive, then perform the conditional
+status write guarded on `(id, status = running, kind = create, about_to_order_at IS NULL)`, then the
+money writes, all in one transaction per row. The null test MUST be inside that write, never a
+preceding read. Only if the status write affects a row MUST the same transaction close and release
+the commitment in full — `LDG-32`'s "the create fails deterministically" — under `LDG-39`'s
+"Deterministic rejection before acceptance" row, never debited, and free the resource-offer
+exclusion (`STO-58`). If the conditional status write affects no row, the ordinary `(id, status =
+running)` write still moves a still-running create to `needs_reconciliation`; a set column takes
+that ordinary path. The pass writes neither `about_to_order_at` nor the markers.
+
+Whichever of this null-guarded status write and the live step-8 write commits first, the other's
+guard affects no row. This describes their predicates, not an in-scope second engine: `STO-3` says
+"nothing contends with it". `OPS-47` says "The lock is not a fence". The exception MUST NOT run
+periodically. **It does not fire while a restore record is open** (`STO-54`, `STO-56`), nor on a
+store that may have lost committed writes, such as a promoted asynchronous standby. A restore can
+lose the column's committed write while the provider holds the order. This restriction lasts for the
+whole open incident, independently of the freeze's end.
+
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and
+`docs/research/panels-2026-10/r56/r56b/`): added the null-only create restart exception; `ADR-0042`
+amends `ADR-0016`. The interrupted-worker introduction allows for each exception's startup path.*
+
+**`suspend_tenant` is another exception, and on a restart it MUST NOT require an operator.** A
 `suspend_tenant` parent (`API-58`) found `running` at startup MUST be returned to `queued` and
 re-claimed like any other queued work, resuming its fan-out from wherever it stopped — *on a
 restart; after a restore it waits, above (`STO-54`)*. It mutates no
@@ -703,9 +735,22 @@ The worker MUST order the following steps as listed:
 8. Perform `API-63`'s conditional write on `STO-47`'s row, in the correlator transaction:
    "the worker MUST repeat the admission check as a conditional write on `STO-47`'s row guarded
    on `healthy`". It remains "the last write before the ordering call" (`API-63`).
+   In this same transaction, on every ordering channel, including `correlator: none`, the worker
+   MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`
+   guarded on `(id, status = running, claim_number = mine)` (`STO-3`; `OPS-6`:
+   "every write that worker makes to the operation MUST carry `claim_number = mine`").
+   The write MUST NOT be guarded on the column being null: a whole-transaction repeat after a
+   lost reply affects one row and changes nothing. If this operation-row write affects zero rows,
+   something else moved the operation: step 9 MUST NOT run and the worker MUST exit. This differs
+   from the zero-row `STO-47` check above, which fails deterministically and releases; a create
+   that fails that check commits no `about_to_order_at`.
+   Step 9 MUST begin only after step 8's transaction is acknowledged. A lost acknowledgement
+   MUST take `OPS-49`'s "repeat the **whole transaction**" path, never speculative dispatch.
 9. Perform the per-order key upload, then the order. Here **per-order key upload** means every
    temporary key registration required for this create (`PRV-9`: "the driver MUST register and
    attach them as temporary provider-side resources").
+
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): made step 8 write the column under the worker guard and await acknowledgement before step 9.*
 
 The first failing check stops subsequent checks; its owning classification governs disposition.
 Claim-time refusals are not collected: the error carries neither `details.refusals` nor
@@ -1342,6 +1387,8 @@ ambiguous create as a deterministic failure, which deletes `OPS-27`'s resolution
 negative window, `OPS-36`'s late attach and `LDG-39`'s whole fee table in one sentence — the
 correlator exists precisely because a create's own execution *cannot* tell you what happened.
 
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): the execution-only argument above applies after step 8 may have committed. `OPS-15` now says "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only." The column is not a marker; only its null, read by that restart pass before any step-9 mutation could have begun, settles anything. A set column leaves the create on the ordinary ambiguous path (`ADR-0042`).*
+
 **The engine MUST persist a write-started marker on the operation**, at the moment a phase begins
 that could have altered the machine, and before that phase runs:
 
@@ -1606,9 +1653,11 @@ startup:                                          # STO-13, OPS-47, OPS-15
                                                   #   its predecessor (STO-54)
     if not take_startup_lock(bound):              # STO-51: session-scoped, held for life
         exit_nonzero()                            # OPS-47: another engine is already here
-    n = move_running_to_needs_reconciliation(     # suspend_tenant parents -> queued (restart;
+    n = run_startup_pass(                         # suspend_tenant -> queued on restart;
             restoring = incident is not None)     #   after a restore they wait, STO-54, and the
     log(n)                                        #   queued irreversible kinds are quarantined)
+    # refresh -> failed; restart-only null-column creates -> failed with atomic release.
+    # OPS-15 owns the exceptions and their exclusions.
 
 loop:
     op, mine = claim_next_queued_operation()      # OPS-5: atomic, marks running,
