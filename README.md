@@ -94,6 +94,22 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0023` | A restore is a recovery incident with a stated procedure, never a restart; durability is bought with synchronous commit only on the two writes with no second truth |
 | `0024` | Migrations run before the release under their own lock while the previous release serves; only a contract step or a shared-predicate change needs an outage |
 | `0025` | A formalized clause lives in Lean under `tools/formal/`, the Markdown requirement renders it, and a proof is never conformance. No Mathlib; standard axioms only; every guard a dated amendment added is a model parameter with a theorem for its absence |
+| `0026` | The exhaustion mark is two facts, an observation to confirm against and a deadline, and neither is a derivation instant. Superseded by `0027` (the confirmation reference) and `0028` (the deadline) |
+| `0027` | The rate is the window median of accepted observations, and one observation cannot move it outside the others. Supersedes `0026`'s first fact |
+| `0028` | The restore grace is one instant in the restore record, and no machine carries a deadline. Supersedes `0026`'s second fact and the grace mechanism `0023` gave; amended for outages by `0029` |
+| `0029` | During a price outage, a funding cancellation waits for the rate or the outage bound; an outage pauses the restore grace, and a solvency check that cannot be computed has not failed |
+| `0030` | Purchase tails report every applicable refusal, not only the first |
+| `0031` | Provider invoices replace derived accrual |
+| `0032` | Revival is an operator decision, never automatic |
+| `0033` | A machine's first billing unit is prepaid machine time |
+| `0034` | Tenant traffic cannot spend the provider request budget the system needs |
+| `0035` | A failure after the provider accepted a mutation is ambiguous |
+| `0036` | The Robot order budget is closed by the provider's throttle and not shared out |
+| `0037` | The billing-stop window is withdrawn, and wind-down is sized to the gone-write. Amends `0035` and `0018` |
+| `0038` | A network restriction is positive evidence from either source |
+| `0039` | Only offers with no traffic overage are sold until a counter is proven fresh. Narrows `0010`'s v1 sale scope |
+| `0040` | A lost auction order is resolved by its fingerprint, and a temporary key outlives an unsettled operation |
+| `0041` | Robot rescue host keys are pinned from the last-rescue record after boot |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
