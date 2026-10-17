@@ -1481,7 +1481,8 @@ rather than acquiring a default.
       *Added 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the stored-record purge check; `ADR-0042`.*
 - [ ] **CNF-360** — **Step 8 waits for acknowledgement, repeats, and respects both guards.**
       Commit step 8 and drop its reply: assert no step-9 request before an acknowledged
-      whole-transaction repeat, which affects one operation row and leaves the timestamp unchanged.
+      whole-transaction repeat, which affects one operation row, leaves `about_to_order_at` and
+      `updated_at` unchanged and advances `revision` no further.
       Refuse its status guard, then its claim-number guard: assert no column commit, no step 9,
       and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, full
       release, and no column commit. For the restart settlement, kill between the status write

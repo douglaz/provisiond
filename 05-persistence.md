@@ -34,7 +34,6 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   (`OPS-22`). *Until 2026-09-12 the guard was `(id, status = running)` alone; the `epoch = mine`
   term that once sat beside it held by construction, because the claiming process stamped the
   value itself (`ADR-0019`). The claim number does not: a later claim rewrites it.*
-  Step 8's column write is also a worker write (`OPS-43`: "guarded on `(id, status = running, claim_number = mine)`"); its `COALESCE` preserves a set value and moves no status.
 - **The defer** (`OPS-8`) — `running` back to `queued` with `available_at` advanced — is guarded
   on `(id, status = running, claim_number = mine)`. A write that affects no row means the operation
   was already deferred or already claimed again; the worker moves on and does not exit. *Added
@@ -64,7 +63,13 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   inventory to `needs_reconciliation`, guarded on `(id, status = queued)`, and carries no claim
   term: it runs before any claim. *Added 2026-09-12.*
 
-*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): included the create startup guard and step-8 worker write; the latter moves no status.*
+**Step 8's `operations`-row write** (`OPS-43`) is also a worker write, though it moves no status.
+It is guarded on the first branch alone (`OPS-43`: "guarded on `(id, status = running,
+claim_number = mine)`"), and its `COALESCE` preserves a set value. A whole-transaction repeat after
+a lost reply changes no column and advances neither `revision` nor `updated_at` (`OPS-43`: "a
+whole-transaction repeat after a lost reply affects one row and changes nothing").
+
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): included the create startup guard and step-8 worker write; the latter moves no status, and its repeat advances neither `revision` nor `updated_at`.*
 
 **STO-4** The store MUST enforce uniqueness of `(scope_kind, scope_id, key)` on `STO-35`'s
 `idempotency_records` — the tenant or the operator identity as the scope (`API-10`). *"Of
@@ -1411,14 +1416,15 @@ future date; an engine at N re-derives by the new one, gets a past date, sets th
 *Until 2026-09-12 this read "MUST be safe to run concurrently with a running instance of the
 previous version, or startup MUST take an exclusive lock", and nobody chose a half.*
 
-**The `about_to_order_at` backfill is an exception to the concurrent-migration rule above.**
-Before enabling the new startup exception or dispatch test, the migration MUST stop every
+**The `about_to_order_at` backfill is an exception to the concurrent-migration rule above**, which
+runs a migration "while the previous release's engine and `api` keep running". Before enabling
+`OPS-15`'s create exception or `API-63`'s dispatch test on the column, the migration MUST stop every
 previous-release component, then fill `operations.about_to_order_at` with the migration instant
 for every existing `running` create, preserving any value already set, and only then permit the
 first new-release component to start. Those legacy running rows MUST NOT be read as
 "null, so never dispatched". Backfilled values mean potentially dispatched, not a
-measured dispatch time. No binary that claims without writing this column may run against the
-store after the backfill. Neither previous-release component may restart after this backfill;
+measured dispatch time. A binary that claims without writing this column MUST NOT run against the
+store after the backfill, and a previous-release component MUST NOT restart after it;
 rollback past this release is inadmissible. This is a shared-predicate
 contract step, and the migration MUST declare that order (`ADR-0024`: "Stop everything, migrate,
 start everything. The degenerate case, and the right one for the shared-predicate class.").

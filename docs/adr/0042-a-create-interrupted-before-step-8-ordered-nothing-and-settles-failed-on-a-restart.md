@@ -22,8 +22,8 @@ upload, then the order" at step 9. That boundary includes the first mutation, no
   atomic full release and the exclusions: "It does not fire while a restore record is open",
   and "nor on a store that may have lost committed writes, such as a promoted asynchronous standby".
 - `STO-13` owns the migration: "the migration MUST stop every previous-release component", backfill
-  every existing running create before new components start, and "No binary that claims without
-  writing this column may run against the store after the backfill". This is the conservative
+  every existing running create before new components start, and "A binary that claims without
+  writing this column MUST NOT run against the store after the backfill". This is the conservative
   backfill the bead's Agent Brief requires (items 5 and 10b), taken from panel reader sol's
   round-r56b draft.
 - `API-63` owns termination's dispatch test: "A claimed create with `about_to_order_at` set MUST
