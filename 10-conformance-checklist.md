@@ -1462,7 +1462,8 @@ rather than acquiring a default.
       `internal` error, `retryable: true` on both error and operation view, commitment closed and
       released in full, no setup-fee or first-unit debit, and the resource-offer exclusion freed.
       Assert no step-9 request reached the provider: no per-order key upload and no order;
-      the List offers read is permitted. Repeat with a recorded error and assert it survives.
+      the List offers read is permitted. Repeat with a recorded error carrying `retryable: false`:
+      assert the error survives unchanged and the operation view carries `retryable: false`.
       Kill after step 8 commits but before step 9, and again after the order: assert the stored
       column is set and unchanged after restart, and the operation `needs_reconciliation`,
       with its commitment still open. No resolution or correlator matching runs for the failed cases.

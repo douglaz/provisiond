@@ -382,8 +382,11 @@ by kind. *Added 2026-09-08 (`ADR-0020`): until then this pass sent an interrupte
 state whose only exits refused it.*
 
 **A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a
-restart only.** It MUST carry an `internal` error naming the restart, with `retryable: true` on both
-the error and the operation view. `OPS-16` applies: "MUST NOT overwrite an error already recorded on the operation". This is
+restart only.** Where no error is recorded, it MUST carry an `internal` error naming the restart,
+with `retryable: true` on both the error and the operation view. An error already recorded stays:
+`OPS-16` says the sweeper "fills in an error only where none exists". The operation view's
+`retryable` MUST then equal that error's, because the restart says nothing new about whether
+"repeating the *same request* is safe and sensible" (`DOM-17`). This is
 not an `OPS-11` classification: `OPS-45` says "an operation interrupted rather than classified is
 `OPS-15`'s". Such a create made no provider mutation and is not ambiguous; it never enters
 `needs_reconciliation` and runs no resolution or correlator matching.
@@ -408,7 +411,8 @@ whole open incident, independently of the freeze's end.
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and
 `docs/research/panels-2026-10/r56/r56b/`): added the null-only create restart exception; `ADR-0042`
-amends `ADR-0016`. The interrupted-worker introduction allows for each exception's startup path.*
+amends `ADR-0016`. The interrupted-worker introduction allows for each exception's startup path.
+PR #7's review scoped the restart error to a create with none recorded.*
 
 **`suspend_tenant` is another exception, and on a restart it MUST NOT require an operator.** A
 `suspend_tenant` parent (`API-58`) found `running` at startup MUST be returned to `queued` and
