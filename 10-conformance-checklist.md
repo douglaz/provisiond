@@ -174,10 +174,11 @@ not optional hardening — they are the only structural defence there is.
       with an operation of each dispatching kind `running`, restart, and assert each one — **except
       a `refresh`, which settles `failed`** (`ADR-0020`): assert its row is `failed` with an
       `internal` error and that `WIR-35`'s resolve refuses it by kind — **and a create whose
-      `about_to_order_at` is null**, which settles `failed` on a restart with the restart-naming
-      `internal` error, `retryable: true` on error and operation view, full commitment release and
-      resource-offer exclusion freed. A set column stays `needs_reconciliation`; the null exception
-      stays off while a restore record is open.
+      `about_to_order_at` is null**, which settles `failed` on a restart with full commitment
+      release and resource-offer exclusion freed; for its error, `OPS-15` says "Where no error is
+      recorded, it MUST carry an `internal` error naming the restart, with `retryable: true` on
+      both the error and the operation view". A set column stays `needs_reconciliation`; the null
+      exception stays off while a restore record is open.
       (`OPS-15`) *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the create exception and qualified the startup outcome, naming the `suspend_tenant` return to `queued` the summary had missed; the exclusion control uses an open restore record; `ADR-0042`.*
 - [ ] **CNF-30** — The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
@@ -1462,8 +1463,10 @@ rather than acquiring a default.
       `internal` error, `retryable: true` on both error and operation view, commitment closed and
       released in full, no setup-fee or first-unit debit, and the resource-offer exclusion freed.
       Assert no step-9 request reached the provider: no per-order key upload and no order;
-      the List offers read is permitted. Repeat with a recorded error carrying `retryable: false`:
-      assert the error survives unchanged and the operation view carries `retryable: false`.
+      the List offers read is permitted. Repeat with an injected recorded error carrying
+      `retryable: false`, written to the stored row before the restart, since `CNF-30` says "The
+      startup pass does not overwrite an error already recorded": assert the error survives
+      unchanged and the operation view carries `retryable: false`.
       Kill after step 8 commits but before step 9, and again after the order: assert the stored
       column is set and unchanged after restart, and the operation `needs_reconciliation`,
       with its commitment still open. No resolution or correlator matching runs for the failed cases.

@@ -385,10 +385,8 @@ state whose only exits refused it.*
 restart only.** Where no error is recorded, it MUST carry an `internal` error naming the restart,
 with `retryable: true` on both the error and the operation view. An error already recorded stays:
 `OPS-16` says the sweeper "fills in an error only where none exists". The operation view's
-`retryable` MUST then equal that error's, because the restart says nothing new about whether
-"repeating the *same request* is safe and sensible" (`DOM-17`). This is
-not an `OPS-11` classification: `OPS-45` says "an operation interrupted rather than classified is
-`OPS-15`'s". Such a create made no provider mutation and is not ambiguous; it never enters
+`retryable` MUST then equal that error's. This is not an `OPS-11` classification: `OPS-45` says
+"an operation interrupted rather than classified is `OPS-15`'s". Such a create made no provider mutation and is not ambiguous; it never enters
 `needs_reconciliation` and runs no resolution or correlator matching.
 
 For each such row the pass MUST take the tenant's `LDG-35` primitive, then perform the conditional
