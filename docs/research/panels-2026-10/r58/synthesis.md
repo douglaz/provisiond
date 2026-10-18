@@ -233,22 +233,193 @@ A's size is unsettled. fable and opus put it at one `OPS-21` sentence plus `CNF`
 `OVR-19` bound, a Lean model and `ci.yml` controls. A's money benefit lands only when the stop waits for the
 record write. A stop that times out and kills the process is a crash, and a crash parks under every option.
 
+## Owner decision, 2026-10-18
+
+**Option A**, matching the panel's 4-0.
+- Any stop the engine survives MUST record the outcome before the engine exits. This covers every
+  operation kind, not just create.
+- pv-f7a is folded into the same change.
+- `OPS-21`'s exception widens to install before the disk is touched, and to refresh. This resolves claim
+  3's install contradiction. (Manager's note: rescue inventory takes the install rows, "Same rows as
+  `install`", 03:230.)
+- pv-9j6 stays separate.
+
+Still open inside A, and taken by r58b:
+- A's size: the bound, a Lean model, `ci.yml` controls.
+- Whether a cancelled `suspend_tenant` parent needs its own rule.
+- pv-f7a's reason value.
+
+The ADR home is still split 3-1 (new ADR or an amendment of `ADR-0043`) and was not put to r58b.
+
+## Panel r58b: the minimal shape of A, 2026-10-18
+
+The readers, models and efforts were the same as r58, each in a fresh clone at `471be5a`. All four
+exited 0, with answers of 3.0-4.5 KB. The brief is `r58b/brief.md` and the answers sit beside it. Every
+quote below was checked against `471be5a`. The plant patches and logs that astra and sol link stay under
+`/var/tmp` and are not committed.
+
+### Tally
+
+| Item | fable | opus | astra | sol | Tally |
+|---|---|---|---|---|---|
+| (a) The bound | `OPS-49`'s "Store-retry bound", no new row | one attempt, within `OPS-49`'s bound | a new `OVR-19` row, "shutdown-record bound" | a new `OVR-19` row, "Stop-record bound" | **2-2** on a new row; the two against it split between the full loop (fable) and one attempt (opus) |
+| Does 03:1764 force one attempt? | no | yes, once the write is shielded | no | no | 3-1 no |
+| The record write runs outside the cancellation that stopped `execute` (claim L2) | yes, "dictates one clause" | yes, "absorbed" | yes | yes | **4-0** |
+| (b) Lean | nothing | nothing | a model composing `Claim` and `Tables`, with witnesses | the same | **2-2** |
+| (c) `ci.yml` | none | none | new controls | new controls | **2-2** |
+| Tie-break: a cancelled parent gets its own sentence | yes | yes | yes | yes | **4-0 yes** |
+| The parent's `available_at` | advanced (`OPS-49`'s write) | unchanged | advanced | advanced | 3-1 advanced |
+| pv-f7a's reason value | `cut_off` | `cut_off` | `execution_cancelled` | `execution_cancelled` | **2-2** |
+
+Every 2-2 split is fable and opus against astra and sol, the same pairs as r58. (b) and (c) are one
+decision: fable and opus would add controls only if a Lean declaration is added (fable: "Any new Lean
+declaration (`ADR-0025` owes it a mutation)"; opus: "(c): follows (b)").
+
+### Claims broken
+
+- **S1 (every wait is already bounded by a registered value).** Broken by astra and sol, quoting
+  `OPS-49`: "Constraint violations and serialization failures are not store errors and do not consume
+  the bound" and "A serialization failure is repeated at once" (03:1750-1753). Repeated serialization
+  failures never reach the counted bound. fable and opus did not answer this.
+  - opus broke the settle-write half another way. The client-side store deadline has only a floor ("MUST
+    NOT be shorter than the server-side timeouts above", 05:140-141), so only `OPS-49`'s bound caps it,
+    and A must say "within" that bound.
+  - fable: S1 holds, but its sum overstates, because the call is "abandoned mid-flight" and the
+    provider-call deadline never runs.
+- **S2 (a model would prove what it assumes).** Its premise is broken by astra and sol. `Claim.lean`
+  already models the exit: "No claim follows the exit: `exited` is absorbing under every outcome"
+  (Claim.lean:441). opus also cites `Engine`, "idle | holding (n : ClaimNumber) | exited" (Claim.lean:408-409).
+  - fable and opus keep the conclusion. fable: `Claim.lean` has no cancellation (verified: no match for
+    "cancel"), so a record-before-exit theorem "would be its own hypothesis". opus: `posts_at_most_once`
+    (Claim.lean:372) holds for every outcome list, whose "length is the bound" (Claim.lean:324), so one
+    attempt is already proved.
+- **S3 (only a `CNF` case can catch a missing bound).** Its "only" is broken by astra and sol, citing
+  `ADR-0025`'s "the bad trace is refused with the guard and admitted without it" (adr/0025:119). sol built
+  a model whose bound does go red (see the plants). Both still say runtime `CNF` cases are needed.
+- **L1 (the number belongs on the register).** Broken by fable and opus. fable: nothing makes a
+  deployment state a stop wait, and the owner's rule binds the engine, not the supervisor. opus: the
+  number is already registered (00:401), and "A supervisor kill is a crash, which parks (settled)".
+- **L2 (the write must run outside the cancellation).** Holds, 4-0. opus: 05:143-144 already pictures "a
+  connection abandoned mid-transaction — by a timeout, a cancelled worker or a lost reply".
+- **L3 (a rule no gate can fail).** Broken, 4-0. `AGENTS.md` asks for "one negative-control step per gate
+  that has one": controls are per gate, not per rule. fable: `check_coverage.py` says "The conformance
+  checklist IS this project's test suite -- there is no code." astra and sol still want semantic
+  controls on their own merits.
+- **T1 (`OPS-49` already gives the parent its write).** Broken, 4-0. The bullet's trigger is a parent
+  "whose children are still queued" (03:1767).
+
+### The 03:1764 conflict
+
+- fable, astra and sol: the cancellation that stopped `execute` is the thing the write records, and
+  "cancelled during the retry loop" means a later stop. fable: "Read otherwise, A's MUST voids itself."
+- opus: once the write is shielded, the cancellation is back in force from the first error, so 03:1764
+  gives one attempt. Giving a worker cancelled just before the loop the full bound, while one cancelled
+  inside it exits at once, "treats one stop two ways". opus would move to the full bound given
+  "evidence that the store usually blips during the stop".
+
+### What would change each reader's mind
+
+- fable:
+  - (a) a sentence requiring a stated stop wait, or `OPS-49` excluding this write from its loop;
+  - (b) `Claim.lean` gaining a cancellation event;
+  - (c) any new Lean declaration.
+- opus:
+  - (a) the store-blip evidence above;
+  - (b) A changing what `Tables` computes, such as a new `Failure` field;
+  - (c) follows (b).
+- astra:
+  - (a) an existing absolute deadline from cancellation through recording, serialization retries
+    included;
+  - (b) a prototype that needs recording as a hypothesis;
+  - (c) existing mutations that reject the new bad traces.
+- sol: the same three in substance.
+
+### The parent's sentence (tie-break, 4-0 yes)
+
+- fable: "A `suspend_tenant` parent cancelled at any point in its fan-out is recorded by `OPS-49`'s
+  parent write, "returned to `queued` with `available_at` advanced — the same write as `OPS-8`'s defer,
+  though nothing refused it", and resumes its fan-out when next claimed."
+- opus: returned to `queued` under its claim number "with `available_at` unchanged", resuming as `OPS-15`
+  does. Its reason: `OVR-18` names "`SEC-45`'s fan-out" among what stops while the engine is down
+  (00:334-335).
+- astra and sol: the guarded defer with `available_at` advanced, keeping the completed fan-out. sol:
+  "subject to the recording bound and `OPS-49`'s exits".
+
+### pv-f7a's reason value (2-2)
+
+- **`cut_off`** (fable, opus):
+  - It is `OPS-11`'s own wording, "the worker being cut off mid-flight" (03:270), and the formal layer's
+    `cutOff`. It is the same for every kind, whether the row settles `failed` or parks.
+  - `execution_cancelled` beside `cancellation_committed` (`retryable: false`, 13:170) would read as a
+    machine cancellation. `CONTEXT.md`: "Use **cancel** whenever an end date is involved".
+- **`execution_cancelled`** (astra, sol): the qualifier separates an execution from an end-date
+  cancellation, and `CONTEXT.md`'s rule does not forbid a qualified use.
+- All four:
+  - add the value to `WIR-9a`'s union (13:137);
+  - `CNF-361` asserts it in place of "Make no assertion about `details.reason`, neither its value nor its
+    absence".
+- fable: `check_fixtures.py` checks no reason value (verified: no match for "reason"). Only a `CNF`
+  run (`CNF-248`, 10:2782) catches an unlisted value. opus: `CNF-248` "covers only 409s and stays as it
+  is".
+
+### Planted edits
+
+- **fable:** an unbounded MUST, with the write left under the cancellation, plus a sentence putting an
+  invented quote in `OPS-49`'s mouth. Citations FAIL ("attributes to OPS-49 a phrase OPS-49 does not
+  contain"), exit 1. The red is the invented quote; the missing bound and the cancellable write passed
+  every gate.
+- **opus:** "one attempt", neither shielded nor capped. All seven gates PASS, exit 0.
+- **astra:** a new register row whose deadline "restarts after each serialization failure". All gates
+  exit 0.
+- **sol:** built a temporary Lean composition (gates exit 0), then planted `bounded := false`. formal
+  FAILs, exit 1, because `bounded_serialization_witness` is false; citations and regions are blocked
+  behind it. The red comes from sol's own model, not today's gates. sol: "This checks the modeled policy;
+  runtime cancellation and store-fault CNF tests must check the engine."
+
+Net: on today's gates no plant of a shape's substance goes red, 4-0, as in r58. Only `CNF` cases catch
+a missing bound or a missing shield, under either shape.
+
+### Manager's recommendation
+
+**The smaller shape**:
+- **(a)** No new row. The record write runs outside the cancellation that stopped `execute` (4-0), and
+  it retries under `OPS-49`'s existing "Store-retry bound". A further stop during that loop exits under
+  03:1764 (3-1 reading).
+- **(b) and (c)** No Lean model and no `ci.yml` controls. `CNF` cases are the control.
+
+This sides with fable on (a), and with fable and opus on (b) and (c). The serialization gap that astra
+and sol found is real. It already applies to every worker write, though, and the money ends the same
+way under both shapes: a record that never lands parks. It parks whether the engine gives up at a new
+bound or the supervisor kills it ("A supervisor kill is a crash, which parks (settled)", opus). What
+the larger shape buys:
+- one stated number from stop to record, which also counts serialization retries;
+- a gate that fails when the modelled bound is edited away.
+
+Folded in from r58b:
+- The cancelled parent gets its own sentence (4-0).
+- The parent's `available_at` is advanced, as in `OPS-49`'s write (3-1, opus dissenting).
+- The write runs outside the cancellation (4-0).
+
 ## Queued for the owner
 
-1. A, B or C (asked 2026-10-18).
-2. Under A: pv-f7a's reason value for a cut-off `conflict` (for example sol's `execution_cancelled`), after
+1. ~~A, B or C (asked 2026-10-18).~~ Answered: A (above).
+2. A's size: the smaller or the larger shape, or the new row alone. Each item is 2-2 after r58 and
+   r58b, so there is no third round. Asked 2026-10-18.
+3. pv-f7a's reason value: `cut_off` (fable, opus) or `execution_cancelled` (astra, sol), 2-2 in
    r58b.
 
 ## Next steps for a fresh manager
 
 - Branch `pv-tst-triage` (off master `c8b7cbc`, not pushed) holds this record and a triage comment on
-  pv-tst.
-- After the owner picks:
-  - **A:** run r58b on the three splits above, with clones at the branch tip. Then ask pv-f7a's reason value.
-    Write pv-tst's agent brief (`AGENT-BRIEF.md`) covering pv-f7a's edit. Set pv-tst `bug` +
-    `ready-for-agent`; pv-f7a is closed by the same change or depends on it.
-  - **B:** `OPS-21` says either conforms and that an exit is `OPS-15`'s. Widen the "except" clause.
-    `CNF-361` stays narrowed. Amend `ADR-0043`. pv-f7a stays open.
-  - **C:** reopen the scope with the panel first. All four readers argued against it, and it withdraws
-    `ADR-0043`'s owner-chosen sentence.
-- pv-9j6 is triaged separately whatever the pick.
+  pv-tst. The r58b record sits under `r58b/`.
+- When the owner has answered 2 and 3:
+  - Write pv-tst's agent brief as a bead comment, following the triage skill's `AGENT-BRIEF.md`. It covers:
+    - the owner's A (every kind; the widened exception, with rescue inventory taking the install rows);
+    - the shielded record write and its bound, per answer 2;
+    - the parent's sentence (`available_at` advanced);
+    - pv-f7a's reason value in `WIR-9a` and `CNF-361`, per answer 3;
+    - the edits listed under "Edits owed under A" above;
+    - Lean and `ci.yml` only if answer 2 takes the larger shape;
+    - the ADR home: a new ADR (3-1 in r58), pointers from `ADR-0022` and `ADR-0043`, and the README index.
+  - Set pv-tst `bug` + `ready-for-agent`. pv-f7a is closed by the same change.
+- pv-9j6 is triaged separately.
