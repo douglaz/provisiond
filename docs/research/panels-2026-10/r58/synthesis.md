@@ -415,8 +415,8 @@ Folded in from r58b:
   - On expiry the engine exits and `OPS-15` classifies the row. astra: "deadline expiry supplies a
     subsequent cancellation".
   - `OPS-49`'s retry loop and its exits stay as settled.
-  - Naming is the implementer's: sol said "Stop-record bound", astra "shutdown-record bound".
-    `CONTEXT.md`:199 bans "grace period".
+  - pv-tst's agent brief names the row "Stop-record bound", sol's name, matching the register's "Store-retry
+    bound". astra had said "shutdown-record bound". `CONTEXT.md`:199 bans "grace period".
 - **A Lean model** composing `Claim` and `Tables`, with paired witnesses (`ADR-0025`). It covers the
   classification, the guarded record write or the parent's defer, the bound, and an ordinary exit as
   distinct from a permitted abandonment. It computes recording rather than assuming it: astra says
@@ -433,25 +433,35 @@ Folded in from r58b:
   - a cancelled `suspend_tenant` parent gets its own sentence, with `available_at` advanced (3-1),
     subject to the limit.
 
+## Owner decision 3, 2026-10-18: pv-f7a's reason value
+
+**`cut_off`**, siding with fable and opus and with the manager's recommendation.
+- `WIR-9a`'s `conflict` union gains `"cut_off"` (`OPS-21`).
+- `CNF-361` asserts it for every cancellation case, replacing "Make no assertion about
+  `details.reason`, neither its value nor its absence".
+- pv-f7a closes with pv-tst's change.
+
 ## Queued for the owner
 
 1. ~~A, B or C (asked 2026-10-18).~~ Answered: A (above).
 2. ~~A's size.~~ Answered: the larger shape (owner decision 2, above).
-3. pv-f7a's reason value: `cut_off` (fable, opus) or `execution_cancelled` (astra, sol), 2-2 in
-   r58b. Asked 2026-10-18.
+3. ~~pv-f7a's reason value.~~ Answered: `cut_off` (owner decision 3, above).
+
+Nothing is queued. pv-tst's agent brief is the bead's third comment.
 
 ## Next steps for a fresh manager
 
 - Branch `pv-tst-triage` (off master `c8b7cbc`, not pushed) holds this record and a triage comment on
   pv-tst. The r58b record sits under `r58b/`.
-- When the owner has answered 3 (1 and 2 are answered):
+- Done 2026-10-18 (all three answered):
   - Write pv-tst's agent brief as a bead comment, following the triage skill's `AGENT-BRIEF.md`. It covers:
     - the owner's A (every kind; the widened exception, with rescue inventory taking the install rows);
     - the shielded record write and the new stop-record limit (owner decision 2);
     - the parent's sentence (`available_at` advanced);
-    - pv-f7a's reason value in `WIR-9a` and `CNF-361`, per answer 3;
+    - pv-f7a's reason value `cut_off` in `WIR-9a` and `CNF-361` (owner decision 3);
     - the edits listed under "Edits owed under A" above;
     - the Lean model and the `ci.yml` controls (owner decision 2);
     - the ADR home: a new ADR (3-1 in r58), pointers from `ADR-0022` and `ADR-0043`, and the README index.
-  - Set pv-tst `bug` + `ready-for-agent`. pv-f7a is closed by the same change.
+  - Set pv-tst `bug` + `ready-for-agent`. pv-f7a now depends on pv-tst and is closed by the same change.
+- Next: implement pv-tst through an rloop Run, then `/code-review`, then a PR.
 - pv-9j6 is triaged separately.
