@@ -325,9 +325,9 @@ jobs:
           tmp="$(mktemp -d)"
           cp -r . "$tmp/repo"
           cd "$tmp/repo/tools/formal"
-          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true, acceptanceRule := true }/' \
+          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true, preStep9Rule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true, acceptanceRule := true, preStep9Rule := true }/' \
             Provisiond/Tables.lean
-          grep -q 'goalStateRow := false, markerRule := true' Provisiond/Tables.lean
+          grep -q 'goalStateRow := false, markerRule := true, acceptanceRule := true, preStep9Rule := true' Provisiond/Tables.lean
           if nix develop --command lake build > build.log 2>&1; then
             echo "::error::lake build passed with the goal-state row removed from the classification"
             exit 1
@@ -364,6 +364,8 @@ jobs:
                    'accepted_read_failure_witness'),
                   ('Reconcile', 'negativeOnly       := true', 'negativeOnly       := false',
                    'in_progress_order_witness'),
+                  ('Tables', 'preStep9Rule := true', 'preStep9Rule := false',
+                   'before_step9_failure_witness'),
               ]:
                   path = formal / f'Provisiond/{module}.lean'
                   original = path.read_bytes()

@@ -2973,7 +2973,7 @@ is `failed`; under the install row as it stood — the kind column alone — it 
 `needs_reconciliation`, "an operator-resolved loss". -/
 @[req "OPS-11"]
 theorem host_key_abort_witness :
-    let abort : Failure := ⟨.integrity, false, .unrecorded, false, false⟩
+    let abort : Failure := ⟨.integrity, false, .unrecorded, false, false, false⟩
     classify currentRules .install abort ⟨false, true⟩ = some .failed ∧
     classify { currentRules with markerRule := false } .install abort ⟨false, true⟩ =
       some .needsReconciliation := by decide
@@ -2984,19 +2984,19 @@ was "the provider rejected the request and did not act" and the delete that succ
 `failed` — and `LDG-32` then never closed the commitment. -/
 @[req "OPS-11"]
 theorem already_deleted_witness :
-    let rejection : Failure := ⟨.provider, false, .status4xx, true, false⟩
+    let rejection : Failure := ⟨.provider, false, .status4xx, true, false, false⟩
     classify currentRules .deleteMachine rejection ⟨true, true⟩ = some .succeeded ∧
     classify { currentRules with goalStateRow := false } .deleteMachine rejection ⟨true, true⟩ =
       some .failed := by decide
 
-/-- `ADR-0035`: an accepted mutation followed by a refused read. With acceptance every
-last-row kind remains unresolved; without only that rule each of these reads records a
+/-- `ADR-0035`: an accepted mutation followed by a refused read. With acceptance every kind in the
+create row and last row remains unresolved; without only that rule each of these reads records a
 false deterministic failure. The marker and goal-state rules are retained. -/
 @[req "OPS-11"]
 theorem accepted_read_failure_witness :
     ∀ (k : Kind), k.lastRow = true →
       ∀ e ∈ [ErrorKind.rateLimited, .notFound, .authentication, .provider],
-        let f : Failure := ⟨e, false, .status4xx, false, true⟩
+        let f : Failure := ⟨e, false, .status4xx, false, true, false⟩
         classify currentRules k f ⟨true, true⟩ = some .needsReconciliation ∧
         classify { currentRules with acceptanceRule := false } k f ⟨true, true⟩ =
           some .failed := by decide
@@ -3006,12 +3006,37 @@ confers no acceptance on the create; transport ambiguity stands without known ac
 an unknown-acceptance 5xx keeps the mutating request's mapped `provider` kind. -/
 @[req "OPS-11"]
 theorem rejected_order_witness :
-    classify currentRules .createMachine ⟨.provider, false, .status4xx, false, false⟩
+    classify currentRules .createMachine ⟨.provider, false, .status4xx, false, false, false⟩
       ⟨true, true⟩ = some .failed ∧
-    classify currentRules .createMachine ⟨.network, false, .unrecorded, false, false⟩
+    classify currentRules .createMachine ⟨.network, false, .unrecorded, false, false, false⟩
       ⟨true, true⟩ = some .needsReconciliation ∧
-    classify currentRules .createMachine ⟨.provider, false, .status5xx, false, false⟩
+    classify currentRules .createMachine ⟨.provider, false, .status5xx, false, false, false⟩
       ⟨false, true⟩ = some .needsReconciliation := by decide
+
+/-- `OPS-11`'s create boundary (2026-10-18): "before any step-9 request (before any per-order
+key upload or order request) MUST settle `failed`, whatever its kind". A step-4 timeout and a
+cancellation of `execute` both fail; without the rule the timeout remains unresolved. -/
+@[req "OPS-11"]
+theorem before_step9_failure_witness :
+    let timeout : Failure := ⟨.timeout, false, .unrecorded, false, false, true⟩
+    classify currentRules .createMachine timeout ⟨false, true⟩ = some .failed ∧
+    classify currentRules .createMachine ⟨.conflict, true, .unrecorded, false, false, true⟩
+      ⟨false, true⟩ = some .failed ∧
+    classify { currentRules with preStep9Rule := false } .createMachine timeout ⟨false, true⟩ =
+      some .needsReconciliation := by decide
+
+/-- `OPS-11` pins the cut-off distinction: "arose from the worker being cut off mid-flight
+(`OPS-21`) rather than from a provider-reported state conflict". After step 9 begins, only the
+cut-off `conflict` is ambiguous; the new switch is fixed on independently of `currentRules`. -/
+@[req "OPS-11"]
+theorem cutoff_conflict_witness :
+    ∀ (goal marker accept : Bool),
+      classify ⟨goal, marker, accept, true⟩ .createMachine
+        ⟨.conflict, true, .unrecorded, false, false, false⟩ ⟨false, true⟩ =
+          some .needsReconciliation ∧
+      classify ⟨goal, marker, accept, true⟩ .createMachine
+        ⟨.conflict, false, .unrecorded, false, false, false⟩ ⟨false, true⟩ =
+          some .failed := by decide
 
 /-- `ADR-0021`'s first hole: a machine recorded gone under `API-63`'s termination, its episode
 `stalled` with the fence set. With the gone-write row the episode closes `resource_gone` and the

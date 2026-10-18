@@ -106,7 +106,7 @@ connection that dropped, and a 5xx answer collides with the mapping of non-2xx r
   reached the provider.
 
 Rejected: a two-valued field with no unknown (it loses "nothing reached the provider" against "it may
-have"); settling a pre-send `network` failure as `failed` (a behaviour change beyond the question).
+have"); settling a pre-send `network` failure as `failed` (a behaviour change beyond the question). *(2026-10-18, `ADR-0043`, `pv-qga`: the order-request case stands; a create failure recorded before step 9 belongs to `ADR-0043`.)*
 
 ## Amendment — 2026-10-09: a resolved release that carries an effective date (from ADR-0037)
 

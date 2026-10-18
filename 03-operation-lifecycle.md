@@ -229,9 +229,12 @@ failure classification. Asynchronous surface: `API-7`; result bodies: `WIR-10`.
 | suspend_tenant | Never `needs_reconciliation`, and never `failed` as a whole. It is a parent whose per-machine children carry their own outcomes (`WIR-39`), and it settles `succeeded` once every child has either settled or **reached `needs_reconciliation`** — a child that reached that state counts as complete for the parent. `needs_reconciliation` is not itself settled (`OPS-3`); it is a state only evidence or an operator moves, so an unresolved child is a child-level fact, and blocking the parent on it would leave every suspended tenant's record permanently open. |
 | rescue inventory | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` **where no rescue session was left open** (the paragraph below), **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. **`failed` past the write-started marker, where rescue exited cleanly, asserts that the install did not complete and nothing about the disk** (*2026-09-15, `pv-x8r`*): the deterministic caller kinds stay `failed` there because the engine knows what it did — an installer that rejected the layout it had begun partitioning for is a known outcome — and `needs_reconciliation` is the state for an outcome nobody knows (`CONTEXT.md`), whose only truthful verb here would be `abandoned`, which settles `failed` after a human looked. It does not mean `not_applied`, which `OPS-31` refuses there. What the disk holds is `OPS-45`'s marker's fact, rendered to the caller as `WIR-9a`'s `disk_effect`; the state does not carry it. |
-| create, power, reverse-DNS, delete, release attachment | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
+| create | Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind. The boundary is the worker invoking the first step-9 per-order key upload or order call. It is the worker's position: this rule MUST NOT read `about_to_order_at`, nor any snapshot or cached copy of it. The settle write keeps the ordinary worker guard (`STO-3`; `OPS-6`: "every write that worker makes to the operation MUST carry `claim_number = mine`"), with no `about_to_order_at IS NULL` term. The error MUST keep its reported kind. For `network`, `timeout`, `internal`, `provider` with a 5xx or no upstream status, and a cut-off `conflict`, it MUST carry `retryable: true` on both the error and the operation view; a failure classified `failed` without this pre-step-9 rule keeps its stated `retryable`. An `OPS-21` cancellation of `execute` stays a cut-off `conflict`. The commitment is released in full under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full") and `LDG-39` ("**Never debited**; released with the commitment (`LDG-32`)"), with no setup-fee or first-unit debit. Settlement follows `STO-3`: "The guarded status write precedes every money write in the transaction and short-circuits the rest", after taking the `LDG-35` primitive, then making the guarded status write, then the money writes. The resource-offer exclusion is freed under `STO-58`: "Its lifetime follows the winning create's outcome settlement". Before step 9 no provider mutation has been requested. From step 9 onward, including a key-upload failure or an order-call failure before any byte was sent: `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
+| power, reverse-DNS, delete, release attachment | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): the restart settlement is outside this classification; see `OPS-15`: "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only."*
+
+*Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): the restart exception reads the null column on a restart; the create row instead classifies a failure recorded by the worker, by position. After step 8 is acknowledged and before step 9 begins, a recorded failure settles `failed` with the column set. A restart in that same window takes the ordinary path (`OPS-15`: "the engine MUST move every `running` operation to `needs_reconciliation`"), since the column is set.*
 
 **The table MUST be total, and seven kinds added later were missing.** `insufficient_balance`,
 `not_activated`, `halted`, `gone`, `suspended`, — added 2026-09-02 — `ceiling_exceeded`
@@ -273,7 +276,7 @@ A failure is **ambiguous** when:
   `PRV-5`), whatever the later error kind or status.
 
 **Amended 2026-10-08 (`ADR-0035`): acceptance is an additional ambiguity condition for the
-last row.** A later `rate_limited`, `not_found`, `authentication`, or provider 4xx error MUST NOT
+create row and the last row.** A later `rate_limited`, `not_found`, `authentication`, or provider 4xx error MUST NOT
 classify that accepted mutation `failed`. The goal-state success rule below still takes
 precedence. The refresh, parent, install/rescue-inventory and admission-only rows are unchanged;
 pre-provider admission has no accepted mutation. Unknown acceptance follows `PRV-5`'s
@@ -744,8 +747,11 @@ The worker MUST order the following steps as listed:
    lost reply affects one row and changes nothing. If this operation-row write affects zero rows,
    something else moved the operation: step 9 MUST NOT run and the worker MUST exit. This differs
    from the zero-row `STO-47` check above, of which `API-63` says "where it affects no row MUST
-   fail the operation deterministically"; a create that fails that check commits no
-   `about_to_order_at`.
+   fail the operation deterministically". A first attempt that fails that check commits no
+   `about_to_order_at`. If an earlier step-8 transaction committed but its reply was lost, and an
+   account-status write makes the account non-`healthy` before the whole-transaction repeat,
+   the repeat can fail that check with the column already set. The create still settles `failed`
+   by the create row below: no step-9 request was made.
    Step 9 MUST begin only after step 8's transaction is acknowledged. A lost acknowledgement
    MUST take `OPS-49`'s "repeat the **whole transaction**" path, never speculative dispatch.
 9. Perform the per-order key upload, then the order. Here **per-order key upload** means every
@@ -772,9 +778,7 @@ upload.
 If the offer is absent from that result or the re-test finds it unsellable, the worker MUST fail
 the operation deterministically before any provider mutation, with `invalid_request`,
 `details.reason: "offer_not_sellable"` and `retryable: false` on both the error and the operation
-view. The operation settles `failed`
-under `OPS-11`'s create row: "`needs_reconciliation` if the failure is *ambiguous*, otherwise
-`failed`". The error is `WIR-9`'s inner object under `WIR-10b`: "The inner
+view. The operation settles `failed` under the create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." The error is `WIR-9`'s inner object under `WIR-10b`: "The inner
 `error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is
 the object `WIR-10b` embeds in an operation view". It carries neither `details.refusals` nor
 `details.not_checked`; `WIR-9a` introduces those keys "**On create and extend-runway tail
@@ -787,6 +791,8 @@ in full" on, among its terminal outcomes, "the create fails deterministically".
 Where the create holds a resource-offer exclusion, settlement frees it (`STO-58`: "Its lifetime
 follows the winning create's outcome settlement"; `PRV-42`: "An unresolved create retains the
 claim until its outcome is known").
+
+*Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed settlement at the create row and accounted for a lost step-8 reply followed by an account-status write before the repeat; that refusal can leave the column set.*
 
 After the sale re-test passes, and before any per-order key upload or other provider mutation,
 the worker MUST re-read the offer's current price from that same List offers result **in the
@@ -1380,17 +1386,17 @@ operator-resolved loss.
 **This requirement governs the kinds that act on a machine that already exists — install, rescue
 inventory, power, reverse DNS, delete and release attachment (`PRV-45`) — and nothing else.** It does **not** reach `create`:
 there is no machine yet, the question is whether a *resource was produced*, and the answer
-comes from `OPS-27`'s correlator search rather than from anything the engine can record about
-itself (*except, since 2026-10-17, the null `about_to_order_at` that `OPS-15` settles on a restart;
-see the note below*). Nor does it reach `suspend_tenant`, which mutates no provider (`OPS-11`). *Until
+for an unresolved create comes from `OPS-27`'s correlator search ("Resolution searches the provider for the operation's correlator"). A worker-recorded failure instead follows the create row: `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." The restart case follows `OPS-15`: "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only." This worker classification reads no column and no marker. Nor does it reach `suspend_tenant`, which mutates no provider (`OPS-11`). *Until
 2026-09-08 this sentence excluded `adopt` on the same grounds, which were false for a machine that
 already exists; adopt is withdrawn (`ADR-0020`).* **Scoping this is
 not a formality**: read unscoped, "the marker is unset, so settle `failed`" would settle every
 ambiguous create as a deterministic failure, which deletes `OPS-27`'s resolution, `OPS-33`'s
 negative window, `OPS-36`'s late attach and `LDG-39`'s whole fee table in one sentence — the
-correlator exists precisely because a create's own execution *cannot* tell you what happened.
+correlator exists precisely because a dispatched create's own execution cannot establish whether the provider produced a resource.
 
-*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): the execution-only argument above applies after step 8 may have committed. `OPS-15` now says "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only." The column is not a marker; only its null, read by that restart pass before any step-9 mutation could have begun, settles anything. A set column leaves the create on the ordinary ambiguous path (`ADR-0042`).*
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): `OPS-15` says "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only." The column is not a marker. Its null is read only by that restart exception; a set column takes the ordinary restart path (`ADR-0042`).*
+
+*Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): the scope above also points at the create row for a worker-recorded failure; that classification reads neither the column nor a marker, even after step 8 commits.*
 
 **The engine MUST persist a write-started marker on the operation**, at the moment a phase begins
 that could have altered the machine, and before that phase runs:
@@ -1697,6 +1703,12 @@ instead of implying otherwise. *This sentence named `OPS-45`'s markers beside th
 **OPS-21** `execute` MUST be cancellable, and cancellation MUST be treated as an
 ambiguous outcome. A provider call abandoned mid-flight is exactly the uncertainty this
 design exists to represent.
+
+For a create, a cancellation of `execute` recorded before step 9 is the exception, under the
+create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
+This does not classify a retry-loop exit: `OPS-49` says "A worker cancelled during the retry loop stops retrying and exits". Its store-error exit also classifies nothing: `OPS-49` says "The engine exits and the startup pass classifies it".
+
+*Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed the recorded cancellation at the create row; the retry-loop exits remain exits without worker classification.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do

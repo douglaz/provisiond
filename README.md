@@ -111,6 +111,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0040` | A lost auction order is resolved by its fingerprint, and a temporary key outlives an unsettled operation |
 | `0041` | Robot rescue host keys are pinned from the last-rescue record after boot |
 | `0042` | A create interrupted before step 8 ordered nothing, and settles `failed` on a restart. Amends `0016` |
+| `0043` | A create failure recorded before step 9 settles `failed` by worker position, preserving its kind and releasing the commitment; step-9 failures retain their classification |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
