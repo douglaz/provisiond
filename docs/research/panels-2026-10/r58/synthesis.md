@@ -441,13 +441,193 @@ Folded in from r58b:
   `details.reason`, neither its value nor its absence".
 - pv-f7a closes with pv-tst's change.
 
+## Panel r58c: a stop during `OPS-49`'s retry loop inside `execute`, 2026-10-18
+
+The pv-tst review found this at `fcbd8f4` (branch `pv-tst-triage`). The readers were fable (`fable`,
+xhigh), opus (claude-opus-5-5, xhigh), astra (gpt-6-astra, high) and sol (gpt-6.1-sol, xhigh), each in its
+own clone at `fcbd8f4`. All four exited 0, with answers of 2.5-3.7 KB. The brief is `r58c/brief.md` and the
+answers sit beside it. Every quote below was checked against `fcbd8f4`. The plant patches and logs that
+astra and sol link stay under `/var/tmp` and are not committed.
+
+### The story
+
+A create is in `execute` at `OPS-43`'s step 8 (03:739-756). Its transaction hits a store error, so the
+worker repeats it under `OPS-49`'s whole-transaction loop. The first attempt committed, setting
+`about_to_order_at`, but its reply was lost. A deploy then stops the engine, which survives the stop.
+
+- **X (exit).** The worker stops retrying and exits. On restart `OPS-15` finds the row `running` with the
+  column set and parks it in `needs_reconciliation`.
+- **Y (record).** The worker abandons the loop and makes the shielded record write within the Stop-record
+  bound. The record is a cut-off `conflict` before step 9, so the create settles `failed` and is released
+  at once.
+
+The texts:
+- `OPS-21` (03:1708-1710): "A cancellation of `execute` that the engine survives MUST be recorded before
+  the engine exits, for every operation kind, subject to the bounded abandonment and later-stop exits
+  below."
+- `OPS-49`'s bullet (03:1806-1808): "A worker cancelled during the retry loop stops retrying and exits. This
+  means a stop arriving during the loop — for a stop's record, a later stop — rather than the cancellation
+  being recorded."
+- `CNF-361` (10:1506-1508): "at step 8 outside `OPS-49`'s retry loop, where "A worker cancelled during the
+  retry loop stops retrying and exits" and classifies nothing."
+
+### Tally
+
+| Question | fable | opus | astra | sol | Tally |
+|---|---|---|---|---|---|
+| Can two conforming engines differ today? | yes, "by contradiction rather than silence" | yes | the text "conflicts rather than cleanly authorizing two conforming engines" | **no**: X is "the specific, preserved exception", and only `OPS-21`'s scope wording is wrong | 2 yes, 1 conflict, 1 no |
+| **X or Y** | **Y** | **Y** | **X** | **X** | **2-2** |
+| What settles it | decision 1 | decision 1 | decision 2, plus the agent brief | decision 2, plus the agent brief and `CNF-361` | split as the pick |
+| A store call already in flight may finish | yes | yes | yes | yes | **4-0** |
+| After the stop, nothing that write precedes runs (no step 9) | yes | yes | yes | yes | **4-0** |
+| A stop during the first attempt takes the record path | yes | yes | yes, "even if that attempt later errors" | yes | **4-0** |
+| Install: same rule; the outcome can differ | yes | yes | yes | yes | **4-0** |
+| A wrong edit passes every gate (tested) | yes | yes | yes | yes | **4-0** |
+
+Every 2-2 split is fable and opus against astra and sol, the same pairing as r58 and r58b.
+
+What would change each reader's mind is the same question for all four: does owner decision 2 reach loops
+inside `execute`?
+- fable: "the owner stating decision 2 meant in-`execute` loops too", or evidence that "stores routinely
+  blip during deploy stops".
+- opus: "the owner saying "stay as settled" covers the loops inside `execute`".
+- astra: "An explicit owner clarification that A supersedes the preserved execution-loop exit".
+- sol: "An explicit owner clarification excluding these preparation loops from the preserved exits".
+
+astra and sol's X is narrow. Both send a stop during the first attempt to the record path. astra: "A stop
+during the first attempt of a write inside `execute` MUST take the recording path even if that attempt later
+errors". So under their X the order of two events decides the outcome. A stop followed by a store error
+records the outcome. A store error followed by a stop exits and parks the row.
+
+### Claims of mine the readers broke
+
+- **"Owner decision 2 points to exiting"** (the brief's framing and the manager's current state). fable and
+  opus broke it, and both points check out.
+  - In "Owner decision 2" above, "`OPS-49`'s retry loop and its exits stay as settled" is nested under the
+    stop-record limit's bullet, after "On expiry the engine exits and `OPS-15` classifies the row".
+  - r58b's brief put only the record write's own loop to the readers: "Suppose a worker is already
+    cancelled and its settle write then errors" (r58b/brief.md:39-40). No panel or owner question has
+    covered a loop inside `execute`.
+  - astra and sol read the phrase as reaching every `OPS-49` loop.
+  - The pv-tst rloop Run cited the phrase for a third scope, the settle write after `execute` returns. Its
+    task says "a worker already in an ordinary settle write's `OPS-49` loop when the stop lands exits
+    without a record". That window is pv-zbp's.
+- **"`CNF-361`'s step-8 clause sides with exiting"** still holds as text, but it is pv-qga's wording from
+  before decision A. fable found the clause at `ee81952` and opus at `c8b7cbc`; both are right
+  (verified). opus adds pv-qga's `OPS-21` note, "the retry-loop exits remain exits without worker
+  classification" (03:1754), as a third text from before A.
+- **"The same split applies to an `OPS-45` marker write"**: broken 4-0, in part. The stop rule is the same.
+  But a marker write that committed with its reply lost parks the install under Y as under X. The install
+  row reads the markers (03:231), and `OPS-45` says "nothing clears them" (03:1468).
+- **Sources.** astra and sol lean on "Do not otherwise change the loop or its exits". That is the agent
+  brief's item 2, which the manager wrote; the owner did not.
+
+### Reader claims checked
+
+- opus: "No text today forbids starting step 9 after the stop." A grep found no such sentence. `OPS-43`
+  says "Step 9 MUST begin only after step 8's transaction is acknowledged" (03:755). `OPS-21` says
+  "`execute` MUST be cancellable" (03:1708). Neither sentence covers a stop that arrives during step 8
+  when the transaction then lands. All four readers' edits close this, so it is owed under X and Y alike.
+- opus: `CNF-361` and `CNF-362` both run "with a working store" (10:1510, 10:1539-1540), so no conformance item
+  separates X from Y. Verified.
+- opus: a lost reply leaves the worker not knowing what the markers hold, and "An abort needs no store
+  error, so X has this gap too". opus's fix: "Where the kind's row reads `OPS-45`'s markers, the record
+  classifies against the markers its own transaction reads." Even astra and sol record a stop during a
+  first attempt, so this is owed under X as well.
+- opus: "Rescue-based installs park either way, because a rescue session is open." This holds for the
+  write-started marker's write. `rescue_exited_cleanly` is "false, written before begin rescue (`PRV-15`)
+  is dispatched" and stands "while the session is open" (03:1421-1423). It does not hold for the rescue
+  marker's own write, which comes before begin rescue.
+- fable: the create row reads no column. It says "It is the worker's position: this rule MUST NOT read
+  `about_to_order_at`" and has "no `about_to_order_at IS NULL` term" (03:232). Verified. Under Y a create
+  therefore settles `failed` whether or not the attempt committed.
+- fable: let the attempt finish, since `OPS-49` says "the server decides every statement's fate before the
+  client does" (03:1788). Verified.
+- Lean, all four: `StopRecord.Event` is `store | serialization | laterStop` (StopRecord.lean:28-31), and
+  `trace` takes a `Record` already chosen (StopRecord.lean:105). Nothing models a loop before the record.
+  Verified.
+
+### Planted edits (all exit 0)
+
+- **fable**: a wrong Y, "the worker finishes that repeat under the Store-retry bound and then makes the
+  record". All gates pass. fable's own Y edit passes as well.
+- **opus**: an unscoped `OPS-49` sentence, "a stop arriving during any `OPS-49` loop is recorded under
+  `OPS-21`", with `CNF-361` left untouched. All seven gates pass. This edit would also rule on pv-zbp's
+  window.
+- **astra**: `CNF-361` changed to require recording inside step 8's loop. Pass.
+- **sol**: an `OPS-21` sentence requiring Y. Pass.
+
+Net: on today's gates, 4-0, no gate tells X from Y, or a scoped edit from an unscoped one. Only a `CNF`
+case can.
+
+### The minimal edits proposed
+
+- **Y** (fable, opus):
+  - `OPS-21` gains a sentence. opus: "A stop arriving while a write inside `execute` (`OPS-43`'s step 8, an
+    `OPS-45` marker write) is in flight or repeating under `OPS-49` is the cancellation being recorded." Then
+    "The worker MUST NOT repeat that write or start anything it precedes, and makes the record; an attempt
+    already sent MAY finish."
+  - `OPS-49`'s gloss gains a pointer back to it.
+  - `CNF-361`'s carve-out becomes a case inside the loop, after a first attempt that committed with its
+    reply lost.
+  - opus adds the marker sentence above, plus a `CNF-362` case: a `provider_native` install stopped while
+    its marker write repeats.
+- **X** (astra, sol):
+  - `OPS-21`'s "subject to" list names `OPS-49`'s exit. sol: "This recording duty is subject also to
+    `OPS-49`'s 'A worker cancelled during the retry loop stops retrying and exits', including a loop
+    already running inside `execute` when the stop arrives."
+  - astra scopes that exit to "when a store error has already started that write's retry loop before the
+    stop".
+  - Both add the first-attempt rule: the attempt may finish, nothing further in `execute` runs, and the
+    worker records.
+  - `CNF-361` and `CNF-362` exercise both boundaries.
+
+### Strongest case for the other option (written on request, not the readers' positions)
+
+- For X:
+  - fable: "it is the one settled exit for every `OPS-49` loop since `ADR-0022`, `CNF-361` encoded it under
+    review, and Y spends up to the Stop-record bound against a store already known to be failing, usually
+    ending in the same `OPS-15` park."
+  - opus: "A failing store will probably fail the record too. Y can stretch shutdown by up to the bound
+    and needs a new rule for reading the markers."
+- For Y:
+  - astra: "the owner's "Any stop the engine survives MUST record the outcome before the engine exits." No
+    order was invoked; a transient store error should not freeze that purchase."
+  - sol: "The worker still knows no order was dispatched; a prior store error should not determine
+    release timing."
+
+### Manager's recommendation
+
+**Y** (siding with fable and opus). This is a pick between the readers' two shapes, not a merged third one.
+The tie turns on one question of intent: whether decision 2 reaches loops inside `execute`. If it does not,
+decision 1 is the only owner text that speaks, and it says record.
+- As recorded, decision 2's phrase sits under the stop-record limit's expiry. The only loop ever put to a
+  reader or to the owner was the record's own.
+- X makes the outcome depend on which event came first. Even astra and sol record a stop that comes before
+  the store error.
+- Y costs at most the Stop-record bound of shutdown time, which the owner already chose and the supervisor
+  already waits out. If the store stays down for the whole bound, Y ends where X does.
+- What X keeps is less text change: `OPS-49`'s bullet and `CNF-361`'s carve-out stand as they are.
+
+Owed under either pick:
+- the first-attempt rule (finish, then record, nothing it precedes runs; 4-0);
+- opus's marker-reading sentence;
+- `CNF-361`/`CNF-362` cases for the chosen side.
+
+### Owner decision 4
+
+Pending: X or Y (asked 2026-10-18).
+
 ## Queued for the owner
 
 1. ~~A, B or C (asked 2026-10-18).~~ Answered: A (above).
 2. ~~A's size.~~ Answered: the larger shape (owner decision 2, above).
 3. ~~pv-f7a's reason value.~~ Answered: `cut_off` (owner decision 3, above).
+4. X or Y for a stop during `OPS-49`'s retry loop inside `execute` (panel r58c, asked 2026-10-18). It lands
+   on `OPS-21`, the `OPS-49` bullet "A worker cancelled during the retry loop stops retrying and exits",
+   and `CNF-361`'s step-8 clause.
 
-Nothing is queued. pv-tst's agent brief is the bead's third comment.
+pv-tst's agent brief is the bead's third comment.
 
 ## Next steps for a fresh manager
 
@@ -463,5 +643,17 @@ Nothing is queued. pv-tst's agent brief is the bead's third comment.
     - the Lean model and the `ci.yml` controls (owner decision 2);
     - the ADR home: a new ADR (3-1 in r58), pointers from `ADR-0022` and `ADR-0043`, and the README index.
   - Set pv-tst `bug` + `ready-for-agent`. pv-f7a now depends on pv-tst and is closed by the same change.
-- Next: implement pv-tst through an rloop Run, then `/code-review`, then a PR.
+- Done 2026-10-18: the pv-tst rloop Run (3d3e83f, 496fde0, 40a3002, 7097d60) and the review commits
+  (2a2769c, fcbd8f4). The review found the X/Y conflict that r58c took.
+- Next, once the owner answers item 4, a single commit holds:
+  - the ruling, on `OPS-21`, the `OPS-49` bullet and `CNF-361` (and `CNF-362`);
+  - the 4-0 first-attempt rule (the attempt may finish, then the worker records and nothing it precedes
+    runs);
+  - opus's marker-reading sentence;
+  - the known record-write wording fix. `OPS-21`'s rename of "settle write" to "record write" collides with
+    the shielding sentence's "The record write", and `CNF-362`'s "on every record write" wrongly takes in
+    the parent.
+  - The edit must not decide pv-zbp's window after `execute` returns. opus's unscoped plant did, and
+    fable's "a write made after `execute` returned" comes close.
+  - Then the PR.
 - pv-9j6 is triaged separately.
