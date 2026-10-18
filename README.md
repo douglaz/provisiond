@@ -112,6 +112,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0041` | Robot rescue host keys are pinned from the last-rescue record after boot |
 | `0042` | A create interrupted before step 8 ordered nothing, and settles `failed` on a restart. Amends `0016` |
 | `0043` | A create failure recorded before step 9 settles `failed` by worker position |
+| `0044` | A cancellation of `execute` the engine survives records within the Stop-record bound, shielded from its own stop; the parent defers and the reason is `cut_off` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:

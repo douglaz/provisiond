@@ -338,7 +338,7 @@ jobs:
           echo "lake build correctly failed on already_deleted_witness"
 
       # ADR-0035: disable one amendment guard at a time. Require a refuted
-      # witness, never a syntax error. One in-repository copy serves both rows.
+      # witness, never a syntax error. One in-repository copy serves the rows.
       - name: Prove accepted failures and in-progress orders survive only with their guards
         if: matrix.shard == 0
         run: |
@@ -366,6 +366,12 @@ jobs:
                    'in_progress_order_witness'),
                   ('Tables', 'preStep9Rule := true', 'preStep9Rule := false',
                    'before_step9_failure_witness'),
+                  ('StopRecord', 'recordOnStop := true', 'recordOnStop := false',
+                   'stop_recorded_witness'),
+                  ('StopRecord', 'shieldRecord := true', 'shieldRecord := false',
+                   'stop_shielded_witness'),
+                  ('StopRecord', 'boundRecord := true', 'boundRecord := false',
+                   'stop_bounded_witness'),
               ]:
                   path = formal / f'Provisiond/{module}.lean'
                   original = path.read_bytes()

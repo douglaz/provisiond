@@ -1678,7 +1678,9 @@ loop:
     if claim refused by the per-machine index:    # STO-51: another running op holds the machine
         defer(op, delay); continue                # OPS-8: never left queued, number unchanged
 
-    outcome = execute(op)                         # OPS-21: cancellable
+    outcome = execute(op)                         # OPS-21: a stop the engine survives records
+                                                  #   a cut-off conflict within the Stop-record
+                                                  #   bound (parent: defer)
     # a phase RSC-41 names runs with yielded_at set; clearing it is a conditional
     # write the index may refuse, in which case defer(op, mine, delay)   (OPS-8)
     # every store write below is retried as a whole transaction under OPS-49
@@ -1703,15 +1705,54 @@ says "where two engines run, nothing here refuses the second, and both will work
 instead of implying otherwise. *This sentence named `OPS-45`'s markers beside the fence until
 2026-09-12; they are `operations` columns and are guarded like any worker write.*
 
-**OPS-21** `execute` MUST be cancellable, and cancellation MUST be treated as an
-ambiguous outcome, except for the create case below. A provider call abandoned mid-flight is exactly the uncertainty this
-design exists to represent.
+**OPS-21** `execute` MUST be cancellable. A cancellation of `execute` that the engine
+survives MUST be recorded before the engine exits, for every operation kind, subject to the
+bounded abandonment and later-stop exits below. “Survives” means the process outlives the stop.
+A kill or crash records nothing; restart recovery remains with `OPS-15`.
+The record MUST land within the Stop-record bound (`OVR-19`), before the engine exits.
 
+The worker classifies a recorded cancellation under `OPS-11` and makes its guarded settle write
+(`OPS-22`), except for the parent's defer below. The recorded error is a cut-off `conflict`
+with `details.reason: "cut_off"` (`WIR-9a`), for every kind whose record is a settle write,
+whether the row settles `failed` or enters `needs_reconciliation`.
 For a create, a cancellation of `execute` recorded before step 9 is the exception, under the
 create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
-This does not classify a retry-loop exit: `OPS-49` says "A worker cancelled during the retry loop stops retrying and exits". Its store-error exit also classifies nothing: `OPS-49` says "on exhaustion the outcome in hand is thrown away and `OPS-15` classifies the row as interrupted".
+The other classification pointers are `OPS-11`'s install row, "while `OPS-45`'s two markers say
+the disk is untouched and no rescue session was left open", rescue inventory's "Same rows as
+`install`", and refresh's "Always `failed`". The kind's row owns the outcome, including where
+it reads ambiguity.
+
+The record write MUST NOT be cancelled by the cancellation that stopped `execute`.
+Store errors in that write use `OPS-49`'s whole-transaction loop, "the component MUST repeat the
+**whole transaction**". A later stop during that loop is still an exit without worker
+classification: `OPS-49` says "A worker cancelled during the retry loop stops retrying and exits".
+Its store-error exit also classifies nothing: `OPS-49` says "on exhaustion the outcome in hand is
+thrown away and `OPS-15` classifies the row as interrupted".
+
+The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets.
+This includes the repeats of which `OPS-49` says "do not consume the bound"; that bound is the
+Store-retry bound, independent of this one. The Stop-record bound runs until the record lands
+and covers connection, execution, commit, read-back and backoff together. On expiry the worker
+MUST abandon the record, and the engine MUST log loudly, naming every operation whose record
+it did not see land, and exit. For the lost-reply case see `OPS-49`: "unless the bound's last
+repeat committed and its reply was lost"; restart recovery classifies whatever is still
+`running` under `OPS-15`. There is no ordering constraint between the Stop-record bound and the
+Store-retry bound: whichever ends first ends the record, with the latter's exhaustion exit
+unchanged. The deployment's supervisor MUST wait at least the Stop-record bound after a stop
+before it kills the engine. A kill before the record lands is a crash; restart recovery remains
+with `OPS-15` and its exceptions.
+
+A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out.
+This is the write `OPS-49` gives a waiting parent, "returned to `queued` with `available_at`
+advanced — the same write as `OPS-8`'s defer, though nothing refused it", carrying `STO-3`'s
+ordinary defer guard and subject to the same Stop-record bound. It records no error.
+Its next claim continues as `OPS-15`'s re-queued parent does, "resuming its fan-out from wherever
+it stopped"; that re-sweep "is idempotent by `OPS-39`'s dedup" (`OPS-15`), so it enqueues no
+child twice.
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed the recorded cancellation at the create row; the retry-loop exits remain exits without worker classification.*
+
+*Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required a bounded, shielded record of a survived stop and a parent defer; assigned the cut-off reason.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do
@@ -1761,8 +1802,12 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
   only way the engine learns what it claimed; a claim repeated after a lost reply strands a
   `running` row with no worker, which `OPS-15` says "nothing but a restart can" do. The engine
   exits and the startup pass classifies it.
-- **A worker cancelled during the retry loop stops retrying and exits.** `OPS-15` gives the same
-  answer either way once the process is gone.
+- **A worker cancelled during the retry loop stops retrying and exits.** This means a stop
+  arriving during the loop — for a stop's record, a later stop — rather than the cancellation
+  being recorded. `OPS-21` says "The record write MUST NOT be cancelled by the cancellation that stopped `execute`."
+  A later stop during the loop and exhaustion both leave restart recovery to `OPS-15`, whose
+  ordinary rule is "the engine MUST move every `running` operation to `needs_reconciliation`",
+  subject to its exceptions and the lost-reply case above.
 - **A suspension parent waiting on its children is deferred, not held** (*this bullet is `F51`'s,
   not `ADR-0022`'s*). A `suspend_tenant` parent (`API-58`) whose children are still queued MUST be
   returned to `queued` with `available_at` advanced — the same write as `OPS-8`'s defer, though
@@ -1770,6 +1815,8 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
   would leave no worker for the children they wait on. Its state while waiting is `queued`, which
   is why `STO-54`'s restore rule holds a `queued` parent for confirmation as well as a `running`
   one.
+
+*Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): distinguished a later stop during the loop from the stop being recorded.*
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

@@ -2,6 +2,7 @@ import Provisiond.Meter
 import Provisiond.Runway
 import Provisiond.Claim
 import Provisiond.Tables
+import Provisiond.StopRecord
 import Provisiond.Migration
 import Provisiond.Fence
 import Provisiond.Restore
@@ -2964,6 +2965,46 @@ theorem anniversary_moves_the_boundary :
   decide +kernel
 
 end Period
+
+/-! ## Recording a stop -/
+
+/-- A create after step 8 was acknowledged, before step 9: full release is abstracted to the
+transaction's posting of 100. With recording removed, the running row and ledger are untouched. -/
+@[req "OPS-21"]
+theorem stop_recorded_witness :
+    let s : Store := ⟨⟨.running, ⟨1⟩, 0, 0, none⟩, 0⟩
+    let r := StopRecord.record ⟨true, true, true, true⟩ .createMachine
+      ⟨.conflict, true, .unrecorded, false, false, true⟩ ⟨false, true⟩ ⟨1⟩ 7 [100]
+    let out := StopRecord.trace { StopRecord.current with shieldRecord := true, boundRecord := true }
+      ⟨true, true⟩ s r 1 1 [.store (.committed true) false]
+    out.recorded = true ∧ out.store.row.status = .failed ∧ out.store.ledger = 100 ∧
+    StopRecord.trace ⟨false, true, true⟩ ⟨true, true⟩ s r 1 1 [.store (.committed true) false] =
+      ⟨s, false, 0⟩ := by decide
+
+/-- Redelivery of the originating stop reaches the first try. Shielding lets it commit;
+without shielding it exits without touching the running row. -/
+@[req "OPS-21"]
+theorem stop_shielded_witness :
+    let s : Store := ⟨⟨.running, ⟨1⟩, 0, 0, none⟩, 0⟩
+    let r := StopRecord.record ⟨true, true, true, true⟩ .refresh
+      ⟨.conflict, true, .unrecorded, false, false, false⟩ ⟨false, true⟩ ⟨1⟩ 7 []
+    let out := StopRecord.trace { StopRecord.current with recordOnStop := true, boundRecord := true }
+      ⟨true, true⟩ s r 1 1 [.store (.committed true) true]
+    out.recorded = true ∧ out.store.row.status = .failed ∧
+    StopRecord.trace ⟨true, false, true⟩ ⟨true, true⟩ s r 1 1 [.store (.committed true) true] =
+      ⟨s, false, 0⟩ := by decide
+
+/-- Serialization consumes the stop budget even though it does not consume the store budget.
+The committing suffix is reached only with the stop bound removed. -/
+@[req "OPS-21"]
+theorem stop_bounded_witness :
+    let s : Store := ⟨⟨.running, ⟨1⟩, 0, 0, none⟩, 0⟩
+    let r := StopRecord.record ⟨true, true, true, true⟩ .refresh
+      ⟨.conflict, true, .unrecorded, false, false, false⟩ ⟨false, true⟩ ⟨1⟩ 7 []
+    let events := [StopRecord.Event.serialization, .serialization, .store (.committed true) false]
+    StopRecord.trace { StopRecord.current with recordOnStop := true, shieldRecord := true }
+      ⟨true, true⟩ s r 2 1 events = ⟨s, false, 2⟩ ∧
+    (StopRecord.trace ⟨true, true, false⟩ ⟨true, true⟩ s r 2 1 events).recorded = true := by decide
 
 /-! ## The closed tables -/
 

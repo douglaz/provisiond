@@ -356,7 +356,7 @@ marked human are procedures the deployment records rather than values the proces
 *Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
 2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
 activation funding minimum is registered. Amended 2026-10-12 (`ADR-0037`, Q28):
-refresh freshness has a two-sweep minimum.*
+refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the stop-record duration.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -399,6 +399,7 @@ refresh freshness has a two-sweep minimum.*
 | Startup-lock wait bound | `OPS-47` | duration | yes |
 | Startup-lock connection keepalives | `OPS-47` | durations | yes |
 | Store-retry bound | `OPS-49` | duration | yes |
+| Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets." The supervisor's stop wait is at least this | yes |
 | Recovery point | `STO-54` | greatest age of a committed write not yet in a separate failure domain | no — outside the process |
 | Recovery-point alarm threshold | `STO-54` | duration | yes |
 | Synchronous standby name | `STO-7`, `STO-54` | identifier | yes |

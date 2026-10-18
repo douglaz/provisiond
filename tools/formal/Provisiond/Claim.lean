@@ -17,7 +17,8 @@ execution; `pv-vwe.5`), `API-58`'s fan-out transition (`pv-vwe.6`), `OPS-11`'s c
 provider outcome into the state the worker writes (`Provisiond.Tables`), what reads
 `available_at`,
 the error classes `OPS-49` says "are not store errors and do not consume the bound" (a
-`StoreOutcome.refused` here is always a store error in that sense), the bound on repeating a
+`StoreOutcome.refused` here is always a store error in that sense;
+`Provisiond.StopRecord` composes serialization repeats for a stop's record), the bound on repeating a
 refused claim (`engineClaim` claims again from `idle` without counting), and a second engine.
 `OPS-47`'s single engine is assumed throughout, as `OPS-6` says the number "is not a fence against
 a second engine". -/

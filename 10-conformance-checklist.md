@@ -1506,16 +1506,18 @@ rather than acquiring a default.
       at step 4's List offers read. Also cancel `execute` at each of steps 1-8 on each channel,
       at step 8 outside `OPS-49`'s retry loop, where "A worker cancelled during the retry loop
       stops retrying and exits" and classifies nothing. `OPS-21` says "a cancellation of
-      `execute` recorded before step 9 is the exception", so the cancellation cases cover only a
-      cancellation the worker records; assert nothing about one it does not. For every
+      `execute` recorded before step 9 is the exception"; exercise each cancellation with the
+      engine surviving the stop and a working store, and assert its record lands before exit. For every
       case assert `failed`, the reported error kind,
       `retryable: true` on both the error and the operation view, full commitment release with
       no setup-fee or first-unit debit, the resource-offer exclusion freed where the create holds one,
       no step-9 request (no per-order key upload and no order), and no `OPS-27` search. The List offers read is
       permitted (`PRV-50`: "The driver's List offers MUST be read-only"). For each cancellation
       the error kind is `conflict` with `retryable: true` on error and view; every other assertion
-      in this item still applies. Make no assertion about `details.reason`, neither its value
-      nor its absence.
+      in this item still applies. Assert `details.reason: "cut_off"` for every cancellation case.
+      Stop after step 8 is acknowledged and before step 9: assert one guarded settle write
+      before exit, `failed` with the column set, full commitment release, no fee or unit debit,
+      and no `OPS-27` search.
       **Controls:** the same timeout on the order request still enters `needs_reconciliation`;
       an ambiguous key-upload failure still enters `needs_reconciliation`. For each of a null-column
       snapshot taken before step 9 and a stale or cached null `about_to_order_at` read made after
@@ -1528,8 +1530,48 @@ rather than acquiring a default.
       column set, full release, no fee or unit debit, the resource-offer exclusion freed where the
       create holds one, no step-9 request and no correlator search. Exercise the ordinary worker guard without a null-column term and
       atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
-      `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`)
+      `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`, `OPS-22`, `WIR-9a`)
       *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls. The cancellation cases cover only a recorded cancellation; whether one must be recorded is `pv-tst`'s.*
+      *Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required survived-stop recording, its reason and the acknowledged-step-8 case.*
+
+- [ ] **CNF-362** — **A cancellation of `execute` the engine survives gets a bounded record.**
+      `OPS-21` says "The record MUST land within the Stop-record bound (`OVR-19`), before the engine exits."
+      For each operation kind, stop the engine while its worker is in `execute`, with a working
+      store. Assert the cut-off `conflict`'s classification against the kind's row (`OPS-11`),
+      with `details.reason: "cut_off"` on every settle write: a create before step 9, and an
+      install or rescue inventory before the write-started marker with no rescue session open,
+      settle `failed`; refresh settles `failed`; an install past the marker enters
+      `needs_reconciliation`; power, reverse DNS, delete and release attachment stopped during
+      their provider call after dispatch enter `needs_reconciliation`.
+      Assert the create before step 9 carries `retryable: true` on error and view, and each
+      `needs_reconciliation` case carries `retryable: false` (`API-51`: "An operation in
+      `needs_reconciliation` MUST be delivered with `retryable: false`"). Assert no retryability
+      value for the other cases. For each stopped operation no `running` row remains while the
+      process lives, and the engine exits only after the record lands.
+      `OPS-21` says "A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out."
+      Stop that parent at successive fan-out positions and assert the guarded defer; its next
+      claim resumes and enqueues no child twice.
+      **Shielding:** `OPS-21` says "The record write MUST NOT be cancelled by the cancellation that stopped `execute`."
+      Deliver the original stop's cancellation to the record write's first try and assert it
+      still lands.
+      **Bound:** `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets."
+      With every try refused, and separately with every try a serialization failure, assert
+      exit within that bound measured from the stop. Assert the row stays `running` and is
+      named in the loud log; after restart compare its classification with `OPS-15`, including
+      its exceptions. Alternate serialization failures and store errors and assert exit within
+      the same bound from the stop, with no reset. Exercise either ordering of the Stop-record
+      and Store-retry bounds. A later stop during the record's whole-transaction loop exits at
+      once. Also commit a try but lose its reply before exhaustion: assert the row is already
+      written and money posted once, and restart finds no `running` row to classify.
+      **Validation:** startup refuses a missing, zero, negative or non-finite Stop-record bound;
+      verify the supervisor allows at least that duration after the stop.
+      **Control:** a kill at the same instant writes nothing; a create with `about_to_order_at`
+      set enters `needs_reconciliation` on restart. Make no assertions about power, reverse DNS,
+      delete or release attachment stopped before dispatch (`pv-9j6`).
+      (`OPS-21`, `OPS-11`, `OPS-49`, `OVR-19`, `WIR-9a`, `WIR-9b`, `OPS-15`, `OPS-22`,
+      `STO-3`, `OPS-8`, `OPS-39`, `OPS-6`, `OPS-43`, `OPS-45`, `API-51`, `API-58`)
+      *Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): added stop recording, shielding, duration, parent, validation and crash controls.*
+
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
       reply before the client sees it, let the worker repeat the whole transaction under `OPS-49`,
