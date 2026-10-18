@@ -191,7 +191,7 @@ not optional hardening — they are the only structural defence there is.
       mutation. **Amended 2026-10-08 (`ADR-0035`):** a create rejected by a provider 4xx
       before acceptance is `failed`; after acceptance a provider 4xx failure is
       `needs_reconciliation`. The former blanket 4xx assertion required the defect.
-      A create failing with a provider 5xx, a network error, or a timeout is
+      A create failure recorded after step 9 begins with a provider 5xx, a network error, or a timeout is
       `needs_reconciliation`, including without known acceptance; every install
       failure that is not a deterministic caller error **and that `OPS-45`'s markers do not clear**
       is `needs_reconciliation`. Getting these
@@ -204,13 +204,14 @@ not optional hardening — they are the only structural defence there is.
       is never `needs_reconciliation`. *Scoped 2026-09-14: unscoped, the first assertion read
       wider than the row it tests, which sends a deterministic caller error to `failed` past the
       marker.*
+      *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): scoped the create transport and 5xx cases to step 9 onward.*
 - [ ] **CNF-31b** — The remaining rows of `OPS-11`, for exhaustiveness — including that the table
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
-      kind, with no implicit default. **Amended 2026-10-08 (`ADR-0035`):** vary known acceptance
+      kind, with no implicit default; exercise the create row on both sides of its step-9 boundary. **Amended 2026-10-08 (`ADR-0035`):** vary known acceptance
       across both Boolean values for driver errors, and exercise unknown acceptance as null with
-      the mutating request's own mapped failure kind (`CNF-322`). On `OPS-11`'s last row, which says
-      "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`", assert that a
-      pre-send `network` failure yields `needs_reconciliation` despite `details.accepted: false`;
+      the mutating request's own mapped failure kind (`CNF-322`). On the create row after step 9 begins and on the last row, `OPS-11` says
+      "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`"; assert that a
+      pre-send `network` failure (for create, from a step-9 call) yields `needs_reconciliation` despite `details.accepted: false`;
       null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
       with acceptance false. At admission, a local `PRV-40` closure is a pre-provider refusal
       with no operation to classify; at claim it settles the queued operation `failed`
@@ -219,6 +220,7 @@ not optional hardening — they are the only structural defence there is.
       and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph).
       *Amended 2026-10-09 (`ADR-0036`): local closure is a refusal occurrence without an operation.*
       *Amended 2026-10-14 (`ADR-0037`, Q31).*
+      *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): covered the create boundary and retained step-9 pre-send ambiguity.*
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
@@ -1461,8 +1463,8 @@ rather than acquiring a default.
       transaction is in flight before commit. Read the stored record and assert
       `about_to_order_at` is null at each kill. Restart: assert `failed`, a restart-naming
       `internal` error, `retryable: true` on both error and operation view, commitment closed and
-      released in full, no setup-fee or first-unit debit, and the resource-offer exclusion freed.
-      Assert no step-9 request reached the provider: no per-order key upload and no order;
+      released in full, no setup-fee or first-unit debit, and the resource-offer exclusion freed
+      where the create holds one. Assert no step-9 request reached the provider: no per-order key upload and no order;
       the List offers read is permitted. Repeat with an injected recorded error carrying
       `retryable: false`, written to the stored row before the restart, since `CNF-30` says "The
       startup pass does not overwrite an error already recorded": assert the error survives
@@ -1497,6 +1499,37 @@ rather than acquiring a default.
       and a release outside the guarded status transaction. (`OPS-43`, `OPS-49`, `STO-3`,
       `API-63`, `OPS-15`, `LDG-35`)
       *Added 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added lost-reply and atomicity checks; `ADR-0042`.*
+- [ ] **CNF-361** — **A recorded create failure before step 9 releases the purchase.**
+      `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
+      On both an auction channel and a standard channel (`correlator: none`), inject each of
+      `network`, `timeout`, `internal`, `provider` with a 5xx and `provider` without a status
+      at step 4's List offers read. Also cancel `execute` at each of steps 1-8 on each channel,
+      at step 8 outside `OPS-49`'s retry loop, where "A worker cancelled during the retry loop
+      stops retrying and exits" and classifies nothing. `OPS-21` says "a cancellation of
+      `execute` recorded before step 9 is the exception", so the cancellation cases cover only a
+      cancellation the worker records; assert nothing about one it does not. For every
+      case assert `failed`, the reported error kind,
+      `retryable: true` on both the error and the operation view, full commitment release with
+      no setup-fee or first-unit debit, the resource-offer exclusion freed where the create holds one,
+      no step-9 request (no per-order key upload and no order), and no `OPS-27` search. The List offers read is
+      permitted (`PRV-50`: "The driver's List offers MUST be read-only"). For each cancellation
+      the error kind is `conflict` with `retryable: true` on error and view; every other assertion
+      in this item still applies. Make no assertion about `details.reason`, neither its value
+      nor its absence.
+      **Controls:** the same timeout on the order request still enters `needs_reconciliation`;
+      an ambiguous key-upload failure still enters `needs_reconciliation`. For each of a null-column
+      snapshot taken before step 9 and a stale or cached null `about_to_order_at` read made after
+      step 9 begins, record a timeout after step 9 begins and assert `needs_reconciliation`:
+      neither null authorises `failed`. After step 8 is acknowledged but before step 9, record
+      a failure and assert `failed` with the column set; a restart in that same window instead
+      enters `needs_reconciliation`. Finally commit step 8 and lose its reply, then commit an
+      account-status write recording `terminated` before the whole-transaction repeat. Assert
+      that the repeat's `STO-47` check affects no row and the create settles `failed` with the
+      column set, full release, no fee or unit debit, the resource-offer exclusion freed where the
+      create holds one, no step-9 request and no correlator search. Exercise the ordinary worker guard without a null-column term and
+      atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
+      `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`)
+      *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls. The cancellation cases cover only a recorded cancellation; whether one must be recorded is `pv-tst`'s.*
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
       reply before the client sees it, let the worker repeat the whole transaction under `OPS-49`,
@@ -1878,12 +1911,14 @@ rather than acquiring a default.
       server. **A driver defaulting to "real purchase" turns every mistaken conformance run into a
       bought server.** (`PRV-34`, `API-15`, `PRV-10`)
 - [ ] **CNF-181** — On a channel with no verified correlator — Robot's **standard** channel — an
-      ambiguous create ends in `needs_reconciliation` awaiting an operator, the recent-order
+      ambiguous create failure recorded after step 9 begins ends in `needs_reconciliation`
+      awaiting an operator, the recent-order
       listing is surfaced as evidence, and **no automatic attach occurs on any hostname or timing
       similarity**. The negative window still releases the commitment in full. **And the same
       create on the auction channel of the same account resolves automatically through
       `CNF-180`'s path** — correlation is per channel, and a build that switches it on or off
       provider-wide fails one half (2026-09-05). (`PRV-33`, `OPS-29`, `OPS-33`, `PRV-32`)
+      *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): scoped the ambiguous create to step 9 onward.*
 - [ ] **CNF-214** — A machine and one of its billable attachments, both metered in the same period,
       carry **separate** `meter_totals` rows: charging the attachment does not move the machine's
       rounding credit or high-water mark, and neither does the reverse. Asserted against the stored
@@ -3409,12 +3444,13 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       reports the mutating request's own failure, even if a later request also fails, never
       substituting the later kind or status, omitting the field, or reporting false. Accept a
       create's key upload, refuse the order, and assert false. Accept the order, then fail a
-      read, and assert true on that and every later error. Repeat for the non-create mutations
+      read, and assert true on that and every later error. Repeat for the mutations
       in `OPS-11`'s last row without requiring a correlator. Inject Robot's
       `403 RATE_LIMIT_EXCEEDED`: assert `rate_limited`, `details.status: 403`, and retained
       acceptance. Check upstream status retention and redaction on these errors. (`PRV-5`,
       `PRV-7`, `PRV-26`, `DOM-18`)
-- [ ] **CNF-323** — **A refused read does not erase an accepted mutation.** For every kind in
+      *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): updated the reference to the remaining last row.*
+- [ ] **CNF-323** — **A refused read does not erase an accepted mutation.** For create and every kind in
       `OPS-11`'s last row, accept the mutation, then inject each of `rate_limited`, `not_found`,
       `authentication`, and a provider 4xx on a read other than the accepted dated cancellation
       read-back and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph);
@@ -3423,14 +3459,15 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       and `retryable: false`. Separately supply the goal-state answer on a goal-state mutation and assert `succeeded`.
       Contrast rejection before acceptance, including the ancillary-key case in `CNF-322`,
       with transport failure and unknown acceptance under `PRV-5`'s mapped-cause rule:
-      deterministic rejection is `failed`, while a pre-send `network` failure remains ambiguous
+      deterministic rejection is `failed`, while a pre-send `network` failure (for create, from a step-9 call) remains ambiguous
       despite accepted false, and an unknown-acceptance `network`, `timeout`, `provider` 5xx or
-      unmapped `internal` failure remains ambiguous. Run the other classifier
+      unmapped `internal` failure remains ambiguous (for create, recorded after step 9 begins). Run the other classifier
       rows through `CNF-31a`/`CNF-31b` and retain the install-marker demonstrations.
       Timeout polling an accepted order: assert kind `timeout`, acceptance true, the transaction
       identifier retained and the message warning that the order may remain pending and must
       not be repeated. (`OPS-11`, `OPS-12`, `API-51`, `PRV-5`, `PRV-11`)
       *Amended 2026-10-14 (`ADR-0037`, Q31): scope the injected read to the classifier.*
+      *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): retained create acceptance coverage and scoped its transport cases to step 9 onward.*
 - [ ] **CNF-324** — **Accepted creates settle only on one verified resource.** After acceptance,
       exercise settle-time searches across every ordering channel with zero, one and many exact
       matches, a failed search, and a non-authoritative search. Only one resource confirmed by a

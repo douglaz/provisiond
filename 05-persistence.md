@@ -29,11 +29,13 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   precedes every money write in the transaction and short-circuits the rest** — after `LDG-35`'s
   primitive is taken where the settlement needs it, since that lock is the transaction's entry —
   so `OPS-27`'s multi-row settlement repeats as a unit or not at all.
+  This includes the create row's worker settlement (`OPS-11`: "MUST settle `failed`, whatever its kind"): take the `LDG-35` primitive, make this guarded status write, then release under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full"). It adds no `about_to_order_at IS NULL` term.
   A write that affects no row means something other than this execution moved the operation —
   the startup pass after a restart, or a later claim after a defer — and the worker exits
   (`OPS-22`). *Until 2026-09-12 the guard was `(id, status = running)` alone; the `epoch = mine`
   term that once sat beside it held by construction, because the claiming process stamped the
   value itself (`ADR-0019`). The claim number does not: a later claim rewrites it.*
+  *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): included the create settle write within this worker branch and its money order.*
 - **The defer** (`OPS-8`) — `running` back to `queued` with `available_at` advanced — is guarded
   on `(id, status = running, claim_number = mine)`. A write that affects no row means the operation
   was already deferred or already claimed again; the worker moves on and does not exit. *Added
@@ -842,7 +844,10 @@ the implementation:
   outcome is known") and the atomic competing-claim primitive (`STO-27`: "The primitive
   MUST reject a competing claim atomically even when both callers read the same older snapshot").
   Its lifetime follows the winning create's outcome settlement; an unresolved exclusion
-  has no independently invented expiry.
+  has no independently invented expiry. This releases the exclusion when the create row settles a
+  worker-recorded failure (`OPS-11`: "MUST settle `failed`, whatever its kind").
+
+*Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): included the create row's worker settlement in the exclusion lifetime.*
 
 **STO-28** Decrementing a commitment MUST be a conditional write on its `version` (`LDG-34`), and
 posting a `usage_debit` MUST happen in the same transaction as the decrement (`LDG-31`).

@@ -86,17 +86,20 @@ instance {p : Upstream → Prop} [DecidablePred p] : Decidable (∀ u, p u) :=
   decidableForallOfList [.status4xx, .status5xx, .unrecorded] (by intro u; cases u <;> decide) p
 
 /-- One failure as the classification reads it: the kind, and the facts `OPS-11`'s ambiguity list
-and goal-state rule turn on. `cutOff` is a `conflict` that "arose from the worker being cut off
+and goal-state rule turn on, plus the create boundary. `cutOff` is a `conflict` that "arose from the worker being cut off
 mid-flight (`OPS-21`)"; `goalStateHeld` is the driver's mapping of "a provider rejection whose
 meaning is 'already in the target state'". Acceptance is the `PRV-5` fact for the operation's
 mutation, not an ancillary request. Unknown acceptance retains the mutating request's mapped
-failure kind; this Boolean records known acceptance and does not model the wire's null separately. -/
+failure kind; this Boolean records known acceptance and does not model the wire's null separately.
+`beforeStep9` records the worker's position: `OPS-11` says "before any step-9 request
+(before any per-order key upload or order request)". It reads no stored column or marker. -/
 structure Failure where
   kind          : ErrorKind
   cutOff        : Bool
   upstream      : Upstream
   goalStateHeld : Bool
   accepted      : Bool
+  beforeStep9   : Bool
   deriving DecidableEq, Repr
 
 /-- `OPS-45`'s two markers: `write_started_at` set, and "no rescue session was opened or the one
@@ -114,16 +117,18 @@ meaning is 'already in the target state' MUST classify `succeeded`" (2026-08-31)
 `OPS-45`'s settlement, "`failed` ... for any failure at all while `OPS-45`'s two markers say the
 disk is untouched and no rescue session was left open" (2026-09-02). `acceptanceRule`:
 `ADR-0035`, "A failure of an operation whose mutating request the provider accepted is ambiguous,
-whatever its kind" (2026-10-08). -/
+whatever its kind" (2026-10-08). `preStep9Rule`: the create row's "MUST settle `failed`,
+whatever its kind" before any step-9 request (2026-10-18). -/
 structure Rules where
   goalStateRow : Bool
   markerRule   : Bool
   acceptanceRule : Bool
+  preStep9Rule : Bool
   deriving DecidableEq, Repr
 
 /-- `OPS-11` as it stands: every amendment rule present. -/
 @[req "OPS-11"]
-def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true }
+def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true, preStep9Rule := true }
 
 /-- `OPS-11`: "A failure is **ambiguous** when" the kind is `network`, `timeout` or `internal`;
 `conflict` from a mid-flight cut-off; `provider` with a 5xx or no recorded status; or "the
@@ -162,7 +167,8 @@ def installRow (r : Rules) (m : Markers) (e : ErrorKind) : Written :=
   else if r.markerRule && !m.rescueClean then .needsReconciliation
   else installKindRow e
 
-/-- The last row — "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`". -/
+/-- The create row from step 9 onward and the last row — "`needs_reconciliation` if the
+failure is *ambiguous*, otherwise `failed`". -/
 @[req "OPS-11"]
 def mutationRow (r : Rules) (f : Failure) : Written :=
   if ambiguous r f then .needsReconciliation else .failed
@@ -175,7 +181,9 @@ def goalState (r : Rules) (f : Failure) : Bool :=
 
 /-- `OPS-11`'s table, one arm per `WIR-10a` kind. `none` is the `suspend_tenant` row: "Never
 `needs_reconciliation`, and never `failed` as a whole", a parent whose children carry the outcomes.
-A release "classifies exactly as" a delete, and rescue inventory has the "Same rows as `install`". -/
+A release "classifies exactly as" a delete, and rescue inventory has the "Same rows as `install`".
+The create row says "MUST settle `failed`, whatever its kind" before any step-9 request.
+Known acceptance is the step-9 mutation's fact, excluding that pre-request case. -/
 @[req "OPS-11"]
 def classify (r : Rules) (k : Kind) (f : Failure) (m : Markers) : Option Written :=
   match k with
@@ -184,16 +192,43 @@ def classify (r : Rules) (k : Kind) (f : Failure) (m : Markers) : Option Written
   | .install | .rescueInventory => some (installRow r m f.kind)
   | .power | .deleteMachine | .releaseAttachment =>
       some (if goalState r f then .succeeded else mutationRow r f)
-  | .createMachine | .reverseDns => some (mutationRow r f)
+  | .createMachine =>
+      some (if r.preStep9Rule && f.beforeStep9 && !f.accepted then .failed else mutationRow r f)
+  | .reverseDns => some (mutationRow r f)
+
+/-- `OPS-11`: "Any create failure the worker records before any step-9 request (before any
+per-order key upload or order request) MUST settle `failed`, whatever its kind." Acceptance
+of the step-9 mutation excludes this case; every other failure fact and marker is arbitrary. -/
+@[req "OPS-11"]
+theorem create_before_step9_failed :
+    ∀ (goal marker accept : Bool) (e : ErrorKind) (c : Bool) (u : Upstream) (g w x : Bool),
+      classify ⟨goal, marker, accept, true⟩ .createMachine ⟨e, c, u, g, false, true⟩
+        ⟨w, x⟩ = some .failed := by decide
+
+/-- `OPS-11`'s create row from step 9 onward: "`needs_reconciliation` if the failure is
+*ambiguous*, otherwise `failed`". The other amendment switches are arbitrary. -/
+@[req "OPS-11"]
+theorem create_after_step9_mutation_row (goal marker accept : Bool) (f : Failure) (m : Markers) :
+    classify ⟨goal, marker, accept, true⟩ .createMachine { f with beforeStep9 := false } m =
+      some (mutationRow ⟨goal, marker, accept, true⟩ f) := rfl
+
+/-- The `OPS-11` boundary "before any step-9 request" belongs only to create: changing that
+fact leaves every other kind's arm unchanged. -/
+@[req "OPS-11"]
+theorem before_step9_other_kinds (goal marker accept : Bool) (k : Kind) (f : Failure)
+    (m : Markers) (h : k ≠ .createMachine) :
+    classify ⟨goal, marker, accept, true⟩ k { f with beforeStep9 := true } m =
+      classify ⟨goal, marker, accept, true⟩ k { f with beforeStep9 := false } m := by
+  cases k <;> first | contradiction | rfl
 
 /-- "Every kind in `DOM-17` MUST have a defined classification for every operation kind. There is
 no implicit default": over every kind, failure and marker pair, the one row without an outcome is
 the parent's. Decided over the whole domain. -/
 @[req "OPS-11"]
 theorem classify_total :
-    ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool) (a : Bool) (w : Bool) (x : Bool),
+    ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool) (a b w x : Bool),
       k ≠ .suspendTenant →
-        (classify currentRules k ⟨e, c, u, g, a⟩ ⟨w, x⟩).isSome = true := by decide
+        (classify currentRules k ⟨e, c, u, g, a, b⟩ ⟨w, x⟩).isSome = true := by decide
 
 /-- The admission-only seven: "any pre-provider occurrence classifies deterministically as `failed`
 for every operation kind". Pre-provider means `accepted = false` and the markers clear —
@@ -201,24 +236,26 @@ nothing dispatched, no rescue opened; a worker or driver "MUST NOT" emit these k
 is not asked about them past that point. -/
 @[req "OPS-11"]
 theorem admission_only_failed :
-    ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool),
+    ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (g b : Bool),
       e.admissionOnly = true → k ≠ .suspendTenant →
-        classify currentRules k ⟨e, c, u, g, false⟩ ⟨false, true⟩ = some .failed := by decide
+        classify currentRules k ⟨e, c, u, g, false, b⟩ ⟨false, true⟩ = some .failed := by decide
 
-/-- The kinds in `OPS-11`'s last row. -/
+/-- The kinds in `OPS-11`'s create row and last row. -/
 @[req "OPS-11"]
 def Kind.lastRow : Kind → Bool
   | .createMachine | .power | .reverseDns | .deleteMachine | .releaseAttachment => true
   | .refresh | .suspendTenant | .install | .rescueInventory => false
 
-/-- `ADR-0035`: an accepted last-row failure is never `failed`. The goal-state row may still
+/-- `ADR-0035`: an accepted failure in the create row or last row is never `failed`; `OPS-11` says
+"A later `rate_limited`, `not_found`, `authentication`, or provider 4xx error MUST NOT
+classify that accepted mutation `failed`". The goal-state row may still
 produce `succeeded`; this is not a claim that every accepted failure needs reconciliation.
 The other amendment switches remain arbitrary. -/
 @[req "OPS-11"]
 theorem accepted_never_failed :
-    ∀ (goal marker : Bool) (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream)
-      (g w x : Bool), k.lastRow = true →
-      classify ⟨goal, marker, true⟩ k ⟨e, c, u, g, true⟩ ⟨w, x⟩ ≠ some .failed := by decide
+    ∀ (goal marker s : Bool) (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream)
+      (g b w x : Bool), k.lastRow = true →
+      classify ⟨goal, marker, true, s⟩ k ⟨e, c, u, g, true, b⟩ ⟨w, x⟩ ≠ some .failed := by decide +kernel
 
 /-- `refresh` "Always `failed`. It is read-only; a failure changed nothing." -/
 @[req "OPS-11"]
@@ -230,10 +267,10 @@ theorem refresh_always_failed (r : Rules) (f : Failure) (m : Markers) :
 kind at all is `needs_reconciliation`. -/
 @[req "OPS-11"]
 theorem install_marker_directions :
-    ∀ (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool) (a : Bool),
+    ∀ (e : ErrorKind) (c : Bool) (u : Upstream) (g : Bool) (a b : Bool),
       (installKindRow e = .needsReconciliation →
-        classify currentRules .install ⟨e, c, u, g, a⟩ ⟨true, true⟩ ≠ some .failed) ∧
-      classify currentRules .install ⟨e, c, u, g, a⟩ ⟨false, true⟩ ≠ some .needsReconciliation := by
+        classify currentRules .install ⟨e, c, u, g, a, b⟩ ⟨true, true⟩ ≠ some .failed) ∧
+      classify currentRules .install ⟨e, c, u, g, a, b⟩ ⟨false, true⟩ ≠ some .needsReconciliation := by
   decide
 
 /-- `pv-x8r`'s decision (2026-09-15): past the write-started marker with a clean rescue exit, the
