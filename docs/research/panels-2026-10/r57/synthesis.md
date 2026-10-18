@@ -215,7 +215,7 @@ All four wrote the status-quo case on request. None voted for it.
 The answers to this case are the List offers read-only sentence and the controls in `CNF-361`: a stale null
 must not authorise `failed`, and a failure after step 9 begins must still park.
 
-## Manager's recommendation (pending the owner)
+## Manager's recommendation (adopted 2026-10-18; see "Owner's decision")
 
 **Shape B, as fable's and sol's answers shape it.** Each of those two answers is this combination in full,
 so this is not a synthesis outside the votes:
@@ -261,12 +261,45 @@ the cut-off `conflict` arm, so pv-qga's witness is the first control on it.
    cut-off `conflict`; opus says `internal`), and the ADR home (new ADR, 2: fable and sol; amend
    `ADR-0042`, 1: opus; amend `ADR-0035`, 1: astra).
 
+## Owner's decision, 2026-10-18
+
+Option 1: fable's answer in full, and nearly sol's.
+
+- **Where the rule lives:** shape B, in `OPS-11`'s create row.
+- **Boundary:** worded at step 9. Any create failure the worker records before any step-9 request (no
+  per-order key upload, no order) settles `failed`, `OPS-21`'s cancellation included. The rule keys on
+  the worker's position and never reads `about_to_order_at`. The settle write keeps its ordinary guard.
+- **Outcome:** the error keeps its kind and gets `retryable: true`. A cancellation stays a cut-off
+  `conflict`. Its `WIR-9a` reason value is left to `pv-f7a`, and pv-qga does not wait for that.
+- **What stays as today:** everything from the key upload onward stays parked, so `ADR-0035`'s Q11
+  rejection stands.
+- **Records:** a new `ADR-0043`, with pointers in `ADR-0035` and `ADR-0042` and a row in the README
+  ADR index.
+- **Read-only offers:** a new requirement, `PRV-50`, that List offers is read-only.
+
+Identifiers, checked against `master` `a1dd00f` + `1d8245e`:
+
+- `PRV-50` is free. The highest defined id is `PRV-49`. The README's withdrawn index has only
+  `PRV-24` and `PRV-28` in `PRV`. `tools/check_ids.py`'s `UNMERGED_RESERVED` holds `PRV-46`, the gap
+  below `PRV-47`, which must never be reused.
+- `CNF-361` is free. `CNF-360` is the highest item; it sits out of order, next to `CNF-290`. No
+  withdrawn or reserved entry names `CNF-361`.
+- `ADR-0043` is free. The last ADR is `0042`, and so is the last README index row.
+
+Scope notes:
+
+- B settles `pv-p1y`'s status: a step-7 `PRV-47` failure of any kind is now `failed`. Its missing
+  kind remains `pv-p1y`'s.
+- `pv-xer`'s two failures, `price_moved` and `API-63`'s account check, are provider-state `conflict`s
+  and already `failed`. Their `retryable` remains `pv-xer`'s.
+- `pv-9j6`'s four kinds keep their current arms.
+
+pv-qga is `bug` + `ready-for-agent`. Its agent brief is the bead's second comment, amended by the
+third: it clarifies the cancellation's assertions and the theorem shape the `ci.yml` row needs.
+
 ## Next steps for a fresh manager
 
-- On the owner's answer, label pv-qga `bug` and `ready-for-agent`, remove `needs-triage`, and post the
-  agent brief (template in the triage skill's AGENT-BRIEF.md) as a new comment. It is built from
-  "Manager's recommendation" and "Edits owed" above, with the owner's answer folded in.
-- Then commit on `pv-qga-triage`, and implement through an rloop Run: opus Manager, sol 6.1 Implementer,
-  with `TMPDIR` outside `/tmp`.
-- The pointer comment already on pv-qga names this file. `pv-9j6` and `pv-f7a` are new needs-triage P3
-  beads.
+- Implement pv-qga from its agent brief, through an rloop Run (opus Manager, sol 6.1 Implementer,
+  `TMPDIR` outside `/tmp`). The Run only starts when the owner or assistant asks for it; this commit
+  does not authorise one.
+- `pv-9j6` and `pv-f7a` are needs-triage P3 beads.
