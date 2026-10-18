@@ -1503,11 +1503,15 @@ rather than acquiring a default.
       `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
       On both an auction channel and a standard channel (`correlator: none`), inject each of
       `network`, `timeout`, `internal`, `provider` with a 5xx and `provider` without a status
-      at step 4's List offers read. Also cancel `execute` at each of steps 1-8 on each channel,
-      at step 8 outside `OPS-49`'s retry loop, where "A worker cancelled during the retry loop
-      stops retrying and exits" and classifies nothing. `OPS-21` says "a cancellation of
+      at step 4's List offers read. Also cancel `execute` at each of steps 1-8 on each channel.
+      At step 8 do so three more ways: while its first transaction is in flight, letting it
+      commit; and while `OPS-49` repeats it, once after a first attempt the store refused and
+      once after one that committed with its reply lost. `OPS-21` says "A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded."
+      In the two repeat cases the store works again before the Stop-record bound ends; in all
+      three, assert that no step-8 transaction starts after the stop. No formal model reaches them, since its stop
+      schedule starts at the record write; this item is their only check. `OPS-21` says "a cancellation of
       `execute` recorded before step 9 is the exception"; exercise each cancellation with the
-      engine surviving the stop and a working store, and assert its record lands before exit. For every
+      engine surviving the stop and a store that works for the record, and assert its record lands before exit. For every
       case assert `failed`, the reported error kind,
       `retryable: true` on both the error and the operation view, full commitment release with
       no setup-fee or first-unit debit, the resource-offer exclusion freed where the create holds one,
@@ -1533,12 +1537,13 @@ rather than acquiring a default.
       `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`, `OPS-22`, `WIR-9a`)
       *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls. The cancellation cases cover only a recorded cancellation; whether one must be recorded is `pv-tst`'s.*
       *Amended 2026-10-18 (`pv-tst`, `pv-f7a`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required survived-stop recording, its reason and the acknowledged-step-8 case.*
+      *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): replaced the step-8 retry-loop exclusion with in-flight and in-loop cases.*
 
 - [ ] **CNF-362** — **A cancellation of `execute` the engine survives gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
       For each operation kind, stop the engine while its worker is in `execute`, with a working
       store. Assert the cut-off `conflict`'s classification against the kind's row (`OPS-11`),
-      with `details.reason: "cut_off"` on every record write: a create before step 9, and an
+      with `details.reason: "cut_off"` on every record write but the parent's defer: a create before step 9, and an
       install or rescue inventory before the write-started marker with no rescue session open,
       settle `failed`; refresh settles `failed`; an install past the marker enters
       `needs_reconciliation`; power, reverse DNS, delete and release attachment stopped during
@@ -1564,6 +1569,12 @@ rather than acquiring a default.
       bound ends. A later stop during the record's whole-transaction loop exits at once.
       Also commit the last repeat before the Stop-record bound expires but lose its reply: assert
       the row is already written and money posted once, and restart finds no `running` row to classify.
+      **Inside `execute`:** stop a `provider_native` install while `OPS-49` repeats its
+      write-started marker write, with the store working again before the Stop-record bound ends.
+      `OPS-21` says "Where the row reads `OPS-45`'s markers, the record MUST classify against the markers its own transaction reads, since a marker write whose reply was lost may have committed."
+      After a first attempt that committed with its reply lost, assert `needs_reconciliation`;
+      after one the store refused, assert `failed`. In both, assert no rebuild call is dispatched.
+      This item is the only check of this case; no formal model reaches it.
       **Validation:** startup refuses a missing, zero, negative or non-finite Stop-record bound;
       verify the supervisor allows at least that duration after the stop.
       **Control:** a kill at the same instant writes nothing; a create with `about_to_order_at`
@@ -1572,6 +1583,7 @@ rather than acquiring a default.
       (`OPS-21`, `OPS-11`, `OPS-49`, `OVR-19`, `WIR-9a`, `WIR-9b`, `OPS-15`, `OPS-22`,
       `STO-3`, `OPS-8`, `OPS-39`, `OPS-6`, `OPS-43`, `OPS-45`, `API-51`, `API-58`)
       *Added 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): added stop recording, shielding, duration, parent, validation and crash controls.*
+      *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): kept the cut-off reason off the parent's defer; added the install stopped inside its marker write's loop.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the

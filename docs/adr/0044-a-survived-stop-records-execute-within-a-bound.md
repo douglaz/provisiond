@@ -1,8 +1,9 @@
 # A survived stop records `execute` within a bound
 
-**Status:** accepted (2026-10-18, the owner's decisions 1–3; `pv-tst` and `pv-f7a`;
-panels r58 and r58b, `docs/research/panels-2026-10/r58/` and
-`docs/research/panels-2026-10/r58/r58b/`; the decisions are in r58's `synthesis.md`).
+**Status:** accepted (2026-10-18, the owner's decisions 1–4; `pv-tst` and `pv-f7a`;
+panels r58, r58b and r58c, `docs/research/panels-2026-10/r58/`,
+`docs/research/panels-2026-10/r58/r58b/` and `docs/research/panels-2026-10/r58/r58c/`; the
+decisions are in r58's `synthesis.md`).
 Extends the stop-recording decision implicit in `ADR-0022` and the recorded-create pointer in
 `ADR-0043`.
 
@@ -35,6 +36,14 @@ still does not prove the write failed: a durable record may already exist when t
   `execute`." Its store-error path uses `OPS-49`: "the component MUST repeat the **whole
   transaction**". A later stop during that loop still exits, as does exhaustion, with the
   lost-reply case `OPS-49` names: "unless the bound's last repeat committed and its reply was lost".
+- `OPS-21` owns a stop during a store transaction inside `execute` (owner decision 4): "A stop that
+  arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such
+  as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded."
+  It adds "A transaction already sent MAY finish" and "the worker MUST NOT repeat it or begin anything
+  it precedes, and makes the record". For the markers it says "the record MUST classify against the
+  markers its own transaction reads". `OPS-49`'s bullet points back
+  to it; that bullet's exit remains for a later stop during the record's own loop. A stop after
+  `execute` has returned stays undecided here (`pv-zbp`).
 - `OPS-21` owns the stop duration: "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound." Its accounting rule is "The Stop-record bound is measured from the
   stop, counts every repeat including serialization failures, and never resets." Its supervisor
   obligation is "The deployment's supervisor MUST wait at least the Stop-record bound after a stop
@@ -66,6 +75,10 @@ still does not prove the write failed: a durable record may already exist when t
 - **`execution_cancelled`.** Rejected beside `cancellation_committed`: `CONTEXT.md` says "Use
   **cancel** whenever an end date is involved". Owner decision 3 chose `cut_off` for this
   different event.
+- **X: a stop during `OPS-49`'s retry loop inside `execute` exits** (r58c, astra and sol). Rejected
+  by owner decision 4: decision 2's "stay as settled" meant the record write's own loop. Exiting
+  parks a create nobody ordered, and the outcome would turn on whether the store error came before
+  the stop.
 - **Parent with `available_at` unchanged** (opus). Rejected in favor of the waiting parent's
   existing defer shape and its short delay.
 - **Parent left to restart recovery** (r58, sol). Rejected by the owner's every-kind decision;
@@ -79,7 +92,9 @@ with their owners. The model has no real clock, provider, fan-out or supervisor;
 budget abstracts elapsed time and its parent short delay uses the claim model's `none`.
 The lost-reply exit theorem admits either the still-running row or an already-written record.
 Money safety composes the existing whole-transaction theorem rather than introducing a new
-transaction implementation. No existing theorem is weakened.
+transaction implementation. No existing theorem is weakened. The model's schedule starts at the
+record write, so a stop during a store transaction inside `execute` reaches no gate: in r58c every
+plant of either reading passed every gate, and `CNF-361` and `CNF-362` are its only checks.
 
 A proof is never conformance (`ADR-0025`). `CNF-362` carries the running-system cases, bound,
 shielding, parent, validation and crash controls; `CNF-361` carries the create's release and

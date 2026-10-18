@@ -1709,12 +1709,17 @@ instead of implying otherwise. *This sentence named `OPS-45`'s markers beside th
 survives MUST be recorded before the engine exits, for every operation kind, subject to the
 bounded abandonment and later-stop exits below. “Survives” means the process outlives the stop.
 A kill or crash records nothing; restart recovery remains with `OPS-15`.
+A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded.
+A transaction already sent MAY finish, since `OPS-49` says "the server decides every statement's
+fate before the client does"; the worker MUST NOT repeat it or begin anything it precedes, and
+makes the record.
 The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound.
 
-The worker classifies a recorded cancellation under `OPS-11` and makes its guarded record write
-(`OPS-22`), except for the parent's defer below. The recorded error is a cut-off `conflict`
-with `details.reason: "cut_off"` (`WIR-9a`), for every kind whose record is that write,
-whether the row settles `failed` or enters `needs_reconciliation`.
+The worker classifies a recorded cancellation under `OPS-11` and makes its record write: the
+guarded write of `OPS-22`, except for a parent, whose record write is the defer below. The
+recorded error is a cut-off `conflict` with `details.reason: "cut_off"` (`WIR-9a`), for every
+kind whose record write is the guarded one, whether the row settles `failed` or enters
+`needs_reconciliation`.
 A provider call abandoned mid-flight is exactly the uncertainty this design exists to represent.
 For a create, a cancellation of `execute` recorded before step 9 is the exception, under the
 create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
@@ -1722,6 +1727,7 @@ The other classification pointers are `OPS-11`'s install row, "while `OPS-45`'s 
 the disk is untouched and no rescue session was left open", rescue inventory's "Same rows as
 `install`", and refresh's "Always `failed`". The kind's row owns the outcome, including where
 it reads ambiguity.
+Where the row reads `OPS-45`'s markers, the record MUST classify against the markers its own transaction reads, since a marker write whose reply was lost may have committed.
 
 The record write MUST NOT be cancelled by the cancellation that stopped `execute`.
 Store errors in that write use `OPS-49`'s whole-transaction loop, "the component MUST repeat the
@@ -1754,6 +1760,8 @@ child twice.
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed the recorded cancellation at the create row; the retry-loop exits remain exits without worker classification.*
 
 *Amended 2026-10-18 (`pv-tst`, `pv-f7a`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required a bounded, shielded record of a survived stop and a parent defer; assigned the cut-off reason.*
+
+*Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): a stop during a store transaction inside `execute`, repeating or not, is the recorded cancellation; the record reads the markers its own transaction sees.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do
@@ -1806,6 +1814,8 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 - **A worker cancelled during the retry loop stops retrying and exits.** This means a stop
   arriving during the loop — for a stop's record, a later stop — rather than the cancellation
   being recorded. `OPS-21` says "The record write MUST NOT be cancelled by the cancellation that stopped `execute`."
+  A stop during a loop inside `execute` is that cancellation, not this exit: `OPS-21` says "A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded."
+  A later stop during the record's own loop still exits here.
   A later stop during the loop and exhaustion both leave restart recovery to `OPS-15`, whose
   ordinary rule is "the engine MUST move every `running` operation to `needs_reconciliation`",
   subject to its exceptions and the lost-reply case above.
@@ -1818,6 +1828,8 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
   one.
 
 *Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): distinguished a later stop during the loop from the stop being recorded.*
+
+*Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): pointed a stop during a loop inside `execute` at `OPS-21`'s record.*
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

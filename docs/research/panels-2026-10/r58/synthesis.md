@@ -614,20 +614,33 @@ Owed under either pick:
 - opus's marker-reading sentence;
 - `CNF-361`/`CNF-362` cases for the chosen side.
 
-### Owner decision 4
+## Owner decision 4, 2026-10-18: Y
 
-Pending: X or Y (asked 2026-10-18).
+**Y (record)**, siding with fable and opus and with the manager's recommendation. Decision 2's
+"`OPS-49`'s retry loop and its exits stay as settled" meant only the stop-record write's own loop.
+- `OPS-21` gains the sentence "A stop that arrives while a store transaction inside `execute` is in
+  flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker
+  write, is the cancellation being recorded."
+- The `OPS-49` bullet points back to it. A later stop during the record's own loop still exits. The
+  window after `execute` returns stays with pv-zbp.
+- `CNF-361`'s step-8 clause replaces the retry-loop exclusion with an in-flight case and two in-loop
+  cases.
+- The 4-0 items land in the same commit:
+  - a transaction already sent may finish, and nothing it precedes begins;
+  - an install's record classifies against the markers its own transaction reads, with a new
+    `CNF-362` case;
+  - the record-write wording fix;
+  - `CNF-361` and `CNF-362` say they are the only check for these cases.
 
 ## Queued for the owner
 
 1. ~~A, B or C (asked 2026-10-18).~~ Answered: A (above).
 2. ~~A's size.~~ Answered: the larger shape (owner decision 2, above).
 3. ~~pv-f7a's reason value.~~ Answered: `cut_off` (owner decision 3, above).
-4. X or Y for a stop during `OPS-49`'s retry loop inside `execute` (panel r58c, asked 2026-10-18). It lands
-   on `OPS-21`, the `OPS-49` bullet "A worker cancelled during the retry loop stops retrying and exits",
-   and `CNF-361`'s step-8 clause.
+4. ~~X or Y for a stop during `OPS-49`'s retry loop inside `execute` (panel r58c).~~ Answered: Y (owner
+   decision 4, above).
 
-pv-tst's agent brief is the bead's third comment.
+Nothing is queued. pv-tst's agent brief is the bead's third comment.
 
 ## Next steps for a fresh manager
 
@@ -645,7 +658,7 @@ pv-tst's agent brief is the bead's third comment.
   - Set pv-tst `bug` + `ready-for-agent`. pv-f7a now depends on pv-tst and is closed by the same change.
 - Done 2026-10-18: the pv-tst rloop Run (3d3e83f, 496fde0, 40a3002, 7097d60) and the review commits
   (2a2769c, fcbd8f4). The review found the X/Y conflict that r58c took.
-- Next, once the owner answers item 4, a single commit holds:
+- Done 2026-10-18, after the owner answered item 4, in a single commit:
   - the ruling, on `OPS-21`, the `OPS-49` bullet and `CNF-361` (and `CNF-362`);
   - the 4-0 first-attempt rule (the attempt may finish, then the worker records and nothing it precedes
     runs);
@@ -653,7 +666,7 @@ pv-tst's agent brief is the bead's third comment.
   - the known record-write wording fix. `OPS-21`'s rename of "settle write" to "record write" collides with
     the shielding sentence's "The record write", and `CNF-362`'s "on every record write" wrongly takes in
     the parent.
-  - The edit must not decide pv-zbp's window after `execute` returns. opus's unscoped plant did, and
-    fable's "a write made after `execute` returned" comes close.
-  - Then the PR.
+  - The edit leaves pv-zbp's window after `execute` returns undecided. opus's unscoped plant would
+    have decided it, and fable's "a write made after `execute` returned" came close.
+- Next: the PR, through `pr-with-codex-bot-review`.
 - pv-9j6 is triaged separately.

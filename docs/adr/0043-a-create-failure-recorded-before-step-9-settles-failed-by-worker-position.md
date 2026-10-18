@@ -42,7 +42,11 @@ its position. The requirements carry those distinct cases.
   `OPS-15` classifies the row as interrupted". *(2026-10-18, `ADR-0044`, `pv-tst`:
   `OPS-21` now requires "A cancellation of `execute` that the engine survives MUST be recorded
   before the engine exits, for every operation kind", and says "The recorded error is a cut-off
-  `conflict` with `details.reason: "cut_off"` (`WIR-9a`)".)*
+  `conflict` with `details.reason: "cut_off"` (`WIR-9a`)". Panel r58c and owner decision 4 then
+  took a stop during a loop inside `execute` out of the retry-loop exit: `OPS-21` says "A stop that
+  arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such
+  as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being
+  recorded".)*
 - `PRV-50` owns the read-only guarantee: "The driver's List offers MUST be read-only under
   `PRV-12`'s guarantee"; `PRV-12` says "Get machine MUST be read-only and free of side effects".
 - `LDG-32` owns release: "A commitment MUST be closed, and its remaining amount released in
