@@ -167,11 +167,19 @@ not optional hardening — they are the only structural defence there is.
       still `running`; assert that the same write with only the claim term removed *does* affect
       the row, which is the evidence the term is doing work. (`OPS-8`, `OPS-6`, `STO-51`, `STO-3`)
 - [ ] **CNF-29** — **AMENDED 2026-09-08 (`ADR-0016`) — the sweep has no deadline; the startup pass
-      is the sweep.** Every operation found `running` when the engine starts is moved to
-      `needs_reconciliation` — never back to `queued` — and the count is logged. Kill the engine
+      is the sweep.** Every operation found `running` when the engine starts is, subject to the
+      exceptions below, moved to `needs_reconciliation` — never back to `queued`, except a
+      `suspend_tenant` parent, which `OPS-15` says "MUST be returned to `queued`" on a restart —
+      and the count is logged. Kill the engine
       with an operation of each dispatching kind `running`, restart, and assert each one — **except
       a `refresh`, which settles `failed`** (`ADR-0020`): assert its row is `failed` with an
-      `internal` error and that `WIR-35`'s resolve refuses it by kind. (`OPS-15`)
+      `internal` error and that `WIR-35`'s resolve refuses it by kind — **and a create whose
+      `about_to_order_at` is null**, which settles `failed` on a restart with full commitment
+      release and resource-offer exclusion freed; for its error, `OPS-15` says "Where no error is
+      recorded, it MUST carry an `internal` error naming the restart, with `retryable: true` on
+      both the error and the operation view". A set column stays `needs_reconciliation`; the null
+      exception stays off while a restore record is open.
+      (`OPS-15`) *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the create exception and qualified the startup outcome, naming the `suspend_tenant` return to `queued` the summary had missed; the exclusion control uses an open restore record; `ADR-0042`.*
 - [ ] **CNF-30** — The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
       different stakes: rows where a misclassification causes a repeated provider mutation, and
@@ -318,7 +326,16 @@ not optional hardening — they are the only structural defence there is.
       `CONCURRENTLY` index on `operations` and assert the version is unrecorded and the index is
       `INVALID`; re-run and assert the invalid index is dropped, rebuilt valid, and the version
       recorded once — and assert the runner refuses a migration that places that statement inside
-      a transaction with any other. (`STO-12`, `STO-13`)
+      a transaction with any other.
+      **Then the about-to-order contract step:** leave legacy creates `running`, including one
+      whose order reached the provider on a `correlator: none` channel. Stop all previous-release
+      components before the backfill; assert no new component starts until it completes. Read
+      each stored row: null becomes the migration instant, a set value stays unchanged, and every
+      running create is covered. Restart on the migrated store and assert `needs_reconciliation`,
+      never `failed` with a released commitment. Re-run the migration and assert no value changes;
+      assert the backfill migration declares its stop-everything order and records that rollback
+      past this release is inadmissible. (`STO-12`, `STO-13`)
+      *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the conservative backfill drill with declaration checks; retained the concurrent-migration release drill; `ADR-0042`.*
 - [ ] **CNF-58** — An unrecognized status read from the store is a hard error. (`STO-10`)
 - [ ] **CNF-59** — A deleted machine is tombstoned, and operations referencing it still
       resolve. (`STO-8`)
@@ -1438,6 +1455,48 @@ rather than acquiring a default.
       read to prove is that a second engine cannot write: `OPS-47` says "where two engines run,
       nothing here refuses the second, and both will work the queue".* (`OPS-47`,
       `STO-51`, `OPS-15`, `STO-3`, `ADR-0019`)
+- [ ] **CNF-358** — **A create interrupted around step 8 has a distinct restart outcome.**
+      With an auction-channel descriptor and again with a standard-channel (`correlator: none`)
+      descriptor, kill during step 4's List offers read, after step 7, and while step 8's
+      transaction is in flight before commit. Read the stored record and assert
+      `about_to_order_at` is null at each kill. Restart: assert `failed`, a restart-naming
+      `internal` error, `retryable: true` on both error and operation view, commitment closed and
+      released in full, no setup-fee or first-unit debit, and the resource-offer exclusion freed.
+      Assert no step-9 request reached the provider: no per-order key upload and no order;
+      the List offers read is permitted. Repeat with an injected recorded error carrying
+      `retryable: false`, written to the stored row before the restart, since `CNF-30` says "The
+      startup pass does not overwrite an error already recorded": assert the error survives
+      unchanged and the operation view carries `retryable: false`.
+      Kill after step 8 commits but before step 9, and again after the order: assert the stored
+      column is set and unchanged after restart, and the operation `needs_reconciliation`,
+      with its commitment still open. No resolution or correlator matching runs for the failed cases.
+      **Restore control:** take a backup after claim and before step 8, let the provider receive
+      the order, restore that backup with an open restore record and start the engine. The stored column
+      is null, but the operation stays `needs_reconciliation`; repeat after a crash before the
+      startup pass, and after the freeze lifts while the record remains open. These cases reject
+      a missing step-8 write, a write delayed into step 9, and an exception applied on a restore.
+      (`OPS-15`, `OPS-16`, `OPS-43`, `LDG-32`, `LDG-39`, `STO-58`)
+      *Added 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the kill-timing and restore controls; `ADR-0042`.*
+- [ ] **CNF-359** — **The about-to-order column survives payload purge.** Drive a create past
+      step 8 into a settled state and a separate create into `needs_reconciliation`. Record the
+      column before each transition. Assert by reading each stored record that `request` is
+      purged and `about_to_order_at` is unchanged. This rejects clearing the column with the
+      request payload. (`STO-9`, `OPS-43`, `OPS-15`)
+      *Added 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the stored-record purge check; `ADR-0042`.*
+- [ ] **CNF-360** — **Step 8 waits for acknowledgement, repeats, and respects both guards.**
+      Commit step 8 and drop its reply: assert no step-9 request before an acknowledged
+      whole-transaction repeat, which affects one operation row, leaves `about_to_order_at` and
+      `updated_at` unchanged and advances `revision` no further.
+      Refuse its status guard, then its claim-number guard: assert no column commit, no step 9,
+      and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, full
+      release, and no column commit. For the restart settlement, kill between the status write
+      and the commitment release: assert neither survives the rollback, then restart and assert
+      both commit together. Force the null-guarded write to affect no row: assert no money is
+      released, and a still-running create is moved by the ordinary startup write to
+      `needs_reconciliation`. These cases reject speculative dispatch, a null-only worker guard,
+      and a release outside the guarded status transaction. (`OPS-43`, `OPS-49`, `STO-3`,
+      `API-63`, `OPS-15`, `LDG-35`)
+      *Added 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added lost-reply and atomicity checks; `ADR-0042`.*
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
       reply before the client sees it, let the worker repeat the whole transaction under `OPS-49`,
@@ -2373,18 +2432,20 @@ rather than acquiring a default.
       `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
       that claims it afterwards dispatches against revoked credentials and freezes the customer's
       money for `OPS-33`'s window. **Fourth**: claim a create, commit the termination before its
-      correlator entry is written, and assert it fails `account_terminated` with no provider mutation;
+      step-8 transaction commits (`about_to_order_at` still null), and assert it fails `account_terminated` with no provider mutation;
       the List offers read is permitted;
-      then commit the termination *after* the entry is written and before the call, and assert the
+      then commit the termination *after* step 8 commits (`about_to_order_at` set) and before the call, and assert the
       termination treats that attempt as potentially dispatched — neither failed nor released, and
       resolved through `OPS-36`'s late attach.
       **Account-read cases:** admit a create and leave it `queued` and unclaimed, record
       `credentials_rejected` before claim, then claim it. Assert `OPS-43`'s step 1, "Read the
       provider account's stored status", fails it `conflict` with `details.reason: "state"`,
       `failed`, no provider request and full commitment release. On a fresh account, claim a
-      create, let the List offers read complete, then commit termination before the correlator
-      entry. Assert `conflict`, `details.reason: "account_terminated"`, `failed`, full commitment
+      create, let the List offers read complete, then commit termination before step 8 commits (`about_to_order_at` null). Assert `conflict`, `details.reason: "account_terminated"`, `failed`, full commitment
       release, and no provider mutation: no per-order key upload and no order request.
+      Repeat the step-8 barriers and account-read cases with an auction-channel descriptor and
+      a standard-channel (`correlator: none`) descriptor; assert the column's null/set test on
+      both, making no assertion about the correlator pair on the latter.
       **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
       **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
@@ -2409,6 +2470,8 @@ rather than acquiring a default.
       *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
       permitted List offers in the pre-entry barrier and added the account-read
       refusal and post-listing termination cases.*
+
+      *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): re-keyed the dispatch barriers to step 8 and the all-channel column; `ADR-0042`.*
 
 - [ ] **CNF-279** — **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
@@ -3613,12 +3676,13 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       one wins, and the loser receives an ordinary HTTP `409 conflict`/`state`
       error with `retryable: false`, no `details.refusals`, no synthesized pacing
       or `Retry-After`, and no commitment, balance change, operation or receipt.
-      Keep the winner unresolved across engine restart and assert further
+      Kill the winner after step 8 commits and keep it unresolved across engine restart and assert further
       creates lose on every replica; settle it and assert the exclusion releases.
       A catalogue product admits independent creates. Race account termination
       separately to retain `API-63`'s guard, and race extension with cancellation
       to retain `LDG-62`'s.
       (`PRV-42`, `STO-27`, `STO-58`, `API-63`, `LDG-62`, `API-7`)
+      *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): pinned the restart after step 8; `ADR-0042`.*
 - [ ] **CNF-344** — **Amended 2026-10-12 (`ADR-0037`, Q28).** **Each channel declares its own order budget.** Enumerate the
       descriptor's ordering channels and assert each has a positive `limit` and finite,
       positive `per`; no top-level `order_budget` substitutes for a missing channel

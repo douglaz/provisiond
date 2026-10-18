@@ -58,7 +58,9 @@ debits the prepaid unit on confirmed acceptance. `OPS-11` was the one reader tha
   `401` after acceptance.
 - **A durable dispatch marker on create, like `OPS-45`'s.** The engine cannot see inside the
   driver's call, so its marker cannot tell a key upload from an order or a rejection from an
-  acceptance.
+  acceptance. *(2026-10-17, `ADR-0042`, `pv-k4l`: this rejects reading a set marker to
+  decide ambiguity, not a null-only read before every step-9 request; the new column's null
+  precedes both key upload and order.)*
 
 ## Consequences
 

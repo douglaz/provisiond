@@ -1140,11 +1140,12 @@ end Fence
 
 /-! ## Restore
 
-One live history, and the backup predates all of it: the engine claims a create, the provider
+The first live history has a backup that predates all of it: the engine claims a create, the provider
 applies it and it settles; a delete is claimed, applied and settled; the tenant extends the
 machine to 100 and revokes its token; the fan-out parent that was running settles. Then the crash.
-Every witness pair here flips one field of `Restore.current`, and each asserts the fields its own
-parameter decides, as the fence's do. -/
+A separate history below backs up after the create claim and before the provider applies it.
+The guard witness pairs flip one field of `Restore.current` and assert the fields that parameter
+decides. The restart and migration witnesses exercise the column and backfill separately. -/
 
 section Restore
 open Provisiond.Restore
@@ -1234,10 +1235,57 @@ theorem crash_inside_procedure_is_the_naive_boot :
     (Restore.run { Restore.current with recordDecidesBoot := false } (bootRestore restoreTrace)
       [.lock, .crash, .lock, .startupPass, .claim ⟨0⟩]).secondOrder = true := by decide
 
-/-- Pin the naive boot and the retained guards for the request and absence refutations. -/
+/-- The backup is after claim and before step 8, while the provider later holds the order.
+`Live` omits step 8; the null column is the backup's, not a claim about the final live store. -/
+def aboutToOrderRestore : RestoreTrace :=
+  { history := { initial := liveStore, steps := [.claim ⟨0⟩, .apply ⟨0⟩] },
+    delta := 1, now := 50, interval := 60 }
+
+/-- Refused with the restart-only guard: `OPS-15`, "It does not fire while a restore record is
+open". No crash here: the `recordDecidesBoot` control has its own witness. -/
+@[req "OPS-15"]
+theorem create_reconciled_on_restore :
+    let w := Restore.run Restore.current (bootRestore aboutToOrderRestore) [.lock, .startupPass]
+    (w.store.ops ⟨0⟩).status = .needsReconciliation ∧ (w.store.ops ⟨0⟩).applied = true := by decide
+
+/-- Admitted without the restart-only guard; refutes the restore-trace theorem without `hx`. -/
+@[req "OPS-15"]
+theorem create_failed_without_restart_guard :
+    let w := Restore.run { Restore.current with createExceptionOnRestart := false }
+      (bootRestore aboutToOrderRestore) [.lock, .startupPass]
+    (w.store.ops ⟨0⟩).status = .failed ∧ (w.store.ops ⟨0⟩).applied = true := by decide
+
+/-- Pin the naive boot and the retained guards for the create, request and absence refutations, so
+no `current` witness shares the boot control. -/
 def naiveBootRefutationParams : Restore.Params :=
   { recordDecidesBoot := false, quarantineOnRestore := true, exceptionFrozen := true,
-    bumpOnRestore := true, twoPassAbsence := true }
+    bumpOnRestore := true, twoPassAbsence := true, createExceptionOnRestart := true }
+
+/-- Refutes the restore-trace theorem without `hb`: crash before the pass changes the mode. -/
+@[req "OPS-15"]
+theorem create_failed_on_naive_successor :
+    let w := Restore.run naiveBootRefutationParams (bootRestore aboutToOrderRestore)
+      [.lock, .crash, .lock, .startupPass]
+    (w.store.ops ⟨0⟩).status = .failed ∧ (w.store.ops ⟨0⟩).applied = true := by decide
+
+/-- The restart pair: `OPS-15`, "A create found `running` at startup with `about_to_order_at`
+null MUST be settled `failed`, on a restart only." -/
+@[req "OPS-15"]
+theorem create_restart_pair :
+    (Restore.passOp Restore.current .restart
+      { kind := .createMachine, status := .running, applied := false }).status = .failed ∧
+    (Restore.passOp Restore.current .restart
+      { kind := .createMachine, status := .running, applied := false,
+        aboutToOrder := true }).status = .needsReconciliation := by decide
+
+/-- Without the migration a claimed legacy create can be failed despite an applied order. -/
+@[req "STO-13"]
+theorem legacy_create_failed_without_backfill :
+    (Restore.passOp Restore.current .restart
+      { kind := .createMachine, status := .running, applied := true }).status = .failed ∧
+    (Restore.passOp Restore.current .restart (Restore.migrateCreate
+      { kind := .createMachine, status := .running, applied := true })).status =
+      .needsReconciliation := by decide
 
 /-- Refutes `Provisiond.Restore.bumped_before_first_request` without
 `hr : p.recordDecidesBoot = true`, retaining `hb : p.bumpOnRestore = true`.
