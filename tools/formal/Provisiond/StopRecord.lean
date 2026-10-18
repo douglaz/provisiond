@@ -43,14 +43,14 @@ selection even if its conditional write reports zero rows; settlement then exits
 def schedule (p : Params) (budget storeBudget : Nat) : List Event → Plan
   | [] => {}
   | e :: es =>
-    if !p.recordOnStop || (p.boundRecord && budget == 0) then {} else
+    if !p.recordOnStop || (p.boundRecord && budget == 0) || storeBudget == 0 then {} else
     match e with
     | .laterStop => {}
     | .serialization =>
       let rest := schedule p (budget - 1) storeBudget es
       { rest with elapsed := rest.elapsed + 1 }
     | .store o redelivered =>
-      if (redelivered && !p.shieldRecord) || storeBudget == 0 then {} else
+      if redelivered && !p.shieldRecord then {} else
       match o with
       | .committed true => { tries := [o], elapsed := 1 }
       | _ =>
@@ -116,7 +116,7 @@ theorem schedule_bounded (p : Params) (hb : p.boundRecord = true)
   induction events generalizing budget storeBudget with
   | nil => simp [schedule]
   | cons e es ih =>
-    have step (h : ¬(!p.recordOnStop || (p.boundRecord && budget == 0)) = true) :
+    have step (h : ¬(!p.recordOnStop || (p.boundRecord && budget == 0) || storeBudget == 0) = true) :
         0 < budget := by simp [hb] at h; omega
     cases e with
     | laterStop => simp [schedule]
@@ -171,11 +171,22 @@ theorem trace_bounded (p : Params) (hb : p.boundRecord = true) (g : Guards)
 /-- Any number of serialization repeats past expiry cannot reach the committing suffix. -/
 @[req "OPS-21"]
 theorem serialization_exhausts (n storeBudget : Nat) (suffix : List Event) :
-    schedule ⟨true, true, true⟩ n storeBudget
+    schedule ⟨true, true, true⟩ n (storeBudget + 1)
       (List.replicate n .serialization ++ suffix) = { elapsed := n } := by
   induction n with
   | zero => cases suffix <;> simp [schedule]
   | succ n ih => simp [List.replicate_succ, schedule, ih]
+
+/-- Store exhaustion exits before any suffix, even serialization repeats. `OPS-21` says
+"whichever ends first ends the record" about the independent bounds. -/
+@[req "OPS-49"]
+theorem store_exhaustion_exits (g : Guards) (s : Store) (r : Record) (budget : Nat)
+    (suffix : List Event) :
+    trace ⟨true, true, true⟩ g s r (budget + 1) 1 (.store .refused false :: suffix) =
+      ⟨s, false, 1⟩ := by
+  have exhausted : schedule ⟨true, true, true⟩ budget 0 suffix = {} := by
+    cases suffix <;> simp [schedule]
+  cases r <;> simp [trace, schedule, exhausted, applyRecord, retryWhole, tryOnce, repeatParent]
 
 /-- A later stop exits immediately, unlike redelivery of the original stop (`OPS-49`:
 "A worker cancelled during the retry loop stops retrying and exits"). -/
