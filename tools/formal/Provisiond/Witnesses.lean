@@ -2968,8 +2968,9 @@ end Period
 
 /-! ## Recording a stop -/
 
-/-- A create after step 8 was acknowledged, before step 9: full release is abstracted to the
-transaction's posting of 100. With recording removed, the running row and ledger are untouched. -/
+/-- A create stopped before step 9 (`beforeStep9`; the model does not represent step 8): full
+release is abstracted to the transaction's posting of 100. With recording removed, the running
+row and ledger are untouched. -/
 @[req "OPS-21"]
 theorem stop_recorded_witness :
     let s : Store := ⟨⟨.running, ⟨1⟩, 0, 0, none⟩, 0⟩

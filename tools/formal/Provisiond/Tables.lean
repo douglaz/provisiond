@@ -13,9 +13,10 @@ Every rule a dated amendment added is a field of the table's rule structure — 
 hold each one's refused-with and admitted-without pair.
 
 Not modelled: `OPS-11`'s `suspend_tenant` parent (its children settle, it does not; the function
-says so with `none`; `Provisiond.StopRecord` composes its guarded defer on a stop), the goal-state answer on an install's rescue exit (the driver reads that as a
-clean exit — `OPS-45`'s second marker — and the install's own outcome stands), `STO-19`'s
-write-once resolution columns, and which provider codes mean "already in the target state", which
+says so with `none`; `Provisiond.StopRecord` composes its guarded defer on a stop), the goal-state
+answer on an install's rescue exit (the driver reads that as a clean exit — `OPS-45`'s second
+marker — and the install's own outcome stands), `STO-19`'s write-once resolution columns, and
+which provider codes mean "already in the target state", which
 `OPS-11` says "is a provider fact, so the mapping belongs in the driver". -/
 
 namespace Provisiond.Tables

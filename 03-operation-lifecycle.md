@@ -1711,9 +1711,9 @@ bounded abandonment and later-stop exits below. “Survives” means the process
 A kill or crash records nothing; restart recovery remains with `OPS-15`.
 The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound.
 
-The worker classifies a recorded cancellation under `OPS-11` and makes its guarded settle write
+The worker classifies a recorded cancellation under `OPS-11` and makes its guarded record write
 (`OPS-22`), except for the parent's defer below. The recorded error is a cut-off `conflict`
-with `details.reason: "cut_off"` (`WIR-9a`), for every kind whose record is a settle write,
+with `details.reason: "cut_off"` (`WIR-9a`), for every kind whose record is that write,
 whether the row settles `failed` or enters `needs_reconciliation`.
 A provider call abandoned mid-flight is exactly the uncertainty this design exists to represent.
 For a create, a cancellation of `execute` recorded before step 9 is the exception, under the
@@ -1745,15 +1745,15 @@ with `OPS-15` and its exceptions.
 
 A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out, subject to the same Stop-record bound and exits.
 This is the write `OPS-49` gives a waiting parent, "returned to `queued` with `available_at`
-advanced — the same write as `OPS-8`'s defer, though nothing refused it", carrying `STO-3`'s
-ordinary defer guard. It records no error.
+advanced — the same write as `OPS-8`'s defer, though nothing refused it", which `STO-3` guards
+"on `(id, status = running, claim_number = mine)`". It records no error.
 Its next claim continues as `OPS-15`'s re-queued parent does, "resuming its fan-out from wherever
 it stopped"; that re-sweep "is idempotent by `OPS-39`'s dedup" (`OPS-15`), so it enqueues no
 child twice.
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed the recorded cancellation at the create row; the retry-loop exits remain exits without worker classification.*
 
-*Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required a bounded, shielded record of a survived stop and a parent defer; assigned the cut-off reason.*
+*Amended 2026-10-18 (`pv-tst`, `pv-f7a`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required a bounded, shielded record of a survived stop and a parent defer; assigned the cut-off reason.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do

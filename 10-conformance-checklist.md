@@ -1532,13 +1532,13 @@ rather than acquiring a default.
       atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
       `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`, `OPS-22`, `WIR-9a`)
       *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls. The cancellation cases cover only a recorded cancellation; whether one must be recorded is `pv-tst`'s.*
-      *Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required survived-stop recording, its reason and the acknowledged-step-8 case.*
+      *Amended 2026-10-18 (`pv-tst`, `pv-f7a`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required survived-stop recording, its reason and the acknowledged-step-8 case.*
 
 - [ ] **CNF-362** — **A cancellation of `execute` the engine survives gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
       For each operation kind, stop the engine while its worker is in `execute`, with a working
       store. Assert the cut-off `conflict`'s classification against the kind's row (`OPS-11`),
-      with `details.reason: "cut_off"` on every settle write: a create before step 9, and an
+      with `details.reason: "cut_off"` on every record write: a create before step 9, and an
       install or rescue inventory before the write-started marker with no rescue session open,
       settle `failed`; refresh settles `failed`; an install past the marker enters
       `needs_reconciliation`; power, reverse DNS, delete and release attachment stopped during
@@ -1549,20 +1549,20 @@ rather than acquiring a default.
       Make no assertion about `retryable` for the other cases. For each stopped operation no
       `running` row remains while the process lives, and the engine exits only after the record lands.
       `OPS-21` says "A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out, subject to the same Stop-record bound and exits."
-      Stop that parent at successive fan-out positions and assert the guarded defer; its next
-      claim resumes and enqueues no child twice.
+      Stop that parent at successive fan-out positions and assert the guarded defer leaves it
+      `queued` with `available_at` advanced; its next claim resumes and enqueues no child twice.
       **Shielding:** `OPS-21` says "The record write MUST NOT be cancelled by the cancellation that stopped `execute`."
-      Deliver the original stop's cancellation to the record write's first try and assert it
-      still lands.
+      Deliver the original stop's cancellation to the record write's first transaction and
+      assert it still lands.
       **Bound:** `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets."
-      With every try refused, and separately with every try a serialization failure, assert
-      exit within that bound measured from the stop. Assert the row stays `running` and is
+      With every transaction refused, and separately with every transaction a serialization
+      failure, assert exit within that bound measured from the stop. Assert the row stays `running` and is
       named in the loud log; assert that `OPS-15` classifies the row at restart, including
       its exceptions. Alternate serialization failures and store errors and assert exit within
       the same bound from the stop, with no reset. With each of the Stop-record and Store-retry
       bounds in turn the shorter, assert the record ends and the engine exits when the first
       bound ends. A later stop during the record's whole-transaction loop exits at once.
-      Also commit the last try before the Stop-record bound expires but lose its reply: assert
+      Also commit the last repeat before the Stop-record bound expires but lose its reply: assert
       the row is already written and money posted once, and restart finds no `running` row to classify.
       **Validation:** startup refuses a missing, zero, negative or non-finite Stop-record bound;
       verify the supervisor allows at least that duration after the stop.

@@ -50,7 +50,8 @@ still does not prove the write failed: a durable record may already exist when t
   later stops, store outcomes and serialization failures, with independent budgets. Its current
   recording, shielding and bound switches have paired witnesses in `Provisiond.Witnesses`.
   The PYCONTROL list in `ci.yml` removes each switch separately and requires only its witness
-  to be refuted. Markdown attributed quotes defend the corresponding rule against prose plants.
+  to be refuted. `CNF-362`, `OPS-49` and `OVR-19` quote these `OPS-21` sentences as its words, so
+  the citation gate fails an edit that drops or changes one.
 
 ## Considered and rejected
 

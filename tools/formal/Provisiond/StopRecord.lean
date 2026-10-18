@@ -75,7 +75,8 @@ def record (tr : Rules) (k : Kind) (f : Failure) (m : Markers) (mine : ClaimNumb
   | none => .parent mine
 
 /-- The parent's whole-transaction repeats: no money, and a repeated defer changes nothing.
-A lost reply still repeats, and a zero-row acknowledgement is success for defer (`OPS-8`). -/
+A lost reply still repeats; where the defer affects no row, `OPS-8` says the meaning is
+"already deferred, or already claimed again". -/
 @[req "OPS-21"]
 def repeatParent (g : Guards) (s : Store) (mine : ClaimNumber) :
     List StoreOutcome → Store × Bool
@@ -98,7 +99,8 @@ structure Result where
   deriving DecidableEq, Repr
 
 /-- Recorded or exited, with the actual durable store, including a commit whose reply was lost.
-`OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound." -/
+`OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and
+the engine MUST NOT wait for it past that bound." -/
 @[req "OPS-21"]
 def trace (p : Params) (g : Guards) (s : Store) (r : Record)
     (budget storeBudget : Nat) (events : List Event) : Result :=

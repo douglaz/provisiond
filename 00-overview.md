@@ -399,7 +399,7 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | Startup-lock wait bound | `OPS-47` | duration | yes |
 | Startup-lock connection keepalives | `OPS-47` | durations | yes |
 | Store-retry bound | `OPS-49` | duration | yes |
-| Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets." The supervisor's stop wait is at least this | yes |
+| Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets." and "The deployment's supervisor MUST wait at least the Stop-record bound after a stop before it kills the engine." | yes |
 | Recovery point | `STO-54` | greatest age of a committed write not yet in a separate failure domain | no — outside the process |
 | Recovery-point alarm threshold | `STO-54` | duration | yes |
 | Synchronous standby name | `STO-7`, `STO-54` | identifier | yes |
