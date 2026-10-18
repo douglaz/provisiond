@@ -1042,6 +1042,10 @@ The cost MUST be stated rather than hidden: for such a provider the `OPS-33` neg
 bounded by **operator response time**, not by an automatic lookup, and `OPS-26`'s rota is what
 determines how long a customer's balance stays committed behind a stuck order.
 
+A create failure recorded before step 9 is not an ambiguous create here: it settles `failed`
+under `OPS-11`'s create row and never waits for an operator.
+*Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): scoped the ambiguous create to the create row.*
+
 **PRV-35** **A driver MUST report positive network-restriction evidence where the provider exposes
 it.** Its reading updates only `machines.provider_restricted` and `machines.provider_observed_at`
 through the normal refresh path (`DOM-8`), without replacing an operator record. Operator writes

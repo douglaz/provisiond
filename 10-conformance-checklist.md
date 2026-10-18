@@ -1504,7 +1504,9 @@ rather than acquiring a default.
       On both an auction channel and a standard channel (`correlator: none`), inject each of
       `network`, `timeout`, `internal`, `provider` with a 5xx and `provider` without a status
       at step 4's List offers read. Also record an `OPS-21` cancellation of `execute` at each
-      of steps 1-8 on each channel. For every case assert `failed`, the reported error kind,
+      of steps 1-8 on each channel, at step 8 outside `OPS-49`'s retry loop, where "A worker
+      cancelled during the retry loop stops retrying and exits" and classifies nothing. For every
+      case assert `failed`, the reported error kind,
       `retryable: true` on both the error and the operation view, full commitment release with
       no setup-fee or first-unit debit, the resource-offer exclusion freed where the create holds one,
       no step-9 request (no per-order key upload and no order), and no `OPS-27` search. The List offers read is
@@ -1524,7 +1526,7 @@ rather than acquiring a default.
       column set, full release, no fee or unit debit, the resource-offer exclusion freed where the
       create holds one, no step-9 request and no correlator search. Exercise the ordinary worker guard without a null-column term and
       atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
-      `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`)
+      `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`)
       *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls.*
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
@@ -1907,12 +1909,14 @@ rather than acquiring a default.
       server. **A driver defaulting to "real purchase" turns every mistaken conformance run into a
       bought server.** (`PRV-34`, `API-15`, `PRV-10`)
 - [ ] **CNF-181** — On a channel with no verified correlator — Robot's **standard** channel — an
-      ambiguous create ends in `needs_reconciliation` awaiting an operator, the recent-order
+      ambiguous create failure recorded after step 9 begins ends in `needs_reconciliation`
+      awaiting an operator, the recent-order
       listing is surfaced as evidence, and **no automatic attach occurs on any hostname or timing
       similarity**. The negative window still releases the commitment in full. **And the same
       create on the auction channel of the same account resolves automatically through
       `CNF-180`'s path** — correlation is per channel, and a build that switches it on or off
       provider-wide fails one half (2026-09-05). (`PRV-33`, `OPS-29`, `OPS-33`, `PRV-32`)
+      *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): scoped the ambiguous create to step 9 onward.*
 - [ ] **CNF-214** — A machine and one of its billable attachments, both metered in the same period,
       carry **separate** `meter_totals` rows: charging the attachment does not move the machine's
       rounding credit or high-water mark, and neither does the reverse. Asserted against the stored
