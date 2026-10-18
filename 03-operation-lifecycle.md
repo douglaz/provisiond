@@ -1709,12 +1709,13 @@ instead of implying otherwise. *This sentence named `OPS-45`'s markers beside th
 survives MUST be recorded before the engine exits, for every operation kind, subject to the
 bounded abandonment and later-stop exits below. “Survives” means the process outlives the stop.
 A kill or crash records nothing; restart recovery remains with `OPS-15`.
-The record MUST land within the Stop-record bound (`OVR-19`), before the engine exits.
+The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound.
 
 The worker classifies a recorded cancellation under `OPS-11` and makes its guarded settle write
 (`OPS-22`), except for the parent's defer below. The recorded error is a cut-off `conflict`
 with `details.reason: "cut_off"` (`WIR-9a`), for every kind whose record is a settle write,
 whether the row settles `failed` or enters `needs_reconciliation`.
+A provider call abandoned mid-flight is exactly the uncertainty this design exists to represent.
 For a create, a cancellation of `execute` recorded before step 9 is the exception, under the
 create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
 The other classification pointers are `OPS-11`'s install row, "while `OPS-45`'s two markers say
@@ -1742,10 +1743,10 @@ unchanged. The deployment's supervisor MUST wait at least the Stop-record bound 
 before it kills the engine. A kill before the record lands is a crash; restart recovery remains
 with `OPS-15` and its exceptions.
 
-A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out.
+A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out, subject to the same Stop-record bound and exits.
 This is the write `OPS-49` gives a waiting parent, "returned to `queued` with `available_at`
 advanced — the same write as `OPS-8`'s defer, though nothing refused it", carrying `STO-3`'s
-ordinary defer guard and subject to the same Stop-record bound. It records no error.
+ordinary defer guard. It records no error.
 Its next claim continues as `OPS-15`'s re-queued parent does, "resuming its fan-out from wherever
 it stopped"; that re-sweep "is idempotent by `OPS-39`'s dedup" (`OPS-15`), so it enqueues no
 child twice.

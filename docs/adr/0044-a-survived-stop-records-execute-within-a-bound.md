@@ -3,7 +3,7 @@
 **Status:** accepted (2026-10-18, the owner's decisions 1–3; `pv-tst` and `pv-f7a`;
 panels r58 and r58b, `docs/research/panels-2026-10/r58/` and
 `docs/research/panels-2026-10/r58/r58b/`; the decisions are in r58's `synthesis.md`).
-Amends the stop-recording decision implicit in `ADR-0022` and the recorded-create pointer in
+Extends the stop-recording decision implicit in `ADR-0022` and the recorded-create pointer in
 `ADR-0043`.
 
 ## Context
@@ -25,8 +25,7 @@ still does not prove the write failed: a durable record may already exist when t
 ## Decision
 
 - `OPS-21` owns the scope: "A cancellation of `execute` that the engine survives MUST be recorded
-  before the engine exits, for every operation kind, subject to the bounded abandonment and
-  later-stop exits below." It defines survival: "“Survives” means the process outlives the stop."
+  before the engine exits, for every operation kind". It defines survival: "“Survives” means the process outlives the stop."
 - `OPS-11` retains the classification. Its create boundary is "Any create failure the worker
   records before any step-9 request (before any per-order key upload or order request) MUST settle
   `failed`, whatever its kind." Its install row includes "while `OPS-45`'s two markers say the
@@ -36,14 +35,12 @@ still does not prove the write failed: a durable record may already exist when t
   `execute`." Its store-error path uses `OPS-49`: "the component MUST repeat the **whole
   transaction**". A later stop during that loop still exits, as does exhaustion, with the
   lost-reply case `OPS-49` names: "unless the bound's last repeat committed and its reply was lost".
-- `OPS-21` owns the stop duration: "The record MUST land within the Stop-record bound (`OVR-19`),
-  before the engine exits." Its accounting rule is "The Stop-record bound is measured from the
+- `OPS-21` owns the stop duration: "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound." Its accounting rule is "The Stop-record bound is measured from the
   stop, counts every repeat including serialization failures, and never resets." Its supervisor
   obligation is "The deployment's supervisor MUST wait at least the Stop-record bound after a stop
   before it kills the engine." `OVR-19` registers its type as "finite, positive duration" and marks
   the row startup-validated. The independent Store-retry bound and its exits retain their owner.
-- `OPS-21` owns the parent: "A cancelled `suspend_tenant` parent MUST be returned to `queued` with
-  `available_at` advanced at any point in its fan-out." This uses the ordinary guarded defer;
+- `OPS-21` owns the parent: "A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out, subject to the same Stop-record bound and exits." This uses the ordinary guarded defer;
   `OPS-15` owns resumption, "resuming its fan-out from wherever it stopped", and says the re-sweep
   "is idempotent by `OPS-39`'s dedup".
 - `WIR-9a` owns the reason union, now including `"cut_off"` (`OPS-21`). The recorded stop's kind

@@ -41,8 +41,7 @@ its position. The requirements carry those distinct cases.
   and for the store-error exit "on exhaustion the outcome in hand is thrown away and
   `OPS-15` classifies the row as interrupted". *(2026-10-18, `ADR-0044`, `pv-tst`:
   `OPS-21` now requires "A cancellation of `execute` that the engine survives MUST be recorded
-  before the engine exits, for every operation kind, subject to the bounded abandonment and
-  later-stop exits below." Its settle-write error has `details.reason: "cut_off"`.)*
+  before the engine exits, for every operation kind". Its settle-write error has `details.reason: "cut_off"`.)*
 - `PRV-50` owns the read-only guarantee: "The driver's List offers MUST be read-only under
   `PRV-12`'s guarantee"; `PRV-12` says "Get machine MUST be read-only and free of side effects".
 - `LDG-32` owns release: "A commitment MUST be closed, and its remaining amount released in

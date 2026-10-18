@@ -356,7 +356,7 @@ marked human are procedures the deployment records rather than values the proces
 *Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
 2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
 activation funding minimum is registered. Amended 2026-10-12 (`ADR-0037`, Q28):
-refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the stop-record duration.*
+refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the Stop-record bound.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|

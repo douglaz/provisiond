@@ -98,7 +98,7 @@ structure Result where
   deriving DecidableEq, Repr
 
 /-- Recorded or exited, with the actual durable store, including a commit whose reply was lost.
-`OPS-21` says "The record MUST land within the Stop-record bound (`OVR-19`), before the engine exits." -/
+`OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound." -/
 @[req "OPS-21"]
 def trace (p : Params) (g : Guards) (s : Store) (r : Record)
     (budget storeBudget : Nat) (events : List Event) : Result :=
@@ -161,12 +161,8 @@ theorem schedule_bounded (p : Params) (hb : p.boundRecord = true)
 @[req "OPS-21"]
 theorem trace_bounded (p : Params) (hb : p.boundRecord = true) (g : Guards)
     (s : Store) (r : Record) (budget storeBudget : Nat) (events : List Event) :
-    (trace p g s r budget storeBudget events).elapsed ≤ budget ∧
-    ((trace p g s r budget storeBudget events).recorded = true ∨
-     (trace p g s r budget storeBudget events).recorded = false) := by
-  constructor
-  · exact schedule_bounded p hb events budget storeBudget
-  · cases (trace p g s r budget storeBudget events).recorded <;> simp
+    (trace p g s r budget storeBudget events).elapsed ≤ budget := by
+  exact schedule_bounded p hb events budget storeBudget
 
 /-- Any number of serialization repeats past expiry cannot reach the committing suffix. -/
 @[req "OPS-21"]
@@ -192,9 +188,24 @@ theorem store_exhaustion_exits (g : Guards) (s : Store) (r : Record) (budget : N
 "A worker cancelled during the retry loop stops retrying and exits"). -/
 @[req "OPS-49"]
 theorem later_stop_exits (p : Params) (g : Guards) (s : Store) (r : Record)
-    (budget storeBudget : Nat) (es : List Event) :
-    trace p g s r budget storeBudget (.laterStop :: es) = ⟨s, false, 0⟩ := by
-  cases r <;> simp [trace, schedule, applyRecord, retryWhole, repeatParent]
+    (budget storeBudget : Nat) (pre es : List Event) :
+    trace p g s r budget storeBudget (pre ++ .laterStop :: es) =
+      trace p g s r budget storeBudget pre := by
+  have stopped : ∀ budget storeBudget,
+      schedule p budget storeBudget (pre ++ .laterStop :: es) =
+        schedule p budget storeBudget pre := by
+    induction pre with
+    | nil => intro budget storeBudget; simp [schedule]
+    | cons e pre ih =>
+      intro budget storeBudget
+      cases e with
+      | laterStop => simp [schedule]
+      | serialization => simp [schedule, ih]
+      | store o redelivered =>
+        cases o with
+        | refused => simp [schedule, ih]
+        | committed acked => cases acked <;> simp [schedule, ih]
+  simp only [trace, stopped]
 
 /-- An acknowledged working store applies the computed classification or the parent's defer.
 `OPS-21` says "A cancellation of `execute` that the engine survives MUST be recorded before
