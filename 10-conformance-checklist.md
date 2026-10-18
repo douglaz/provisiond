@@ -1463,8 +1463,8 @@ rather than acquiring a default.
       transaction is in flight before commit. Read the stored record and assert
       `about_to_order_at` is null at each kill. Restart: assert `failed`, a restart-naming
       `internal` error, `retryable: true` on both error and operation view, commitment closed and
-      released in full, no setup-fee or first-unit debit, and the resource-offer exclusion freed.
-      Assert no step-9 request reached the provider: no per-order key upload and no order;
+      released in full, no setup-fee or first-unit debit, and the resource-offer exclusion freed
+      where the create holds one. Assert no step-9 request reached the provider: no per-order key upload and no order;
       the List offers read is permitted. Repeat with an injected recorded error carrying
       `retryable: false`, written to the stored row before the restart, since `CNF-30` says "The
       startup pass does not overwrite an error already recorded": assert the error survives

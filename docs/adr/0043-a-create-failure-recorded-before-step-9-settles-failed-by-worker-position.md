@@ -1,4 +1,4 @@
-# A create failure recorded before step 9 settles failed by worker position
+# A create failure recorded before step 9 settles `failed` by worker position
 
 **Status:** accepted (2026-10-18, the owner's decision, option 1; `pv-qga`; panel r57,
 `docs/research/panels-2026-10/r57/`).
@@ -75,8 +75,10 @@ Other precedents for a failed create with retryability true are `OPS-15`'s resta
 - **Opus's internal kind for a cancellation.** The taxonomy's `internal` means "Defect in this
   system" (`01-domain-model.md`, Error taxonomy); cancellation keeps its cut-off `conflict`. Its reason value remains
   `pv-f7a`'s separate question.
-- **Opus's step-8-send or IS NULL boundary.** The first obscures worker position across a lost
-  reply; the second refuses the settle write on the lost-reply path, where the column is
+- **Opus's step-8-send or IS NULL boundary.** Inside step 8's own window the first agrees with
+  step 9, since the worker can record only a deterministic `STO-47` refusal there; it differs
+  after step 8 is acknowledged and before step 9, where it would leave a recorded failure
+  ambiguous though nothing was ordered. The second refuses the settle write on the lost-reply path, where the column is
   set though nothing was ordered, leaving the create `running` for a restart to send to
   `needs_reconciliation`. Neither a preceding null read nor a cached null distinguishes a
   failure after step 9 begins. The worker position boundary includes the acknowledged-step-8 window without
@@ -90,6 +92,6 @@ as `failed` (a behaviour change beyond the question)" remains rejected for step-
 including key upload. `ADR-0035` and `ADR-0042` gain dated pointers.
 
 The tables model carries the worker-position fact on `Failure`, a dated switch and proofs for
-both sides of the boundary and independence of other kinds. Witnesses pin the switch, the
-cut-off distinction and the accepted mutation exclusion. `CNF-361` carries the running-system
+both sides of the boundary and independence of other kinds. Witnesses pin the switch and the
+cut-off distinction; `accepted_never_failed` pins the accepted mutation exclusion. `CNF-361` carries the running-system
 cases, money assertions and stale-null controls; a proof is never conformance (`ADR-0025`).

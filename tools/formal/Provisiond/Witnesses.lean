@@ -3002,8 +3002,8 @@ theorem accepted_read_failure_witness :
           some .failed := by decide
 
 /-- `PRV-5`: "never a preceding key upload". A key uploaded before the order's rejection
-confers no acceptance on the create; transport ambiguity stands without known acceptance, and
-an unknown-acceptance 5xx keeps the mutating request's mapped `provider` kind. -/
+confers no acceptance on the create; from step 9 onward transport ambiguity stands without known
+acceptance, and an unknown-acceptance 5xx keeps the mutating request's mapped `provider` kind. -/
 @[req "OPS-11"]
 theorem rejected_order_witness :
     classify currentRules .createMachine ⟨.provider, false, .status4xx, false, false, false⟩
@@ -3025,7 +3025,7 @@ theorem before_step9_failure_witness :
     classify { currentRules with preStep9Rule := false } .createMachine timeout ⟨false, true⟩ =
       some .needsReconciliation := by decide
 
-/-- `OPS-11` pins the cut-off distinction: "arose from the worker being cut off mid-flight
+/-- Pins `OPS-11`'s cut-off distinction: "arose from the worker being cut off mid-flight
 (`OPS-21`) rather than from a provider-reported state conflict". After step 9 begins, only the
 cut-off `conflict` is ambiguous; the new switch is fixed on independently of `currentRules`. -/
 @[req "OPS-11"]
