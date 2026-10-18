@@ -1708,7 +1708,8 @@ instead of implying otherwise. *This sentence named `OPS-45`'s markers beside th
 **OPS-21** `execute` MUST be cancellable. A cancellation of `execute` that the engine
 survives MUST be recorded before the engine exits, for every operation kind, subject to the
 bounded abandonment and later-stop exits below. “Survives” means the process outlives the stop.
-A kill or crash records nothing; restart recovery remains with `OPS-15`.
+A kill or crash records nothing; at the next start, `OPS-15` says "the engine MUST move every
+`running` operation to `needs_reconciliation`", subject to its exceptions.
 A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded.
 A transaction already sent MAY finish, since `OPS-49` says "the server decides every statement's
 fate before the client does"; the worker MUST NOT repeat it or begin anything it precedes, and
@@ -1742,12 +1743,11 @@ Store-retry bound, independent of this one. The Stop-record bound runs until the
 and covers connection, execution, commit, read-back and backoff together. On expiry the worker
 MUST abandon the record, and the engine MUST log loudly, naming every operation whose record
 it did not see land, and exit. For the lost-reply case see `OPS-49`: "unless the bound's last
-repeat committed and its reply was lost"; restart recovery classifies whatever is still
-`running` under `OPS-15`. There is no ordering constraint between the Stop-record bound and the
+repeat committed and its reply was lost"; a row still `running` goes to restart recovery as
+after a crash. There is no ordering constraint between the Stop-record bound and the
 Store-retry bound: whichever ends first ends the record, with the latter's exhaustion exit
 unchanged. The deployment's supervisor MUST wait at least the Stop-record bound after a stop
-before it kills the engine. A kill before the record lands is a crash; restart recovery remains
-with `OPS-15` and its exceptions.
+before it kills the engine. A kill before the record lands is a crash.
 
 A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out, subject to the same Stop-record bound and exits.
 This is the write `OPS-49` gives a waiting parent, "returned to `queued` with `available_at`

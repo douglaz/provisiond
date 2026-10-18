@@ -98,7 +98,9 @@ structure Result where
   elapsed : Nat
   deriving DecidableEq, Repr
 
-/-- Recorded or exited, with the actual durable store, including a commit whose reply was lost.
+/-- Recorded or not, with the actual durable store, including a commit whose reply was lost.
+`recorded = false` is an exit or an unfinished prefix, one whose events end first; nothing here
+yet separates the two.
 `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and
 the engine MUST NOT wait for it past that bound." -/
 @[req "OPS-21"]
