@@ -361,6 +361,12 @@ declaration (`ADR-0025` owes it a mutation)"; opus: "(c): follows (b)").
 - fable: `check_fixtures.py` checks no reason value (verified: no match for "reason"). Only a `CNF`
   run (`CNF-248`, 10:2782) catches an unlisted value. opus: `CNF-248` "covers only 409s and stays as it
   is".
+- Manager's note. The caller-facing union already uses "cancellation" for the machine's destruction.
+  `cancellation_committed` tells "the tenant plainly that the machine is already being cancelled"
+  (12:1971-1972). astra and sol are right that `CONTEXT.md`'s rule says when to use "cancel" and does not
+  forbid a qualified use.
+- **Manager's recommendation: `cut_off`** (siding with fable and opus). The cost is that `cut_off` is the
+  set's internal word, so a caller learns it from `WIR-9a`'s entry.
 
 ### Planted edits
 
@@ -400,26 +406,52 @@ Folded in from r58b:
 - The parent's `available_at` is advanced, as in `OPS-49`'s write (3-1, opus dissenting).
 - The write runs outside the cancellation (4-0).
 
+## Owner decision 2, 2026-10-18: A's size
+
+**The larger shape (option 2)**, siding with astra and sol. The manager had recommended the smaller one.
+- **A new required `OVR-19` row: a stop-record limit.** It is finite, positive and startup-validated. It
+  counts from the stop and covers every retry, serialization retries included, without resetting. The
+  supervisor must allow it.
+  - On expiry the engine exits and `OPS-15` classifies the row. astra: "deadline expiry supplies a
+    subsequent cancellation".
+  - `OPS-49`'s retry loop and its exits stay as settled.
+  - Naming is the implementer's: sol said "Stop-record bound", astra "shutdown-record bound".
+    `CONTEXT.md`:199 bans "grace period".
+- **A Lean model** composing `Claim` and `Tables`, with paired witnesses (`ADR-0025`). It covers the
+  classification, the guarded record write or the parent's defer, the bound, and an ordinary exit as
+  distinct from a permitted abandonment. It computes recording rather than assuming it: astra says
+  "Prove consequences across traces, without assuming recording occurred".
+- **`ci.yml` controls**, each removing one of the following and requiring the matching witness to fail:
+  - the recording;
+  - the shielding;
+  - the bound.
+
+  astra's plant (a deadline that "restarts after each serialization failure") is a case the bound's
+  control must reject.
+- Unchanged from r58b, 4-0:
+  - the record write runs outside the cancellation that stopped `execute`;
+  - a cancelled `suspend_tenant` parent gets its own sentence, with `available_at` advanced (3-1),
+    subject to the limit.
+
 ## Queued for the owner
 
 1. ~~A, B or C (asked 2026-10-18).~~ Answered: A (above).
-2. A's size: the smaller or the larger shape, or the new row alone. Each item is 2-2 after r58 and
-   r58b, so there is no third round. Asked 2026-10-18.
+2. ~~A's size.~~ Answered: the larger shape (owner decision 2, above).
 3. pv-f7a's reason value: `cut_off` (fable, opus) or `execution_cancelled` (astra, sol), 2-2 in
-   r58b.
+   r58b. Asked 2026-10-18.
 
 ## Next steps for a fresh manager
 
 - Branch `pv-tst-triage` (off master `c8b7cbc`, not pushed) holds this record and a triage comment on
   pv-tst. The r58b record sits under `r58b/`.
-- When the owner has answered 2 and 3:
+- When the owner has answered 3 (1 and 2 are answered):
   - Write pv-tst's agent brief as a bead comment, following the triage skill's `AGENT-BRIEF.md`. It covers:
     - the owner's A (every kind; the widened exception, with rescue inventory taking the install rows);
-    - the shielded record write and its bound, per answer 2;
+    - the shielded record write and the new stop-record limit (owner decision 2);
     - the parent's sentence (`available_at` advanced);
     - pv-f7a's reason value in `WIR-9a` and `CNF-361`, per answer 3;
     - the edits listed under "Edits owed under A" above;
-    - Lean and `ci.yml` only if answer 2 takes the larger shape;
+    - the Lean model and the `ci.yml` controls (owner decision 2);
     - the ADR home: a new ADR (3-1 in r58), pointers from `ADR-0022` and `ADR-0043`, and the README index.
   - Set pv-tst `bug` + `ready-for-agent`. pv-f7a is closed by the same change.
 - pv-9j6 is triaged separately.
