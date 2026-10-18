@@ -54,7 +54,7 @@ upload, then the order" at step 9. That boundary includes the first mutation, no
 
 The requirement owners above hold the rules and their arguments. `ADR-0035` gains a dated
 pointer inside its rejected bullet. A set column leaves a create as ambiguous as today; it
-cannot establish whether a resource was produced. *(2026-10-18, `ADR-0043`, `pv-qga`: this remains the restart path; the create row now classifies a worker-recorded failure by position even with the column set. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.".)* The restore model carries the restart-only
+cannot establish whether a resource was produced. *(2026-10-18, `ADR-0043`, `pv-qga`: this remains the restart path; the create row now classifies a worker-recorded failure by position even with the column set. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.")* The restore model carries the restart-only
 arm, a restore-trace theorem and a migration theorem. The live model does not prove the
 step-8-before-step-9 assumption, and the stored-record purge and kill-timing checks remain
 conformance obligations.

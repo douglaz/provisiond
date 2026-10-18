@@ -109,11 +109,6 @@ declaration alone does not make an offer sellable; the live-evidence condition i
 
 ### List offers
 
-**PRV-50** The driver's List offers MUST be read-only under `PRV-12`'s guarantee:
-"Get machine MUST be read-only and free of side effects".
-
-*Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): made the List offers read-only guarantee explicit.*
-
 **Input** — none.
 **Output** — offers (`DOM-9`).
 **Capability** — `list_offers` (`DOM-22`); a driver that cannot enumerate offers does not
@@ -122,6 +117,11 @@ declare it, and the endpoint answers `unsupported` for that account.
 May aggregate several provider endpoints (for example a standard catalog and an auction
 market). Offers from different channels MUST be distinguishable by their identifier so
 the create path can route on it.
+
+**PRV-50** The driver's List offers MUST be read-only under `PRV-12`'s guarantee:
+"Get machine MUST be read-only and free of side effects".
+
+*Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): made the List offers read-only guarantee explicit.*
 
 ### Create machine
 

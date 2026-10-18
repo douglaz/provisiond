@@ -1506,8 +1506,8 @@ rather than acquiring a default.
       at step 4's List offers read. Also record an `OPS-21` cancellation of `execute` at each
       of steps 1-8 on each channel. For every case assert `failed`, the reported error kind,
       `retryable: true` on both the error and the operation view, full commitment release with
-      no setup-fee or first-unit debit, the resource-offer exclusion freed, no step-9 request
-      (no per-order key upload and no order), and no `OPS-27` search. The List offers read is
+      no setup-fee or first-unit debit, the resource-offer exclusion freed where the create holds one,
+      no step-9 request (no per-order key upload and no order), and no `OPS-27` search. The List offers read is
       permitted (`PRV-50`: "The driver's List offers MUST be read-only"). For each cancellation
       the error kind is `conflict` with `retryable: true` on error and view; every other assertion
       in this item still applies. Make no assertion about `details.reason`, neither its value
@@ -1521,8 +1521,8 @@ rather than acquiring a default.
       enters `needs_reconciliation`. Finally commit step 8 and lose its reply, then commit an
       account-status write recording `terminated` before the whole-transaction repeat. Assert
       that the repeat's `STO-47` check affects no row and the create settles `failed` with the
-      column set, full release, no fee or unit debit, the exclusion freed, no step-9 request and
-      no correlator search. Exercise the ordinary worker guard without a null-column term and
+      column set, full release, no fee or unit debit, the resource-offer exclusion freed where the
+      create holds one, no step-9 request and no correlator search. Exercise the ordinary worker guard without a null-column term and
       atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
       `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`)
       *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls.*

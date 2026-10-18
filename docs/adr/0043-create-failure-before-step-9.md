@@ -38,7 +38,8 @@ its position. The requirements carry those distinct cases.
 - `OPS-21` points at that create row for a recorded cancellation: "For a create, a cancellation of
   `execute` recorded before step 9 is the exception". The retry-loop exit is
   separate: `OPS-49` says "A worker cancelled during the retry loop stops retrying and exits",
-  and for the store-error exit "The engine exits and the startup pass classifies it".
+  and for the store-error exit "on exhaustion the outcome in hand is thrown away and
+  `OPS-15` classifies the row as interrupted".
 - `PRV-50` owns the read-only guarantee: "The driver's List offers MUST be read-only under
   `PRV-12`'s guarantee"; `PRV-12` says "Get machine MUST be read-only and free of side effects".
 - `LDG-32` owns release: "A commitment MUST be closed, and its remaining amount released in
@@ -75,9 +76,10 @@ Other precedents for a failed create with retryability true are `OPS-15`'s resta
   system" (`01-domain-model.md`, Error taxonomy); cancellation keeps its cut-off `conflict`. Its reason value remains
   `pv-f7a`'s separate question.
 - **Opus's step-8-send or IS NULL boundary.** The first obscures worker position across a lost
-  reply; the second mistakes the column for dispatch evidence and risks refusing a valid
-  repeat. Neither a preceding null read nor a cached null distinguishes a failure after step 9
-  begins. The worker position boundary includes the acknowledged-step-8 window without
+  reply; the second refuses the settle write on the lost-reply path, where the column is
+  set though nothing was ordered, leaving the create `running` for a restart to send to
+  `needs_reconciliation`. Neither a preceding null read nor a cached null distinguishes a
+  failure after step 9 begins. The worker position boundary includes the acknowledged-step-8 window without
   reading the column.
 
 ## Consequences
