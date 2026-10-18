@@ -1503,9 +1503,11 @@ rather than acquiring a default.
       `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
       On both an auction channel and a standard channel (`correlator: none`), inject each of
       `network`, `timeout`, `internal`, `provider` with a 5xx and `provider` without a status
-      at step 4's List offers read. Also record an `OPS-21` cancellation of `execute` at each
-      of steps 1-8 on each channel, at step 8 outside `OPS-49`'s retry loop, where "A worker
-      cancelled during the retry loop stops retrying and exits" and classifies nothing. For every
+      at step 4's List offers read. Also cancel `execute` at each of steps 1-8 on each channel,
+      at step 8 outside `OPS-49`'s retry loop, where "A worker cancelled during the retry loop
+      stops retrying and exits" and classifies nothing. `OPS-21` says "a cancellation of
+      `execute` recorded before step 9 is the exception", so the cancellation cases cover only a
+      cancellation the worker records; assert nothing about one it does not. For every
       case assert `failed`, the reported error kind,
       `retryable: true` on both the error and the operation view, full commitment release with
       no setup-fee or first-unit debit, the resource-offer exclusion freed where the create holds one,
@@ -1527,7 +1529,7 @@ rather than acquiring a default.
       create holds one, no step-9 request and no correlator search. Exercise the ordinary worker guard without a null-column term and
       atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
       `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`)
-      *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls.*
+      *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls. The cancellation cases cover only a recorded cancellation; whether one must be recorded is `pv-tst`'s.*
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
       reply before the client sees it, let the worker repeat the whole transaction under `OPS-49`,

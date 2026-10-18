@@ -13,7 +13,7 @@
 
    Prefer a **new ADR**, indexed in README, with pointers from 0035/0042; retain Q11’s order-request case. Update `Tables.lean`, totality/acceptance theorems and `Witnesses.lean`; add a rule switch and `ci.yml` mutation requiring the intended witness’s refutation.
 
-4. **Experiment:** a Markdown create row settling `failed` after a preceding null-column read passed every gate. Baseline/mutated/restored exits: **0/0/0**; tracked files restored. Retained [patch](/var/tmp/provisiond-panel-r57/sol/r57-wrong-null-read.patch) and [log](/var/tmp/provisiond-panel-r57/sol/r57-wrong-null-read-gates.log). A control must reject cached-null → step-8 commit → order → timeout; separately catch omission of cut-off `conflict` and disabling B.
+4. **Experiment:** a Markdown create row settling `failed` after a preceding null-column read passed every gate. Baseline/mutated/restored exits: **0/0/0**; tracked files restored. Retained patch (`/var/tmp/provisiond-panel-r57/sol/r57-wrong-null-read.patch`, not committed) and log (`/var/tmp/provisiond-panel-r57/sol/r57-wrong-null-read-gates.log`, not committed). A control must reject cached-null → step-8 commit → order → timeout; separately catch omission of cut-off `conflict` and disabling B.
 
 5. I found no required equivalent pre-read. Robot cancellation “MUST NOT issue `GET /server/{n}/cancellation` as a pre-read” (`PRV-13`); PTR compares the “machine's recorded value” (`PRV-25`); attachment listing follows “every delete that succeeds with the resource gone” (`PRV-45`). A demonstrated driver-internal case deserves a separate bead.
 
