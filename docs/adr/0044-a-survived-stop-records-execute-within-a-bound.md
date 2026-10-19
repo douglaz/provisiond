@@ -3,7 +3,7 @@
 **Status:** accepted (2026-10-18, the owner's decisions 1–4; `pv-tst` and `pv-f7a`;
 panels r58, r58b and r58c, `docs/research/panels-2026-10/r58/`,
 `docs/research/panels-2026-10/r58/r58b/` and `docs/research/panels-2026-10/r58/r58c/`; the
-decisions are in r58's `synthesis.md`).
+decisions are in r58's `synthesis.md`); amended 2026-10-19 (`pv-zbp`).
 Extends the stop-recording decision implicit in `ADR-0022` and the recorded-create pointer in
 `ADR-0043`.
 
@@ -123,7 +123,7 @@ stop being recorded." Its first-stop sentence quotes the rule above. The periodi
 store loops remain undecided.
 
 `CNF-362` says "This item is the only check of these after-return cases; no gate or formal model
-separates a stop recorded by the settle write from one that exits." There is no Lean or CI change:
+decides whether a first stop after `execute` returns is recorded by the settle write or exits." There is no Lean or CI change:
 `Provisiond.StopRecord.trace` takes any `Record.settle`, its schedule starts at the record write,
 and neither the model nor a gate separates the readings. The conformance cases exercise the
 settle write and the create's verification placement; they do not prove an implementation.

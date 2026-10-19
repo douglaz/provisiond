@@ -1681,12 +1681,12 @@ loop:
     outcome = execute(op)                         # OPS-21: a stop the engine survives records
                                                   #   a cut-off conflict within the Stop-record
                                                   #   bound (parent: defer)
-    # a phase RSC-41 names runs with yielded_at set; clearing it is a conditional
-    # write the index may refuse, in which case defer(op, mine, delay)   (OPS-8)
+    # inside execute, a phase RSC-41 names runs with yielded_at set; clearing it is
+    # a conditional write the index may refuse, in which case defer(op, mine, delay)
+    # (OPS-8)
     # every store write below is retried as a whole transaction under OPS-49
-    # unless execute was cancelled, a stop the engine survives from here until
-    # the settle write lands is recorded by that write: shielded, within the
-    # Stop-record bound, with the outcome's own error and no cut-off (OPS-21)
+    # a stop the engine survives after an uncancelled execute returns is
+    # recorded by the settle write below (OPS-21)
 
     if outcome is success:
         ok = finish_success(op, mine, result)     # guarded (id, running, claim_number = mine)
