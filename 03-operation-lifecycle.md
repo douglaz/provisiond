@@ -1678,15 +1678,15 @@ loop:
     if claim refused by the per-machine index:    # STO-51: another running op holds the machine
         defer(op, delay); continue                # OPS-8: never left queued, number unchanged
 
-    outcome = execute(op)                         # OPS-21: a stop the engine survives records
-                                                  #   a cut-off conflict within the Stop-record
-                                                  #   bound (parent: defer)
+    outcome = execute(op)                         # OPS-21: a survived stop that cancels execute
+                                                  #   records a cut-off conflict within the
+                                                  #   Stop-record bound (parent: defer)
     # inside execute, a phase RSC-41 names runs with yielded_at set; clearing it is
     # a conditional write the index may refuse, in which case defer(op, mine, delay)
     # (OPS-8)
     # every store write below is retried as a whole transaction under OPS-49
-    # a stop the engine survives after an uncancelled execute returns is
-    # recorded by the settle write below (OPS-21)
+    # a survived stop that did not cancel execute, during an absorbed read or after
+    # execute returns, is recorded by the settle write below (OPS-21)
 
     if outcome is success:
         ok = finish_success(op, mine, result)     # guarded (id, running, claim_number = mine)
@@ -1724,7 +1724,7 @@ guarded write of `OPS-22`, except for a parent, whose record write is the defer 
 recorded error is a cut-off `conflict` with `details.reason: "cut_off"` (`WIR-9a`), for every
 kind whose record write is the guarded one, whether the row settles `failed` or enters
 `needs_reconciliation`.
-A provider call abandoned mid-flight is exactly the uncertainty this design exists to represent.
+A provider call abandoned mid-flight whose failure enters `OPS-11`'s classifier is exactly the uncertainty this design exists to represent.
 For a create, a cancellation of `execute` recorded before step 9 is the exception, under the
 create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
 The other classification pointers are `OPS-11`'s install row, "while `OPS-45`'s two markers say
@@ -1761,7 +1761,12 @@ it stopped"; that re-sweep "is idempotent by `OPS-39`'s dedup" (`OPS-15`), so it
 child twice.
 
 `execute` returns only once the outcome its settle write records is final, so every provider call that outcome depends on is made inside `execute`.
-For a create, the worker's settle-time verification is inside `execute`: `OPS-27`'s correlator search and its confirming read, and `PRV-13c`'s post-order read in that settlement pass, so a stop during any of them is the cancellation being recorded.
+For a create, the worker's settle-time verification is inside `execute`: `OPS-27`'s correlator search and its confirming read, so a stop during either is the cancellation being recorded.
+`PRV-13c`'s post-order read in that settlement pass and `PRV-13`'s direct read after an accepted dated cancellation are also inside `execute`, and their failure leaves the outcome in hand.
+`PRV-13c` says "A failed post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and MUST NOT change the create's settlement."
+`PRV-13` says "If the machine remains present, or this read fails for any reason including throttle, authentication, network error or deadline expiry, the accepted attempt settles `succeeded` as `cancellation_scheduled` with its effective date."
+A stop the engine survives after a create's settle-time confirming read succeeds, or after a delete's cancellation is accepted with an effective date, and before `execute` returns MUST NOT cancel `execute`.
+The worker still makes the read that follows, the stop ends it at once as a failed read unless it has already completed, `execute` returns the outcome that read gives, and the settle write records the stop as it records a stop after `execute` returns.
 A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation.
 The settle write that records a stop after `execute` returns MUST NOT be cancelled or abandoned by that stop.
 This holds before that write's first transaction, during it and while `OPS-49` repeats it, whether the repeats began before the stop or after it, until the write lands or affects no row (`OPS-22`).
@@ -1777,6 +1782,8 @@ A stop that arrives after a stop has cancelled `execute`, before that cancellati
 *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): a stop during a store transaction inside `execute`, repeating or not, is the recorded cancellation; the record reads the markers its own transaction sees.*
 
 *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): placed outcome-dependent provider calls within the cancellable execution and extended stop handling to settlement; kept a stop after a cancellation of `execute` a later stop of its record.*
+
+*Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): a survived stop during a read whose failure leaves the outcome in hand ends that read as a failed read and is recorded by the settle write, not as a cut-off.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do

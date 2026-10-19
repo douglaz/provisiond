@@ -1541,13 +1541,14 @@ rather than acquiring a default.
 
 - [ ] **CNF-362** — **A stop the engine survives from a worker's `execute` until its settle write lands gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
-      For each operation kind, stop the engine while its worker is in `execute`, with a working
-      store. Assert the cut-off `conflict`'s classification against the kind's row (`OPS-11`),
+      For each operation kind, stop the engine while its worker is in `execute`, outside the
+      absorbed-read cases below, with a working store. Assert the cut-off `conflict`'s classification against the kind's row (`OPS-11`),
       with `details.reason: "cut_off"` on every record write of a cancellation of `execute` but the parent's defer: a create before step 9, and an
       install or rescue inventory before the write-started marker with no rescue session open,
       settle `failed`; refresh settles `failed`; an install past the marker enters
       `needs_reconciliation`; power, reverse DNS, delete and release attachment stopped during
-      their provider call after dispatch enter `needs_reconciliation`.
+      their provider call after dispatch, other than a delete's direct read after an accepted
+      dated cancellation, enter `needs_reconciliation`.
       Assert the create before step 9 carries `retryable: true` on error and view, and each
       `needs_reconciliation` case carries `retryable: false` (`API-51`: "An operation in
       `needs_reconciliation` MUST be delivered with `retryable: false`").
@@ -1611,17 +1612,29 @@ rather than acquiring a default.
       **After-return control:** a kill after `execute` returns and before the settle write
       lands writes nothing; assert `OPS-15` classifies the row at restart.
       **Placement control:** stop a create after step 9 during its settle-time correlator
-      search, separately during its confirming read, and separately during its post-order
-      read. Assert a cut-off `conflict` with `details.reason: "cut_off"`,
-      `needs_reconciliation` and `retryable: false` (`API-51`).
+      search, and separately during its confirming read. Assert a cut-off `conflict` with
+      `details.reason: "cut_off"`, `needs_reconciliation` and `retryable: false` (`API-51`).
+      **Absorbed reads:** `OPS-21` says "A stop the engine survives after a create's settle-time confirming read succeeds, or after a delete's cancellation is accepted with an effective date, and before `execute` returns MUST NOT cancel `execute`."
+      `OPS-21` says "The worker still makes the read that follows, the stop ends it at once as a failed read unless it has already completed, `execute` returns the outcome that read gives, and the settle write records the stop as it records a stop after `execute` returns."
+      Stop a create whose settle-time search and confirming read found exactly one machine
+      during its post-order read, and separately after its confirming read succeeds and
+      before that read is sent. Assert the driver makes that read once, and the outcome
+      `CNF-356` asserts for a failed post-order read: `succeeded` with only
+      `earliest_cancellation_date` null, the landed-order effects committed once with the
+      setup fee and first unit debited once, no `needs_reconciliation` and no `cut_off`.
+      Separately stop a delete during its direct machine read after a cancellation is accepted
+      with an effective date. Assert `succeeded` as `cancellation_scheduled` with that date, no
+      gone record, no `needs_reconciliation` and no `cut_off`. In each case assert engine exit
+      only after the settle write lands.
       This item is the only check of these after-return cases; no gate or formal model
       decides whether a first stop after `execute` returns is recorded by the settle write or exits.
       (`OPS-21`, `OPS-11`, `OPS-49`, `OVR-19`, `WIR-9a`, `WIR-9b`, `OPS-15`, `OPS-22`,
       `STO-3`, `OPS-8`, `OPS-39`, `OPS-6`, `OPS-43`, `OPS-45`, `API-51`, `API-58`, `OPS-27`,
-      `PRV-13c`, `LDG-32`, `LDG-39`)
+      `PRV-13`, `PRV-13c`, `LDG-32`, `LDG-39`)
       *Added 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): added stop recording, shielding, duration, parent, validation and crash controls.*
       *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): kept the cut-off reason off the parent's defer; added the install stopped inside its marker write's loop.*
       *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): added settle-write recording cases, defending quotations and the create verification placement control; pinned the store in the later-stop case; scoped the heading to a worker's `execute` and settle write.*
+      *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): moved the post-order read out of the placement control and the delete's direct read out of the cut-off cases, into absorbed-read cases citing `CNF-356`.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the

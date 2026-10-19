@@ -114,7 +114,7 @@ loop exit to "the stop-record write's own loop". This amendment records that app
 `OPS-21` owns the rule: "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation."
 `OPS-21` owns the shield: "The settle write that records a stop after `execute` returns MUST NOT be cancelled or abandoned by that stop."
 `OPS-21` owns the recorded outcome: "The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`."
-`OPS-21` places the create verification: "For a create, the worker's settle-time verification is inside `execute`: `OPS-27`'s correlator search and its confirming read, and `PRV-13c`'s post-order read in that settlement pass, so a stop during any of them is the cancellation being recorded."
+For the create verification, `OPS-21` says "For a create, the worker's settle-time verification is inside `execute`: `OPS-27`'s correlator search and its confirming read, so a stop during either is the cancellation being recorded."
 The worker algorithm points to that owner at the settle writes.
 
 The worker's loop exit in `OPS-49` is scoped to a later stop: "For a worker, this means a later
@@ -132,3 +132,25 @@ settle write and the create's verification placement; they do not prove an imple
 
 - **Exit when the stop lands in an ordinary settle write's loop.** Rejected: it throws away an
   outcome in hand and makes the result depend on whether the store error came before the stop.
+
+## Amendment — 2026-10-19: a stop during an absorbed read (`pv-zbp`, `pv-ilb`; panel r59)
+
+The pv-zbp branch first made a stop during `PRV-13c`'s post-order read a cut-off, which parked a
+verified create. `PRV-13c` says "A failed post-order read of any kind, `rate_limited` included, MUST
+NOT enter `OPS-11`'s classifier and MUST NOT change the create's settlement". `pv-ilb` found the same
+split at `PRV-13`'s direct read after an accepted dated cancellation. Panel r59
+(`docs/research/panels-2026-10/r59/`) went 4-0 for absorbing the stop as that read's failure, and the
+owner chose it for both reads on 2026-10-19.
+
+**Decision.** `OPS-21` says "A stop the engine survives after a create's settle-time confirming read succeeds, or after a delete's cancellation is accepted with an effective date, and before `execute` returns MUST NOT cancel `execute`."
+`OPS-21` says "The worker still makes the read that follows, the stop ends it at once as a failed read unless it has already completed, `execute` returns the outcome that read gives, and the settle write records the stop as it records a stop after `execute` returns."
+`CNF-362`'s absorbed-read cases check it against the outcome `CNF-356` asserts for a failed
+post-order read. There is no Lean or CI change.
+
+**Considered and rejected.**
+
+- **Cut-off: the create parks in `needs_reconciliation`.** Rejected: the outcome is already final when
+  the read starts, and `ADR-0037` (Q31) already rejected "keeping it with a failure that waits in
+  `needs_reconciliation`".
+- **Drop the read from the placement sentence and leave the case open.** Rejected: two engines would
+  then settle the same stop differently, which is the split `pv-ilb` reported.

@@ -163,6 +163,8 @@ the confirming `GET /server/{n}` succeeds. The driver then makes `PRV-13c`'s one
 The manager has not settled these. Under the standing rule, a split the manager settles needs its own
 round before it is applied.
 
+Superseded by the owner decision below: no r59b round ran.
+
 ## What one customer gets under each option
 
 The customer prepays and orders a Robot auction server. Before ordering, the system sets aside the setup
@@ -229,3 +231,23 @@ says no. On substance all four agree that the principle carries over and the tex
 | `ADR-0044` | adr/0044:117 | quote re-synchronized and introduced with "says"; one rejected option added |
 | pv-zbp Agent Brief | acceptance criterion 2 and its 2026-10-19 amendment | amended: the post-order read is absorbed, not cut off |
 | pv-ilb | bead | closed with pv-zbp if it joins; otherwise triaged on this principle |
+
+## Owner decision, 2026-10-19
+
+**Option 1: (a) for both reads, so pv-ilb closes with pv-zbp.** A survived stop during `PRV-13c`'s
+post-order read, or during `PRV-13`'s direct read after an accepted dated cancellation, is that read's
+failure; the create settles `succeeded` with a null date, and the delete settles `succeeded` as
+`cancellation_scheduled`.
+
+r59b was skipped. The coordinator relayed that the three drafting points are wording or already
+settled by the ruling: a stop between the confirming read and the date question follows (a), because
+the outcome is already final there. They were closed in the applying commit:
+
+1. The gap: `OPS-21`'s new sentence covers a stop "after a create's settle-time confirming read
+   succeeds, or after a delete's cancellation is accepted with an effective date, and before `execute`
+   returns", and "The worker still makes the read that follows, the stop ends it at once as a failed read
+   unless it has already completed".
+2. The label: the settle write "records the stop as it records a stop after `execute` returns", so
+   the after-return rules apply without calling this stop one.
+3. The scope: `CNF-362`'s generic sentence now runs "outside the absorbed-read cases below", and its
+   delete clause excludes "a delete's direct read after an accepted dated cancellation".
