@@ -42,10 +42,18 @@ FOUR RULES, deliberately narrow.
            for a day, motivating the Lean QUOTED pass.
            REACH: a quote is checked only when its SPLIT chunk carries an
            ATTRIB match (a speech verb, or `X`'s <noun> that) before it, or is
-           directly after a bare possessive (`X`'s "four or more words"). The
+           directly after a bare possessive (`X`'s "four or more words") or,
+           in root Markdown only, a colon (`X`: "four or more words"). The
            chunk must be neither HISTORICAL nor TEACHING. A bare possessive
            owns only its immediately following quote; each such pair is checked,
-           even with multiple owners in a chunk. It never adds UNQUOTED input.
+           even with multiple owners in a chunk. The colon shape has the same
+           immediate-quote ownership and never adds UNQUOTED input either.
+           Colon coverage excludes Lean docstrings: EXISTS already compares
+           every eligible docstring quote against the corpus; ci.yml's
+           "Prove the citation gate rejects a Lean docstring quote found nowhere"
+           relies on Wire.lean's colon-form API-11 chunk staying outside QUOTED;
+           and tools/formal/ is frozen in the pv-s4g Run, so a Lean finding
+           could not be repaired there. These scope limits are the Run caller's.
            In Lean docstrings that was the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
            or more normalised words were compared. The gate prints both figures
            on every run; the numbers here are that day's reading, not a rule.
@@ -78,15 +86,27 @@ FOUR RULES, deliberately narrow.
            there is skipped; the same attribution in a current chunk is checked.
            Possessives require a straight apostrophe and whitespace immediately
            followed by the opening quote; intervening prose or markup is not
-           this shape. Quotes below four words remain outside QUOTED.
+           this shape. Colons require whitespace immediately followed by the
+           opening quote: intervening prose or markup, or no whitespace, is
+           outside the shape. An ADR id or document name before a colon is
+           outside it too. An explanatory colon after a requirement citation
+           is read as attribution (the WIR-10b site repaired by pv-s4g).
+           A colon-form quote in a Lean docstring gets only EXISTS's owner-free
+           comparison unless another supported attribution shape applies.
+           Quotes below four words remain outside QUOTED.
            Comparison locates candidate source spans without quotation marks,
            then compares their content, including adjacent apostrophes. Only
            locally paired delimiters are formatting; word-internal and unpaired
            trailing apostrophes remain content. See comparison_text() and
            span_content() for the bounds and ambiguous-punctuation limitation.
-           Signature identity still uses norm(), retaining all marks.
+           QUOTED comparison ignores a blockquote marker only at the start of
+           a continuation line: newline, optional spaces/tabs, > and at most
+           one following space. Other > characters remain content. quotations()
+           still yields exact source slices; signature identity still uses
+           norm(), retaining all marks, including blockquote markers.
            A chunk shaped `X` says `Y`'s "four or more words" compares against
-           both owners; no precedence rule was chosen. A nested example can
+           both owners; the same applies to `X` says `Y`: "four or more words"
+           in Markdown. No precedence rule was chosen. A nested example can
            gain a second attribution. An allowance is per full signature, not
            positional: deleting its standing occurrence and restating it
            elsewhere in the same file can pass. Making the standing chunk
@@ -203,6 +223,10 @@ ATTRIB = re.compile(
 # quotations in the chunk. Short quotes are ignored, never called UNQUOTED.
 POSSESSIVE = re.compile(r"`((?:%s)-\d+[a-z]?)`'s\s+(?=[\"“])" % NS)
 
+# Markdown's colon form has the same immediate-quote ownership, independently
+# of speech verbs and possessives. Lean docstrings retain their existing reach.
+COLON = re.compile(r"`((?:%s)-\d+[a-z]?)`:\s+(?=[\"“])" % NS)
+
 # "reads" is two verbs. "`WIR-9` reads \"...\"" attributes text; "`LDG-74` reads
 # it" and "`LDG-38` reads both from this record" mean CONSULTS, and consulting
 # never carries a quote -- so the unquoted rule would fire on every one of them.
@@ -292,6 +316,8 @@ def comparison_text(s):
     Whitespace still matches whitespace across sentences, paragraphs, list items
     and table rows. norm() and the finding signatures are deliberately unchanged.
     """
+    s = re.sub(r'\n[ \t]*> ?', '\n', s)
+
     def whitespace(m):
         gap = m.group()
         structural = ('\n' in gap and
@@ -632,6 +658,11 @@ def find(docs, adrs, reqs, corpus=None):
                 direct = [(p, q) for p, q in quotes if p == possessive.end()]
                 if direct:
                     attributions.append((possessive.group(1), direct))
+            if not f.endswith('.lean'):
+                for colon in COLON.finditer(sent):
+                    direct = [(p, q) for p, q in quotes if p == colon.end()]
+                    if direct:
+                        attributions.append((colon.group(1), direct))
             # What the chunk cites by name joins the pool: a root document, or
             # one ADR's file. Never every ADR -- withdrawn wording an ADR records
             # must be cited as that ADR's, not passed off as the requirement's.
@@ -1013,6 +1044,65 @@ def check_possessives():
     return 0
 
 
+def check_colons():
+    """Markdown colon owners are direct; source slices and Lean reach stay intact."""
+    reqs = {'OPS-41': ('probe.md', 'alpha beta gamma delta'),
+            'OPS-42': ('probe.md', 'epsilon zeta eta theta')}
+    first = ('probe.md', 'OPS-41', 'alpha beta gamma wrong')
+    second = ('probe.md', 'OPS-42', 'epsilon zeta eta wrong')
+    cases = [
+        ('`OPS-41`: "alpha beta gamma delta"', [first]),
+        ('`OPS-41`: “alpha beta gamma delta”', [first]),
+        ('`OPS-41`: "now"; `OPS-42`: "epsilon zeta eta theta"', [second]),
+        ('`OPS-41`: "alpha beta gamma delta"; `OPS-42`: "epsilon zeta eta theta"', [first, second]),
+        ('`OPS-41`: "alpha beta gamma delta"; another "unattributed four word phrase"', [first]),
+        ('`OPS-41`: "just three words"', []),
+        ('> `OPS-41`: "alpha beta\n> gamma delta"',
+         [('probe.md', 'OPS-41', 'alpha beta > gamma wrong')]),
+    ]
+    for text, expected_bad in cases:
+        expected = len(expected_bad)
+        good = find({'probe.md': text}, {}, reqs)
+        wrong = text.replace('delta', 'WRONG').replace('theta', 'WRONG')
+        bad, unquoted, compared = find({'probe.md': wrong}, {}, reqs)
+        if (good != ([], [], expected) or bad != expected_bad or unquoted
+                or compared != expected):
+            print(f'FAIL: colon form: {text}: {good}, {bad}, {unquoted}, {compared}')
+            return 1
+    try:
+        text = '> `OPS-41`: "alpha beta\n> gamma delta"'
+        assert list(quotations(text)) == [(text.index('"'), 'alpha beta\n> gamma delta')]
+        assert norm(next(quotations(text))[1]) == 'alpha beta > gamma delta'
+        assert find({'probe.lean': text.replace('delta', 'WRONG')}, {}, reqs) == ([], [], 0)
+        # A speech verb and a colon both own the same quote, independently.
+        text = '`OPS-41` says `OPS-42`: "alpha beta gamma delta"'
+        assert find({'probe.md': text}, {}, reqs) == (
+            [('probe.md', 'OPS-42', 'alpha beta gamma delta')], [], 2)
+        for prefix in ['`OPS-41`:','`OPS-41`: prose ', '`OPS-41`: *',
+                       "`OPS-41`'s rule: ", '`ADR-0017`: ', '`README.md`: ']:
+            assert find({'probe.md': prefix + '"alpha beta gamma delta"'}, {}, reqs) == ([], [], 0)
+        for quote in ['alpha > beta gamma delta', '> alpha beta gamma delta']:
+            assert not contains_quote(comparison_text(reqs['OPS-41'][1]), quote)
+        for gap in ['\n>', '\n> ', '\n \t> ']:
+            assert contains_quote(comparison_text(reqs['OPS-41'][1]), 'alpha beta' + gap + 'gamma delta')
+        # A second marker is content, rather than another formatting layer.
+        assert not contains_quote(comparison_text(reqs['OPS-41'][1]), 'alpha beta\n> > gamma delta')
+        # Named document and ADR pools work just as for the other shapes.
+        for citation, docs, adrs in [('`CONTEXT.md`', {'CONTEXT.md': 'alpha beta gamma delta'}, {}),
+                                    ('`ADR-0017`', {}, {'ADR-0017': 'alpha beta gamma delta'})]:
+            text = f'{citation}; `OPS-42`: "alpha beta gamma delta"'
+            assert find({'probe.md': text}, adrs, reqs, corpus=docs) == ([], [], 1)
+            assert find({'probe.md': text.replace('delta', 'WRONG')}, adrs, reqs, corpus=docs) == (
+                [('probe.md', 'OPS-42', 'alpha beta gamma wrong')], [], 1)
+        for prefix in ['Previously ', 'For example, ']:
+            assert find({'probe.md': prefix + '`OPS-41`: "alpha beta gamma WRONG"'}, {}, reqs) == ([], [], 0)
+    except AssertionError as exc:
+        print(f'FAIL: colon form: scope, ownership or blockquote comparison: {exc}')
+        return 1
+    print('PASS: colon forms: exact and corrupt quotes, direct owners, short spans, blockquote continuation, pools and Markdown-only reach')
+    return 0
+
+
 def check_docstrings():
     """Check the extractor before trusting it with the specification artifacts.
 
@@ -1096,7 +1186,7 @@ def unresolved(docs, adrs):
 
 def main():
     if (check_sentence_boundaries() or check_docstrings() or check_quotations()
-            or check_possessives() or check_quote_content()):
+            or check_possessives() or check_colons() or check_quote_content()):
         return 1
     try:
         with open(BASELINE) as source:
