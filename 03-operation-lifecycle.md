@@ -778,9 +778,9 @@ upload.
 If the offer is absent from that result or the re-test finds it unsellable, the worker MUST fail
 the operation deterministically before any provider mutation, with `invalid_request`,
 `details.reason: "offer_not_sellable"` and `retryable: false` on both the error and the operation
-view. The operation settles `failed` under the create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." The error is `WIR-9`'s inner object under `WIR-10b`: "The inner
+view. The operation settles `failed` under the create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." The error is `WIR-9`'s inner object under `WIR-10b` (`WIR-9`: "The inner
 `error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is
-the object `WIR-10b` embeds in an operation view". It carries neither `details.refusals` nor
+the object `WIR-10b` embeds in an operation view"). It carries neither `details.refusals` nor
 `details.not_checked`; `WIR-9a` introduces those keys "**On create and extend-runway tail
 refusals**". Its details obey `WIR-9a`'s "no cap or balance result or amount derived from the
 withheld offer's price". The commitment is released in full under `LDG-39`'s
