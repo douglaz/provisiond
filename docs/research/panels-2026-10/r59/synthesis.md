@@ -107,9 +107,11 @@ the confirming `GET /server/{n}` succeeds. The driver then makes `PRV-13c`'s one
 - The changed sentence is quoted in exactly two places: `OPS-21` itself (03:1764) and `ADR-0044`
   (adr/0044:117). No Lean declaration or docstring quotes it.
 - fable's gate gap. `ADR-0044`:117 introduces its quote with "`OPS-21` places the create verification:".
-  "places" is not in `check_citations.py`'s `SPEECH = r"says|said|states|stated|reads|read"` (tools:195),
-  so the gate does not check that quote. fable's corrupted copy stayed green. Using "says" there fixes it
-  in scope. It needs no bead.
+  fable's corrupted copy stayed green, but not because of the verb: `check_citations.py` says "ADRs are
+  sources, not QUOTED input" (tools/check_citations.py:32-33), so no verb makes the gate check a quote in
+  an ADR. The applying commit introduced it with "says" anyway; that is wording only, and the ADR's copy
+  stays a review duty. It needs no bead. (Corrected 2026-10-19 on PR #10: an earlier version said "says"
+  would make the gate check this quote.)
 - Every reader's gate claims agree with their logs.
   - Option (a) is green in all four clones.
   - A reversal of the deciding sentence, made in sync with its `CNF-362` quote, is green in all four.

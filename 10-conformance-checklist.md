@@ -1623,9 +1623,15 @@ rather than acquiring a default.
       `earliest_cancellation_date` null, the landed-order effects committed once with the
       setup fee and first unit debited once, no `needs_reconciliation` and no `cut_off`.
       Separately stop a delete during its direct machine read after a cancellation is accepted
-      with an effective date. Assert `succeeded` as `cancellation_scheduled` with that date, no
-      gone record, no `needs_reconciliation` and no `cut_off`. In each case assert engine exit
-      only after the settle write lands.
+      with an effective date, and separately after that acceptance and before that read is sent.
+      Assert the driver makes that read once, and `succeeded` as `cancellation_scheduled` with
+      that date, no gone record, no `needs_reconciliation` and no `cut_off`.
+      Separately stop the same create, and a delete, after its read has completed and before
+      `execute` returns: the create's post-order read returning a date, and the delete's direct
+      read returning provider-mapped absence. Assert the driver makes that read once and the outcome it gave
+      stands: the create `succeeded` with that `earliest_cancellation_date`, and the delete's
+      machine recorded gone at that read (`PRV-13`), with no `needs_reconciliation` and no
+      `cut_off`. In each case assert engine exit only after the settle write lands.
       This item is the only check of these after-return cases; no gate or formal model
       decides whether a first stop after `execute` returns is recorded by the settle write or exits.
       (`OPS-21`, `OPS-11`, `OPS-49`, `OVR-19`, `WIR-9a`, `WIR-9b`, `OPS-15`, `OPS-22`,
@@ -1635,6 +1641,7 @@ rather than acquiring a default.
       *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): kept the cut-off reason off the parent's defer; added the install stopped inside its marker write's loop.*
       *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): added settle-write recording cases, defending quotations and the create verification placement control; pinned the store in the later-stop case; scoped the heading to a worker's `execute` and settle write.*
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): moved the post-order read out of the placement control and the delete's direct read out of the cut-off cases, into absorbed-read cases citing `CNF-356`.*
+      *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; codex review round 1 on PR #10; `ADR-0044`): added the delete stopped before its direct read is sent, and both reads stopped after they complete.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
