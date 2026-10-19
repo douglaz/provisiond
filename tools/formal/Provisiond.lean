@@ -20,4 +20,5 @@ import Provisiond.Rehost
 import Provisiond.Admission
 import Provisiond.AccountStatus
 import Provisiond.ProviderTraffic
+import Provisiond.StopRecord
 import Provisiond.Witnesses

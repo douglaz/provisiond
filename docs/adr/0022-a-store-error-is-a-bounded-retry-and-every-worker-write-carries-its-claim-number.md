@@ -132,7 +132,9 @@ worker retries under one engine. What the retry actually costs is the idempotenc
 
 **Narrow `OPS-22` to the first attempt** ("under one engine, a zero-row settle write on a retry is
 always our own earlier attempt"). The writer inventory is true today — cancellation under `OPS-21`
-is an outcome the owning worker records; `API-58`'s fan-out and `API-63` touch only `queued` rows;
+is an outcome the owning worker records *(2026-10-18, `ADR-0044`, `pv-tst`: now required by
+`OPS-21`, "A cancellation of `execute` that the engine survives MUST be recorded before the engine
+exits, for every operation kind")*; `API-58`'s fan-out and `API-63` touch only `queued` rows;
 the operator verbs are guarded on `needs_reconciliation`; retention "reaches settled operations and
 nothing else". Rejected because it holds by inventory, which is "in prose and absent from the
 predicate" (`ADR-0016`), because the same premise is repeated in `OPS-3` and `STO-3`, and because
