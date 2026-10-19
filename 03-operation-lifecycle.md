@@ -1684,9 +1684,9 @@ loop:
     # a phase RSC-41 names runs with yielded_at set; clearing it is a conditional
     # write the index may refuse, in which case defer(op, mine, delay)   (OPS-8)
     # every store write below is retried as a whole transaction under OPS-49
-    # a stop the engine survives from here until the settle write lands is
-    # recorded by that write: shielded, within the Stop-record bound, with the
-    # outcome's own error and no cut-off (OPS-21)
+    # unless execute was cancelled, a stop the engine survives from here until
+    # the settle write lands is recorded by that write: shielded, within the
+    # Stop-record bound, with the outcome's own error and no cut-off (OPS-21)
 
     if outcome is success:
         ok = finish_success(op, mine, result)     # guarded (id, running, claim_number = mine)
@@ -1768,6 +1768,7 @@ This holds before that write's first transaction, during it and while `OPS-49` r
 The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`.
 For a `suspend_tenant` parent that `execute` left waiting on its children, that write is the defer above, which records no error.
 The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent.
+A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns.
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed the recorded cancellation at the create row; the retry-loop exits remain exits without worker classification.*
 
@@ -1775,7 +1776,7 @@ The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry 
 
 *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): a stop during a store transaction inside `execute`, repeating or not, is the recorded cancellation; the record reads the markers its own transaction sees.*
 
-*Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): placed outcome-dependent provider calls within the cancellable execution and extended stop handling to settlement.*
+*Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): placed outcome-dependent provider calls within the cancellable execution and extended stop handling to settlement; kept a stop after a cancellation of `execute` a later stop of its record.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do

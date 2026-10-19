@@ -1567,6 +1567,7 @@ rather than acquiring a default.
       the same bound from the stop, with no reset. With each of the Stop-record and Store-retry
       bounds in turn the shorter, assert the record ends and the engine exits when the first
       bound ends. A later stop during the record's whole-transaction loop exits at once.
+      `OPS-21` says "A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns."
       Also commit the last repeat before the Stop-record bound expires but lose its reply: assert
       the row is already written and money posted once, and restart finds no `running` row to classify.
       **Inside `execute`:** stop a `provider_native` install while `OPS-49` repeats its
@@ -1601,11 +1602,12 @@ rather than acquiring a default.
       `cut_off`. Separately stop after `execute` returns a post-dispatch provider `timeout`
       from a power action. Assert `needs_reconciliation` with kind `timeout`, `retryable: false`
       and no `cut_off`.
-      Deliver a later stop during the settle write's loop: assert exit at once with the row
-      still `running`, and restart classification under `OPS-15`. With every transaction
-      refused and the Stop-record bound shorter than the Store-retry bound, assert exit when
-      the Stop-record bound expires, measured from the stop, with the loud log naming the
-      operation; assert `OPS-15` classifies the row at restart.
+      With the store refusing every transaction until after it, deliver a later stop between
+      repeats of the settle write that records a first stop after `execute` returns: assert
+      exit at once with the row still `running`, and restart classification under `OPS-15`.
+      With every transaction refused and the Stop-record bound shorter than the Store-retry
+      bound, assert exit when the Stop-record bound expires, measured from the stop, with the
+      loud log naming the operation; assert `OPS-15` classifies the row at restart.
       **After-return control:** a kill after `execute` returns and before the settle write
       lands writes nothing; assert `OPS-15` classifies the row at restart.
       **Placement control:** stop a create after step 9 during its settle-time correlator
@@ -1619,7 +1621,7 @@ rather than acquiring a default.
       `PRV-13c`, `LDG-32`, `LDG-39`)
       *Added 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): added stop recording, shielding, duration, parent, validation and crash controls.*
       *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): kept the cut-off reason off the parent's defer; added the install stopped inside its marker write's loop.*
-      *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): added settle-write recording cases, defending quotations and the create verification placement control.*
+      *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): added settle-write recording cases, defending quotations and the create verification placement control; pinned the store in the later-stop case.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
