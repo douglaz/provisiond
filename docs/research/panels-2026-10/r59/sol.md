@@ -1,0 +1,13 @@
+1. **Yes, absent an unstated cancellation exception.** `OPS-21` includes the post-order read, “so a stop during any of them is the cancellation being recorded”; `PRV-13c` says a failed read “of any kind” “MUST NOT change the create's settlement.” `CNF-362` asserts “a cut-off `conflict`” and “`needs_reconciliation`”. The opposing Q31 fixture is actually **`CNF-356`, not `CNF-147`**: “the same `succeeded` status”, with “only `earliest_cancellation_date` null”. Its network failure and the stop are different stimuli.
+
+2. **Pick (a): losing the date cannot erase verified delivery.** My [patch](/var/tmp/provisiond-panel-r59/sol/r59-review/option-a.patch) narrows `OPS-21`’s placement sentence to search/confirmation and adds “MUST end that read as a failed read without cancelling `execute`”. Both named reads use settle-write recording, with the bound starting at the stop. It splits `CNF-362`’s Placement control, adds absorbed-read cases, narrows the worker comment and abandoned-call rationale, and synchronizes `ADR-0044`’s quotation. No Lean docstring quotes the changed sentences.
+
+3. **The manager is wrong.** Yes, the date belongs to the recorded outcome: `PRV-13c` requires “the date of a successful read the committing pass holds, otherwise null”. The read changes stored data even when status stays `succeeded`; it belongs inside `execute`.
+
+4. **Null:** the interrupted attempt supplied no successful date. `PRV-13c`’s “On interruption by engine exit or crash” does not describe this survived stop followed by commit; subsequent exit cannot discard committed state. “Within a settlement pass the post-order read MUST NOT be repeated” permits one interrupted attempt. `PRV-5`’s alarm concerns “every Robot `403 RATE_LIMIT_EXCEEDED`”; cancellation alone supplies none, while an observed qualifying `403` still alarms.
+
+5. **Yes, this also decides `pv-ilb`.** `PRV-13`’s “this read fails for any reason” preserves `succeeded`/`cancellation_scheduled` with its accepted effective date. The reads’ date effects differ.
+
+6. Baseline, option (a), both deciding-sentence reversals—owner-only and quotation-synchronized—and restored (a) **all exited 0; nothing went red**. [Gate evidence](/var/tmp/provisiond-panel-r59/sol/r59-review/evidence.txt). Proposed `CNF-362`: “This item is the only check of whether a survived stop during either read is absorbed”.
+
+7. **Strongest argument against my pick:** cancellation can terminate `execute` independently of provider-error handling. The amended agent brief expressly demanded cut-off here. Option (a) therefore needs an explicit lifecycle amendment; it cannot be presented as what that implementation contract already required.
