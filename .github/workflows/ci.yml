@@ -337,6 +337,45 @@ jobs:
           grep -A6 'proved that the proposition' build.log | grep -q 'deleteMachine'
           echo "lake build correctly failed on already_deleted_witness"
 
+      - name: Prove the Lean build rejects a finished exit from an empty event list
+        if: matrix.shard == 3
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/StopRecord.lean')
+          source = path.read_text()
+          old = '  | [] => { unfinished := true }'
+          assert source.count(old) == 1
+          path.write_text(source.replace(old, '  | [] => { unfinished := false }'))
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::an empty event list passed as a finished exit"
+            exit 1
+          fi
+          cat build.log
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/StopRecord.lean:.*unsolved goals' build.log
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path('Provisiond/StopRecord.lean').read_text().splitlines()
+          start = next(i + 1 for i, line in enumerate(lines)
+                       if line.startswith('theorem finished_unrecorded_exit '))
+          end = next(i + 1 for i in range(start, len(lines)) if not lines[i].strip())
+          errors = [line for line in Path('build.log').read_text().splitlines()
+                    if line.startswith('error: Provisiond/')]
+          assert len(errors) == 1, errors
+          assert 'error: Provisiond/StopRecord.lean:' in errors[0], errors
+          location = int(errors[0].split(':')[2])
+          assert start <= location <= end, (start, end, errors)
+          print(f'PASS: only finished_unrecorded_exit is red (lines {start}-{end})')
+          PY
+          echo "lake build correctly rejected a finished exit from an empty event list"
+
       # ADR-0035: disable one amendment guard at a time. Require a refuted
       # witness, never a syntax error. One in-repository copy serves the rows.
       - name: Prove accepted failures and in-progress orders survive only with their guards
