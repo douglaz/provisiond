@@ -51,9 +51,8 @@ FOUR RULES, deliberately narrow.
            Colon coverage excludes Lean docstrings: EXISTS already compares
            every eligible docstring quote against the corpus; ci.yml's
            "Prove the citation gate rejects a Lean docstring quote found nowhere"
-           relies on Wire.lean's colon-form API-11 chunk staying outside QUOTED;
-           and tools/formal/ is frozen in the pv-s4g Run, so a Lean finding
-           could not be repaired there. These scope limits are the Run caller's.
+           relies on Wire.lean's colon-form API-11 chunk staying outside QUOTED.
+           Extending the shape to Lean docstrings is pv-s4g's open follow-up.
            In Lean docstrings that was the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
            or more normalised words were compared. The gate prints both figures
            on every run; the numbers here are that day's reading, not a rule.
@@ -90,7 +89,8 @@ FOUR RULES, deliberately narrow.
            opening quote: intervening prose or markup, or no whitespace, is
            outside the shape. An ADR id or document name before a colon is
            outside it too. An explanatory colon after a requirement citation
-           is read as attribution (the WIR-10b site repaired by pv-s4g).
+           is read as attribution, so write such a colon only before the
+           cited requirement's own words.
            A colon-form quote in a Lean docstring gets only EXISTS's owner-free
            comparison unless another supported attribution shape applies.
            Quotes below four words remain outside QUOTED.
