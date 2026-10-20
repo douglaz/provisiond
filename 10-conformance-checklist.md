@@ -1568,11 +1568,14 @@ rather than acquiring a default.
       the same bound from the stop, with no reset. With each of the Stop-record and Store-retry
       bounds in turn the shorter, assert the record ends and the engine exits when the first
       bound ends.
-      **Later stop:** `OPS-21` says "A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it."
+      **Later stop:** `OPS-21` says "A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives."
       Deliver a later stop before the record's first transaction is sent, separately for the
       cut-off record of a cancellation of `execute` and the settle-write record of a stop after
       `execute` returns. In each case assert the engine exits without sending that transaction,
       the row stays `running`, and restart recovery applies (`OPS-15`, including its exceptions).
+      Deliver a later stop while `OPS-49` repeats the cut-off record's transaction, with the
+      store refusing every transaction until after that later stop: assert exit at once with
+      the row still `running`, and restart classification under `OPS-15`, including its exceptions.
       `OPS-21` says "A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns."
       Also commit the last repeat before the Stop-record bound expires but lose its reply: assert
       the row is already written and money posted once, and restart finds no `running` row to classify.
@@ -1654,7 +1657,7 @@ rather than acquiring a default.
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): moved the post-order read out of the placement control and the delete's direct read out of the cut-off cases, into absorbed-read cases citing `CNF-356`.*
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; codex review round 1 on PR #10; `ADR-0044`): added the delete stopped before its direct read is sent, and both reads stopped after they complete.*
       *Amended 2026-10-20 (`pv-ay3`): added the waiting parent stopped after `execute` returns, its guarded defer without error, and resumption without duplicate children.*
-      *Amended 2026-10-20 (`pv-gq8`): added a later stop before the first transaction of each record, with no transaction sent, a still-running row and restart recovery.*
+      *Amended 2026-10-20 (`pv-gq8`): added a later stop before the first transaction of each record and during the cut-off record's whole-transaction loop, with a still-running row and restart recovery; the before-first-transaction cases send no transaction.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the

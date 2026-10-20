@@ -1736,8 +1736,8 @@ Where the row reads `OPS-45`'s markers, the record MUST classify against the mar
 The record write MUST NOT be cancelled by the cancellation that stopped `execute`.
 Store errors in that write use `OPS-49`'s whole-transaction loop, "the component MUST repeat the
 **whole transaction**".
-A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it.
-When a later stop arrives, the worker MUST NOT repeat a record transaction already sent; its fate is the server's, since `OPS-49` says "the server decides every statement's fate before the client does".
+A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives.
+The sent transaction's fate is the server's: `OPS-49` says "the server decides every statement's fate before the client does".
 For the retry-loop exit, `OPS-49` says "A worker cancelled during the retry loop stops retrying and exits".
 Its store-error exit also classifies nothing: `OPS-49` says "on exhaustion the outcome in hand is
 thrown away and `OPS-15` classifies the row as interrupted".
@@ -1837,7 +1837,7 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
   only way the engine learns what it claimed; a claim repeated after a lost reply strands a
   `running` row with no worker, which `OPS-15` says "nothing but a restart can" do. The engine
   exits and the startup pass classifies it.
-- **A worker cancelled during the retry loop stops retrying and exits.** `OPS-21` says "A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it."
+- **A worker cancelled during the retry loop stops retrying and exits.** `OPS-21` says "A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives."
   `OPS-21` says "The record write MUST NOT be cancelled by the cancellation that stopped `execute`."
   A stop during a loop inside `execute` is that cancellation, not this exit: `OPS-21` says "A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded."
   A first stop during an ordinary settle write's loop after `execute` returns is not this exit either: `OPS-21` says "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation."
