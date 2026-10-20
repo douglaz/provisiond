@@ -104,7 +104,7 @@ structure Result where
 /-- Recorded or not, with the actual durable store, including a commit whose reply was lost.
 On an unfinished plan, `recorded = false` describes a prefix whose events end first.
 On a finished plan under `finished_unrecorded_exit`'s recording and ownership hypotheses,
-it is one of the bound, store-budget, later-stop or unshielded-redelivery exits named there.
+it is one of the exits that theorem names.
 `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and
 the engine MUST NOT wait for it past that bound." -/
 @[req "OPS-21"]

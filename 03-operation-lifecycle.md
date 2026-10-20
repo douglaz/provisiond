@@ -1774,7 +1774,7 @@ The settle write that records a stop after `execute` returns MUST NOT be cancell
 This holds before that write's first transaction, during it and while `OPS-49` repeats it, whether the repeats began before the stop or after it, until the write lands or affects no row (`OPS-22`).
 The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`.
 For a `suspend_tenant` parent that `execute` left waiting on its children, that write is the defer above, which records no error.
-The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent.
+The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent inside `execute`.
 A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns.
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed the recorded cancellation at the create row; the retry-loop exits remain exits without worker classification.*
@@ -1787,7 +1787,7 @@ A stop that arrives after a stop has cancelled `execute`, before that cancellati
 
 *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): a survived stop during a read whose failure leaves the outcome in hand ends that read as a failed read and is recorded by the settle write, not as a cut-off.*
 
-*Amended 2026-10-20 (`pv-gq8`): extended the later-stop exit to every point before the record lands, with a sent record transaction left to the server and not repeated.*
+*Amended 2026-10-20 (`pv-gq8`): extended the later-stop exit to every point before the record lands, with a sent record transaction left to the server and not repeated; the after-return paragraph's exclusion names the transaction sent inside `execute`, so the later-stop exit's no-repeat clause reaches both records.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do
