@@ -1295,6 +1295,54 @@ jobs:
           print('PASS: straight/curly apostrophes and nested delimiters in both directions; EXISTS unchanged')
           PY
 
+      # pv-s4g: colon owners, including curly marks and blockquote continuations.
+      - name: Prove the citation gate rejects colon-form misquotes
+        if: matrix.shard == 3
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import subprocess
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          cases = [
+              ('03-operation-lifecycle.md', 'PRV-40', '"', '"',
+               'the worker MUST read the stored closure for that\n'
+               '   account and ordering channel when it claims the operation (`OPS-5`), before any provider\n'
+               '   request, including a per-order key upload', 'stored', 'invented'),
+              ('impl-report-01.md', 'OVR-5', '“', '”',
+               'The mutation MUST NOT be retried automatically, and no timer may clear the state.',
+               'retried', 'repeated'),
+              ('impl-report-01.md', 'OVR-9', '“', '”',
+               '`api` MUST NOT depend on `providers` or `rescue` at all, and MUST reach `engine` only\n'
+               '> through a trait whose signatures mention no credential type. `engine` MUST NOT depend on `api`.',
+               '> through', '> beyond'),
+          ]
+          for filename, owner, opening, closing, quote, before, after in cases:
+              path = Path(filename)
+              original = path.read_text()
+              exact = f'`{owner}`: {opening}{quote}{closing}'
+              assert original.count(exact) == 1, (filename, exact)
+              assert quote.count(before) == 1, (owner, before)
+              corrupted = quote.replace(before, after)
+              try:
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  path.write_text(original.replace(exact, f'`{owner}`: {opening}{corrupted}{closing}'))
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, ('planted run must exit 1', filename, owner, result.returncode, result.stderr)
+                  diagnostic = f'{filename} attributes to {owner} a phrase {owner} does not contain:'
+                  assert result.stdout.count(diagnostic) == 1, result.stdout
+                  assert f'"{c.norm(corrupted)}"' in result.stdout, result.stdout
+                  assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+              finally:
+                  path.write_text(original)
+                  assert path.read_text() == original
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+              print(f'PASS: colon form: {owner}: exact -> named failure -> restored exact')
+          PYTHON
+
       # pv-muf: a trailing possessive is content, including at candidate edges.
       # The built-in matrix covers both input kinds and every permitted pool.
       - name: Prove the citation gate preserves trailing possessives and detects a bypass
