@@ -1603,6 +1603,12 @@ rather than acquiring a default.
       `cut_off`. Separately stop after `execute` returns a post-dispatch provider `timeout`
       from a power action. Assert `needs_reconciliation` with kind `timeout`, `retryable: false`
       and no `cut_off`.
+      `OPS-21` says "For a `suspend_tenant` parent that `execute` left waiting on its children, that write is the defer above, which records no error."
+      Stop the engine after that parent's `execute` returns with its children still running,
+      before its defer lands. Assert the guarded defer lands before the engine exits, leaving
+      the parent `queued` with `available_at` advanced and no error, hence no
+      `details.reason: "cut_off"`. On its next claim assert the parent resumes its fan-out and
+      enqueues no child twice (`OPS-15`, `OPS-39`).
       Deliver a later stop between repeats of the settle write that records a first stop after
       `execute` returns, with the store refusing every transaction until after that later stop:
       assert exit at once with the row still `running`, and restart classification under `OPS-15`.
@@ -1642,6 +1648,7 @@ rather than acquiring a default.
       *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): added settle-write recording cases, defending quotations and the create verification placement control; pinned the store in the later-stop case; scoped the heading to a worker's `execute` and settle write.*
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): moved the post-order read out of the placement control and the delete's direct read out of the cut-off cases, into absorbed-read cases citing `CNF-356`.*
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; codex review round 1 on PR #10; `ADR-0044`): added the delete stopped before its direct read is sent, and both reads stopped after they complete.*
+      *Amended 2026-10-20 (`pv-ay3`): added the waiting parent stopped after `execute` returns, its guarded defer without error, and resumption without duplicate children.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
