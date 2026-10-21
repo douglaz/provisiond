@@ -718,8 +718,8 @@ The worker MUST order the following steps as listed:
 
 1. Read the provider account's stored status (`STO-47`). This is a plain read, not a
    conditional-write guard; the guard remains the conditional write at step 8. If the status
-   is not `healthy`, fail `conflict`, with `API-63`'s "`details.reason: "account_terminated"`
-   where the status is `terminated` and `"state"` for the two recoverable statuses". Make no
+   is not `healthy`, fail `conflict`, with `API-63`'s “`details.reason: "account_terminated"`
+   where the status is `terminated` and `"state"` for the two recoverable statuses”. Make no
    provider request and release the commitment in full under `LDG-39`'s "Deterministic rejection
    before acceptance" case.
 2. Read the stored channel closure (`PRV-40`: "the worker MUST read the stored closure for that
