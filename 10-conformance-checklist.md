@@ -1997,7 +1997,17 @@ rather than acquiring a default.
       that ended cleanly. (`WIR-40`, `DOM-10`, `OPS-11`, `OPS-45`)
 - [ ] **CNF-202** — Suspending a tenant returns a `suspend_tenant` operation whose children are
       readable through `GET /v1/operations`; resume is synchronous and restores no machines.
-      (`WIR-39`, `WIR-41`, `API-58`)
+      Separately, suspend a tenant holding a create the caller requested that is `queued` and that
+      no worker has claimed. Assert the create is `failed` with `conflict` and
+      `details.reason: "tenant_suspended"`: `API-58` says “`queued` but never claimed straight to
+      `failed`, carrying the reason in the operation's `error`: `conflict`, with
+      `details.reason: "tenant_suspended"`”. Assert its `requested_by` is `caller` and its
+      `system_reason` is null: `API-58` says “Its `requested_by` stays `caller` and its
+      `system_reason` stays null”. Assert no provider request was made for it: `API-58` says “it
+      has touched no provider”.
+      (`WIR-39`, `WIR-41`, `API-58`, `WIR-9a`, `WIR-10b`)
+      *Amended 2026-10-21 (`pv-1wn`): added the queued, never-claimed caller create that suspension
+      fails with `tenant_suspended`, quoting `API-58` for each assertion.*
 - [ ] **CNF-203** — A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
 - [ ] **CNF-206** — A disk identifier matching **two** devices aborts `integrity` with no write.
