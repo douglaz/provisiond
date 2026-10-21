@@ -3782,9 +3782,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       Assert Cloud, DigitalOcean and Robot 10 Gbit allowance offers are omitted, including
       from a direct account offers route. A numeric allowance or missing traffic bound is
       insufficient. Include an offer whose descriptor `traffic_bound` entry is explicit `null`
-      (`PRV-44`: "or explicit `null` where no bound is declared") and whose offer reports no
-      `traffic_bound`: it is withheld. For each withheld offer, create using a remembered ID and assert the
-      `offer_not_sellable` tail response from `CNF-307`, before any provider call or write.
+      and whose offer leaves `traffic_bound` absent or `null`: it is withheld (`PRV-13b`: "An
+      offer with no declared traffic bound MUST NOT be sold"). For each withheld offer, create
+      using a remembered ID and assert the `offer_not_sellable` tail response from `CNF-307`,
+      before any provider call or write.
       An offer lacking a declared cancellation bound follows the same refusal (`CNF-166`).
       An unassigned or unhealthy account still takes its existing listing response.
       Check the listed offer's customer price and install strategies remain governed by
@@ -3795,7 +3796,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       terms; no overage-price descriptor field is required. (`DOM-9`, `WIR-30`, `PRV-13b`, `PRV-31`, `PRV-44`,
       `PRV-13c`, `API-7`)
       *Amended 2026-10-21 (`pv-nd6`): named the withheld case of a `null` descriptor entry whose
-      offer reports no bound.*
+      offer leaves its bound absent or `null`.*
 - [ ] **CNF-341** — **Conditional allowance re-admission needs measured evidence.** A
       driver declaring an allowance and headroom without a live counter-freshness bound
       does not list or sell that offer. Evidence for a future re-admission must bound
