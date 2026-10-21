@@ -1418,7 +1418,8 @@ sent"), where "on every ordering channel, including `correlator: none`, the work
 conditional write on `STO-47`'s row guarded on `healthy`, and where it affects no row MUST fail the
 operation deterministically — `conflict`, with `details.reason: "account_terminated"` where the status is
 `terminated` and `"state"` for the two recoverable statuses, since presenting an unreachable
-account as a permanent termination is false — releasing its commitment,
+account as a permanent termination is false, and with `retryable: false` for `"account_terminated"`
+and `retryable: true` for `"state"` on both the error and the operation view (`WIR-9b`) — releasing its commitment,
 with no provider mutation. `LDG-69` keeps the provider call outside that transaction, so a
 termination can still commit between the write and the call; that residue is the dispatched case
 below, **and `about_to_order_at` is what tells the termination which case it is**: a claimed
@@ -1444,6 +1445,9 @@ claimed create with no correlator entry against claim precedence and interruptio
 conditional-write guard in the correlator transaction.*
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): moved the claimed-create dispatch test to the all-channel column and scoped its null case to still-`running` creates; `ADR-0042`.*
+
+*Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): gave the claim-time conditional
+write's failure its `retryable` values, on the error and the operation view.*
 
 **The transaction MUST hold the `LDG-35` primitive of every tenant in `WIR-50`'s
 `affected_tenants`, acquired in ascending tenant-identifier order** — the ordering `LDG-35` already

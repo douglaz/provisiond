@@ -1490,8 +1490,12 @@ rather than acquiring a default.
       whole-transaction repeat, which affects one operation row, leaves `about_to_order_at` and
       `updated_at` unchanged and advances `revision` no further.
       Refuse its status guard, then its claim-number guard: assert no column commit, no step 9,
-      and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, full
-      release, and no column commit. For the restart settlement, kill between the status write
+      and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, with
+      `API-63`'s “`details.reason: "account_terminated"` where the status is `terminated` and
+      `"state"` for the two recoverable statuses, since presenting an unreachable account as a
+      permanent termination is false, and with `retryable: false` for `"account_terminated"` and
+      `retryable: true` for `"state"` on both the error and the operation view” for the recorded
+      status, full release, and no column commit. For the restart settlement, kill between the status write
       and the commitment release: assert neither survives the rollback, then restart and assert
       both commit together. Force the null-guarded write to affect no row: assert no money is
       released, and a still-running create is moved by the ordinary startup write to
@@ -1499,6 +1503,8 @@ rather than acquiring a default.
       and a release outside the guarded status transaction. (`OPS-43`, `OPS-49`, `STO-3`,
       `API-63`, `OPS-15`, `LDG-35`)
       *Added 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added lost-reply and atomicity checks; `ADR-0042`.*
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the refused `STO-47` check
+      asserts its reason and `retryable` value.*
 - [ ] **CNF-361** — **A recorded create failure before step 9 releases the purchase.**
       `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
       On both an auction channel and a standard channel (`correlator: none`), inject each of
@@ -1531,13 +1537,16 @@ rather than acquiring a default.
       enters `needs_reconciliation`. Finally commit step 8 and lose its reply, then commit an
       account-status write recording `terminated` before the whole-transaction repeat. Assert
       that the repeat's `STO-47` check affects no row and the create settles `failed` with the
-      column set, full release, no fee or unit debit, the resource-offer exclusion freed where the
+      column set, `conflict`, `details.reason: "account_terminated"` and `retryable: false` on
+      both the error and the operation view, full release, no fee or unit debit, the resource-offer exclusion freed where the
       create holds one, no step-9 request and no correlator search. Exercise the ordinary worker guard without a null-column term and
       atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
       `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`, `OPS-22`, `WIR-9a`)
       *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls. The cancellation cases cover only a recorded cancellation; whether one must be recorded is `pv-tst`'s.*
       *Amended 2026-10-18 (`pv-tst`, `pv-f7a`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required survived-stop recording, its reason and the acknowledged-step-8 case.*
       *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): replaced the step-8 retry-loop exclusion with in-flight and in-loop cases.*
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the terminated repeat
+      asserts its reason and `retryable: false`.*
 
 - [ ] **CNF-362** — **A stop the engine survives from a worker's `execute` until its settle write lands gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
@@ -2642,20 +2651,27 @@ rather than acquiring a default.
       `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
       that claims it afterwards dispatches against revoked credentials and freezes the customer's
       money for `OPS-33`'s window. **Fourth**: claim a create, commit the termination before its
-      step-8 transaction commits (`about_to_order_at` still null), and assert it fails `account_terminated` with no provider mutation;
+      step-8 transaction commits (`about_to_order_at` still null), and assert it fails `account_terminated`
+      with `retryable: false` on both the error and the operation view (`API-63`: “with
+      `retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both the
+      error and the operation view”) and with no provider mutation;
       the List offers read is permitted;
       then commit the termination *after* step 8 commits (`about_to_order_at` set) and before the call, and assert the
       termination treats that attempt as potentially dispatched — neither failed nor released, and
       resolved through `OPS-36`'s late attach.
       **Account-read cases:** admit a create and leave it `queued` and unclaimed, record
-      `credentials_rejected` before claim, then claim it. Assert `OPS-43`'s step 1, "Read the
-      provider account's stored status", fails it `conflict` with `details.reason: "state"`,
-      `failed`, no provider request and full commitment release. On a fresh account, claim a
-      create, let the List offers read complete, then commit termination before step 8 commits (`about_to_order_at` null). Assert `conflict`, `details.reason: "account_terminated"`, `failed`, full commitment
+      `credentials_rejected` before claim, then claim it; repeat with `account_unreachable` on
+      another account. Assert `OPS-43`'s step 1, "Read the
+      provider account's stored status", fails it `conflict` with `details.reason: "state"` and
+      `retryable: true` on both the error and the operation view, `failed`, no provider request
+      and full commitment release. On a fresh account, claim a
+      create, let the List offers read complete, then commit termination before step 8 commits (`about_to_order_at` null). Assert `conflict`, `details.reason: "account_terminated"`,
+      `retryable: false` on both the error and the operation view, `failed`, full commitment
       release, and no provider mutation: no per-order key upload and no order request.
       Repeat the step-8 barriers and account-read cases with an auction-channel descriptor and
       a standard-channel (`correlator: none`) descriptor; assert the column's null/set test on
-      both, making no assertion about the correlator pair on the latter.
+      both, and each failing case's `retryable` value above, making no assertion about the
+      correlator pair on the latter.
       **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
       **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
@@ -2682,6 +2698,10 @@ rather than acquiring a default.
       refusal and post-listing termination cases.*
 
       *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): re-keyed the dispatch barriers to step 8 and the all-channel column; `ADR-0042`.*
+
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the claim-time account
+      failures assert `retryable` on the error and the operation view, in each channel repeat, and
+      the account-read case also runs on `account_unreachable`.*
 
 - [ ] **CNF-279** — **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
@@ -2860,7 +2880,9 @@ rather than acquiring a default.
       offer's provider price raised between accept and claim so the open commitment no longer covers
       `PRV-13b`'s reserve, and with the offer still sellable, the worker fails the operation
       deterministically **with no provider mutation and no ordering request**, `conflict` with
-      `details.reason: "price_moved"`, and the error names the shortfall. With the offer still
+      `details.reason: "price_moved"`, and the error names the shortfall. Assert `retryable: true`
+      on both the error and the operation view (`OPS-43`: “telling the caller to re-submit, and
+      `retryable: true` on both the error and the operation view”). With the offer still
       sellable and the price unchanged or lower, it proceeds. **With the offer still sellable, the provider's
       price unchanged and the satoshi rate moved — in either direction — it proceeds**: that is the
       case a build comparing satoshi reserves refuses, and under a falling market it refused every
@@ -2916,6 +2938,8 @@ rather than acquiring a default.
       result", reads the provider.*
       *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
       updated the List offers step reference to the claim order.*
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the price case asserts
+      `retryable: true` on the error and the operation view.*
 
 - [ ] **CNF-242** — **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits

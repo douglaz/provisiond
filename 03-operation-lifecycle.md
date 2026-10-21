@@ -719,7 +719,10 @@ The worker MUST order the following steps as listed:
 1. Read the provider account's stored status (`STO-47`). This is a plain read, not a
    conditional-write guard; the guard remains the conditional write at step 8. If the status
    is not `healthy`, fail `conflict`, with `API-63`'s “`details.reason: "account_terminated"`
-   where the status is `terminated` and `"state"` for the two recoverable statuses”. Make no
+   where the status is `terminated` and `"state"` for the two recoverable statuses, since
+   presenting an unreachable account as a permanent termination is false, and with
+   `retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both the
+   error and the operation view”. Make no
    provider request and release the commitment in full under `LDG-39`'s "Deterministic rejection
    before acceptance" case.
 2. Read the stored channel closure (`PRV-40`: "the worker MUST read the stored closure for that
@@ -761,6 +764,9 @@ The worker MUST order the following steps as listed:
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): made step 8 write the column under the worker guard and await acknowledgement before step 9.*
 
 *Amended 2026-10-21 (`pv-p1y`): pointed step 7's rejection at `PRV-47`.*
+
+*Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): extended step 1's quote of `API-63`
+to its `retryable` values.*
 
 The first failing check stops subsequent checks; its owning classification governs disposition.
 Claim-time refusals are not collected: the error carries neither `details.refusals` nor
@@ -808,7 +814,8 @@ fields are named so a worker restarted before claim can perform this comparison 
 row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
 provider
 mutation — where the provider's price has risen past what the reserve covers**: `conflict`,
-`details.reason: "price_moved"`, the shortfall in `details`, telling the caller to re-submit. **A
+`details.reason: "price_moved"`, the shortfall in `details`, telling the caller to re-submit,
+and `retryable: true` on both the error and the operation view (`WIR-9b`). **A
 movement in the satoshi rate alone MUST NOT refuse** — that is `ADR-0011`'s business, and it moves
 the runway date rather than the order. *Corrected 2026-09-05. The withdrawn test was "recompute
 `PRV-13b`'s reserve at the current rate … where the open commitment no longer covers it", and the
@@ -837,6 +844,9 @@ commitment release.*
 *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): completed the
 claim order and its precedence, placed validation and account checks, and extended the offer
 failure outcome to absence with resource-offer exclusion settlement.*
+
+*Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): gave `price_moved` `retryable: true`
+on the error and the operation view.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
