@@ -3818,8 +3818,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       driver validation", with no provider mutation: no per-order key upload and no order
       request. The List offers read is permitted. For each, also assert `invalid_request`
       naming the rejected value's field, `retryable: false` on both the error and the operation
-      view, `failed`, and the commitment released in full with no setup-fee or first-unit debit.
-      For a stored create carrying a
+      view, no `details.refusals` or `details.not_checked`, `failed`, the commitment released in
+      full with no setup-fee or first-unit debit, and the resource-offer exclusion freed where the
+      create holds one. Repeat these step-7 cases on a standard channel (`correlator: none`) with
+      the same assertions. For a stored create carrying a
       provider-forwarded value that API boundary validation rejects, assert it fails at
       `OPS-43`'s step 3 instead, with no provider request at all.
       Separately omit the caller-supplied purchase acknowledgement. Assert rejection at
@@ -3844,7 +3846,8 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       cases; split forwarded-value fixtures into boundary-valid values the driver rejects at
       step 7 and boundary-invalid values rejected at step 3; asserted absence outcomes and no key upload on a per-order-key channel.*
       *Amended 2026-10-21 (`pv-p1y`): asserted the step-7 rejection's error, named field,
-      retryability, settlement and commitment release.*
+      retryability, settlement, commitment release and exclusion release, with no collected
+      refusals, on both a per-order-key and a standard channel.*
 
 - [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
       tenants and two replicas on one `offer_is_resource` account/channel/offer.
