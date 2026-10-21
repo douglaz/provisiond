@@ -1999,7 +1999,8 @@ rather than acquiring a default.
       readable through `GET /v1/operations`; resume is synchronous and restores no machines.
       Separately, hold a power operation the caller requested `running` at its driver call on one
       of a tenant's machines, and keep a second worker free. Enqueue a second power operation the
-      caller requests on that machine. `OPS-8` says “A claim (`OPS-5`) that the index refuses
+      caller requests on that machine, and hold the engine's clock from then until a worker has
+      claimed the `suspend_tenant` operation. `OPS-8` says “A claim (`OPS-5`) that the index refuses
       because another running operation holds the machine MUST return the operation to `queued`
       with a short delay”. Before suspending, read the second at the store and check it is
       `queued` with `claim_number` 0. `OPS-6` says “A claim the per-machine index refuses
