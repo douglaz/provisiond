@@ -289,7 +289,11 @@ outliving its machine. Traffic overage is operator exposure too. Under `ADR-0039
 with `traffic_bound: unlimited` is sellable on this dimension; an allowance-bearing offer
 MUST NOT be sold until a live test establishes counter freshness and bounds traffic after
 the last reading through deletion under `ADR-0033`'s "priced, not amplified" criterion.
-An offer with no declared traffic bound MUST NOT be sold. An allowance-bearing offer
+In this requirement, a traffic bound is declared for an offer exactly when the descriptor's
+`traffic_bound` entry for that offer is non-null, or that entry is explicit `null` and the
+offer reports a non-null `traffic_bound`: `PRV-44` says "Like `cancellation_bound`, it MAY
+be reported on the offer instead". An offer with no declared traffic bound MUST NOT be
+sold. An allowance-bearing offer
 that passes the live gate declares allowance less headroom; see `WIR-30` for the
 before-purchase disclosure. Crossing it would open an exposure-reducing cancellation
 with future reason `traffic_allowance` beside `rate_outage_bound` (`OPS-39`, `STO-52`);
@@ -307,7 +311,9 @@ The provider's unit remainder is a different cost, absorbed by the operator unde
 `ADR-0033`; the accepted accounting gaps belong to `LDG-75`. *Amended 2026-10-08 (`ADR-0037`).
 Amended 2026-10-09 (`ADR-0037`, Q13):
 sequential wind-down waits. Amended 2026-10-09 (`ADR-0039`): traffic exposure, the sale gate
-and conditional re-admission.*
+and conditional re-admission. Amended 2026-10-21 (`pv-nd6`): defined when a traffic bound is
+declared — a non-null descriptor entry, or an explicit `null` entry with a non-null
+offer-reported value; which source governs where both carry a value stays with `pv-2s6`.*
 
 The reserve is computed **in the provider's billing currency** and converted once, when the
 commitment is opened or re-sized, into the ledger unit:
