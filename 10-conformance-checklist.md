@@ -2004,9 +2004,10 @@ rather than acquiring a default.
       with a short delay”. Before suspending, read the second at the store and check it is
       `queued` with `claim_number` 0. `OPS-6` says “A claim the per-machine index refuses
       (`OPS-8`) never left `queued` and does not advance the number”. Suspend the tenant. Keep the
-      first held until the second has left `queued` or a stated bound shorter than the driver's
-      request timeout (`PRV-5`) has passed, then release it, and wait until the `suspend_tenant`
-      operation has settled. Then assert the second is `failed` with `conflict` and
+      first held until the second has left `queued`. If it is still `queued` when a stated bound
+      shorter than the driver's request timeout (`PRV-5`) passes, the case fails there, before
+      any release. Otherwise release the first, and wait until the `suspend_tenant` operation has
+      settled. Then assert the second is `failed` with `conflict` and
       `details.reason: "tenant_suspended"`: `API-58` says “`queued` but never claimed straight to
       `failed`, carrying the reason in the operation's `error`: `conflict`, with
       `details.reason: "tenant_suspended"`”. Assert its `requested_by` is `caller` and its
