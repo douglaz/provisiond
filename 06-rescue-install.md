@@ -263,8 +263,13 @@ write time. **The identifier is authoritative; the path is derived.**
 write.** Zero matches is the stale-inventory case; **more than one is the dangerous case** —
 duplicate or empty serials are real on consumer and virtualised disks, and "pick the first" there
 is the same coin-flip over which disk gets destroyed that naming `/dev/sda` was. The driver MUST
-prefer WWN where the provider exposes it and MUST declare an offer unsellable for `raw_disk` and
-`rootfs_via_rescue` where no per-device unique identifier is available at all.
+prefer WWN where the provider exposes it and MUST omit the `raw_disk` and `rootfs_via_rescue`
+strategies from an offer's `install_strategies` where no per-device unique identifier is available
+at all for that offer. This is a static per-offer declaration from provider facts; rescue inventory
+is available only after purchase, on one machine, and cannot supply it. `WIR-30` says
+"`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them".
+The offer stays sellable. If a machine bought under a listed strategy has rescue inventory that
+shows no unique identifier, that machine meets the abort this paragraph opens with.
 
 **This binds every strategy that names a disk, not only `raw_disk`, and the validation is
 identical**: resolve each `layout.drives[].identifier` against a freshly re-read inventory, match
@@ -275,6 +280,9 @@ install that partitions `/dev/sda` after the ordering shifted destroys the same 
 scoping the rule to raw-disk would have left the launch product's primary install path on the
 unstable identifier. Every caller-supplied disk reference MUST be a stable identifier checked
 against the same `inventory_fingerprint`.
+
+*Amended 2026-10-21 (`pv-pj0`): replaced "declare an offer unsellable" with per-offer
+strategy omission; the offer stays sellable.*
 
 **RSC-38** **AMENDED 2026-08-31 — renamed from *preflight*. Rescue inventory is a first-class
 operation, read-only about the disk and about nothing else.** It boots rescue, collects the

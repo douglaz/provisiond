@@ -1991,9 +1991,24 @@ rather than acquiring a default.
       (`WIR-39`, `WIR-41`, `API-58`)
 - [ ] **CNF-203** — A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
-- [ ] **CNF-206** — A disk identifier matching **two** devices aborts `integrity` with no write, and
-      an offer whose devices expose no unique identifier is unsellable for rescue installs.
-      (`RSC-26`)
+- [ ] **CNF-206** — A disk identifier matching **two** devices aborts `integrity` with no write.
+      Use an otherwise sellable offer under `PRV-13b` and `PRV-31`, with `traffic_bound` `unlimited`,
+      a cancellation bound no later than provider-local today, and devices that expose no per-device
+      unique identifier. Assert it is listed on `GET /v1/providers/{account}/offers` (`WIR-30`),
+      a create naming it is not refused `offer_not_sellable`, and its `install_strategies` contains
+      neither `raw_disk` nor `rootfs_via_rescue`. Use a machine created from that offer for an active
+      tenant within its ceilings, on a `healthy` provider account whose capabilities include
+      `rescue_ssh`, `install_raw_disk_via_rescue` and `install_rootfs_via_rescue`. Assert the machine
+      view exposes its recorded copy (`machines.install_strategies`), containing neither strategy.
+      Against that recorded copy, assert an install naming either strategy is refused
+      `invalid_request` before the operation is enqueued, with a body that passes boundary validation:
+      the appropriate strategy/image-source pairing, `trust`, a syntactically valid `target.identifier`
+      or `layout.drives[].identifier`, an `inventory_fingerprint` of 64 lowercase hex characters,
+      `acknowledge_destruction: true` and the image's `sha256` digest. `WIR-30` says "The gate reads
+      the copy the machine took at create".
+      (`RSC-26`, `WIR-30`, `PRV-13b`, `PRV-31`)
+      *Amended 2026-10-21 (`pv-pj0`): replaced the unsellable half with listing, create admission
+      and strategy omission checks, plus install refusal against the machine's recorded copy.*
 - [ ] **CNF-207** — A rootfs install body round-trips `partitions`, `raid.level` and per-drive
       identifiers through the parser. This fixture was silently broken by a fix in the previous
       pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
