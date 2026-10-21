@@ -1573,18 +1573,17 @@ rather than acquiring a default.
       cut-off record of a cancellation of `execute` and the settle-write record of a stop after
       `execute` returns. In each case assert the engine exits without sending that transaction,
       the row stays `running`, and restart recovery applies (`OPS-15`, including its exceptions).
+      `OPS-21` says "The sent transaction's fate is the server's".
+      Deliver a later stop while the record's transaction is in flight, for the same two
+      records, and let the store decide that transaction. Assert the engine sends no record
+      transaction after that later stop, and exits. Accept either outcome: the transaction
+      committed, so the row is as that record writes it, with its effects committed once, and
+      is no longer `running` at restart; or it did not, so the row is still `running` and
+      `OPS-15` classifies it at restart, including its exceptions. Make no assertion about
+      whether the engine waits for that transaction's reply.
       Deliver a later stop while `OPS-49` repeats the cut-off record's transaction, with the
       store refusing every transaction until after that later stop: assert exit at once with
       the row still `running`, and restart classification under `OPS-15`, including its exceptions.
-      Deliver a later stop while the record's transaction is in flight, separately for the
-      cut-off record of a cancellation of `execute` and the settle-write record of a stop after
-      `execute` returns, and let the store decide that transaction.
-      `OPS-21` says "The sent transaction's fate is the server's".
-      Assert the engine sends no record transaction after that later stop, and exits. Accept
-      either outcome: the transaction committed, so the row is as that record writes it, with its
-      effects committed once, and is no longer `running` at restart; or it did not,
-      so the row is still `running` and `OPS-15` classifies it at restart, including its
-      exceptions. Make no assertion about whether the engine waits for that transaction's reply.
       `OPS-21` says "A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns."
       Also commit the last repeat before the Stop-record bound expires but lose its reply: assert
       the row is already written and money posted once, and restart finds no `running` row to classify.
@@ -1667,7 +1666,7 @@ rather than acquiring a default.
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; codex review round 1 on PR #10; `ADR-0044`): added the delete stopped before its direct read is sent, and both reads stopped after they complete.*
       *Amended 2026-10-20 (`pv-ay3`): added the waiting parent stopped after `execute` returns, its guarded defer without error, and resumption without duplicate children.*
       *Amended 2026-10-20 (`pv-gq8`): added a later stop before the first transaction of each record and during the cut-off record's whole-transaction loop, with a still-running row and restart recovery; the before-first-transaction cases send no transaction.*
-      *Amended 2026-10-21 (`pv-oes`): added a later stop with each record's transaction in flight: no transaction after it, and either outcome of the one sent.*
+      *Amended 2026-10-21 (`pv-oes`): added a later stop with each record's transaction in flight; no transaction after it, and either outcome of the one sent.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
