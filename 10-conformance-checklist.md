@@ -2925,10 +2925,24 @@ rather than acquiring a default.
       inheriting a reaped tenant's balance and deposits, which survive by identifier alone.
       (`DOM-1`, `STO-26`, `STO-29`, `API-34`)
 - [ ] **CNF-248** — **Every mandated `409` carries a defined reason.** Drive each member of
-      `WIR-9a`'s `conflict` union — including `signup_window_closed`, `deposit_already_attributed`
-      and `cancellation_committed` — and assert the reason string is present and from the closed set.
-      A `409` with no reason, or one outside the union, fails. (`WIR-9a`, `API-34`, `WIR-42`,
-      `OPS-42`)
+      `WIR-9a`'s `conflict` union except `tenant_suspended`, `price_moved`, `account_terminated`,
+      `incomplete_record` and `cut_off` as a `409` response, and assert the reason string is present
+      and from the closed set. This includes `signup_window_closed`, `deposit_already_attributed`
+      and `cancellation_committed`. A `409` with no reason, or one outside the union, fails.
+      The exclusions are recorded on an operation's `error`:
+      for `tenant_suspended`, `API-58` says "`queued` but never claimed straight to `failed`,
+      carrying the reason in the operation's `error`".
+      For `price_moved`, `OPS-43` says "fail the operation deterministically — before any provider
+      mutation — where the provider's price has risen past what the reserve covers" (`CNF-241`).
+      For `account_terminated`, `API-63` says "transition every `queued`, never-claimed create naming
+      that account straight to `failed`" (`CNF-278`).
+      For `incomplete_record`, `OPS-23` says "A field the `api` itself writes when it admits the
+      operation fails `conflict`" (`CNF-34`).
+      For `cut_off`, `OPS-21` says "The recorded error is a cut-off `conflict` with" (`CNF-361`,
+      `CNF-362`). (`WIR-9a`, `API-34`, `WIR-42`, `OPS-42`, `API-58`, `API-63`, `OPS-21`, `OPS-23`,
+      `OPS-43`)
+      *Amended 2026-10-21 (`pv-uuv`): limited the response drives by named exclusions for reasons
+      recorded on operations, with owner quotations and pointers to the asserting items.*
 - [ ] **CNF-249** — **`?state=` on the case collection is honoured, and a bad value is refused.**
       `open`, `closed` and `all` each return the right set; the default is `open`; and an
       unrecognised value is `invalid_request` rather than ignored. The last clause is the one that
