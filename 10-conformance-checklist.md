@@ -1997,7 +1997,28 @@ rather than acquiring a default.
       that ended cleanly. (`WIR-40`, `DOM-10`, `OPS-11`, `OPS-45`)
 - [ ] **CNF-202** — Suspending a tenant returns a `suspend_tenant` operation whose children are
       readable through `GET /v1/operations`; resume is synchronous and restores no machines.
-      (`WIR-39`, `WIR-41`, `API-58`)
+      Separately, hold a power operation the caller requested `running` at its driver call on one
+      of a tenant's machines, and keep a second worker free. Enqueue a second power operation the
+      caller requests on that machine, and hold the engine's clock from then until a worker has
+      claimed the `suspend_tenant` operation. `OPS-8` says “A claim (`OPS-5`) that the index refuses
+      because another running operation holds the machine MUST return the operation to `queued`
+      with a short delay”. Before suspending, read the second at the store and check it is
+      `queued` with `claim_number` 0. `OPS-6` says “A claim the per-machine index refuses
+      (`OPS-8`) never left `queued` and does not advance the number”. Suspend the tenant. Keep the
+      first held until the second has left `queued`. If the first settles before that, the setup
+      failed and the case has not run. If the second is still `queued` when a stated bound
+      passes, the case fails there, before any release. Otherwise release the first, and wait
+      until the `suspend_tenant` operation has settled. Then assert the second is `failed` with `conflict` and
+      `details.reason: "tenant_suspended"`: `API-58` says “`queued` but never claimed straight to
+      `failed`, carrying the reason in the operation's `error`: `conflict`, with
+      `details.reason: "tenant_suspended"`”. Assert its `requested_by` is `caller` and its
+      `system_reason` is null: `API-58` says “Its `requested_by` stays `caller` and its
+      `system_reason` stays null”. Assert no provider request was made for it: `API-58` says “it
+      has touched no provider”.
+      (`WIR-39`, `WIR-41`, `API-58`, `WIR-9a`, `WIR-10b`, `OPS-6`, `OPS-8`, `ADR-0022`)
+      *Amended 2026-10-21 (`pv-1wn`, panel r60): added the queued, never-claimed caller power
+      operation that suspension fails with `tenant_suspended`, held `queued` behind a running
+      power operation on its machine, quoting `API-58` for each assertion.*
 - [ ] **CNF-203** — A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
 - [ ] **CNF-206** — A disk identifier matching **two** devices aborts `integrity` with no write.
@@ -2941,7 +2962,7 @@ rather than acquiring a default.
       Each excluded reason is recorded on an operation's `error`.
       For `tenant_suspended`, `API-58` says “`queued` but never claimed straight to `failed`,
       carrying the reason in the operation's `error`: `conflict`, with
-      `details.reason: "tenant_suspended"`”.
+      `details.reason: "tenant_suspended"`” (`CNF-202`).
       For `price_moved`, `OPS-43` says “fail the operation deterministically — before any provider
       mutation — where the provider's price has risen past what the reserve covers: `conflict`,
       `details.reason: "price_moved"`, the shortfall in `details`” (`CNF-241`).
