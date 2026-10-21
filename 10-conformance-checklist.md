@@ -2932,12 +2932,15 @@ rather than acquiring a default.
       Each excluded reason is recorded on an operation's `error`.
       For `tenant_suspended`, `API-58` says "`queued` but never claimed straight to `failed`,
       carrying the reason in the operation's `error`".
-      For `price_moved`, `OPS-43` says "fail the operation deterministically — before any provider
-      mutation — where the provider's price has risen past what the reserve covers" (`CNF-241`).
-      For `account_terminated`, `API-63` says "transition every `queued`, never-claimed create naming
-      that account straight to `failed`" (`CNF-278`).
-      For `incomplete_record`, `OPS-23` says "These missing-field failures settle `failed` under
-      `OPS-11`" (`CNF-34`).
+      For `price_moved`, `OPS-43` says “fail the operation deterministically — before any provider
+      mutation — where the provider's price has risen past what the reserve covers: `conflict`,
+      `details.reason: "price_moved"`, the shortfall in `details`” (`CNF-241`).
+      For `account_terminated`, `API-63` says “transition every `queued`, never-claimed create naming
+      that account straight to `failed` — `conflict`, `details.reason: "account_terminated"` — and
+      close and release its commitment” (`CNF-278`).
+      For `incomplete_record`, `OPS-23` says “A field the `api` itself writes when it admits the
+      operation fails `conflict`, with `details.reason: "incomplete_record"` and `retryable: true` …
+      These missing-field failures settle `failed` under `OPS-11`” (`CNF-34`).
       For `cut_off`, `OPS-21` says "The recorded error is a cut-off `conflict`" (`CNF-361`,
       `CNF-362`). (`WIR-9a`, `API-34`, `WIR-42`, `OPS-42`, `API-58`, `API-63`, `OPS-21`, `OPS-23`,
       `OPS-43`)
