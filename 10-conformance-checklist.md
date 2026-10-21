@@ -2951,7 +2951,7 @@ rather than acquiring a default.
       Each excluded reason is recorded on an operation's `error`.
       For `tenant_suspended`, `API-58` says “`queued` but never claimed straight to `failed`,
       carrying the reason in the operation's `error`: `conflict`, with
-      `details.reason: "tenant_suspended"`”.
+      `details.reason: "tenant_suspended"`” (`CNF-202`).
       For `price_moved`, `OPS-43` says “fail the operation deterministically — before any provider
       mutation — where the provider's price has risen past what the reserve covers: `conflict`,
       `details.reason: "price_moved"`, the shortfall in `details`” (`CNF-241`).
