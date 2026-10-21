@@ -165,9 +165,18 @@ the driver MUST validate every value it forwards to the provider, including prov
 and MUST reject invalid values without any provider mutation for that create, including a
 per-order key upload or order request. This validation is in the
 driver, after the API's body validation, because the driver knows the provider's accepted values.
+A value this validation rejects fails `invalid_request` naming the rejected value's field, with
+`retryable: false` on both the error and the operation view (`WIR-9b`). `OPS-11` says "Any create
+failure the worker records before any step-9 request (before any per-order key upload or order
+request) MUST settle `failed`, whatever its kind" and "The commitment is released in full under
+`LDG-32`".
 
 *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): validation now
 precedes any provider mutation for the create, including key upload.*
+
+*Amended 2026-10-21 (`pv-p1y`; by extension of owner decision 2 on `pv-14b`, panel r55,
+`docs/research/panels-2026-10/r55/`): named the error and retryability for an invalid value by
+analogy with the missing caller-supplied field covered by that decision.*
 
 **PRV-11** Ordering is generally not idempotent at the provider. Where create polls an
 order transaction to completion, timing out MUST produce a `timeout` error whose message
