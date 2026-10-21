@@ -1491,8 +1491,11 @@ rather than acquiring a default.
       `updated_at` unchanged and advances `revision` no further.
       Refuse its status guard, then its claim-number guard: assert no column commit, no step 9,
       and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, with
-      `API-63`'s reason and `retryable` value for the recorded status on both the error and the
-      operation view, full release, and no column commit. For the restart settlement, kill between the status write
+      `API-63`'s “`details.reason: "account_terminated"` where the status is `terminated` and
+      `"state"` for the two recoverable statuses, since presenting an unreachable account as a
+      permanent termination is false, and with `retryable: false` for `"account_terminated"` and
+      `retryable: true` for `"state"` on both the error and the operation view” for the recorded
+      status, full release, and no column commit. For the restart settlement, kill between the status write
       and the commitment release: assert neither survives the rollback, then restart and assert
       both commit together. Force the null-guarded write to affect no row: assert no money is
       released, and a still-running create is moved by the ordinary startup write to
@@ -2657,7 +2660,8 @@ rather than acquiring a default.
       termination treats that attempt as potentially dispatched — neither failed nor released, and
       resolved through `OPS-36`'s late attach.
       **Account-read cases:** admit a create and leave it `queued` and unclaimed, record
-      `credentials_rejected` before claim, then claim it. Assert `OPS-43`'s step 1, "Read the
+      `credentials_rejected` before claim, then claim it; repeat with `account_unreachable` on
+      another account. Assert `OPS-43`'s step 1, "Read the
       provider account's stored status", fails it `conflict` with `details.reason: "state"` and
       `retryable: true` on both the error and the operation view, `failed`, no provider request
       and full commitment release. On a fresh account, claim a
@@ -2696,7 +2700,8 @@ rather than acquiring a default.
       *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): re-keyed the dispatch barriers to step 8 and the all-channel column; `ADR-0042`.*
 
       *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the claim-time account
-      failures assert `retryable` on the error and the operation view, in each channel repeat.*
+      failures assert `retryable` on the error and the operation view, in each channel repeat, and
+      the account-read case also runs on `account_unreachable`.*
 
 - [ ] **CNF-279** — **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
