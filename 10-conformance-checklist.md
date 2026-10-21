@@ -2930,8 +2930,9 @@ rather than acquiring a default.
       and from the closed set. This includes `signup_window_closed`, `deposit_already_attributed`
       and `cancellation_committed`. A `409` with no reason, or one outside the union, fails.
       Each excluded reason is recorded on an operation's `error`.
-      For `tenant_suspended`, `API-58` says "`queued` but never claimed straight to `failed`,
-      carrying the reason in the operation's `error`".
+      For `tenant_suspended`, `API-58` says “`queued` but never claimed straight to `failed`,
+      carrying the reason in the operation's `error`: `conflict`, with
+      `details.reason: "tenant_suspended"`”.
       For `price_moved`, `OPS-43` says “fail the operation deterministically — before any provider
       mutation — where the provider's price has risen past what the reserve covers: `conflict`,
       `details.reason: "price_moved"`, the shortfall in `details`” (`CNF-241`).
