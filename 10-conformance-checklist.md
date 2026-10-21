@@ -1991,9 +1991,23 @@ rather than acquiring a default.
       (`WIR-39`, `WIR-41`, `API-58`)
 - [ ] **CNF-203** — A replayed revocation returns `409` and no stored bearer token appears anywhere
       in `idempotency_records`. Grep the table for the token value. (`STO-35`, `WIR-38`, `API-3`)
-- [ ] **CNF-206** — A disk identifier matching **two** devices aborts `integrity` with no write, and
-      an offer whose devices expose no unique identifier is unsellable for rescue installs.
-      (`RSC-26`)
+- [ ] **CNF-206** — A disk identifier matching **two** devices aborts `integrity` with no write.
+      Separately, use an offer otherwise sellable under `PRV-13b` and `PRV-31` whose devices expose
+      no per-device unique identifier, on a `healthy` provider account assigned to the tenant whose
+      capabilities include `rescue_ssh`, `install_raw_disk_via_rescue` and
+      `install_rootfs_via_rescue` (`DOM-10`). Assert it is listed on
+      `GET /v1/providers/{account}/offers` (`WIR-30`, `DOM-9`), a create naming it is not refused
+      `offer_not_sellable` (`API-7`), and its `install_strategies` contains neither `raw_disk` nor
+      `rootfs_via_rescue`. Use a machine created from that offer for an active tenant within its
+      ceilings. Assert the machine view exposes its recorded copy (`machines.install_strategies`),
+      containing neither strategy. Against that recorded copy, assert an install naming either
+      strategy, with a body otherwise valid under `WIR-20` and `API-13`, is refused
+      `invalid_request` before the operation is enqueued. `WIR-30` says "The gate reads the copy
+      the machine took at create".
+      (`RSC-26`, `WIR-30`, `PRV-13b`, `PRV-31`, `DOM-9`, `DOM-10`, `API-7`, `WIR-20`, `API-13`)
+      *Amended 2026-10-21 (`pv-pj0`): replaced the unsellable half with listing, create admission
+      and strategy omission checks, plus install refusal against the machine's recorded copy, kept
+      apart from the unchanged duplicate-identifier case.*
 - [ ] **CNF-207** — A rootfs install body round-trips `partitions`, `raid.level` and per-drive
       identifiers through the parser. This fixture was silently broken by a fix in the previous
       pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
@@ -2078,15 +2092,15 @@ rather than acquiring a default.
       meter row and its `STO-37` deficiency together — kill the process between those two and
       neither survives. A build that cannot write meter state without an entry, or writes it
       without the deficiency, fails one of the two. (`LDG-72`, `STO-45`, `LDG-35`, `LDG-31`)
-- [ ] **CNF-257** — **The install gate reads the create's retained copy, and nothing tested it before
-      this item.** Resolve an ambiguous create and assert the attached machine's
-      `install_strategies` is the snapshot from its `request_summary` — **not the offer as it stands
-      now**. Then assert an install naming a strategy absent from that copy is refused before
-      enqueue. *Amended 2026-09-05: this said "the **matched attempt's** copy … not the latest
-      attempt's", which `ADR-0014` made unreachable — a create has one attempt. The offer-drift half
-      is the whole of the test now, and it was always the half every provider could reach.* **No conformance item anywhere mentioned
-      `install_strategies` before this one**, and `05-persistence.md` calls it a safety gate: get it
-      wrong and a disk-wiping install is authorized on a machine that cannot take one.
+- [ ] **CNF-257** — **The install gate reads the create's retained copy.** Resolve an ambiguous
+      create and assert the attached machine's `install_strategies` is the snapshot from its
+      `request_summary` — **not the offer as it stands now**. Then assert an install naming a
+      strategy absent from that copy is refused before enqueue. *Amended 2026-09-05: this said "the
+      **matched attempt's** copy … not the latest attempt's", which `ADR-0014` made unreachable — a
+      create has one attempt. The offer-drift half is the whole of the test now, and it was always
+      the half every provider could reach.*
+      `05-persistence.md` calls it a safety gate: get it wrong and a disk-wiping install is
+      authorized on a machine that cannot take one.
       **AMENDED 2026-09-03 — the caller must be able to read the gate's input** (`DOM-30`): the
       machine view returns that same copy, the key is present on **every** machine, and a
       machine whose stored list is null renders `[]` rather than
@@ -2094,6 +2108,8 @@ rather than acquiring a default.
       strategy from a refused one **without sending an install** — the gate authorizes wiping a disk,
       so discovering it by attempting it is `CNF-150`'s probe-by-purchase with a destructive verb.
       (`OPS-13`, `WIR-30`, `DOM-13`, `DOM-30`, `WIR-11`)
+      *Amended 2026-10-21 (`pv-pj0`): removed the claims that no earlier item tested the gate or
+      mentioned `install_strategies`.*
 - [ ] **CNF-259** — **Idempotency still works after the payload is purged.** Re-send a key whose
       operation has settled and whose `request` is gone: a byte-equivalent body returns the stored
       result, a different one is `409`. Asserted against the canonical digest, since the payload it
