@@ -1567,7 +1567,15 @@ rather than acquiring a default.
       its exceptions. Alternate serialization failures and store errors and assert exit within
       the same bound from the stop, with no reset. With each of the Stop-record and Store-retry
       bounds in turn the shorter, assert the record ends and the engine exits when the first
-      bound ends. A later stop during the record's whole-transaction loop exits at once.
+      bound ends.
+      **Later stop:** `OPS-21` says "A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives."
+      Deliver a later stop before the record's first transaction is sent, separately for the
+      cut-off record of a cancellation of `execute` and the settle-write record of a stop after
+      `execute` returns. In each case assert the engine exits without sending that transaction,
+      the row stays `running`, and restart recovery applies (`OPS-15`, including its exceptions).
+      Deliver a later stop while `OPS-49` repeats the cut-off record's transaction, with the
+      store refusing every transaction until after that later stop: assert exit at once with
+      the row still `running`, and restart classification under `OPS-15`, including its exceptions.
       `OPS-21` says "A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns."
       Also commit the last repeat before the Stop-record bound expires but lose its reply: assert
       the row is already written and money posted once, and restart finds no `running` row to classify.
@@ -1587,7 +1595,7 @@ rather than acquiring a default.
       `OPS-21` says "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation."
       `OPS-21` says "The settle write that records a stop after `execute` returns MUST NOT be cancelled or abandoned by that stop."
       `OPS-21` says "The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`."
-      `OPS-21` says "The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent."
+      `OPS-21` says "The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent inside `execute`."
       Stop a create whose order was accepted and whose settle-time search and confirming read
       found exactly one machine, so that `execute` returned success: once before its settle
       write's first transaction, and separately during that transaction. Assert `succeeded`,
@@ -1603,6 +1611,12 @@ rather than acquiring a default.
       `cut_off`. Separately stop after `execute` returns a post-dispatch provider `timeout`
       from a power action. Assert `needs_reconciliation` with kind `timeout`, `retryable: false`
       and no `cut_off`.
+      `OPS-21` says "For a `suspend_tenant` parent that `execute` left waiting on its children, that write is the defer above, which records no error."
+      Stop the engine after that parent's `execute` returns with its children still running,
+      before its defer lands. Assert the guarded defer lands before the engine exits, leaving
+      the parent `queued` with `available_at` advanced and no error, hence no
+      `details.reason: "cut_off"`. On its next claim assert the parent resumes its fan-out and
+      enqueues no child twice (`OPS-15`, `OPS-39`).
       Deliver a later stop between repeats of the settle write that records a first stop after
       `execute` returns, with the store refusing every transaction until after that later stop:
       assert exit at once with the row still `running`, and restart classification under `OPS-15`.
@@ -1642,6 +1656,8 @@ rather than acquiring a default.
       *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): added settle-write recording cases, defending quotations and the create verification placement control; pinned the store in the later-stop case; scoped the heading to a worker's `execute` and settle write.*
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): moved the post-order read out of the placement control and the delete's direct read out of the cut-off cases, into absorbed-read cases citing `CNF-356`.*
       *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; codex review round 1 on PR #10; `ADR-0044`): added the delete stopped before its direct read is sent, and both reads stopped after they complete.*
+      *Amended 2026-10-20 (`pv-ay3`): added the waiting parent stopped after `execute` returns, its guarded defer without error, and resumption without duplicate children.*
+      *Amended 2026-10-20 (`pv-gq8`): added a later stop before the first transaction of each record and during the cut-off record's whole-transaction loop, with a still-running row and restart recovery; the before-first-transaction cases send no transaction.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the

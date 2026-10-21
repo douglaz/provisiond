@@ -122,6 +122,8 @@ stop, one arriving during the loop of the write that records an earlier stop, ra
 stop being recorded." Its first-stop sentence quotes the rule above. The periodic components'
 store loops remain undecided.
 
+*Amended 2026-10-20 (`pv-gq8`): the quoted loop-only definition is the 2026-10-19 wording; `OPS-49`'s bullet now quotes `OPS-21`'s later-stop exit, which holds at any point before the record lands.*
+
 `CNF-362` says "This item is the only check of these after-return cases; no gate or formal model
 decides whether a first stop after `execute` returns is recorded by the settle write or exits." There is no Lean or CI change:
 `Provisiond.StopRecord.trace` takes any `Record.settle`, its schedule starts at the record write,
