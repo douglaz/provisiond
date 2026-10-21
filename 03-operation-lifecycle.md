@@ -735,7 +735,7 @@ The worker MUST order the following steps as listed:
 6. Compare its price using that same List offers result, as below. An unsellable offer gets no
    price comparison.
 7. Run `PRV-47`'s driver validation: "the driver MUST validate every value it forwards to the
-   provider, including provider options".
+   provider, including provider options". For the rejection's error, see `PRV-47`.
 8. Perform `API-63`'s conditional write on `STO-47`'s row, in the correlator transaction:
    "the worker MUST repeat the admission check as a conditional write on `STO-47`'s row guarded
    on `healthy`". It remains "the last write before the ordering call" (`API-63`).
@@ -759,6 +759,8 @@ The worker MUST order the following steps as listed:
    attach them as temporary provider-side resources").
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): made step 8 write the column under the worker guard and await acknowledgement before step 9.*
+
+*Amended 2026-10-21 (`pv-p1y`): pointed step 7's rejection at `PRV-47`.*
 
 The first failing check stops subsequent checks; its owning classification governs disposition.
 Claim-time refusals are not collected: the error carries neither `details.refusals` nor
