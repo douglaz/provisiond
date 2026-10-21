@@ -1,0 +1,15 @@
+I pick **(a)**. I changed [CNF-202](/var/tmp/provisiond-panel-r60/astra/10-conformance-checklist.md:1998) and filed **pv-23g**. The power fixture follows an existing queue path without assuming a create delay.
+
+1. **Create:** not in the ordinary, immediately eligible FIFO trace. `OPS-6` requires “the oldest `queued` operation whose availability time has passed”; the create’s null machine gives `OPS-8` no contention. `OPS-24`’s “SHOULD provide per-tenant fairness” does not override that MUST. `API-58` says “the fan-out is the worker's”; `API-7` step 5b says “reject with `suspended`”. Claiming the create defeats `STO-3`’s “still `queued` and was never claimed” condition, regardless of its later `OPS-43` outcome.
+
+   This is **not proof of impossibility**: a harness can seed future `available_at`, then run the eligible parent deterministically. That establishes transition behavior, not API-only reachability. A post-claim defer cannot restore never-claimed status. Admission races, unspecified age tie-breaking and `ADR-0015`’s `SKIP LOCKED` require additional scheduling assumptions. `CNF-244`’s “worker pool stopped” alone also stops the parent.
+
+2. **Power:** real and deterministic with two workers and controlled time. `OPS-8` says “MUST return the operation to `queued` with a short delay”; `OPS-6` says “never left `queued` and does not advance the number”. `ADR-0022` resolves that apparent tension: the refused atomic claim never succeeds. Starting at the schema’s “default 0 for never claimed”, it remains zero. All three `API-58` quotations apply unchanged: its population is “the tenant's own work”.
+
+   Claim the parent during that delay and perform step (4) while `STO-3`’s “fan-out parent is still unsettled”. Step (3)’s cancellation also cannot acquire the held machine. Release the holder after checking the power failure, then finish children and parent.
+
+3. **Policy gap:** pre-suspension handling and attachment cleanup do not establish intended post-suspension dispatch. `API-58` step (2) specifies “a create claimed before the suspension landed”; `OPS-27`’s suspended attach “also enqueues a system cancellation”; `SEC-45` requires “one operator action”. `API-58`’s promise “nothing further can be bought” and `OPS-23`’s boundary revalidation need reconciliation with `OPS-43`’s ordered checks.
+
+4. **Gates:** baseline, corrected edit, planted defect and restored edit exited **0**. The [plant](/var/tmp/provisiond-panel-r60/astra/review-r60-plant.log) changed the refused claim’s expected number from **0 to 1**; nothing went red. Executing the fixture against a conforming queue would reject that assertion. An earlier citation-boundary failure was corrected. The plant is reverted.
+
+**Strongest argument against my pick:** it drops the expressly approved create coverage. A create-specific error bug could pass the power fixture; a synthetic create fixture could preserve that coverage while the policy bead remains open.
