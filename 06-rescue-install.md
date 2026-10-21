@@ -266,9 +266,9 @@ is the same coin-flip over which disk gets destroyed that naming `/dev/sda` was.
 prefer WWN where the provider exposes it and MUST omit the `raw_disk` and `rootfs_via_rescue`
 strategies from an offer's `install_strategies` where no per-device unique identifier is available
 at all for that offer. This is a static per-offer declaration from provider facts; rescue inventory
-is available only after purchase, on one machine, and cannot supply it. `WIR-30` says
+(`RSC-38`) is available only after purchase, on one machine, and cannot supply it. `WIR-30` says
 "`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them".
-The offer stays sellable. If a machine bought under a listed strategy has rescue inventory that
+This omission does not make the offer unsellable. If a machine bought under a listed strategy has rescue inventory that
 shows no unique identifier, that machine meets the abort this paragraph opens with.
 
 **This binds every strategy that names a disk, not only `raw_disk`, and the validation is
@@ -282,7 +282,7 @@ unstable identifier. Every caller-supplied disk reference MUST be a stable ident
 against the same `inventory_fingerprint`.
 
 *Amended 2026-10-21 (`pv-pj0`): replaced "declare an offer unsellable" with per-offer
-strategy omission; the offer stays sellable.*
+strategy omission, which does not make the offer unsellable.*
 
 **RSC-38** **AMENDED 2026-08-31 — renamed from *preflight*. Rescue inventory is a first-class
 operation, read-only about the disk and about nothing else.** It boots rescue, collects the
