@@ -1582,7 +1582,7 @@ rather than acquiring a default.
       `OPS-21` says "The sent transaction's fate is the server's".
       Assert the engine sends no record transaction after that later stop, and exits. Accept
       either outcome: the transaction committed, so the row is as that record writes it, with its
-      effects committed once, and restart finds no `running` row to classify; or it did not,
+      effects committed once, and is no longer `running` at restart; or it did not,
       so the row is still `running` and `OPS-15` classifies it at restart, including its
       exceptions. Make no assertion about whether the engine waits for that transaction's reply.
       `OPS-21` says "A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns."
