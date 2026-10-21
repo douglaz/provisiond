@@ -2642,20 +2642,26 @@ rather than acquiring a default.
       `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
       that claims it afterwards dispatches against revoked credentials and freezes the customer's
       money for `OPS-33`'s window. **Fourth**: claim a create, commit the termination before its
-      step-8 transaction commits (`about_to_order_at` still null), and assert it fails `account_terminated` with no provider mutation;
+      step-8 transaction commits (`about_to_order_at` still null), and assert it fails `account_terminated`
+      with `retryable: false` on both the error and the operation view (`API-63`: “with
+      `retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both the
+      error and the operation view”) and with no provider mutation;
       the List offers read is permitted;
       then commit the termination *after* step 8 commits (`about_to_order_at` set) and before the call, and assert the
       termination treats that attempt as potentially dispatched — neither failed nor released, and
       resolved through `OPS-36`'s late attach.
       **Account-read cases:** admit a create and leave it `queued` and unclaimed, record
       `credentials_rejected` before claim, then claim it. Assert `OPS-43`'s step 1, "Read the
-      provider account's stored status", fails it `conflict` with `details.reason: "state"`,
-      `failed`, no provider request and full commitment release. On a fresh account, claim a
-      create, let the List offers read complete, then commit termination before step 8 commits (`about_to_order_at` null). Assert `conflict`, `details.reason: "account_terminated"`, `failed`, full commitment
+      provider account's stored status", fails it `conflict` with `details.reason: "state"` and
+      `retryable: true` on both the error and the operation view, `failed`, no provider request
+      and full commitment release. On a fresh account, claim a
+      create, let the List offers read complete, then commit termination before step 8 commits (`about_to_order_at` null). Assert `conflict`, `details.reason: "account_terminated"`,
+      `retryable: false` on both the error and the operation view, `failed`, full commitment
       release, and no provider mutation: no per-order key upload and no order request.
       Repeat the step-8 barriers and account-read cases with an auction-channel descriptor and
-      a standard-channel (`correlator: none`) descriptor; assert the column's null/set test on
-      both, making no assertion about the correlator pair on the latter.
+      a standard-channel (`correlator: none`) descriptor; assert the column's null/set test and
+      the `retryable` values above on both, making no assertion about the correlator pair on the
+      latter.
       **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
       **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
@@ -2682,6 +2688,9 @@ rather than acquiring a default.
       refusal and post-listing termination cases.*
 
       *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): re-keyed the dispatch barriers to step 8 and the all-channel column; `ADR-0042`.*
+
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the claim-time account
+      failures assert `retryable` on the error and the operation view, in each channel repeat.*
 
 - [ ] **CNF-279** — **An install that wrote nothing and left nothing in rescue is not a mystery.**
       Drive an install against a
@@ -2860,7 +2869,9 @@ rather than acquiring a default.
       offer's provider price raised between accept and claim so the open commitment no longer covers
       `PRV-13b`'s reserve, and with the offer still sellable, the worker fails the operation
       deterministically **with no provider mutation and no ordering request**, `conflict` with
-      `details.reason: "price_moved"`, and the error names the shortfall. With the offer still
+      `details.reason: "price_moved"`, and the error names the shortfall. Assert `retryable: true`
+      on both the error and the operation view (`OPS-43`: “telling the caller to re-submit, and
+      `retryable: true` on both the error and the operation view”). With the offer still
       sellable and the price unchanged or lower, it proceeds. **With the offer still sellable, the provider's
       price unchanged and the satoshi rate moved — in either direction — it proceeds**: that is the
       case a build comparing satoshi reserves refuses, and under a falling market it refused every
@@ -2916,6 +2927,8 @@ rather than acquiring a default.
       result", reads the provider.*
       *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
       updated the List offers step reference to the claim order.*
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the price case asserts
+      `retryable: true` on the error and the operation view.*
 
 - [ ] **CNF-242** — **A solvency halt stops what it can and says so about what it cannot.** Under a
       failing check: minting is refused `halted`; unsettled Lightning invoices on unexpired deposits
