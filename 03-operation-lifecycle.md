@@ -766,8 +766,7 @@ The worker MUST order the following steps as listed:
 *Amended 2026-10-21 (`pv-p1y`): pointed step 7's rejection at `PRV-47`.*
 
 *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): extended step 1's quote of `API-63`
-to its `retryable` values, and gave `price_moved` `retryable: true` on the error and the
-operation view.*
+to its `retryable` values.*
 
 The first failing check stops subsequent checks; its owning classification governs disposition.
 Claim-time refusals are not collected: the error carries neither `details.refusals` nor
@@ -845,6 +844,9 @@ commitment release.*
 *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): completed the
 claim order and its precedence, placed validation and account checks, and extended the offer
 failure outcome to absence with resource-offer exclusion settlement.*
+
+*Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): gave `price_moved` `retryable: true`
+on the error and the operation view.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a

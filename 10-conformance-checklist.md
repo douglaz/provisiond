@@ -1490,8 +1490,9 @@ rather than acquiring a default.
       whole-transaction repeat, which affects one operation row, leaves `about_to_order_at` and
       `updated_at` unchanged and advances `revision` no further.
       Refuse its status guard, then its claim-number guard: assert no column commit, no step 9,
-      and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, full
-      release, and no column commit. For the restart settlement, kill between the status write
+      and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, with
+      `API-63`'s reason and `retryable` value for the recorded status on both the error and the
+      operation view, full release, and no column commit. For the restart settlement, kill between the status write
       and the commitment release: assert neither survives the rollback, then restart and assert
       both commit together. Force the null-guarded write to affect no row: assert no money is
       released, and a still-running create is moved by the ordinary startup write to
@@ -1499,6 +1500,8 @@ rather than acquiring a default.
       and a release outside the guarded status transaction. (`OPS-43`, `OPS-49`, `STO-3`,
       `API-63`, `OPS-15`, `LDG-35`)
       *Added 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added lost-reply and atomicity checks; `ADR-0042`.*
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the refused `STO-47` check
+      asserts its reason and `retryable` value.*
 - [ ] **CNF-361** — **A recorded create failure before step 9 releases the purchase.**
       `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
       On both an auction channel and a standard channel (`correlator: none`), inject each of
@@ -1531,13 +1534,16 @@ rather than acquiring a default.
       enters `needs_reconciliation`. Finally commit step 8 and lose its reply, then commit an
       account-status write recording `terminated` before the whole-transaction repeat. Assert
       that the repeat's `STO-47` check affects no row and the create settles `failed` with the
-      column set, full release, no fee or unit debit, the resource-offer exclusion freed where the
+      column set, `conflict`, `details.reason: "account_terminated"` and `retryable: false` on
+      both the error and the operation view, full release, no fee or unit debit, the resource-offer exclusion freed where the
       create holds one, no step-9 request and no correlator search. Exercise the ordinary worker guard without a null-column term and
       atomic status/release order. (`OPS-11`, `OPS-21`, `OPS-43`, `PRV-50`, `LDG-32`, `LDG-39`,
       `STO-58`, `STO-3`, `LDG-35`, `OPS-49`, `API-63`, `STO-47`, `OPS-22`, `WIR-9a`)
       *Added 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): added the recorded-failure cases and boundary controls. The cancellation cases cover only a recorded cancellation; whether one must be recorded is `pv-tst`'s.*
       *Amended 2026-10-18 (`pv-tst`, `pv-f7a`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): required survived-stop recording, its reason and the acknowledged-step-8 case.*
       *Amended 2026-10-18 (`pv-tst`; panel r58c, `docs/research/panels-2026-10/r58/r58c/`; `ADR-0044`): replaced the step-8 retry-loop exclusion with in-flight and in-loop cases.*
+      *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the terminated repeat
+      asserts its reason and `retryable: false`.*
 
 - [ ] **CNF-362** — **A stop the engine survives from a worker's `execute` until its settle write lands gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
@@ -2659,9 +2665,9 @@ rather than acquiring a default.
       `retryable: false` on both the error and the operation view, `failed`, full commitment
       release, and no provider mutation: no per-order key upload and no order request.
       Repeat the step-8 barriers and account-read cases with an auction-channel descriptor and
-      a standard-channel (`correlator: none`) descriptor; assert the column's null/set test and
-      the `retryable` values above on both, making no assertion about the correlator pair on the
-      latter.
+      a standard-channel (`correlator: none`) descriptor; assert the column's null/set test on
+      both, and each failing case's `retryable` value above, making no assertion about the
+      correlator pair on the latter.
       **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
       **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
