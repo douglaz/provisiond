@@ -327,7 +327,7 @@ write endpoint", so **a builder following it literally shipped a create with no 
 all** — the money check existed in `12-billing-and-ledger.md` and in no sequence any handler
 author would read.
 
-*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): added step 5d on 2026-10-22.*
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): added step 5d.*
 
 ## Enrolment
 

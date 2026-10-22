@@ -537,7 +537,7 @@ Mapping from operation to required capability:
 | delete | `delete_machine` |
 | release attachment | `delete_machine` — a driver that can delete a machine can release what it left behind (`PRV-45`) |
 
-*Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*
+*Amended 2026-10-22 (`pv-009`, `pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): every capability check failure carries `retryable: false`, which is how the `pv-p3k` ruling "MUST, not retryable" reaches `API-7`'s step 5d and `OPS-43`'s claim-time gates.*
 
 **DOM-22** Three edits to the capability model on 2026-08-12, closing the rest of `F10`:
 

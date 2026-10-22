@@ -14,10 +14,8 @@ review finding.
 
 The pipeline (`API-7`, `WIR-34`, `API-55`, `API-56`): principal, tenant state,
 listener and verb decide one outcome and whether the request consumed a ceiling slot.
-The create-only step 5d is composed separately in `createPurchaseTail`, after `admit`.
-`API-7` says "A refusal stops here and is not collected by the tail." Its capability answer
-is a supplied Boolean; the machine-kind mapping and the account's descriptor are outside this
-model. The ceilings
+The create-only step 5d is modelled in `createPurchaseTail`, outside `admit`, which stops at
+5c. `API-7` says "A refusal stops here and is not collected by the tail." The ceilings
 (`SEC-39`): which budget each verb counts against, and the two properties that make a ceiling a
 control rather than a field. The matrices (`LDG-20`, `LDG-40`, `LDG-59`, `LDG-64`, `LDG-65`): what
 a solvency failure and a rate outage do to each action, over an action space that includes the
