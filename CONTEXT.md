@@ -142,7 +142,8 @@ _Avoid_: install (bare), rebuild, provider install
 **Rescue inventory**:
 A read-only procedure that boots a machine into rescue and reports its disks with a stable
 identifier where a disk has one, so a caller can choose a target before a destructive write.
-Read-only about the **disk** and nothing else: it reboots the machine, and an ambiguous exit can leave it in rescue.
+Read-only about the **disk** and nothing else: it reboots the machine, and an ambiguous exit can
+leave it in rescue.
 _Avoid_: preflight (banned — see flagged ambiguities)
 
 **Marker**:

@@ -46,7 +46,7 @@ sequenceDiagram
     W->>W: Host-key trust decision, RSC-3
     Note over W: Awaiting provider pins at deadline?<br/>ABORT with integrity, even with opt-in.
     W->>R: connect using the chosen host-key trust
-    R-->>W: inventory with stable identifiers<br/>+ inventory_fingerprint
+    R-->>W: inventory, a stable identifier where a disk has one<br/>+ inventory_fingerprint
     W->>W: Re-read inventory, RSC-26.<br/>Zero or MORE THAN ONE match?<br/>ABORT integrity, no bytes written.
     R->>I: fetch the image
     Note over R,I: RSC-1 — the rescue host fetches it.<br/>The control plane never holds these bytes.

@@ -758,8 +758,8 @@ both-directions diff now covers for strategies as well as for endpoints.*
 
 **Every `layout.drives[].identifier` is validated exactly as `raw_disk`'s `target.identifier`
 is** (`API-13`, `RSC-46`, `RSC-26`): resolved against a freshly re-read inventory, matched to
-exactly one device, and aborted `integrity` before any write on zero or multiple matches. A rootfs install partitions
-disks, so naming them by unstable path destroys the same data.
+exactly one device, and aborted `integrity` before any write on zero or multiple matches.
+A rootfs install partitions disks, so naming them by unstable path destroys the same data.
 
 `rootfs_tarball` and `raw_disk` `sha256` are required and exactly 64 hex (`DOM-14`); `catalog`
 carries no digest — this system does not touch those bytes (`SEC-16`). A `url`
@@ -985,7 +985,8 @@ the caller had no credential for; `RSC-18` carries the withdrawal.*
 
 It returns `202` and an operation whose result carries the device inventory with **a stable
 identifier where a disk has one** and the `inventory_fingerprint` an install must echo back
-(`WIR-20`, `RSC-26`). It enters and exits rescue and writes nothing. This exists because a caller previously had no way to
+(`WIR-20`, `RSC-26`). It enters and exits rescue and writes nothing. This exists because
+a caller previously had no way to
 see the disk inventory *before* committing to a destructive write — the information arrived
 attached to the result of the operation that had already destroyed the disk.
 
