@@ -46,7 +46,7 @@ sequenceDiagram
     W->>W: Host-key trust decision, RSC-3
     Note over W: Awaiting provider pins at deadline?<br/>ABORT with integrity, even with opt-in.
     W->>R: connect using the chosen host-key trust
-    R-->>W: inventory with stable identifiers<br/>+ inventory_fingerprint
+    R-->>W: inventory, a stable identifier where a disk has one<br/>+ inventory_fingerprint
     W->>W: Re-read inventory, RSC-26.<br/>Zero or MORE THAN ONE match?<br/>ABORT integrity, no bytes written.
     R->>I: fetch the image
     Note over R,I: RSC-1 — the rescue host fetches it.<br/>The control plane never holds these bytes.
@@ -225,8 +225,13 @@ per-operation directory in the rescue environment, carrying `RSC-24`'s extension
 every drive a **stable identifier** resolving to exactly one device (`RSC-26`) rather than a
 device path — *the withdrawn "simple path under the device directory" is the unstable naming
 `RSC-26` exists to eliminate, and this is the fifth document that stated it*; no
-whitespace, CR, LF, or NUL in any config field; a RAID level from the supported set when
-software RAID is enabled.
+whitespace, CR, LF, or NUL in any config field of the generated installer configuration; a RAID
+level from the supported set when software RAID is enabled. Drives appear in that configuration
+as resolved paths; `layout.drives[].identifier` is a lookup input
+(`SEC-13`, `RSC-26`, `RSC-27`, `RSC-46`).
+
+*Amended 2026-10-22 (`pv-6p8`, panels r61–r61f; owner decision 2026-10-22): scoped the config-field
+restriction to the generated installer configuration and added lookup pointers.*
 
 **RSC-24** Supported archive formats and their canonical extensions MUST be declared, and
 the downloaded file MUST be given the extension matching the declared format — installers
@@ -248,8 +253,9 @@ document satisfied.
 **The target MUST therefore be bound to identity, not to a name:**
 
 - **`RSC-38` makes rescue inventory its own operation** returning the block-device
-  inventory with **stable identifiers** — serial and WWN — plus an opaque `inventory_fingerprint`
-  over the whole device set.
+  inventory with **a stable identifier where a disk has one** — serial and WWN — plus an opaque
+  `inventory_fingerprint` over the whole device set. Every disk reported by the rescue environment
+  MUST remain in the inventory and in the fingerprint, including a disk with no identifier.
 - **An install request MUST carry both** the chosen device's stable identifier and the
   `inventory_fingerprint` it was chosen from (`WIR-20`).
 - **The worker MUST re-read the inventory immediately before any disk I/O** and abort with
@@ -281,6 +287,9 @@ scoping the rule to raw-disk would have left the launch product's primary instal
 unstable identifier. Every caller-supplied disk reference MUST be a stable identifier checked
 against the same `inventory_fingerprint`.
 
+*Amended 2026-10-22 (`pv-6p8`, panels r61–r61f; owner decision 2026-10-22): qualified identifier
+availability and retained disks without identifiers in the inventory and fingerprint.*
+
 *Amended 2026-10-21 (`pv-pj0`): replaced "declare an offer unsellable" with per-offer
 strategy omission, which does not make the offer unsellable.*
 
@@ -300,16 +309,25 @@ say why, four documents away from the name that caused the confusion. `CONTEXT.m
 *The same word also means the CORS `OPTIONS` request in `WIR-4a` — it was ambiguous inside a single
 document before it was ambiguous about danger.*
 
-**RSC-46** **Identifier normalization and the fingerprint's canonical form.** Before comparison
+**RSC-46** **Identifier normalization and the fingerprint's canonical form.** Before comparison,
 an identifier — a caller's `target.identifier`, a `layout.drives[].identifier`, or a value read
-from the inventory — is trimmed of ASCII whitespace, compared case-insensitively, and stripped of
-a leading `0x`. Matching tries the WWN first, then the serial; a WWN match and a serial match
-naming different devices is `RSC-26`'s more-than-one case and aborts `integrity` before any write.
-The `inventory_fingerprint` is SHA-256 over the RFC 8785 canonical JSON of the device list sorted
-by identifier, each device exactly `{wwn, serial, size_bytes}` with `null` where a value is
-absent; device paths are excluded, because they are the unstable part. On the wire it is 64
-lowercase hex characters. `WIR-20` and `WIR-10b` cite this for the `target.identifier` and
-`inventory_fingerprint` constraints.
+from the inventory — is normalized in this order: trim ASCII whitespace, ASCII-lowercase, then
+strip exactly one leading `0x`. A value that is empty after normalization is absent and matches
+nothing. Matching uses the normalized values and tries the WWN first, then the serial; a WWN
+match and a serial match naming different devices aborts `integrity` before any write (`RSC-26`).
+Each device on the wire carries `identifier`, `wwn` and `serial`. The `wwn` and `serial` values
+are the strings as read, trimmed of ASCII whitespace, or `null` where normalization leaves
+nothing. The `identifier` is byte-equal to `wwn` if that is non-null, else `serial`, else `null`.
+The `inventory_fingerprint` is SHA-256 over the RFC 8785 canonical JSON of the device list, each
+element exactly `{wwn, serial, size_bytes}` using normalized values and `null` where a value is
+absent. The list is sorted by each element's RFC 8785 serialization, compared as UTF-8 byte
+strings. Identical elements are kept, one per device. Device paths are excluded, because they
+are the unstable part. On the wire the fingerprint is 64 lowercase hex characters.
+(`WIR-20`, `WIR-10b`)
+
+*Amended 2026-10-22 (`pv-6p8`, panels r61–r61f; owner decision 2026-10-22): made normalization
+ordered, excluded empty values from matching, specified the as-read wire fields and sorted
+canonical fingerprint elements while preserving multiplicity.*
 
 **RSC-27** The target MUST be validated as a simple path under the device directory, and
 the remote script MUST additionally verify at runtime that it is a block device.
@@ -345,7 +363,7 @@ any post-install step runs.
 ## The inventory report
 
 **RSC-33** Before writing anything, the engine MUST collect a machine-readable inventory
-report — at minimum the block-device inventory (name, path, size, type, model, serial)
+report — at minimum the block-device inventory (path, size, type, model, serial, WWN)
 and whether the firmware is UEFI — and MUST attach it to the operation result. This is
 the record that tells an operator afterwards which disk was actually overwritten.
 
@@ -354,6 +372,9 @@ the record that tells an operator afterwards which disk was actually overwritten
 `provider_catalogue` boot nothing and read no disk, so they produce no report and their operation
 result is empty (`WIR-10b`). *Scoped explicitly 2026-09-02: read unscoped it made a result field
 mandatory on two strategies that cannot produce one, which `WIR-10b` had duly copied.*
+
+*Amended 2026-10-22 (`pv-6p8`, panels r61–r61f; owner decision 2026-10-22): replaced the minimum
+(name, path, size, type, model, serial) with (path, size, type, model, serial, WWN).*
 
 **RSC-34** An inventory report that fails to parse MUST be captured raw rather than
 discarded.

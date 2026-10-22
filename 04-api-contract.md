@@ -970,10 +970,14 @@ Validation happens at the boundary *and* again in the worker (`OPS-23`).
 | user data / post-install script | ≤1 MiB |
 | provider options | MUST be a JSON object |
 | image URL | ≤8192 bytes, no fragment, no embedded credentials, scheme `https` (or `http` only where explicitly enabled), host in the allowlist. **For a `provider_catalogue` install the allowlist is mandatory and an empty one refuses the request** (`SEC-19`, `RSC-39`), since provisiond itself is the client there; on the rescue strategies an empty list still means any host and is a startup warning. *"When one is configured" applied the fail-open reading to both paths and was withdrawn 2026-09-02* |
+| disk identifier | a JSON string, non-empty after normalization (`RSC-46`); a `null`, non-string or empty-after-normalization `target.identifier` or `layout.drives[].identifier` MUST be refused `invalid_request` before enqueue. Resolution: `RSC-26`. |
 | digest | exactly 64 hex characters (`DOM-14`) |
 | strategy/image pairing | per `DOM-13` |
 | host-key policy | pinned keys and "accept unpinned" MUST be mutually exclusive |
 | request body size | globally capped (2 MiB is a reasonable default) |
+
+*Amended 2026-10-22 (`pv-6p8`, panels r61–r61f; owner decision 2026-10-22): added admission of
+disk identifiers before enqueue.*
 
 **API-14** An install request MUST carry an explicit destructive acknowledgement, and a
 delete request MUST carry one. Absent or false MUST fail `400`. This is per request, and

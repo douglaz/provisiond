@@ -2047,6 +2047,43 @@ rather than acquiring a default.
       *Amended 2026-10-21 (`pv-pj0`): replaced the unsellable half with listing, create admission
       and strategy omission checks, plus install refusal against the machine's recorded copy, kept
       apart from the unchanged duplicate-identifier case.*
+- [ ] **CNF-363** — Rescue inventory retains disks without identifiers. Use otherwise-admissible
+      fixtures with unique chosen identifiers; every machine on which an install case runs,
+      including the machine with no identifiers, has a recorded `install_strategies` listing
+      the strategy used. Run install cases through both `raw_disk` (`target.identifier`) and
+      `rootfs_via_rescue` (`layout.drives[].identifier`), except the malformed-input checks,
+      which exercise both fields before enqueue.
+      (1) List disk A with distinct WWN and serial and disk B with neither. Both appear; B's
+      `identifier`, `wwn` and `serial` are all `null`. A shows both fields and its `identifier`
+      equals its WWN. (2) Assert the fingerprint equals an independently computed hash over both
+      disks (`RSC-46`), using fixtures whose identifier order differs from canonical-byte order.
+      (3) Install naming A: both strategies resolve A and write nothing to B. (4) Remove B or,
+      separately, resize B between inventory and install: both strategies abort `integrity`
+      before writing any bytes.
+      (5) Repeat with B's serial whitespace-only, `0x`, and `0X`: each is shown `null`. A WWN
+      normalizing to empty falls back to the serial. (6) Assert every device carries `path`,
+      `wwn`, `serial` and `identifier`. (7) A serial-only disk shows its serial as both
+      `identifier` and `serial`; echoing it resolves that disk through both strategies.
+      (8) Read a serial as ` 0x0XAB `: assert it is shown `0x0XAB` and hashed as `0xab`.
+      Echoing `0x0XAB` or `0X0xab` resolves it through both strategies; `0XAB`, `0xab` and `ab`
+      each match nothing and abort `integrity` with no write through both strategies.
+      (9) Reordering the devices leaves the fingerprint unchanged; changing only paths also
+      leaves it unchanged. (10) In `target.identifier` and in any `layout.drives[].identifier`,
+      a `null`, a non-string, an empty or whitespace-only string, or a bare `0x` or `0X` is
+      refused `invalid_request` before enqueue.
+      (11) On a machine where no device has an identifier, inventory succeeds with every
+      device's `identifier`, `wwn` and `serial` all `null`; any well-formed install through
+      either strategy aborts `integrity` with no write. (12) Two identical anonymous devices
+      both appear, and dropping one changes the fingerprint. (13) Padded echoes and serials
+      with whitespace inside them resolve through both strategies; the generated installer
+      configuration carries only resolved paths. (14) Use a well-formed unmatched identifier
+      that is not path-shaped: both strategies abort `integrity` with no writes. `RSC-26` says
+      "An identifier that does not resolve to exactly one device MUST abort `integrity` before
+      any write."
+      (`WIR-10b`, `WIR-20`, `WIR-40`, `RSC-23`, `RSC-26`, `RSC-33`, `RSC-46`, `API-13`)
+      *Added 2026-10-22 (`pv-6p8`; panels r61–r61f, `docs/research/panels-2026-10/r61/`): covers
+      anonymous inventory members, wire fields, canonical fingerprints and identifier admission
+      and resolution through both rescue install strategies.*
 - [ ] **CNF-207** — A rootfs install body round-trips `partitions`, `raid.level` and per-drive
       identifiers through the parser. This fixture was silently broken by a fix in the previous
       pass, which is what a fixture is for. (`WIR-20`, `RSC-22`)
