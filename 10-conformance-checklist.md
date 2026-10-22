@@ -135,6 +135,19 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-19** — Create is refused when the provider has not declared the matching
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
+- [ ] **CNF-364** — **The claim-time List offers read is gated on `list_offers`.** Admit a
+      complete create on an account that declares `list_offers` and the ordering capability.
+      Before claim, restart with a descriptor for that account that no longer declares
+      `list_offers`, keeping the ordering capability declared and the driver's List offers code
+      path answering, so the test proves the gate exists, as `CNF-19` does. Assert the worker
+      refuses the create at `OPS-43`'s step 4: `unsupported` with `details.provider_account`
+      naming the account and `details.capability: "list_offers"`, `retryable: false` on both the
+      error and the operation view, no `details.refusals` or `details.not_checked`, `failed`, the
+      commitment released in full with no setup-fee or first-unit debit, and no List offers read,
+      per-order key upload or order request. (`DOM-10`, `OPS-43`, `OPS-11`, `LDG-39`, `WIR-9a`,
+      `WIR-9b`)
+      *Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*
+
 - [ ] **CNF-20** — Every operation on a driver that declares nothing returns `unsupported`,
       not a panic and not a wrong default — except `PRV-2`'s three named exceptions, each
       asserted for its own stated behaviour instead: describe capabilities and get machine are

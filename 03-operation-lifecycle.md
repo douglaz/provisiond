@@ -734,7 +734,7 @@ The worker MUST order the following steps as listed:
    checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
    `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
    run first, then the checks on fields the `api` wrote at admission, then the capability gate.
-4. Obtain the current driver List offers result.
+4. Gate on `list_offers` under `DOM-10`, then obtain the current driver List offers result.
 5. Check for the named offer's absence from that result, applying the create-tail verdict quoted
    above; if present, re-test the named offer for sale on that result and the running descriptor.
 6. Compare its price using that same List offers result, as below. An unsellable offer gets no
@@ -851,6 +851,8 @@ failure outcome to absence with resource-offer exclusion settlement.*
 on the error and the operation view.*
 
 *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+
+*Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a

@@ -516,7 +516,7 @@ documents.
 driver is called, **including create**; the driver methods with no capability entry are the ones
 `PRV-4` names. There MUST be no operation whose only gate is
 a driver-internal check. A capability check failure MUST return an "unsupported" error
-naming the provider account and the capability.
+naming the provider account and the capability, with `retryable: false` on both the error and the operation view where there is one.
 
 Mapping from operation to required capability:
 
@@ -536,6 +536,8 @@ Mapping from operation to required capability:
 | reverse DNS | `reverse_dns` |
 | delete | `delete_machine` |
 | release attachment | `delete_machine` — a driver that can delete a machine can release what it left behind (`PRV-45`) |
+
+*Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*
 
 **DOM-22** Three edits to the capability model on 2026-08-12, closing the rest of `F10`:
 
