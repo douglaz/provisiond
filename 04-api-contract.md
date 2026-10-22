@@ -771,12 +771,7 @@ enrolment, and there is not even a handle to return.
   which is `API-7`'s ordering argument reaching the one route that has no principal to authenticate:
   an unadmitted caller MUST NOT be able to make the server do policy work either.
 
-  **The order resolves a conflict between two MUSTs, so it is stated as a precedence.** `WIR-2`
-  requires an unknown body field to be rejected **naming the first one**; `WIR-12` requires a bad
-  admission token to be refused **without saying which of absent, expired, unknown or spent it was**.
-  A body carrying both a bad token and an unknown field satisfies one and violates the other
-  whichever way a handler goes. **The token check wins**: the response is `invalid_request` naming no
-  field and giving no token detail. Enrolment is the one route where naming a field is a free
+  For a body carrying both a bad token and an unknown field, **the token check wins**: the response is `invalid_request` with no `details.field` and no token detail. Enrolment is the one route where naming a field is a free
   oracle handed to an unadmitted stranger, and `WIR-2`'s naming rule exists for interoperability with
   callers that got in — which this one has not.
 - **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
@@ -789,6 +784,8 @@ enrolment, and there is not even a handle to return.
   the spending token *and* the recovery credential. That is credential disclosure reached by
   guessing a string. A duplicate signup is free and `API-34` reclaims it; a leaked capability is
   not. An `Idempotency-Key` presented to enrolment MUST be ignored, never honoured.
+
+*Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed field-pointer form and validation ordering.*
 
 ## Funding
 
