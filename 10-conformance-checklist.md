@@ -128,8 +128,10 @@ not optional hardening — they are the only structural defence there is.
       path behind it — a declared ordering channel is searched, a declared evidence source is read,
       a declared surviving attachment kind is listed, and each ordering channel carries
       its own validated `order_budget` — and a field with nothing to declare says so
-      explicitly rather than being absent. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
+      explicitly rather than being absent. An ordering capability withheld under `DOM-16` is outside the implemented-implies-declared rows for that account; `CNF-19` and `CNF-55` cover its gate. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
       *Amended 2026-10-09 (`ADR-0036`): the order-budget field is iterated per channel.*
+      *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+
 - [ ] **CNF-19** — Create is refused when the provider has not declared the matching
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
@@ -308,8 +310,21 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-54** — Install without the destructive acknowledgement is rejected; delete
       without it is rejected. (`API-14`)
 - [ ] **CNF-55** — Create against an order-billed provider is rejected without both the
-      per-request purchase acknowledgement and the account-level opt-in. (`API-15`,
-      `PRV-10`)
+      per-request purchase acknowledgement and the account-level opt-in. On an account whose
+      `allow_orders` is false, assert `GET /v1/providers` lists it without its ordering
+      capability, and that a create carrying `acknowledge_purchase: true` is refused at `API-7`'s
+      step 5d: HTTP `501`, `unsupported`, `details.provider_account` and `details.capability`
+      naming the account and that capability, `retryable: false`, and, with a balance too low for
+      the create, no `details.refusals` or `details.not_checked` and no operation or commitment.
+      A same-key, same-body replay of a create admitted before the flag was turned off returns its
+      stored result. Admit a complete create with the flag true, restart with it false before
+      claim, and assert the worker refuses it at `OPS-43`'s step 3 with the same kind, `details`
+      and `retryable: false` on both the error and the operation view, `failed`, the commitment
+      released in full with no setup-fee or first-unit debit, and no provider request, including
+      no List offers read. (`API-15`, `PRV-10`, `DOM-10`, `DOM-16`, `API-7`, `OPS-43`, `WIR-9a`,
+      `WIR-9b`, `LDG-39`)
+
+      *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 ## Persistence
 

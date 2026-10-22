@@ -4244,6 +4244,23 @@ theorem without_native_split_cost_counts_twice :
 def fencedHaltedNoRate (g : Admission.Guards) :=
   purchaseTail g false .healthy true false true true false true true true
 
+/-- A create without its ordering declaration, with an otherwise clean tail except for balance.
+These inputs make the tail's answer independent of every unrelated guard. -/
+def undeclaredOrderingCreate (g : Admission.Guards) :=
+  createPurchaseTail g false .healthy true false false true false false true
+
+/-- Step 5d, added 2026-10-22 (`pv-p3k`), stops this create before any tail collection. -/
+@[req "API-7"]
+theorem undeclared_ordering_is_unsupported_before_the_tail :
+    undeclaredOrderingCreate Admission.current =
+      { refusal := some .unsupported, tail := none } := by decide
+
+/-- Without step 5d the same create reaches the purchase tail and its balance refusal. -/
+@[req "API-7"]
+theorem undeclared_ordering_reaches_the_tail_without_the_step :
+    undeclaredOrderingCreate { Admission.current with orderingCapabilityGuard := false } =
+      { refusal := none, tail := some { refusals := [.balance], notChecked := [] } } := by decide
+
 @[req "API-7"]
 theorem rich_tail_retains_every_refusal :
     (fencedHaltedNoRate Admission.current).refusals = [.fence, .solvency, .rate] := by decide

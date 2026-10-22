@@ -13,7 +13,11 @@ keys, with no wildcard, so halting the action that reduces exposure is a red bui
 review finding.
 
 The pipeline (`API-7`, `WIR-34`, `API-55`, `API-56`): principal, tenant state,
-listener and verb decide one outcome and whether the request consumed a ceiling slot. The ceilings
+listener and verb decide one outcome and whether the request consumed a ceiling slot.
+The create-only step 5d is composed separately in `createPurchaseTail`, after `admit`.
+`API-7` says "A refusal stops here and is not collected by the tail." Its capability answer
+is a supplied Boolean; the machine-kind mapping and the account's descriptor are outside this
+model. The ceilings
 (`SEC-39`): which budget each verb counts against, and the two properties that make a ceiling a
 control rather than a field. The matrices (`LDG-20`, `LDG-40`, `LDG-59`, `LDG-64`, `LDG-65`): what
 a solvency failure and a rate outage do to each action, over an action space that includes the
@@ -298,7 +302,11 @@ its terms the commitment could only be sized after the purchase it authorizes".
 `cancellationFutureGuard` (`PRV-31`, 2026-10-12, `ADR-0037` Q25): off, a later declared or
 reported bound remains sellable, retaining the rule before Q25. The enabled rule is
 "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
-its offer-reported bound is later than the provider's local today." -/
+its offer-reported bound is later than the provider's local today."
+
+`orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`): `API-7` says
+"**gate a create on its ordering capability**". Off, a create without that declaration reaches
+the purchase tail. -/
 structure Guards where
   listenerSplit            : Bool
   operatorSkipsTenantSteps : Bool
@@ -320,6 +328,7 @@ structure Guards where
   channelClosureGuard     : Bool
   completeCheckToLift     : Bool
   solvencyUsesValuedTerms  : Bool
+  orderingCapabilityGuard : Bool
   deriving DecidableEq, Repr
 
 /-- The pipeline and the two matrices as they stand. `stepTwoReadsSuspension` is the withdrawn
@@ -344,7 +353,8 @@ def current : Guards := {
     cancellationFutureGuard  := true,
     channelClosureGuard     := true,
     completeCheckToLift     := true,
-    solvencyUsesValuedTerms  := true }
+    solvencyUsesValuedTerms  := true,
+    orderingCapabilityGuard := true }
 
 /-- `LDG-40`, amended 2026-10-04: "An incomplete passing check MUST preserve
 the existing verdict". The guard's off position retains the defect: omitting a leg lifts a halt.
@@ -789,7 +799,7 @@ def rateAvailableFor (outage : Currency → Bool) (subject : Currency) : Bool :=
 
 /-- `API-24`: "`kind` MUST come from the closed set in `DOM-17`", and "Handlers MUST NOT choose
 statuses independently." Over every principal, tenant state, listener, verb, admin flag, replay,
-ceiling answer and override, the pipeline refuses with no kind outside these five. That each of the
+ceiling answer and override, `admit` (steps 1–5c) refuses with no kind outside these five. That each of the
 five is actually reached is the witnesses' half, not this one's. -/
 @[req "API-7"]
 theorem refusals_are_within_the_five_kinds :
@@ -1141,6 +1151,36 @@ def tailAdmitted (g : Guards) (create : Bool) (account : AccountStatus.Status)
   (if create then account == .healthy && (!g.offerSaleGuard || offerSellable) &&
       (!g.channelClosureGuard || !channelClosed) else !fenced) &&
     !halted && rate && !(capPresent && cap) && !balance
+
+/-- A create's step-5d refusal or its purchase-tail result. `none` in `tail` means no tail
+collection took place (`API-7`). -/
+structure CreateTailResult where
+  refusal : Option ErrorKind
+  tail : Option TailResult
+  deriving DecidableEq, Repr
+
+/-- Step 5d composed before the create's tail (`API-7`, `DOM-10`). The supplied Boolean answers
+whether the account declares the create's ordering capability. Machine-kind selection and
+descriptor construction are outside this model. Only creates enter this function; the shared
+steps 1–5c and extend-runway's tail are separate. -/
+@[req "API-7"]
+def createPurchaseTail (g : Guards) (orderingDeclared : Bool) (account : AccountStatus.Status)
+    (offerSellable channelClosed halted rate capPresent cap balance : Bool) : CreateTailResult :=
+  if g.orderingCapabilityGuard && !orderingDeclared then
+    { refusal := some .unsupported, tail := none }
+  else
+    { refusal := none, tail := some (purchaseTail g true account offerSellable channelClosed
+        false halted rate capPresent cap balance) }
+
+/-- With step 5d enabled, an undeclared ordering capability refuses the create as unsupported
+and produces no tail result, regardless of the tail's snapshot inputs (`API-7`, `DOM-10`). -/
+@[req "API-7"]
+theorem undeclared_ordering_stops_before_tail (g : Guards)
+    (h : g.orderingCapabilityGuard = true) (account : AccountStatus.Status)
+    (o c s r q p b : Bool) :
+    createPurchaseTail g false account o c s r q p b =
+      { refusal := some .unsupported, tail := none } := by
+  simp [createPurchaseTail, h]
 
 /-- Compose the computed sale input with the real tail, preserving its snapshot parameters. -/
 @[req "API-7"]

@@ -1007,7 +1007,7 @@ never true.* **At admission, a create naming an account that is not `healthy` MU
 `conflict` with `details.reason: "state"`** — the catalogue read is advisory and a termination can
 land between the two calls, so omission from the listing is not by itself the control. At claim,
 `OPS-43`'s step 1 and `API-63` govern.
-`{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
+`{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot",
 "capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "install_rootfs_via_rescue", "install_raw_disk_via_rescue", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
 `DOM-22`). **This view is a subset of the driver's descriptor (`PRV-44`)**: `kind` and
 `capabilities` are the descriptor's fields, rendered; nothing here is declared anywhere else, and
@@ -1021,6 +1021,8 @@ per product: an API path to stop the cost", and an account with no `delete_machi
 operator intervenes by hand. `power_control` joins for the same reason it is in `DOM-10`'s table —
 an account that can order bare metal and not reboot it is not a shape any launch driver has. *A
 fixture is a claim about a legal configuration, and this one asserted the illegal one.*
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 **WIR-30** **AMENDED** `GET /v1/providers/{account}/offers` — customer prices only (`LDG-26`), an
 unassigned account `404`s (`WIR-36`), and **an account whose `STO-47` status is not `healthy` `404`s

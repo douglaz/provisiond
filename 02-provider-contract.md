@@ -27,7 +27,9 @@ the whole lifecycle depends on.
 operation with a capability entry in `DOM-10`'s table — MUST NOT implement one whose capability
 it does not declare (`DOM-15`). The three methods with no entry there — *describe capabilities*,
 *get machine* and *refresh rescue session* — are outside the second clause; `PRV-2` and `PRV-3`
-govern them.
+govern them. An ordering capability that `DOM-16` withholds from an account whose `allow_orders` is false is not declared for that account, and a driver that implements it breaches neither this requirement's second clause nor `DOM-15`.
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 **PRV-5** A driver MUST map provider transport failures to `network`, provider timeouts
 to `timeout`, provider non-2xx responses to `provider` (or the more specific
@@ -158,7 +160,9 @@ key; it is distinct from the persisted recovery private key (`RSC-19`).
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
 `acknowledge_purchase`), *and* the account
-is configured to allow ordering. Both, not either.
+is configured to allow ordering. Both, not either. The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`): `API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim.
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 **PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before any provider mutation for a create,
 the driver MUST validate every value it forwards to the provider, including provider options,

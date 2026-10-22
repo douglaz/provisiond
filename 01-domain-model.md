@@ -561,13 +561,14 @@ driver that declares the capability, and it returns as one edit rather than six.
 
 **DOM-15** A capability that is declared but whose code path returns "unsupported" is a
 defect. Declaration and implementation MUST agree; the conformance checklist tests this
-(`10-conformance-checklist.md`).
+(`10-conformance-checklist.md`). An ordering capability withheld under `DOM-16` is excepted from that agreement (`PRV-4`).
 
-**DOM-16** Ordering capabilities (`provision_virtual`, `provision_bare_metal`) for
-providers that bill per order SHOULD be conditional on an explicit per-account
-`allow_orders` configuration flag, so that a misconfigured deployment cannot spend
-money. This is in addition to, not instead of, the per-request purchase acknowledgement
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+
+**DOM-16** Ordering capabilities (`provision_virtual`, `provision_bare_metal`) for providers that bill per order MUST be conditional on an explicit per-account `allow_orders` configuration flag: the descriptor (`PRV-44`) of an account whose flag is false does not declare them, so that a misconfigured deployment cannot spend money. This is in addition to, not instead of, the per-request purchase acknowledgement
 (`API-15`).
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 ## Error taxonomy
 
