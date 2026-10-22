@@ -288,7 +288,7 @@ per kind and redacted (`API-22`, `DOM-18`): `create_machine` →
 {"identifier": null, "path": "/dev/sda", "wwn": null, "serial": null,
 "size_bytes": 500107862016, "model": "Virtual Disk", "type": "disk"}],
 "uefi": true, "inventory_fingerprint":
-"b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}}`
+"774651ea4106f48eeb2c3168486b267d5f773ccc77d10d8f489842eaff5419c9"}}`
 (`RSC-33`, `RSC-38`, `RSC-46`); **an `install` whose strategy enters no rescue — `provider_native` and
 `provider_catalogue` — returns `{}`** (**AMENDED 2026-09-02**: the withdrawn text made *every*
 `install` result carry an `inventory`, which neither of those two can ever produce — nothing boots
@@ -710,7 +710,7 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 { "strategy": "rootfs_via_rescue",
   "source": {"type": "rootfs_tarball", "url": "https://images.example.net/debian-12-amd64.tar.zst", "sha256": "3b1f2c9a5d7e4082b6c1d3e5f7a90b2c4d6e8f0a1b3c5d7e9f0a2b4c6d8e0f13", "format": "zstd"},
   "authorized_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexamplekeyxxxxxxxxxxxxxxxxxxxxxxxx"],
-  "layout": { "drives": [{"identifier": "S4EVNF0N123456"}], "inventory_fingerprint": "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1", "raid": {"enabled": false, "level": null}, "partitions": [{"mount": "/boot", "size": "1G", "fs": "ext3"}, {"mount": "/", "size": "all", "fs": "ext4"}], "bootloader": "grub" },
+  "layout": { "drives": [{"identifier": "S4EVNF0N123456"}], "inventory_fingerprint": "774651ea4106f48eeb2c3168486b267d5f773ccc77d10d8f489842eaff5419c9", "raid": {"enabled": false, "level": null}, "partitions": [{"mount": "/boot", "size": "1G", "fs": "ext3"}, {"mount": "/", "size": "all", "fs": "ext4"}], "bootloader": "grub" },
   "post_install_script": null,
   "trust": {"use_provider_keys": true},
   "acknowledge_destruction": true }
@@ -718,7 +718,7 @@ security-critical decision in the whole workflow, downgraded by a body schema. P
 
 - `raw_disk`: `source.type` `raw_disk` (`url`, `sha256`, `compression` ∈ {`none`, `gzip`, `xz`,
   `zstd`, `bzip2`}), a required **`target`** object — `{"identifier": "S4EVNF0N123456",
-  "inventory_fingerprint": "b7f1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}`,
+  "inventory_fingerprint": "774651ea4106f48eeb2c3168486b267d5f773ccc77d10d8f489842eaff5419c9"}`,
   where `identifier` is a drive serial or WWN and the fingerprint is the one `RSC-38`'s rescue
   inventory returned — **not a device path** (`RSC-26`) —
   optional `grow_partition` (boolean, default `false`, `RSC-31`), and no `authorized_keys`
