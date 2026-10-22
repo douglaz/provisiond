@@ -835,6 +835,7 @@ jobs:
           Admission|cancellationFutureGuard|true|false|futureSaleGuards Admission.current
           Admission|channelClosureGuard|true|false|channelClosed
           Admission|reverseDnsCeiling|true|false|reverseDnsAdmission
+          Admission|orderingCapabilityGuard|true|false|undeclaredOrderingCreate
           ProviderTraffic|reuseFresh|true|false|freshClaim
           ProviderTraffic|checkAtClaim|true|false|queuedRefreshes
           ProviderTraffic|preserveAge|true|false|ageClaim
