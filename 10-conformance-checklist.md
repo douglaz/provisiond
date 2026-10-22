@@ -128,11 +128,26 @@ not optional hardening — they are the only structural defence there is.
       path behind it — a declared ordering channel is searched, a declared evidence source is read,
       a declared surviving attachment kind is listed, and each ordering channel carries
       its own validated `order_budget` — and a field with nothing to declare says so
-      explicitly rather than being absent. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
+      explicitly rather than being absent. An ordering capability withheld under `DOM-16` is outside the implemented-implies-declared rows for that account; `CNF-19` and `CNF-55` cover its gate. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
       *Amended 2026-10-09 (`ADR-0036`): the order-budget field is iterated per channel.*
+      *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+
 - [ ] **CNF-19** — Create is refused when the provider has not declared the matching
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
+- [ ] **CNF-364** — **The claim-time List offers read is gated on `list_offers`.** Admit a
+      complete create on an account that declares `list_offers` and the ordering capability.
+      Before claim, restart with a descriptor for that account that no longer declares
+      `list_offers`, keeping the ordering capability declared and the driver's List offers code
+      path answering, so the test proves the gate exists, as `CNF-19` does. Assert the worker
+      refuses the create at `OPS-43`'s step 4: `unsupported` with `details.provider_account`
+      naming the account and `details.capability: "list_offers"`, `retryable: false` on both the
+      error and the operation view, no `details.refusals` or `details.not_checked`, `failed`, the
+      commitment released in full with no setup-fee or first-unit debit, and no List offers read,
+      per-order key upload or order request. (`DOM-10`, `OPS-43`, `OPS-11`, `LDG-39`, `WIR-9a`,
+      `WIR-9b`)
+      *Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*
+
 - [ ] **CNF-20** — Every operation on a driver that declares nothing returns `unsupported`,
       not a panic and not a wrong default — except `PRV-2`'s three named exceptions, each
       asserted for its own stated behaviour instead: describe capabilities and get machine are
@@ -229,14 +244,14 @@ not optional hardening — they are the only structural defence there is.
       the API layer. On separate creates, store records missing a caller-supplied field —
       `acknowledge_purchase` (`WIR-17`: "`acknowledge_purchase` MUST be literal `true`") — and
       an api-filled admission field, using the accepted-price fields in `request_summary`
-      (`OPS-43`: "the accepted recurring price, its currency and its period"). For the caller
-      field assert `invalid_request` naming the field and `retryable: false`; for the api-filled
+      (`OPS-43`: "the accepted recurring price, its currency and its period"). For the caller field assert `invalid_request` with
+      `details.field: "/acknowledge_purchase"` and `retryable: false`; for the api-filled
       field assert `conflict`, `details.reason: "incomplete_record"` and `retryable: true`.
       Assert the same kind, applicable reason and `retryable` on the error and the operation
       view (`WIR-9b`), `failed`, no driver call, and the create's commitment released in full
       with no setup-fee or first-unit debit.
       Repeat the caller-field case on an install, using `API-14`'s "explicit destructive
-      acknowledgement". Assert the same `invalid_request` naming the field and `retryable: false`
+      acknowledgement". Assert `invalid_request` with `details.field: "/acknowledge_destruction"` and `retryable: false`
       on the error and view, `failed`, no driver call, both marker columns still null,
       `disk_effect: "none"` and `rescue_exit: "none"`. The install fixture uses that caller
       acknowledgement; an api-filled install case applies only if the release names a field the
@@ -247,6 +262,8 @@ not optional hardening — they are the only structural defence there is.
       *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
       added missing-field fixtures, error/view agreement, commitment release,
       install marker outcomes and complete-record controls.*
+
+      *Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed field-pointer form and validation ordering.*
 
 - [ ] **CNF-35** — `GET /v1/operations?status=needs_reconciliation` returns them, paginated.
       (`API-23`, `DEF-8`)
@@ -308,8 +325,21 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-54** — Install without the destructive acknowledgement is rejected; delete
       without it is rejected. (`API-14`)
 - [ ] **CNF-55** — Create against an order-billed provider is rejected without both the
-      per-request purchase acknowledgement and the account-level opt-in. (`API-15`,
-      `PRV-10`)
+      per-request purchase acknowledgement and the account-level opt-in. On an account whose
+      `allow_orders` is false, assert `GET /v1/providers` lists it without its ordering
+      capability, and that a create carrying `acknowledge_purchase: true` is refused at `API-7`'s
+      step 5d: HTTP `501`, `unsupported`, `details.provider_account` and `details.capability`
+      naming the account and that capability, `retryable: false`, and, with a balance too low for
+      the create, no `details.refusals` or `details.not_checked` and no operation or commitment.
+      A same-key, same-body replay of a create admitted before the flag was turned off returns its
+      stored result. Admit a complete create with the flag true, restart with it false before
+      claim, and assert the worker refuses it at `OPS-43`'s step 3 with the same kind, `details`
+      and `retryable: false` on both the error and the operation view, `failed`, the commitment
+      released in full with no setup-fee or first-unit debit, and no provider request, including
+      no List offers read. (`API-15`, `PRV-10`, `DOM-10`, `DOM-16`, `API-7`, `OPS-43`, `WIR-9a`,
+      `WIR-9b`, `LDG-39`)
+
+      *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 ## Persistence
 
@@ -3394,8 +3424,10 @@ rather than acquiring a default.
       DigitalOcean, read `locked: true` as an action lock: assert it produces no mapped provider
       restriction observation, leaving both provider columns null before any mapped reading;
       render `restricted/operator_notice` with an existing operator record and unknown/null/null
-      without one. Submit a withdrawal with `operator_ref` and assert `invalid_request` names it as the first unknown body field, with no column change; the recording body still requires that field. (`PRV-35`, `WIR-47`, `WIR-2`, `STO-39`)
+      without one. Submit a withdrawal with `operator_ref` and assert `invalid_request` with `details.field: "/operator_ref"` and no column change; the recording body still requires that field. (`PRV-35`, `WIR-47`, `WIR-2`, `STO-39`)
       *Amended 2026-10-10 (`ADR-0038`, Q15).*
+      *Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed field-pointer form and validation ordering.*
+
 - [ ] **CNF-234** — `warned_consequence` has no write path after open, and a deadline revision
       appends: after two extensions the case carries both prior dates with their revision times,
       and `respond_by` reads the latest. (`STO-44`, `WIR-47`)
@@ -3941,17 +3973,21 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       rejects, including a provider-options object containing a value the provider does not
       accept. For each, assert the driver rejects it at `OPS-43`'s step 7, "Run `PRV-47`'s
       driver validation", with no provider mutation: no per-order key upload and no order
-      request. The List offers read is permitted. For each, also assert `invalid_request`
-      naming the rejected value's field, `retryable: false` on both the error and the operation
-      view, no `details.refusals` or `details.not_checked`, `failed`, the commitment released in
+      request. The List offers read is permitted. For each, also assert `invalid_request` with `details.field` holding the rejected value's
+      RFC 6901 pointer (one under `/provider_options` for the provider-options value, such as
+      `"/provider_options/location"`), `retryable: false` on both the error and the operation view, no `details.refusals` or `details.not_checked`, `failed`, the commitment released in
       full with no setup-fee or first-unit debit, and the resource-offer exclusion freed where the
       create holds one. Repeat these step-7 cases on a standard channel (`correlator: none`) with
-      the same assertions. For a stored create carrying a
+      the same assertions.
+      Add a stored create carrying provider-options members `a/b` and `a~b`, both rejected by the driver, and assert `details.field: "/provider_options/a~0b"`, the least escaped pointer in `WIR-9a`'s order; unescaped, `a/b` sorts first. With a fixture
+      driver that rejects a value this system wrote, such as the operation id as a temporary key's
+      name (`PRV-9`), on an otherwise valid create, assert `internal` and `retryable: true` on both
+      the error and the operation view, `failed`, and the same no-mutation and release outcomes. For a stored create carrying a
       provider-forwarded value that API boundary validation rejects, assert it fails at
       `OPS-43`'s step 3 instead, with no provider request at all.
       Separately omit the caller-supplied purchase acknowledgement. Assert rejection at
-      `OPS-43`'s step 3, "Repeat boundary validation under `OPS-23`": `invalid_request` naming
-      the field, `retryable: false` on the error and operation view, `failed`, commitment
+      `OPS-43`'s step 3, "Repeat boundary validation under `OPS-23`": `invalid_request` with
+      `details.field: "/acknowledge_purchase"`, `retryable: false` on the error and operation view, `failed`, commitment
       released in full and no provider request at all, including no List offers read.
       For a valid request, remove the named auction offer after admission and before claim
       (`OPS-5`), while the create is `queued` and unclaimed. Repeat for an ordinary catalogue
@@ -3964,7 +4000,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       and no order request; the List offers read is permitted. The inner error has no
       `details.refusals` or `details.not_checked` and no cap or balance result or amount derived
       from the offer's price. Neither check adds a provider lookup to `API-7`'s rich-tail collection.
-      (`PRV-47`, `PRV-10`, `PRV-42`, `API-7`, `OPS-43`, `OPS-23`, `OPS-5`, `OPS-11`, `STO-58`, `LDG-39`,
+      (`PRV-47`, `PRV-9`, `PRV-10`, `PRV-42`, `API-7`, `OPS-43`, `OPS-23`, `OPS-5`, `OPS-11`, `DOM-17`, `STO-58`, `LDG-39`,
       `WIR-9`, `WIR-9a`, `WIR-9b`, `WIR-10b`)
       *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
       separated acknowledgement, forwarded-value and queued offer-removal
@@ -3973,6 +4009,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       *Amended 2026-10-21 (`pv-p1y`): asserted the step-7 rejection's error, named field,
       retryability, settlement, commitment release and exclusion release, with no collected
       refusals, on both a per-order-key and a standard channel.*
+
+      *Amended 2026-10-22 (`pv-gpw`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed writer-based validation disposition and fixture.*
+
+      *Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed field-pointer form and validation ordering.*
 
 - [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
       tenants and two replicas on one `offer_is_resource` account/channel/offer.

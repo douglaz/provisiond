@@ -730,9 +730,11 @@ The worker MUST order the following steps as listed:
    request, including a per-order key upload").
 3. Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
    MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
-   "explicit purchase acknowledgement" and "the account is configured to allow ordering",
-   `PRV-8`'s "at least one SSH public key", and the missing-field checks defined in `OPS-23`.
-4. Obtain the current driver List offers result.
+   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
+   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
+   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
+   run first, then the checks on fields the `api` wrote at admission, then the capability gate.
+4. Gate on `list_offers` under `DOM-10`, then obtain the current driver List offers result.
 5. Check for the named offer's absence from that result, applying the create-tail verdict quoted
    above; if present, re-test the named offer for sale on that result and the running descriptor.
 6. Compare its price using that same List offers result, as below. An unsellable offer gets no
@@ -847,6 +849,10 @@ failure outcome to absence with resource-offer exclusion settlement.*
 
 *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): gave `price_moved` `retryable: true`
 on the error and the operation view.*
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+
+*Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*
 
 **OPS-28** Automatic resolution MUST be restricted to searching and MUST NOT mutate. Discovering
 that nothing exists does not authorize creating it; that is a new decision by the caller, and a
@@ -1887,6 +1893,8 @@ For create, install, power and delete, a missing required field MUST fail as fol
 - A field the caller must supply fails `invalid_request` naming the field, with
   `retryable: false` on both the error and the operation view.
 
+A field that is present but fails this repeated validation fails as its writer's bullet above says, on both the error and the operation view, and settles as these missing-field failures do.
+
 These missing-field failures settle `failed` under `OPS-11`. On a create they come at `OPS-43`'s
 step 3, and `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
 Power and delete take its last row's "otherwise `failed`", and its install row gives `failed`
@@ -1916,6 +1924,8 @@ timing; included offer absence in the timing exception.*
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`):
 pointed a create's missing-field failure at the create row's step-9 boundary.*
+
+*Amended 2026-10-22 (`pv-gpw`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed writer-based validation disposition and fixture.*
 
 ## Fairness and retention
 

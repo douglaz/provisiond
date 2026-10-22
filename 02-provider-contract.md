@@ -27,7 +27,9 @@ the whole lifecycle depends on.
 operation with a capability entry in `DOM-10`'s table — MUST NOT implement one whose capability
 it does not declare (`DOM-15`). The three methods with no entry there — *describe capabilities*,
 *get machine* and *refresh rescue session* — are outside the second clause; `PRV-2` and `PRV-3`
-govern them.
+govern them. An ordering capability that `DOM-16` withholds from an account whose `allow_orders` is false is not declared for that account, and a driver that implements it breaches neither this requirement's second clause nor `DOM-15`.
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 **PRV-5** A driver MUST map provider transport failures to `network`, provider timeouts
 to `timeout`, provider non-2xx responses to `provider` (or the more specific
@@ -158,7 +160,9 @@ key; it is distinct from the persisted recovery private key (`RSC-19`).
 **PRV-10** For a provider that bills on order, create MUST reject the request unless the
 request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
 `acknowledge_purchase`), *and* the account
-is configured to allow ordering. Both, not either.
+is configured to allow ordering. Both, not either. The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`): `API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim.
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 **PRV-47** **Added 2026-10-09 (`ADR-0036`).** Before any provider mutation for a create,
 the driver MUST validate every value it forwards to the provider, including provider options,
@@ -166,7 +170,7 @@ and MUST reject invalid values without any provider mutation for that create, in
 per-order key upload or order request. This validation is in the
 driver, after the API's body validation, because the driver knows the provider's accepted values.
 A caller-supplied value this validation rejects fails `invalid_request` naming the rejected value's
-field, with `retryable: false` on both the error and the operation view (`WIR-9b`). `OPS-11` says
+field, with `retryable: false` on both the error and the operation view (`WIR-9b`). A value this system wrote rather than the caller, such as `PRV-9`'s operation id as a temporary key's "provider-side name or tag" or `PRV-32`'s per-order throwaway SSH key, that this validation rejects fails `internal` (`DOM-17`); `OPS-11`'s create row gives its `retryable`. `OPS-11` says
 "Any create failure the worker records before any step-9 request (before any per-order key upload
 or order request) MUST settle `failed`, whatever its kind" and "The commitment is released in full
 under `LDG-32` … with no setup-fee or first-unit debit".
@@ -177,6 +181,8 @@ precedes any provider mutation for the create, including key upload.*
 *Amended 2026-10-21 (`pv-p1y`; by extension of owner decision 2 on `pv-14b`, panel r55,
 `docs/research/panels-2026-10/r55/`): named the error and retryability for an invalid
 caller-supplied value by analogy with the missing caller-supplied field covered by that decision.*
+
+*Amended 2026-10-22 (`pv-gpw`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed writer-based validation disposition and fixture.*
 
 **PRV-11** Ordering is generally not idempotent at the provider. Where create polls an
 order transaction to completion, timing out MUST produce a `timeout` error whose message

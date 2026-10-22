@@ -238,6 +238,7 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     **`API-64`'s retry is not exempt**: it counts against `SEC-39`'s operator retry ceiling, and
     the operator is a program (`SEC-39`), so a loop retrying a deterministic rejection is exactly
     what the ceiling is for (`ADR-0017`).
+5d. **gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail.
 
 The tail then depends on what the endpoint does:
 
@@ -258,7 +259,7 @@ The tail then depends on what the endpoint does:
 | **attribute** | operator-only (`WIR-42`); synchronous, `200`; posts ledger entries, so it **takes `LDG-35`'s serialization for both tenants, in ascending tenant-identifier order**, and the primitive must not require a live `tenants` row — the source tenant is normally already reaped |
 | **record billing** (*added 2026-10-04, `pv-gip.39`*) | operator-only (`API-66`, `WIR-53`); synchronous `200`; local row and receipt commit together; no provider mutation, commitment or spending gate |
 
-**Rich purchase tails (create and extend-runway only; amended 2026-10-04, `ADR-0030`).** After steps 1–5c, the tail MUST
+**Rich purchase tails (create and extend-runway only; amended 2026-10-04, `ADR-0030`).** After steps 1–5d, the tail MUST
 collect every applicable refusal once, from one read-only snapshot inside the existing `LDG-35`
 transaction, without an extra lock, ceiling slot, write or provider call. `details.refusals`
 (`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
@@ -287,7 +288,7 @@ entry MUST NOT supply pacing to a headline kind that does not require it. A refu
 commit nothing and write no `STO-35` receipt (`WIR-3`), so clearing faults and resending the same
 request/key evaluates afresh. Admission retains the conditional-write guards in `API-63`,
 `LDG-62` and `PRV-42`; collection does not replace them with read-only guards. These are admission refusals
-(`OPS-11`), never lists in operation views. Steps 1–5c still stop at their first refusal; see
+(`OPS-11`), never lists in operation views. Steps 1–5d still stop at their first refusal; see
 those steps for their rationale. Deposit behavior and other tails are unchanged.
 
 *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): included an offer
@@ -325,6 +326,8 @@ all absent until 2026-08-12. The list was described as normative "for every
 write endpoint", so **a builder following it literally shipped a create with no authorization at
 all** — the money check existed in `12-billing-and-ledger.md` and in no sequence any handler
 author would read.
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): added step 5d.*
 
 ## Enrolment
 
@@ -768,12 +771,7 @@ enrolment, and there is not even a handle to return.
   which is `API-7`'s ordering argument reaching the one route that has no principal to authenticate:
   an unadmitted caller MUST NOT be able to make the server do policy work either.
 
-  **The order resolves a conflict between two MUSTs, so it is stated as a precedence.** `WIR-2`
-  requires an unknown body field to be rejected **naming the first one**; `WIR-12` requires a bad
-  admission token to be refused **without saying which of absent, expired, unknown or spent it was**.
-  A body carrying both a bad token and an unknown field satisfies one and violates the other
-  whichever way a handler goes. **The token check wins**: the response is `invalid_request` naming no
-  field and giving no token detail. Enrolment is the one route where naming a field is a free
+  For a body carrying both a bad token and an unknown field, **the token check wins**: the response is `invalid_request` with no `details.field` and no token detail. Enrolment is the one route where naming a field is a free
   oracle handed to an unadmitted stranger, and `WIR-2`'s naming rule exists for interoperability with
   callers that got in — which this one has not.
 - **`API-1` (every accepted write returns `202` and an operation)** — enrolment is exempt and
@@ -786,6 +784,8 @@ enrolment, and there is not even a handle to return.
   the spending token *and* the recovery credential. That is credential disclosure reached by
   guessing a string. A duplicate signup is free and `API-34` reclaims it; a leaked capability is
   not. An `Idempotency-Key` presented to enrolment MUST be ignored, never honoured.
+
+*Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed field-pointer form and validation ordering.*
 
 ## Funding
 

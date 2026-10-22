@@ -516,7 +516,7 @@ documents.
 driver is called, **including create**; the driver methods with no capability entry are the ones
 `PRV-4` names. There MUST be no operation whose only gate is
 a driver-internal check. A capability check failure MUST return an "unsupported" error
-naming the provider account and the capability.
+naming the provider account and the capability, with `retryable: false` on both the error and the operation view where there is one.
 
 Mapping from operation to required capability:
 
@@ -536,6 +536,8 @@ Mapping from operation to required capability:
 | reverse DNS | `reverse_dns` |
 | delete | `delete_machine` |
 | release attachment | `delete_machine` — a driver that can delete a machine can release what it left behind (`PRV-45`) |
+
+*Amended 2026-10-22 (`pv-009`, `pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): every capability check failure carries `retryable: false`, which is how the `pv-p3k` ruling "MUST, not retryable" reaches `API-7`'s step 5d and `OPS-43`'s claim-time gates.*
 
 **DOM-22** Three edits to the capability model on 2026-08-12, closing the rest of `F10`:
 
@@ -561,13 +563,14 @@ driver that declares the capability, and it returns as one edit rather than six.
 
 **DOM-15** A capability that is declared but whose code path returns "unsupported" is a
 defect. Declaration and implementation MUST agree; the conformance checklist tests this
-(`10-conformance-checklist.md`).
+(`10-conformance-checklist.md`). An ordering capability withheld under `DOM-16` is excepted from that agreement (`PRV-4`).
 
-**DOM-16** Ordering capabilities (`provision_virtual`, `provision_bare_metal`) for
-providers that bill per order SHOULD be conditional on an explicit per-account
-`allow_orders` configuration flag, so that a misconfigured deployment cannot spend
-money. This is in addition to, not instead of, the per-request purchase acknowledgement
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+
+**DOM-16** Ordering capabilities (`provision_virtual`, `provision_bare_metal`) for providers that bill per order MUST be conditional on an explicit per-account `allow_orders` configuration flag: the descriptor (`PRV-44`) of an account whose flag is false does not declare them, so that a misconfigured deployment cannot spend money. This is in addition to, not instead of, the per-request purchase acknowledgement
 (`API-15`).
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 ## Error taxonomy
 

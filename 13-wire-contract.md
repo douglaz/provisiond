@@ -25,13 +25,16 @@ number MUST be an integer within ±(2⁵³−1) with no exponent or fraction —
 durations, revisions and counts are all integers, and a parser that silently rounds a large
 number is a money bug. This is the profile JCS (`WIR-3`) canonicalizes within.
 
-**WIR-2** **Unknown fields in a request body MUST be rejected** with `invalid_request` naming the
-first unknown field. A tolerant reader lets a misspelled `acknowledge_destruction` pass silently
+**WIR-2** **Unknown fields in a request body MUST be rejected** with `invalid_request`. The field named in
+`details.field` MUST be selected under `WIR-9a`, including when the same validation step also
+rejects known fields. A tolerant reader lets a misspelled `acknowledge_destruction` pass silently
 unacknowledged, and lets two implementations diverge without either noticing. Two carve-outs:
 `provider_options` (`WIR-17`) is a free-form object whose interior is the driver's to validate,
 not the core parser's; and **unknown query parameters are ignored**, matching `WIR-32`'s leniency
 on pagination. Responses are the opposite of bodies: **clients MUST ignore unknown response
 fields**, so the server can add fields without a version bump.
+
+*Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed field-pointer form and validation ordering.*
 
 **WIR-3** **AMENDED.** The canonical form of a body — for idempotency comparison only — is
 **RFC 8785 (JCS)** over the I-JSON of `WIR-1a`. The **idempotency fingerprint** persisted per
@@ -128,6 +131,7 @@ agent to parse English. Minimum keys:
 |---|---|
 | `insufficient_balance` | `available_sats`, `required_sats` |
 | `invalid_request` / `offer_not_sellable` on create | `reason: "offer_not_sellable"`; no cap or balance result or amount derived from the withheld offer's price |
+| `invalid_request` naming a field (`WIR-2`, `OPS-23`, `PRV-47`) | `field`: an RFC 6901 JSON Pointer into the request body (`"/acknowledge_purchase"`, `"/provider_options/location"`), also where the named field is absent. Where one validation step rejects several fields (an `API-7` step, `OPS-23`'s repeated check of caller-supplied fields, or `PRV-47`'s validation), the least escaped pointer, compared by unsigned UTF-16 code units, the order RFC 8785 (`WIR-3`) sorts member names in |
 | `not_activated` | `activation_minimum_sats` |
 | `rate_limited` | `retry_after_ms` |
 | `ceiling_exceeded` | `ceiling` (which one, from `SEC-39`'s stated set), `limit`, `interval_seconds`, `retry_after_ms` (to the end of the current interval) |
@@ -216,6 +220,8 @@ operation the restore quarantine or the post-restore startup pass moved (`STO-54
 `disk_effect` and `rescue_exit` are both `unknown` whatever the columns hold: `STO-54` says of
 exactly those rows that "a null marker there does not mean the disk is untouched", and `none` on
 either key would tell the caller the opposite of what the operator is told about the same row.
+
+*Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed field-pointer form and validation ordering.*
 
 **WIR-9b** **`retryable` precedence** (*amended 2026-10-04, `ADR-0030`*). For `API-7`'s rich purchase-tail refusal, the envelope's
 `retryable` MUST be true iff every refusal entry's `retryable` is true. Each entry retains its
@@ -1007,7 +1013,7 @@ never true.* **At admission, a create naming an account that is not `healthy` MU
 `conflict` with `details.reason: "state"`** — the catalogue read is advisory and a termination can
 land between the two calls, so omission from the listing is not by itself the control. At claim,
 `OPS-43`'s step 1 and `API-63` govern.
-`{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot", "allow_orders": true,
+`{"providers": [{"account": "hetzner-robot-1", "kind": "hetzner_robot",
 "capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "install_rootfs_via_rescue", "install_raw_disk_via_rescue", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
 `DOM-22`). **This view is a subset of the driver's descriptor (`PRV-44`)**: `kind` and
 `capabilities` are the descriptor's fields, rendered; nothing here is declared anywhere else, and
@@ -1021,6 +1027,8 @@ per product: an API path to stop the cost", and an account with no `delete_machi
 operator intervenes by hand. `power_control` joins for the same reason it is in `DOM-10`'s table —
 an account that can order bare metal and not reboot it is not a shape any launch driver has. *A
 fixture is a claim about a legal configuration, and this one asserted the illegal one.*
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
 **WIR-30** **AMENDED** `GET /v1/providers/{account}/offers` — customer prices only (`LDG-26`), an
 unassigned account `404`s (`WIR-36`), and **an account whose `STO-47` status is not `healthy` `404`s
@@ -1257,8 +1265,7 @@ and idempotency rules.
 
 Withdrawal takes `{"status": "unknown"}` without `operator_ref` on the same route and returns
 `200` with the machine view. Under `WIR-2`'s "Unknown fields in a request body MUST be
-rejected" rule, a withdrawal body containing `operator_ref` returns `invalid_request`
-naming that first unknown field.
+rejected" rule, a withdrawal body whose only rejected field is `operator_ref` returns `invalid_request` with `details.field: "/operator_ref"` (`WIR-9a`).
 
 The operator withdraws after the provider grants the unlock. Withdrawal MUST be accepted
 even while the stored provider observation is positive, subject to ordinary authorization,
@@ -1292,6 +1299,8 @@ cases from carrying two answers.
 
 *Amended 2026-10-10 (`ADR-0038`, including Q15 and Q15b).*
 
+*Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed field-pointer form and validation ordering.*
+
 **WIR-48** `POST /v1/tenants/{tenant_id}/actions/assign-provider-account` — **operator-only**
 (`WIR-34`), **synchronous** `200`, minting no operation (`API-62`), carrying `Idempotency-Key` under
 `WIR-24`'s one-transaction rule. Body
@@ -1305,9 +1314,9 @@ account, exactly as the customer form of `WIR-29` renders it for that tenant —
 record kept outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`).
 
 **Naming an account the deployment does not have configured is `invalid_request`**; naming one not
-flagged assignable is `conflict` with `details.reason: "state"`. Assigning a tenant to an account
-that `SEC-46` has recorded as confirmed-terminated is also `conflict` — the failure this verb exists
-to repair should not be reachable by using it.
+flagged assignable is `conflict` with `details.reason: "state"`. Assigning a tenant to an account whose `STO-47` status is anything but `healthy` is also `conflict` with `details.reason: "state"` (`STO-36`) — the failure this verb exists to repair should not be reachable by using it.
+
+*Amended 2026-10-22 (`pv-7j3`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed account-status refusal.*
 
 **WIR-50** **ADDED 2026-09-02** `POST /v1/provider-accounts/{account}/actions/record-status` —
 **operator-only** (`WIR-34`), **synchronous** `200`, minting no operation (`API-63`, `API-48`),
