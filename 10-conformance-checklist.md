@@ -3974,7 +3974,10 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       view, no `details.refusals` or `details.not_checked`, `failed`, the commitment released in
       full with no setup-fee or first-unit debit, and the resource-offer exclusion freed where the
       create holds one. Repeat these step-7 cases on a standard channel (`correlator: none`) with
-      the same assertions. For a stored create carrying a
+      the same assertions. With a fixture
+      driver that rejects a value this system wrote, such as the operation id as a temporary key's
+      name (`PRV-9`), on an otherwise valid create, assert `internal` and `retryable: true` on both
+      the error and the operation view, `failed`, and the same no-mutation and release outcomes. For a stored create carrying a
       provider-forwarded value that API boundary validation rejects, assert it fails at
       `OPS-43`'s step 3 instead, with no provider request at all.
       Separately omit the caller-supplied purchase acknowledgement. Assert rejection at
@@ -3992,7 +3995,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       and no order request; the List offers read is permitted. The inner error has no
       `details.refusals` or `details.not_checked` and no cap or balance result or amount derived
       from the offer's price. Neither check adds a provider lookup to `API-7`'s rich-tail collection.
-      (`PRV-47`, `PRV-10`, `PRV-42`, `API-7`, `OPS-43`, `OPS-23`, `OPS-5`, `OPS-11`, `STO-58`, `LDG-39`,
+      (`PRV-47`, `PRV-9`, `PRV-10`, `PRV-42`, `API-7`, `OPS-43`, `OPS-23`, `OPS-5`, `OPS-11`, `DOM-17`, `STO-58`, `LDG-39`,
       `WIR-9`, `WIR-9a`, `WIR-9b`, `WIR-10b`)
       *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`):
       separated acknowledgement, forwarded-value and queued offer-removal
@@ -4001,6 +4004,8 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       *Amended 2026-10-21 (`pv-p1y`): asserted the step-7 rejection's error, named field,
       retryability, settlement, commitment release and exclusion release, with no collected
       refusals, on both a per-order-key and a standard channel.*
+
+      *Amended 2026-10-22 (`pv-gpw`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed writer-based validation disposition and fixture.*
 
 - [ ] **CNF-343** — **One resource offer has one create in flight.** Race two different
       tenants and two replicas on one `offer_is_resource` account/channel/offer.

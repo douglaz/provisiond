@@ -1893,6 +1893,8 @@ For create, install, power and delete, a missing required field MUST fail as fol
 - A field the caller must supply fails `invalid_request` naming the field, with
   `retryable: false` on both the error and the operation view.
 
+A field that is present but fails this repeated validation fails as its writer's bullet above says, on both the error and the operation view, and settles as these missing-field failures do.
+
 These missing-field failures settle `failed` under `OPS-11`. On a create they come at `OPS-43`'s
 step 3, and `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
 Power and delete take its last row's "otherwise `failed`", and its install row gives `failed`
@@ -1922,6 +1924,8 @@ timing; included offer absence in the timing exception.*
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`):
 pointed a create's missing-field failure at the create row's step-9 boundary.*
+
+*Amended 2026-10-22 (`pv-gpw`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed writer-based validation disposition and fixture.*
 
 ## Fairness and retention
 
