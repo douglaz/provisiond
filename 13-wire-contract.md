@@ -1305,9 +1305,9 @@ account, exactly as the customer form of `WIR-29` renders it for that tenant —
 record kept outside this system, never a name, address or contact string (`ADR-0005`, `STO-21`).
 
 **Naming an account the deployment does not have configured is `invalid_request`**; naming one not
-flagged assignable is `conflict` with `details.reason: "state"`. Assigning a tenant to an account
-that `SEC-46` has recorded as confirmed-terminated is also `conflict` — the failure this verb exists
-to repair should not be reachable by using it.
+flagged assignable is `conflict` with `details.reason: "state"`. Assigning a tenant to an account whose `STO-47` status is anything but `healthy` is also `conflict` with `details.reason: "state"` (`STO-36`) — the failure this verb exists to repair should not be reachable by using it.
+
+*Amended 2026-10-22 (`pv-7j3`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed account-status refusal.*
 
 **WIR-50** **ADDED 2026-09-02** `POST /v1/provider-accounts/{account}/actions/record-status` —
 **operator-only** (`WIR-34`), **synchronous** `200`, minting no operation (`API-63`, `API-48`),
