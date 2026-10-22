@@ -309,8 +309,9 @@ structure Device where
 /-- The report `RSC-38`'s pass returns, of which that requirement says only that "its report MUST
 carry the same `inventory_fingerprint` an install will be checked against": the device set, and the
 fingerprint `RSC-26`'s first bullet calls "an opaque `inventory_fingerprint` over the whole device
-set". Fingerprint computation is outside this model (`RSC-46`); different device sets may share
-a fingerprint, including same-sized anonymous devices differing only in path. -/
+set". `RSC-46` computes it and says "Device paths are excluded, because they are the unstable
+part", so two device sets that differ only in paths share one; the computation is that
+requirement's and is not modelled here. -/
 structure Inventory where
   devices     : List Device
   fingerprint : Nat

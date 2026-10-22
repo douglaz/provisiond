@@ -3416,8 +3416,8 @@ def reorderedInventory : Disk.Inventory :=
     fingerprint := 100 }
 
 /-- A second disk carrying the same identifier: "duplicate or empty serials are real on consumer
-and virtualised disks". Its own fingerprint: `RSC-46` says "Identical elements are kept, one per
-device"; this list duplicates an identified device rather than containing `chosenInventory`'s pair. -/
+and virtualised disks". Its own fingerprint, because `RSC-46` hashes "the RFC 8785 canonical JSON of
+the device list" and this device list is not `chosenInventory`'s. -/
 def duplicateInventory : Disk.Inventory :=
   { devices := [{ identifier := some ⟨2⟩, path := "/dev/sda" },
                 { identifier := some ⟨2⟩, path := "/dev/sdb" }],

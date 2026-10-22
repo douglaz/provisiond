@@ -299,8 +299,8 @@ is a rescue-engine obligation and does not reach a path where the provider does 
 `{"cancellations": ["0198c2a0-1b2c-7d3e-8f40-5a6b7c8d9e01"]}` (`WIR-39`), one entry per machine;
 `power`/`reverse_dns`/`delete_machine`/`release_attachment`/`refresh` → `{}`.
 
-Every disk reported by the rescue environment remains in `devices` and in the fingerprint,
-including disks without identifiers (`RSC-26`). Device identifier fields: `RSC-46`.
+`RSC-26` says "Every disk reported by the rescue environment MUST remain in the inventory and in
+the fingerprint, including a disk with no identifier." Device identifier fields: `RSC-46`.
 
 **`install` is the one kind whose result shape depends on something other than the kind, and a
 client MUST NOT have to guess which.** The operation view carries `kind` and not `strategy`, and the
