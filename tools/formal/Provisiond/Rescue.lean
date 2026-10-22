@@ -293,7 +293,8 @@ end Trust
 namespace Disk
 
 /-- A stable identifier: `RSC-26`'s first bullet has `RSC-38`'s pass return the inventory with
-"**stable identifiers** — serial and WWN", and the model reduces one to its identity. -/
+"**a stable identifier where a disk has one** — serial and WWN", and the model reduces one to its
+identity. -/
 structure Identifier where n : Nat deriving DecidableEq, Repr
 
 /-- One block device in an inventory. The identifier is an `Option` and two devices may carry the
@@ -308,8 +309,8 @@ structure Device where
 /-- The report `RSC-38`'s pass returns, of which that requirement says only that "its report MUST
 carry the same `inventory_fingerprint` an install will be checked against": the device set, and the
 fingerprint `RSC-26`'s first bullet calls "an opaque `inventory_fingerprint` over the whole device
-set". `RSC-46` makes it a hash of that set, so two device sets do not share one; what it is computed
-over is that requirement's and is not modelled here. -/
+set". Fingerprint computation is outside this model (`RSC-46`); different device sets may share
+a fingerprint, including same-sized anonymous devices differing only in path. -/
 structure Inventory where
   devices     : List Device
   fingerprint : Nat
