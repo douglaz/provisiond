@@ -365,15 +365,21 @@ guarded on `(id, status = queued)`, with an `internal` error naming the restore:
 second order, a second disk write or a second boot into rescue, and `OPS-27` establishes what
 happened rather than doing it again. The goal-state kinds — delete, power, end-rescue, release
 attachment, reverse DNS — stay `queued` and re-run, because `OPS-11` classifies "already in the
-target state" as `succeeded`. And the `suspend_tenant` exception below does not fire on a restore:
+target state" as `succeeded`. And the `suspend_tenant` exception below does not fire on a restore while `STO-54`'s freeze holds it off:
 a parent found `running`, or found `queued` and unsettled — which is where `OPS-49`'s deferred
 parent sits, and the likelier state at any backup instant — waits for operator confirmation and is
-not claimed, since the fan-out it would resume may have been reversed inside the interval.
+not claimed, since the fan-out it would resume may have been reversed inside the interval. Once that freeze has lifted for the exception, a parent found `running` is returned to `queued` with no second confirmation.
 
 **What puts the pass on that branch is a record, not an operator's knowledge** (added 2026-09-20,
 `ADR-0023`). `STO-54` says "a process that starts while a restore record is open is continuing that
 incident, not restarting", so the successor of a process that died inside the procedure takes the
-restore branch, with the rest of the procedure it inherits. *Until then the branch had no
+restore branch, with the rest of the procedure it inherits.
+**The pass over `running` rows runs at every startup, the record open
+or not.** `OPS-5` says a `running` operation "stays claimed until it settles, defers under `OPS-8`, or the
+startup pass finds it (`OPS-15`)", and a dead worker does neither of the first two. A marked step (2) keeps only
+its own work from running again (`STO-54`). While the record is open the create exception stays off, so a
+create found `running` goes to `needs_reconciliation`, and a `suspend_tenant` parent follows the restore rule
+above. *Until then the branch had no
 predicate: a crash between the restore landing and this pass left the successor reading the
 paragraph above, which is the naive boot `ADR-0023` is written against.*
 
@@ -416,8 +422,7 @@ PR #7's review scoped the restart error to a create with none recorded.*
 
 **`suspend_tenant` is another exception, and on a restart it MUST NOT require an operator.** A
 `suspend_tenant` parent (`API-58`) found `running` at startup MUST be returned to `queued` and
-re-claimed like any other queued work, resuming its fan-out from wherever it stopped — *on a
-restart; after a restore it waits, above (`STO-54`)*. It mutates no
+re-claimed like any other queued work, resuming its fan-out from wherever it stopped — *on a restart, and on a restore once `STO-54`'s freeze has lifted for the exception; until then it waits, above (`STO-54`)*. It mutates no
 provider itself — its per-machine children do, and each child is an ordinary operation the rules
 above already govern — so a crashed parent leaves nothing ambiguous to establish, and the re-sweep
 is idempotent by `OPS-39`'s dedup: an open episode per machine and key (`STO-52`) makes a repeated
@@ -425,6 +430,7 @@ pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead
 `OPS-11`'s `suspend_tenant` row and would leave a suspended tenant's fleet running, and billing,
 until a human noticed — which is exactly what `SEC-45`'s one-action termination MUST NOT depend on.
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): removed the promoted-asynchronous-standby exclusion from the create restart exception.*
+*Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): separated the per-startup running-row pass from step (2)’s mark and bounded the parent wait by the exception’s freeze.*
 
 **OPS-16** The sweeper MUST NOT overwrite an error already recorded on the operation; it
 fills in an error only where none exists. It writes neither of `OPS-45`'s markers, which are facts
@@ -1683,9 +1689,11 @@ startup:                                          # STO-13, OPS-47, OPS-15
                                                   #   its predecessor (STO-54)
     if not take_startup_lock(bound):              # STO-51: session-scoped, held for life
         exit_nonzero()                            # OPS-47: another engine is already here
-    n = run_startup_pass(                         # suspend_tenant -> queued on restart;
-            restoring = incident is not None)     #   after a restore they wait, STO-54, and the
-    log(n)                                        #   queued irreversible kinds are quarantined)
+    n = run_startup_pass(                         # suspend_tenant -> queued on restart, and on
+            restoring = incident is not None)     #   a restore once STO-54's freeze has lifted
+    log(n)                                        #   for it (until then they wait); the queued
+                                                  #   irreversible kinds are quarantined only
+                                                  #   while step (2) is unmarked, STO-54
     # refresh -> failed; restart-only null-column creates -> failed with atomic release.
     # OPS-15 owns the exceptions and their exclusions.
 

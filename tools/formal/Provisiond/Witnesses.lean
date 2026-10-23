@@ -1260,7 +1260,8 @@ theorem create_failed_without_restart_guard :
 no `current` witness shares the boot control. -/
 def naiveBootRefutationParams : Restore.Params :=
   { recordDecidesBoot := false, quarantineOnRestore := true, exceptionFrozen := true,
-    bumpOnRestore := true, twoPassAbsence := true, createExceptionOnRestart := true }
+    bumpOnRestore := true, twoPassAbsence := true, createExceptionOnRestart := true,
+    passEveryStartup := true }
 
 /-- Refutes the restore-trace theorem without `hb`: crash before the pass changes the mode. -/
 @[req "OPS-15"]
@@ -1273,18 +1274,18 @@ theorem create_failed_on_naive_successor :
 null MUST be settled `failed`, on a restart only." -/
 @[req "OPS-15"]
 theorem create_restart_pair :
-    (Restore.passOp Restore.current .restart
+    (Restore.passOp Restore.current (bootRestart restartTrace)
       { kind := .createMachine, status := .running, applied := false }).status = .failed ∧
-    (Restore.passOp Restore.current .restart
+    (Restore.passOp Restore.current (bootRestart restartTrace)
       { kind := .createMachine, status := .running, applied := false,
         aboutToOrder := true }).status = .needsReconciliation := by decide
 
 /-- Without the migration a claimed legacy create can be failed despite an applied order. -/
 @[req "STO-13"]
 theorem legacy_create_failed_without_backfill :
-    (Restore.passOp Restore.current .restart
+    (Restore.passOp Restore.current (bootRestart restartTrace)
       { kind := .createMachine, status := .running, applied := true }).status = .failed ∧
-    (Restore.passOp Restore.current .restart (Restore.migrateCreate
+    (Restore.passOp Restore.current (bootRestart restartTrace) (Restore.migrateCreate
       { kind := .createMachine, status := .running, applied := true })).status =
       .needsReconciliation := by decide
 
@@ -1385,6 +1386,81 @@ theorem parent_resumes_on_restart :
       [.lock, .startupPass, .claim ⟨1⟩, .claim ⟨0⟩]
     (w.store.ops ⟨1⟩).status = .running ∧ (w.store.ops ⟨0⟩).status = .running ∧
     w.secondOrder = false ∧ w.parentResumedUnconfirmed = false := by decide
+
+/-- Pin the independent restore guards for fresh-work witnesses. -/
+def restoredWorkParams : Restore.Params :=
+  { quarantineOnRestore := true, exceptionFrozen := true, bumpOnRestore := true,
+    twoPassAbsence := true, recordDecidesBoot := true, createExceptionOnRestart := true,
+    passEveryStartup := true }
+
+/-- Keep the startup-pass control isolated from the other `current` fields. -/
+def startupPassGuards (p : Restore.Params) : Restore.Params :=
+  { restoredWorkParams with passEveryStartup := p.passEveryStartup }
+
+/-- A queued power row and two unused create ids beside the original restore rows. -/
+def freshWorkTrace : RestoreTrace :=
+  { restoreTrace with
+    history := { initial := { liveStore with
+      ops := fun j =>
+        if j = ⟨3⟩ then { kind := .power, status := .queued, applied := false }
+        else if j = ⟨4⟩ ∨ j = ⟨5⟩ then
+          { kind := .createMachine, status := .succeeded, applied := false }
+        else liveStore.ops j,
+      unused := fun j => decide (j = ⟨4⟩ ∨ j = ⟨5⟩) }, steps := [] }, delta := 0 }
+
+/-- Claim the power operation after step (2), then let the successor run its pass. -/
+def postStepTwoPower : List Restore.Event :=
+  [.lock, .startupPass, .claim ⟨3⟩, .crash, .lock, .startupPass]
+
+/-- `OPS-15`, 2026-10-23: the successor sweeps the power claimed after step (2), while
+preserving the procedure's mark. The other guards are pinned to isolate `passEveryStartup`. -/
+@[req "OPS-15"]
+theorem successor_sweeps_power :
+    let w := Restore.run (startupPassGuards Restore.current) (bootRestore freshWorkTrace)
+      postStepTwoPower
+    (w.store.ops ⟨3⟩).status = .needsReconciliation ∧ w.stepTwoMarked = true ∧
+      w.passDone = true := by decide
+
+/-- Refutes `Provisiond.Restore.successor_sweeps_running` without `hp`: the power claimed after
+step (2) stays running after the crash, lock and attempted startup pass. -/
+@[req "OPS-15"]
+theorem successor_strands_power_without_pass :
+    let p := { restoredWorkParams with passEveryStartup := false }
+    let w := Restore.run p (bootRestore freshWorkTrace) postStepTwoPower
+    (w.store.ops ⟨3⟩).kind = .power ∧ (w.store.ops ⟨3⟩).status = .running ∧
+      w.stepTwoMarked = true ∧ w.passDone = false := by decide
+
+/-- Fresh creates admitted after step (3) are expressible. One is claimed and applied; one
+stays queued. After a crash the pass reconciles the claimed create and power, preserves the
+fresh queued create, and permits the queued delete. Step (2)'s mark survives. -/
+@[req "OPS-15"]
+theorem fresh_work_swept_after_restore :
+    let w := Restore.run restoredWorkParams (bootRestore freshWorkTrace)
+      (procedure ++ [.admit ⟨4⟩, .claim ⟨4⟩, .apply ⟨4⟩, .admit ⟨5⟩,
+        .claim ⟨3⟩, .crash, .lock, .startupPass, .claim ⟨2⟩])
+    (w.store.ops ⟨4⟩).status = .needsReconciliation ∧ (w.store.ops ⟨4⟩).applied = true ∧
+    (w.store.ops ⟨3⟩).status = .needsReconciliation ∧ (w.store.ops ⟨5⟩).status = .queued ∧
+    (w.store.ops ⟨2⟩).status = .running ∧ w.stepTwoMarked = true ∧ w.passDone = true ∧
+    w.secondOrder = false := by decide
+
+/-- An unused id is consumed once. A queued create cannot acquire an applied provider fact,
+and admitting that same id again cannot return its running row to queued. -/
+@[req "OPS-15"]
+theorem fresh_admission_is_unused_and_unapplied :
+    let w := Restore.run restoredWorkParams (bootRestore freshWorkTrace)
+      (procedure ++ [.admit ⟨4⟩, .apply ⟨4⟩])
+    let v := Restore.run restoredWorkParams w [.claim ⟨4⟩, .admit ⟨4⟩]
+    (w.store.ops ⟨4⟩).status = .queued ∧ (w.store.ops ⟨4⟩).applied = false ∧
+    w.store.unused ⟨4⟩ = false ∧ (v.store.ops ⟨4⟩).status = .running := by decide
+
+/-- Once the exception's freeze lifts, a confirmed parent interrupted after step (3) returns
+to queued on the successor's pass, and resumes with no second confirmation. -/
+@[req "OPS-15"]
+theorem confirmed_parent_resumes_after_crash :
+    let w := Restore.run restoredWorkParams (bootRestore restoreTrace)
+      (procedure ++ [.confirmParents, .claim ⟨1⟩, .crash, .lock, .startupPass])
+    (w.store.ops ⟨1⟩).status = .queued ∧ w.parentsConfirmed = true ∧
+      ((Restore.step restoredWorkParams w (.claim ⟨1⟩)).store.ops ⟨1⟩).status = .running := by decide
 
 /-- `F52` #3 (`STO-54`, `ADR-0023`, 2026-09-12): "an extension lost in Δ is not rebuilt". The
 tenant extended to 100 inside the interval, the restored date is 0, the procedure writes the

@@ -14,7 +14,8 @@ type, and `Δ` is `RestoreTrace.delta`; the complete procedure is `Event.complet
 `STO-54`'s step (3). A crash *inside* the procedure is `Event.crash`, an event of the run rather
 than a boot: `STO-51`'s lock dies with the process and the store is what its successor comes up on,
 `STO-54`'s restore record with it — the record decides the mode the successor comes up in, and its
-marks say which steps it does not run again. The procedure's phases are `Permissions`, one field per thing the engine or
+marks say which procedure steps it does not run again; `OPS-15`'s pass over `running` rows runs
+once per process, independently of step (2)'s durable mark. The procedure's phases are `Permissions`, one field per thing the engine or
 `api` may do — claim, serve, record absence, run each component — never one Boolean, computed
 from the fault the engine came up on and the steps done.
 
@@ -97,12 +98,16 @@ structure Record extends RestoreRecord where
 
 /-- The store: the operations by id — a total function, so an id nobody wrote holds what the
 initial store said — the machine, the tenant's credential generation (`API-56`), and `STO-56`'s
-restore record, open while the incident is, which no live step writes and no restart clears. -/
+restore record, open while the incident is, which no live step writes and no restart clears.
+Unused ids reserve their kind in `ops`; admission consumes one without replacing another row's
+kind or provider fact. -/
 structure Store where
   ops           : OperationId → Op
   machine       : Machine
   credentialGen : Nat
   record        : Option Record
+  /-- Reserved operation ids not yet admitted. Existing stores default to none. -/
+  unused        : OperationId → Bool := fun _ => false
 
 def Store.modify (s : Store) (i : OperationId) (f : Op → Op) : Store :=
   { s with ops := fun j => if j = i then f (s.ops j) else s.ops j }
@@ -261,13 +266,15 @@ def irreversible : Kind → Bool
 /-- The dated amendments this module carries. `quarantineOnRestore`: `OPS-15`, 2026-09-12, "on a
 restore (`STO-54`) the pass additionally moves every `queued` create, install and rescue inventory
 to `needs_reconciliation`". `exceptionFrozen`: `OPS-15`, 2026-09-12, "the `suspend_tenant`
-exception below does not fire on a restore". `bumpOnRestore`: `STO-54`, 2026-09-12, "every
+exception below does not fire on a restore while `STO-54`'s freeze holds it off". `bumpOnRestore`: `STO-54`, 2026-09-12, "every
 tenant's credential generation is bumped". `twoPassAbsence`: `STO-54`, 2026-09-12, "The first pass
 may record nothing about absence". `recordDecidesBoot`: `STO-54`, 2026-09-20, "a process that
 starts while a restore record is open is continuing that incident, not restarting"; without it the
 successor of a crash inside the procedure is an ordinary restart, which is the naive boot.
 `createExceptionOnRestart`: `OPS-15`, 2026-10-17, "It does not fire while a restore record is
-open"; without it a restored null-column create may settle `failed` despite an applied order. -/
+open"; without it a restored null-column create may settle `failed` despite an applied order.
+`passEveryStartup`: `OPS-15`, 2026-10-23, "The pass over `running` rows runs at every startup,
+the record open or not." -/
 structure Params where
   quarantineOnRestore : Bool
   exceptionFrozen     : Bool
@@ -275,6 +282,7 @@ structure Params where
   twoPassAbsence      : Bool
   recordDecidesBoot   : Bool
   createExceptionOnRestart : Bool
+  passEveryStartup    : Bool
   deriving DecidableEq, Repr
 
 /-- The procedure as it stands. One field per line: `ci.yml`'s controls flip one each. -/
@@ -285,7 +293,8 @@ def current : Params := {
     bumpOnRestore       := true,
     twoPassAbsence      := true,
     recordDecidesBoot   := true,
-    createExceptionOnRestart := true }
+    createExceptionOnRestart := true,
+    passEveryStartup    := true }
 
 structure World where
   fault            : Fault
@@ -294,10 +303,12 @@ structure World where
   now              : Nat
   /-- The deployment's re-derivation interval (`PRV-13e`). -/
   interval         : Nat
-  /-- `STO-51`'s startup lock taken. Session-scoped, so this is the one field a crash clears. -/
+  /-- `STO-51`'s startup lock taken. Session-scoped, so a crash clears it. -/
   locked           : Bool
-  /-- `OPS-15`'s pass run: step (2) done, a mark of the record. -/
+  /-- `OPS-15`'s running-row pass done by this process; a crash clears it. -/
   passDone         : Bool
+  /-- Step (2) done, a durable mark of the restore record; a crash keeps it. -/
+  stepTwoMarked    : Bool
   /-- Step (3) done, a mark of the record, and `grace_ends_at` written in the same transaction
   (`STO-56`). -/
   procedureComplete : Bool
@@ -329,14 +340,15 @@ complete pass after the window, a frozen component once step (3) is marked — w
 says the freeze lifts "at `grace_ends_at`", one interval later, which this clockless model does not
 reach (the module docstring says why) — "except the exception, whose own later condition stands
 on top: it stays off until the operator has confirmed or cancelled every waiting parent", read as
-a second condition beside step (3), not a substitute for it. -/
+a second condition beside step (3), not a substitute for it. A claim also needs this process's
+running-row pass, independently of the record's step (2) mark. -/
 @[req "STO-54"]
 def permits (p : Params) (w : World) : Permissions :=
   match w.fault with
   | .restart =>
-    { claim := w.locked && w.passDone, serve := true, recordAbsence := true, run := fun _ => true }
+    { claim := w.locked && w.passDone && (!w.fault.isRestore || w.stepTwoMarked), serve := true, recordAbsence := true, run := fun _ => true }
   | .restore =>
-    { claim := w.locked && w.passDone,
+    { claim := w.locked && w.passDone && (!w.fault.isRestore || w.stepTwoMarked),
       serve := w.procedureComplete,
       recordAbsence := !p.twoPassAbsence || (decide (1 ≤ w.completePasses) && w.windowElapsed),
       run := fun c => match c with
@@ -346,23 +358,24 @@ def permits (p : Params) (w : World) : Permissions :=
 
 /-- `OPS-15`'s pass on one row. `running`: a `refresh` "MUST be settled `failed`"; a
 `suspend_tenant` parent "MUST be returned to `queued`" on a restart and on a restore "waits for
-operator confirmation" — left `running` here until `Event.confirmParents`. A create follows
+operator confirmation" while the exception is frozen; after it lifts the parent returns to
+`queued` without another confirmation. A create follows
 "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a
 restart only." Every remaining running kind goes to `needs_reconciliation`. `queued`: untouched on a restart; on a restore the irreversible kinds
 are quarantined. -/
 @[req "OPS-15"]
-def passOp (p : Params) (f : Fault) (o : Op) : Op :=
+def passOp (p : Params) (w : World) (o : Op) : Op :=
   match o.status, o.kind with
   | .running, .refresh => { o with status := .failed }
   | .running, .createMachine =>
-    if (!f.isRestore || !p.createExceptionOnRestart) && !o.aboutToOrder then
+    if (!w.fault.isRestore || !p.createExceptionOnRestart) && !o.aboutToOrder then
       { o with status := .failed }
     else { o with status := .needsReconciliation }
   | .running, .suspendTenant =>
-    if f.isRestore && p.exceptionFrozen then o else { o with status := .queued }
+    if (permits p w).run .suspendTenantException then { o with status := .queued } else o
   | .running, _ => { o with status := .needsReconciliation }
   | .queued, k =>
-    if f.isRestore && p.quarantineOnRestore && irreversible k then
+    if w.fault.isRestore && p.quarantineOnRestore && irreversible k then
       { o with status := .needsReconciliation }
     else o
   | _, _ => o
@@ -371,7 +384,7 @@ inductive Event
   /-- Step (1): `STO-51`'s startup lock, under `STO-54`'s freeze. It writes nothing of the
   grace, which is step (3)'s. -/
   | lock
-  /-- Step (2): `OPS-15`'s pass. -/
+  /-- This process's running-row pass and, if unmarked, step (2)'s queued quarantine. -/
   | startupPass
   /-- Step (3), at `instant`: the credential bump, and `STO-56`'s `grace_ends_at` "written in
   the same transaction as that mark, as step (3)'s instant plus one re-derivation interval". The
@@ -382,6 +395,11 @@ inductive Event
   | completeProcedure (instant : Nat)
   /-- The engine claims row `i`. -/
   | claim (i : OperationId)
+  /-- Admit fresh work after step (3), using an unused id with an unapplied provider fact.
+  Its kind was reserved with the id; an existing row is never replaced. -/
+  | admit (i : OperationId)
+  /-- The provider applies a call from a running row only. -/
+  | apply (i : OperationId)
   /-- `api` receives a request under a token of generation `gen`. -/
   | request (gen : Nat)
   /-- An `OPS-32` pass over the account: complete or interrupted, the machine listed or not. -/
@@ -404,8 +422,9 @@ def faultAfterCrash (p : Params) (s : Store) : Fault :=
     | none   => .restart
   else .restart
 
-/-- The successor. `STO-51`'s lock is session-scoped, so that is what the crash clears; the marks
-are the record's and stand, which is how "a marked step does not run again" survives the process
+/-- The successor. The crash clears `STO-51`'s session-scoped lock and this process's `passDone`.
+The procedure marks, including `stepTwoMarked`, are the record's and stand, which is how
+"a marked step does not run again" survives the process
 that made the mark. The mode is the record's, and the instant is "read from the record and never
 re-computed" — this model has no second clock to contradict it, so the parameter below decides the
 mode and not the instant. Everything else here is the store's or the trace's: the operator's
@@ -415,17 +434,19 @@ record what has already happened. -/
 def afterCrash (p : Params) (w : World) : World :=
   { w with fault := faultAfterCrash p w.store,
            now := (w.store.record.map (·.restoreInstant)).getD w.now,
-           locked := false }
+           locked := false, passDone := false }
 
 def step (p : Params) (w : World) : Event → World
   | .lock => { w with locked := true }
   | .startupPass =>
-    if w.locked && !w.passDone then
-      { w with passDone := true,
-               store := { w.store with ops := fun j => passOp p w.fault (w.store.ops j) } }
+    if w.locked && !w.passDone && (p.passEveryStartup || !w.stepTwoMarked) then
+      { w with passDone := true, stepTwoMarked := true,
+               store := { w.store with ops := fun j =>
+                 let o := w.store.ops j
+                 if o.status = .running || !w.stepTwoMarked then passOp p w o else o } }
     else w
   | .completeProcedure instant =>
-    if w.fault.isRestore && w.passDone && !w.procedureComplete then
+    if w.fault.isRestore && w.stepTwoMarked && !w.procedureComplete then
       { w with procedureComplete := true,
                store := { w.store with
                  credentialGen :=
@@ -443,6 +464,16 @@ def step (p : Params) (w : World) : Event → World
                parentResumedUnconfirmed := w.parentResumedUnconfirmed
                  || (o.kind = .suspendTenant && w.fault.isRestore && !w.parentsConfirmed) }
     else w
+  | .admit i =>
+    let o := w.store.ops i
+    if w.procedureComplete && w.store.unused i && !o.applied then
+      { w with store := { w.store.modify i fun o => { o with status := .queued } with
+                 unused := fun j => if j = i then false else w.store.unused j } }
+    else w
+  | .apply i =>
+    if (w.store.ops i).status = .running then
+      { w with store := w.store.modify i fun o => { o with applied := true } }
+    else w
   | .request gen =>
     if (permits p w).serve && gen = w.store.credentialGen then
       { w with servedGens := gen :: w.servedGens }
@@ -457,7 +488,7 @@ def step (p : Params) (w : World) : Event → World
     else w
   | .windowElapses => { w with windowElapsed := w.windowElapsed || decide (1 ≤ w.completePasses) }
   | .confirmParents =>
-    if w.passDone then
+    if w.stepTwoMarked then
       { w with parentsConfirmed := true,
                store := { w.store with ops := fun j =>
                  let o := w.store.ops j
@@ -468,9 +499,34 @@ def step (p : Params) (w : World) : Event → World
 
 def run (p : Params) (w : World) (evs : List Event) : World := evs.foldl (step p) w
 
+/-- `OPS-15`: "The pass over `running` rows runs at every startup, the record open or not."
+With `hp : p.passEveryStartup = true`, a successor sweeps every running row except a parent
+whose exception is still frozen. `Provisiond.Witnesses.successor_strands_power_without_pass`
+refutes the statement without `hp`, using a power operation claimed after step (2). -/
+@[req "OPS-15"]
+theorem successor_sweeps_running (p : Params) (hp : p.passEveryStartup = true)
+    (w : World) (j : OperationId) :
+    let v := run p w [.crash, .lock, .startupPass]
+    (v.store.ops j).status = .running →
+    (v.store.ops j).kind = .suspendTenant ∧
+      (permits p v).run .suspendTenantException = false := by
+  let v := { afterCrash p w with locked := true }
+  change ((step p v .startupPass).store.ops j).status = .running →
+    ((step p v .startupPass).store.ops j).kind = .suspendTenant ∧
+      (permits p (step p v .startupPass)).run .suspendTenantException = false
+  have hl : v.locked = true := rfl
+  have hd : v.passDone = false := rfl
+  simp only [step, hp, hl, hd, Bool.not_false, Bool.true_and, Bool.true_or, if_true]
+  cases hs : (v.store.ops j).status <;> cases hk : (v.store.ops j).kind <;>
+    simp_all [passOp, permits, irreversible] <;>
+    (try (split <;> simp_all)) <;> (try (split <;> simp_all))
+  all_goals
+    cases hm : v.stepTwoMarked <;> cases hq : p.quarantineOnRestore <;>
+      cases hf : v.fault <;> simp_all [Fault.isRestore]
+
 def boot (f : Fault) (s : Store) (now : Nat) (interval : Nat) : World :=
   { fault := f, store := s, now := now, interval := interval,
-    locked := false, passDone := false,
+    locked := false, passDone := false, stepTwoMarked := false,
     procedureComplete := false, completePasses := 0, windowElapsed := false,
     parentsConfirmed := false, secondOrder := false, servedGens := [],
     parentResumedUnconfirmed := false }
@@ -485,10 +541,11 @@ def bootRestore (t : RestoreTrace) : World := boot .restore t.store t.now t.inte
 
 /-- `STO-56`: `grace_ends_at` "MUST be written in the same transaction as that mark, as step (3)'s
 instant plus one re-derivation interval" — the mark and the instant are one write, and the instant
-is step (3)'s own, `instant`, whatever the restore instant `w.now` is. -/
+is step (3)'s own, `instant`, whatever the restore instant `w.now` is. Step (2)'s durable mark,
+not the successor's running-row pass, is the prerequisite. -/
 @[req "STO-56"]
 theorem step_three_writes_grace (p : Params) (w : World) (r : Record) (instant : Nat)
-    (hf : w.fault = .restore) (hp : w.passDone = true) (hc : w.procedureComplete = false)
+    (hf : w.fault = .restore) (hp : w.stepTwoMarked = true) (hc : w.procedureComplete = false)
     (hr : w.store.record = some r) :
     (step p w (.completeProcedure instant)).procedureComplete = true ∧
     (step p w (.completeProcedure instant)).store.record =
@@ -508,6 +565,34 @@ theorem marked_step_three_writes_nothing (p : Params) (w : World) (instant : Nat
 def World.safe (w : World) : Prop :=
   ∀ j, (w.store.ops j).status = .queued → irreversible (w.store.ops j).kind = true →
     (w.store.ops j).applied = false
+
+/-- Fresh admission cannot introduce an applied queued row: it consumes an unused id whose
+provider fact is false and keeps the reserved kind. -/
+theorem admit_safe (p : Params) (w : World) (hs : w.safe) (i : OperationId) :
+    (step p w (.admit i)).safe := by
+  simp only [step]
+  split
+  · rename_i hc
+    simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
+    intro j hq hi
+    by_cases hj : j = i
+    · simpa [Store.modify, hj] using hc.2
+    · simp only [Store.modify, hj, if_false] at hq hi ⊢
+      exact hs j hq hi
+  · exact hs
+
+/-- Applying a running call changes no queued provider fact. -/
+theorem apply_safe (p : Params) (w : World) (hs : w.safe) (i : OperationId) :
+    (step p w (.apply i)).safe := by
+  simp only [step]
+  split
+  · rename_i hr
+    intro j hq hi
+    by_cases hj : j = i
+    · simp [Store.modify, hj, hr] at hq
+    · simp only [Store.modify, hj, if_false] at hq hi ⊢
+      exact hs j hq hi
+  · exact hs
 
 /-- No event of this module opens or closes the record: `STO-54` gives the closing to the
 operator, and step (3) writes the instant on the open record without changing that it is open. -/
@@ -560,9 +645,9 @@ def migrateCreate (o : Op) : Op :=
 parameters. `Provisiond.Witnesses.legacy_create_failed_without_backfill` is the null legacy row
 without this definition's write. -/
 @[req "STO-13"]
-theorem claimed_legacy_create_stays_unresolved (p : Params) (o : Op)
+theorem claimed_legacy_create_stays_unresolved (p : Params) (w : World) (o : Op)
     (hk : o.kind = .createMachine) (hs : o.status = .running) :
-    (passOp p .restart (migrateCreate o)).status = .needsReconciliation := by
+    (passOp p { w with fault := .restart } (migrateCreate o)).status = .needsReconciliation := by
   simp [migrateCreate, hk, hs, passOp, Fault.isRestore]
 
 /-- One restore-mode event preserves a create's kind and does not introduce `failed`.
@@ -579,7 +664,7 @@ theorem step_create_not_failed (p : Params) (hx : p.createExceptionOnRestart = t
     · obtain ⟨hk, hs⟩ := h
       cases st : (w.store.ops j).status <;>
         simp_all [passOp, Fault.isRestore, irreversible] <;>
-        (try (split <;> simp_all))
+        (try (split <;> simp_all)) <;> (try (split <;> simp_all))
     · exact h
   | claim i =>
     simp only [step]
@@ -593,6 +678,18 @@ theorem step_create_not_failed (p : Params) (hx : p.createExceptionOnRestart = t
     simp only [step]
     split
     · simp [h.1, h.2]
+    · exact h
+  | admit i =>
+    simp only [step]
+    split
+    · simp only [Store.modify]
+      split <;> simp_all
+    · exact h
+  | apply i =>
+    simp only [step]
+    split
+    · simp only [Store.modify]
+      split <;> simp_all
     · exact h
   | lock => exact h
   | completeProcedure _ => simp only [step]; split <;> exact h
@@ -621,15 +718,15 @@ theorem restore_trace_never_fails_create (p : Params)
     (bootRestore t)
     ⟨⟨by simp [bootRestore, boot, RestoreTrace.store], rfl⟩, hk, hs⟩ evs).2.2
 
-theorem passOp_kind (p : Params) (f : Fault) (o : Op) : (passOp p f o).kind = o.kind := by
+theorem passOp_kind (p : Params) (w : World) (o : Op) : (passOp p w o).kind = o.kind := by
   obtain ⟨k, st, a, c⟩ := o
   cases st <;> cases k <;> simp [passOp] <;> split <;> rfl
 
-theorem passOp_restart_queued (p : Params) (o : Op)
-    (h : (passOp p .restart o).status = .queued) :
-    passOp p .restart o = o ∨ o.kind = .suspendTenant := by
+theorem passOp_restart_queued (p : Params) (w : World) (hf : w.fault = .restart) (o : Op)
+    (h : (passOp p w o).status = .queued) :
+    passOp p w o = o ∨ o.kind = .suspendTenant := by
   obtain ⟨k, st, a, c⟩ := o
-  cases st <;> cases k <;> simp_all [passOp, Fault.isRestore] <;>
+  cases st <;> cases k <;> simp_all [passOp, permits, Fault.isRestore] <;>
     (try (split at h <;> simp_all))
 
 theorem step_safe_restart (p : Params) (w : World) (hf : w.fault = .restart) (hs : w.safe)
@@ -641,11 +738,14 @@ theorem step_safe_restart (p : Params) (w : World) (hf : w.fault = .restart) (hs
     simp only [step]
     split
     · refine ⟨fun j hq hi => ?_, hn⟩
-      simp only [hf] at hq hi ⊢
-      rw [passOp_kind] at hi
-      rcases passOp_restart_queued p _ hq with h | h
-      · rw [h] at hq ⊢; exact hs j hq hi
-      · simp [h, irreversible] at hi
+      by_cases ht : (decide ((w.store.ops j).status = .running) || !w.stepTwoMarked) = true
+      · simp only [ht, if_true] at hq hi ⊢
+        rw [passOp_kind] at hi
+        rcases passOp_restart_queued p w hf _ hq with h | h
+        · rw [h] at hq ⊢; exact hs j hq hi
+        · simp [h, irreversible] at hi
+      · simp only [ht] at hq hi ⊢
+        exact hs j hq hi
     · exact ⟨hs, hn⟩
   | completeProcedure _ => simp only [step, hf, Fault.isRestore]; exact ⟨hs, hn⟩
   | claim i =>
@@ -678,6 +778,12 @@ theorem step_safe_restart (p : Params) (w : World) (hf : w.fault = .restart) (hs
       · simp only [hc, if_false] at hq hi ⊢
         exact hs j hq hi
     · exact ⟨hs, hn⟩
+  | admit i =>
+    refine ⟨admit_safe p w hs i, ?_⟩
+    simp only [step]; split <;> exact hn
+  | apply i =>
+    refine ⟨apply_safe p w hs i, ?_⟩
+    simp only [step]; split <;> exact hn
   | crash => exact ⟨hs, hn⟩
 
 /-- `OPS-15`'s pass, stated over restart traces whose record is closed: from a sound store,
@@ -701,31 +807,46 @@ theorem restart_never_reorders (p : Params) (t : RestartTrace) (h : t.history.in
 
 /-! ## Restore: quarantine before the first claim -/
 
-/-- No `queued` row is of an irreversible kind: step (2) has run. -/
+/-- Step (2)'s own result before fresh admission: no `queued` row is of an irreversible kind. -/
 def World.quarantined (w : World) : Prop :=
   ∀ j, (w.store.ops j).status = .queued → irreversible (w.store.ops j).kind = false
 
 theorem passOp_restore_quarantines (p : Params) (hq : p.quarantineOnRestore = true)
-    (o : Op) (h : (passOp p .restore o).status = .queued) :
-    irreversible (passOp p .restore o).kind = false := by
+    (w : World) (hf : w.fault = .restore) (o : Op) (h : (passOp p w o).status = .queued) :
+    irreversible (passOp p w o).kind = false := by
   rw [passOp_kind]
   obtain ⟨k, st, a, c⟩ := o
-  cases st <;> cases k <;> simp_all [passOp, Fault.isRestore, irreversible] <;>
+  cases st <;> cases k <;> simp_all [passOp, permits, Fault.isRestore, irreversible] <;>
     (try (split at h <;> simp_all))
 
+/-- Step (2)'s mark implies `World.safe`. Form F′ (2026-10-23, `pv-n98`) narrows the old
+`World.quarantined` invariant: fresh admission after step (3) makes that old invariant false.
+The unchanged conclusion still forbids an irreversible second order, including across crashes. -/
 theorem step_quarantined_restore (p : Params) (hq : p.quarantineOnRestore = true) (w : World)
-    (hf : w.fault = .restore) (hs : w.passDone = true → w.quarantined)
+    (hf : w.fault = .restore) (hs : w.stepTwoMarked = true → w.safe)
     (hn : w.secondOrder = false) (e : Event) :
-    ((step p w e).passDone = true → (step p w e).quarantined) ∧
+    ((step p w e).stepTwoMarked = true → (step p w e).safe) ∧
     (step p w e).secondOrder = false := by
   cases e with
   | lock => exact ⟨hs, hn⟩
   | startupPass =>
     simp only [step]
     split
-    · refine ⟨fun _ j hj => ?_, hn⟩
-      simp only [hf] at hj ⊢
-      exact passOp_restore_quarantines p hq _ hj
+    · refine ⟨fun _ j hj hi => ?_, hn⟩
+      by_cases hm : w.stepTwoMarked = true
+      · by_cases hr : (w.store.ops j).status = .running
+        · simp only [hr, decide_true, Bool.true_or, if_true] at hj hi ⊢
+          have := passOp_restore_quarantines p hq w hf _ hj
+          rw [this] at hi
+          contradiction
+        · simp only [hr, decide_false, hm, Bool.not_true, Bool.false_or, Bool.false_eq_true,
+            if_false] at hj hi ⊢
+          exact hs hm j hj hi
+      · have hm' : w.stepTwoMarked = false := Bool.eq_false_iff.mpr hm
+        simp only [hm', Bool.not_false, Bool.or_true, if_true] at hj hi ⊢
+        have := passOp_restore_quarantines p hq w hf _ hj
+        rw [this] at hi
+        contradiction
     · exact ⟨hs, hn⟩
   | completeProcedure _ =>
     simp only [step]
@@ -737,15 +858,16 @@ theorem step_quarantined_restore (p : Params) (hq : p.quarantineOnRestore = true
     split
     · rename_i hc
       simp only [permits, hf, Bool.and_eq_true, decide_eq_true_eq] at hc
-      refine ⟨fun hp j hq' => ?_, ?_⟩
-      · simp only [Store.modify] at hq' ⊢
+      refine ⟨fun hp j hq' hi => ?_, ?_⟩
+      · simp only [Store.modify] at hq' hi ⊢
         by_cases hji : j = i
         · simp [hji] at hq'
-        · simp only [hji, if_false] at hq' ⊢
-          exact hs hp j hq'
+        · simp only [hji, if_false] at hq' hi ⊢
+          exact hs hp j hq' hi
       · simp only [hn, Bool.false_or]
-        have := hs hc.1.1.2 i hc.1.2
-        simp [this]
+        by_cases hi : irreversible (w.store.ops i).kind = true
+        · simp [hi, hs (by simpa [Fault.isRestore] using hc.1.1.2) i hc.1.2 hi]
+        · simp [Bool.eq_false_iff.mpr hi]
     · exact ⟨hs, hn⟩
   | request gen => simp only [step]; split <;> exact ⟨hs, hn⟩
   | sweep complete listed => simp only [step]; split <;> exact ⟨hs, hn⟩
@@ -753,28 +875,43 @@ theorem step_quarantined_restore (p : Params) (hq : p.quarantineOnRestore = true
   | confirmParents =>
     simp only [step]
     split
-    · refine ⟨fun hp j hq' => ?_, hn⟩
-      simp only at hq' ⊢
+    · refine ⟨fun hp j hq' hi => ?_, hn⟩
+      simp only at hq' hi ⊢
       by_cases hc : (w.store.ops j).status = .running ∧ (w.store.ops j).kind = .suspendTenant
-      · rw [if_pos hc]
-        simp [hc.2, irreversible]
-      · simp only [hc, if_false] at hq' ⊢
-        exact hs hp j hq'
+      · rw [if_pos hc] at hi
+        simp [hc.2, irreversible] at hi
+      · simp only [hc, if_false] at hq' hi ⊢
+        exact hs hp j hq' hi
     · exact ⟨hs, hn⟩
+  | admit i =>
+    constructor
+    · intro hp
+      have hm : (step p w (.admit i)).stepTwoMarked = w.stepTwoMarked := by
+        simp only [step]; split <;> rfl
+      exact admit_safe p w (hs (hm ▸ hp)) i
+    · simp only [step]; split <;> exact hn
+  | apply i =>
+    constructor
+    · intro hp
+      have hm : (step p w (.apply i)).stepTwoMarked = w.stepTwoMarked := by
+        simp only [step]; split <;> rfl
+      exact apply_safe p w (hs (hm ▸ hp)) i
+    · simp only [step]; split <;> exact hn
   | crash => exact ⟨hs, hn⟩
 
 /-- `STO-54`'s step (2), "before the first claim": with the quarantine, however the engine
 runs and whatever the lost interval held, no irreversible kind is ordered twice — and the run may
 contain crashes, since a successor that comes up while the record is open repeats the pass before
-it claims. The claim is permitted only after the pass, and the pass leaves no irreversible kind
-`queued`. The hypothesis `hb : p.recordDecidesBoot = true` is necessary:
+it claims. The first pass quarantines the restored queued irreversible rows; later passes
+leave fresh admissions queued and sweep running rows. A fresh admission has an unused id and
+`applied = false`, and provider application changes only running rows. The hypothesis `hb : p.recordDecidesBoot = true` is necessary:
 `Provisiond.Witnesses.crash_inside_procedure_is_the_naive_boot` refutes the conclusion without it. -/
 @[req "OPS-15"]
 theorem quarantine_before_first_claim (p : Params) (hq : p.quarantineOnRestore = true)
     (hb : p.recordDecidesBoot = true) (t : RestoreTrace) (evs : List Event) :
     (run p (bootRestore t) evs).secondOrder = false :=
   (run_preserves p
-    (fun w => w.continuing ∧ (w.passDone = true → w.quarantined) ∧ w.secondOrder = false)
+    (fun w => w.continuing ∧ (w.stepTwoMarked = true → w.safe) ∧ w.secondOrder = false)
     (fun w e ⟨hf, hs, hn⟩ =>
       ⟨step_continuing p hb w hf e, step_quarantined_restore p hq w hf.2 hs hn e⟩)
     (bootRestore t)
@@ -821,6 +958,8 @@ theorem step_gen_restore (p : Params) (hb : p.bumpOnRestore = true) (g : Nat) (w
   | sweep complete listed => simp only [step]; split <;> exact ⟨hg.1, hg.2, hs⟩
   | windowElapses => exact ⟨hg.1, hg.2, hs⟩
   | confirmParents => simp only [step]; split <;> exact ⟨hg.1, hg.2, hs⟩
+  | admit i => simp only [step]; split <;> exact ⟨hg.1, hg.2, hs⟩
+  | apply i => simp only [step]; split <;> exact ⟨hg.1, hg.2, hs⟩
   | crash => exact ⟨hg.1, hg.2, hs⟩
 
 /-- `STO-54`'s step (3), "before the first `api` request": with the bump, a token of the
@@ -889,6 +1028,8 @@ theorem step_absence_restore (p : Params) (ht : p.twoPassAbsence = true) (w : Wo
       · exact hw h
       · exact h
   | confirmParents => simp only [step]; split <;> exact ⟨hi, hw⟩
+  | admit i => simp only [step]; split <;> exact ⟨hi, hw⟩
+  | apply i => simp only [step]; split <;> exact ⟨hi, hw⟩
   | crash => exact ⟨hi, hw⟩
 
 /-- `STO-54`: "The first pass may record nothing about absence ... A second pass separated by the

@@ -1008,7 +1008,11 @@ takes the machines *and* the float" partly false.
       spending token, let a `queued` create order and a `queued` raw-disk install write, and let
       the parent settle and the tenant resume; restore, and run `STO-54`'s procedure in its stated
       order, killing the engine twice: once after the record is committed and before step (2)'s mark
-      commits, and once after step (3)'s (added 2026-09-20, `ADR-0023`). Assert of the first
+      commits, and once after step (3)'s (added 2026-09-20, `ADR-0023`). Before it, claim a create and a power operation. Assert the
+      successor, before any claim, moves both to `needs_reconciliation` and leaves a create queued after step (3)
+      `queued`, and that a delete queued on the power operation's machine is then claimed. Again after
+      `grace_ends_at`, with every waiting parent confirmed, kill the engine with a confirmed parent claimed: the
+      successor returns it to `queued` and it resumes with no second confirmation. Assert of the first
       successor that it continues the incident — it takes the restore branch of the pass and
       quarantines the executed create, and `api` serves nothing until step (3) is marked; of the
       second, that it repeats no marked step — the listener is not taken down again, the token a
@@ -1054,6 +1058,7 @@ takes the machines *and* the float" partly false.
       withdrawn — "Leave B without a rate through its bound: B ceases to block closure".*
       (`STO-54`, `STO-56`, `STO-49`, `OPS-15`, `OPS-41`, `LDG-16`,
       `LDG-64`, `API-56`, `OPS-27`, `OPS-32`)
+      *Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): extended the successor rehearsal to newly claimed work and a confirmed parent.*
 - [ ] **CNF-296** — **Every write waits for the standby** (*amended 2026-10-23, `ADR-0045`; was "The two synchronous writes hang
   alone"*). Stall both named standbys. Assert an engine write and an `api` write each wait in `SyncRep`, a read still
   succeeds, and `OVR-18`'s alarm fires. Exercise a contending engine write and assert `OPS-49`'s bounded retry and

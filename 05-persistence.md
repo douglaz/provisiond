@@ -1545,7 +1545,7 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   it again; the goal-state kinds (delete, power, end-rescue, release attachment, reverse DNS)
   re-run, since `OPS-11` classifies "already in the target state" as `succeeded`; a `suspend_tenant`
   parent found `running`, or `queued` and unsettled (`OPS-49`'s waiting parent is `queued`), waits
-  for operator confirmation instead of resuming. (3) *Before the first `api` request:* the watch set
+  for operator confirmation instead of resuming. Its mark keeps this step from running again; it never suppresses `OPS-15`'s pass over `running` rows, which runs at every startup. (3) *Before the first `api` request:* the watch set
   is re-derived (`STO-32`), both rails are replayed (`STO-31`), `SEC-39`'s counters are re-seeded,
   every tenant's credential generation is bumped — the restored store cannot know which tenants
   revoked inside Δ, so every spending token dies and each customer re-issues through the recovery
@@ -1620,3 +1620,4 @@ null marker there does not mean the disk is untouched and the operator resolves 
 ambiguous — and `WIR-9a` renders both wire keys `unknown` on such a row for the same reason
 (*2026-09-16*); `LDG-72`'s checks pass on a consistent restore and prove nothing about it.*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): adopted the synchronous posture and classified promotions by WAL history with operator choice for a restore.*
+*Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): distinguished step (2)’s durable mark from the per-startup running-row pass.*
