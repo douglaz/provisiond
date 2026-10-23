@@ -1454,13 +1454,18 @@ theorem fresh_admission_is_unused_and_unapplied :
     w.store.unused ⟨4⟩ = false ∧ (v.store.ops ⟨4⟩).status = .running := by decide
 
 /-- Once the exception's freeze lifts, a confirmed parent interrupted after step (3) returns
-to queued on the successor's pass, and resumes with no second confirmation. -/
+to queued on the successor's pass, and resumes with no second confirmation. Confirmation
+after a crash reads the durable step (2) mark even before the successor runs its pass. -/
 @[req "OPS-15"]
 theorem confirmed_parent_resumes_after_crash :
     let w := Restore.run restoredWorkParams (bootRestore restoreTrace)
       (procedure ++ [.confirmParents, .claim ⟨1⟩, .crash, .lock, .startupPass])
+    let v := Restore.run restoredWorkParams (bootRestore restoreTrace)
+      [.lock, .startupPass, .crash, .confirmParents]
     (w.store.ops ⟨1⟩).status = .queued ∧ w.parentsConfirmed = true ∧
-      ((Restore.step restoredWorkParams w (.claim ⟨1⟩)).store.ops ⟨1⟩).status = .running := by decide
+    ((Restore.step restoredWorkParams w (.claim ⟨1⟩)).store.ops ⟨1⟩).status = .running ∧
+    v.stepTwoMarked = true ∧ v.passDone = false ∧ v.parentsConfirmed = true ∧
+      (v.store.ops ⟨1⟩).status = .queued := by decide
 
 /-- `F52` #3 (`STO-54`, `ADR-0023`, 2026-09-12): "an extension lost in Δ is not rebuilt". The
 tenant extended to 100 inside the interval, the restored date is 0, the procedure writes the
