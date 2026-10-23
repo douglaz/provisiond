@@ -665,8 +665,7 @@ one-transaction rule enqueues the cancellation in the attach transaction itself,
 the suspension**: the engine's startup pass (`OPS-15`) returns an interrupted `suspend_tenant`
 parent to `queued`, and it is re-claimed and resumed like any other queued work, because the sweep
 is idempotent by the open episode (`STO-52`'s index) and mutates no provider itself. It MUST NOT go
-to `needs_reconciliation` and, on a restart, MUST NOT need an operator — *after a restore it waits
-for one (`STO-54`, `OPS-15`), because the fan-out it would resume may have been reversed inside the
+to `needs_reconciliation` and, on a restart, MUST NOT need an operator — *after a restore it waits for one while `STO-54`'s freeze holds the exception off (`STO-54`, `OPS-15`), because the fan-out it would resume may have been reversed inside the
 lost interval*. Reads of the ledger, the machine list **and the tenant's abuse
 cases** (`API-59`) MUST continue
 to work while suspended — the customer's history is their evidence, and `LDG-22` forbids purging
@@ -752,6 +751,8 @@ the fan-out is the worker's.**
 (`WIR-41`): a machine created after an early resume is exactly what the re-sweep is built to find,
 and it would be cancelled by a suspension the operator already lifted. The parent's state is the
 fence, and the refusal is a `conflict` naming the running suspension.
+
+*Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): bounded the post-restore parent wait by the exception’s freeze.*
 
 **API-40** Enrolment and every other write MUST be reachable under the general rules, and three
 of those rules do not fit an unauthenticated, pre-tenant request. They are resolved here rather

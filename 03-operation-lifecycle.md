@@ -360,15 +360,16 @@ pass is needed; nothing but a restart can leave a `running` row with no worker b
 `ADR-0023`). "Any `running` row at startup is interrupted" is true after a crash and false after a
 restore, where the row may have settled at the provider inside the lost interval — and a `queued`
 row, which this pass never inspects, may already have run. So on a restore (`STO-54`) the pass
-additionally moves every `queued` create, install and rescue inventory to `needs_reconciliation`,
-guarded on `(id, status = queued)`, with an `internal` error naming the restore: a repeat is a
-second order, a second disk write or a second boot into rescue, and `OPS-27` establishes what
+additionally moves every `queued` create, install and rescue inventory to `needs_reconciliation`
+while `STO-54`'s step (2) is unmarked, guarded on `(id, status = queued)`, with an `internal`
+error naming the restore: a repeat is a second order, a second disk write or a second boot into
+rescue, and `OPS-27` establishes what
 happened rather than doing it again. The goal-state kinds — delete, power, end-rescue, release
 attachment, reverse DNS — stay `queued` and re-run, because `OPS-11` classifies "already in the
-target state" as `succeeded`. And the `suspend_tenant` exception below does not fire on a restore:
+target state" as `succeeded`. And the `suspend_tenant` exception below does not fire on a restore while `STO-54`'s freeze holds it off:
 a parent found `running`, or found `queued` and unsettled — which is where `OPS-49`'s deferred
 parent sits, and the likelier state at any backup instant — waits for operator confirmation and is
-not claimed, since the fan-out it would resume may have been reversed inside the interval.
+not claimed, since the fan-out it would resume may have been reversed inside the interval. Once that freeze has lifted for the exception, a parent found `running` is returned to `queued` with no second confirmation.
 
 **What puts the pass on that branch is a record, not an operator's knowledge** (added 2026-09-20,
 `ADR-0023`). `STO-54` says "a process that starts while a restore record is open is continuing that
@@ -376,6 +377,12 @@ incident, not restarting", so the successor of a process that died inside the pr
 restore branch, with the rest of the procedure it inherits. *Until then the branch had no
 predicate: a crash between the restore landing and this pass left the successor reading the
 paragraph above, which is the naive boot `ADR-0023` is written against.*
+**The pass over `running` rows runs at every startup, the record open
+or not.** `OPS-5` says a `running` operation "stays claimed until it settles, defers under `OPS-8`, or the
+startup pass finds it (`OPS-15`)", and a dead worker does neither of the first two. A marked step (2) keeps only
+its own work from running again (`STO-54`). While the record is open the create exception stays off, so a
+create found `running` goes to `needs_reconciliation`, and a `suspend_tenant` parent follows the restore rule
+above.
 
 **A `refresh` found `running` at startup MUST be settled `failed`** — the same guarded write as
 above (`STO-3`), with an `internal` error naming the restart, the nearest of `DOM-17`'s kinds —
@@ -405,8 +412,7 @@ that ordinary path. The pass writes neither `about_to_order_at` nor the markers.
 Whichever of this null-guarded status write and the live step-8 write commits first, the other's
 guard affects no row. This describes their predicates, not an in-scope second engine: `STO-3` says
 "nothing contends with it". `OPS-47` says "The lock is not a fence". The exception MUST NOT run
-periodically. **It does not fire while a restore record is open** (`STO-54`, `STO-56`), nor on a
-store that may have lost committed writes, such as a promoted asynchronous standby. A restore can
+periodically. **It does not fire while a restore record is open** (`STO-54`, `STO-56`). A restore can
 lose the column's committed write while the provider holds the order. This restriction lasts for the
 whole open incident, independently of the freeze's end.
 
@@ -417,14 +423,15 @@ PR #7's review scoped the restart error to a create with none recorded.*
 
 **`suspend_tenant` is another exception, and on a restart it MUST NOT require an operator.** A
 `suspend_tenant` parent (`API-58`) found `running` at startup MUST be returned to `queued` and
-re-claimed like any other queued work, resuming its fan-out from wherever it stopped — *on a
-restart; after a restore it waits, above (`STO-54`)*. It mutates no
+re-claimed like any other queued work, resuming its fan-out from wherever it stopped — *on a restart, and on a restore once `STO-54`'s freeze has lifted for the exception; until then it waits, above (`STO-54`)*. It mutates no
 provider itself — its per-machine children do, and each child is an ordinary operation the rules
 above already govern — so a crashed parent leaves nothing ambiguous to establish, and the re-sweep
 is idempotent by `OPS-39`'s dedup: an open episode per machine and key (`STO-52`) makes a repeated
 pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead would contradict
 `OPS-11`'s `suspend_tenant` row and would leave a suspended tenant's fleet running, and billing,
 until a human noticed — which is exactly what `SEC-45`'s one-action termination MUST NOT depend on.
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): removed the promoted-asynchronous-standby exclusion from the create restart exception.*
+*Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): separated the per-startup running-row pass from step (2)’s mark and bounded the parent wait by the exception’s freeze.*
 
 **OPS-16** The sweeper MUST NOT overwrite an error already recorded on the operation; it
 fills in an error only where none exists. It writes neither of `OPS-45`'s markers, which are facts
@@ -1683,9 +1690,11 @@ startup:                                          # STO-13, OPS-47, OPS-15
                                                   #   its predecessor (STO-54)
     if not take_startup_lock(bound):              # STO-51: session-scoped, held for life
         exit_nonzero()                            # OPS-47: another engine is already here
-    n = run_startup_pass(                         # suspend_tenant -> queued on restart;
-            restoring = incident is not None)     #   after a restore they wait, STO-54, and the
-    log(n)                                        #   queued irreversible kinds are quarantined)
+    n = run_startup_pass(                         # suspend_tenant -> queued on restart, and on
+            restoring = incident is not None)     #   a restore once STO-54's freeze has lifted
+    log(n)                                        #   for it (until then they wait); the queued
+                                                  #   irreversible kinds are quarantined only
+                                                  #   while step (2) is unmarked, STO-54
     # refresh -> failed; restart-only null-column creates -> failed with atomic release.
     # OPS-15 owns the exceptions and their exclusions.
 
@@ -1827,7 +1836,7 @@ engine process (`OVR-17`), errors or times out, the component MUST repeat the **
 transaction** — never the last failed statement, and never the provider call (`OPS-12`) — with the
 provider's outcome retained in memory, for a stated bound (`OVR-19`), and on exhausting the bound
 MUST log loudly and the engine MUST exit non-zero into its supervisor, where `OVR-18`'s alarm is
-watching. The bound covers connection, execution, commit, read-back and backoff together, and it
+watching. The bound covers connection, execution, commit, read-back and backoff together, but not a commit's wait for the standby (`STO-7`), and it
 is a money parameter: on exhaustion the outcome in hand is thrown away and `OPS-15` classifies the
 row as interrupted — unless the bound's last repeat committed and its reply was lost, in which case
 the row is already written, the money already posted once, and the startup pass finds nothing
@@ -1838,7 +1847,8 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 
 - **"Too slow" is `statement_timeout`.** The client-side deadline on a store call MUST NOT be
   shorter than `STO-7`'s server-side timeouts, so the server decides every statement's fate before
-  the client does and the only lost reply is a dead transport. A server-side timeout is a refused
+  the client does and the only lost reply is a dead transport, or a commit returned with
+  PostgreSQL's replication warning (`STO-7`). A server-side timeout is a refused
   write, and the repeat finds the row unchanged; a lost reply after a durable commit is the case
   `STO-3`'s repeat-admitting guards exist for.
 - **Constraint violations and serialization failures are not store errors** and do not consume
@@ -1877,6 +1887,7 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): pointed the first stop during an ordinary settle write's loop at `OPS-21`.*
 
 *Amended 2026-10-20 (`pv-gq8`): replaced the loop-only later-stop definition with a quotation of the record owner's any-point exit.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): excluded a commit’s standby wait from the Store-retry bound, and made a commit returned with `STO-7`’s replication warning the second lost reply.*
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

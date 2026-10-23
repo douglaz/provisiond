@@ -335,8 +335,8 @@ unassigned job here silently narrows a control two conformance items depend on.*
 mechanism runs (`LDG-14`, `OPS-32`, `SEC-45`'s fan-out), and the restart window is the accepted
 outage (`ADR-0016`); the supervisor's restart guarantee and the alarm threshold are deployment
 parameters (`OVR-19`). **Two more conditions are alarmed on the same model** (added 2026-09-12,
-`ADR-0023`): the recovery point exceeding its threshold, and a stalled synchronous standby, which
-hangs the two money-in transactions `STO-7` commits synchronously and nothing else.
+`ADR-0023`): the recovery point exceeding its threshold, and either named standby being unavailable (`STO-7`).
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; `ADR-0045`): alarmed either named standby being unavailable.*
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive
@@ -356,7 +356,7 @@ marked human are procedures the deployment records rather than values the proces
 *Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
 2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
 activation funding minimum is registered. Amended 2026-10-12 (`ADR-0037`, Q28):
-refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the Stop-record bound.*
+refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the Stop-record bound. Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): registered the standby names and pooled-connection keepalives; removed the synchronous-commit concurrency cap.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -402,14 +402,14 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets." and "The deployment's supervisor MUST wait at least the Stop-record bound after a stop before it kills the engine." | yes |
 | Recovery point | `STO-54` | greatest age of a committed write not yet in a separate failure domain | no — outside the process |
 | Recovery-point alarm threshold | `STO-54` | duration | yes |
-| Synchronous standby name | `STO-7`, `STO-54` | identifier | yes |
+| Synchronous standby names | `STO-7`, `STO-54` | two identifiers | yes |
+| Pooled-connection keepalives | `STO-7` | durations | yes |
 | Derivation-index gap on restore | `STO-54` | integer | yes |
 | Migration `lock_timeout` and retry count | `STO-13` | duration, integer | no — the migrator's, read at `migrate` |
 | Store timeouts: `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout` | `STO-7`, `STO-55` | durations | yes |
 | Engine worker count | `STO-55` | integer | yes |
 | `api` request concurrency per replica, read and write | `STO-55` | integers | yes |
 | Pool checkout bound | `STO-55` | duration | yes |
-| Synchronous-commit concurrency cap per replica | `STO-55` | integer | yes |
 | Connection budget against `max_connections` | `STO-55` | human — the sum across every process at maximum rollout overlap | no; the engine checks its own share |
 | Metering cadence | `LDG-37` | duration | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |

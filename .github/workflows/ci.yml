@@ -547,6 +547,8 @@ jobs:
       #   createExceptionOnRestart (OPS-15, 2026-10-17, ADR-0042): the restored backup's null
       #     column must not fail a create whose order the provider holds --
       #     create_reconciled_on_restore on [.lock, .startupPass].
+      #   passEveryStartup (OPS-15, 2026-10-23, pv-n98): a power claimed after step (2)
+      #     stays running on the successor -- successor_sweeps_power on postStepTwoPower.
       # Reconciliation knowledge (pv-vwe.5), Reconcile.current, the same shape:
       #   completePassOnly (OPS-32, 2026-09-02): the interrupted pass rereads into the throttle,
       #     the 2026-08-31 "yield to rate_limited" sentence, since PRV-36 leaves this guard no
@@ -775,6 +777,7 @@ jobs:
           Restore|twoPassAbsence|true|false|Event.sweep true false, Event.windowElapses
           Restore|recordDecidesBoot|true|false|Event.crash, Event.lock
           Restore|createExceptionOnRestart|true|false|bootRestore aboutToOrderRestore
+          Restore|passEveryStartup|true|false|postStepTwoPower
           Reconcile|completePassOnly|true|false|w.retriedIntoThrottle = false
           Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
           Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found

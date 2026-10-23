@@ -91,7 +91,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0020` | Adopt is withdrawn from v1 with its whole surface: no launch driver can price a machine it did not buy. Returns operator-only, synchronous and read-first, with a driver that can. Closes `F47` |
 | `0021` | A machine recorded gone — by termination or by evidence — closes its open episode `resource_gone` in that write, and a close is permanent. The unsupported `abandoned` edge is removed. The former retry-as-withdrawal argument is superseded by `0032` (2026-10-04). Completes `0017`; closes `F49` |
 | `0022` | A store error is a bounded whole-transaction retry, then the engine exits; every worker write is idempotent under repeat and carries its claim number, because one `running` row can belong to two executions of one process |
-| `0023` | A restore is a recovery incident with a stated procedure, never a restart; durability is bought with synchronous commit only on the two writes with no second truth |
+| `0023` | A restore is a recovery incident with a stated procedure, never a restart; durability is bought with synchronous commit only on the two writes with no second truth; its second half is amended by `0045` (2026-10-23) |
 | `0024` | Migrations run before the release under their own lock while the previous release serves; only a contract step or a shared-predicate change needs an outage |
 | `0025` | A formalized clause lives in Lean under `tools/formal/`, the Markdown requirement renders it, and a proof is never conformance. No Mathlib; standard axioms only; every guard a dated amendment added is a model parameter with a theorem for its absence |
 | `0026` | The exhaustion mark is two facts, an observation to confirm against and a deadline, and neither is a derivation instant. Superseded by `0027` (the confirmation reference) and `0028` (the deadline) |
@@ -113,6 +113,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0042` | A create interrupted before step 8 ordered nothing, and settles `failed` on a restart. Amends `0016` |
 | `0043` | A create failure recorded before step 9 settles `failed` by worker position |
 | `0044` | A survived stop records `execute` within a bound |
+| `0045` | Every commit waits for a standby, and promotion follows WAL history. Amends `0022`, `0023` and `0042` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
