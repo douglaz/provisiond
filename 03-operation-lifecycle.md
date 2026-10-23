@@ -230,11 +230,13 @@ failure classification. Asynchronous surface: `API-7`; result bodies: `WIR-10`.
 | rescue inventory | Same rows as `install`. It is **not** read-only in the relevant sense: it boots the machine into rescue, so an ambiguous failure can strand it there, and `PRV-22` makes an end-rescue failure always ambiguous. Classifying it with `refresh` would mark it `failed` while the machine sits in rescue. |
 | install | `needs_reconciliation` for `network`, `timeout`, `provider`, `internal`, `conflict`, and `integrity` **once the write-started marker is set** (`OPS-45`). `failed` for the deterministic caller errors `invalid_request`, `not_found`, `unsupported`, `authentication` and `rate_limited` **where no rescue session was left open** (the paragraph below), **and for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue session was left open** — including `integrity` before the connection, which is `RSC-3`'s host-key abort. An install that got further than that may have begun overwriting a disk, or may have left the machine in rescue; one that did neither, provably did neither. **`failed` past the write-started marker, where rescue exited cleanly, asserts that the install did not complete and nothing about the disk** (*2026-09-15, `pv-x8r`*): the deterministic caller kinds stay `failed` there because the engine knows what it did — an installer that rejected the layout it had begun partitioning for is a known outcome — and `needs_reconciliation` is the state for an outcome nobody knows (`CONTEXT.md`), whose only truthful verb here would be `abandoned`, which settles `failed` after a human looked. It does not mean `not_applied`, which `OPS-31` refuses there. What the disk holds is `OPS-45`'s marker's fact, rendered to the caller as `WIR-9a`'s `disk_effect`; the state does not carry it. |
 | create | Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind. The boundary is the worker invoking the first step-9 per-order key upload or order call. It is the worker's position: this rule MUST NOT read `about_to_order_at`, nor any snapshot or cached copy of it. The settle write keeps the ordinary worker guard (`STO-3`; `OPS-6`: "every write that worker makes to the operation MUST carry `claim_number = mine`"), with no `about_to_order_at IS NULL` term. The error MUST keep its reported kind. For `network`, `timeout`, `internal`, `provider` with a 5xx or no upstream status, and a cut-off `conflict`, it MUST carry `retryable: true` on both the error and the operation view; a failure classified `failed` without this pre-step-9 rule keeps its stated `retryable`. An `OPS-21` cancellation of `execute` stays a cut-off `conflict`. The commitment is released in full under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full") and `LDG-39` ("**Never debited**; released with the commitment (`LDG-32`)"), with no setup-fee or first-unit debit. Settlement takes the `LDG-35` primitive, then follows `STO-3`: "The guarded status write precedes every money write in the transaction and short-circuits the rest". Where the create holds a resource-offer exclusion, it is freed under `STO-58`: "Its lifetime follows the winning create's outcome settlement". Before step 9 no provider mutation has been requested (`PRV-50`). From step 9 onward, including a key-upload failure or an order-call failure before any byte was sent: `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. |
-| power, reverse-DNS, delete, release attachment | `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
+| power, reverse-DNS, delete, release attachment | Subject to the goal-state success rule, any failure the worker records while `OPS-45`'s write-started marker is unset, where no rescue session was opened or the one opened was closed without error, MUST settle `failed`, whatever its kind (`OPS-45`, which owns the rule), unless the mutation is known to have been accepted (`details.accepted` is `true`). Otherwise `needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`. A release is a delete of a smaller thing (`PRV-45`) and classifies exactly as one. |
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): the restart settlement is outside this classification; see `OPS-15`: "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only."*
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): the restart exception reads the null column on a restart; the create row instead classifies a failure recorded by the worker, by position. After step 8 is acknowledged and before step 9 begins, a recorded failure settles `failed` with the column set. A restart in that same window takes the ordinary path (`OPS-15`: "the engine MUST move every `running` operation to `needs_reconciliation`"), since the column is set.*
+
+*Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): made the last row read the write-started marker for recorded failures below goal-state success and except known-accepted mutations, with ambiguity in the fallback branch.*
 
 **The table MUST be total, and seven kinds added later were missing.** `insufficient_balance`,
 `not_activated`, `halted`, `gone`, `suspended`, — added 2026-09-02 — `ceiling_exceeded`
@@ -1756,7 +1758,8 @@ For a create, a cancellation of `execute` recorded before step 9 is the exceptio
 create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
 The other classification pointers are `OPS-11`'s install row, "while `OPS-45`'s two markers say
 the disk is untouched and no rescue session was left open", rescue inventory's "Same rows as
-`install`", and refresh's "Always `failed`". The kind's row owns the outcome, including where
+`install`", the last row's "any failure the worker records while `OPS-45`'s write-started marker is unset", and
+refresh's "Always `failed`". The kind's row owns the outcome, including where
 it reads ambiguity.
 Where the row reads `OPS-45`'s markers, the record MUST classify against the markers its own transaction reads, since a marker write whose reply was lost may have committed.
 
@@ -1815,6 +1818,8 @@ A stop that arrives after a stop has cancelled `execute`, before that cancellati
 *Amended 2026-10-19 (`pv-zbp`, `pv-ilb`; panel r59, `docs/research/panels-2026-10/r59/`; `ADR-0044`): a survived stop during a read whose failure leaves the outcome in hand ends that read as a failed read and is recorded by the settle write, not as a cut-off.*
 
 *Amended 2026-10-20 (`pv-gq8`): extended the later-stop exit to every point before the record lands, with a sent record transaction left to the server and not repeated; the after-return paragraph's exclusion names the transaction sent inside `execute`, so the later-stop exit's no-repeat clause reaches both records.*
+
+*Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): added the last row to the classification pointers.*
 
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
 repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do
@@ -1908,7 +1913,8 @@ A field that is present but fails this repeated validation fails as its writer's
 
 These missing-field failures settle `failed` under `OPS-11`. On a create they come at `OPS-43`'s
 step 3, and `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
-Power and delete take its last row's "otherwise `failed`", and its install row gives `failed`
+Power and delete take its last row's "any failure the worker records while `OPS-45`'s write-started marker
+is unset", and its install row gives `failed`
 "for any failure at all while `OPS-45`'s two markers say the disk is untouched and no rescue
 session was left open". On a create, the commitment is
 released in full under `LDG-39`'s "Deterministic rejection before acceptance" case, whose fee
@@ -1937,6 +1943,8 @@ timing; included offer absence in the timing exception.*
 pointed a create's missing-field failure at the create row's step-9 boundary.*
 
 *Amended 2026-10-22 (`pv-gpw`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed writer-based validation disposition and fixture.*
+
+*Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): pointed power's and delete's missing-field failures at the last row's marker clause.*
 
 ## Fairness and retention
 

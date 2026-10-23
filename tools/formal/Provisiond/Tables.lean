@@ -116,7 +116,9 @@ structure Markers where
 /-- The rules `OPS-11` gained by dated amendment. `goalStateRow`: "A provider rejection whose
 meaning is 'already in the target state' MUST classify `succeeded`" (2026-08-31). `markerRule`:
 `OPS-45`'s settlement, "`failed` ... for any failure at all while `OPS-45`'s two markers say the
-disk is untouched and no rescue session was left open" (2026-09-02). `acceptanceRule`:
+disk is untouched and no rescue session was left open" (2026-09-02), and the last row's
+"any failure the worker records while `OPS-45`'s write-started marker is unset" (2026-10-23).
+`acceptanceRule`:
 `ADR-0035`, "A failure of an operation whose mutating request the provider accepted is ambiguous,
 whatever its kind" (2026-10-08). `preStep9Rule`: the create row's "MUST settle `failed`,
 whatever its kind" before any step-9 request (2026-10-18). -/
@@ -192,10 +194,14 @@ def classify (r : Rules) (k : Kind) (f : Failure) (m : Markers) : Option Written
   | .suspendTenant => none
   | .install | .rescueInventory => some (installRow r m f.kind)
   | .power | .deleteMachine | .releaseAttachment =>
-      some (if goalState r f then .succeeded else mutationRow r f)
+      some (if goalState r f then .succeeded
+            else if r.markerRule && !m.writeStarted && m.rescueClean && !f.accepted then .failed
+            else mutationRow r f)
+  | .reverseDns =>
+      some (if r.markerRule && !m.writeStarted && m.rescueClean && !f.accepted then .failed
+            else mutationRow r f)
   | .createMachine =>
       some (if r.preStep9Rule && f.beforeStep9 && !f.accepted then .failed else mutationRow r f)
-  | .reverseDns => some (mutationRow r f)
 
 /-- `OPS-11`: "Any create failure the worker records before any step-9 request (before any
 per-order key upload or order request) MUST settle `failed`, whatever its kind." Acceptance
@@ -257,6 +263,14 @@ theorem accepted_never_failed :
     ∀ (goal marker s : Bool) (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream)
       (g b w x : Bool), k.lastRow = true →
       classify ⟨goal, marker, true, s⟩ k ⟨e, c, u, g, true, b⟩ ⟨w, x⟩ ≠ some .failed := by decide +kernel
+
+/-- `OPS-11`'s last row: "any failure the worker records while `OPS-45`'s write-started marker
+is unset … MUST settle `failed`, whatever its kind", below the goal-state success rule. -/
+@[req "OPS-11"]
+theorem last_row_marker_unset_failed :
+    ∀ (k : Kind) (e : ErrorKind) (c : Bool) (u : Upstream) (b : Bool),
+      k.lastRow = true → k ≠ .createMachine →
+        classify currentRules k ⟨e, c, u, false, false, b⟩ ⟨false, true⟩ = some .failed := by decide
 
 /-- `refresh` "Always `failed`. It is read-only; a failure changed nothing." -/
 @[req "OPS-11"]
