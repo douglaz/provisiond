@@ -142,13 +142,13 @@ write-ahead logging, which are the withdrawn engine's pragmas. On PostgreSQL the
 **Rules about the connection follow** (added 2026-09-12, `ADR-0022`). The client-side deadline
 on any store call MUST NOT be shorter than the server-side timeouts above, so that the server
 decides a statement's fate before the client gives up and a lost reply is only ever a dead
-transport (`OPS-49`). A standby wait has no server-side timeout and is excluded from that call's
+transport (`OPS-49`), or a commit returned with PostgreSQL's replication warning. A standby wait has no server-side timeout and is excluded from that call's
 store-call and Store-retry deadlines. A dead transport during it is found by the connection's TCP
-keepalives (`OVR-19`). `OPS-21`'s stop bounds still apply. And a connection abandoned mid-transaction — by a timeout, a cancelled
+keepalives (`OVR-19`). `OPS-21`'s stop bounds still apply. And a connection abandoned mid-transaction before it sends COMMIT — by a timeout, a cancelled
 worker or a lost reply — MUST be reset before it returns to the pool, or the next checkout inherits
 an aborted transaction.
 
-**A sent COMMIT is never abandoned** (*added 2026-10-23, `ADR-0045`*): short of its process exiting, no deadline and no cancellation of the request or worker that sent it MAY release its connection before the reply arrives or the transport is found dead. Cancellation alone does not release that write checkout. Dead database transports and process exits can leave waiting backends outside the pool's accounting. A request that finds the write checkouts taken is refused at checkout (`STO-55`).
+**A sent COMMIT is never abandoned** (*added 2026-10-23, `ADR-0045`*): short of its process exiting, a deadline or a cancellation of the request or worker that sent it MUST NOT release its connection before the reply arrives or the transport is found dead. Cancellation alone does not release that write checkout. Dead database transports and process exits can leave waiting backends outside the pool's accounting. A request that finds the write checkouts taken is refused at checkout (`STO-55`).
 
 **Every commit waits for the standby** (*amended 2026-10-23, `ADR-0045`; until then "`synchronous_commit` is `local`
 on every connection and `on` inside exactly two transactions"*): `synchronous_commit` is `on` on every connection and
@@ -176,7 +176,7 @@ other than by shutting the primary down.
 
 A commit that returns PostgreSQL's warning "The transaction has already committed locally, but might not have been
 replicated to the standby." is not acknowledged: the component treats it as a lost reply (`OPS-49`).
-*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; owner question F (a quick shutdown while both standbys are down) “Check again (Recommended)”; `ADR-0045`): adopted synchronous commits, retained sent COMMIT connections, excluded standby waits from deadlines, and added connection and deposit-read checks.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; owner question F (a quick shutdown while both standbys are down) “Check again (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): adopted synchronous commits, retained sent COMMIT connections, excluded standby waits from deadlines, added connection and deposit-read checks, and made a commit returned with the replication warning the second lost reply.*
 
 **STO-55** **ADDED 2026-09-12 (`F51`) — each pool is sized by construction, and a component holds
 at most one transaction at a time.** The engine's pool holds one connection per worker plus one
@@ -209,7 +209,7 @@ concurrency** (`OVR-19`); the pools are sized from them.
   not the caller's rate, so the decision is `503` rather than a non-rate `429`. Read and write
   checkouts are budgeted separately, on the same reasoning `API-50` applies to rate limits, so a
   poller cannot crowd out an extension.
-- **The sum fits, and the engine checks its share.** The deployment states that the engine pool,
+- **The sum fits outside a stall, and the engine checks its share.** The deployment states that the engine pool,
   every replica's pool at the rollout's maximum overlap, the lock connection, the migrator and its
   waiting runners, and an operator reserve together fit inside `max_connections` less the server's
   reserved slots — a human row on `OVR-19`, since only the deployment sees the whole — and the

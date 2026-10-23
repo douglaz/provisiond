@@ -1847,7 +1847,8 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 
 - **"Too slow" is `statement_timeout`.** The client-side deadline on a store call MUST NOT be
   shorter than `STO-7`'s server-side timeouts, so the server decides every statement's fate before
-  the client does and the only lost reply is a dead transport. A server-side timeout is a refused
+  the client does and the only lost reply is a dead transport, or a commit returned with
+  PostgreSQL's replication warning (`STO-7`). A server-side timeout is a refused
   write, and the repeat finds the row unchanged; a lost reply after a durable commit is the case
   `STO-3`'s repeat-admitting guards exist for.
 - **Constraint violations and serialization failures are not store errors** and do not consume
@@ -1886,7 +1887,7 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): pointed the first stop during an ordinary settle write's loop at `OPS-21`.*
 
 *Amended 2026-10-20 (`pv-gq8`): replaced the loop-only later-stop definition with a quotation of the record owner's any-point exit.*
-*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): excluded a commit’s standby wait from the Store-retry bound.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): excluded a commit’s standby wait from the Store-retry bound, and made a commit returned with `STO-7`’s replication warning the second lost reply.*
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version
