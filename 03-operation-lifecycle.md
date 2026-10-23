@@ -405,8 +405,7 @@ that ordinary path. The pass writes neither `about_to_order_at` nor the markers.
 Whichever of this null-guarded status write and the live step-8 write commits first, the other's
 guard affects no row. This describes their predicates, not an in-scope second engine: `STO-3` says
 "nothing contends with it". `OPS-47` says "The lock is not a fence". The exception MUST NOT run
-periodically. **It does not fire while a restore record is open** (`STO-54`, `STO-56`), nor on a
-store that may have lost committed writes, such as a promoted asynchronous standby. A restore can
+periodically. **It does not fire while a restore record is open** (`STO-54`, `STO-56`). A restore can
 lose the column's committed write while the provider holds the order. This restriction lasts for the
 whole open incident, independently of the freeze's end.
 
@@ -425,6 +424,7 @@ is idempotent by `OPS-39`'s dedup: an open episode per machine and key (`STO-52`
 pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead would contradict
 `OPS-11`'s `suspend_tenant` row and would leave a suspended tenant's fleet running, and billing,
 until a human noticed — which is exactly what `SEC-45`'s one-action termination MUST NOT depend on.
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): removed the promoted-asynchronous-standby exclusion from the create restart exception.*
 
 **OPS-16** The sweeper MUST NOT overwrite an error already recorded on the operation; it
 fills in an error only where none exists. It writes neither of `OPS-45`'s markers, which are facts
@@ -1827,7 +1827,7 @@ engine process (`OVR-17`), errors or times out, the component MUST repeat the **
 transaction** — never the last failed statement, and never the provider call (`OPS-12`) — with the
 provider's outcome retained in memory, for a stated bound (`OVR-19`), and on exhausting the bound
 MUST log loudly and the engine MUST exit non-zero into its supervisor, where `OVR-18`'s alarm is
-watching. The bound covers connection, execution, commit, read-back and backoff together, and it
+watching. The bound covers connection, execution, commit, read-back and backoff together, but not a commit's wait for the standby (`STO-7`), and it
 is a money parameter: on exhaustion the outcome in hand is thrown away and `OPS-15` classifies the
 row as interrupted — unless the bound's last repeat committed and its reply was lost, in which case
 the row is already written, the money already posted once, and the startup pass finds nothing
@@ -1877,6 +1877,7 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 *Amended 2026-10-19 (`pv-zbp`; `ADR-0044`): pointed the first stop during an ordinary settle write's loop at `OPS-21`.*
 
 *Amended 2026-10-20 (`pv-gq8`): replaced the loop-only later-stop definition with a quotation of the record owner's any-point exit.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): excluded a commit’s standby wait from the Store-retry bound.*
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

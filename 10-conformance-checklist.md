@@ -1054,13 +1054,17 @@ takes the machines *and* the float" partly false.
       withdrawn — "Leave B without a rate through its bound: B ceases to block closure".*
       (`STO-54`, `STO-56`, `STO-49`, `OPS-15`, `OPS-41`, `LDG-16`,
       `LDG-64`, `API-56`, `OPS-27`, `OPS-32`)
-- [ ] **CNF-296** — **The two synchronous writes hang alone** (added 2026-09-12,
-      `ADR-0023`). Stall the named standby. Assert a deposit mint and a payment credit block, every
-      engine write and every other `api` write proceeds, and `OVR-18`'s alarm fires. Release the
-      standby and assert the caller's re-sent funding request returns the same deposit (`API-45`)
-      and the rail's replayed settlement credits once (`STO-31`). Then assert `synchronous_commit`
-      reads `local` on a freshly checked-out connection (`CNF-56`'s method) and `on` only inside
-      those two transactions. (`STO-7`, `STO-54`, `OVR-18`)
+- [ ] **CNF-296** — **Every write waits for the standby** (*amended 2026-10-23, `ADR-0045`; was "The two synchronous writes hang
+  alone"*). Stall both named standbys. Assert an engine write and an `api` write each wait in `SyncRep`, a read still
+  succeeds, and `OVR-18`'s alarm fires. Exercise a contending engine write and assert `OPS-49`'s bounded retry and
+  exit. First fill one `api` replica's write-checkout budget with waiting commits. Cancel every `api` request whose write
+  waits, its client disconnecting, and assert that, throughout this step, the primary holds no more of that replica's backends than its
+  pool, a further write request is refused `overloaded`, and a read still succeeds.
+  While each sent COMMIT remains unresolved and its transport remains live, assert its original connection and write checkout remain retained. Release both and
+  assert the caller's re-sent funding request returns the same deposit (`API-45`) and the rail's replayed settlement
+  credits once (`STO-31`). Then stall one only and assert an engine write and an `api` write each
+  succeed. Then assert `synchronous_commit` reads `on` on a freshly checked-out connection
+  (`CNF-56`'s method). (`STO-7`, `STO-54`, `OVR-18`) *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; `ADR-0045`): replaced the two-write stall drill with the synchronous-write, checkout-retention and connection-setting drill.*
 - [ ] **CNF-297** — **The derivation index never goes backwards** (added 2026-09-12,
       `ADR-0023`). Mint deposits, take a backup, mint more, restore, run `STO-54`'s skip-forward,
       and assert the next index allocated exceeds every index a rolled-back row held, and that no
@@ -1075,17 +1079,35 @@ takes the machines *and* the float" partly false.
       kills it, which is the bound on a violation the instrumentation would otherwise catch. Then,
       with the three `ledger` components running in the engine process (`OVR-17`), assert an `api`
       replica runs none of them. (`STO-55`, `STO-7`, `OVR-17`)
-- [ ] **CNF-299** — **`overloaded` is refused before any transaction, and the pool
-      keeps serving under a stalled standby** (added 2026-09-12, `F51`). Saturate one replica's
+- [ ] **CNF-299** — **`overloaded` is refused before any transaction** (added 2026-09-12, `F51`). Saturate one replica's
       write checkouts and assert the next write, under a key never sent before, is refused
       `overloaded`, 503, with `retry_after_ms`, that `STO-35` holds no receipt for that key, that
       the same key re-sent after capacity returns succeeds as a first send, and that a read still
       succeeds under the separate read budget; then repeat with a key whose first send committed
       before its reply was lost, and assert the re-send after the refusal returns the existing
-      operation (`API-11`). Then stall the standby (`CNF-296`'s method) with more funding requests than the
-      synchronous-commit cap and assert no more than the cap's connections are occupied and a
-      suspension request (`API-58`) is admitted. Then let the meter fall behind its cadence by more
+      operation (`API-11`). Then let the meter fall behind its cadence by more
       than one interval and assert the alarm fires. (`STO-55`, `DOM-17`, `API-50`, `LDG-37`)
+
+      *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): removed the synchronous-cap stall drill.*
+
+- [ ] **CNF-365** — **Promoting the standby `STO-54`'s report puts further ahead is a restart** (`ADR-0045`). With both components
+  running, let one create
+  commit step 8 and order, and claim a second. Kill the primary and promote the standby `STO-54`'s report puts further ahead by the deployment's procedure, with a standby streaming from the promoted store. Assert that every engine and `api` process connected
+  to the old primary has stopped before any component connects to the promoted store, and that the old primary
+  serves no component; that both rows are on the promoted store; that no restore record is written; and that the
+  successor's startup pass takes `OPS-15`'s restart branch. Then, with both standbys stalled while a write waits,
+  crash the primary, restart it in place, then separately crash one backend while a write
+  waits, and each time assert no component uses a connection before a standby has flushed at or past the flush
+  position it reported. For both components: With healthy replication, withhold position-query results through the connection-attempt
+  deadline. Assert closure without use or fallback, no check-issued writes, and no check-created `SyncRep` backend.
+  Inspect the deployed topology for transaction-mode pooling.
+  With one standby unreachable, assert the
+  procedure promotes neither as a restart
+  and none until an operator decides, while that standby's report stays unavailable.
+  With one standby on another timeline, assert the
+  procedure promotes neither as a restart. Stop one standby, make an acknowledged write, stop the other, lose the
+  primary, restart both standbys, and assert the procedure promotes the one holding that write, then repeat with the standbys' roles swapped. (`STO-5`, `STO-7`,
+  `STO-54`, `OPS-15`) *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*
 
 ## The rate
 

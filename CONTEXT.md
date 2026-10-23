@@ -181,9 +181,9 @@ carry this fact in its state.
 _Avoid_: rollback, preserved (say `disk_effect: none`), data loss (which is a consequence, not the fact)
 
 **Restore**:
-Bringing the store back from a backup, landing at some instant before the failure. A recovery
-incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no committed
-work and the startup pass settles what was in flight at startup; a restore loses an interval, and the
+Bringing the store back from a backup, landing at some instant before the failure, or a promotion
+`STO-54` classes as one. A recovery
+incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no acknowledged commit and the startup pass settles what was in flight at startup; a restore may lose an interval, and the
 engine brought up on it naïvely performs destructive actions on state the restore rewrote.
 The **restore record** is the row that makes the incident recognizable to a process rather than to
 an operator: open from before either component starts until the operator closes it, carrying the

@@ -316,7 +316,8 @@ def runTxn (g : Guards) (s : Store) (t : Txn) : Store × WriteResult :=
 
 /-- One try at the transaction under one store outcome. `refused` rolled back and said so;
 `committed false` is the durable commit whose reply died in transport, so the store moved and the
-worker learned nothing; `committed true` is the ordinary case. -/
+worker learned nothing; a promotion can undo it if the standby had not yet flushed it, and every
+process restarts across that (`STO-54`); `committed true` is the ordinary case. -/
 def tryOnce (g : Guards) (s : Store) (t : Txn) : StoreOutcome → Store × Option WriteResult
   | .refused => (s, none)
   | .committed false => ((runTxn g s t).1, none)

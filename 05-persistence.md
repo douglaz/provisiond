@@ -82,6 +82,8 @@ since `STO-35` was written.*
 **STO-5** The store MUST survive process restart with no loss of queued or running
 operations. *A restore from backup is not a restart and is not covered by this sentence: it loses
 an interval, and `STO-54` is what governs bringing the engine up on it (`ADR-0023`).*
+*Promoting the standby `STO-54`'s report puts further ahead is a restart; `STO-54` says what any other promotion is: "is a restore: the procedure below runs on it" (`ADR-0045`).*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): added the promotion-classification pointer.*
 
 **STO-51** **AMENDED 2026-09-08 (`ADR-0019`) — the epoch row is deleted; a startup lock replaces
 it and is not a fence.** The store MUST provide a **session-scoped advisory lock** on a fixed key,
@@ -140,17 +142,41 @@ write-ahead logging, which are the withdrawn engine's pragmas. On PostgreSQL the
 **Two rules about the connection follow** (added 2026-09-12, `ADR-0022`). The client-side deadline
 on any store call MUST NOT be shorter than the server-side timeouts above, so that the server
 decides a statement's fate before the client gives up and a lost reply is only ever a dead
-transport (`OPS-49`). And a connection abandoned mid-transaction — by a timeout, a cancelled
+transport (`OPS-49`). A standby wait has no server-side timeout and is excluded from that call's
+store-call and Store-retry deadlines. A dead transport during it is found by the connection's TCP
+keepalives (`OVR-19`). `OPS-21`'s stop bounds still apply. And a connection abandoned mid-transaction — by a timeout, a cancelled
 worker or a lost reply — MUST be reset before it returns to the pool, or the next checkout inherits
 an aborted transaction.
 
-**`synchronous_commit` is `local` on every connection and `on` inside exactly two transactions**
-(added 2026-09-12, `ADR-0023`): the deposit mint and `STO-30`'s payment credit, both on `api`, each
-setting it with `SET LOCAL` so the setting has the transaction's lifetime, against the standby
-`OVR-19` names. Those two are the writes with no second truth; a stalled standby hangs them and
-nothing else, which is a degraded money-in path alarmed under `OVR-18`, and they fail safe —
-`STO-31`'s replay is built for a credit that did not land, and `API-45` returns the locally
-committed deposit to a caller that re-sends its key.
+**A sent COMMIT is never abandoned** (*added 2026-10-23, `ADR-0045`*): short of its process exiting, no deadline and no cancellation of the request or worker that sent it MAY release its connection before the reply arrives or the transport is found dead. Cancellation alone does not release that write checkout. Dead database transports and process exits can leave waiting backends outside the pool's accounting. A request that finds the write checkouts taken is refused at checkout (`STO-55`).
+
+**Every commit waits for the standby** (*amended 2026-10-23, `ADR-0045`; until then "`synchronous_commit` is `local`
+on every connection and `on` inside exactly two transactions"*): `synchronous_commit` is `on` on every connection and
+`synchronous_standby_names` is `ANY 1` over the two standbys `OVR-19` names, so PostgreSQL acknowledges a commit
+only once one of them has flushed it to durable storage. The deployment MUST NOT let the primary commit without one
+of them: no connection lowers `synchronous_commit`, and the primary never serves with `synchronous_standby_names`
+empty. `OVR-18` alarms either standby being unavailable, and while both are, every write waits.
+**A component checks each new connection before using it** (*added 2026-10-23, `ADR-0045`*): it MUST NOT use a
+  new store connection until one of the standbys `OVR-19` names has flushed the primary's WAL up to the flush
+  position the primary reports on that connection, which it learns by reading the standbys' reported positions,
+  never by committing a write. A check that errors, cannot see a standby's position, or has not passed is a failed
+  connection attempt: the connection is closed unused, and nothing falls back to an unchecked one. Every
+  connection after a restart of the primary is new, whether the restart was in place or after a crash, so it is
+  checked: a commit that was waiting for a standby when the primary stopped is "marked fully committed once the
+  primary database recovers", whether or not a standby has it.
+Before exposing a deposit destination read from the store, repeat the read-only flush-position check with a
+  target sampled after that read, on the same uninterrupted PostgreSQL session. On session failure discard the
+  result and repeat the whole read.
+
+No component sends PostgreSQL a cancel request on a store connection: a store call whose client-side deadline
+expires closes its connection, except a sent COMMIT, which no deadline releases, and the transaction's fate is the server's (`OPS-49`).
+
+The deployment MUST NOT cancel or terminate a primary backend while it waits for a standby (wait event `SyncRep`),
+other than by shutting the primary down.
+
+A commit that returns PostgreSQL's warning "The transaction has already committed locally, but might not have been
+replicated to the standby." is not acknowledged: the component treats it as a lost reply (`OPS-49`).
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; owner question F (a quick shutdown while both standbys are down) “Check again (Recommended)”; `ADR-0045`): adopted synchronous commits, retained sent COMMIT connections, excluded standby waits from deadlines, and added connection and deposit-read checks.*
 
 **STO-55** **ADDED 2026-09-12 (`F51`) — each pool is sized by construction, and a component holds
 at most one transaction at a time.** The engine's pool holds one connection per worker plus one
@@ -183,27 +209,20 @@ concurrency** (`OVR-19`); the pools are sized from them.
   not the caller's rate, so the decision is `503` rather than a non-rate `429`. Read and write
   checkouts are budgeted separately, on the same reasoning `API-50` applies to rate limits, so a
   poller cannot crowd out an extension.
-- **Synchronous-commit transactions are capped per replica** (`OVR-19`), so a stalled standby
-  (`STO-7`) occupies at most that many connections and the rest of the pool keeps serving reads,
-  suspension and every other write.
 - **The sum fits, and the engine checks its share.** The deployment states that the engine pool,
   every replica's pool at the rollout's maximum overlap, the lock connection, the migrator and its
   waiting runners, and an operator reserve together fit inside `max_connections` less the server's
   reserved slots — a human row on `OVR-19`, since only the deployment sees the whole — and the
   engine reads `max_connections` at startup and refuses to run where its own pool plus the lock
-  connection does not fit.
-- **A pooler in transaction mode MAY front the pools only on two conditions.** `STO-7`'s
-  connection-scoped settings are applied to the database role, not by a per-connection `SET`, since
-  a later transaction may run on a different backend; and the startup-lock connection connects to
-  PostgreSQL directly — a session-scoped advisory lock does not survive transaction pooling.
-  `LDG-35`'s transaction-scoped locks, `STO-12`'s migrator lock and `SET LOCAL synchronous_commit`
-  are compatible. `CNF-56`'s fresh-checkout assertion MUST force a backend reassignment where a
-  pooler is present.
+  connection does not fit. During a stall, backends left waiting by an exited process or a dead
+  transport hold slots outside this `max_connections` account (`pv-oehp`).
+- **No pooler in transaction mode fronts the pools** (*amended 2026-10-23, `ADR-0045`; until then one "MAY front the pools only on two conditions"*): behind one, a crash of the primary ends its backends but not the component's connection to the pooler, so `STO-7`'s new-connection check would never run.
 
 *Why no ADR: pool sizes and admission bounds are configuration, so the hard-to-reverse test fails,
 and two independent readers said so; `LDG-65` is the set's precedent for recording a reversible
 decision without one. What was found beside it — the engine's worker count and `LDG-37`'s cadence
 on no register — is a defect of `OVR-19`'s own rule, and both rows are added.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S3 “B: check each new connection (Recommended)”; `ADR-0045`): removed the synchronous-commit cap, recorded residual backends, and excluded transaction-mode pooling.*
 
 ## Schema
 
@@ -1316,7 +1335,7 @@ not mention them — the failure class this document's own scope note exists to 
 
 **STO-56** **`restore_incidents`** — `id`, `restore_instant`, `steps_completed` (0 to 3),
 `grace_ends_at`, nullable (*added 2026-09-25, `ADR-0028`*), and `closed_at`, nullable. One row per
-restore (`STO-54`), written into the restored store before either component is started and closed
+restore (`STO-54`), written into the restored or promoted store before either component is started and closed
 by the operator; at most one row may have `closed_at` null, a partial unique index over the table.
 Both components read the open row before anything else they do: it is what says a starting process
 is continuing an incident rather than restarting, and `steps_completed` is what says where to
@@ -1352,6 +1371,7 @@ again. An attach ordered after close MUST NOT reopen the incident and receives n
 *Amended 2026-10-03 (`ADR-0029`): withdrawn — "or its outage has reached `LDG-64`'s bound. The
 bound discharges that currency's grace obligation even if its rate never returns: no funding
 cancellation remains to protect past that bound." `ADR-0029` holds the decision and its argument.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): included the promoted store as a record destination.*
 
 ## Migrations
 
@@ -1397,7 +1417,7 @@ migration MUST be safe against a running instance of the previous release of bot
   that adds a value does not write it, and the release after may**;
 - DDL that takes `ACCESS EXCLUSIVE` MUST run under a stated `lock_timeout` and retry count
   (`OVR-19`), and index builds on `operations`, `ledger_entries` and `machines` MUST be
-  `CONCURRENTLY`, so that the time `api` queues behind a migration is bounded — the table lock
+  `CONCURRENTLY`, so that the time `api` queues behind a migration is bounded, except while that DDL's commit waits for a standby (`STO-7`) — the table lock
   still queues every later statement on that table behind it while held. A `CONCURRENTLY` build
   cannot run inside a transaction, so it is its own migration under `STO-12`'s non-transactional
   rule, not a statement inside a transactional one.
@@ -1435,6 +1455,7 @@ contract step, and the migration MUST declare that order (`ADR-0024`: "Stop ever
 start everything. The degenerate case, and the right one for the shared-predicate class.").
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): specified the conservative one-time backfill and its stop-everything order; `ADR-0042`.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): excepted standby waits from the migration queue bound.*
 
 ## Retention and encryption
 
@@ -1471,17 +1492,30 @@ revoked in Δ is live again (`API-56`), a `queued` create that already ordered i
 (on a restart `OPS-15` inspects `running` rows only), and a `suspend_tenant` parent restored
 unsettled re-runs a fan-out the operator may have reversed. So:
 
-- **Durability posture.** The deployment runs asynchronous streaming replication and continuous
+- **Durability posture.** The deployment runs synchronous streaming replication to two standbys (`STO-7`) and continuous
   WAL archiving, and states a **recovery point** — the greatest age of a committed write not yet in
   a separate failure domain — as a human row on `OVR-19`, with its alarm threshold a
   startup-validated value alarmed on `OVR-18`'s model. The number is not the safety argument: a
   create dispatches in one second, a deposit mints in one, an extension lands in one. The
   procedure's order below is.
-- **Synchronous commit is bought for the two writes with no second truth.** `STO-7` requires
-  `SET LOCAL synchronous_commit = on` inside the deposit mint and `STO-30`'s payment-credit
-  transaction, against a named standby, and `local` everywhere else. Synchronous commit on every
-  write was rejected because PostgreSQL has no server-side timeout for the standby wait, which
-  would make `OPS-49`'s lost reply the steady state on every write (`ADR-0023`).
+- **Promoting the standby that holds every acknowledged commit is a restart** (*added 2026-10-23, `ADR-0045`*).
+  After every engine and `api` process connected to the old primary has stopped, both standbys `OVR-19` names
+  report the end of the WAL each has flushed on the old primary's timeline, and the one further ahead is promoted: every acknowledged commit was
+  flushed by one of them, and both hold a prefix of one WAL sequence, so that one holds them all and its promotion
+  loses none. The
+  engine comes up on it under `STO-5`'s restart rule, unless a restore record (`STO-56`) is open there, in which case a process that starts is
+  continuing that incident (below). Before any component connects to the promoted store, the deployment MUST stop
+  every engine and `api` process that was connected to the old primary, and the old primary MUST NOT serve a
+  component again: it may hold commits the standby lacks ("Some transactions may not show as committed on the
+  standby, even though they show as committed on the primary"), so it rejoins only as a standby of the promoted
+  store. `OVR-19` then names the other standby and the rejoining old
+  primary, and writes continue once the other standby streams from the promoted store. Any other promotion —
+  without both standbys' report, with a report on another timeline, or of the one not further ahead, of a standby `STO-7` does not name, or after the primary committed without one of them, served a component before it had caught
+  up, or had a waiting backend cancelled or terminated (`STO-7`) — is a restore: the procedure below runs on it, and
+  `STO-56`'s record is committed into the promoted store before either component is started.
+  Only an operator starts a
+  promotion that is a restore: an automatic failover promotes only as a restart, and otherwise leaves the store
+  without a primary until both standbys report or an operator decides.
 - **The procedure, in this order.** (1) *Before the startup lock:* the public listener is down;
   the lost window `T − Δ` is stated as a number and published to the operator; exactly five
   things are frozen, because starting either component to reconcile starts everything it hosts —
@@ -1585,3 +1619,4 @@ restore goes to `needs_reconciliation` with its `OPS-45` markers as the backup h
 null marker there does not mean the disk is untouched and the operator resolves such a row as
 ambiguous — and `WIR-9a` renders both wire keys `unknown` on such a row for the same reason
 (*2026-09-16*); `LDG-72`'s checks pass on a consistent restore and prove nothing about it.*
+*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): adopted the synchronous posture and classified promotions by WAL history with operator choice for a restore.*
