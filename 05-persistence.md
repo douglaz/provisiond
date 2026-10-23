@@ -139,7 +139,7 @@ write-ahead logging, which are the withdrawn engine's pragmas. On PostgreSQL the
 `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`, the isolation level and
 `search_path` — an entirely different configuration reached by the identical defect (`ADR-0015`).*
 
-**Two rules about the connection follow** (added 2026-09-12, `ADR-0022`). The client-side deadline
+**Rules about the connection follow** (added 2026-09-12, `ADR-0022`). The client-side deadline
 on any store call MUST NOT be shorter than the server-side timeouts above, so that the server
 decides a statement's fate before the client gives up and a lost reply is only ever a dead
 transport (`OPS-49`). A standby wait has no server-side timeout and is excluded from that call's

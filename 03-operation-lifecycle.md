@@ -360,9 +360,10 @@ pass is needed; nothing but a restart can leave a `running` row with no worker b
 `ADR-0023`). "Any `running` row at startup is interrupted" is true after a crash and false after a
 restore, where the row may have settled at the provider inside the lost interval — and a `queued`
 row, which this pass never inspects, may already have run. So on a restore (`STO-54`) the pass
-additionally moves every `queued` create, install and rescue inventory to `needs_reconciliation`,
-guarded on `(id, status = queued)`, with an `internal` error naming the restore: a repeat is a
-second order, a second disk write or a second boot into rescue, and `OPS-27` establishes what
+additionally moves every `queued` create, install and rescue inventory to `needs_reconciliation`
+while `STO-54`'s step (2) is unmarked, guarded on `(id, status = queued)`, with an `internal`
+error naming the restore: a repeat is a second order, a second disk write or a second boot into
+rescue, and `OPS-27` establishes what
 happened rather than doing it again. The goal-state kinds — delete, power, end-rescue, release
 attachment, reverse DNS — stay `queued` and re-run, because `OPS-11` classifies "already in the
 target state" as `succeeded`. And the `suspend_tenant` exception below does not fire on a restore while `STO-54`'s freeze holds it off:

@@ -265,7 +265,7 @@ def irreversible : Kind → Bool
 
 /-- The dated amendments this module carries. `quarantineOnRestore`: `OPS-15`, 2026-09-12, "on a
 restore (`STO-54`) the pass additionally moves every `queued` create, install and rescue inventory
-to `needs_reconciliation`". `exceptionFrozen`: `OPS-15`, 2026-09-12, "the `suspend_tenant`
+to `needs_reconciliation`". `exceptionFrozen`: `OPS-15`, 2026-09-12, bounded 2026-10-23, "the `suspend_tenant`
 exception below does not fire on a restore while `STO-54`'s freeze holds it off". `bumpOnRestore`: `STO-54`, 2026-09-12, "every
 tenant's credential generation is bumped". `twoPassAbsence`: `STO-54`, 2026-09-12, "The first pass
 may record nothing about absence". `recordDecidesBoot`: `STO-54`, 2026-09-20, "a process that
@@ -307,7 +307,8 @@ structure World where
   locked           : Bool
   /-- `OPS-15`'s running-row pass done by this process; a crash clears it. -/
   passDone         : Bool
-  /-- Step (2) done, a durable mark of the restore record; a crash keeps it. -/
+  /-- Step (2) done: on a restore, a durable mark of the restore record; the first startup pass also
+  sets it on a restart. A crash keeps it. -/
   stepTwoMarked    : Bool
   /-- Step (3) done, a mark of the record, and `grace_ends_at` written in the same transaction
   (`STO-56`). -/

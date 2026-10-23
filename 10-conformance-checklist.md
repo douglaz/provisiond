@@ -1007,7 +1007,7 @@ takes the machines *and* the float" partly false.
       take a backup, then in the lost interval extend a machine's runway from balance, revoke a
       spending token, let a `queued` create order and a `queued` raw-disk install write, and let
       the parent settle and the tenant resume; restore, and run `STO-54`'s procedure in its stated
-      order, killing the engine twice: once after the record is committed and before step (2)'s mark
+      order, killing the engine once after the record is committed and before step (2)'s mark
       commits, and once after step (3)'s (added 2026-09-20, `ADR-0023`). Before it, claim a create and a power operation. Assert the
       successor, before any claim, moves both to `needs_reconciliation` and leaves a create queued after step (3)
       `queued`, and that a delete queued on the power operation's machine is then claimed. Again after
