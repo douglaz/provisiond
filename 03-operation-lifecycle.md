@@ -373,15 +373,15 @@ not claimed, since the fan-out it would resume may have been reversed inside the
 **What puts the pass on that branch is a record, not an operator's knowledge** (added 2026-09-20,
 `ADR-0023`). `STO-54` says "a process that starts while a restore record is open is continuing that
 incident, not restarting", so the successor of a process that died inside the procedure takes the
-restore branch, with the rest of the procedure it inherits.
+restore branch, with the rest of the procedure it inherits. *Until then the branch had no
+predicate: a crash between the restore landing and this pass left the successor reading the
+paragraph above, which is the naive boot `ADR-0023` is written against.*
 **The pass over `running` rows runs at every startup, the record open
 or not.** `OPS-5` says a `running` operation "stays claimed until it settles, defers under `OPS-8`, or the
 startup pass finds it (`OPS-15`)", and a dead worker does neither of the first two. A marked step (2) keeps only
 its own work from running again (`STO-54`). While the record is open the create exception stays off, so a
 create found `running` goes to `needs_reconciliation`, and a `suspend_tenant` parent follows the restore rule
-above. *Until then the branch had no
-predicate: a crash between the restore landing and this pass left the successor reading the
-paragraph above, which is the naive boot `ADR-0023` is written against.*
+above.
 
 **A `refresh` found `running` at startup MUST be settled `failed`** — the same guarded write as
 above (`STO-3`), with an `internal` error naming the restart, the nearest of `DOM-17`'s kinds —
