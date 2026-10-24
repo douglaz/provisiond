@@ -224,10 +224,15 @@ not optional hardening — they are the only structural defence there is.
       is *total*: every error kind in `DOM-17` has a defined classification for every operation
       kind, with no implicit default; exercise the create row on both sides of its step-9 boundary. **Amended 2026-10-08 (`ADR-0035`):** vary known acceptance
       across both Boolean values for driver errors, and exercise unknown acceptance as null with
-      the mutating request's own mapped failure kind (`CNF-322`). On the create row after step 9 begins and on the last row, `OPS-11` says
+      the mutating request's own mapped failure kind (`CNF-322`). On the create row after step 9 begins and in the last row's "Otherwise" branch, `OPS-11` says
       "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`"; assert that a
-      pre-send `network` failure (for create, from a step-9 call) yields `needs_reconciliation` despite `details.accepted: false`;
-      null supplies no extra classifier condition. Admission-only inputs remain pre-provider,
+      pre-send `network` failure (for create, from a step-9 call;
+      on the last row, inside a dispatched call with the write-started marker set) yields
+      `needs_reconciliation` despite `details.accepted: false`;
+      null supplies no extra classifier condition. On the last row, for each of power, reverse DNS,
+      delete and release attachment, assert that a cut-off `conflict` and an engine `internal`
+      recorded before the write-started marker write settle `failed`.
+      Admission-only inputs remain pre-provider,
       with acceptance false. At admission, a local `PRV-40` closure is a pre-provider refusal
       with no operation to classify; at claim it settles the queued operation `failed`
       (`CNF-283`); a driver-emitted `rate_limited` remains in the classifier,
@@ -236,6 +241,7 @@ not optional hardening — they are the only structural defence there is.
       *Amended 2026-10-09 (`ADR-0036`): local closure is a refusal occurrence without an operation.*
       *Amended 2026-10-14 (`ADR-0037`, Q31).*
       *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): covered the create boundary and retained step-9 pre-send ambiguity.*
+      *Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): scoped the last row's pre-send case to a dispatched call with the marker set, added pre-marker `failed` cases, and limited the ambiguity quotation to the fallback branch.*
 - [ ] **CNF-32** — Nothing in the system retries an ambiguous mutation. Assert by counting
       driver invocations across a failure scenario. (`OPS-12`, `SEC-27`)
 - [ ] **CNF-33** — An operation is executed correctly after a full process restart between
@@ -1612,7 +1618,8 @@ rather than acquiring a default.
       with `details.reason: "cut_off"` on every record write of a cancellation of `execute` but the parent's defer: a create before step 9, and an
       install or rescue inventory before the write-started marker with no rescue session open,
       settle `failed`; refresh settles `failed`; an install past the marker enters
-      `needs_reconciliation`; power, reverse DNS, delete and release attachment stopped during
+      `needs_reconciliation`; power, reverse DNS, delete and release attachment cut off before
+      their write-started marker write settle `failed`; power, reverse DNS, delete and release attachment stopped during
       their provider call after dispatch, other than a delete's direct read after an accepted
       dated cancellation, enter `needs_reconciliation`.
       Assert the create before step 9 carries `retryable: true` on error and view, and each
@@ -1658,12 +1665,15 @@ rather than acquiring a default.
       `OPS-21` says "Where the row reads `OPS-45`'s markers, the record MUST classify against the markers its own transaction reads, since a marker write whose reply was lost may have committed."
       After a first attempt that committed with its reply lost, assert `needs_reconciliation`;
       after one the store refused, assert `failed`. In both, assert no rebuild call is dispatched.
-      This item is the only check of this case; no formal model reaches it.
+      Stop a delete while `OPS-49` repeats its write-started marker write, with the store working
+      again before the Stop-record bound ends. After a first attempt that committed with its reply
+      lost, assert `needs_reconciliation`; after one the store refused, assert `failed`. In both,
+      assert no provider call is dispatched.
+      This item is the only check of these cases; no formal model reaches it.
       **Validation:** startup refuses a missing, zero, negative or non-finite Stop-record bound;
       verify the supervisor allows at least that duration after the stop.
       **Control:** a kill at the same instant writes nothing; a create with `about_to_order_at`
-      set enters `needs_reconciliation` on restart. Make no assertions about power, reverse DNS,
-      delete or release attachment stopped before dispatch (`pv-9j6`).
+      set enters `needs_reconciliation` on restart.
       **After `execute` returns:** in each case the engine survives the stop and the store
       works before the Stop-record bound ends, unless the case says otherwise.
       `OPS-21` says "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation."
@@ -1733,6 +1743,7 @@ rather than acquiring a default.
       *Amended 2026-10-20 (`pv-ay3`): added the waiting parent stopped after `execute` returns, its guarded defer without error, and resumption without duplicate children.*
       *Amended 2026-10-20 (`pv-gq8`): added a later stop before the first transaction of each record and during the cut-off record's whole-transaction loop, with a still-running row and restart recovery; the before-first-transaction cases send no transaction.*
       *Amended 2026-10-21 (`pv-oes`): added a later stop with each record's transaction in flight; no transaction after it, and either outcome of the one sent.*
+      *Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): added pre-marker `failed` cases and a delete stopped during marker-write repeats, and removed the control's `pv-9j6` exclusion.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the

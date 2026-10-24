@@ -3101,6 +3101,17 @@ theorem host_key_abort_witness :
     classify { currentRules with markerRule := false } .install abort ⟨false, true⟩ =
       some .needsReconciliation := by decide
 
+/-- `pv-9j6`: a delete cut off before its write-started marker records a cut-off `conflict`.
+Under the marker rule it settles `failed`; without it the last row read it as ambiguous and sent
+it to an operator. With the marker set it stays `needs_reconciliation`. -/
+@[req "OPS-11"]
+theorem predispatch_cutoff_delete_witness :
+    let cut : Failure := ⟨.conflict, true, .unrecorded, false, false, false⟩
+    classify currentRules .deleteMachine cut ⟨false, true⟩ = some .failed ∧
+    classify { currentRules with markerRule := false } .deleteMachine cut ⟨false, true⟩ =
+      some .needsReconciliation ∧
+    classify currentRules .deleteMachine cut ⟨true, true⟩ = some .needsReconciliation := by decide
+
 /-- `OPS-11`'s 2026-08-31 amendment: `DELETE` against an already-deleted resource answers `422`,
 which the driver maps as the goal state holding. With the row it is `succeeded`; without it, a 4xx
 was "the provider rejected the request and did not act" and the delete that succeeded was recorded
