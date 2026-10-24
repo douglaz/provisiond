@@ -20,7 +20,8 @@ the classification row with that owner.
 
 ## Decision
 
-Adopt panel r64b's classification with the last row's acceptance exclusion, without the optional clause asserting `CNF-31a` in both directions. `OPS-11`'s last row owns the classification
+Adopt panel r64b's classification with the last row's acceptance exclusion, without the
+optional `CNF-31a` clause asserting both directions. `OPS-11`'s last row owns the classification
 pointer: "Subject to the goal-state success rule, any failure the worker records while
 `OPS-45`'s write-started marker is unset" and "MUST settle `failed`, whatever its kind". Its
 acceptance exclusion is "unless the mutation is known to have been accepted (`details.accepted`
@@ -36,5 +37,6 @@ amended row; the persistence description drops its duplicate classification clai
 - **Narrow `OPS-45` and the persistence description instead.** This was the bead's "If it does
   not" reading. The owner chose "Yes, settle failed (Recommended)"; the existing marker rule
   stays with its owner.
-- **An optional clause asserting `CNF-31a` in both directions.** Panel r64b rejected this option (0–4); the last row's acceptance exclusion was accepted
-  (4–0). The existing `CNF-31a` stays unchanged.
+- **An optional `CNF-31a` clause asserting both directions.** Panel r64b rejected this option
+  (0–4); the last row's acceptance exclusion was accepted (4–0). The existing `CNF-31a` stays
+  unchanged.
