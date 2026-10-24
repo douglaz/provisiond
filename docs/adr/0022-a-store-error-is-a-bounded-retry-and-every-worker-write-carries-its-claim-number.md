@@ -83,6 +83,8 @@ by any path". A create deferred once read `2`.
   short-circuits the rest, so `OPS-27`'s multi-row create settlement and the meter's
   debit-plus-decrement-plus-total (`STO-28`, `STO-45`) repeat as a unit or not at all. `OPS-22`'s
   zero-row clause keeps its single meaning: someone else moved it.
+  *2026-10-24: `ADR-0047` changes this order; `OPS-50`'s generation read precedes the guarded
+status write.*
 - **Every worker write carries the claim number.** `operations.attempts` becomes
   `operations.claim_number` — added and backfilled in one release, dropped in the next, under
   `ADR-0024`'s rule that a rename is a contract step; the atomic claim (`OPS-5`) increments it and returns it, and every
@@ -90,7 +92,8 @@ by any path". A create deferred once read `2`.
   — `OPS-5` says select-and-mark is "one indivisible step" — and does not advance it. The number
   identifies a claim; it bounds nothing, routes nothing, is not an attempt count, and is not a fence
   against a second engine: `OPS-47`'s "where two engines run, nothing here refuses the second"
-  stays true. The startup pass and the resolution writes do not carry it, on `OPS-3`'s scoping
+  stays true. *2026-10-24: `OPS-47` no longer says this; an earlier engine's writes are refused
+once a later engine's pass advances the generation (`ADR-0047`, `OPS-50`).* The startup pass and the resolution writes do not carry it, on `OPS-3`'s scoping
   argument — they are made by no execution.
 - **The defer write is `STO-3`'s fifth guarded write**, on `(id, status = running, claim_number =
   mine)`, and its zero-row meaning is "already deferred or already re-claimed; move on" — not

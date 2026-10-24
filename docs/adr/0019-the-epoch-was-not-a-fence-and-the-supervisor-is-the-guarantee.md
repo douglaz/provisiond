@@ -55,8 +55,15 @@ with nowhere to carry the value.
 - **The engine verifies at boot that it is alone** (`OPS-47`, `STO-51`). Before any claim it MUST
   take a session-scoped advisory lock on a connection outside the pool and hold it for its lifetime.
   Where the lock is refused it MUST retry for a stated bounded period and then exit non-zero having
-  done no work; where the connection carrying it is lost it MUST exit. The bound and the keepalive
+  done no work; where the connection carrying it is lost, the engine MUST, from the moment it detects the loss,
+log loudly that the lock connection was lost, claim nothing more and begin no periodic pass,
+treat the loss as a stop of every worker not already recording one, record each under `OPS-21`
+within its Stop-record bound, subject to its exits, and then exit non-zero. The loss is not a
+later stop: a record already pending when the loss is seen continues under its own Stop-record
+bound and exits. The bound and the keepalive
   settings on that connection are deployment parameters (`OVR-19`).
+
+*2026-10-24: `ADR-0047` records this amendment to the lock-loss clause (`OPS-47`).*
 - **The lock is not a fence, and the requirement says so in those words.** No write is guarded on
   it, holding it proves nothing about the past, and losing it invalidates nothing already written.
   It answers one question, once, at boot: is somebody else already here. Naming the limit is what
@@ -79,6 +86,9 @@ own retry, where `OVR-18`'s alarm is already watching.
 statement, at the only point a superseded process re-enters the system; everything it already holds
 is caught by the existing sweep. Correct, and cheap. Rejected because it buys a defence for the case
 this ADR puts out of scope, and keeps a column, a counter and a guard term alive to do it.
+
+*2026-10-24: `ADR-0047` reopens this option and adopts it, widened to every engine write
+(`OPS-50`, `STO-59`).*
 
 **Keep the epoch as a cheap tripwire.** Rejected because it cannot fire: the status term fails
 first in every path the worker algorithm takes, so a refused write would never be the thing that

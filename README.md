@@ -115,6 +115,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0044` | A survived stop records `execute` within a bound |
 | `0045` | Every commit waits for a standby, and promotion follows WAL history. Amends `0022`, `0023` and `0042` |
 | `0046` | Existing-machine failures before the write-started marker settle `failed` |
+| `0047` | A lost startup-lock connection is a stop the engine records, and every engine write checks a startup generation that a later startup pass replaces; a mismatch exits. Adopts the option `0019` rejected; amends `0022` |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
@@ -293,17 +294,15 @@ requirement identifier.*
 Nothing in this specification assumes a particular language or HTTP framework, and
 `02-provider-contract.md` "deliberately does not give a signature in any language."
 
-**The database engine is no longer open**: it is PostgreSQL (`ADR-0015`, 2026-09-06).
-That was always the one choice with architectural consequences — the reference
-implementation used Rust, an async HTTP framework and SQLite, and only the last of
-those reached the requirements. `05-persistence.md` still states what the store must
-provide rather than how, so a reimplementation is free to satisfy `STO-1`–`STO-7`
-another way; what it may not do is satisfy them on an engine that forbids a second
-`api` replica. `api` is the module that scales; the engine is deliberately one
-supervised process (`ADR-0016`), and its outage window is alarmed rather than
-replicated away (`OVR-18`). That the process is one is, in `OPS-47`'s words, "a
-deployment obligation and not a property this specification enforces"
-(`ADR-0019`).
+**The database engine is no longer open**: it is PostgreSQL (`ADR-0015`, 2026-09-06). That was
+always the one choice with architectural consequences — the reference implementation used Rust,
+an async HTTP framework and SQLite, and only the last of those reached the requirements.
+`05-persistence.md` still states what the store must provide rather than how, so a
+reimplementation is free to satisfy `STO-1`–`STO-7` another way; what it may not do is satisfy
+them on an engine that forbids a second `api` replica. `api` is the module that scales; the
+engine is deliberately one supervised process (`ADR-0016`), and its outage window is alarmed
+rather than replicated away (`OVR-18`). That the process is one is, in `OPS-47`'s words, "a
+deployment obligation" (`ADR-0019`); `OPS-50` refuses a superseded engine's writes (`ADR-0047`).
 
 ## Status
 

@@ -4729,4 +4729,19 @@ theorem without_reverse_dns_ceiling_pipeline_admits :
 
 end ProviderTraffic
 
+/-- The same queued row and generation mismatch, evaluated with the shipped check. -/
+@[req "OPS-50"]
+theorem superseded_claim_refused :
+    Claim.engineStep Claim.currentGenerationCheck 7 8 .idle
+      ⟨.queued, ⟨0⟩, 0, 0, none⟩ (.committed true) =
+      (⟨.queued, ⟨0⟩, 0, 0, none⟩, .exited) := by decide +kernel
+
+/-- With the generation check removed, that same engine claims a queued operation after the
+advance; its row changes and it holds the new claim number. -/
+@[req "OPS-50"]
+theorem superseded_commits_without_check :
+    Claim.engineStep false 7 8 .idle
+      ⟨.queued, ⟨0⟩, 0, 0, none⟩ (.committed true) =
+      (⟨.running, ⟨1⟩, 0, 1, none⟩, .holding ⟨1⟩) := by decide +kernel
+
 end Provisiond.Witnesses

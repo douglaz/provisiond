@@ -12,6 +12,10 @@ acceptable only if the write is guarded by the row's prior state and the guard i
 engine, not by application code. *The number is not the epoch: it is rewritten by a later claim of
 the same row, which is a writer other than the one being guarded (`OPS-6`).*
 
+For the claim transaction's startup-generation check, see `OPS-50`.
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the claim transaction’s generation-check pointer.*
+
 **STO-3** **AMENDED 2026-09-12 (`ADR-0022`) — the worker's guard carries the claim number and
 admits its own repeat; the defer is the fifth guarded write and the restore quarantine the
 sixth.** Six conditional writes move an operation, and each MUST report whether it affected a row
@@ -26,8 +30,8 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   matching execution — so a repeat after a lost reply (`OPS-49`) affects one row and changes
   nothing; `revision` and `updated_at` advance only on the first branch, which keeps `API-53`'s
   "strictly increases on each client-visible modification" true. **The guarded status write
-  precedes every money write in the transaction and short-circuits the rest** — after `LDG-35`'s
-  primitive is taken where the settlement needs it, since that lock is the transaction's entry —
+  precedes every money write in the transaction and short-circuits the rest** — after `OPS-50`'s generation read and then `LDG-35`'s primitive where the settlement needs it,
+  since those locks, in that order, are the transaction's entry —
   so `OPS-27`'s multi-row settlement repeats as a unit or not at all.
   This includes the create row's worker settlement (`OPS-11`: "MUST settle `failed`, whatever its kind"): take the `LDG-35` primitive, make this guarded status write, then release under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full"). It adds no `about_to_order_at IS NULL` term.
   A write that affects no row means something other than this execution moved the operation —
@@ -45,8 +49,8 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   `needs_reconciliation`, or `failed` for a `refresh` (`ADR-0020`) and, on a restart,
   for the create exception (`OPS-15`: "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.") — guarded on
   `(id, status = running)`, with `(kind = create, about_to_order_at IS NULL)` additionally inside
-  the create settlement's conditional write, and carrying **no claim term**: it is made by no execution. It runs
-  before the process makes any claim, so nothing contends with it.
+  the create settlement's conditional write, and carrying **no claim term**: it is made by no execution. It runs after `OPS-15`'s generation advance and before the process makes any claim, so no
+  earlier engine's write commits beside it (`OPS-50`).
 - **Resolution out of `needs_reconciliation`** is not a worker write (`OPS-3`): it is guarded on
   `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s write-once rule
   expressed as the same kind of conditional write. *Unscoped, this requirement forbade every
@@ -73,6 +77,8 @@ whole-transaction repeat after a lost reply affects one row and changes nothing"
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): included the create startup guard and step-8 worker write; the latter moves no status, and its repeat advances neither `revision` nor `updated_at`.*
 
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): amended transaction entry and startup ordering.*
+
 **STO-4** The store MUST enforce uniqueness of `(scope_kind, scope_id, key)` on `STO-35`'s
 `idempotency_records` — the tenant or the operator identity as the scope (`API-10`). *"Of
 `(tenant_id, idempotency_key)`" until 2026-09-05, a fourth home for the tenant-only scope after
@@ -86,15 +92,27 @@ an interval, and `STO-54` is what governs bringing the engine up on it (`ADR-002
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): added the promotion-classification pointer.*
 
 **STO-51** **AMENDED 2026-09-08 (`ADR-0019`) — the epoch row is deleted; a startup lock replaces
-it and is not a fence.** The store MUST provide a **session-scoped advisory lock** on a fixed key,
-released when its session ends, which the engine takes before any claim and holds for its lifetime
-(`OPS-47`). It carries no row and guards no write: it fails a second engine's *startup*, and says
-nothing about any write that already happened. It MUST enforce at most one `running` operation
-per machine that is not yielded (`OPS-8`) — a partial unique index over `operations(machine_id)
-WHERE status = 'running' AND yielded_at IS NULL`. The index is what makes per-machine serialization
-a property the store checks rather than a promise the engine keeps: a re-acquire that clears
-`yielded_at` while another `running` operation holds the machine affects no row, and the engine
-defers it (`OPS-8`).
+it and is not a fence.** The store MUST provide a **session-scoped advisory lock** on a fixed
+key, released when its session ends, which the engine takes before any claim and holds for its
+lifetime (`OPS-47`). It carries no row and guards no write: it fails a second engine's
+*startup*, and says nothing about any write that already happened. The fence is `STO-59`'s
+generation (`OPS-50`). It MUST enforce at most one `running` operation per machine that is not
+yielded (`OPS-8`) — a partial unique index over `operations(machine_id) WHERE status = 'running'
+AND yielded_at IS NULL`. The index is what makes per-machine serialization a property the store
+checks rather than a promise the engine keeps: a re-acquire that clears `yielded_at` while
+another `running` operation holds the machine affects no row, and the engine defers it
+(`OPS-8`).
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the startup-generation fence pointer.*
+
+**STO-59** **ADDED 2026-10-24 (`ADR-0047`) — the startup generation is one row, and generation
+choices are fresh.** The store MUST hold exactly one row carrying the **startup generation**.
+`OPS-15`'s startup pass replaces it with a fresh random UUID (`gen_random_uuid()`) in a
+transaction of its own. It is not a counter and is never compared for order: every check is
+equality (`OPS-50`). Every startup advance MUST choose a random UUID distinct from the values
+chosen by earlier startup advances, including choices whose effects a restore removed.
+Reinstating a backed-up value is not a new generation choice. This row is the fence `STO-51`'s
+lock is not.
 
 ### Engine choice
 
@@ -105,15 +123,17 @@ choice.
 
 **STO-6** **AMENDED 2026-09-08 (`ADR-0016`) — the engine is one process and that is accepted;
 `api` is what replicates.** `engine` runs as exactly one supervised process (`OPS-47`). That
-process is a single point of failure for every mechanism that stops a machine billing — `LDG-14`'s
-exhaustion cancellation, `SEC-45`'s one-action suspension and `OPS-32`'s account sweep, whose interval `LDG-74` says "MUST be stated as a customer-billing residual" — and the supervisor's restart window is the accepted outage, alarmed under `OVR-18`.
-`api` MAY run as any number of replicas against the shared store. **A deployment MUST NOT run its
-store on an engine that forbids a second `api` replica**, and the primitives the store provides for
-that are `STO-1`'s engine-checked atomic claim, `STO-51`'s per-machine index and startup lock,
-`STO-47`'s conditional write (`STO-27`), `STO-27`'s "conditional-write claim on
-`(provider_account, ordering_channel, offer_id)`", and `LDG-35`'s per-tenant serialization.
-*Amended 2026-10-10 (`ADR-0036`): the primitive inventory now includes the shared
-resource-offer exclusion.*
+process is a single point of failure for every mechanism that stops a machine billing —
+`LDG-14`'s exhaustion cancellation, `SEC-45`'s one-action suspension and `OPS-32`'s account
+sweep, whose interval `LDG-74` says "MUST be stated as a customer-billing residual" — and the
+supervisor's restart window is the accepted outage, alarmed under `OVR-18`. `api` MAY run as any
+number of replicas against the shared store. **A deployment MUST NOT run its store on an engine
+that forbids a second `api` replica**, and the primitives the store provides for that are
+`STO-1`'s engine-checked atomic claim, `STO-51`'s per-machine index and startup lock, `STO-47`'s
+conditional write (`STO-27`), `STO-27`'s "conditional-write claim on `(provider_account,
+ordering_channel, offer_id)`", and `LDG-35`'s per-tenant serialization. For the
+startup-generation row and its `FOR SHARE` read, see `STO-59` and `OPS-50`. *Amended 2026-10-10
+(`ADR-0036`): the primitive inventory now includes the shared resource-offer exclusion.*
 
 **`LDG-35`'s "MUST state which" is discharged in `ADR-0015`**: per-tenant advisory locks held for
 the transaction, acquired in ascending tenant-identifier order where one transaction spans two
@@ -130,6 +150,8 @@ that committed after a higher sequence was already read. **This is no longer a h
 possible engine — it is a property of the store this set has chosen**, so a feed built later owes a
 cursor correct under out-of-order commit rather than a bare sequence. Recorded because `STO-27`
 exists precisely because a primitive was once left off this list.*
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the startup-generation primitive pointer.*
 
 **STO-7** Connection-scoped settings MUST be applied to *every* pooled connection, not once at
 migration time. Applying them inside a migration affects only the connection that ran the
@@ -1516,7 +1538,10 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   Only an operator starts a
   promotion that is a restore: an automatic failover promotes only as a restart, and otherwise leaves the store
   without a primary until both standbys report or an operator decides.
-- **The procedure, in this order.** (1) *Before the startup lock:* the public listener is down;
+- **The procedure, in this order.** *Before the restore begins,* the deployment MUST stop every
+engine and `api` process, and MUST start neither component until the transaction that commits
+`STO-56`'s record (below) has been acknowledged (*added 2026-10-24, `ADR-0047`*). (1) *Before
+the startup lock:* the public listener is down;
   the lost window `T − Δ` is stated as a number and published to the operator; exactly five
   things are frozen, because starting either component to reconcile starts everything it hosts —
   the exhaustion sweep, `LDG-64`'s canceller, `API-34`'s time-to-live sweep, `STO-14`'s and
@@ -1621,3 +1646,5 @@ ambiguous — and `WIR-9a` renders both wire keys `unknown` on such a row for th
 (*2026-09-16*); `LDG-72`'s checks pass on a consistent restore and prove nothing about it.*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): adopted the synchronous posture and classified promotions by WAL history with operator choice for a restore.*
 *Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): distinguished step (2)’s durable mark from the per-startup running-row pass.*
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decision “I don't think we should tolerate a gross operator mistake like restoring some backup with the system running”; `ADR-0047`): added the stopped-system restore lead-in.*

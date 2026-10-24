@@ -1508,17 +1508,14 @@ rather than acquiring a default.
 - [ ] **CNF-290** — **AMENDED 2026-09-08 (`ADR-0019`) — the restart drill, and the
       startup lock in place of a fence that was not one.** Kill the engine between a dispatch and
       its reply; restart it; assert the interrupted operation is `needs_reconciliation` (`OPS-15`)
-      and that the old process's late settled-state write affects **no row** and exits it
-      (`STO-3`, `OPS-22`). Then start a second engine against the same store while the first holds
+      and that the old process's late settled-state write commits nothing and exits it (`OPS-50`). Then start a second engine against the same store while the first holds
       the lock, and assert it does no work and exits non-zero after the stated bound (`OPS-47`,
       `OVR-19`); release the first and assert the second then starts. Then, with one non-yielded
       `running` operation on a machine, attempt a second claim against the same machine directly
       at the store and assert `STO-51`'s index refuses it **and that the refused operation's
       `claim_number` did not advance** (`OPS-6`, added 2026-09-12). *The withdrawn middle half asserted a
       stale `engine_epoch` write to a machine row affected no row, against a table that had no
-      such column and a guard that held by construction (`ADR-0019`). What this drill must not be
-      read to prove is that a second engine cannot write: `OPS-47` says "where two engines run,
-      nothing here refuses the second, and both will work the queue".* (`OPS-47`,
+      such column and a guard that held by construction (`ADR-0019`). For the dedicated generation-fence drills, see `CNF-367`–`CNF-370` (`OPS-50`).* (`OPS-47`,
       `STO-51`, `OPS-15`, `STO-3`, `ADR-0019`)
 - [ ] **CNF-358** — **A create interrupted around step 8 has a distinct restart outcome.**
       With an auction-channel descriptor and again with a standard-channel (`correlator: none`)
@@ -1611,6 +1608,50 @@ rather than acquiring a default.
       *Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): the terminated repeat
       asserts its reason and `retryable: false`.*
 
+- [ ] **CNF-366** — **A lost startup-lock connection is a stop of every worker, not a later
+      stop.** `OPS-47` says “The loss is not a later stop”. Keep the startup generation
+      unchanged throughout these cases; no successor or out-of-band writer advances it.
+      Terminate the lock connection's backend: (i) with no stop pending, while a non-parent
+      worker is in `execute`, outside `CNF-362`'s absorbed-read cases; (ii) with no stop
+      pending, while a create's after-return settle write repeats under `OPS-49`; (iii) while an
+      earlier stop's cut-off record repeats under `OPS-49`. For cases (i)–(iii) and (vi),
+      arrange that the record can land before either the Stop-record bound or the Store-retry
+      bound expires, with no later stop. Where a write repeats, the store refuses its
+      transactions until lock-loss detection and then accepts writes with sufficient time
+      remaining under both bounds. Assert: no claim and no periodic pass begins after the engine
+      detects the loss, as its loud log timestamps the detection; case (i) records a cut-off
+      `conflict` classified against its row (`OPS-11`); the settle write and the earlier record
+      land, the create `succeeded` with its money posted once; the engine exits non-zero only
+      after the records land. (iv) Deliver a stop after the engine detects the loss, before a
+      record lands: assert `CNF-362`'s later-stop assertions, including “Accept either outcome”.
+      (v) With every transaction a store error after the loss, assert exit within the
+      Stop-record bound measured from the stop being recorded (the loss as the engine sees it,
+      or the earlier stop), the loud log, and `OPS-15` at restart, including its exceptions.
+      (vi) Repeat `CNF-362`'s cases for a create past its confirming read, a delete past its
+      accepted dated cancellation, and a `suspend_tenant` parent at successive fan-out positions
+      and waiting on its children, with the loss as the stop and no stop pending, asserting
+      their `CNF-362` outcomes: no `needs_reconciliation` and no `cut_off` for the reads, the
+      defer with no error for the parent, and exit only after the settle write or defer lands.
+
+- [ ] **CNF-367** — In a separate run for each engine write path `OPS-50` lists, advance the
+      generation out of band (no second engine) after that engine's startup advance, then drive
+      the selected path: it commits nothing; the engine logs "superseded" and exits non-zero; no
+      transaction repeats.
+
+- [ ] **CNF-368** — With no engine holding `STO-51`'s lock, open a store session outside the
+      pool, with `idle_in_transaction_session_timeout` and `statement_timeout` disabled, that
+      reads `STO-59`'s row `FOR SHARE` and claims a `queued` operation, its transaction left
+      open. Start an engine: assert its generation write waits; commit the session; assert the
+      engine's sweep moves the claimed row to its `OPS-15` startup state.
+
+- [ ] **CNF-369** — As `CNF-368`, but hold the session past the Startup-lock wait bound: assert
+      the engine logs loudly and exits non-zero having claimed nothing, `STO-59`'s value is
+      unchanged, and the session's commit then succeeds.
+
+- [ ] **CNF-370** — Start an engine; back up; restart the engine; stop every engine and `api`
+      process; restore from that backup. Then start an engine on the restored store, and assert
+      that every value written by an advance is distinct.
+
 - [ ] **CNF-362** — **A stop the engine survives from a worker's `execute` until its settle write lands gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
       For each operation kind, stop the engine while its worker is in `execute`, outside the
@@ -1679,7 +1720,7 @@ rather than acquiring a default.
       `OPS-21` says "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation."
       `OPS-21` says "The settle write that records a stop after `execute` returns MUST NOT be cancelled or abandoned by that stop."
       `OPS-21` says "The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`."
-      `OPS-21` says "The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent inside `execute`."
+      `OPS-21` says "The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the superseded exit (`OPS-50`), the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent inside `execute`."
       Stop a create whose order was accepted and whose settle-time search and confirming read
       found exactly one machine, so that `execute` returned success: once before its settle
       write's first transaction, and separately during that transaction. Assert `succeeded`,
