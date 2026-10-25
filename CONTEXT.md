@@ -110,7 +110,7 @@ lease (withdrawn), claimant (withdrawn with the leases), execution (that is what
 not its name)
 
 **Startup generation**:
-the `STO-59` value each startup pass replaces; equality only; freshly chosen by each startup advance
+the `STO-59` value; see `OPS-15` and `OPS-50`
 
 **Retry**:
 An operator opening a fresh **attempt** under a `stalled` **episode** (`API-64`). Never automatic:

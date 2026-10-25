@@ -123,7 +123,7 @@ the procedure runs on it. No application-side restore check is added.
 The requirement homes carry the rules. The pointers in `STO-1`, `STO-6`, `OVR-17`,
 `ADR-0016` and `CONTEXT.md` lead to those homes. `CNF-366` exercises R; the generation-fence
 conformance items are `CNF-367`–`CNF-370`. They include a restarted engine after the backup,
-so a restored history has removed a generation choice.
+so a restored history has removed a generation choice. `CNF-370` says "Start an engine; back up; restart the engine".
 
 `Provisiond.Claim.engineStep` checks equality before a claim. Its Bool is separate from
 `Guards`, preserving the worker guard controls. `superseded_never_commits` proves refusal;

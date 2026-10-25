@@ -253,6 +253,7 @@ lock were deleted rather than fenced. **Two engines are a deployment fault the s
 "no write of the first commits once the second's startup pass has committed a new `STO-59`
 generation (`OPS-50`); provider calls the first already licensed still go out" (`ADR-0047`). The
 epoch that first claimed this was comparing a value against itself (`ADR-0019`).
+`ADR-0019` says "The value compared is the process's own."
 
 ## 5. The money model is the security model
 

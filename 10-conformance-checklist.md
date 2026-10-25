@@ -1625,7 +1625,7 @@ rather than acquiring a default.
       detects the loss, as its loud log timestamps the detection; case (i) records a cut-off
       `conflict` classified against its row (`OPS-11`); the settle write and the earlier record
       land, the create `succeeded` with its money posted once; the engine exits non-zero only
-      after the records land. (iv) Deliver a stop after the engine detects the loss, before a
+      after the records land. `OPS-11` says "the system MUST classify the error into `failed` or `needs_reconciliation` using the operation kind and the error kind". (iv) Deliver a stop after the engine detects the loss, before a
       record lands: assert `CNF-362`'s later-stop assertions, including “Accept either outcome”.
       (v) With every transaction a store error after the loss, assert exit within the
       Stop-record bound measured from the stop being recorded (the loss as the engine sees it,
