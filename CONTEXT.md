@@ -105,8 +105,12 @@ number**, which every write made by that execution carries: a later claim of the
 — after an `OPS-8` defer — gets the next number, and that is the only thing that tells the two
 executions apart while both rows read `running`. Not an **attempt**: an operation is one attempt
 however many times it is claimed. The number identifies a claim and counts nothing.
-_Avoid_: attempt, attempt count, generation, epoch (withdrawn), lease (withdrawn), claimant
-(withdrawn with the leases), execution (that is what a claim starts, not its name)
+_Avoid_: attempt, attempt count, generation (that is the startup generation), epoch (withdrawn),
+lease (withdrawn), claimant (withdrawn with the leases), execution (that is what a claim starts,
+not its name)
+
+**Startup generation**:
+the `STO-59` value; see `OPS-15` and `OPS-50`
 
 **Retry**:
 An operator opening a fresh **attempt** under a `stalled` **episode** (`API-64`). Never automatic:
@@ -525,6 +529,8 @@ all the work. Never reintroduce a guard whose compared value has a single writer
 thing being guarded — that is not a check, and it reads exactly like one. What replaced it is a
 lock taken once at boot, of which `OPS-47` says "**The lock is not a fence**", in its own text and
 for this reason.
+
+For the startup generation, whose row the next pass also writes, see `STO-59` and `OPS-50`.
 
 **"Claim" has one working sense and two it must not take.** Here it is the engine taking a queued
 operation (`OPS-5`), and **claim number** is that claim's per-operation number. It is *not* a

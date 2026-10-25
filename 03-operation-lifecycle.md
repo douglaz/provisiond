@@ -134,29 +134,42 @@ back to `queued`.
 
 **OPS-47** **AMENDED 2026-09-08 (`ADR-0019`) — the supervisor is the guarantee, and the engine
 checks at boot that it is alone.** The engine MUST run as exactly one process under an external
-supervisor that restarts it and never runs two. **That is a deployment obligation and not a
-property this specification enforces** (`OVR-19`): where two engines run, nothing here refuses the
-second, and both will work the queue. A supervisor guarantees it never *starts* two; it cannot
-guarantee the first is dead, so a node cut off from its supervisor while it still reaches the
-provider is out of scope and is the operator's to notice (`OVR-18`).
+supervisor that restarts it and never runs two. **That is a deployment obligation** (`OVR-19`).
+Where two engines run, no write of the first commits once the second's startup pass has
+committed a new `STO-59` generation (`OPS-50`); provider calls the first already licensed still
+go out. `OPS-50` says "Where the values differ, the transaction MUST roll back". A supervisor guarantees it never *starts* two; it cannot guarantee the first is dead, so
+a node cut off from its supervisor while it still reaches the provider is out of scope and is
+the operator's to notice (`OVR-18`).
 
 Before any claim the engine MUST take `STO-51`'s session-scoped advisory lock on a connection
 outside the pool and hold it for its lifetime. Where the lock is refused it MUST retry for the
-stated bound (`OVR-19`) and then exit non-zero having done no work; where the connection carrying
-it is lost it MUST exit. **The lock is not a fence**: no write is guarded on it, holding it proves
-nothing about the past, and losing it invalidates nothing already written. It answers one question,
-once, at boot — is somebody else already here — and a refusal is a misconfigured deployment, which
-is how two engines actually happen.
+stated bound (`OVR-19`) and then exit non-zero having done no work; where the connection
+carrying it is lost, the engine MUST, from the moment it detects the loss, log loudly that the
+lock connection was lost, claim nothing more and begin no periodic pass, treat the loss as a
+stop of every worker not already recording one, record each under `OPS-21` within its
+Stop-record bound, subject to its exits, and then exit non-zero. The loss is not a later stop: a
+record already pending when the loss is seen continues under its own Stop-record bound and
+exits. **The lock is not a fence**: no write is guarded on it (the generation is, `OPS-50`),
+holding it proves nothing about the past, and losing it invalidates nothing already written.
+`OPS-50` says "MUST read `STO-59`'s row `FOR SHARE` as its first statement". It
+answers one question, once, at boot — is somebody else already here — and a refusal is a
+misconfigured deployment, which is how two engines actually happen.
 
 *The withdrawn form guarded every engine write on an `engine_epoch` the claiming process had
 stamped itself, so the term held by construction and could not fire; `ADR-0019` has the analysis.
 A supervised restart is caught without it, by `OPS-15`'s startup pass and `STO-3`'s
 `status = running` term. The restart window is the accepted outage, and it is alarmed (`OVR-18`).*
 
-**OPS-5** **AMENDED 2026-09-08 (`ADR-0019`).** Claiming MUST be atomic: selecting the next eligible
-operation and marking it `running` MUST happen in one indivisible step, which also increments and
-returns the claim number (`OPS-6`). No claim carries a deadline; a `running` operation stays claimed until it
-settles, defers under `OPS-8`, or the startup pass finds it (`OPS-15`).
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): amended lock-loss handling and added the generation-fence pointer.*
+
+**OPS-5** **AMENDED 2026-09-08 (`ADR-0019`).** Claiming MUST be atomic: selecting the next
+eligible operation and marking it `running` MUST happen in one indivisible step, which also
+increments and returns the claim number (`OPS-6`). No claim carries a deadline; a `running`
+operation stays claimed until it settles, defers under `OPS-8`, or the startup pass finds it
+(`OPS-15`). The claiming step's transaction makes `OPS-50`'s generation check first. `OPS-50`
+says "MUST read `STO-59`'s row `FOR SHARE` as its first statement".
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the claiming transaction’s generation-check pointer.*
 
 **OPS-6** **AMENDED 2026-09-12 (`ADR-0022`) — the counter is the claim number, and it is what
 tells two executions of one operation apart.** The claim MUST select the oldest `queued` operation
@@ -166,17 +179,19 @@ worker that claimed it, and every write that worker makes to the operation MUST 
 `claim_number = mine` (`STO-3`). A claim the per-machine index refuses (`OPS-8`) never left
 `queued` and does not advance the number.
 
-The case the term exists for, stated so it can be checked: execution A defers the operation under
-`OPS-8`, its write commits and the reply is lost; execution B claims the row and the number
-advances; A repeats its defer under `OPS-49`. Both rows read `running`, so the status term passes,
-and the claim term is the only thing that refuses A's write. The value has a second writer that is
-not the write being guarded — the later claim — which is what separates it from the epoch
-`ADR-0019` deleted. **The number identifies a claim and nothing else**: it bounds nothing, routes
-nothing, is not an attempt count — an operation is one attempt (`OPS-2`), however many times it is
-claimed — and is not a fence against a second engine, of which `OPS-47` says "where two engines
-run, nothing here refuses the second". *Until 2026-09-12 the column was `attempts`, "Attempt
-count MUST be incremented on claim", which read as a count of the thing `CONTEXT.md` calls an
-attempt while `CNF-288` says a create has no second one by any path.*
+The case the term exists for, stated so it can be checked: execution A defers the operation
+under `OPS-8`, its write commits and the reply is lost; execution B claims the row and the
+number advances; A repeats its defer under `OPS-49`. Both rows read `running`, so the status
+term passes, and the claim term is the only thing that refuses A's write. The value has a second
+writer that is not the write being guarded — the later claim — which is what separates it from
+the epoch `ADR-0019` deleted. **The number identifies a claim and nothing else**: it bounds
+nothing, routes nothing, is not an attempt count — an operation is one attempt (`OPS-2`),
+however many times it is claimed — and is not a fence against a second engine; that is
+`OPS-50`'s generation check. `OPS-50` says "compare it for equality with the value the engine's own startup pass wrote" and "Where the values differ, the transaction MUST roll back". *Until 2026-09-12 the column was `attempts`, "Attempt count MUST be
+incremented on claim", which read as a count of the thing `CONTEXT.md` calls an attempt while
+`CNF-288` says a create has no second one by any path.*
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): distinguished the claim number from the startup generation.*
 
 ## Per-machine serialization
 
@@ -351,12 +366,32 @@ finding that the selection rule had no discriminator wherever the correlator was
 With one writer (`OPS-47`), an operation found `running` at engine startup was interrupted, and its
 provider call may be uncertain; the exceptions below name the rows that take a different startup path.
 
-**OPS-15** **AMENDED 2026-09-08 (`ADR-0016`) — the startup pass is the sweep.** Subject to the exceptions below, at startup, before
-any claim, the engine MUST move every `running` operation to `needs_reconciliation` — with one
-writer, any `running` row at startup is interrupted — guarded on `(id, status = running)`
-(`STO-3`), and MUST log the count it found. It MUST NOT move them back to `queued`: a crashed
+**OPS-15** **AMENDED 2026-09-08 (`ADR-0016`) — the startup pass is the sweep.** Subject to the
+exceptions below, at startup, before any claim, the engine MUST move every `running` operation
+to `needs_reconciliation` — after the generation advance below no earlier engine's write commits
+(`OPS-50`), so any `running` row at startup is interrupted — guarded on `(id, status = running)`
+(`STO-3`), and MUST log the count it found. `OPS-50` says "MUST read `STO-59`'s row `FOR SHARE`
+as its first statement, compare it for equality with the value the engine's own startup pass
+wrote" and "Where the values differ, the transaction MUST roll back". It MUST NOT move them back to `queued`: a crashed
 worker is exactly the case where the provider may have acted and nobody recorded it. No periodic
 pass is needed; nothing but a restart can leave a `running` row with no worker behind it.
+
+The engine's first write transaction after taking `STO-51`'s lock MUST contain only the
+replacement of `STO-59`'s startup generation (`OPS-50`'s exception). `OPS-50` says "Except for `OPS-15`'s generation-advance transaction". Its commit MUST be
+acknowledged before the engine begins any other write transaction, the remainder of the pass, or
+any worker or periodic component. The engine makes no write before that transaction. Its
+replacing statement MUST run with `statement_timeout` and `lock_timeout` both set to `OVR-19`'s
+Startup-lock wait bound. That statement waits on every open `FOR SHARE` of the row (`OPS-50`),
+so every earlier engine's write either committed before it, and is swept here, or is refused
+after it. On that timeout or any store error, including a lost reply on its commit, the engine
+MUST log loudly and exit non-zero having claimed nothing; this exit is not `OPS-49`'s retry,
+which covers workers and periodic components. **Liveness:** a `SyncRep` holder (`STO-7`: "A
+standby wait has no server-side timeout"), or share holders that keep turning over, can hold the
+advance until that exit, which `OVR-18` alarms; the supervisor's restart is the retry.
+`OPS-49` says "Where a store call by a worker, or by a periodic component running in the engine
+process (`OVR-17`), errors or times out". `OPS-50` says "hold that lock until it commits" and
+"Where the values differ, the transaction MUST roll back". `OVR-18` says "its startup exit on
+the generation advance's timeout (`OPS-15`)".
 
 **After a restore the premise fails, and `queued` rows are the danger** (added 2026-09-12,
 `ADR-0023`). "Any `running` row at startup is interrupted" is true after a crash and false after a
@@ -412,11 +447,12 @@ running)` write still moves a still-running create to `needs_reconciliation`; a 
 that ordinary path. The pass writes neither `about_to_order_at` nor the markers.
 
 Whichever of this null-guarded status write and the live step-8 write commits first, the other's
-guard affects no row. This describes their predicates, not an in-scope second engine: `STO-3` says
-"nothing contends with it". `OPS-47` says "The lock is not a fence". The exception MUST NOT run
-periodically. **It does not fire while a restore record is open** (`STO-54`, `STO-56`). A restore can
-lose the column's committed write while the provider holds the order. This restriction lasts for the
-whole open incident, independently of the freeze's end.
+guard affects no row. This describes their predicates; an earlier engine's step-8 write cannot
+commit once the pass has advanced the generation (`OPS-50`). `OPS-47` says "The lock is not a
+fence". `OPS-50` says "Where the values differ, the transaction MUST roll back". The exception MUST NOT run periodically. **It does not fire while a restore record is
+open** (`STO-54`, `STO-56`). A restore can lose the column's committed write while the provider
+holds the order. This restriction lasts for the whole open incident, independently of the
+freeze's end.
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and
 `docs/research/panels-2026-10/r56/r56b/`): added the null-only create restart exception; `ADR-0042`
@@ -434,6 +470,8 @@ pass enqueue nothing twice. Routing the parent to `needs_reconciliation` instead
 until a human noticed — which is exactly what `SEC-45`'s one-action termination MUST NOT depend on.
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): removed the promoted-asynchronous-standby exclusion from the create restart exception.*
 *Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): separated the per-startup running-row pass from step (2)’s mark and bounded the parent wait by the exception’s freeze.*
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the startup advance and amended the sweep’s ordering.*
 
 **OPS-16** The sweeper MUST NOT overwrite an error already recorded on the operation; it
 fills in an error only where none exists. It writes neither of `OPS-45`'s markers, which are facts
@@ -1692,6 +1730,8 @@ startup:                                          # STO-13, OPS-47, OPS-15
                                                   #   its predecessor (STO-54)
     if not take_startup_lock(bound):              # STO-51: session-scoped, held for life
         exit_nonzero()                            # OPS-47: another engine is already here
+    if not advance_generation(bound):             # OPS-15, OPS-50: first write after the lock;
+        exit_nonzero()                            #   timeout, store error or lost reply -> exit
     n = run_startup_pass(                         # suspend_tenant -> queued on restart, and on
             restoring = incident is not None)     #   a restore once STO-54's freeze has lifted
     log(n)                                        #   for it (until then they wait); the queued
@@ -1730,23 +1770,28 @@ loop:
 ```
 
 A settled-state write affecting no row means something that was not this execution moved the
-operation — `OPS-15`'s startup pass after a restart, or a later claim after a defer — so the worker
-stops there. A repeat of its own write, after a lost reply, affects one row and is success
-(`STO-3`). `OPS-42`'s fence writes a machine row and carries no such guard, which is why `OPS-47`
-says "where two engines run, nothing here refuses the second, and both will work the queue"
-instead of implying otherwise. *This sentence named `OPS-45`'s markers beside the fence until
-2026-09-12; they are `operations` columns and are guarded like any worker write.*
+operation — `OPS-15`'s startup pass after a restart (after a restart, `OPS-50` refuses an
+earlier engine's write before its guard), or a later claim after a defer — so the worker stops
+there. `OPS-50` says "MUST read `STO-59`'s row `FOR SHARE` as its first statement" and "Where
+the values differ, the transaction MUST roll back".
+A repeat of its own write, after a lost reply, affects one row and is success (`STO-3`).
+`OPS-42`'s fence writes a machine row and carries no such guard; against a second engine it
+carries `OPS-50`'s generation check, as every engine write does. `OPS-50` lists "`OPS-42`'s
+machine-row writes". *This sentence named `OPS-45`'s
+markers beside the fence until 2026-09-12; they are `operations` columns and are guarded like
+any worker write.*
 
-**OPS-21** `execute` MUST be cancellable. A cancellation of `execute` that the engine
-survives MUST be recorded before the engine exits, for every operation kind, subject to the
-bounded abandonment and later-stop exits below. “Survives” means the process outlives the stop.
-A kill or crash records nothing; at the next start, `OPS-15` says "the engine MUST move every
-`running` operation to `needs_reconciliation`", subject to its exceptions.
-A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded.
-A transaction already sent MAY finish, since `OPS-49` says "the server decides every statement's
-fate before the client does"; the worker MUST NOT repeat it or begin anything it precedes, and
-makes the record.
-The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound.
+**OPS-21** `execute` MUST be cancellable. A cancellation of `execute` that the engine survives
+MUST be recorded before the engine exits, for every operation kind, subject to the bounded
+abandonment, later-stop and superseded (`OPS-50`) exits below. “Survives” means the process
+outlives the stop. A kill or crash records nothing; at the next start, `OPS-15` says "the engine
+MUST move every `running` operation to `needs_reconciliation`", subject to its exceptions. A
+stop that arrives while a store transaction inside `execute` is in flight or repeating under
+`OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation
+being recorded. A transaction already sent MAY finish, since `OPS-49` says "the server decides
+every statement's fate before the client does"; the worker MUST NOT repeat it or begin anything
+it precedes, and makes the record. The worker MUST NOT pursue the record past the Stop-record
+bound (`OVR-19`), and the engine MUST NOT wait for it past that bound.
 
 The worker classifies a recorded cancellation under `OPS-11` and makes its record write: the
 guarded write of `OPS-22`, except for a parent, whose record write is the defer below. The
@@ -1772,6 +1817,15 @@ For the retry-loop exit, `OPS-49` says "A worker cancelled during the retry loop
 Its store-error exit also classifies nothing: `OPS-49` says "on exhaustion the outcome in hand is
 thrown away and `OPS-15` classifies the row as interrupted".
 
+A loss of the connection carrying `OPS-47`'s startup lock is not a later stop: `OPS-47` says
+“treat the loss as a stop of every worker not already recording one”. For a worker still in
+`execute`, this requirement's cancellation rules apply, including the stop that “MUST NOT cancel
+`execute`” and the parent's defer, which “records no error”; for one whose `execute` has
+returned, its settle write records it; it ends no record already pending. A stop that arrives
+after the engine detects the loss and before that record lands is a later stop. `OPS-50` says “A
+refused generation check ends recording without another attempt; an earlier attempt may already
+have committed with its reply lost.”
+
 The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets.
 This includes the repeats of which `OPS-49` says "do not consume the bound"; that bound is the
 Store-retry bound, independent of this one. The Stop-record bound runs until the record lands
@@ -1792,20 +1846,38 @@ Its next claim continues as `OPS-15`'s re-queued parent does, "resuming its fan-
 it stopped"; that re-sweep "is idempotent by `OPS-39`'s dedup" (`OPS-15`), so it enqueues no
 child twice.
 
-`execute` returns only once the outcome its settle write records is final, so every provider call that outcome depends on is made inside `execute`.
-For a create, the worker's settle-time verification is inside `execute`: `OPS-27`'s correlator search and its confirming read, so a stop during either is the cancellation being recorded.
-`PRV-13c`'s post-order read in that settlement pass and `PRV-13`'s direct read after an accepted dated cancellation are also inside `execute`, and their failure leaves the outcome in hand.
-`PRV-13c` says "A failed post-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and MUST NOT change the create's settlement."
-`PRV-13` says "If the machine remains present, or this read fails for any reason including throttle, authentication, network error or deadline expiry, the accepted attempt settles `succeeded` as `cancellation_scheduled` with its effective date."
-A stop the engine survives after a create's settle-time confirming read succeeds, or after a delete's cancellation is accepted with an effective date, and before `execute` returns MUST NOT cancel `execute`.
-The worker still makes the read that follows, the stop ends it at once as a failed read unless it has already completed, `execute` returns the outcome that read gives, and the settle write records the stop as it records a stop after `execute` returns.
-A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation.
-The settle write that records a stop after `execute` returns MUST NOT be cancelled or abandoned by that stop.
-This holds before that write's first transaction, during it and while `OPS-49` repeats it, whether the repeats began before the stop or after it, until the write lands or affects no row (`OPS-22`).
-The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`.
-For a `suspend_tenant` parent that `execute` left waiting on its children, that write is the defer above, which records no error.
-The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent inside `execute`.
-A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns.
+`execute` returns only once the outcome its settle write records is final, so every provider
+call that outcome depends on is made inside `execute`. For a create, the worker's settle-time
+verification is inside `execute`: `OPS-27`'s correlator search and its confirming read, so a
+stop during either is the cancellation being recorded. `PRV-13c`'s post-order read in that
+settlement pass and `PRV-13`'s direct read after an accepted dated cancellation are also inside
+`execute`, and their failure leaves the outcome in hand. `PRV-13c` says "A failed post-order
+read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and MUST NOT
+change the create's settlement." `PRV-13` says "If the machine remains present, or this read
+fails for any reason including throttle, authentication, network error or deadline expiry, the
+accepted attempt settles `succeeded` as `cancellation_scheduled` with its effective date." A
+stop the engine survives after a create's settle-time confirming read succeeds, or after a
+delete's cancellation is accepted with an effective date, and before `execute` returns MUST NOT
+cancel `execute`. The worker still makes the read that follows, the stop ends it at once as a
+failed read unless it has already completed, `execute` returns the outcome that read gives, and
+the settle write records the stop as it records a stop after `execute` returns. A stop the
+engine survives that arrives after `execute` returns and before the worker's settle write lands
+MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and
+exits that apply to a recorded cancellation. The settle write that records a stop after
+`execute` returns MUST NOT be cancelled or abandoned by that stop. This holds before that
+write's first transaction, during it and while `OPS-49` repeats it, whether the repeats began
+before the stop or after it, until the write lands or affects no row (`OPS-22`). The record of a
+stop after `execute` returns is the guarded write the worker would have made without the stop,
+settling the outcome in hand with that outcome's own error, if it has one, and with a failure
+classified under `OPS-11`; it is not a cut-off `conflict`. For a `suspend_tenant` parent that
+`execute` left waiting on its children, that write is the defer above, which records no error.
+The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's
+exhaustion exit, the superseded exit (`OPS-50`), the lost-reply case and the supervisor's wait
+apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the
+cut-off classification and its reason do not, nor does the rule against repeating a transaction
+already sent inside `execute`. `OPS-50` says "the engine MUST log loudly that it was superseded and exit non-zero at once". A stop that arrives after a stop has cancelled `execute`, before
+that cancellation's record lands, is a later stop under that record's rules, not a stop after
+`execute` returns.
 
 *Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed the recorded cancellation at the create row; the retry-loop exits remain exits without worker classification.*
 
@@ -1821,34 +1893,44 @@ A stop that arrives after a stop has cancelled `execute`, before that cancellati
 
 *Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): added the last row to the classification pointers.*
 
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): recorded lock loss and included the generation-refusal exit.*
+
 **OPS-22** **AMENDED 2026-09-12 (`ADR-0022`) — the guard is the status and the claim number, a
-repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST do
-so guarded on that operation still being `running` under the worker's claim number, with `STO-3`'s
-repeat-admitting branch (`OPS-3`, `OPS-6`); a resolution transition out of `needs_reconciliation`
-is made by no worker and is guarded by `STO-19`'s write-once columns instead. A repeated write
-after a lost reply (`OPS-49`) affects one row and changes nothing, and is success. Where the
-guarded write affects no row, **something that was not this execution moved the operation** — the
-startup pass after a restart (`OPS-15`), or a later claim after an `OPS-8` defer — and the worker
-MUST log it loudly, saying what it observed rather than asserting a restart, leave the record
-alone, and exit. *Until 2026-09-12 the clause read "the startup pass has already classified it",
-which a retried write after a lost reply made false without a restart. The epoch term this
-requirement carried until `ADR-0019` could not fail, because the claiming process stamped the
-value it then compared against.*
+repeat is admitted, and zero rows has one meaning.** A **worker** recording a settled state MUST
+do so guarded on that operation still being `running` under the worker's claim number, with
+`STO-3`'s repeat-admitting branch (`OPS-3`, `OPS-6`); a resolution transition out of
+`needs_reconciliation` is made by no worker and is guarded by `STO-19`'s write-once columns
+instead. A repeated write after a lost reply (`OPS-49`) affects one row and changes nothing, and
+is success. Where the guarded write affects no row, **something that was not this execution
+moved the operation** — the startup pass after a restart (`OPS-15`), or a later claim after an
+`OPS-8` defer — and the worker MUST log it loudly, saying what it observed rather than asserting
+a restart, leave the record alone, and exit. A write that `OPS-50`'s generation check refuses is
+not a zero-row write: the engine exits at once (`OPS-50`). `OPS-50` says "the engine MUST log
+loudly that it was superseded and exit non-zero at once". *Until 2026-09-12 the clause read
+"the startup pass has already classified it", which a retried write after a lost reply made
+false without a restart. The epoch term this requirement carried until `ADR-0019` could not
+fail, because the claiming process stamped the value it then compared against.*
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): distinguished a refused generation check from a zero-row write.*
 
 **OPS-49** **ADDED 2026-09-12 (`ADR-0022`) — a store error is a bounded whole-transaction retry,
-then the engine exits.** Where a store call by a worker, or by a periodic component running in the
-engine process (`OVR-17`), errors or times out, the component MUST repeat the **whole
-transaction** — never the last failed statement, and never the provider call (`OPS-12`) — with the
-provider's outcome retained in memory, for a stated bound (`OVR-19`), and on exhausting the bound
-MUST log loudly and the engine MUST exit non-zero into its supervisor, where `OVR-18`'s alarm is
-watching. The bound covers connection, execution, commit, read-back and backoff together, but not a commit's wait for the standby (`STO-7`), and it
-is a money parameter: on exhaustion the outcome in hand is thrown away and `OPS-15` classifies the
-row as interrupted — unless the bound's last repeat committed and its reply was lost, in which case
-the row is already written, the money already posted once, and the startup pass finds nothing
-`running` to classify (*the formal layer's claim model exhibits this trace, 2026-09-14*). A periodic component whose repeated write affects no row under a write-once
-guard — `STO-3`'s resolution write, `STO-52`'s episode index — has seen its earlier attempt land,
-and moves on. **`api`'s components do not run this loop**: a failed request transaction is the
-caller's `internal` error, and a failed credit is `STO-31`'s next replay.
+then the engine exits.** Where a store call by a worker, or by a periodic component running in
+the engine process (`OVR-17`), errors or times out, the component MUST repeat the **whole
+transaction** — never the last failed statement, and never the provider call (`OPS-12`) — with
+the provider's outcome retained in memory, for a stated bound (`OVR-19`), and on exhausting the
+bound MUST log loudly and the engine MUST exit non-zero into its supervisor, where `OVR-18`'s
+alarm is watching. A refused generation check (`OPS-50`) is not a store error and is never
+repeated. `OPS-50` says "A mismatch is not a store error (`OPS-49`) and is never repeated."
+The bound covers connection, execution, commit, read-back and backoff together, but
+not a commit's wait for the standby (`STO-7`), and it is a money parameter: on exhaustion the
+outcome in hand is thrown away and `OPS-15` classifies the row as interrupted — unless the
+bound's last repeat committed and its reply was lost, in which case the row is already written,
+the money already posted once, and the startup pass finds nothing `running` to classify (*the
+formal layer's claim model exhibits this trace, 2026-09-14*). A periodic component whose
+repeated write affects no row under a write-once guard — `STO-3`'s resolution write, `STO-52`'s
+episode index — has seen its earlier attempt land, and moves on. **`api`'s components do not run
+this loop**: a failed request transaction is the caller's `internal` error, and a failed credit
+is `STO-31`'s next replay.
 
 - **"Too slow" is `statement_timeout`.** The client-side deadline on a store call MUST NOT be
   shorter than `STO-7`'s server-side timeouts, so the server decides every statement's fate before
@@ -1876,7 +1958,9 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
   A first stop during an ordinary settle write's loop after `execute` returns is not this exit either: `OPS-21` says "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation."
   A later stop and exhaustion both leave restart recovery to `OPS-15`, whose
   ordinary rule is "the engine MUST move every `running` operation to `needs_reconciliation`",
-  subject to its exceptions and the lost-reply case above.
+  subject to its exceptions and the lost-reply case above. `OPS-47` says of a lost lock connection
+“The loss is not a later stop”: a worker repeating a record when the loss is seen keeps
+repeating it.
 - **A suspension parent waiting on its children is deferred, not held** (*this bullet is `F51`'s,
   not `ADR-0022`'s*). A `suspend_tenant` parent (`API-58`) whose children are still queued MUST be
   returned to `queued` with `available_at` advanced — the same write as `OPS-8`'s defer, though
@@ -1893,6 +1977,28 @@ caller's `internal` error, and a failed credit is `STO-31`'s next replay.
 
 *Amended 2026-10-20 (`pv-gq8`): replaced the loop-only later-stop definition with a quotation of the record owner's any-point exit.*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): excluded a commit’s standby wait from the Store-retry bound, and made a commit returned with `STO-7`’s replication warning the second lost reply.*
+
+*Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): distinguished generation refusal from store errors and retained recording on lock loss.*
+
+**OPS-50** **ADDED 2026-10-24 (`ADR-0047`) — every engine write checks the startup generation,
+and a mismatch exits.** Except for `OPS-15`'s generation-advance transaction, every write
+transaction made in the engine process — a claim (`OPS-5`), a worker's writes (`OPS-22`,
+`OPS-43` step 8, `OPS-45`'s markers, `OPS-42`'s machine-row writes), a settle or cut-off record
+(`OPS-21`), an `OPS-8` defer, every component `OVR-17` assigns to the engine, `OPS-27` and
+`OPS-32` included, and the `ledger` components `OVR-17` says "run in the engine process" — MUST
+read `STO-59`'s row `FOR SHARE` as its first statement, compare it for equality with the value
+the engine's own startup pass wrote, and hold that lock until it commits. A component that acts
+on the provider from reads (the key deletion `PRV-9` gives `OPS-32`'s sweep) MUST make the check
+in the read transaction that licenses the dispatch. Where the values differ, the transaction
+MUST roll back, and the engine MUST log loudly that it was superseded and exit non-zero at once,
+beginning no other transaction. A mismatch is not a store error (`OPS-49`) and is never
+repeated. A refused generation check ends recording without another attempt; an earlier attempt
+may already have committed with its reply lost. Writes made in the api process are not checked.
+**What it does not cover:** a provider call licensed by a check that committed before `OPS-15`'s
+advance goes out — step 9 after step 8 (`OPS-43`: "Step 9 MUST begin only after step 8's
+transaction is acknowledged"), an install's destructive phase after one marker, end-rescue,
+`PRV-9`/`PRV-18` temporary-key deletion, `OPS-32` after its read. Nor does it fence two writable
+copies of the database; its guarantee covers one writable database history.
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version

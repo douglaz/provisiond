@@ -65,6 +65,7 @@ stuck on rational equalities and reached for `native_decide`; the other closed t
   (`PRV-36`'s window), PostgreSQL's semantics, and `OPS-47`'s "a deployment obligation and not a
   property this specification enforces" are named parameters on the theorems that depend on them, so
   a signature shows the dependence. A model that omits a second engine says so in its docstring.
+  *2026-10-24: `OPS-47` no longer carries these words; see `ADR-0047`.*
 - **Trust policy, enforced by the gate.** Every `@[req]` declaration may depend on `propext`,
   `Classical.choice` and `Quot.sound` and on nothing else; `sorryAx` is refused transitively;
   the project declares no `axiom`; `native_decide` is refused everywhere under `Provisiond.*`

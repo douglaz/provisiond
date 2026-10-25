@@ -321,6 +321,9 @@ process: each writes on a schedule, and `api` replicas each running them would c
 `LDG-35`'s primitive for the same subject. The engine calls them through `ledger`'s interface,
 which is the dependency direction `OVR-9` already allows.
 
+For the startup-generation check on each engine writer, the `ledger` components included, see
+`OPS-50`.
+
 *It was extended once already, the day after it was closed, and by exactly the omission it warns
 about: `STO-42` and `STO-43` require a purge of closed cases, statement bodies and address history on
 stated ages of their own, and the table carried only `STO-14`'s operation retention. `STO-43` had
@@ -335,8 +338,13 @@ unassigned job here silently narrows a control two conformance items depend on.*
 mechanism runs (`LDG-14`, `OPS-32`, `SEC-45`'s fan-out), and the restart window is the accepted
 outage (`ADR-0016`); the supervisor's restart guarantee and the alarm threshold are deployment
 parameters (`OVR-19`). **Two more conditions are alarmed on the same model** (added 2026-09-12,
-`ADR-0023`): the recovery point exceeding its threshold, and either named standby being unavailable (`STO-7`).
-*Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; `ADR-0045`): alarmed either named standby being unavailable.*
+`ADR-0023`): the recovery point exceeding its threshold, and either named standby being
+unavailable (`STO-7`). **Two exits are alarmed on the same model** (added 2026-10-24,
+`ADR-0047`): an engine's superseded exit (`OPS-50`), and its startup exit on the generation
+advance's timeout (`OPS-15`). `OPS-50` says "the engine MUST log loudly that it was superseded and exit non-zero at once"; `OPS-15` says "On that timeout or any store error, including a lost reply on its commit, the engine MUST log loudly and exit non-zero having claimed nothing". *Amended 2026-10-23 (`pv-s4m`; panel r63,
+`docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose
+synchronous replication”; S1 “Three servers (Recommended)”; `ADR-0045`): alarmed either named
+standby being unavailable.*
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive
@@ -356,7 +364,7 @@ marked human are procedures the deployment records rather than values the proces
 *Amended 2026-10-08 (`ADR-0034`): refresh freshness is registered below. Amended
 2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
 activation funding minimum is registered. Amended 2026-10-12 (`ADR-0037`, Q28):
-refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the Stop-record bound. Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): registered the standby names and pooled-connection keepalives; removed the synchronous-commit concurrency cap.*
+refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the Stop-record bound. Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): registered the standby names and pooled-connection keepalives; removed the synchronous-commit concurrency cap. Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): typed the Startup-lock wait bound as a finite, positive duration and named it as the generation advance's two timeouts.*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -396,7 +404,7 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | `allow_orders`, per ordering account | `DOM-16` | boolean | yes |
 | Negative-resolution window, per provider | `OPS-33` | duration | yes |
 | Tenant-to-account assignment policy | `API-57`, `SEC-43` | policy over assignable accounts | yes |
-| Startup-lock wait bound | `OPS-47` | duration | yes |
+| Startup-lock wait bound | `OPS-47`, `OPS-15` | finite, positive duration; also the generation advance's `statement_timeout` and `lock_timeout` (`OPS-15`) | yes |
 | Startup-lock connection keepalives | `OPS-47` | durations | yes |
 | Store-retry bound | `OPS-49` | duration | yes |
 | Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets." and "The deployment's supervisor MUST wait at least the Stop-record bound after a stop before it kills the engine." | yes |

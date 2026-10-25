@@ -100,3 +100,5 @@ the per-write token straight back.
   2026-09-07 session settles on.
 - `README.md`'s "Language and runtime" paragraph, which says a store "that forbids a second replica"
   is disallowed, now reads against `api`; the engine was never the thing that paragraph protected.
+
+For the later startup-generation fence, see `ADR-0047`, `OPS-50` and `STO-59`.

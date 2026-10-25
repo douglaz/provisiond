@@ -24,11 +24,14 @@ structure Params where
 def current : Params := { recordOnStop := true, shieldRecord := true, boundRecord := true }
 
 /-- Redelivery belongs to the originating stop; `laterStop` is a distinct stop before the record lands.
-`OPS-21` says "The record write MUST NOT be cancelled by the cancellation that stopped `execute`." -/
+`OPS-21` says "The record write MUST NOT be cancelled by the cancellation that stopped `execute`."
+A lost lock connection is the originating stop or no event: `OPS-21` says it “is not a later stop”.
+The generation refusal ends the record as `laterStop` does. -/
 inductive Event
   | store (outcome : StoreOutcome) (redelivered : Bool)
   | serialization
   | laterStop
+  | superseded
   deriving DecidableEq, Repr
 
 structure Plan where
@@ -48,7 +51,7 @@ def schedule (p : Params) (budget storeBudget : Nat) : List Event → Plan
   | e :: es =>
     if !p.recordOnStop || (p.boundRecord && budget == 0) || storeBudget == 0 then {} else
     match e with
-    | .laterStop => {}
+    | .laterStop | .superseded => {}
     | .serialization =>
       let rest := schedule p (budget - 1) storeBudget es
       { rest with elapsed := rest.elapsed + 1 }
@@ -127,7 +130,7 @@ theorem schedule_bounded (p : Params) (hb : p.boundRecord = true)
     have step (h : ¬(!p.recordOnStop || (p.boundRecord && budget == 0) || storeBudget == 0) = true) :
         0 < budget := by simp [hb] at h; omega
     cases e with
-    | laterStop => simp [schedule]
+    | laterStop | superseded => simp [schedule]
     | serialization =>
       simp only [schedule]
       split
@@ -212,7 +215,41 @@ theorem later_stop_exits (p : Params) (g : Guards) (s : Store) (r : Record)
     | cons e pre ih =>
       intro budget storeBudget
       cases e with
-      | laterStop => simp [schedule]
+      | laterStop | superseded => simp [schedule]
+      | serialization =>
+        simp [schedule, (ih (budget - 1) storeBudget).1, (ih (budget - 1) storeBudget).2]
+        split <;> simp
+      | store o redelivered =>
+        cases o with
+        | refused =>
+          simp [schedule, (ih (budget - 1) (storeBudget - 1)).1,
+            (ih (budget - 1) (storeBudget - 1)).2]
+          split <;> (try split) <;> simp
+        | committed acked => cases acked <;> simp [schedule,
+            (ih (budget - 1) (storeBudget - 1)).1, (ih (budget - 1) (storeBudget - 1)).2] <;>
+            split <;> (try split) <;> simp
+  simp only [trace, (stopped budget storeBudget).1, (stopped budget storeBudget).2]
+
+/-- A generation refusal truncates selection after its durable prefix, including a commit
+whose reply was lost. `exit_store` retains that alternative.
+`OPS-50` says "A refused generation check ends recording without another attempt; an earlier
+attempt may already have committed with its reply lost." -/
+@[req "OPS-50"]
+theorem superseded_exits (p : Params) (g : Guards) (s : Store) (r : Record)
+    (budget storeBudget : Nat) (pre es : List Event) :
+    trace p g s r budget storeBudget (pre ++ .superseded :: es) =
+      trace p g s r budget storeBudget pre := by
+  have stopped : ∀ budget storeBudget,
+      (schedule p budget storeBudget (pre ++ .superseded :: es)).tries =
+        (schedule p budget storeBudget pre).tries ∧
+      (schedule p budget storeBudget (pre ++ .superseded :: es)).elapsed =
+        (schedule p budget storeBudget pre).elapsed := by
+    induction pre with
+    | nil => intro budget storeBudget; simp [schedule]
+    | cons e pre ih =>
+      intro budget storeBudget
+      cases e with
+      | laterStop | superseded => simp [schedule]
       | serialization =>
         simp [schedule, (ih (budget - 1) storeBudget).1, (ih (budget - 1) storeBudget).2]
         split <;> simp
@@ -279,7 +316,7 @@ theorem parent_trace_no_money (p : Params) (g : Guards) (s : Store) (mine : Clai
   exact parent_ledger g s mine (schedule p budget storeBudget events).tries
 
 /-- Composes `Claim.posts_at_most_once` for the selected whole-transaction tries; serialization
-and both stop events never touch the store. `OPS-49`'s lost-reply case has "the money already
+and the stop events, `superseded` included, never touch the store. `OPS-49`'s lost-reply case has "the money already
 posted once". The parent's defer posts none. -/
 @[req "OPS-49"]
 theorem money_posts_at_most_once (p : Params) (g : Guards) (s : Store) (t : Txn)
@@ -404,6 +441,7 @@ theorem finished_unrecorded_exit (p : Params) (g : Guards) (s : Store) (r : Reco
     (p.boundRecord = true ∧ plan.elapsed = budget) ∨
     plan.tries.length = storeBudget ∨
     events[plan.elapsed]? = some .laterStop ∨
+    events[plan.elapsed]? = some .superseded ∨
     (p.shieldRecord = false ∧ ∃ o, events[plan.elapsed]? = some (.store o true)) := by
   have selection : ∀ (events : List Event) (budget storeBudget : Nat),
       (schedule p budget storeBudget events).unfinished = false →
@@ -412,6 +450,7 @@ theorem finished_unrecorded_exit (p : Params) (g : Guards) (s : Store) (r : Reco
       (p.boundRecord = true ∧ plan.elapsed = budget) ∨
       plan.tries.length = storeBudget ∨
       events[plan.elapsed]? = some .laterStop ∨
+      events[plan.elapsed]? = some .superseded ∨
       (p.shieldRecord = false ∧ ∃ o, events[plan.elapsed]? = some (.store o true)) := by
     intro events
     induction events with
@@ -429,17 +468,19 @@ theorem finished_unrecorded_exit (p : Params) (g : Guards) (s : Store) (r : Reco
             simpa [recording, Bool.and_eq_true] using halt
           exact ⟨fun h => Nat.pos_of_ne_zero (nonzero.1 h), Nat.pos_of_ne_zero nonzero.2⟩
         cases e with
-        | laterStop => simp [schedule, halt]
+        | laterStop | superseded => simp [schedule, halt]
         | serialization =>
           have h := ih (budget - 1) storeBudget (by simpa [schedule, halt] using done)
-          rcases h with ack | bound | store | later | redelivery
+          rcases h with ack | bound | store | later | superseded | redelivery
           · exact Or.inl (by simpa [schedule, halt] using ack)
           · exact Or.inr (Or.inl (by
               simp only [schedule, halt, Bool.false_eq_true, ↓reduceIte]
               exact ⟨bound.1, by have := room.1 bound.1; omega⟩))
           · exact Or.inr (Or.inr (Or.inl (by simpa [schedule, halt] using store)))
           · exact Or.inr (Or.inr (Or.inr (Or.inl (by simpa [schedule, halt] using later))))
-          · exact Or.inr (Or.inr (Or.inr (Or.inr (by simpa [schedule, halt] using redelivery))))
+          · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (by
+              simpa [schedule, halt] using superseded)))))
+          · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (by simpa [schedule, halt] using redelivery)))))
         | store o redelivered =>
           by_cases delivered : (redelivered && !p.shieldRecord) = true
           · have red : redelivered = true ∧ p.shieldRecord = false := by simpa using delivered
@@ -450,7 +491,7 @@ theorem finished_unrecorded_exit (p : Params) (g : Guards) (s : Store) (r : Reco
               | false =>
                 have h := ih (budget - 1) (storeBudget - 1)
                   (by simpa [schedule, halt, delivered] using done)
-                rcases h with ack | bound | store | later | redelivery
+                rcases h with ack | bound | store | later | superseded | redelivery
                 · exact Or.inl (by simpa [schedule, halt, delivered] using ack)
                 · exact Or.inr (Or.inl (by
                     simp only [schedule, halt, delivered, Bool.false_eq_true, ↓reduceIte]
@@ -460,12 +501,13 @@ theorem finished_unrecorded_exit (p : Params) (g : Guards) (s : Store) (r : Reco
                     omega)))
                 · exact Or.inr (Or.inr (Or.inr (Or.inl (by
                     simpa [schedule, halt, delivered] using later))))
-                · exact Or.inr (Or.inr (Or.inr (Or.inr (by
-                    simpa [schedule, halt, delivered] using redelivery))))
+                · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (by
+                    simpa [schedule, halt, delivered] using superseded)))))
+                · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (by simpa [schedule, halt, delivered] using redelivery)))))
             | refused =>
                 have h := ih (budget - 1) (storeBudget - 1)
                   (by simpa [schedule, halt, delivered] using done)
-                rcases h with ack | bound | store | later | redelivery
+                rcases h with ack | bound | store | later | superseded | redelivery
                 · exact Or.inl (by simpa [schedule, halt, delivered] using ack)
                 · exact Or.inr (Or.inl (by
                     simp only [schedule, halt, delivered, Bool.false_eq_true, ↓reduceIte]
@@ -475,8 +517,9 @@ theorem finished_unrecorded_exit (p : Params) (g : Guards) (s : Store) (r : Reco
                     omega)))
                 · exact Or.inr (Or.inr (Or.inr (Or.inl (by
                     simpa [schedule, halt, delivered] using later))))
-                · exact Or.inr (Or.inr (Or.inr (Or.inr (by
-                    simpa [schedule, halt, delivered] using redelivery))))
+                · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (by
+                    simpa [schedule, halt, delivered] using superseded)))))
+                · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (by simpa [schedule, halt, delivered] using redelivery)))))
   rcases selection events budget storeBudget finished with ack | exits
   · have recorded : (applyRecord g s r (schedule p budget storeBudget events).tries).2 = true := by
       cases r with

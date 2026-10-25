@@ -12,16 +12,18 @@ The later-bound and later-suspension queue-timing defect (`pv-gip.36`) is theref
 model. Its evidence is `OPS-41`'s short-delay rule and the queue-eligibility traces in
 `10-conformance-checklist.md`; manually scheduling a claim cannot refute the former parking.
 
-What the model omits: `OPS-15`'s startup pass and `OPS-27`'s resolution writes (made by no
+What the model omits: `OPS-15`'s startup pass, except the generation advance
+`superseded_never_commits` models, and `OPS-27`'s resolution writes (made by no
 execution; `pv-vwe.5`), `API-58`'s fan-out transition (`pv-vwe.6`), `OPS-11`'s classification of a
 provider outcome into the state the worker writes (`Provisiond.Tables`), what reads
 `available_at`,
 the error classes `OPS-49` says "are not store errors and do not consume the bound" (a
 `StoreOutcome.refused` here is always a store error in that sense;
 `Provisiond.StopRecord` composes serialization repeats for a stop's record), the bound on repeating a
-refused claim (`engineClaim` claims again from `idle` without counting), and a second engine.
-`OPS-47`'s single engine is assumed throughout, as `OPS-6` says the number "is not a fence against
-a second engine". -/
+refused claim (`engineClaim` claims again from `idle` without counting), and a second engine
+beyond `OPS-50`'s generation check, which `superseded_never_commits` models. Otherwise
+`OPS-47`'s single engine is assumed, as `OPS-6` says the number "is not a fence against a second
+engine". -/
 
 namespace Provisiond.Claim
 
@@ -424,25 +426,54 @@ def engineClaim (r : Row) : StoreOutcome → Row × Engine
     | (r', some n) => (r', .holding n)
     | (r', none) => (r', .idle)
 
-/-- The engine's step: only `idle` claims. `exited` has no successor but itself, so no claim
-follows a lost reply on a claim: there is no transition out of `exited` for one to be. -/
-@[req "OPS-49"]
-def engineStep (e : Engine) (r : Row) (o : StoreOutcome) : Row × Engine :=
-  match e with
-  | .idle => engineClaim r o
-  | .holding n => (r, .holding n)
-  | .exited => (r, .exited)
+/-- The shipped generation check, separate from the worker's claim-number guards.
+`OPS-50` requires the transaction to "compare it for equality with the value the engine's own
+startup pass wrote". Tokens abstract UUIDs and are compared only for equality. -/
+@[req "OPS-50"]
+def currentGenerationCheck : Bool := true
 
-/-- A lost reply on the claim is a transition to `exited`, and the row it strands is `running`. -/
+/-- The engine's step checks the generation before any claim.
+`OPS-50` requires every checked transaction to "MUST read `STO-59`'s row `FOR SHARE` as its first
+statement". A mismatch returns the unchanged row and the exited engine, before the claim guard
+can produce any row-count outcome (`OPS-22`).
+Only `idle` claims. `exited` has no successor but itself, so no claim
+follows a lost reply on a claim: there is no transition out of `exited` for one to be. -/
+@[req "OPS-50"]
+def engineStep (generationCheck : Bool) (mine generation : Nat)
+    (e : Engine) (r : Row) (o : StoreOutcome) : Row × Engine :=
+  if generationCheck && mine != generation then (r, .exited) else
+    match e with
+    | .idle => engineClaim r o
+    | .holding n => (r, .holding n)
+    | .exited => (r, .exited)
+
+/-- A lost reply on the claim is a transition to `exited`, and the row it strands is `running`.
+The single-engine case supplies its own generation on both sides of the equality check. -/
 @[req "OPS-49"]
-theorem lost_claim_reply_exits (r : Row) (hq : r.status = .queued) :
-    (engineStep .idle r (.committed false)).2 = .exited ∧
-    (engineStep .idle r (.committed false)).1.status = .running := by
+theorem lost_claim_reply_exits (generationCheck : Bool) (generation : Nat)
+    (r : Row) (hq : r.status = .queued) :
+    (engineStep generationCheck generation generation .idle r (.committed false)).2 = .exited ∧
+    (engineStep generationCheck generation generation .idle r (.committed false)).1.status = .running := by
   simp [engineStep, engineClaim, claim, hq]
 
 /-- No claim follows the exit: `exited` is absorbing under every outcome. -/
 @[req "OPS-49"]
-theorem exited_never_claims (r : Row) (o : StoreOutcome) :
-    engineStep .exited r o = (r, .exited) := rfl
+theorem exited_never_claims (generationCheck : Bool) (mine generation : Nat)
+    (r : Row) (o : StoreOutcome) :
+    engineStep generationCheck mine generation .exited r o = (r, .exited) := by
+  unfold engineStep
+  split <;> rfl
+
+/-- After an advance chooses a different token, the checked engine commits no claim and exits.
+The guard's refused/admitted pair is completed by `superseded_commits_without_check` in the
+witnesses. No lock interleaving or UUID generator is modeled here; the inputs are the engine's
+own token and the row token read while holding the transaction's share lock.
+`OPS-50` says "A mismatch is not a store error (`OPS-49`) and is never repeated." -/
+@[req "OPS-50"]
+theorem superseded_never_commits (generationCheck : Bool) (enabled : generationCheck = true)
+    (mine generation : Nat) (different : mine ≠ generation)
+    (e : Engine) (r : Row) (o : StoreOutcome) :
+    engineStep generationCheck mine generation e r o = (r, .exited) := by
+  simp [engineStep, enabled, different]
 
 end Provisiond.Claim
