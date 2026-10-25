@@ -1617,7 +1617,7 @@ rather than acquiring a default.
       Terminate the lock connection's backend: (i) with no stop pending, while a non-parent
       worker is in `execute`, outside `CNF-362`'s absorbed-read cases; (ii) with no stop
       pending, while a create's after-return settle write repeats under `OPS-49`; (iii) while an
-      earlier stop's cut-off record repeats under `OPS-49`. For cases (i)–(iii) and (vi),
+      earlier stop's cut-off record repeats under `OPS-49`. `OPS-49` says "the component MUST repeat the **whole transaction**". For cases (i)–(iii) and (vi),
       arrange that the record can land before either the Stop-record bound or the Store-retry
       bound expires, with no later stop. Where a write repeats, the store refuses its
       transactions until lock-loss detection and then accepts writes with sufficient time

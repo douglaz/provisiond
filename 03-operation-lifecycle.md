@@ -187,7 +187,7 @@ writer that is not the write being guarded — the later claim — which is what
 the epoch `ADR-0019` deleted. **The number identifies a claim and nothing else**: it bounds
 nothing, routes nothing, is not an attempt count — an operation is one attempt (`OPS-2`),
 however many times it is claimed — and is not a fence against a second engine; that is
-`OPS-50`'s generation check. *Until 2026-09-12 the column was `attempts`, "Attempt count MUST be
+`OPS-50`'s generation check. `OPS-50` says "compare it for equality with the value the engine's own startup pass wrote" and "Where the values differ, the transaction MUST roll back". *Until 2026-09-12 the column was `attempts`, "Attempt count MUST be
 incremented on claim", which read as a count of the thing `CONTEXT.md` calls an attempt while
 `CNF-288` says a create has no second one by any path.*
 
@@ -377,7 +377,7 @@ worker is exactly the case where the provider may have acted and nobody recorded
 pass is needed; nothing but a restart can leave a `running` row with no worker behind it.
 
 The engine's first write transaction after taking `STO-51`'s lock MUST contain only the
-replacement of `STO-59`'s startup generation (`OPS-50`'s exception). Its commit MUST be
+replacement of `STO-59`'s startup generation (`OPS-50`'s exception). `OPS-50` says "Except for `OPS-15`'s generation-advance transaction". Its commit MUST be
 acknowledged before the engine begins any other write transaction, the remainder of the pass, or
 any worker or periodic component. The engine makes no write before that transaction. Its
 replacing statement MUST run with `statement_timeout` and `lock_timeout` both set to `OVR-19`'s
@@ -1875,7 +1875,7 @@ The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry 
 exhaustion exit, the superseded exit (`OPS-50`), the lost-reply case and the supervisor's wait
 apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the
 cut-off classification and its reason do not, nor does the rule against repeating a transaction
-already sent inside `execute`. A stop that arrives after a stop has cancelled `execute`, before
+already sent inside `execute`. `OPS-50` says "the engine MUST log loudly that it was superseded and exit non-zero at once". A stop that arrives after a stop has cancelled `execute`, before
 that cancellation's record lands, is a later stop under that record's rules, not a stop after
 `execute` returns.
 

@@ -341,7 +341,7 @@ parameters (`OVR-19`). **Two more conditions are alarmed on the same model** (ad
 `ADR-0023`): the recovery point exceeding its threshold, and either named standby being
 unavailable (`STO-7`). **Two exits are alarmed on the same model** (added 2026-10-24,
 `ADR-0047`): an engine's superseded exit (`OPS-50`), and its startup exit on the generation
-advance's timeout (`OPS-15`). *Amended 2026-10-23 (`pv-s4m`; panel r63,
+advance's timeout (`OPS-15`). `OPS-50` says "the engine MUST log loudly that it was superseded and exit non-zero at once"; `OPS-15` says "On that timeout or any store error, including a lost reply on its commit, the engine MUST log loudly and exit non-zero having claimed nothing". *Amended 2026-10-23 (`pv-s4m`; panel r63,
 `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose
 synchronous replication”; S1 “Three servers (Recommended)”; `ADR-0045`): alarmed either named
 standby being unavailable.*

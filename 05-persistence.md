@@ -101,7 +101,7 @@ it and is not a fence.** The store MUST provide a **session-scoped advisory lock
 key, released when its session ends, which the engine takes before any claim and holds for its
 lifetime (`OPS-47`). It carries no row and guards no write: it fails a second engine's
 *startup*, and says nothing about any write that already happened. The fence is `STO-59`'s
-generation (`OPS-50`). It MUST enforce at most one `running` operation per machine that is not
+generation (`OPS-50`). `OPS-50` says "compare it for equality with the value the engine's own startup pass wrote" and "Where the values differ, the transaction MUST roll back". It MUST enforce at most one `running` operation per machine that is not
 yielded (`OPS-8`) — a partial unique index over `operations(machine_id) WHERE status = 'running'
 AND yielded_at IS NULL`. The index is what makes per-machine serialization a property the store
 checks rather than a promise the engine keeps: a re-acquire that clears `yielded_at` while
@@ -113,7 +113,7 @@ another `running` operation holds the machine affects no row, and the engine def
 **STO-59** **ADDED 2026-10-24 (`ADR-0047`) — the startup generation is one row, and generation
 choices are fresh.** The store MUST hold exactly one row carrying the **startup generation**.
 `OPS-15`'s startup pass replaces it with a fresh random UUID (`gen_random_uuid()`) in a
-transaction of its own. It is not a counter and is never compared for order: every check is
+transaction of its own. `OPS-15` says "MUST contain only the replacement of `STO-59`'s startup generation". It is not a counter and is never compared for order: every check is
 equality (`OPS-50`). `OPS-50` says "compare it for equality with the value the engine's
 own startup pass wrote". Every startup advance MUST choose a random UUID distinct from the values
 chosen by earlier startup advances, including choices whose effects a restore removed.
