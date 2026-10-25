@@ -95,7 +95,8 @@ status write. `OPS-50` says "read `STO-59`'s row `FOR SHARE` as its first statem
   stays true. *2026-10-24: `OPS-47` no longer says this; an earlier engine's writes are refused
 once a later engine's pass advances the generation (`ADR-0047`, `OPS-50`). `OPS-47` says "no
 write of the first commits once the second's startup pass has committed a new `STO-59`
-generation (`OPS-50`)".* The startup pass and the resolution writes do not carry it, on `OPS-3`'s scoping
+generation (`OPS-50`)". `OPS-50` says "Where the values differ, the transaction MUST roll
+back".* The startup pass and the resolution writes do not carry it, on `OPS-3`'s scoping
   argument — they are made by no execution.
 - **The defer write is `STO-3`'s fifth guarded write**, on `(id, status = running, claim_number =
   mine)`, and its zero-row meaning is "already deferred or already re-claimed; move on" — not

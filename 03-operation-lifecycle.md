@@ -137,7 +137,7 @@ checks at boot that it is alone.** The engine MUST run as exactly one process un
 supervisor that restarts it and never runs two. **That is a deployment obligation** (`OVR-19`).
 Where two engines run, no write of the first commits once the second's startup pass has
 committed a new `STO-59` generation (`OPS-50`); provider calls the first already licensed still
-go out. A supervisor guarantees it never *starts* two; it cannot guarantee the first is dead, so
+go out. `OPS-50` says "Where the values differ, the transaction MUST roll back". A supervisor guarantees it never *starts* two; it cannot guarantee the first is dead, so
 a node cut off from its supervisor while it still reaches the provider is out of scope and is
 the operator's to notice (`OVR-18`).
 
@@ -150,7 +150,8 @@ stop of every worker not already recording one, record each under `OPS-21` withi
 Stop-record bound, subject to its exits, and then exit non-zero. The loss is not a later stop: a
 record already pending when the loss is seen continues under its own Stop-record bound and
 exits. **The lock is not a fence**: no write is guarded on it (the generation is, `OPS-50`),
-holding it proves nothing about the past, and losing it invalidates nothing already written. It
+holding it proves nothing about the past, and losing it invalidates nothing already written.
+`OPS-50` says "MUST read `STO-59`'s row `FOR SHARE` as its first statement". It
 answers one question, once, at boot — is somebody else already here — and a refusal is a
 misconfigured deployment, which is how two engines actually happen.
 
@@ -369,7 +370,9 @@ provider call may be uncertain; the exceptions below name the rows that take a d
 exceptions below, at startup, before any claim, the engine MUST move every `running` operation
 to `needs_reconciliation` — after the generation advance below no earlier engine's write commits
 (`OPS-50`), so any `running` row at startup is interrupted — guarded on `(id, status = running)`
-(`STO-3`), and MUST log the count it found. It MUST NOT move them back to `queued`: a crashed
+(`STO-3`), and MUST log the count it found. `OPS-50` says "MUST read `STO-59`'s row `FOR SHARE`
+as its first statement, compare it for equality with the value the engine's own startup pass
+wrote" and "Where the values differ, the transaction MUST roll back". It MUST NOT move them back to `queued`: a crashed
 worker is exactly the case where the provider may have acted and nobody recorded it. No periodic
 pass is needed; nothing but a restart can leave a `running` row with no worker behind it.
 
@@ -386,7 +389,9 @@ which covers workers and periodic components. **Liveness:** a `SyncRep` holder (
 standby wait has no server-side timeout"), or share holders that keep turning over, can hold the
 advance until that exit, which `OVR-18` alarms; the supervisor's restart is the retry.
 `OPS-49` says "Where a store call by a worker, or by a periodic component running in the engine
-process (`OVR-17`), errors or times out".
+process (`OVR-17`), errors or times out". `OPS-50` says "hold that lock until it commits" and
+"Where the values differ, the transaction MUST roll back". `OVR-18` says "its startup exit on
+the generation advance's timeout (`OPS-15`)".
 
 **After a restore the premise fails, and `queued` rows are the danger** (added 2026-09-12,
 `ADR-0023`). "Any `running` row at startup is interrupted" is true after a crash and false after a
@@ -444,7 +449,7 @@ that ordinary path. The pass writes neither `about_to_order_at` nor the markers.
 Whichever of this null-guarded status write and the live step-8 write commits first, the other's
 guard affects no row. This describes their predicates; an earlier engine's step-8 write cannot
 commit once the pass has advanced the generation (`OPS-50`). `OPS-47` says "The lock is not a
-fence". The exception MUST NOT run periodically. **It does not fire while a restore record is
+fence". `OPS-50` says "Where the values differ, the transaction MUST roll back". The exception MUST NOT run periodically. **It does not fire while a restore record is
 open** (`STO-54`, `STO-56`). A restore can lose the column's committed write while the provider
 holds the order. This restriction lasts for the whole open incident, independently of the
 freeze's end.

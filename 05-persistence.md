@@ -32,7 +32,8 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   "strictly increases on each client-visible modification" true. **The guarded status write
   precedes every money write in the transaction and short-circuits the rest** — after `OPS-50`'s generation read and then `LDG-35`'s primitive where the settlement needs it,
   since those locks, in that order, are the transaction's entry —
-  so `OPS-27`'s multi-row settlement repeats as a unit or not at all.
+  so `OPS-27`'s multi-row settlement repeats as a unit or not at all. `OPS-50` says "MUST read
+  `STO-59`'s row `FOR SHARE` as its first statement".
   This includes the create row's worker settlement (`OPS-11`: "MUST settle `failed`, whatever its kind"): take the `LDG-35` primitive, make this guarded status write, then release under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full"). It adds no `about_to_order_at IS NULL` term.
   A write that affects no row means something other than this execution moved the operation —
   the startup pass after a restart, or a later claim after a defer — and the worker exits
@@ -50,7 +51,11 @@ sixth.** Six conditional writes move an operation, and each MUST report whether 
   for the create exception (`OPS-15`: "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.") — guarded on
   `(id, status = running)`, with `(kind = create, about_to_order_at IS NULL)` additionally inside
   the create settlement's conditional write, and carrying **no claim term**: it is made by no execution. It runs after `OPS-15`'s generation advance and before the process makes any claim, so no
-  earlier engine's write commits beside it (`OPS-50`).
+  earlier engine's write commits beside it (`OPS-50`). `OPS-50` says "MUST read `STO-59`'s row
+  `FOR SHARE` as its first statement, compare it for equality with the value the engine's own
+  startup pass wrote" and "Where the values differ, the transaction MUST roll back". `OPS-15`
+  says "every earlier engine's write either committed before it, and is swept here, or is refused
+  after it".
 - **Resolution out of `needs_reconciliation`** is not a worker write (`OPS-3`): it is guarded on
   `(id, status = needs_reconciliation, resolution IS NULL)`, which is `STO-19`'s write-once rule
   expressed as the same kind of conditional write. *Unscoped, this requirement forbade every
@@ -109,10 +114,11 @@ another `running` operation holds the machine affects no row, and the engine def
 choices are fresh.** The store MUST hold exactly one row carrying the **startup generation**.
 `OPS-15`'s startup pass replaces it with a fresh random UUID (`gen_random_uuid()`) in a
 transaction of its own. It is not a counter and is never compared for order: every check is
-equality (`OPS-50`). Every startup advance MUST choose a random UUID distinct from the values
+equality (`OPS-50`). `OPS-50` says "compare it for equality with the value the engine's
+own startup pass wrote". Every startup advance MUST choose a random UUID distinct from the values
 chosen by earlier startup advances, including choices whose effects a restore removed.
 Reinstating a backed-up value is not a new generation choice. This row is the fence `STO-51`'s
-lock is not.
+lock is not. `STO-51` says "The fence is `STO-59`'s generation (`OPS-50`)."
 
 ### Engine choice
 

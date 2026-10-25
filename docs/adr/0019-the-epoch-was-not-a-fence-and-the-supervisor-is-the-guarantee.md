@@ -83,7 +83,8 @@ is caught by the existing sweep. Correct, and cheap. Rejected because it buys a 
 this ADR puts out of scope, and keeps a column, a counter and a guard term alive to do it.
 
 *2026-10-24: `ADR-0047` reopens this option and adopts it, widened to every engine write
-(`OPS-50`, `STO-59`).*
+(`OPS-50`, `STO-59`). `ADR-0047` says "The rule widens the option rejected by `ADR-0019` from the
+claim to every engine write".*
 
 **Keep the epoch as a cheap tripwire.** Rejected because it cannot fire: the status term fails
 first in every path the worker algorithm takes, so a refused write would never be the thing that

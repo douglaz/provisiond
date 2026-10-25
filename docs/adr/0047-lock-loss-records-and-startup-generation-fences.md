@@ -93,7 +93,8 @@ the procedure runs on it. No application-side restore check is added.
   (the list in `OPS-50`).
 - Two writable copies of the database (`STO-54`). G fences one database history only.
 - A restore performed while any engine or `api` process runs. It is unsupported:
-  `STO-54`'s procedure stops every one before the restore begins (`STO-54`).
+  `STO-54`'s procedure stops every one before the restore begins (`STO-54`). `STO-54` says "the
+  deployment MUST stop every engine and `api` process".
 - Liveness: a `SyncRep` holder, or share holders that keep turning over, delay the takeover
   until `OPS-15`'s exit.
 

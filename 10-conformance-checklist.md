@@ -1508,7 +1508,9 @@ rather than acquiring a default.
 - [ ] **CNF-290** — **AMENDED 2026-09-08 (`ADR-0019`) — the restart drill, and the
       startup lock in place of a fence that was not one.** Kill the engine between a dispatch and
       its reply; restart it; assert the interrupted operation is `needs_reconciliation` (`OPS-15`)
-      and that the old process's late settled-state write commits nothing and exits it (`OPS-50`). Then start a second engine against the same store while the first holds
+      and that the old process's late settled-state write commits nothing and exits it (`OPS-50`).
+      `OPS-50` says "Where the values differ, the transaction MUST roll back, and the engine MUST
+      log loudly that it was superseded and exit non-zero at once". Then start a second engine against the same store while the first holds
       the lock, and assert it does no work and exits non-zero after the stated bound (`OPS-47`,
       `OVR-19`); release the first and assert the second then starts. Then, with one non-yielded
       `running` operation on a machine, attempt a second claim against the same machine directly
