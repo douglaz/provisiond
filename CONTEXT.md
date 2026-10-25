@@ -99,11 +99,12 @@ cancellation and a suspended tenant's are exposure-reducing but are not funding 
 (`ADR-0029`).
 _Avoid_: price-related deletion, price-dependent cancellation
 
-**Claim**: The engine taking one queued **operation** to run it. Numbered per operation by its
-**claim number**, which every write made by that execution carries: a later claim of the same
-operation — after an `OPS-8` defer — gets the next number, and that is the only thing that tells
-the two executions apart while both rows read `running`. Not an **attempt**: an operation is one
-attempt however many times it is claimed. The number identifies a claim and counts nothing.
+**Claim**:
+The engine taking one queued **operation** to run it. Numbered per operation by its **claim
+number**, which every write made by that execution carries: a later claim of the same operation
+— after an `OPS-8` defer — gets the next number, and that is the only thing that tells the two
+executions apart while both rows read `running`. Not an **attempt**: an operation is one attempt
+however many times it is claimed. The number identifies a claim and counts nothing.
 _Avoid_: attempt, attempt count, generation (that is the startup generation), epoch (withdrawn),
 lease (withdrawn), claimant (withdrawn with the leases), execution (that is what a claim starts,
 not its name)

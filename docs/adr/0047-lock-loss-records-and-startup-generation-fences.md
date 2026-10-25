@@ -61,13 +61,13 @@ the mechanism rather than keeping another copy of the argument.
 transaction after taking `STO-51`'s lock MUST contain only the replacement of `STO-59`'s
 startup generation”. This is anchored to the first write after the lock rather than the
 pass's first transaction: `STO-54` labels step (2) “*Before the first claim:*”. That write
-cannot precede the advance. `OPS-15` also says “The engine makes no write before that
+cannot precede the advance: a write before it would have no own value to compare against. `OPS-15` also says “The engine makes no write before that
 transaction.”
 
 `OPS-15` owns the advance statement's timeouts: “Its replacing statement MUST run with
 `statement_timeout` and `lock_timeout` both set to `OVR-19`'s Startup-lock wait bound.”
 PostgreSQL 18 says `lock_timeout` “applies separately to each lock
-acquisition attempt”, so both settings bound the whole statement's wait
+acquisition attempt”, and `STO-7` registers a `statement_timeout`; setting both bounds the whole wait
 ([timeouts](https://www.postgresql.org/docs/18/runtime-config-client.html)). The same page
 says of both settings, “A value of zero (the default) disables the timeout”. `OVR-19` types
 the bound “finite, positive duration” and requires startup to “refuse to run on a missing or

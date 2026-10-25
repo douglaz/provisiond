@@ -1517,6 +1517,7 @@ rather than acquiring a default.
       stale `engine_epoch` write to a machine row affected no row, against a table that had no
       such column and a guard that held by construction (`ADR-0019`). For the dedicated generation-fence drills, see `CNF-367`–`CNF-370` (`OPS-50`).* (`OPS-47`,
       `STO-51`, `OPS-15`, `STO-3`, `ADR-0019`)
+      *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): asserted that the old process's late write commits nothing under `OPS-50`, and replaced the second-engine note with a pointer to the generation-fence drills.*
 - [ ] **CNF-358** — **A create interrupted around step 8 has a distinct restart outcome.**
       With an auction-channel descriptor and again with a standard-channel (`correlator: none`)
       descriptor, kill during step 4's List offers read, after step 7, and while step 8's
@@ -1785,6 +1786,7 @@ rather than acquiring a default.
       *Amended 2026-10-20 (`pv-gq8`): added a later stop before the first transaction of each record and during the cut-off record's whole-transaction loop, with a still-running row and restart recovery; the before-first-transaction cases send no transaction.*
       *Amended 2026-10-21 (`pv-oes`): added a later stop with each record's transaction in flight; no transaction after it, and either outcome of the one sent.*
       *Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): added pre-marker `failed` cases and a delete stopped during marker-write repeats, and removed the control's `pv-9j6` exclusion.*
+      *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the superseded exit to the quoted `OPS-21` sentence.*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the
