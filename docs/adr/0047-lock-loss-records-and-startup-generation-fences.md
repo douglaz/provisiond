@@ -112,8 +112,9 @@ the procedure runs on it. No application-side restore check is added.
   “The project isn't built yet”) no build predates `OPS-50`. The full answer is
   “Us this scenario real? The project isn't built yet”
   (`docs/research/panels-2026-10/README.md`, r66 outcome).
-- **An application-side restore check.** Not added, on the owner's 2026-10-24 words quoted
-  under the restore decision above.
+- **An application-side restore check.** Not added
+  (`docs/research/panels-2026-10/r66/r66e/notes.md`). The owner's 2026-10-24 words are
+  quoted under the restore decision above.
 
 ## Consequences
 
