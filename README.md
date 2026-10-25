@@ -302,7 +302,8 @@ reimplementation is free to satisfy `STO-1`–`STO-7` another way; what it may n
 them on an engine that forbids a second `api` replica. `api` is the module that scales; the
 engine is deliberately one supervised process (`ADR-0016`), and its outage window is alarmed
 rather than replicated away (`OVR-18`). That the process is one is, in `OPS-47`'s words, "a
-deployment obligation" (`ADR-0019`); `OPS-50` refuses a superseded engine's writes (`ADR-0047`).
+deployment obligation" (`ADR-0019`); `OPS-50` refuses a superseded engine's writes ("the
+transaction MUST roll back", `ADR-0047`).
 
 ## Status
 

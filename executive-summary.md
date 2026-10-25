@@ -249,10 +249,10 @@ binding makes a late payment unattributable by construction. **The store is Post
 (`ADR-0016`, `ADR-0019`): `api` replicates, the engine does not, its liveness is alarmed
 (`OVR-18`), and the restart window is the accepted outage — leases, heartbeats and the machine
 lock were deleted rather than fenced. **Two engines are a deployment fault the set fences**
-(`OPS-47`, `OPS-50`): a startup lock refuses the second one's *boot*, and once a later engine's
-startup pass has advanced `STO-59`'s generation, no write of the earlier one commits; provider
-calls it already licensed still go out (`ADR-0047`). The epoch that first claimed this was
-comparing a value against itself (`ADR-0019`).
+(`OPS-47`, `OPS-50`): a startup lock refuses the second one's *boot*, and in `OPS-47`'s words
+"no write of the first commits once the second's startup pass has committed a new `STO-59`
+generation (`OPS-50`); provider calls the first already licensed still go out" (`ADR-0047`). The
+epoch that first claimed this was comparing a value against itself (`ADR-0019`).
 
 ## 5. The money model is the security model
 
