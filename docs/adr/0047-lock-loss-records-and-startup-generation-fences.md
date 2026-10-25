@@ -67,8 +67,9 @@ cannot precede the advance: a write before it would have no own value to compare
 `OPS-15` owns the advance statement's timeouts: “Its replacing statement MUST run with
 `statement_timeout` and `lock_timeout` both set to `OVR-19`'s Startup-lock wait bound.”
 PostgreSQL 18 says `lock_timeout` “applies separately to each lock acquisition attempt”
-([timeouts](https://www.postgresql.org/docs/18/runtime-config-client.html)), and `STO-7`
-registers a `statement_timeout`; setting both bounds the whole wait. The same page
+([timeouts](https://www.postgresql.org/docs/18/runtime-config-client.html)), and of
+`statement_timeout`, “Abort any statement that takes more than the specified amount of
+time”; setting both bounds the whole wait. The same page
 says of both settings, “A value of zero (the default) disables the timeout”. `OVR-19` types
 the bound “finite, positive duration” and requires startup to “refuse to run on a missing or
 out-of-range value”. A zero therefore stops startup rather than disabling the timeout;
