@@ -165,7 +165,8 @@ A supervised restart is caught without it, by `OPS-15`'s startup pass and `STO-3
 eligible operation and marking it `running` MUST happen in one indivisible step, which also
 increments and returns the claim number (`OPS-6`). No claim carries a deadline; a `running`
 operation stays claimed until it settles, defers under `OPS-8`, or the startup pass finds it
-(`OPS-15`). The claiming step's transaction makes `OPS-50`'s generation check first.
+(`OPS-15`). The claiming step's transaction makes `OPS-50`'s generation check first. `OPS-50`
+says "MUST read `STO-59`'s row `FOR SHARE` as its first statement".
 
 *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the claiming transaction’s generation-check pointer.*
 
@@ -384,6 +385,8 @@ MUST log loudly and exit non-zero having claimed nothing; this exit is not `OPS-
 which covers workers and periodic components. **Liveness:** a `SyncRep` holder (`STO-7`: "A
 standby wait has no server-side timeout"), or share holders that keep turning over, can hold the
 advance until that exit, which `OVR-18` alarms; the supervisor's restart is the retry.
+`OPS-49` says "Where a store call by a worker, or by a periodic component running in the engine
+process (`OVR-17`), errors or times out".
 
 **After a restore the premise fails, and `queued` rows are the danger** (added 2026-09-12,
 `ADR-0023`). "Any `running` row at startup is interrupted" is true after a crash and false after a
@@ -1764,9 +1767,12 @@ loop:
 A settled-state write affecting no row means something that was not this execution moved the
 operation — `OPS-15`'s startup pass after a restart (after a restart, `OPS-50` refuses an
 earlier engine's write before its guard), or a later claim after a defer — so the worker stops
-there. A repeat of its own write, after a lost reply, affects one row and is success (`STO-3`).
+there. `OPS-50` says "MUST read `STO-59`'s row `FOR SHARE` as its first statement" and "Where
+the values differ, the transaction MUST roll back".
+A repeat of its own write, after a lost reply, affects one row and is success (`STO-3`).
 `OPS-42`'s fence writes a machine row and carries no such guard; against a second engine it
-carries `OPS-50`'s generation check, as every engine write does. *This sentence named `OPS-45`'s
+carries `OPS-50`'s generation check, as every engine write does. `OPS-50` lists "`OPS-42`'s
+machine-row writes". *This sentence named `OPS-45`'s
 markers beside the fence until 2026-09-12; they are `operations` columns and are guarded like
 any worker write.*
 
@@ -1894,7 +1900,8 @@ is success. Where the guarded write affects no row, **something that was not thi
 moved the operation** — the startup pass after a restart (`OPS-15`), or a later claim after an
 `OPS-8` defer — and the worker MUST log it loudly, saying what it observed rather than asserting
 a restart, leave the record alone, and exit. A write that `OPS-50`'s generation check refuses is
-not a zero-row write: the engine exits at once (`OPS-50`). *Until 2026-09-12 the clause read
+not a zero-row write: the engine exits at once (`OPS-50`). `OPS-50` says "the engine MUST log
+loudly that it was superseded and exit non-zero at once". *Until 2026-09-12 the clause read
 "the startup pass has already classified it", which a retried write after a lost reply made
 false without a restart. The epoch term this requirement carried until `ADR-0019` could not
 fail, because the claiming process stamped the value it then compared against.*
@@ -1908,7 +1915,8 @@ transaction** — never the last failed statement, and never the provider call (
 the provider's outcome retained in memory, for a stated bound (`OVR-19`), and on exhausting the
 bound MUST log loudly and the engine MUST exit non-zero into its supervisor, where `OVR-18`'s
 alarm is watching. A refused generation check (`OPS-50`) is not a store error and is never
-repeated. The bound covers connection, execution, commit, read-back and backoff together, but
+repeated. `OPS-50` says "A mismatch is not a store error (`OPS-49`) and is never repeated."
+The bound covers connection, execution, commit, read-back and backoff together, but
 not a commit's wait for the standby (`STO-7`), and it is a money parameter: on exhaustion the
 outcome in hand is thrown away and `OPS-15` classifies the row as interrupted — unless the
 bound's last repeat committed and its reply was lost, in which case the row is already written,
