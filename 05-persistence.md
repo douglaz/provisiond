@@ -567,6 +567,16 @@ establishes when a resource became visible, and when an ordinary mutation's effe
 back; no path updates or deletes one. Narrowing a window is a human re-declaring it in the
 descriptor and archiving the samples out of this table (`PRV-36`), never an engine write.
 
+### `offer_listings`
+
+**STO-60** `read_at` is the dispatch instant of the successful driver List offers call. Every successful driver List offers read MUST publish its complete result to the account's row, replacing an existing row only when the incoming `read_at` is later. A failed read MUST leave the row unchanged. The read's caller publishes the result, outside the driver read: `PRV-50` says “The driver's List offers MUST be read-only under `PRV-12`'s guarantee: "Get machine MUST be read-only and free of side effects".” See `OPS-51`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `provider_account` | text | primary key |
+| `read_at` | timestamp | see `STO-60` |
+| `offers` | json | the driver's List offers result (`DOM-9`: "Prices MUST be carried as strings exactly as the provider returned them.") |
+
 ### `tenants`
 
 Required by `ADR-0002`: a self-serve tenant appears at runtime, so it must be a row rather than

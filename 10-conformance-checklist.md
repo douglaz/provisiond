@@ -29,6 +29,8 @@ whose `billing_unit.seconds` is zero — `PRV-44`'s exact-elapsed-time offer, a 
 under which nothing is prepaid for time — or on a seed that is not the machine's first; the first
 seed under a unit of some seconds is `CNF-318`'s.
 
+**Stored offer listings in the items below** (2026-10-26): An item that asserts or relies on a create being admitted or succeeding, including a create used to show a release, without specifying the stored listing's age, runs on a stored listing that contains the named offer and has a `read_at` no older than the stated offer-listing age at the admitting transaction (see `OVR-19`). This default qualifies only the admission or success assertion and any create used to reach it; an item asserting a refusal without specifying the stored listing's age asserts it whatever that age. For the stale-listing refusal case, see `CNF-166`.
+
 ## Build and gate
 
 - [ ] **CNF-1** — CI builds the project from a clean checkout, with no network-dependent
@@ -2820,8 +2822,7 @@ rather than acquiring a default.
       release, and no provider mutation: no per-order key upload and no order request.
       Repeat the step-8 barriers and account-read cases with an auction-channel descriptor and
       a standard-channel (`correlator: none`) descriptor; assert the column's null/set test on
-      both, and each failing case's `retryable` value above, making no assertion about the
-      correlator pair on the latter.
+      both, and each failing case's `retryable` value above, asserting, where step 8 committed, `correlator_kind` `ssh_key_fingerprint` and the per-order key's fingerprint on both, and a null pair on both where it did not.
       **Fifth**: reload configuration over the `terminated` row and assert it stays `terminated`.
       **Then activate a
       fresh tenant while that account is terminated and assert it is never assigned to it**
@@ -2935,7 +2936,7 @@ rather than acquiring a default.
       settled operation row and assert the sweep retains every key that operation tagged, including
       distinct caller and Robot correlator keys. Read the guard through retained
       `machines.correlator_value`: operation UUID for Cloud and DigitalOcean, per-order correlator-key
-      fingerprint for Robot. Once a later observation clears `provisioning`, assert the sweep deletes
+      fingerprint for Robot. Run this Robot case on a standard-channel (`correlator: none`) descriptor too, settling the create through the operator's attach (`PRV-33`: "attaching a discovered machine to a tenant MUST be an operator action"). Once a later observation clears `provisioning`, assert the sweep deletes
       every surviving eligible registration with the row still absent. Before that sweep, retry
       a create with the same caller fingerprint: Cloud and Robot refuse the duplicate before acceptance,
       with no order request or charge. The successful create's driver makes no prompt deletion. On a pre-acceptance failure, delete
@@ -3681,6 +3682,8 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       operator is shown all candidates, and the recorded choice names which duplicate was kept
       and why the others are believed spurious. (`OPS-38`, `OPS-31`)
 
+- [ ] **CNF-371** — On a standard-channel (`correlator: none`) descriptor, lose a create's order reply with exactly one standard-listing transaction carrying its fingerprint; assert **Unresolved**, operator escalation and no automatic attach. After the negative window releases the commitment, assert still no automatic attach (`OPS-33`: "the search it bounds is an **operator** search, not an automatic one"). (`OPS-38`, `PRV-33`, `OPS-27`)
+
 - [ ] **CNF-166** — Withhold from the customer offer listing an offer with no cancellation
       bound, a descriptor-declared bound later than provider-local today, and an offer-reported
       bound later than provider-local today. For each, create with a remembered offer id and
@@ -3692,11 +3695,10 @@ Added 2026-08-12 closing `F30`'s list of untested requirements from the commitme
       the earliest-date contribution to `protected_sats` is zero before and after a shorter actual
       date is read, while the commitment remains unchanged (`PRV-13`, `PRV-31`, `LDG-33`).
       Preserve cap and balance suppression for an unsellable offer under `API-7`.
-      Separately create with an offer id the provider has never listed, absent from every source
-      admission could read. Assert the purchase-tail `400 invalid_request` with
+      Separately create with an offer id the provider has never listed, absent from the stored offer listing. Assert the purchase-tail `400 invalid_request` with
       `details.reason: "offer_not_sellable"`, its `WIR-9a` refusal entry, and `not_checked` entries
       for balance and, when supplied, the commitment cap, each with `because: "offer_not_sellable"`.
-      Cap and balance do not run; there is no commitment, purchase write or provider order.
+      Cap and balance do not run; there is no commitment, purchase write or provider order. Separately let a `healthy` account's stored listing contain the named sellable offer and be older than the offer-listing age, with no other refusal condition: the create is refused `provider`, `retryable: true`, after tail collection and before any admission write, with no provider call. Separately re-list the named offer, inside the age, at a higher price sufficient to exceed what the admitted reserve covers, leaving the stored listing unchanged until admission: the create is admitted at the stored price, and the claim fails `conflict` with `details.reason: "price_moved"` (`OPS-43`: “After the sale re-test passes, and before any per-order key upload or other provider mutation, the worker MUST re-read the offer's current price from that same List offers result **in the provider's own currency** and compare it with the native price the commitment was sized from — **carried on the operation's `request_summary`, which MUST hold the accepted recurring price, its currency and its period, and the accepted setup fee and prepaid first unit, the unit with its `billing_unit.seconds`** (`LDG-2`, `LDG-67`; *the unit and its seconds added 2026-10-08, `ADR-0033`, because the machine's row copies the seconds for its first seed, `LDG-38`, `05-persistence.md`*; *the fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any provider mutation — where the provider's price has risen past what the reserve covers**: `conflict`, `details.reason: "price_moved"`, the shortfall in `details`, telling the caller to re-submit, and `retryable: true` on both the error and the operation view (`WIR-9b`).”). With no customer requests, assert each account declaring `list_offers` is read within each stated offer-listing refresh interval, except while its credential is subject to the authentication stop. Assert no scheduled retry for a stopped credential. After successful reads, assert publication of the complete result with `read_at` equal to the dispatch instant. Complete two reads in reverse dispatch order and assert the row retains the later read's `read_at` and offers. Fail a read and assert the existing row is unchanged. See `STO-60` and `OPS-51`.
       (`PRV-31`, `PRV-13c`, `LDG-12`, `API-7`, `WIR-9a`, `DOM-9`, `WIR-30`, `CNF-307`)
       *Amended 2026-10-09 (`ADR-0039`): the no-bound sale refusal uses the
       create-tail offer reason.*
@@ -4103,8 +4105,7 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       one wins, and the loser receives an ordinary HTTP `409 conflict`/`state`
       error with `retryable: false`, no `details.refusals`, no synthesized pacing
       or `Retry-After`, and no commitment, balance change, operation or receipt.
-      Kill the winner after step 8 commits and keep it unresolved across engine restart and assert further
-      creates lose on every replica; settle it and assert the exclusion releases.
+      Kill the winner after step 8 commits and keep it unresolved across engine restart and assert further creates lose on every replica; settle it and assert the exclusion releases. Each of these further creates, including any create used to show the release, uses a stored listing containing the named sellable offer, with its `read_at` no older than the offer-listing age (`OVR-19`) at the admitting transaction.
       A catalogue product admits independent creates. Race account termination
       separately to retain `API-63`'s guard, and race extension with cancellation
       to retain `LDG-62`'s.

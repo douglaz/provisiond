@@ -261,7 +261,7 @@ The tail then depends on what the endpoint does:
 
 **Rich purchase tails (create and extend-runway only; amended 2026-10-04, `ADR-0030`).** After steps 1–5d, the tail MUST
 collect every applicable refusal once, from one read-only snapshot inside the existing `LDG-35`
-transaction, without an extra lock, ceiling slot, write or provider call. `details.refusals`
+transaction, without an extra lock, ceiling slot, write or provider call. On create, the offers the check reads are the provider account's stored offer listing (`05-persistence.md`, `offer_listings`), read in that snapshot, and the tail prices the commitment and takes the offer snapshot from it. On create, the tail reads the stored listing regardless of age, or an empty offers set if no listing is stored. If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing. Every offer-derived input used to size the commitment or populate `request_summary` comes from the named offer in that same stored listing, including recurring price, currency, period, setup fee, `install_strategies`, and any offer-reported billing unit or cancellation bound. Descriptor-declared inputs come from the descriptor the `api` runs with. See `PRV-44`, `PRV-13b` and `05-persistence.md`. `details.refusals`
 (`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
 against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
 then, on create only, `invalid_request`/`offer_not_sellable` when the named offer is

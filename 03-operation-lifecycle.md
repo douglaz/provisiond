@@ -707,7 +707,7 @@ API is weaker.**
 
 **OPS-38** Correlator matching MUST define cardinality: zero, one, or many — counted over every
 correlator the operation recorded and every ordering channel the driver can reach (`OPS-27`,
-`PRV-38`). A create that recorded none has no count: `OPS-27`'s row for "no verified
+`PRV-38`). A create that recorded none, or whose ordering channel is declared `correlator: none` (see `PRV-33`), has no count: `OPS-27`'s row for "no verified
 correlator exists for the operation's ordering channel" applies, and it is **Unresolved**.
 
 **AMENDED 2026-09-05 — the union over attempts is gone; the cardinality check is not**
@@ -1999,6 +1999,8 @@ advance goes out — step 9 after step 8 (`OPS-43`: "Step 9 MUST begin only afte
 transaction is acknowledged"), an install's destructive phase after one marker, end-rescue,
 `PRV-9`/`PRV-18` temporary-key deletion, `OPS-32` after its read. Nor does it fence two writable
 copies of the database; its guarantee covers one writable database history.
+
+**OPS-51** A refresh pass MUST read every account declaring `list_offers` at least once per stated offer-listing refresh interval, except while that credential is subject to the authentication stop. `PRV-41` says “A driver MUST therefore treat an `authentication` failure as terminal for that credential, MUST NOT re-attempt it on a schedule, and MUST surface it for an operator (`OPS-26`).”
 
 **OPS-23** Validation that was performed at the API boundary MUST be repeated in the
 worker before the driver is called. The record may have been written by an older version
