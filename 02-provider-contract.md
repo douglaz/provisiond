@@ -896,7 +896,9 @@ Three constraints on what is written:
   recorded on the operation row — `operations.correlator_kind` and
   `operations.correlator_value` (`05-persistence.md`) — before the order is sent, because a
   create whose reply was lost has no machine row to carry them and reconciliation would
-  otherwise have nothing durable to search for. It MUST NOT encode the
+  otherwise have nothing durable to search for.
+
+For Robot, this recording obligation applies on every ordering channel, including one declared `correlator: none`: the kind is `ssh_key_fingerprint` and the value is the per-order key's fingerprint. See `PRV-33`. It MUST NOT encode the
   tenant, a customer identifier, a hostname the customer chose, or anything else linkable to a
   person (`ADR-0005`). Anyone reading the operator's provider console sees an opaque token.
 - **It MUST be written in the same request that performs the mutation**, never as a follow-up
@@ -989,6 +991,8 @@ real orders.** *The withdrawn sentence said `PRV-34` "makes it free to close"; i
 `F37` is why — a simulated order is never listed, so test mode cannot exercise the half that
 matters.* Until a driver's own channel passes `CNF-180`, it MUST declare no correlator and `PRV-33`
 governs.
+
+On every Robot ordering channel, including one declared `correlator: none`, the driver MUST generate a throwaway key unique to that order, and the order MUST name it in `authorized_key[]` beside the caller's keys (`08-provider-notes.md`: "`authorized_key[]` supplies fingerprints to orders"). See `PRV-9`, `PRV-26` and `PRV-33`.
 
 **AMENDED 2026-09-04 — verified against the live API, and per-attempt discrimination is now an
 observation rather than an argument.** Two throwaway ED25519 keys were registered and two auction

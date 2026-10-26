@@ -15,7 +15,8 @@ review finding.
 The pipeline (`API-7`, `WIR-34`, `API-55`, `API-56`): principal, tenant state,
 listener and verb decide one outcome and whether the request consumed a ceiling slot.
 The create-only step 5d is modelled in `createPurchaseTail`, outside `admit`, which stops at
-5c. `API-7` says "A refusal stops here and is not collected by the tail." The ceilings
+5c; `createAdmission` composes it with collection and the listing-age decision.
+`API-7` says "A refusal stops here and is not collected by the tail." The ceilings
 (`SEC-39`): which budget each verb counts against, and the two properties that make a ceiling a
 control rather than a field. The matrices (`LDG-20`, `LDG-40`, `LDG-59`, `LDG-64`, `LDG-65`): what
 a solvency failure and a rate outage do to each action, over an action space that includes the
@@ -55,6 +56,17 @@ Its closed-channel Boolean is for the named create's account and channel. It doe
 account/channel isolation, clock expiry, a database race, HTTP serialization or Robot's behavior.
 The commitment and enqueue belong to `Provisiond.Fence` and `Provisiond.Ledger`.
 The earlier pipeline and other verbs remain outside rich collection.
+
+The composed create result retains the collected tail separately from an early or age refusal.
+`createAdmissionRetryable` computes retryability for collected results and the added provider
+branch; step-5d retryability and all wire effects remain outside it. Supplied age and sale facts
+describe the same admitting snapshot. Elapsed age and limit use common natural-number duration
+units; their strict comparison is proved, but obtaining coherent durations from clocks and
+database reads is a supplier obligation. Missing listings use the existing absent-offer input,
+not a separate presence input. Refresh scheduling, successful-read publication, storage, price
+arithmetic, database locking/isolation, provider calls, physical writes and HTTP serialization
+remain outside this composition. See `STO-60`, `OPS-51` and `OVR-19`.
+Passage through the modelled stages proves no later conditional-write guard or runtime admission.
 
 The listener. `API-27` obliges a deployment to "expose *only* the customer-facing routes publicly,
 keeping operator and reconciliation routes on a separate listener or network", which is a property
@@ -304,7 +316,11 @@ its offer-reported bound is later than the provider's local today."
 
 `orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`): `API-7` says
 "**gate a create on its ordering capability**". Off, a create without that declaration reaches
-the purchase tail. -/
+the purchase tail.
+
+`listingAgeGuard` (`API-7`, 2026-10-26, `pv-tcs`): `API-7` says
+"If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing."
+Off, `createAdmission` returns the former composed result on identical snapshot inputs. -/
 structure Guards where
   listenerSplit            : Bool
   operatorSkipsTenantSteps : Bool
@@ -327,6 +343,7 @@ structure Guards where
   completeCheckToLift     : Bool
   solvencyUsesValuedTerms  : Bool
   orderingCapabilityGuard : Bool
+  listingAgeGuard         : Bool
   deriving DecidableEq, Repr
 
 /-- The pipeline and the two matrices as they stand. `stepTwoReadsSuspension` is the withdrawn
@@ -352,7 +369,8 @@ def current : Guards := {
     channelClosureGuard     := true,
     completeCheckToLift     := true,
     solvencyUsesValuedTerms  := true,
-    orderingCapabilityGuard := true }
+    orderingCapabilityGuard := true,
+    listingAgeGuard         := true }
 
 /-- `LDG-40`, amended 2026-10-04: "An incomplete passing check MUST preserve
 the existing verdict". The guard's off position retains the defect: omitting a leg lifts a halt.
@@ -1057,7 +1075,9 @@ theorem no_verb_reaches_the_system_cancellation :
 /-! ## Rich purchase tails
 
 Snapshot facts only. Prices, locks, receipts, HTTP serialization and actual writes are omitted.
-`API-7` owns evaluation purity; the list's snapshot inputs do not prove transaction isolation. -/
+The list's snapshot inputs do not prove transaction isolation; see `API-7`.
+Admission in the collection properties below means the collection verdict; the composed create
+decision is `createAdmission`. An empty collection alone is not that composed result. -/
 inductive TailRefusal
   | accountRecoverable | accountTerminated | fence | offerNotSellable | channelClosed
   | solvency | rate | cap | balance
@@ -1180,6 +1200,138 @@ theorem undeclared_ordering_stops_before_tail (g : Guards)
       { refusal := some .unsupported, tail := none } := by
   simp [createPurchaseTail, h]
 
+/-! ## Composed create admission
+
+`API-7`: "On create, the tail reads the stored listing regardless of age, or an empty offers set
+if no listing is stored." The supplied sale verdict includes the named offer's absence, including
+an empty offers set. There is no separate no-row refusal or presence policy here. -/
+
+/-- Age and limit are coherent durations in the same units from the admitting snapshot.
+No timestamp subtraction, clock or database read is performed by this model. -/
+@[req "API-7"]
+def listingStale (age limit : Nat) : Bool := decide (limit < age)
+
+@[req "API-7"]
+theorem listing_stale_iff (age limit : Nat) :
+    listingStale age limit = true ↔ limit < age := by simp [listingStale]
+
+@[req "API-7"]
+theorem listing_age_equality_is_fresh (limit : Nat) :
+    listingStale limit limit = false := by simp [listingStale]
+
+/-- Apply age only to an empty, successfully collected result; retain that collection alongside
+any added refusal. The result contains no write continuation or wire serialization. -/
+@[req "API-7"]
+def afterListingAge (g : Guards) (age limit : Nat) (result : CreateTailResult) : CreateTailResult :=
+  match result.refusal, result.tail with
+  | none, some tail =>
+      if tail.refusals.isEmpty then
+        if g.listingAgeGuard && listingStale age limit then
+          { refusal := some .provider, tail := some tail }
+        else result
+      else result
+  | _, _ => result
+
+/-- Direct composition over the existing step-5d and collection function. All sale and age
+inputs refer to the same admitting snapshot; supplying them coherently is not proved here. -/
+@[req "API-7"]
+def createAdmission (g : Guards) (orderingDeclared : Bool) (account : AccountStatus.Status)
+    (offerSellable channelClosed halted rate capPresent cap balance : Bool)
+    (age limit : Nat) : CreateTailResult :=
+  afterListingAge g age limit
+    (createPurchaseTail g orderingDeclared account offerSellable channelClosed
+      halted rate capPresent cap balance)
+
+/-- Every pre-collection refusal survives at every age, with no collection introduced. -/
+@[req "API-7"]
+theorem age_preserves_early_refusal (g : Guards) (age limit : Nat) (kind : ErrorKind) :
+    afterListingAge g age limit { refusal := some kind, tail := none } =
+      { refusal := some kind, tail := none } := by rfl
+
+@[req "API-7"]
+theorem age_preserves_step_5d (g : Guards) (h : g.orderingCapabilityGuard = true)
+    (a : AccountStatus.Status) (o c s r q p b : Bool) (age limit : Nat) :
+    createAdmission g false a o c s r q p b age limit =
+      { refusal := some .unsupported, tail := none } := by
+  simp [createAdmission, createPurchaseTail, afterListingAge, h]
+
+/-- Whole-result identity preserves refusal order, skipped checks and all collection data. -/
+@[req "API-7"]
+theorem age_preserves_nonempty (g : Guards) (age limit : Nat) (tail : TailResult)
+    (h : tail.refusals ≠ []) :
+    afterListingAge g age limit { refusal := none, tail := some tail } =
+      { refusal := none, tail := some tail } := by
+  cases tail with
+  | mk refusals notChecked =>
+    cases refusals <;> simp_all [afterListingAge]
+
+@[req "API-7"]
+theorem fresh_age_identity (g : Guards) (age limit : Nat) (hf : age ≤ limit)
+    (result : CreateTailResult) : afterListingAge g age limit result = result := by
+  cases result with
+  | mk refusal tail =>
+    cases refusal <;> cases tail <;>
+      simp [afterListingAge, listingStale, Nat.not_lt.mpr hf]
+
+@[req "API-7"]
+theorem disabled_age_identity (g : Guards) (hg : g.listingAgeGuard = false)
+    (age limit : Nat) (result : CreateTailResult) :
+    afterListingAge g age limit result = result := by
+  cases result with
+  | mk refusal tail =>
+    cases refusal <;> cases tail <;> simp [afterListingAge, hg]
+
+/-- Direct whole-result preservation for every nonempty create collection, at every age. -/
+@[req "API-7"]
+theorem create_nonempty_age_identity (g : Guards) (declared : Bool) (a : AccountStatus.Status)
+    (o c s r q p b : Bool) (age limit : Nat)
+    (h : (purchaseTail g true a o c false s r q p b).refusals ≠ []) :
+    createAdmission g declared a o c s r q p b age limit =
+      createPurchaseTail g declared a o c s r q p b := by
+  unfold createAdmission createPurchaseTail
+  split
+  · rfl
+  · exact age_preserves_nonempty g age limit _ h
+
+@[req "API-7"]
+theorem create_fresh_age_identity (g : Guards) (declared : Bool) (a : AccountStatus.Status)
+    (o c s r q p b : Bool) (age limit : Nat) (hf : age ≤ limit) :
+    createAdmission g declared a o c s r q p b age limit =
+      createPurchaseTail g declared a o c s r q p b :=
+  fresh_age_identity g age limit hf _
+
+@[req "API-7"]
+theorem create_disabled_age_identity (g : Guards) (hg : g.listingAgeGuard = false)
+    (declared : Bool) (a : AccountStatus.Status) (o c s r q p b : Bool) (age limit : Nat) :
+    createAdmission g declared a o c s r q p b age limit =
+      createPurchaseTail g declared a o c s r q p b :=
+  disabled_age_identity g hg age limit _
+
+/-- The only added provider branch: step 5d passed, collection is empty, and age is strictly
+past the limit with the guard enabled. No collection or ordering guard hypothesis is needed. -/
+@[req "API-7"]
+theorem age_provider_iff (g : Guards) (declared : Bool) (a : AccountStatus.Status)
+    (o c s r q p b : Bool) (age limit : Nat) :
+    (createAdmission g declared a o c s r q p b age limit).refusal = some .provider ↔
+      (g.orderingCapabilityGuard && !declared) = false ∧
+      (purchaseTail g true a o c false s r q p b).refusals = [] ∧
+      g.listingAgeGuard = true ∧ limit < age := by
+  simp only [createAdmission, createPurchaseTail]
+  split
+  · simp_all [afterListingAge]
+  · rename_i h
+    simp only [afterListingAge]
+    split
+    · split <;> simp_all [listingStale, Bool.and_eq_true]
+    · simp_all
+
+@[req "API-7"]
+theorem stale_clean_provider (g : Guards) (hg : g.listingAgeGuard = true)
+    (age limit : Nat) (hs : limit < age) (tail : TailResult) (ht : tail.refusals = []) :
+    afterListingAge g age limit { refusal := none, tail := some tail } =
+      { refusal := some .provider, tail := some tail } := by
+  simp [afterListingAge, ht, hg, listingStale, hs]
+
 /-- Compose the computed sale input with the real tail, preserving its snapshot parameters. -/
 @[req "API-7"]
 def purchaseTailForOffer (g : Guards) (create : Bool) (account : AccountStatus.Status)
@@ -1275,6 +1427,29 @@ def TailRefusal.retryable : TailRefusal → Bool
 
 @[req "WIR-9b"]
 def envelopeRetryable (r : TailResult) : Bool := r.refusals.all TailRefusal.retryable
+
+/-- Executable retryability for a collected result or the added provider refusal. Step-5d
+retryability is unrepresented (`none`); no HTTP field or response is emitted. -/
+@[req "API-7"]
+def createAdmissionRetryable (result : CreateTailResult) : Option Bool :=
+  match result.refusal, result.tail with
+  | some .provider, _ => some true
+  | none, some tail => some (envelopeRetryable tail)
+  | _, _ => none
+
+@[req "API-7"]
+theorem stale_provider_retryable (tail : TailResult) :
+    createAdmissionRetryable { refusal := some .provider, tail := some tail } = some true := rfl
+
+/-- Identity also preserves the collection's existing retryability at every age. -/
+@[req "API-7"]
+theorem age_preserves_collection_retryability (g : Guards) (age limit : Nat) (tail : TailResult)
+    (h : tail.refusals ≠ []) :
+    createAdmissionRetryable
+      (afterListingAge g age limit { refusal := none, tail := some tail }) =
+      some (envelopeRetryable tail) := by
+  rw [age_preserves_nonempty g age limit tail h]
+  rfl
 
 set_option maxHeartbeats 1000000 in
 @[req "API-7"]

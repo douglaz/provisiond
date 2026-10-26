@@ -4353,6 +4353,64 @@ theorem undeclared_ordering_reaches_the_tail_without_the_step :
     undeclaredOrderingCreate { Admission.current with orderingCapabilityGuard := false } =
       { refusal := none, tail := some { refusals := [.balance], notChecked := [] } } := by decide
 
+/-- An otherwise clean stale create; neutral inputs isolate the age control from every other
+Admission guard mutation. The same snapshot is used in both guard positions. -/
+def staleListingCreate (g : Admission.Guards) :=
+  createAdmission g true .healthy true false false true true false false 11 10
+
+@[req "API-7"]
+theorem stale_listing_refused_with_age_guard :
+    staleListingCreate Admission.current =
+      { refusal := some .provider, tail := some { refusals := [], notChecked := [] } } ∧
+    createAdmissionRetryable (staleListingCreate Admission.current) = some true := by decide
+
+@[req "API-7"]
+theorem stale_listing_admitted_without_age_guard :
+    staleListingCreate { Admission.current with listingAgeGuard := false } =
+      { refusal := none, tail := some { refusals := [], notChecked := [] } } := by decide
+
+/-- All relevant guards are fixed here so the preservation fixtures are independent of each
+CI mutation of `current`, including the age field. -/
+def listingFixtureGuards : Admission.Guards :=
+  { Admission.current with listingAgeGuard := true, orderingCapabilityGuard := true, richTailCollection := true, offerSaleGuard := true, channelClosureGuard := true }
+
+def staleUnhealthyCreate (account : AccountStatus.Status) :=
+  createAdmission listingFixtureGuards true account true false false true true true true 11 10
+
+@[req "API-7"]
+theorem stale_unhealthy_accounts_keep_collection :
+    staleUnhealthyCreate .accountUnreachable =
+      { refusal := none, tail := some { refusals := [.accountRecoverable], notChecked := [(.commitmentCap, .unhealthy), (.balance, .unhealthy)] } } ∧
+    staleUnhealthyCreate .credentialsRejected = staleUnhealthyCreate .accountUnreachable ∧
+    staleUnhealthyCreate .terminated =
+      { refusal := none, tail := some { refusals := [.accountTerminated], notChecked := [(.commitmentCap, .unhealthy), (.balance, .unhealthy)] } } ∧
+    createAdmissionRetryable (staleUnhealthyCreate .accountUnreachable) = some true ∧
+    createAdmissionRetryable (staleUnhealthyCreate .credentialsRejected) = some true ∧
+    createAdmissionRetryable (staleUnhealthyCreate .terminated) = some false := by decide
+
+@[req "API-7"]
+theorem stale_healthy_accounts_keep_refusals :
+    createAdmission listingFixtureGuards true .healthy true false true false true true true 11 10 =
+      { refusal := none, tail := some { refusals := [.solvency, .rate], notChecked := [(.commitmentCap, .noRate), (.balance, .noRate)] } } ∧
+    createAdmission listingFixtureGuards true .healthy true false false true true true true 11 10 =
+      { refusal := none, tail := some { refusals := [.cap, .balance], notChecked := [] } } ∧
+    createAdmission listingFixtureGuards true .healthy true true false true true false false 11 10 =
+      { refusal := none, tail := some { refusals := [.channelClosed], notChecked := [] } } := by decide
+
+/-- Missing listing supplies the existing absent-offer verdict. Zero is an unused age argument,
+not a timestamp fact about an absent row. A present stale listing missing the offer is checked too. -/
+@[req "API-7"]
+theorem missing_listing_keeps_offer_refusal :
+    createAdmission listingFixtureGuards true .healthy false false false true true true true 0 10 =
+      { refusal := none, tail := some { refusals := [.offerNotSellable], notChecked := [(.commitmentCap, .unsellable), (.balance, .unsellable)] } } ∧
+    createAdmission listingFixtureGuards true .healthy false false false true true true true 11 10 =
+      { refusal := none, tail := some { refusals := [.offerNotSellable], notChecked := [(.commitmentCap, .unsellable), (.balance, .unsellable)] } } := by decide
+
+@[req "API-7"]
+theorem listing_age_equality_keeps_clean_create :
+    createAdmission listingFixtureGuards true .healthy true false false true true false false 10 10 =
+      { refusal := none, tail := some { refusals := [], notChecked := [] } } := by decide
+
 @[req "API-7"]
 theorem rich_tail_retains_every_refusal :
     (fencedHaltedNoRate Admission.current).refusals = [.fence, .solvency, .rate] := by decide

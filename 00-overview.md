@@ -294,6 +294,7 @@ count in it now.*
 | `LDG-64`'s outage-bound canceller | `engine` | Same shape: a balance-adjacent condition — `LDG-64`'s computed deadline, read through `ledger` — whose effect is an enqueued provider mutation with `system_reason: rate_outage_bound` (`OPS-39`) |
 | `OPS-27`'s resolution sweep | `engine` | It searches providers by correlator, so it needs a provider credential, and its terminal transaction writes money through `ledger` (`OPS-27`) |
 | `OPS-32`'s account sweep | `engine` | Lists resources at a provider, so it needs a provider credential |
+| Offer-listing refresh (`OPS-51`) | `engine`, running in the engine process | See `OPS-50`. |
 | `OPS-15`'s startup pass and the worker pool | `engine` | Already implied by the table; stated so the list is complete |
 | The settlement watcher (`STO-30`–`STO-32`, `LDG-47`, `LDG-57`) | `api` | It holds the payment-rail material `OVR-10b` keeps away from the lifecycle side, and posts its credits through `ledger` |
 | `API-34`'s time-to-live sweep | `api` | Tenancy records, no provider and no rail |
@@ -384,6 +385,8 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | Account-sweep interval | `OPS-32`, `LDG-74` | duration | yes |
 | Worst-case operation hold, per product | `PRV-13b` | duration | yes |
 | Refresh freshness window | `DOM-8` | finite, positive duration at least twice the account-sweep interval | yes |
+| Offer-listing age | `API-7` | finite, positive duration | yes |
+| Offer-listing refresh interval | `OPS-51` | finite, positive duration, shorter than the offer-listing age | yes |
 | Provider-call deadline | `OVR-19` | finite, positive duration | yes |
 | Resolution-read cadence, per provider account | `OVR-19` | finite, positive duration; maximum wait from a mutation's visibility-window end until its resolution read is issued | yes |
 | Margin | `LDG-24` | basis points | yes |

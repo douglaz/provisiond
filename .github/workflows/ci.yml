@@ -676,6 +676,11 @@ jobs:
       #     "MUST fail closed" row turns a missing rate into a solvency failure --
       #     the_rate_matrix_halts_the_purchase_and_nothing_else, only its solvency conjunct,
       #     on Action.solvencyCheck. Valuation itself is outside this model.
+      # Create composition controls:
+      #   orderingCapabilityGuard: undeclared_ordering_is_unsupported_before_the_tail
+      #     on undeclaredOrderingCreate;
+      #   listingAgeGuard (2026-10-26, pv-tcs): stale_listing_refused_with_age_guard
+      #     on staleListingCreate. Its off position restores the identical snapshot's old result.
       # Exit closure (pv-vwe.34), Funding.current.exitPosts:
       #   LDG-38, 2026-10-03: exit without posting loses a sub-interval life and the tails
       #   around re-entry -- exit_closes_each_tail on exitCases Funding.current. Other
@@ -839,6 +844,7 @@ jobs:
           Admission|channelClosureGuard|true|false|channelClosed
           Admission|reverseDnsCeiling|true|false|reverseDnsAdmission
           Admission|orderingCapabilityGuard|true|false|undeclaredOrderingCreate
+          Admission|listingAgeGuard|true|false|staleListingCreate
           ProviderTraffic|reuseFresh|true|false|freshClaim
           ProviderTraffic|checkAtClaim|true|false|queuedRefreshes
           ProviderTraffic|preserveAge|true|false|ageClaim
