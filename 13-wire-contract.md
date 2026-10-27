@@ -559,8 +559,7 @@ still-running sweep and cancelled — the tenant is un-suspended and its new mac
 for a reason nothing in the record explains. **The parent operation's own state is the fence**, so
 no generation counter is introduced — the record that says whether the fan-out is still running
 already exists. The operator retries the resume once
-that operation settles, which it does without assistance — `API-58` forbids it ending in
-`needs_reconciliation` or requiring an operator — and follows it through
+that operation settles — see `API-58` — and follows it through
 `GET /v1/operations` (`WIR-39` returns its id).
 
 **WIR-14** `POST /v1/deposits` (`API-43`, `API-44`) — body: `{"amount_sats": 250000}`.
