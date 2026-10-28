@@ -107,3 +107,12 @@ The r79 records preserve the STATE, notes, brief, reader answers and tally, incl
 repairs that were not adopted. Specification links name the frozen review base; scratch,
 draft and verification references retain their machine-local destinations. Raw logs and clones
 remain outside this archive. The requirement owners hold the rules.
+
+## PR #35 wording review, 2026-10-28
+
+| Round | Question | Settlement source |
+|---|---|---|
+| [r80](r80/brief.md) | permitsI documentation wording | [Tally](r80/tally.md); fixed [reading rules](r80/notes.md) and reader answers are retained with the reviewed brief |
+
+The records preserve the review at its frozen base. Specification links name that base;
+raw logs, clones and verification receipts remain under `/var/tmp`. The requirement owners hold the rules.
