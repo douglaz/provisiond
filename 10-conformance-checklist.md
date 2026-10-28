@@ -1555,12 +1555,21 @@ rather than acquiring a default.
       whole-transaction repeat, which affects one operation row, leaves `about_to_order_at` and
       `updated_at` unchanged and advances `revision` no further.
       Refuse its status guard, then its claim-number guard: assert no column commit, no step 9,
-      and worker exit. Refuse the separate `STO-47` check: assert deterministic `conflict`, with
-      `API-63`'s “`details.reason: "account_terminated"` where the status is `terminated` and
-      `"state"` for the two recoverable statuses, since presenting an unreachable account as a
-      permanent termination is false, and with `retryable: false` for `"account_terminated"` and
-      `retryable: true` for `"state"` on both the error and the operation view” for the recorded
-      status, full release, and no column commit. For the restart settlement, kill between the status write
+      and worker exit. Exercise the separate `STO-47` account check on both an auction channel
+      and a standard channel (`correlator: none`), using independent fixtures for
+      `credentials_rejected`, `account_unreachable` and `terminated` on each channel. Start each
+      with a `healthy` provider account and an admitted, claimed create; pass the healthy initial
+      account read and all other checks preceding step 8. After that initial read and before the
+      **first** step-8 transaction, record the fixture's status change, then reach the refused
+      account conditional write. For each recoverable fixture, assert `failed`, deterministic
+      `conflict` and `details.reason: "state"`; assert `retryable: true` on the error and,
+      separately, `retryable: true` on the operation view. For the `terminated` fixture, assert
+      `failed`, deterministic `conflict`, `details.reason: "account_terminated"` and
+      `retryable: false` on both the error and the operation view. `API-63` requires
+      “`retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both
+      the error and the operation view”. In each fixture, assert full release of this create's
+      commitment, no first-attempt `about_to_order_at` column commit, and no step-9 provider
+      mutation: no per-order key upload and no order request. For the restart settlement, kill between the status write
       and the commitment release: assert neither survives the rollback, then restart and assert
       both commit together. Force the null-guarded write to affect no row: assert no money is
       released, and a still-running create is moved by the ordinary startup write to
