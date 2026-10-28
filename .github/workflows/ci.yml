@@ -984,6 +984,75 @@ jobs:
           fi
           exit "$fail"
 
+      # M-I (pv-8mt4) is a two-guard negative engine. Repair each global guard
+      # separately; the original passEveryStartup row above still owns its one red.
+      # Fixture controls touch only the bad engine, leaving the matrix and blocked
+      # original-model cell intact. A failed evaluation is not a finite refutation.
+      - name: Prove independent successor-sweep harm needs both disabled guards
+        if: matrix.shard == 2
+        run: |
+          nix develop --command python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import shutil
+          import subprocess
+          import tempfile
+
+          root = Path.cwd() / 'tools/formal'
+          module = 'Provisiond/RestoreIndependent.lean'
+          original = (root / module).read_text()
+          repairs = [
+              ('badRequirePass', 'bad_model_later_work',
+               '(badEngine.store.ops { n := 5 }).status = Claim.Status.running ∧ '
+               '(badEngine.store.ops { n := 5 }).applied = true'),
+              ('badPassEveryStartup', 'bad_model_stranded_rows',
+               '(badEngine.store.ops { n := 4 }).status = Claim.Status.running ∧ '
+               '(badEngine.store.ops { n := 4 }).applied = true ∧ '
+               '(badEngine.store.ops { n := 3 }).status = Claim.Status.running'),
+          ]
+          assert all(original.count(f'def {field} : Bool := false') == 1
+                     for field, _, _ in repairs), 'expected clean false/false input'
+          for field, witness, outcome in repairs:
+              # A fresh copy for each repair, always from the same false/false source.
+              with tempfile.TemporaryDirectory(prefix='successor-repair-') as directory:
+                  formal = Path(directory) / 'formal'
+                  shutil.copytree(root, formal)
+                  before = f'def {field} : Bool := false'
+                  after = f'def {field} : Bool := true'
+                  assert original.count(before) == 1 and after not in original
+                  mutated = original.replace(before, after, 1)
+                  assert mutated != original and mutated.count(after) == 1
+                  (formal / module).write_text(mutated)
+                  assert (formal / module).read_text() == mutated
+                  declaration = re.search(
+                      rf'^theorem {witness} :\n.*? := by decide$', mutated, re.M | re.S)
+                  assert declaration is not None, witness
+                  first = mutated[:declaration.start()].count('\n') + 1
+                  last = mutated[:declaration.end()].count('\n') + 1
+                  result = subprocess.run(['lake', 'build'], cwd=formal,
+                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                          text=True)
+                  log = result.stdout
+                  print(log, end='')
+                  print(f'{field}=true only: lake build exit {result.returncode}; '
+                        f'expected {witness}: {outcome}', flush=True)
+                  assert result.returncode == 1, 'expected a Lean proof failure'
+                  errors = re.findall(r'^error: (.*)$', log, re.M)
+                  located = [e for e in errors if e.startswith('Provisiond/')]
+                  assert len(located) == 1, errors
+                  error = re.fullmatch(
+                      rf'{re.escape(module)}:(\d+):\d+: Tactic `decide` proved that the proposition',
+                      located[0])
+                  assert error and first <= int(error[1]) <= last, located
+                  assert all(e == located[0] or e == 'Lean exited with code 1'
+                             or e == 'build failed' for e in errors), errors
+                  diagnostic = log.split('proved that the proposition', 1)[1].split('is false', 1)
+                  assert len(diagnostic) == 2, log
+                  assert ' '.join(diagnostic[0].split()) == outcome, diagnostic[0]
+                  assert 'did not reduce' not in log, log
+                  print(f'PASS: repairing only {field} finitely refutes {witness}', flush=True)
+          PY
+
       # Q28 (ADR-0037): the old one-sweep minimum is a specific regression, even
       # though a control that removes validation altogether is also red.
       - name: Prove the Lean build rejects the old one-sweep freshness minimum

@@ -423,6 +423,12 @@ its own work from running again (`STO-54`). While the record is open the create 
 create found `running` goes to `needs_reconciliation`, and a `suspend_tenant` parent follows the restore rule
 above.
 
+`Provisiond.RestoreIndependent.original_skipped_pass_blocks`,
+`Provisiond.RestoreIndependent.both_guards_sweep_and_progress`,
+`Provisiond.RestoreIndependent.skipped_pass_required_claim_blocks`,
+`Provisiond.RestoreIndependent.pass_only_sweeps_and_progresses`,
+`Provisiond.RestoreIndependent.neither_guard_strands_and_progresses`.
+
 **A `refresh` found `running` at startup MUST be settled `failed`** — the same guarded write as
 above (`STO-3`), with an `internal` error naming the restart, the nearest of `DOM-17`'s kinds —
 and not moved to `needs_reconciliation`: it is read-only (`OPS-11`), so there is
