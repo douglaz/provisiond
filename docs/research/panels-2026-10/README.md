@@ -87,7 +87,7 @@ references retain their original machine-local paths; those artifacts stay outsi
 |---|---|---|
 | [r77b](r77/r77b/STATE.md) | pv-ymjo | [Owner decision](r77/owner-decisions.md), adopting P with the verified wording repairs in [the tally](r77/r77b/tally.md); the bead carries the application brief |
 | [r78](r78/STATE.md) | pv-kwuf | [Owner decision](r78/owner-decisions.md), adopting K-EXACT in [the brief](r78/brief.md) with only R1 in [the tally](r78/tally.md); the bead carries the application brief |
-| [r78b](r78/r78b/STATE.md) | pv-75w3 | [Tally](r78/r78b/tally.md) and [next-step record](r78/r78b/STATE.md#next-step); still awaiting the owner, not ready-for-agent |
+| [r78b](r78/r78b/STATE.md) | pv-75w3 | [Tally](r78/r78b/tally.md) and [next-step record](r78/r78b/STATE.md#next-step); awaiting the owner and not ready-for-agent at the recorded snapshot |
 
 The owner records above supersede historical owner-pending wording for pv-ymjo and pv-kwuf.
 The records preserve STATE, notes, briefs, reader answers and tallies at this snapshot; the
