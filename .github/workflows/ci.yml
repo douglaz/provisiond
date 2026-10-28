@@ -39,6 +39,56 @@ jobs:
         if: matrix.shard == 0
         run: nix develop --command bash tools/check-all.sh
 
+      - name: Exercise complete inline JSON selection and validation
+        if: matrix.shard == 0
+        run: nix develop --command python3 tools/test_check_fixtures.py
+
+      - name: Prove the fixture gate checks the live inline inventory
+        if: matrix.shard == 0
+        run: |
+          nix develop --command python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          path = Path('13-wire-contract.md')
+          original = path.read_bytes()
+          before = b'{"identifier": null, "path": "/dev/sda", "wwn": null, "serial": null,'
+          after = b'{"identifier": "/dev/sda", "path": "/dev/sda", "wwn": null, "serial": null,'
+          section = original.split(b'**WIR-10b**', 1)[1].split(b'**WIR-11**', 1)[0]
+          assert original.count(before) == section.count(before) == 1 and after not in original
+          line = original[:original.index(b'`{"inventory":')].count(b'\n') + 1
+
+          def gate():
+              result = subprocess.run([sys.executable, 'tools/check_fixtures.py'],
+                                      capture_output=True, text=True)
+              print(result.stdout, end='')
+              print(f'fixture gate exit: {result.returncode}')
+              assert not result.stderr, result.stderr
+              return result
+
+          assert gate().returncode == 0
+          try:
+              mutated = original.replace(before, after, 1)
+              assert mutated != original and mutated.count(after) == 1 and before not in mutated
+              path.write_bytes(mutated)
+              assert path.read_bytes() == mutated
+              result = gate()
+              assert result.returncode == 1, result.returncode
+              diagnostic = (f'FAIL 13-wire-contract.md:{line} (inline JSON WIR-10b): '
+                            '$.inventory.devices[1].identifier: identity choice (RSC-46): '
+                            "expected None, got '/dev/sda'")
+              failures = [s for s in result.stdout.splitlines() if s.startswith('FAIL ')]
+              assert failures == [diagnostic], result.stdout
+              assert 'WIR-10b mandatory inline inventory selected: 1' in result.stdout
+              print('PASS: live WIR-10b anonymous identifier mutation: named identity-choice failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+              print('PASS: original wire source bytes restored')
+          assert gate().returncode == 0
+          PY
+
       # Every shard needs a successful build AND the published index/regions
       # before controls copy or read tools/formal/.lake.
       - name: Build the formal layer the controls copy
@@ -47,7 +97,7 @@ jobs:
 
       - name: Prove formal publication survives overlap and failures
         if: matrix.shard == 0
-        run: python3 tools/test_formal_publication.py
+        run: nix develop --command python3 tools/test_formal_publication.py
 
       - name: Prove direct formal writes fail the publication interleaving regression
         if: matrix.shard == 0

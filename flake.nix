@@ -18,12 +18,13 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+      gatePython = pkgs: pkgs.python3.withPackages (ps: [ ps.markdown-it-py ]);
     in {
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
             lean4        # lean + lake
-            python3      # tools/check_*.py
+            (gatePython pkgs) # tools/check_*.py and their child processes
             git          # lake fetches dependencies over git
             curl         # `lake exe cache get` downloads Mathlib's oleans
           ];
@@ -34,7 +35,7 @@
       checks = forAll (pkgs: {
         # runCommandCC, not runCommand: lake compiles the gate executable's C output.
         gates = pkgs.runCommandCC "provisiond-spec-gates"
-          { nativeBuildInputs = [ pkgs.python3 pkgs.bash pkgs.lean4 ]; } ''
+          { nativeBuildInputs = [ (gatePython pkgs) pkgs.bash pkgs.lean4 ]; } ''
           export HOME="$TMPDIR"
           cp -r ${self} src && chmod -R u+w src && cd src
           bash tools/check-all.sh
