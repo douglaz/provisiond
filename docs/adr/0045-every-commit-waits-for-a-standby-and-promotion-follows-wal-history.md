@@ -89,10 +89,14 @@ It needs S3-B′'s read permission and an uninterrupted session. It covers depos
 deposit”, and `WIR-15`'s “`GET /v1/deposits/{id}`”. The non-deposit consequences stay with
 follow-up `pv-v4gp`.
 
-Option A's known limit: every exit during a stall leaves backends waiting outside the pools. In a
-long stall, `STO-55`'s “fit inside `max_connections`” stops holding (`05-persistence.md:191` at
-`dc5d40d`). Follow-up `pv-oehp` covers those backends, including dead transports. Follow-up
-`pv-26ju` carries the WAL-history proof and counterexamples.
+**Amended 2026-10-28 (`pv-oehp`).** The owner selected “B4* as reviewed (Recommended)”
+in [decision 2](../research/panels-2026-10/r74/owner-decisions.md), with authority also in
+committed bead comment 836. “B4* plus astra's additions” and “No new machinery” were rejected.
+Contract, deployment obligations, costs and capacity argument: `STO-55` in `05-persistence.md`.
+Lifecycle companions: `OPS-47` and `OPS-49` in `03-operation-lifecycle.md`; alarms and register:
+`OVR-18` and `OVR-19` in `00-overview.md`. Conformance companions and the residual-capacity
+drill: `10-conformance-checklist.md`, including `CNF-372`.
+Follow-up `pv-26ju` carries the WAL-history proof and counterexamples.
 
 ## Rejected options
 

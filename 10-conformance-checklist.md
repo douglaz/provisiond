@@ -355,6 +355,8 @@ not optional hardening — they are the only structural defence there is.
       connection, not on the one that ran migrations. (`STO-7`, `DEF-12`)
 - [ ] **CNF-57** — Migrations are version-tracked and re-running them is a no-op. **Then the
       release drill** (added 2026-09-12, `ADR-0024`): with release N−1's engine and `api` running,
+      retain adequate admitted reservations and live independent read sessions for the
+      successful-service assertions (`STO-55`);
       apply release N's migrations through the `migrate` entry point and assert no `api` write is
       refused and no engine write exits; start two runners at once and assert one waits on
       `STO-12`'s key while the engine's startup lock is untouched; start N−1 binaries against the N
@@ -376,6 +378,7 @@ not optional hardening — they are the only structural defence there is.
       assert the backfill migration declares its stop-everything order and records that rollback
       past this release is inadmissible. (`STO-12`, `STO-13`)
       *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the conservative backfill drill with declaration checks; retained the concurrent-migration release drill; `ADR-0042`.*
+      *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 - [ ] **CNF-58** — An unrecognized status read from the store is a hard error. (`STO-10`)
 - [ ] **CNF-59** — A deleted machine is tombstoned, and operations referencing it still
       resolve. (`STO-8`)
@@ -1068,7 +1071,8 @@ takes the machines *and* the float" partly false.
       `LDG-64`, `API-56`, `OPS-27`, `OPS-32`)
       *Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): extended the successor rehearsal to newly claimed work and a confirmed parent.*
 - [ ] **CNF-296** — **Every write waits for the standby** (*amended 2026-10-23, `ADR-0045`; was "The two synchronous writes hang
-  alone"*). Stall both named standbys. Assert an engine write and an `api` write each wait in `SyncRep`, a read still
+  alone"*). Retain adequate admitted reservations and live independent read sessions for the
+  successful-service assertions (`STO-55`). Stall both named standbys. Assert an engine write and an `api` write each wait in `SyncRep`, a read still
   succeeds, and `OVR-18`'s alarm fires. Exercise a contending engine write and assert `OPS-49`'s bounded retry and
   exit. First fill one `api` replica's write-checkout budget with waiting commits. Cancel every `api` request whose write
   waits, its client disconnecting, and assert that, throughout this step, the primary holds no more of that replica's backends than its
@@ -1078,6 +1082,7 @@ takes the machines *and* the float" partly false.
   credits once (`STO-31`). Then stall one only and assert an engine write and an `api` write each
   succeed. Then assert `synchronous_commit` reads `on` on a freshly checked-out connection
   (`CNF-56`'s method). (`STO-7`, `STO-54`, `OVR-18`) *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; `ADR-0045`): replaced the two-write stall drill with the synchronous-write, checkout-retention and connection-setting drill.*
+  *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 - [ ] **CNF-297** — **The derivation index never goes backwards** (added 2026-09-12,
       `ADR-0023`). Mint deposits, take a backup, mint more, restore, run `STO-54`'s skip-forward,
       and assert the next index allocated exceeds every index a rolled-back row held, and that no
@@ -1101,7 +1106,49 @@ takes the machines *and* the float" partly false.
       operation (`API-11`). Then let the meter fall behind its cadence by more
       than one interval and assert the alarm fires. (`STO-55`, `DOM-17`, `API-50`, `LDG-37`)
 
+      Retain adequate admitted reservations and live independent read sessions for the
+      successful-service assertions. Separately exhaust deployment admission and assert
+      `overloaded` before any transaction, with no SQL sent and no extra dial (`STO-55`).
+
       *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): removed the synchronous-cap stall drill.*
+      *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
+
+- [ ] **CNF-372** — **Residual backends remain covered by durable admission.** Precheck the
+      engine and multiple `api` pools; freeze standbys, send disjoint writes and identify waiting
+      PIDs. Stop the engine through its recording bound, lose `api` database transports, and
+      overlap a rollout. Preserve one admitted read session if asserting read success. Verify
+      old PIDs survive outside live pools.
+
+      Keep replacement checks enabled; hold check replies/disconnect detection so replacement
+      backends remain while attempts fail unused. Accumulate verified residuals and unreleased
+      grants to exhaustion; assert no extra dial, alarm, bounded refusal and reserved observer
+      access. Verify a distinct durable grant before each physical component dial, including
+      pre-authentication and delayed-handshake attempts, across the consumers in `STO-55`:
+      "component pools, reconnects, rollout incarnations, startup-lock holders, migrators and
+      waiting runners". Check component/attempt and database boot bindings, then PID and
+      `backend_start` when known; retain unknown and failed-unused charges. Verify the deployed
+      C+A and separate resource budgets against `STO-55`.
+
+      Exercise delayed handshakes, PID reuse and competing issuers: assert no bypass or redial
+      under one reservation, no duplicate issuance from the serialized authority, and no release
+      on timeout, transport loss, process exit or rollout completion. Exercise observer failure:
+      assert denied growth and retained charges. Exercise lost accounting: assert closed
+      ingress, retained charges and continued use permitted for existing admitted sessions;
+      recover by fenced conservative reconstruction, and separately by stopped components and
+      verified primary shutdown before a fresh account, fencing all old grants and delayed
+      attempts on either path. For unidentified attempts, require fenced server-incarnation
+      termination before release.
+
+      Exercise startup refusal and supervisor retry, `api` refusal before any transaction, and
+      worker/periodic refusal through the store-error loop; assert no SQL on denied attempts,
+      bounded stop-record refusal and replacement delay until verified capacity release.
+      Restore progress, fence attempts and prove backend termination with fresh privileged
+      direct-primary evidence read in a fresh transaction before release and restart. Never
+      release merely because `wait_event` changed. Assert no individual waiting `SyncRep`
+      backend is cancelled or terminated to make room. Reserved observer access must be
+      demonstrated under the deployed allowances and resource budgets (`STO-55`).
+      (`STO-55`, `STO-7`, `OPS-47`, `OPS-49`, `OPS-21`, `OVR-18`, `OVR-19`)
+      *Added 2026-10-28 (`pv-oehp`; `ADR-0045`; owner decision 2, `docs/research/panels-2026-10/r74/owner-decisions.md`, “B4* as reviewed (Recommended)”).*
 
 - [ ] **CNF-365** — **Promoting the standby `STO-54`'s report puts further ahead is a restart** (`ADR-0045`). With both components
   running, let one create
@@ -1514,7 +1561,9 @@ rather than acquiring a default.
       `OPS-50` says "Where the values differ, the transaction MUST roll back, and the engine MUST
       log loudly that it was superseded and exit non-zero at once". Then start a second engine against the same store while the first holds
       the lock, and assert it does no work and exits non-zero after the stated bound (`OPS-47`,
-      `OVR-19`); release the first and assert the second then starts. Then, with one non-yielded
+      `OVR-19`); with sufficient `STO-55` admission available, release the first and assert the
+      second then starts; repeat with exhausted admission and assert delayed startup until
+      verified capacity release. Then, with one non-yielded
       `running` operation on a machine, attempt a second claim against the same machine directly
       at the store and assert `STO-51`'s index refuses it **and that the refused operation's
       `claim_number` did not advance** (`OPS-6`, added 2026-09-12). *The withdrawn middle half asserted a
@@ -1522,6 +1571,7 @@ rather than acquiring a default.
       such column and a guard that held by construction (`ADR-0019`). For the dedicated generation-fence drills, see `CNF-367`–`CNF-370` (`OPS-50`).* (`OPS-47`,
       `STO-51`, `OPS-15`, `STO-3`, `ADR-0019`)
       *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): asserted that the old process's late write commits nothing under `OPS-50`, and replaced the second-engine note with a pointer to the generation-fence drills.*
+      *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 - [ ] **CNF-358** — **A create interrupted around step 8 has a distinct restart outcome.**
       With an auction-channel descriptor and again with a standard-channel (`correlator: none`)
       descriptor, kill during step 4's List offers read, after step 7, and while step 8's
@@ -1668,6 +1718,10 @@ rather than acquiring a default.
 
 - [ ] **CNF-362** — **A stop the engine survives from a worker's `execute` until its settle write lands gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
+      Retain admitted recording capacity for every successful-recording assertion. Separately
+      refuse recording admission throughout the bound cases: assert no SQL and no extra dial,
+      consumption of the existing Stop-record and Store-retry bounds, and the existing
+      exhaustion exits with no bound reset (`STO-55`, `OPS-49`).
       For each operation kind, stop the engine while its worker is in `execute`, outside the
       absorbed-read cases below, with a working store. Assert the cut-off `conflict`'s classification against the kind's row (`OPS-11`),
       with `details.reason: "cut_off"` on every record write of a cancellation of `execute` but the parent's defer: a create before step 9, and an
@@ -1800,6 +1854,7 @@ rather than acquiring a default.
       *Amended 2026-10-21 (`pv-oes`): added a later stop with each record's transaction in flight; no transaction after it, and either outcome of the one sent.*
       *Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): added pre-marker `failed` cases and a delete stopped during marker-write repeats, and removed the control's `pv-9j6` exclusion.*
       *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the superseded exit to the quoted `OPS-21` sentence.*
+      *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 
 - [ ] **CNF-294** — **The lost-reply drill** (added 2026-09-12, `ADR-0022`). For a
       settled-state write and an `OPS-45` marker write: let the transaction commit and drop the

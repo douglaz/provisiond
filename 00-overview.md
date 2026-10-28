@@ -347,6 +347,9 @@ advance's timeout (`OPS-15`). `OPS-50` says "the engine MUST log loudly that it 
 synchronous replication”; S1 “Three servers (Recommended)”; `ADR-0045`): alarmed either named
 standby being unavailable.*
 
+Admission exhaustion and accounting loss MUST be alarmed (`STO-55`).
+*Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
+
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
 and — if any configured provider uses password-based rescue — a non-interactive
 password helper for SSH.
@@ -366,6 +369,8 @@ marked human are procedures the deployment records rather than values the proces
 2026-10-09 (`ADR-0036`): the order declaration is per account and channel, and the
 activation funding minimum is registered. Amended 2026-10-12 (`ADR-0037`, Q28):
 refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels r58 and r58b, `docs/research/panels-2026-10/r58/` and `docs/research/panels-2026-10/r58/r58b/`; `ADR-0044`): registered the Stop-record bound. Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): registered the standby names and pooled-connection keepalives; removed the synchronous-commit concurrency cap. Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): typed the Startup-lock wait bound as a finite, positive duration and named it as the generation advance's two timeouts.*
+
+*Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 
 | Parameter | Mandated by | Type | Startup-validated |
 |---|---|---|---|
@@ -422,6 +427,10 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | `api` request concurrency per replica, read and write | `STO-55` | integers | yes |
 | Pool checkout bound | `STO-55` | duration | yes |
 | Connection budget against `max_connections` | `STO-55` | human — the sum across every process at maximum rollout overlap | no; the engine checks its own share |
+| Component admission capacity C | `STO-55` | integer; capacity contract at `STO-55` | no — deployment authority |
+| Observer/operator/other-client allowances A | `STO-55` | bounded occupancy allowances; deployment obligations at `STO-55` | no — deployment |
+| Admission resource ceilings | `STO-55` | human — server reservations and separate background/server resource budgets; `STO-55` | no — deployment |
+| Admission authority and reconstruction procedures | `STO-55` | human; `STO-55` | no — deployment |
 | Metering cadence | `LDG-37` | duration | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
 | Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
