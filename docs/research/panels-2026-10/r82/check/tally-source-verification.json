@@ -1,0 +1,121 @@
+{
+  "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+  "sources": [
+    {
+      "file": "05-persistence.md",
+      "lines": [
+        1419,
+        1487
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "11066bcf5bf2c517a25661c841ca4e98fbcd213478876f54e2d53c3534065b65"
+    },
+    {
+      "file": "05-persistence.md",
+      "lines": [
+        1600,
+        1669
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "a665c92bd34c3d5f17dbb7828678449fef54c6fed83d08ee5cfb80c27d5b18ac"
+    },
+    {
+      "file": "05-persistence.md",
+      "lines": [
+        1698,
+        1763
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "bb8cd016a9ce0c4b1459ca05495acdd65a28ab6c9f077675b981e3621c986df6"
+    },
+    {
+      "file": "10-conformance-checklist.md",
+      "lines": [
+        1019,
+        1093
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "5be8d129611b38faa23fb6d2fbbeec76fe6d4ffc180e69545705aa3cd1a9a34b"
+    },
+    {
+      "file": "10-conformance-checklist.md",
+      "lines": [
+        3022,
+        3098
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "d442cc8359ef034cf1469abf62fd8084f88bd1fafd85a176377570b310d6540f"
+    },
+    {
+      "file": "tools/formal/Provisiond/Restore.lean",
+      "lines": [
+        95,
+        110
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "98d9c3657a6ed861e08020a87e8abaf229ce947a76969c27ee9b29326edc80dd"
+    },
+    {
+      "file": "tools/formal/Provisiond/Restore.lean",
+      "lines": [
+        390,
+        470
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "fa65f640515814e42fd792ece277e0f37a4c26db3da8f1aad52bc0b6797d9ffa"
+    },
+    {
+      "file": "tools/check_citations.py",
+      "lines": [
+        208,
+        232
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "a00993b262c4f257160c01e3cca48f1dbe1043c006362975cb37125ba8badb79"
+    },
+    {
+      "file": "tools/check_obligations.py",
+      "lines": [
+        42,
+        54
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "2e44c0e59e7cf8a5e14c014c96cd0e90e9b71c2d6824008f5cd5362bdecadfab"
+    },
+    {
+      "file": "AGENTS.md",
+      "lines": [
+        29,
+        46
+      ],
+      "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "sha256": "adc5b6cdc277a3348c0a5143846092a5384c13270c3d09c56c4a386d02f15ad5"
+    }
+  ],
+  "states": {
+    "main": {
+      "head": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "status": ""
+    },
+    "fable": {
+      "head": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "status": ""
+    },
+    "opus": {
+      "head": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "status": ""
+    },
+    "astra": {
+      "head": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "status": ""
+    },
+    "sol": {
+      "head": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+      "status": ""
+    }
+  },
+  "B_exact": true,
+  "D2_fable_exact": true,
+  "D3_astra_exact": true,
+  "brief_repository_extracts_exact": true
+}

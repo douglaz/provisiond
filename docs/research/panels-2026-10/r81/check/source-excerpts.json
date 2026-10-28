@@ -1,0 +1,303 @@
+[
+  {
+    "path": "/home/user/projects/provisiond-spec/.rloop/runs/20261028T202329.236758584Z-557505/finished.md",
+    "start": 7,
+    "end": 27,
+    "sha256": "6be1ed10b0d70136c97e0458c7d44bf5c0b773a3c05c412f12942ad0df4b7627",
+    "pin": "Run artifact"
+  },
+  {
+    "path": "/home/user/projects/provisiond-spec/.rloop/runs/20261028T202329.236758584Z-557505/feedback-1-astra.md",
+    "start": 1,
+    "end": 26,
+    "sha256": "f4562ae5f648a6d8709af6f32ffe93dd2a334a6caf7f8dfdc286115d890f5f52",
+    "pin": "Run artifact"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 1419,
+    "end": 1487,
+    "sha256": "11066bcf5bf2c517a25661c841ca4e98fbcd213478876f54e2d53c3534065b65",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 1600,
+    "end": 1809,
+    "sha256": "3d4bcf5060bde6b60de6fe9cd68decc91696691776501a32b0b6029f1e2dfbc3",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/brief.md",
+    "start": 288,
+    "end": 290,
+    "sha256": "1d54dc446023c85351c174cad1ff11e4bc1005c68e2fae3f778460280727099b",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/brief.md",
+    "start": 294,
+    "end": 298,
+    "sha256": "4b7b3ee8255e4e35d6bbf7226311f8ce6bfa9b9c25f2229a31b751d8d4740417",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/brief.md",
+    "start": 302,
+    "end": 306,
+    "sha256": "cec6af119c5a221acb957fd8cff47d6a54e890c9889abac208efcb9d108e13f2",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/brief.md",
+    "start": 318,
+    "end": 320,
+    "sha256": "8bef6e8df91e4d4b8df3baf293c05ffdaf718285a5b90e938a2a218d04b19292",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/brief.md",
+    "start": 326,
+    "end": 338,
+    "sha256": "bba3ea2c18256e6150ebcffd012cb74e6d0f0a892e9079f8e16d8b902a71549d",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/brief.md",
+    "start": 342,
+    "end": 356,
+    "sha256": "9706b7ea449aeda4046a98bda9575fae924174cd28fed6f6e3bf9c0bbab8a166",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/brief.md",
+    "start": 368,
+    "end": 371,
+    "sha256": "b7a104d4f5f594e5c9ea7668193b7bff867c2ec938b6f97258e3ca8ef0f48159",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/owner-decisions.md",
+    "start": 24,
+    "end": 24,
+    "sha256": "9b2bca3969698918162ec4cf1c3d7ed7f314f1555c28a83cb2aa11f210714c21",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/owner-decisions.md",
+    "start": 26,
+    "end": 26,
+    "sha256": "c090ddb9d04ed3c8e604df570ac117cb55a3564f6222e8c742683feddd235390",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/tally.md",
+    "start": 39,
+    "end": 40,
+    "sha256": "523ead4ca02a2cb0ae51ed8a134d9b46dfe652c8916bb7f3ce945f3f931c062e",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/tally.md",
+    "start": 42,
+    "end": 42,
+    "sha256": "7ac41be0ccbf28ade17e058a8d24f0193b319948e364ba2549b29c82c9733fab",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r77/r77b/tally.md",
+    "start": 67,
+    "end": 67,
+    "sha256": "d80e19df278cd21d9af83eb33c310a97be6f0442c1e54d63d7c626d9f7f86674",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "tools/formal/Provisiond/Restore.lean",
+    "start": 21,
+    "end": 28,
+    "sha256": "6b6e2a2e38ece8d542a4077209d616331aa0b4ec7364b054a3c8cf9300c000b3",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "tools/formal/Provisiond/Restore.lean",
+    "start": 58,
+    "end": 61,
+    "sha256": "9390a956696afae0f53b6cde43485adbf3e9e3ac5838acbdc7eadfe4a4034055",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "tools/formal/Provisiond/Restore.lean",
+    "start": 95,
+    "end": 99,
+    "sha256": "aee9daa306239db0b8c318b0bd85a3974644031a402cb92d9bf99e6df5fcc15f",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "tools/formal/Provisiond/Restore.lean",
+    "start": 156,
+    "end": 167,
+    "sha256": "2595da0e4b035ebba589b5f6718d69e737be35f43150bfebb89809f3cadcfc7c",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "tools/formal/Provisiond/Restore.lean",
+    "start": 431,
+    "end": 439,
+    "sha256": "8c79fac1fbd383695750c48b1586bdf69e67b626336ee7534f5979056249a809",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "tools/formal/Provisiond/Restore.lean",
+    "start": 545,
+    "end": 546,
+    "sha256": "379b952d794e2afd779d8bd695be4a39d95e44dc937d1c3884600b7f14c0abcb",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/adr/0023-a-restore-is-a-recovery-incident-and-durability-is-bought-where-there-is-no-second-truth.md",
+    "start": 243,
+    "end": 270,
+    "sha256": "5f71b562e12f6b82f344712282005b2a1453e84e68468bfa6fb0cd4308c0e29e",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/adr/0023-a-restore-is-a-recovery-incident-and-durability-is-bought-where-there-is-no-second-truth.md",
+    "start": 273,
+    "end": 300,
+    "sha256": "aa4853eaba85da8310b13d4ce6ddb35b5b7c46c767f30122ce155fd8c0a9306f",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "00-overview.md",
+    "start": 419,
+    "end": 425,
+    "sha256": "4653fcfd408c9f7644d5aca1404a8f795ead25850d8a4496a63500a156757eaa",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "CONTEXT.md",
+    "start": 187,
+    "end": 197,
+    "sha256": "029812b30c50481c62b07ac751394b58bfe38747c8bc41c9ec9688bac8dd7019",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 186,
+    "end": 201,
+    "sha256": "e7b7f0f5572e39aa2c11c4ac89edfb309ccfeab96ddf1d0a46d79d5d5c26cee5",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 558,
+    "end": 777,
+    "sha256": "53c8e151a77f704f87046d4bb5cfed79f565e2b63d59b9b51eaaf327955bdf80",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 1019,
+    "end": 1093,
+    "sha256": "5be8d129611b38faa23fb6d2fbbeec76fe6d4ffc180e69545705aa3cd1a9a34b",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 1107,
+    "end": 1113,
+    "sha256": "524488cda5d70f2c76e2505ad7f227a1d49f20f010adfaf127208dd05f60d8d7",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 1177,
+    "end": 1217,
+    "sha256": "a03086a385a694ad8b47776ed501fdccb9d373e343460285b19b36d5bc74e0d3",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 1616,
+    "end": 1640,
+    "sha256": "079c7d212d17bce2b0ffa79ade3d4519fb323fadf1c0840828467b8e57a88efb",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 1759,
+    "end": 1764,
+    "sha256": "6f65bea186c23813c3b454b1f69f6bd5f8ad710740fcacae9ac37d00b09c7639",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 2179,
+    "end": 2220,
+    "sha256": "682c7356c7bd2dbfba1ce1267c5cc1151574a373237ab4e482bb23a151baf7d1",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 2485,
+    "end": 2539,
+    "sha256": "3a3192bc3e805cc077ab28910f2888adb4e348b300a50a8f89d6fbda9a6d6cd4",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 3022,
+    "end": 3097,
+    "sha256": "b150987fa36cf47921d7efda62d93134f824ceccea0ca5a3d066e3eb216cc0e8",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 3416,
+    "end": 3601,
+    "sha256": "575f769c9419b508c364200f40d3c426ae7e4b0cf57b905db4cea489c1821e3d",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "start": 218,
+    "end": 224,
+    "sha256": "01be5bea5414fadc6f438c4131454b36e6a8a8b5f13f75d27d6175f584f98ab8",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "start": 10,
+    "end": 20,
+    "sha256": "54fc8db98a094cd490783c040f7b5afb3a913dbf0253d6d393e52f8c14b097a2",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r74/owner-decisions.md",
+    "start": 6,
+    "end": 9,
+    "sha256": "8e93abe89128dfe2e1e4941bdfd7a28d8968af89d85e32c1fe77c1f7b5599652",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r74/decisions/pv-3jw6.md",
+    "start": 43,
+    "end": 73,
+    "sha256": "394e88e7ddac35c3b7cd48ab77e34ffc0c68460f483d130187c6543e65e57ea2",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r78/owner-decisions.md",
+    "start": 9,
+    "end": 9,
+    "sha256": "42c93221f67a4ff932ffca85e0b3f4ac6bdac53c356edbbca5e3b3b0910c4f35",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  },
+  {
+    "path": "docs/research/panels-2026-10/r78/brief.md",
+    "start": 78,
+    "end": 90,
+    "sha256": "963e412edf179d25beadf2efcbd7a7eac35805cd3f6100cdb354ae24b5d68d54",
+    "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92"
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "pin": "c824e4fa4d612b231110bc5deb3e88b3b3e90f92",
+  "q1": "D2",
+  "q1_accept": [
+    "fable",
+    "astra",
+    "sol"
+  ],
+  "q1_refuse": [
+    "opus"
+  ],
+  "q2": "REPLACE",
+  "q2_preferences": [
+    "fable",
+    "opus",
+    "astra",
+    "sol"
+  ],
+  "q2_no_verified_changes": [
+    "behaviour",
+    "requirement",
+    "check_strength"
+  ],
+  "astra_counted": true,
+  "rule6_no_premise_error": true,
+  "gates": {
+    "before": 0,
+    "final": 0,
+    "D2_KEEP": 0,
+    "D2_REPLACE": 0
+  },
+  "main_clean_unchanged": true,
+  "manager_brief_added_update_lines": 1,
+  "D2_exact": true,
+  "tally_sha256": "3c21e3a11e2e2e68428d6fe21d80a66322f0d2b5f023d5435bc3a24d0a4307df",
+  "cnf_case_sha256": "3889d738edb6244903f24c0af84145fcebaad1a10351be083f7bb3d0e15e1783"
+}

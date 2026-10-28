@@ -1,0 +1,10 @@
+{
+  "rules_1_to_7_byte_equal": true,
+  "all_nine_sources_exact_in_packet": true,
+  "questions_no_model_names": true,
+  "wrappers_paths_only": true,
+  "shell_syntax_valid": true,
+  "main_untouched_clean_at_pin": true,
+  "manager_brief_exactly_one_added_update": true,
+  "packet_sha256": "87a775d55018a8bc53019309d575fecf603b72f4dcc47cc54e6e4aa301d6ea43"
+}

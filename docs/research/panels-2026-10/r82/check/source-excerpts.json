@@ -1,0 +1,83 @@
+[
+  {
+    "path": "/var/tmp/provisiond-panel-r81/check/form-B.txt",
+    "lines": [
+      1,
+      10
+    ],
+    "sha256": "bb7cdb82e8133ce6cdb229b8653aa3ccf4f58c15ef086c7ac484f17d58e66786",
+    "pinned_repository_source": false
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r82/check/spec/10-conformance-checklist.md",
+    "lines": [
+      1019,
+      1093
+    ],
+    "sha256": "5be8d129611b38faa23fb6d2fbbeec76fe6d4ffc180e69545705aa3cd1a9a34b",
+    "pinned_repository_source": true
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r82/check/spec/10-conformance-checklist.md",
+    "lines": [
+      3022,
+      3097
+    ],
+    "sha256": "b150987fa36cf47921d7efda62d93134f824ceccea0ca5a3d066e3eb216cc0e8",
+    "pinned_repository_source": true
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r81/tally.md",
+    "lines": [
+      143,
+      208
+    ],
+    "sha256": "1a718c8f8c9c118eb5f34d472b59ede2b04f46ee2e95e6432f5c67b3934d1fb6",
+    "pinned_repository_source": false
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r81/tally.md",
+    "lines": [
+      65,
+      74
+    ],
+    "sha256": "59b6078b70a2273184067f5ca218c100683d0994c44749e12becf2bdc0a6e7ea",
+    "pinned_repository_source": false
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r81/opus.md",
+    "lines": [
+      48,
+      48
+    ],
+    "sha256": "5b4d038142892d54a1a2824fd00153911519084ad5b69ccf8a0ab9c0ed1e6382",
+    "pinned_repository_source": false
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r81/tally.md",
+    "lines": [
+      41,
+      64
+    ],
+    "sha256": "b286e811ff0082be3bdfc298946f33b327e305a2e7550d4f4f09ca357f45599f",
+    "pinned_repository_source": false
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r82/check/spec/05-persistence.md",
+    "lines": [
+      1419,
+      1487
+    ],
+    "sha256": "11066bcf5bf2c517a25661c841ca4e98fbcd213478876f54e2d53c3534065b65",
+    "pinned_repository_source": true
+  },
+  {
+    "path": "/var/tmp/provisiond-panel-r82/check/spec/05-persistence.md",
+    "lines": [
+      1632,
+      1666
+    ],
+    "sha256": "b52f577d347a9f56669223b20ab911a3eb5df25632b5f396d77be275c8bb7409",
+    "pinned_repository_source": true
+  }
+]
