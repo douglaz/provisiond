@@ -80,3 +80,17 @@ preserve their original STATE, notes, briefs, reader answers and tallies, includ
 in later rounds. These records document deliberation; the requirement owners hold the rules.
 Specification links in these answers name the frozen review base. Scratch and verification
 references retain their original machine-local paths; those artifacts stay outside the archive.
+
+## Panel B decision and Panel C records, 2026-10-28
+
+| Rounds | Questions | Decision/status sources |
+|---|---|---|
+| [r77b](r77/r77b/STATE.md) | pv-ymjo | [Owner decision](r77/owner-decisions.md), adopting P with the verified wording repairs in [the tally](r77/r77b/tally.md); the bead carries the application brief |
+| [r78](r78/STATE.md) | pv-kwuf | [Owner decision](r78/owner-decisions.md), adopting K-EXACT in [the brief](r78/brief.md) with only R1 in [the tally](r78/tally.md); the bead carries the application brief |
+| [r78b](r78/r78b/STATE.md) | pv-75w3 | [Tally](r78/r78b/tally.md) and [next-step record](r78/r78b/STATE.md#next-step); still awaiting the owner, not ready-for-agent |
+
+The owner records above supersede historical owner-pending wording for pv-ymjo and pv-kwuf.
+The records preserve STATE, notes, briefs, reader answers and tallies at this snapshot; the
+r78b tally and its conditional dissent remain on record. Clone specification links name the
+frozen review base; scratch and verification paths retain their original machine-local paths.
+Raw logs and clones remain outside the archive. The requirement owners hold the rules.
