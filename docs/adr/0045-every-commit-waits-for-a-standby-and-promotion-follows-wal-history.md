@@ -63,9 +63,7 @@ primary started as a standby without `pg_rewind` reported a TL1 position ahead o
 yet lacks every TL2 commit (H-e2). The committed
 [verification record](../research/panels-2026-10/r63/r63g/verify.md) retains these results.
 
-Correct replication configuration is a trusted deployment assumption. An emptied
-`synchronous_standby_names` makes every commit local, and nothing in provisiond sees it (H-d2;
-follow-up `pv-c7vg`). The same follow-up covers a transaction-mode pooler added later.
+Runtime replication-configuration and routing duties, including their misconfiguration limits, are owned by `STO-7` and `STO-55`. For `pv-c7vg`, on 2026-10-28 the owner answered “Don't add the check”, selecting “Trust the deployment to keep replication on.” The fuller option was “No new control — Rely on the deployment never disabling synchronous replication; document it as an operator requirement. Cheapest, and it puts safety on infrastructure configuration.” No runtime controller was adopted. The separate action/history audit stays with `pv-v4gp`.
 
 ## Why the connection check is a read
 

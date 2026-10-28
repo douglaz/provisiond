@@ -184,6 +184,9 @@ on every connection and `on` inside exactly two transactions"*): `synchronous_co
 only once one of them has flushed it to durable storage. The deployment MUST NOT let the primary commit without one
 of them: no connection lowers `synchronous_commit`, and the primary never serves with `synchronous_standby_names`
 empty. `OVR-18` alarms either standby being unavailable, and while both are, every write waits.
+
+The operator MUST keep this synchronous replication configuration in force while the primary serves component work. Provisiond relies on that duty; no additional runtime replication-configuration drift check is required. If `synchronous_standby_names` is emptied after a connection has passed its new-connection check, a later commit on that connection can be acknowledged locally without either named standby having flushed it. That is a deployment misconfiguration, and the earlier connection check does not detect the change.
+
 **A component checks each new connection before using it** (*added 2026-10-23, `ADR-0045`*): it MUST NOT use a
   new store connection until one of the standbys `OVR-19` names has flushed the primary's WAL up to the flush
   position the primary reports on that connection, which it learns by reading the standbys' reported positions,
@@ -244,7 +247,7 @@ concurrency** (`OVR-19`); the pools are sized from them.
   engine reads `max_connections` at startup and refuses to run where its own pool plus the lock
   connection does not fit. During a stall, backends left waiting by an exited process or a dead
   transport hold slots outside this `max_connections` account (`pv-oehp`).
-- **No pooler in transaction mode fronts the pools** (*amended 2026-10-23, `ADR-0045`; until then one "MAY front the pools only on two conditions"*): behind one, a crash of the primary ends its backends but not the component's connection to the pooler, so `STO-7`'s new-connection check would never run.
+- **No pooler in transaction mode fronts the pools** (*amended 2026-10-23, `ADR-0045`; until then one "MAY front the pools only on two conditions"*): behind one, a crash of the primary ends its backends but not the component's connection to the pooler, so `STO-7`'s new-connection check would never run. The operator MUST maintain this exclusion while components use this path, including after routing changes. No additional runtime topology-drift check is required.
 
 *Why no ADR: pool sizes and admission bounds are configuration, so the hard-to-reverse test fails,
 and two independent readers said so; `LDG-65` is the set's precedent for recording a reversible

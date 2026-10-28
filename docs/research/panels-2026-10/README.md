@@ -66,3 +66,17 @@ Two of Sol's r18 links named ADR files that never existed and now point at the r
 r23's fable seat failed on quota; r19's fable and opus seats were relaunched after a session limit. r63h's astra seat ran twice; the first run failed. r66e's readers were labelled a–d; its notes.md maps each label to a reader, and each answer is filed under its reader's name.
 
 Panel E records retain the reader labels and answer text, including arguments superseded by later rounds. Clone-file links name the frozen base on GitHub. Machine-local verification receipts, raw logs, clones and scratch trees remain under `/var/tmp`; they are not part of this archive. r73 retains the replacement fable/opus answers; its tally records the failed session-limit attempts.
+
+## Panel A and B records, 2026-10-28
+
+| Rounds | Questions | Archived decision records |
+|---|---|---|
+| [r74–r76](r74/STATE.md) | pv-c7vg, pv-3jw6, pv-oehp, pv-1i3n | [Owner decisions](r74/owner-decisions.md); [application briefs and drain plan](r74/decisions/plan.md) |
+| [r77](r77/STATE.md), [r77b](r77/r77b/STATE.md) | pv-8mt4, pv-ymjo | [Owner decision for pv-8mt4](r77/owner-decisions.md), adopting the printed M-I package in [the reviewed brief](r77/brief.md); [pv-ymjo tally](r77/r77b/tally.md) and [recorded owner question](r77/r77b/owner-question.md) |
+
+The [r77b state](r77/r77b/STATE.md) and recorded owner question retain the decision status at
+that snapshot. The linked owner records supersede historical owner-pending wording for the decided beads. Panel records
+preserve their original STATE, notes, briefs, reader answers and tallies, including claims corrected
+in later rounds. These records document deliberation; the requirement owners hold the rules.
+Specification links in these answers name the frozen review base. Scratch and verification
+references retain their original machine-local paths; those artifacts stay outside the archive.
