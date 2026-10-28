@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import textwrap
 
 ROOT = Path(__file__).resolve().parents[1]
 WIRE = "13-wire-contract.md"
@@ -95,6 +96,28 @@ def main():
 
         output = check("unchanged-live-inventory", text, 0)
         print(output, end="")
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        step = workflow.split("      - name: Prove the fixture gate checks the live inline inventory\n", 1)[1]
+        control = re.search(r"          nix develop --command python3 - <<'PY'\n(.*?)\n          PY", step, re.S)
+        assert control, "live inventory CI control not found"
+        control_file = scratch / "ci-inventory-control.py"
+        control_file.write_text(textwrap.dedent(control[1]))
+        for name, prefix in [
+            ("ci-live-inventory", ""),
+            ("ci-earlier-inventory", 'Earlier valid example: `{"inventory": {"devices": []}}`\n\n'),
+        ]:
+            source = prefix + text
+            (scratch / WIRE).write_text(source)
+            result = subprocess.run([sys.executable, str(control_file)], cwd=scratch,
+                                    capture_output=True, text=True)
+            if evidence:
+                (evidence / f"{name}.log").write_text(result.stdout + result.stderr)
+                (evidence / f"{name}.exit").write_text(f"{result.returncode}\n")
+            assert result.returncode == 0, (name, result.stdout, result.stderr)
+            assert "named identity-choice failure" in result.stdout, (name, result.stdout)
+            assert (scratch / WIRE).read_text() == source, name
+            cases += 1
+            print(f"PASS {name}: CI control rejects the mutation and restores the source")
         device_case("valid-serial-only", 1, {"serial": "Serial-A", "identifier": "Serial-A"}, 0)
         device_case("valid-anonymous", 0, {"wwn": None, "serial": None, "identifier": None}, 0)
         device_case("anonymous-path-identifier", 1, {"identifier": "/dev/sda"}, 1)

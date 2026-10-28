@@ -55,9 +55,10 @@ jobs:
           original = path.read_bytes()
           before = b'{"identifier": null, "path": "/dev/sda", "wwn": null, "serial": null,'
           after = b'{"identifier": "/dev/sda", "path": "/dev/sda", "wwn": null, "serial": null,'
-          section = original.split(b'**WIR-10b**', 1)[1].split(b'**WIR-11**', 1)[0]
+          section_start = original.index(b'**WIR-10b**')
+          section = original[section_start:].split(b'**WIR-11**', 1)[0]
           assert original.count(before) == section.count(before) == 1 and after not in original
-          line = original[:original.index(b'`{"inventory":')].count(b'\n') + 1
+          line = original[:section_start + section.index(b'`{"inventory":')].count(b'\n') + 1
 
           def gate():
               result = subprocess.run([sys.executable, 'tools/check_fixtures.py'],

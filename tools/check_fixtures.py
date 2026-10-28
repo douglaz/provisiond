@@ -319,7 +319,7 @@ def inline_spans(text):
 def inline_fixtures(text, filename):
     for start, span in inline_spans(text):
         body = span.strip()
-        # WIR-31 has an HTTP status before its complete JSON body.
+        # Strip an HTTP status prefix (see WIR-31).
         body = re.sub(r"^[1-5][0-9]{2}\s+(?=[{\[])", "", body)
         if not body.startswith(("{", "[")):
             continue  # field additions, scalar tokens and paths are not bodies
