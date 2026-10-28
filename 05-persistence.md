@@ -1416,13 +1416,21 @@ not mention them — the failure class this document's own scope note exists to 
 ### `restore_incidents`
 
 **STO-56** **`restore_incidents`** — `id`, `restore_instant`, `steps_completed` (0 to 3),
-`grace_ends_at`, nullable (*added 2026-09-25, `ADR-0028`*), and `closed_at`, nullable. One row per
+`grace_ends_at`, nullable (*added 2026-09-25, `ADR-0028`*), `lost_window_starts_at`, nullable,
+`loss_end_at`, nullable, `history_evidence_ref`, non-null, and `closed_at`, nullable. One row per
 restore (`STO-54`), written into the restored or promoted store before either component is started and closed
 by the operator; at most one row may have `closed_at` null, a partial unique index over the table.
 Both components read the open row before anything else they do: it is what says a starting process
 is continuing an incident rather than restarting, and `steps_completed` is what says where to
 resume, so neither fact depends on an operator being at the console when a process dies. *Added
 2026-09-20 (`ADR-0023`).*
+
+`restore_instant` is non-null; its event-time definition and the meanings of
+`lost_window_starts_at`=b and `loss_end_at`=f belong to `STO-54`. The incident-keyed
+`history_evidence_ref` identifies retained evidence or the unknown-endpoint reason, and is non-null
+even when both bounds are unknown. The endpoints and reference MUST be written with the row;
+continuations MUST NOT recompute them. `STO-54`: "Continuations reuse the persisted endpoints and
+evidence unchanged."
 
 **`grace_ends_at` is the unpaused end of the restore grace, one stored instant for the whole
 incident** (*added 2026-09-25, `ADR-0028`; amended 2026-10-02, `ADR-0029`*). It is null until
@@ -1600,9 +1608,50 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   without a primary until both standbys report or an operator decides.
 - **The procedure, in this order.** *Before the restore begins,* the deployment MUST stop every
 engine and `api` process, and MUST start neither component until the transaction that commits
-`STO-56`'s record (below) has been acknowledged (*added 2026-10-24, `ADR-0047`*). (1) *Before
-the startup lock:* the public listener is down;
-  the lost window `T − Δ` is stated as a number and published to the operator; exactly five
+`STO-56`'s record (below) has been acknowledged (*added 2026-10-24, `ADR-0047`*).
+
+  For backup restore and restore-class promotion, restore_instant is transaction_timestamp() of
+  the newly begun transaction inserting this incident. This is the event time of incident
+  creation, not the time of the recovered history. The transaction begins after the existing
+  stopping/fencing requirements are satisfied. Its timestamp's exact SQL definition is new; it
+  is not claimed as a fact already proved by the formal model.
+
+  The report separates that event from the history that survived. Persist a nullable
+  conservative lower bound b, a nullable upper bound f, and their incident-keyed evidence
+  references when the incident is inserted. A non-null b MUST certify that every source-history
+  component commit acknowledged before b belongs to recovered committed history. A non-null f
+  MUST certify that no component acknowledged an old-history commit after f. Known b and f MUST
+  be finite and satisfy b≤f. A bound without valid evidence is unknown, not an invented recovery
+  time. Inconsistent endpoint evidence is invalid; report the error and unknown bounds rather
+  than an apparent finite interval.
+
+  The last replayed commit-or-abort record's timestamp s can supply b=s−e only with evidence
+  that e bounds the source clock's error, the timestamp was generated before insertion, and the
+  recovered continuous prefix on matching ancestry contains that complete record. Capture the
+  observation before restart can erase it, or identify the complete record in retained WAL. The
+  earlier-acknowledgement implication is the certificate: this timestamp is neither an exact
+  snapshot time nor proof that all later-timestamped transactions are absent. A bare LSN,
+  filename or backup START TIME supplies no such certificate. An earlier operator-supplied bound
+  needs the same inclusion proof.
+
+  A verified upper error bound on the incident transaction's event clock, with retained
+  stopping/fencing evidence that no old-history acknowledgement follows that transaction's
+  start, can supply f=restore_instant+e_event. Source and event clocks may have different error
+  bounds; record their provenance. If either endpoint cannot be certified, persist null for it
+  and say that endpoint is unknown. The event timestamp alone never substitutes for a missing
+  history bound. Retain evidence outside the lost failure domain or with the incident so that
+  continuation does not depend on the failed primary.
+
+  Publish possible loss within [b,f] and its bounding duration only when both endpoints are
+  known. Include b because the lower certificate guarantees commits acknowledged strictly before
+  b. Otherwise publish each known bound, identify every unknown endpoint and state that no
+  finite duration is established; identify clock/provenance assumptions for known bounds.
+  Missing reporting evidence does not hold incident creation, the existing restore procedure or
+  component startup once its existing prerequisites are satisfied. Continuations reuse the
+  persisted endpoints and evidence unchanged. Backup restores use the same contract.
+
+  (1) *Before the startup lock:* the public listener is down;
+  the possible-loss report defined above is published to the operator; exactly five
   things are frozen, because starting either component to reconcile starts everything it hosts —
   the exhaustion sweep, `LDG-64`'s canceller, `API-34`'s time-to-live sweep, `STO-14`'s and
   `STO-43`'s retention, and `OPS-15`'s `suspend_tenant` exception — and the freeze lifts at
@@ -1684,7 +1733,7 @@ claim follows `OPS-41`'s grace rule like every claim — in `ADR-0028`'s words, 
 means no extension, not exemption from the wait”; see that ADR for the rejected fence-clearing
 alternative and its reasoning*); the extension's satoshis are back in the tenant's balance, because
 the debit that paid for it rolled back with it, and the backward move of `runway_until` is visible to the caller on
-every machine read — the lost window is published to the operator, and **no notice reaches a tenant,
+every machine read — the possible-loss report is published to the operator, and **no notice reaches a tenant,
 by decision** (*2026-09-13: the caller is a program that already polls `runway_until`, the satoshis
 are back in its balance, and the harm is bounded to one interval, so a per-tenant channel this set
 has not built under `ADR-0005` is not built for this. Added 2026-09-12; until then this requirement
@@ -1697,8 +1746,8 @@ extends the customer's charge to the next complete pass (`LDG-74`), and the corr
 operator `LDG-5` entry; a commitment is "not a ledger entry" (`LDG-30`) and is not rebuilt from
 payments;
 `STO-49` rows written in Δ are lost, and where `LDG-64`'s outage start is replayed from them its
-start and its computed deadline move with what the backup holds, and the report naming `T − Δ` is
-what tells the operator the clock moved (*amended 2026-10-02, `ADR-0029`*); a `running` install
+start and its computed deadline move with what the backup holds, and the possible-loss report
+identifies uncertainty in that history clock (*amended 2026-10-02, `ADR-0029`*); a `running` install
 found after a
 restore goes to `needs_reconciliation` with its `OPS-45` markers as the backup holds them, so a
 null marker there does not mean the disk is untouched and the operator resolves such a row as

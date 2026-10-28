@@ -418,6 +418,8 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets." and "The deployment's supervisor MUST wait at least the Stop-record bound after a stop before it kills the engine." | yes |
 | Recovery point | `STO-54` | greatest age of a committed write not yet in a separate failure domain | no — outside the process |
 | Recovery-point alarm threshold | `STO-54` | duration | yes |
+| Restore source/event clock-error evidence | `STO-54` | human — certificates and provenance for any asserted clock-error bounds; no unvalidated finite error assumed | no |
+| Restore endpoint capture, validation and retention procedure | `STO-54` | human — possible-loss reporting procedure | no |
 | Synchronous standby names | `STO-7`, `STO-54` | two identifiers | yes |
 | Pooled-connection keepalives | `STO-7` | durations | yes |
 | Derivation-index gap on restore | `STO-54` | integer | yes |

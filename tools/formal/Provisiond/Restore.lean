@@ -21,7 +21,11 @@ from the fault the engine came up on and the steps done.
 
 `Params` lists the guards dated amendments added, each a field so that removing it is a one-token
 change a witness theorem exercises (`ADR-0025`). Every model here is one tenant, one machine, one
-engine (`OPS-47`), and time does not advance: `now` is the restore instant.
+engine (`OPS-47`), and time does not advance: `now` abstracts the incident-creation event
+clock. `STO-54` defines that event: "restore_instant is transaction_timestamp() of the newly begun
+transaction inserting this incident." The SQL definition is new; this model does not establish
+it or model recovered-history bounds. Interval/certificate publication and its evidence protocol
+remain outside the model's scope.
 
 The create restart arm is the 2026-10-17 amendment to `OPS-15`: "A create found `running` at
 startup with `about_to_order_at` null MUST be settled `failed`, on a restart only."
@@ -39,7 +43,7 @@ the direct reread) are that module's, so on a restart the sweep records an absen
 pass alone; when the record closes, which `STO-56` gives to the operator once the obligations that
 outlive step (3) are discharged — so the record is open throughout this module and every successor
 here is a continuation, and a boot on a closed record is the restart `bootRestart` already is;
-`STO-54`'s step (1) beyond the freeze (the published window,
+`STO-54`'s step (1) beyond the freeze (the possible-loss report,
 the account status and the rate quorum) and step (3) beyond the credential bump and the grace
 (the watch set, the rails, `SEC-39`'s counters, the derivation index); the operator cancelling a
 waiting parent, which `Event.confirmParents` stands for beside confirming it; the sweep's
@@ -91,7 +95,8 @@ structure Machine where
 
 /-- `STO-56`'s restore record: `restore_instant`, and `grace_ends_at`, which "is null until step
 (3) of `STO-54`'s procedure is marked". The `Provisiond.Claim.RestoreRecord` it extends is the
-view a claim reads. -/
+view a claim reads. `restoreInstant` abstracts the newly defined incident transaction event
+time, not a recovered-history endpoint; the reporting endpoints and certificates are omitted. -/
 structure Record extends RestoreRecord where
   restoreInstant : Nat
   deriving DecidableEq, Repr
@@ -150,7 +155,8 @@ structure RestartTrace where
   history : History
 
 /-- `STO-54`'s trace: the backup holds the store `delta` steps before the crash, the provider's
-facts are the crash's, and `now` is the restore instant. -/
+facts are the crash's, and `now` abstracts the incident transaction event time defined by
+`STO-54`, independently of the recovered history. -/
 structure RestoreTrace where
   history  : History
   delta    : Nat
@@ -158,8 +164,8 @@ structure RestoreTrace where
   interval : Nat
 
 /-- The restored store: every row as the backup held it, with `applied` as the provider holds it,
-and the record open at the restore instant — committed before the engine is started, so no run of
-the model has a window in which it is absent. -/
+and the record open at its incident-creation event time — committed before the engine is started,
+so no run of the model has a window in which it is absent. -/
 @[req "STO-54"]
 def RestoreTrace.store (t : RestoreTrace) : Store :=
   let old := t.history.at (t.history.steps.length - t.delta)
@@ -428,7 +434,8 @@ The procedure marks, including `stepTwoMarked`, are the record's and stand, whic
 "a marked step does not run again" survives the process
 that made the mark. The mode is the record's, and the instant is "read from the record and never
 re-computed" — this model has no second clock to contradict it, so the parameter below decides the
-mode and not the instant. Everything else here is the store's or the trace's: the operator's
+mode and not the instant. That instant remains the incident transaction event time, not a
+history bound. Everything else here is the store's or the trace's: the operator's
 confirmation is the rows it moved, and `secondOrder`, `servedGens` and `parentResumedUnconfirmed`
 record what has already happened. -/
 @[req "STO-54"]
@@ -536,7 +543,8 @@ def boot (f : Fault) (s : Store) (now : Nat) (interval : Nat) : World :=
 @[req "STO-5"]
 def bootRestart (t : RestartTrace) : World := boot .restart t.history.final 0 0
 
-/-- `STO-54`: the engine comes up on the restored store, at the restore instant. -/
+/-- `STO-54`: the engine comes up on the restored store; `t.now` is the incident transaction
+event time retained by the record, not the time of the recovered history. -/
 @[req "STO-54"]
 def bootRestore (t : RestoreTrace) : World := boot .restore t.store t.now t.interval
 

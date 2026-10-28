@@ -1526,9 +1526,8 @@ usage cannot be converted to satoshis. A deployment MUST:
   the bound, because `STO-49` keeps the rows the start is replayed from. A changed maximum
   tolerated outage moves the deadline under `OVR-19`; settings alone cannot change the start
   (*amended 2026-10-04, `pv-gip.28`*). A restore that loses `STO-49` rows the start is
-  replayed from moves it as well, through the backup; `STO-54` lists that among what a restore
-  does not repair, and the report naming the lost window is what tells the operator the clock
-  moved (*amended 2026-10-02, `ADR-0029`*);
+  replayed from moves it as well, through the backup; see `STO-54` for possible-loss reporting
+  (*amended 2026-10-02, `ADR-0029`*);
 - **keep the outage deficiency's historical record native-only** (*amended 2026-10-04,
   `pv-gip.39`*). Current payable valuation is
   `LDG-75`'s; it creates no customer debit and stamps no rate on this record. Its

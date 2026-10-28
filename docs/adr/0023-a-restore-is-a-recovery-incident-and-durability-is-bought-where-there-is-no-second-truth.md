@@ -238,3 +238,33 @@ where the store looks ordinary.
 - `CONTEXT.md`: **Restore** and **Recovery point** as terms, with "restart" listed against the
   first.
 - `11-open-findings.md`: the §6.15 finding's second closure; pool sizing and live migration remain.
+
+
+## Incident event time and possible-loss reporting — 2026-10-28
+
+Adopt UO for `pv-3jw6`, under the owner's answer **“Report unknown (UO) (Recommended)”**.
+The decision source is `docs/research/panels-2026-10/r74/owner-decisions.md`; the approved
+application package is `docs/research/panels-2026-10/r74/decisions/pv-3jw6.md`, with its
+previously approved “defined below” → “defined above” repair. The release disposition is
+`docs/research/panels-2026-10/r79/tally.md` (E-KEEP). No replacement clock-error wording from
+that round is adopted.
+
+This supersedes the numeric-report clause under *The decision* above. The reporting contract
+and its arguments belong to `STO-54`: “A bound without valid evidence is unknown, not an invented
+recovery time.” Its event definition is “restore_instant is transaction_timestamp() of the newly
+begun transaction inserting this incident.” For the endpoint fields and incident-keyed retained
+evidence/unknown-reason reference, see `STO-56`; for the human deployment procedures, see
+`OVR-19`. The scenario and fixture inventory is `10-conformance-checklist.md`, with the reporting
+rehearsal in `CNF-295` and operator-promotion cases in `CNF-365`.
+
+The accepted uncertainty does not impose finite-only admission: `STO-54` says “Missing reporting
+evidence does not hold incident creation, the existing restore procedure or component startup
+once its existing prerequisites are satisfied.” The stopped-system ordering remains the decision
+in `ADR-0047`. The derivation-index obligation is separate: `05-persistence.md`'s
+`deposits.derivation_index` row says “Allocated strictly increasing and never re-issued”. This
+amendment adds neither an allocation-evidence admission gate nor a proof of the configured gap.
+
+The synchronization in `tools/formal/Provisiond/Restore.lean` changes documentation only.
+The incident transaction event time is the abstraction used by `restoreInstant`/`now`;
+`Event.completeProcedure` retains step (3)'s separate instant. SQL timestamp semantics and the
+reporting-certificate protocol remain outside that model's scope; compilation proves neither.
