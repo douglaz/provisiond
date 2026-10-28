@@ -30,9 +30,8 @@ remain outside the model's scope.
 The create restart arm is the 2026-10-17 amendment to `OPS-15`: "A create found `running` at
 startup with `about_to_order_at` null MUST be settled `failed`, on a restart only."
 
-What the model omits: the money release. Promoting the standby
-`STO-54`'s report puts further ahead is a restart (`STO-54`), and any other promotion is a
-`RestoreTrace`. The safety of the
+What the model omits: the money release. For promotion classification, see `STO-54`. This module takes the classification as input;
+it does not compare WAL reports. A restore-class promotion is a `RestoreTrace`. The safety of the
 restart arm is **not proved**, and the model admits its failure: `Live` has no step 8, so a create
 claimed, applied and then interrupted reaches the restart arm with the column null and settles
 `failed`. Only `OPS-43`'s "Step 9 MUST begin only after step 8's transaction is acknowledged."
