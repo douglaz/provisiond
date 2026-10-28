@@ -10,7 +10,7 @@ namespace Provisiond.RestoreIndependent
 
 open Provisiond.Restore Provisiond.Witnesses
 
-/-- Global guard for OPS-15's before-any-claim requirement. True is the current policy; false permits claims after lock and the restore step-(2) mark without requiring the per-process pass. It contains no condition on a selected operation, desired stranded status, or desired result. -/
+/-- Global guard for OPS-15: "at startup, before any claim". True is the current policy; false permits claims after lock and the restore step-(2) mark without requiring the per-process pass. It contains no condition on a selected operation, desired stranded status, or desired result. -/
 @[req "OPS-15"]
 def permitsI (requirePass : Bool) (p : Params) (w : World) : Permissions :=
   { Restore.permits p w with
