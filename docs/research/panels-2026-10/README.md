@@ -94,3 +94,16 @@ The records preserve STATE, notes, briefs, reader answers and tallies at this sn
 r78b tally and its conditional dissent remain on record. Clone specification links name the
 frozen review base; scratch and verification paths retain their original machine-local paths.
 Raw logs and clones remain outside the archive. The requirement owners hold the rules.
+
+## Panel C decision and Panel D0 settlement, 2026-10-28
+
+| Round | Question | Decision/status sources |
+|---|---|---|
+| [r78b](r78/r78b/STATE.md) | pv-75w3 | [Owner decision](r78/owner-decisions.md#pv-75w3), adopting only S-STOP-R S1–S4 in [the reviewed brief](r78/r78b/brief.md), with S3's actual-landing-date substitution; [tally](r78/r78b/tally.md) |
+| [r79](r79/STATE.md) | pv-3jw6 source timestamp allowance | [Tally and E-KEEP settlement](r79/tally.md); [rounding-question record](r79/rounding-open.md); [existing owner decision](r74/owner-decisions.md) and [unchanged application brief](r74/decisions/pv-3jw6.md) |
+
+The linked pv-75w3 owner decision supersedes the earlier snapshot's owner-pending status.
+The r79 records preserve the STATE, notes, brief, reader answers and tally, including proposed
+repairs that were not adopted. Specification links name the frozen review base; scratch,
+draft and verification references retain their machine-local destinations. Raw logs and clones
+remain outside this archive. The requirement owners hold the rules.

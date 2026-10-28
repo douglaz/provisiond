@@ -195,7 +195,9 @@ not optional hardening — they are the only structural defence there is.
       release and resource-offer exclusion freed; for its error, `OPS-15` says "Where no error is
       recorded, it MUST carry an `internal` error naming the restart, with `retryable: true` on
       both the error and the operation view". A set column stays `needs_reconciliation`; the null
-      exception stays off while a restore record is open.
+      exception stays off while a restore record is open. For that open-record control, seed
+      `lost_window_starts_at` and `loss_end_at` null, with a non-null incident-keyed
+      `history_evidence_ref` retaining the unknown-endpoint reasons (`STO-54`, `STO-56`).
       (`OPS-15`) *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the create exception and qualified the startup outcome, naming the `suspend_tenant` return to `queued` the summary had missed; the exclusion control uses an open restore record; `ADR-0042`.*
 - [ ] **CNF-30** — The startup pass does not overwrite an error already recorded. (`OPS-16`)
 - **CNF-31** — **SPLIT 2026-08-09** into `CNF-31a` and `CNF-31b`. The original conflated two
@@ -555,7 +557,11 @@ not optional hardening — they are the only structural defence there is.
       (`LDG-15`)
 - [ ] **CNF-99** — One adverse rate observation keeps to `LDG-16`'s bound — `LDG-16` says "no single
       rate observation moves the rate outside the range the window's other observations carry" — and
-      a window that cannot produce a rate halts instead of pricing. **Asserted through the
+      a window that cannot produce a rate halts instead of pricing.
+      For this item's actual restores and seeded open incidents, use null
+      `lost_window_starts_at` and `loss_end_at`, with a non-null incident-keyed
+      `history_evidence_ref` retaining the unknown-endpoint reasons (`STO-54`, `STO-56`).
+      **Asserted through the
       mechanism, not the outcome** (2026-09-05; rewritten 2026-09-21 for `ADR-0026` and 2026-09-23
       for `ADR-0027`, with the sub-quorum and ageing-out cases added the same day for its two
       amendments, the steady-state and silent-feed cases for `LDG-59`'s two clocks, and the
@@ -1044,8 +1050,10 @@ takes the machines *and* the float" partly false.
       correlator was written before the backup and otherwise leaves it to the operator; the
       `suspend_tenant` parent, in either state, does not resume without operator confirmation; the
       sweep's first pass records no absence and
-      its second may; and the operator report names `T − Δ` and every unrecorded machine per
-      account. Repeat across an outage starting inside grace and a restore-caused outage:
+      its second may; and the operator report names the persisted conservative possible-loss bounds
+      and bounding duration where both are known, and explicitly identifies unknown endpoints
+      otherwise; it also names every unrecorded machine per account. Repeat across an outage
+      starting inside grace and a restore-caused outage:
       after the wall-clock end the actors in `STO-54`'s freeze run, but unfinished funding grace
       still short-defers unfunded attempts in `OPS-41`'s fence transaction. Kill and restart after
       multiple qualifying returns;
@@ -1067,6 +1075,19 @@ takes the machines *and* the float" partly false.
       prerequisite is satisfied close and verify ordinary restart behavior. `CNF-218` carries
       the refused-close/returned-rate worker regressions. *Amended 2026-10-03 (`ADR-0029`):
       withdrawn — "Leave B without a rate through its bound: B ceases to block closure".*
+      Exercise known evidence with the old primary unavailable; a last-abort record; null replay
+      observation; unavailable source/event clock bounds; timestamp/WAL-order inversion; wrong
+      ancestry; WAL holes; backup restore; and interruptions before and after step marks.
+      Invalid evidence is never labelled a certified bound. For absent or invalid reporting
+      evidence, insert a record with unknown endpoint fields and complete the existing
+      procedure; assert no extra reporting-evidence hold. Existing consistency,
+      stopping/fencing, acknowledged-record-before-start and all other recovery prerequisites
+      still apply. Re-enter the incident and assert endpoints/references unchanged. Complete
+      step (3) much later and assert its grace uses its own event, not b, f or restore_instant.
+      For every actual restore in this item, supply certified evidence for any asserted known
+      `lost_window_starts_at` or `loss_end_at`; otherwise use null endpoint fields with the
+      non-null incident-keyed
+      `history_evidence_ref` retaining evidence or unknown-endpoint reasons (`STO-54`, `STO-56`).
       (`STO-54`, `STO-56`, `STO-49`, `OPS-15`, `OPS-41`, `LDG-16`,
       `LDG-64`, `API-56`, `OPS-27`, `OPS-32`)
       *Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): extended the successor rehearsal to newly claimed work and a confirmed parent.*
@@ -1084,7 +1105,10 @@ takes the machines *and* the float" partly false.
   (`CNF-56`'s method). (`STO-7`, `STO-54`, `OVR-18`) *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; `ADR-0045`): replaced the two-write stall drill with the synchronous-write, checkout-retention and connection-setting drill.*
   *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 - [ ] **CNF-297** — **The derivation index never goes backwards** (added 2026-09-12,
-      `ADR-0023`). Mint deposits, take a backup, mint more, restore, run `STO-54`'s skip-forward,
+      `ADR-0023`). Mint deposits, take a backup, mint more, restore with null
+      `lost_window_starts_at` and `loss_end_at` and a non-null incident-keyed
+      `history_evidence_ref` retaining the unknown-endpoint reasons (`STO-54`, `STO-56`),
+      run `STO-54`'s skip-forward,
       and assert the next index allocated exceeds every index a rolled-back row held, and that no
       address is ever handed to two deposits (`LDG-49`). (`STO-54`, `LDG-49`)
 - [ ] **CNF-298** — **One transaction at a time, and never across the network** (added
@@ -1166,7 +1190,18 @@ takes the machines *and* the float" partly false.
   and none until an operator decides, while that standby's report stays unavailable.
   With one standby on another timeline, assert the
   procedure promotes neither as a restart. Stop one standby, make an acknowledged write, stop the other, lose the
-  primary, restart both standbys, and assert the procedure promotes the one holding that write, then repeat with the standbys' roles swapped. (`STO-5`, `STO-7`,
+  primary, restart both standbys, and assert the procedure promotes the one holding that write, then repeat with the standbys' roles swapped.
+  Promote a lagging standby as an operator restore with verified prefix/clock evidence and
+  assert the incident stores certified bounds. Repeat with an idle restarted standby that has
+  replayed no transaction record and no retained fallback proof: assert unknown history bound
+  and an explicit nonnumeric report, followed by the existing restore procedure. Repeat with no
+  verified event-clock bound and assert an unknown upper bound. Do not use a restart time or a
+  backup name to fill an unknown history bound.
+  For these operator-restore arms, supply certified evidence for each asserted known
+  `lost_window_starts_at` or `loss_end_at`; store null for each unknown endpoint and retain a
+  non-null incident-keyed `history_evidence_ref`
+  identifying evidence or unknown-endpoint reasons (`STO-54`, `STO-56`).
+  (`STO-5`, `STO-7`,
   `STO-54`, `OPS-15`) *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*
 
 ## The rate
@@ -1588,7 +1623,10 @@ rather than acquiring a default.
       column is set and unchanged after restart, and the operation `needs_reconciliation`,
       with its commitment still open. No resolution or correlator matching runs for the failed cases.
       **Restore control:** take a backup after claim and before step 8, let the provider receive
-      the order, restore that backup with an open restore record and start the engine. The stored column
+      the order, restore that backup with an open restore record carrying null
+      `lost_window_starts_at` and `loss_end_at` and a non-null incident-keyed
+      `history_evidence_ref` retaining the unknown-endpoint reasons (`STO-54`, `STO-56`),
+      and start the engine. The stored column
       is null, but the operation stays `needs_reconciliation`; repeat after a crash before the
       startup pass, and after the freeze lifts while the record remains open. These cases reject
       a missing step-8 write, a write delayed into step 9, and an exception applied on a restore.
@@ -1713,7 +1751,9 @@ rather than acquiring a default.
       unchanged, and the session's commit then succeeds.
 
 - [ ] **CNF-370** — Start an engine; back up; restart the engine; stop every engine and `api`
-      process; restore from that backup. Then start an engine on the restored store, and assert
+      process; restore from that backup with null `lost_window_starts_at` and `loss_end_at`
+      and a non-null incident-keyed `history_evidence_ref` retaining the unknown-endpoint reasons
+      (`STO-54`, `STO-56`). Then start an engine on the restored store, and assert
       that every value written by an advance is distinct.
 
 - [ ] **CNF-362** — **A stop the engine survives from a worker's `execute` until its settle write lands gets a bounded record.**
@@ -2160,7 +2200,9 @@ rather than acquiring a default.
       `ADR-0033`: the unpaid inside-unit abort expectation is withdrawn.*
       Separately keep the outage through its bound and
       exercise cancellation, including an attach after the bound. Repeat under current suspension
-      and under an open restore to check the existing worker precedence.
+      and under an open restore to check the existing worker precedence. For the open-restore
+      arms, seed null `lost_window_starts_at` and `loss_end_at` with a non-null incident-keyed
+      `history_evidence_ref` retaining the unknown-endpoint reasons (`STO-54`, `STO-56`).
 
       With an open restore, satisfy its other close conditions and leave this currency's
       rate-present grace unspent. First establish that all its machines are gone or fenced, then
@@ -2468,8 +2510,10 @@ rather than acquiring a default.
       that date lapse and sweep again: no new attempt. Retry the price-funded episode with a
       fresh key and observe the provider call, not a funding abort; also try no rate before the
       outage bound. The retry still defers under an open restore record with null/future original
-      grace end; once claimable, it uses the retry branch. A gone-write or permanent close before
-      its fence transaction still prevents the call. An ordinary funded attempt still aborts.
+      grace end; seed that incident with null `lost_window_starts_at` and `loss_end_at` and a
+      non-null incident-keyed `history_evidence_ref` retaining the unknown-endpoint reasons
+      (`STO-54`, `STO-56`). Once claimable, it uses the retry branch. A gone-write or permanent
+      close before its fence transaction still prevents the call. An ordinary funded attempt still aborts.
       On a separate stalled fixture, keep: in one transaction observe `closed`/`kept`, cleared
       fence, re-derived date, authenticated `kept_by` and the submitted `operator_ref` in
       `keep_evidence`, and the durable receipt; no new operation, provider call or money movement.
@@ -2984,9 +3028,11 @@ rather than acquiring a default.
       `rescue_port`, the column is **false**, and no key file exists (`RSC-19`: a crash persists
       nothing, and `unknown` never implies a file). Then `CNF-301`'s clean exit: **true**. Then
       repeat the pre-dispatch write after a simulated lost reply and assert it affects one row and
-      changes nothing (`ADR-0022`, `STO-3`). Then restore from a backup taken before the dispatch
-      and assert the quarantined row renders both keys `unknown` whatever the restored columns hold
-      (`WIR-9a`). Three distinct column values, or the item passes an implementation that writes the
+      changes nothing (`ADR-0022`, `STO-3`). Then restore from a backup taken before the dispatch,
+      inserting an incident with null `lost_window_starts_at` and `loss_end_at` and a non-null
+      incident-keyed `history_evidence_ref` retaining the unknown-endpoint reasons (`STO-54`,
+      `STO-56`), and assert the quarantined row renders both keys `unknown` whatever the restored
+      columns hold (`WIR-9a`). Three distinct column values, or the item passes an implementation that writes the
       marker only at the exit — which renders a crashed session as `none`, the one lie the column
       exists to prevent. The pre-dispatch kill is the step that separates the required write from
       one made at the dispatch instead: `OPS-45` states "false, written before begin rescue … is
@@ -3357,6 +3403,9 @@ rather than acquiring a default.
       mid-outage below the time already run* (`OVR-19`): the deferred attempt's first claim after
       the restart that loads it proceeds.
       **Restore grace across outages** (`OPS-41`, `STO-56`; amended 2026-10-02, `ADR-0029`).
+      Seed the incidents in the following restore-grace traces with null `lost_window_starts_at`
+      and `loss_end_at` and a non-null incident-keyed `history_evidence_ref` retaining the
+      unknown-endpoint reasons (`STO-54`, `STO-56`).
       Keep the restore record open throughout the following traces, including the refused close
       attempts below; successful closure is exercised in `CNF-295`. Unless a trace specifies
       otherwise, use an active tenant, an unfenced live machine with an open funding episode,
