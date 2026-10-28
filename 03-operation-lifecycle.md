@@ -134,7 +134,8 @@ back to `queued`.
 
 **OPS-47** **AMENDED 2026-09-08 (`ADR-0019`) — the supervisor is the guarantee, and the engine
 checks at boot that it is alone.** The engine MUST run as exactly one process under an external
-supervisor that restarts it and never runs two. **That is a deployment obligation** (`OVR-19`).
+supervisor that retries startup subject to `STO-55` admission and never runs two (`STO-55`:
+"Startup acquisition refusal exits for supervisor retry"). **That is a deployment obligation** (`OVR-19`).
 Where two engines run, no write of the first commits once the second's startup pass has
 committed a new `STO-59` generation (`OPS-50`); provider calls the first already licensed still
 go out. `OPS-50` says "Where the values differ, the transaction MUST roll back". A supervisor guarantees it never *starts* two; it cannot guarantee the first is dead, so
@@ -161,6 +162,7 @@ A supervised restart is caught without it, by `OPS-15`'s startup pass and `STO-3
 `status = running` term. The restart window is the accepted outage, and it is alarmed (`OVR-18`).*
 
 *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): amended lock-loss handling and added the generation-fence pointer.*
+*Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 
 **OPS-5** **AMENDED 2026-09-08 (`ADR-0019`).** Claiming MUST be atomic: selecting the next
 eligible operation and marking it `running` MUST happen in one indivisible step, which also
@@ -1932,6 +1934,9 @@ episode index — has seen its earlier attempt land, and moves on. **`api`'s com
 this loop**: a failed request transaction is the caller's `internal` error, and a failed credit
 is `STO-31`'s next replay.
 
+An attempt denied by `STO-55` admission is a store error for this loop and sends no SQL
+(`STO-55`: "worker/periodic acquisition refusal is an `OPS-49` store error").
+
 - **"Too slow" is `statement_timeout`.** The client-side deadline on a store call MUST NOT be
   shorter than `STO-7`'s server-side timeouts, so the server decides every statement's fate before
   the client does and the only lost reply is a dead transport, or a commit returned with
@@ -1979,6 +1984,7 @@ repeating it.
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): excluded a commit’s standby wait from the Store-retry bound, and made a commit returned with `STO-7`’s replication warning the second lost reply.*
 
 *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): distinguished generation refusal from store errors and retained recording on lock loss.*
+*Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 
 **OPS-50** **ADDED 2026-10-24 (`ADR-0047`) — every engine write checks the startup generation,
 and a mismatch exits.** Except for `OPS-15`'s generation-advance transaction, every write

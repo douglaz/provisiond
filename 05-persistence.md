@@ -213,9 +213,9 @@ replicated to the standby." is not acknowledged: the component treats it as a lo
 at most one transaction at a time.** The engine's pool holds one connection per worker plus one
 per periodic component that runs in the engine process (`OVR-17`); each `api` replica's pool holds
 one per admitted request plus one per periodic component on its rows; `OPS-47`'s lock connection
-is outside both. Every consumer then has a connection when it needs one and nothing starves the
-exposure-reducing components behind the workers. **The rule that makes the arithmetic true:** a
-worker, sweep or watcher MUST NOT hold two transactions at once and MUST NOT hold a transaction
+is outside both. Pool sizing reserves consumer checkouts within a running process; opening or
+replacing a database connection also requires deployment admission. **The rule that makes the
+arithmetic true:** a worker, sweep or watcher MUST NOT hold two transactions at once and MUST NOT hold a transaction
 open across a provider, rail or rescue-host call — a sweep selects a bounded batch by key, commits,
 and writes per row in its own transaction, and a cursor held on one connection while writing on
 another would deadlock a pool sized this way on its first pass; the batch size is the
@@ -245,8 +245,48 @@ concurrency** (`OVR-19`); the pools are sized from them.
   waiting runners, and an operator reserve together fit inside `max_connections` less the server's
   reserved slots — a human row on `OVR-19`, since only the deployment sees the whole — and the
   engine reads `max_connections` at startup and refuses to run where its own pool plus the lock
-  connection does not fit. During a stall, backends left waiting by an exited process or a dead
-  transport hold slots outside this `max_connections` account (`pv-oehp`).
+  connection does not fit.
+
+  Every physical connection attempt by component pools, reconnects, rollout incarnations,
+  startup-lock holders, migrators and waiting runners MUST receive a distinct durable reservation
+  before dialing from one serialized authority outside the protected store. This includes
+  pre-authentication and delayed-handshake attempts. Ingress MUST prohibit bypass and redial under
+  one reservation. Bind grants to component/attempt identity and database boot identity, and to
+  backend PID and `backend_start` when known. Unknown bindings remain charged. Timeout, transport
+  loss, process exit and rollout completion never release a grant.
+
+  Unreleased grants MUST fit component capacity C. Bounded observer/operator/other-client
+  allowances A include their residual and uncertain attempts. C+A MUST fit usable capacity after
+  server reservations, with background/server resource pools budgeted separately. Keep separate
+  read/write checkout budgets. The deployment MUST state C, the allowances A, the resource
+  ceilings, and the authority and reconstruction procedures (`OVR-19`), and MUST actually bound A
+  and budget the separate background/server resources. A declared allowance alone does not ensure
+  a fresh observer can connect when that allowance or resources are consumed; PostgreSQL reserve
+  roles alone are no proof of observer access. The enforcement construction is the deployment's.
+
+  Release requires fencing every delayed arrival/retry and fresh privileged direct-primary
+  evidence, read in a fresh transaction, that the bound backend ended. Leaving `SyncRep` is
+  insufficient. Unidentified attempts remain charged until fenced server-incarnation termination
+  proves absence. Observer failure denies growth and retains charges.
+
+  Accounting loss closes ingress. Recovery requires fenced conservative reconstruction or
+  stopped components and verified primary shutdown before a fresh account; either path fences all
+  old grants and delayed attempts. Existing admitted sessions may continue. Exhaustion alarms,
+  refuses growth and delays replacements.
+
+  Startup acquisition refusal exits for supervisor retry; `api` returns `overloaded` before any
+  transaction; worker/periodic acquisition refusal is an `OPS-49` store error (`OPS-49`: "An
+  attempt denied by `STO-55` admission is a store error for this loop and sends no SQL").
+  Stop-record refusals consume existing bounds and send no SQL. No individual `SyncRep` backend
+  may be cancelled or terminated to make room; primary shutdown remains `STO-7`'s exception,
+  "other than by shutting the primary down".
+
+  The capacity argument is the mapping of every physical component attempt to a distinct
+  unreleased grant: residual backends, unknown attempts and failed-unused attempts stay charged
+  until the release evidence above proves absence. Together with the actually bounded A and the
+  separate resource budgets, the C+A inequality covers occupancy outside live pools. The costs
+  are reserves, durable admission infrastructure, indefinite replacement/startup delay and
+  possible primary shutdown for unreconstructable accounting.
 - **No pooler in transaction mode fronts the pools** (*amended 2026-10-23, `ADR-0045`; until then one "MAY front the pools only on two conditions"*): behind one, a crash of the primary ends its backends but not the component's connection to the pooler, so `STO-7`'s new-connection check would never run. The operator MUST maintain this exclusion while components use this path, including after routing changes. No additional runtime topology-drift check is required.
 
 *Why no ADR: pool sizes and admission bounds are configuration, so the hard-to-reverse test fails,
@@ -254,6 +294,7 @@ and two independent readers said so; `LDG-65` is the set's precedent for recordi
 decision without one. What was found beside it — the engine's worker count and `LDG-37`'s cadence
 on no register — is a defect of `OVR-19`'s own rule, and both rows are added.*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S3 “B: check each new connection (Recommended)”; `ADR-0045`): removed the synchronous-commit cap, recorded residual backends, and excluded transaction-mode pooling.*
+*Amended 2026-10-28 (`pv-oehp`; owner decision 2, `docs/research/panels-2026-10/r74/owner-decisions.md`, “B4* as reviewed (Recommended)”; `ADR-0045`): added durable admission and its deployment obligations.*
 
 ## Schema
 
