@@ -93,7 +93,7 @@ since `STO-35` was written.*
 **STO-5** The store MUST survive process restart with no loss of queued or running
 operations. *A restore from backup is not a restart and is not covered by this sentence: it loses
 an interval, and `STO-54` is what governs bringing the engine up on it (`ADR-0023`).*
-*Promoting the standby `STO-54`'s report puts further ahead is a restart; `STO-54` says what any other promotion is: "is a restore: the procedure below runs on it" (`ADR-0045`).*
+*For promotion classification, see `STO-54` (`ADR-0045`).*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): added the promotion-classification pointer.*
 
 **STO-51** **AMENDED 2026-09-08 (`ADR-0019`) — the epoch row is deleted; a startup lock replaces
@@ -1590,8 +1590,8 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   procedure's order below is.
 - **Promoting the standby that holds every acknowledged commit is a restart** (*added 2026-10-23, `ADR-0045`*).
   After every engine and `api` process connected to the old primary has stopped, both standbys `OVR-19` names
-  report the end of the WAL each has flushed on the old primary's timeline, and the one further ahead is promoted: every acknowledged commit was
-  flushed by one of them, and both hold a prefix of one WAL sequence, so that one holds them all and its promotion
+  report the end of the WAL each has flushed on the old primary's timeline, and a standby whose reported end is at least as far ahead as the other's is promoted (either may be chosen when they are equal): every acknowledged commit was
+  flushed by one of them, and both hold a prefix of one WAL sequence, so every standby at the maximal reported end holds them all and its promotion
   loses none. The
   engine comes up on it under `STO-5`'s restart rule, unless a restore record (`STO-56`) is open there, in which case a process that starts is
   continuing that incident (below). Before any component connects to the promoted store, the deployment MUST stop
@@ -1600,7 +1600,7 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   standby, even though they show as committed on the primary"), so it rejoins only as a standby of the promoted
   store. `OVR-19` then names the other standby and the rejoining old
   primary, and writes continue once the other standby streams from the promoted store. Any other promotion —
-  without both standbys' report, with a report on another timeline, or of the one not further ahead, of a standby `STO-7` does not name, or after the primary committed without one of them, served a component before it had caught
+  without both standbys' report, with a report on another timeline, or of a standby whose reported end is behind the other's, of a standby `STO-7` does not name, or after the primary committed without one of them, served a component before it had caught
   up, or had a waiting backend cancelled or terminated (`STO-7`) — is a restore: the procedure below runs on it, and
   `STO-56`'s record is committed into the promoted store before either component is started.
   Only an operator starts a

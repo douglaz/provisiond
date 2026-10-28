@@ -98,6 +98,12 @@ Lifecycle companions: `OPS-47` and `OPS-49` in `03-operation-lifecycle.md`; alar
 drill: `10-conformance-checklist.md`, including `CNF-372`.
 Follow-up `pv-26ju` carries the WAL-history proof and counterexamples.
 
+**Amended 2026-10-28 (`pv-1i3n`).** The owner selected “Yes, T-known (Recommended)”
+in [decision 3](../research/panels-2026-10/r74/owner-decisions.md), adopting the
+[archived T-known package](../research/panels-2026-10/r74/r76/q4-T-known.md).
+Promotion classification and its argument: `STO-54` in `05-persistence.md`.
+Conformance companion: `CNF-365` in `10-conformance-checklist.md`.
+
 ## Rejected options
 
 The [owner questions](../research/panels-2026-10/r63/r63h/owner-questions.md) hold the descriptions
