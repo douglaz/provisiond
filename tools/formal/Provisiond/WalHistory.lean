@@ -42,7 +42,7 @@ fencing in a deployment, or every externally visible action's safety. It models 
 procedures nor permission to promote: H-e can be an operator-authorized restore, never evidence
 for calling it a restart. It does not compose with `Restore.History`, which is live engine steps.
 No new runtime mechanism, trusted assumption, or implementation conformance follows from a green
-gate. Markdown authority remains transitional under `ADR-0025`; no rendered region is added.
+gate. No rendered region is added; see `ADR-0025` for authority.
 -/
 
 namespace Provisiond.WalHistory
@@ -180,8 +180,8 @@ private def barrierWrite : CommitId := ⟨40⟩
 
 /-- H-d: read deposit on the old branch; promote a branch lacking it; a later write barrier
 on that branch is acknowledged and durably present. The numerical ordering still passes.
-Carrying the read across this change is excluded by the current session/stopping duties; this
-trace demonstrates what would happen without the history premise, not a permitted deployment. -/
+This trace demonstrates what would happen without the history premise, not a permitted
+deployment. -/
 private def hdRead : Read := ⟨[root, deposit], 1, deposit⟩
 private def hdBarrier : Barrier := ⟨[root, other, barrierWrite], 3⟩
 private def hdReplica : Replica := ⟨[root, other, barrierWrite], 3⟩

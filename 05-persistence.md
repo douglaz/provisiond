@@ -215,10 +215,8 @@ record-for-record history agreement through that commit (`SameHistory`). The ind
 premises are attribution of the read to an actual commit (`ReadObserved`), that commit preceding
 the sampled endpoint (`ReadBeforeTarget`), and a truthful report of a continuous durable prefix
 of the barrier's history (`DurablePrefix`). Commit identity is independent of position; prefix
-agreement is about records, not equal timeline labels. The platform's visibility and local-flush
-ordering must supply the earlier-commit/endpoint relation, and the uninterrupted session and
-deployment stopping/routing duties must supply history continuity. None is established about a
-deployment by the proof.
+agreement is about records, not equal timeline labels. None of these premises is established
+about a deployment by the proof.
 
 Here *barrier* names the successful observation, including the read-only check above; it does
 not require a write. The new-connection check alone does not order a later read before its
@@ -234,15 +232,15 @@ This historical write-barrier witness introduces no write check into the current
 For acknowledged commits, `SynchronousCommit` separately relates acknowledgement to an actual
 record and an endpoint reached by a named standby; durable-prefix semantics then establish
 membership. `Provisiond.WalHistory.local_ack_admitted_without_sync` retains the documented
-configuration-drift case above, even with maximal equal reports. This proof addition relies on
-the trusted configuration duty and adds no runtime configuration check.
+configuration-drift case above, even with maximal equal reports. No runtime configuration check
+is added.
 
 The module documents its premises and limits. It proves neither PostgreSQL implementation or
 SQL behavior, observer/report correctness, actual topology/configuration, process stopping or
 fencing in a deployment, nor every externally visible action's safety; the broader action/history
 audit remains `pv-v4gp`. It supplies no implementation conformance or new fixture obligation.
-No rendered region is added; Markdown remains authoritative under `ADR-0025`'s transitional
-rule. For promotion properties and witnesses, see `STO-54`.
+No rendered region is added; see `ADR-0025` for authority. For promotion properties and witnesses,
+see `STO-54`.
 
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; owner question F (a quick shutdown while both standbys are down) “Check again (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): adopted synchronous commits, retained sent COMMIT connections, excluded standby waits from deadlines, added connection and deposit-read checks, and made a commit returned with the replication warning the second lost reply.*
 
