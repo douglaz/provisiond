@@ -1023,7 +1023,7 @@ def check_quotations():
 
 
 def check_withdrawal_history():
-    """Domain withdrawals reach comparison; retained wording and teaching do not."""
+    """Exercise withdrawal comparisons and historical/teaching exclusions."""
     source = 'alpha beta gamma delta'
     reqs = {'OPS-41': ('source.md', source)}
     name = ''
