@@ -202,6 +202,13 @@ jobs:
           grep -q 'attributes to OVR-1 a phrase OVR-1 does not contain' citations.log
           echo "citation gate correctly rejected an unverifiable quoted attribution"
 
+      # Exercise the unchanged live site as well as the one-word plant: a skip
+      # must not pass for a successful comparison. The control copies the index
+      # from the full gate above and mutates only its own scratch document.
+      - name: Prove the citation gate compares the live withdrawal quotation
+        if: matrix.shard == 0
+        run: python3 tools/test_withdrawal_citations.py
+
       # The formal layer's controls (ADR-0025). Each breaks the specific thing its
       # check guards, and each asserts the failure came from that check and not
       # from a syntax error or a missing toolchain -- a red build for the wrong
