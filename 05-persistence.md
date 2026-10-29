@@ -207,6 +207,43 @@ other than by shutting the primary down.
 
 A commit that returns PostgreSQL's warning "The transaction has already committed locally, but might not have been
 replicated to the standby." is not acknowledged: the component treats it as a lost reply (`OPS-49`).
+
+**Formal checking interpretation (2026-10-29, `pv-26ju`).**
+`Provisiond.WalHistory.barrier_same_history_replicated` derives an earlier commit's membership
+in a standby's durable prefix from a successful flush-position observation (`BarrierAck`) and
+record-for-record history agreement through that commit (`SameHistory`). The independent
+premises are attribution of the read to an actual commit (`ReadObserved`), that commit preceding
+the sampled endpoint (`ReadBeforeTarget`), and a truthful report of a continuous durable prefix
+of the barrier's history (`DurablePrefix`). Commit identity is independent of position; prefix
+agreement is about records, not equal timeline labels. The platform's visibility and local-flush
+ordering must supply the earlier-commit/endpoint relation, and the uninterrupted session and
+deployment stopping/routing duties must supply history continuity. None is established about a
+deployment by the proof.
+
+Here *barrier* names the successful observation, including the read-only check above; it does
+not require a write. The new-connection check alone does not order a later read before its
+endpoint. `Provisiond.WalHistory.stale_target_admitted` retains that failure, and
+`Provisiond.WalHistory.false_report_admitted` retains the failure of a false durable report.
+`Provisiond.WalHistory.hd_admitted_without_history` retains H-d: a read obtains a commit on one
+history, a later write barrier succeeds on a changed history and is durably present, but the
+earlier commit is absent. Its failed premise is actual history agreement, despite successful
+position comparisons. The corresponding refusal and positive case are
+`Provisiond.WalHistory.hd_refused_with_history` and `Provisiond.WalHistory.barrier_positive`.
+This historical write-barrier witness introduces no write check into the current rule.
+
+For acknowledged commits, `SynchronousCommit` separately relates acknowledgement to an actual
+record and an endpoint reached by a named standby; durable-prefix semantics then establish
+membership. `Provisiond.WalHistory.local_ack_admitted_without_sync` retains the documented
+configuration-drift case above, even with maximal equal reports. This proof addition relies on
+the trusted configuration duty and adds no runtime configuration check.
+
+The module documents its premises and limits. It proves neither PostgreSQL implementation or
+SQL behavior, observer/report correctness, actual topology/configuration, process stopping or
+fencing in a deployment, nor every externally visible action's safety; the broader action/history
+audit remains `pv-v4gp`. It supplies no implementation conformance or new fixture obligation.
+No rendered region is added; Markdown remains authoritative under `ADR-0025`'s transitional
+rule. For promotion properties and witnesses, see `STO-54`.
+
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; owner question F (a quick shutdown while both standbys are down) “Check again (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): adopted synchronous commits, retained sent COMMIT connections, excluded standby waits from deadlines, added connection and deposit-read checks, and made a commit returned with the replication warning the second lost reply.*
 
 **STO-55** **ADDED 2026-09-12 (`F51`) — each pool is sized by construction, and a component holds
@@ -1632,6 +1669,27 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   Only an operator starts a
   promotion that is a restore: an automatic failover promotes only as a restart, and otherwise leaves the store
   without a primary until both standbys report or an operator decides.
+
+  **Formal checking interpretation (2026-10-29, `pv-26ju`).**
+  `Provisiond.WalHistory.maximal_preserves_acknowledged` proves preservation for an arbitrary
+  acknowledged commit under `SynchronousCommit`, truthful durable-prefix reports on one actual
+  history, and `MaximalReport`. Report snapshots assume the old component processes have stopped
+  and the reported WAL remains durable. The hypothesis is actual common history, not equality
+  of labels or positions. `Provisiond.WalHistory.equal_reports_allow_either` admits either named
+  standby when reports tie, and `Provisiond.WalHistory.equal_maximal_protected` supplies a
+  successful tied promotion witness. `Provisiond.WalHistory.divergent_equal_reports_admitted`
+  retains equal truthful reports on different histories with an absent acknowledged commit;
+  the refusal under common-prefix semantics is `Provisiond.WalHistory.divergent_promotion_refused`.
+  `Provisiond.WalHistory.he_admitted_without_maximal` retains
+  H-e: s1 durably holds an acknowledged commit, s2 holds only an earlier prefix of that same
+  history, and promoting s2 leaves the commit absent. The failed premise is maximal selection,
+  separately from H-d's history mismatch. `Provisiond.WalHistory.he_refused_with_maximal` and
+  `Provisiond.WalHistory.he_maximal_protected` retain the refusal and protected choice. This
+  witness is possible loss on an operator-authorized restore, not a ban on that restore or a
+  reclassification as a restart. The model does not establish the deployment duties or the
+  restore procedure, and does not connect WAL membership to the existing engine-step restore
+  model. For the module's limits and transitional Markdown authority, see `STO-7`.
+
 - **The procedure, in this order.** *Before the restore begins,* the deployment MUST stop every
 engine and `api` process, and MUST start neither component until the transaction that commits
 `STO-56`'s record (below) has been acknowledged (*added 2026-10-24, `ADR-0047`*).
