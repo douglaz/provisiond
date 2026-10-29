@@ -209,6 +209,10 @@ jobs:
         if: matrix.shard == 0
         run: python3 tools/test_withdrawal_citations.py
 
+      - name: Prove the citation gate compares the complete live stop-record quotation
+        if: matrix.shard == 0
+        run: python3 tools/test_stop_record_citations.py
+
       # The formal layer's controls (ADR-0025). Each breaks the specific thing its
       # check guards, and each asserts the failure came from that check and not
       # from a syntax error or a missing toolchain -- a red build for the wrong

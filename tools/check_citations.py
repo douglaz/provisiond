@@ -44,7 +44,8 @@ FOUR RULES, deliberately narrow.
            ATTRIB match (a speech verb, or `X`'s <noun> that) before it, or is
            directly after a bare possessive (`X`'s "four or more words") or,
            in root Markdown only, a colon (`X`: "four or more words"). The
-           chunk must be neither HISTORICAL nor TEACHING. A bare possessive
+           chunk must not be TEACHING. Lean also skips HISTORICAL chunks;
+           Markdown assesses history per candidate as described below. A bare possessive
            owns only its immediately following quote; each such pair is checked,
            even with multiple owners in a chunk. The colon shape has the same
            immediate-quote ownership and never adds UNQUOTED input either.
@@ -78,8 +79,13 @@ FOUR RULES, deliberately narrow.
            substitute for the double-prime unit symbol. Blank lines
            are hard boundaries, including between separate Lean docstrings.
            This is a paired-mark scanner, not a Markdown or Lean prose parser.
-           Historical/teaching heuristics apply to the whole resulting chunk;
-           a word inside a quotation can therefore suppress its comparison.
+           TEACHING applies to the whole resulting chunk. HISTORICAL does too,
+           except in Markdown QUOTED: an exact case-insensitive whole word
+           superseded wholly inside the candidate's paired content does not
+           suppress that candidate. Every other history match still suppresses,
+           including superseded outside it or inside another quote, and embedded
+           substrings such as superseded_never_commits. All history occurrences
+           are considered; ownership and cited pools use the original chunk.
            CNF-216's note beginning "Amended 2026-10-02" remains historical:
            corrupting "the greatest `increment end` among that subject's rows"
            there is skipped; the same attribution in a current chunk is checked.
@@ -93,7 +99,8 @@ FOUR RULES, deliberately narrow.
            cited requirement's own words.
            A colon-form quote in a Lean docstring gets only EXISTS's owner-free
            comparison unless another supported attribution shape applies.
-           Quotes below four words remain outside QUOTED.
+           Quotes below four normalized words remain outside QUOTED. Markdown
+           QUOTED has no length cap; Lean QUOTED retains the 400-character cap.
            Comparison locates candidate source spans without quotation marks,
            then compares their content, including adjacent apostrophes. Only
            locally paired delimiters are formatting; word-internal and unpaired
@@ -118,14 +125,14 @@ FOUR RULES, deliberately narrow.
            docs/adr/*.md -- whether or not its chunk carries an attribution
            (`pv-vwe.25`, decided 2026-10-01). A quote is what QUOTE matches:
            a paired span of at most 400 characters containing at least four
-           normalised words. Longer quotations are counted by neither rule,
+           normalised words. Longer Lean quotations are counted by neither rule,
            but their marks are consumed before scanning the next span.
            EXISTS removes every ' and " after norm() on both sides, since a docstring
            writes a nested quotation with single marks where the document has
            double ones. Unlike QUOTED, it also ignores word-internal apostrophes.
            Signature identity still uses norm(), retaining marks.
            Chunks HISTORICAL or TEACHING match are skipped, as
-           QUOTED skips them, and elisions split a quote into fragments
+           Lean QUOTED skips them, and elisions split a quote into fragments
            matched one by one, as QUOTED's do; both spaced `...` and `…`
            remain inside the paired quotation. Residue is ratcheted in
            citation-baseline.json's quoted_existence, keyed by file:quote, each
@@ -148,6 +155,8 @@ FOUR RULES, deliberately narrow.
            The count lives in that file and nowhere else -- a number written
            into prose is wrong the first time either end moves, which this set
            has now learned in `ADR-0003`, `ADR-0011` and `F16`.
+           HISTORICAL and TEACHING retain their whole-chunk suppression here,
+           including history inside a paired quotation.
 
 Summary verbs are deliberately OUT OF SCOPE. "`OPS-12` forbids automatic retry"
 is a correct, useful paraphrase, and most attributions in the set are of that
@@ -272,11 +281,11 @@ def chunks(text):
     yield text[start:]
 
 
-def quotations(text):
+def quotations(text, max_length=400):
     """Yield (position, wording) after pairing, then applying the reach limits."""
     for match in QUOTE.finditer(text):
         wording = match.group(1) or match.group(2) or ""
-        if len(wording) <= 400 and len(norm(wording).split()) >= 4:
+        if (max_length is None or len(wording) <= max_length) and len(norm(wording).split()) >= 4:
             yield match.start(), wording
 
 
@@ -300,6 +309,18 @@ HISTORICAL = re.compile(
 
 # A document teaching this rule must be able to show the mistake it forbids.
 TEACHING = re.compile(r"is an assertion|is a claim, and|checkable;|for example", re.I)
+
+
+def historical_quote(text, position, wording):
+    """Markdown QUOTED history, exempting only candidate-local whole superseded."""
+    whole_word = re.compile(r'\bsuperseded\b', re.I)
+    for marker in HISTORICAL.finditer(text):
+        word = whole_word.match(text, marker.start())
+        if (word and word.end() == marker.end() and position < marker.start()
+                and marker.end() <= position + 1 + len(wording)):
+            continue
+        return True
+    return False
 
 
 def norm(s):
@@ -631,9 +652,11 @@ def find(docs, adrs, reqs, corpus=None):
     nadrs = {a: comparison_text(t) for a, t in adrs.items()}
     for f, text in docs.items():
         for sent in chunks(text):
-            if HISTORICAL.search(sent) or TEACHING.search(sent):
+            lean = f.endswith('.lean')
+            historical = HISTORICAL.search(sent)
+            if TEACHING.search(sent) or (lean and historical):
                 continue
-            quotes = list(quotations(sent))
+            quotes = list(quotations(sent, max_length=400 if lean else None))
             attributions = []
             m = ATTRIB.search(sent)
             if m:
@@ -653,7 +676,7 @@ def find(docs, adrs, reqs, corpus=None):
                 later = [(p, q) for p, q in quotes if p > m.start()]
                 if later:
                     attributions.append((rid, later))
-                elif verb not in CONSULTS:
+                elif verb not in CONSULTS and not historical:
                     unquoted.append((f, rid, " ".join(sent.split())[:100]))
             for possessive in POSSESSIVE.finditer(sent):
                 direct = [(p, q) for p, q in quotes if p == possessive.end()]
@@ -673,6 +696,8 @@ def find(docs, adrs, reqs, corpus=None):
                 pool = [comparison_text(reqs[owner][1])] if owner in reqs else []
                 pool += docpool
                 for _pos, q in attributed:
+                    if not lean and historical and historical_quote(sent, _pos, q):
+                        continue
                     checked += 1
                     if not any(contains_quote(p, q) for p in pool):
                         bad.append((f, owner, norm(q)))
@@ -1081,6 +1106,119 @@ def check_withdrawal_history():
     return 0
 
 
+def check_markdown_quote_reach():
+    """Independent history/length controls and preservation of other exclusions."""
+    from unittest.mock import call, patch
+
+    shapes = ['`OPS-41` says ', "`OPS-41`'s ", '`OPS-41`: ']
+    filename = 'probe.md'
+    name = ''
+
+    def compared(prose, source, quote, accepted=True):
+        owners = {'OPS-41': ('source.md', source)}
+        with patch.object(sys.modules[__name__], 'contains_quote', wraps=contains_quote) as compare:
+            actual = find({filename: prose}, {}, owners)
+        expected = [] if accepted else [(filename, 'OPS-41', norm(quote))]
+        assert actual == (expected, [], 1), (name, actual)
+        assert compare.call_args_list == [call(comparison_text(source), quote)], (name, compare.call_args_list)
+
+    try:
+        for shape in shapes:
+            for opening, closing in [('"', '"'), ('“', '”')]:
+                for word in ['superseded', 'SuPeRsEdEd']:
+                    name = f'history alone: {shape}, {opening}, {word}'
+                    quote = f'alpha beta {word} gamma delta'
+                    assert len(quote) < 400
+                    prose = shape + opening + quote + closing
+                    compared(prose, quote, quote)
+                    wrong = quote.replace('delta', 'WRONG')
+                    compared(shape + opening + wrong + closing, quote, wrong, False)
+                    # The Markdown exception must not extend into Lean QUOTED/EXISTS.
+                    assert find({'probe.lean': prose}, {}, {'OPS-41': ('source.md', quote)}) == ([], [], 0)
+                    assert exists({'probe.lean': prose.replace('delta', 'WRONG')}, []) == ([], 1)
+
+                for length in [400, 401, 450]:
+                    name = f'length alone: {shape}, {opening}, {length}'
+                    prefix, suffix = 'alpha beta gamma ', ' omega'
+                    quote = prefix + 'x' * (length - len(prefix) - len(suffix)) + suffix
+                    assert len(quote) == length and len(norm(quote).split()) >= 4
+                    assert not HISTORICAL.search(quote) and not TEACHING.search(quote)
+                    prose = shape + opening + quote + closing
+                    compared(prose, quote, quote)
+                    wrong = quote[:-1] + 'z'
+                    if length > 400:
+                        assert wrong[:400] == quote[:400], 'plant must be beyond character 400'
+                    compared(shape + opening + wrong + closing, quote, wrong, False)
+                    lean = {'probe.lean': prose}
+                    owners = {'OPS-41': ('source.md', quote)}
+                    if length == 400:
+                        # Colon remains outside Lean QUOTED but inside EXISTS.
+                        assert find(lean, {}, owners) == ([], [], 0 if shape == shapes[2] else 1)
+                        assert exists(lean, [quote]) == ([], 1)
+                        assert exists({'probe.lean': prose.replace(quote, wrong)}, [quote]) == (
+                            [('probe.lean', norm(wrong))], 1)
+                    else:
+                        bad, unquoted, count = find(lean, {}, owners)
+                        assert not bad and count == 0
+                        assert len(unquoted) == (1 if shape == shapes[0] else 0)
+                        assert exists(lean, []) == ([], 0)
+
+            quote = 'alpha superseded beta SUPERSEDED gamma delta'
+            name = f'multiple candidate-local history matches: {shape}'
+            compared(shape + f'"{quote}"', quote, quote)
+            wrong = quote.replace('delta', 'WRONG')
+            compared(shape + f'"{wrong}"', quote, wrong, False)
+            for prose in [
+                f'Superseded: {shape}"alpha beta gamma WRONG"',
+                shape + '"alpha beta gamma WRONG"; superseded',
+                shape + '"alpha beta superseded gamma WRONG"; superseded',
+                f'superseded: {shape}"alpha beta superseded gamma WRONG"',
+                shape + '"alpha beta superseded no longer gamma WRONG"',
+                shape + '"alpha beta no longer superseded gamma WRONG"',
+                shape + '"alpha beta superseded gamma WRONG"; "another no longer current phrase"',
+                shape + '"alpha beta superseded gamma WRONG"; for example',
+                shape + '"alpha beta for example superseded gamma WRONG"',
+            ]:
+                name = f'preserved chunk history/teaching: {prose}'
+                assert find({filename: prose}, {}, {}) == ([], [], 0), name
+            # The unchanged HISTORICAL regex also matches embedded substrings.
+            for word in ['superseded_never_commits', 'xsuperseded', 'supersededx',
+                         'ésuperseded', 'superseded9', 'xamendedx']:
+                for prose in [shape + f'"alpha beta {word} gamma WRONG"',
+                              shape + f'"alpha beta superseded gamma WRONG"; {word}']:
+                    name = f'embedded history: {prose}'
+                    assert HISTORICAL.search(prose), name
+                    assert find({filename: prose}, {}, {}) == ([], [], 0), name
+
+        name = 'history in another quotation remains effective'
+        first, second = 'alpha beta superseded gamma delta', 'epsilon zeta eta theta'
+        text = f'`OPS-41` says "{first}"; "{second}"'
+        compared(text, first, first)  # First-speech ownership is unchanged.
+        compared(text.replace('theta', 'WRONG'), first, first)
+        assert find({filename: text.replace('delta', 'WRONG')}, {},
+                    {'OPS-41': ('source.md', first)}) == (
+                        [(filename, 'OPS-41', norm(first.replace('delta', 'WRONG')))], [], 1)
+        # Conversely, history in the later quote suppresses the earlier quote.
+        text = f'`OPS-41` says "{second}"; "{first}"'
+        compared(text, first, first)
+
+        name = 'historical UNQUOTED and teaching remain whole-chunk exclusions'
+        for text in ['superseded: `OPS-41` says something else',
+                     '`OPS-41` says "superseded just three"',
+                     '`OPS-41` says "' + 'superseded' * 45 + '"',
+                     'for example: `OPS-41` says "alpha beta gamma WRONG"']:
+            assert find({filename: text}, {}, {}) == ([], [], 0), text
+        name = 'current word minimum'
+        for shape in shapes:
+            assert find({filename: shape + '"just three words"'}, {}, {})[2] == 0
+    except AssertionError as exc:
+        print(f'FAIL: Markdown quote reach: {name}: {exc}')
+        return 1
+    print('PASS: Markdown quote reach: independent history and length comparisons, full-content '
+          'corruptions, candidate-local history, retained exclusions and Lean reach')
+    return 0
+
+
 def check_possessives():
     """Direct ownership must not collect a neighbour's quote or change UNQUOTED."""
     reqs = {'OPS-41': ('probe.md', 'alpha beta gamma delta'),
@@ -1246,7 +1384,8 @@ def unresolved(docs, adrs):
 
 def main():
     if (check_sentence_boundaries() or check_docstrings() or check_quotations()
-            or check_withdrawal_history() or check_possessives() or check_colons()
+            or check_withdrawal_history() or check_markdown_quote_reach()
+            or check_possessives() or check_colons()
             or check_quote_content()):
         return 1
     try:
