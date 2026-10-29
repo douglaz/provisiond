@@ -513,8 +513,8 @@ rotation or enrolment credential delivery.
 replacement hash and generation bump are absent; T0 is live again. The observed refusal survives
 only in the caller's history. Correct restore handling is different: [STO-54](../../05-persistence.md#backup-and-restore)
 step (3) requires “every tenant's credential generation is bumped” before the first API request,
-so “every spending token dies” and the customer re-issues using the recovery credential. A marked
-continuation does not repeat that bump. No irreversible provider action is proved here; use of
+so “every spending token dies” and the customer re-issues using the recovery credential.
+No irreversible provider action is proved here; use of
 T0 to mutate a machine would be a later, separately guarded operation on the misclassified store.
 
 <a id="t-conflict"></a>
@@ -586,8 +586,7 @@ a queued exhaustion episode, a current rate and sufficient available balance. X 
 extension, increases the commitment and writes future U1 plus its receipt, but is still waiting
 for a standby. [LDG-62](../../12-billing-and-ledger.md#exhaustion) requires “conditional-write the
 machine row guarded on `machines.destroy_committed IS NULL`” and “write the re-derived
-`runway_until`”; [WIR-24](../../13-wire-contract.md#endpoints) puts the exact response/receipt in
-that transaction. No successful extension 200 is assumed. The proposed observation is a later
+`runway_until`”. No successful extension 200 is assumed. The proposed observation is a later
 ordinary machine GET of U1 after wait release: [LDG-15](../../12-billing-and-ledger.md#exhaustion)
 says “Remaining runway MUST be readable from the machine view”.
 
