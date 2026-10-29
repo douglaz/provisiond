@@ -128,3 +128,17 @@ The records preserve the review at its frozen base, including dissent and unadop
 Specification links name that base; links to omitted scratch, raw logs and launch receipts retain
 their machine-local destinations under `/var/tmp`. The check files retain the exact reviewed
 forms and source comparisons. The requirement owners hold the rules.
+
+## Supplementary historical records
+
+The following machine-local panel files are retained verbatim as historical supporting material.
+The amendment excerpts and proposed bead are archived drafts; requirement owners and decision
+records remain at their existing homes.
+
+| Round | Supporting record |
+|---|---|
+| r48 | [Q31 amendment excerpt](r48/adr-0037-q31.md) |
+| r49 | [Q32 amendment excerpt](r49/adr-0025-q32.md) |
+| r50 | [Q33 amendment excerpt](r50/adr-0041-q33.md) |
+| r62 | [Manager's source-check notes](r62/notes.md) |
+| r63 | [Proposed WIR-48 coverage bead](r63/bead-wir48.md) |
