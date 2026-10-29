@@ -289,8 +289,9 @@ MODULES = os.path.join(ROOT, "tools", "formal", "Provisiond.lean")
 # A quotation of wording that was deliberately removed cannot be found in the
 # body, and this set retains such quotations on purpose (README, "Identifiers
 # are append-only. Text is not."). Recognise the sentence, do not check it.
+# "withdrawn" marks retained wording; domain withdrawal prose does not.
 HISTORICAL = re.compile(
-    r"withdraw|withdrew|until 20|previously|the original|first draft|old (?:item|text|wording)"
+    r"\bwithdrawn\b|withdrew|until 20|previously|the original|first draft|old (?:item|text|wording)"
     r"|earlier (?:draft|version|text|wording|revision|note|phrasing)|stood (?:here|there)"
     r"|used to|no longer|superseded|retired|amended|version one|version two|rewritten"
     r"|this said|it said|it read|had said|once (?:said|read|contained)|corrected|described it as|merged into|split into|the claim that did not",
@@ -1021,6 +1022,65 @@ def check_quotations():
     return 0
 
 
+def check_withdrawal_history():
+    """Exercise withdrawal comparisons and historical/teaching exclusions."""
+    source = 'alpha beta gamma delta'
+    reqs = {'OPS-41': ('source.md', source)}
+    name = ''
+    try:
+        for word in ['withdraw', 'withdraws', 'withdrawing', 'withdrawal', 'withdrawals',
+                     'Withdrawal']:
+            for quote in [source, source.replace('delta', 'WRONG')]:
+                name = f'live {word}: {quote}'
+                # Keep the domain word both outside and inside the quotation.
+                for inside in [False, True]:
+                    body = word + ' ' + source if inside else source
+                    wording = word + ' ' + quote if inside else quote
+                    prose = f'`OPS-41`\'s "{wording}" applies to {word} bodies.'
+                    for filename in ['probe.md', 'probe.lean']:
+                        text = ('\n\n'.join(docstrings('/-- ' + prose + ' -/'))
+                                if filename.endswith('.lean') else prose)
+                        owners = {'OPS-41': ('source.md', body)}
+                        bad = [] if quote == source else [(filename, 'OPS-41', norm(wording))]
+                        actual = find({filename: text}, {}, owners)
+                        assert actual == (bad, [], 1), (filename, inside, actual)
+                        missing = [] if quote == source else [(filename, norm(wording))]
+                        assert exists({filename: text}, [body]) == (missing, 1), filename
+
+        # Each marker still exempts deliberately absent wording. EXISTS counts
+        # eligible quotes before skipping, whereas QUOTED counts comparisons.
+        for marker in ['Withdrawn wording', 'WITHDRAWN wording', 'withdrew', 'until 2020',
+                       'previously', 'the original', 'first draft', 'old item', 'old text',
+                       'old wording', 'earlier draft', 'earlier version', 'earlier text',
+                       'earlier wording', 'earlier revision', 'earlier note', 'earlier phrasing',
+                       'stood here', 'stood there', 'used to', 'no longer', 'superseded',
+                       'retired', 'amended', 'version one', 'version two', 'rewritten',
+                       'this said', 'it said', 'it read', 'had said', 'once said', 'once read',
+                       'once contained', 'corrected', 'described it as', 'merged into',
+                       'split into', 'the claim that did not', 'is an assertion',
+                       'is a claim, and', 'checkable;', 'for example']:
+            name = f'excluded {marker}'
+            prose = f'{marker}: `OPS-41`\'s "wording absent from the owner".'
+            for filename in ['probe.md', 'probe.lean']:
+                text = ('\n\n'.join(docstrings('/-! ' + prose + ' -/'))
+                        if filename.endswith('.lean') else prose)
+                assert find({filename: text}, {}, reqs) == ([], [], 0), filename
+                assert exists({filename: text}, [source]) == ([], 1), filename
+
+        name = 'owner-free EXISTS'
+        prose = '`OPS-41`\'s "a withdrawal body remains accepted".'
+        quote = next(quotations(prose))[1]
+        assert find({'probe.lean': prose}, {}, reqs) == (
+            [('probe.lean', 'OPS-41', norm(quote))], [], 1)
+        assert exists({'probe.lean': prose}, [quote]) == ([], 1)
+    except AssertionError as exc:
+        print(f'FAIL: withdrawal history: {name}: {exc}')
+        return 1
+    print('PASS: withdrawal history: live Markdown/Lean owners and comparisons; '
+          'corruption detected; historical/teaching skips and owner-free EXISTS retained')
+    return 0
+
+
 def check_possessives():
     """Direct ownership must not collect a neighbour's quote or change UNQUOTED."""
     reqs = {'OPS-41': ('probe.md', 'alpha beta gamma delta'),
@@ -1186,7 +1246,8 @@ def unresolved(docs, adrs):
 
 def main():
     if (check_sentence_boundaries() or check_docstrings() or check_quotations()
-            or check_possessives() or check_colons() or check_quote_content()):
+            or check_withdrawal_history() or check_possessives() or check_colons()
+            or check_quote_content()):
         return 1
     try:
         with open(BASELINE) as source:
