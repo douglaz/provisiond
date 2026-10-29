@@ -1189,7 +1189,9 @@ takes the machines *and* the float" partly false.
   procedure promotes neither as a restart
   and none until an operator decides, while that standby's report stays unavailable.
   With one standby on another timeline, assert the
-  procedure promotes neither as a restart. Stop one standby, make an acknowledged write, stop the other, lose the
+  procedure promotes neither as a restart and automatic failover promotes neither standby at all,
+  including as a restore, before an operator decides, regardless of whether the numerical reports
+  are equal (`STO-54`: “Only an operator starts a promotion that is a restore”). Stop one standby, make an acknowledged write, stop the other, lose the
   primary, restart both standbys, and assert the procedure promotes the one holding that write, then repeat with the standbys' roles swapped.
   Promote a lagging standby as an operator restore with verified prefix/clock evidence and
   assert the incident stores certified bounds. Repeat with an idle restarted standby that has
