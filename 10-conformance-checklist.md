@@ -2560,15 +2560,24 @@ rather than acquiring a default.
       assert the attempt `failed`, episode `stalled`, null `destroy_committed`, null
       `write_started_at`, and zero provider calls throughout the prefix. Drive the actual
       lifecycle; manually seeded stalled rows and startup requeue do not satisfy this case.
-      `OPS-45` says "This rule classifies a failure a worker recorded"; it orders no such failure
-      before this fence write.
 
-      `OPS-23`'s "before the driver is called" establishes no such ordering either. Therefore
-      drive route 1 alone. Do not inject a store error as a separate
-      failed route: `OPS-49` requires "repeat the **whole transaction**" and on bound exhaustion
-      "the engine MUST exit non-zero".
-      Orders A and B and the suspended/null-fence row each start from a fresh instance of
-      that route-1 stalled/null-fence prefix. The fenced rows use their own prefixes below.
+      **Survived-stop prefix:** on a fresh independent instance with the same funding, account
+      and tenant conditions, enqueue and claim the cancellation, then deliver a stop while
+      `execute` is cancellable and before the first fence transaction is sent. Keep the engine
+      alive and the store working until its stop record is acknowledged within the stated
+      bounds, with no later stop or superseding generation. Assert the original attempt
+      settles `failed` with cut-off `conflict` and `details.reason: "cut_off"`, the episode is
+      `stalled`, `destroy_committed` and `write_started_at` remain null, and no provider call
+      occurred. No crash, startup classification, operator resolution or manually seeded
+      stalled row substitutes for this prefix. For stop classification and recording, see
+      `OPS-21` and `OPS-11`.
+
+      Drive Orders A and B and the suspended/null-fence row on separate fresh instances of
+      each prefix: route 1 and the survived-stop prefix. The fenced rows retain their own
+      prefixes below. Do not inject a store error as a separate failed route: `OPS-49` requires
+      "repeat the **whole transaction**" and on bound exhaustion "the engine MUST exit non-zero".
+      Keep the record store available within both stated bounds; this is a recording-success
+      fixture, not abandonment or a lost-reply/later-stop case.
       Instrument the deciding fence transaction's read/commit boundary:
       retry enqueue alone establishes neither transaction order.
 
@@ -2586,7 +2595,7 @@ rather than acquiring a default.
       `stalled`, fence still holding that episode's id, original attempt's `write_started_at`
       null, and zero provider calls throughout this prefix.
 
-      **Suspension fan-out:** from the route-1 prefix, suspend the tenant. `API-58` says the
+      **Suspension fan-out:** on separate fresh instances of each prefix, route 1 and the survived-stop prefix, suspend the tenant. `API-58` says the
       pass "MUST NOT enqueue" for an already-open delete episode, and must "append
       `tenant_suspended` to that episode's `reasons` set" and "name its `current_operation_id`
       in `cancellations`". Assert the same episode and its current failed attempt account for
@@ -2599,7 +2608,7 @@ rather than acquiring a default.
       | Order B: retry's fence transaction commits unfunded, then extend | Observe the fence holding the episode id before submitting the extension; it returns `409` / `cancellation_committed`, with no balance movement or commitment growth attributable to that refused extension. The provider is called. |
       | Fenced control | Use `CNF-271`'s provider-failed stall after fencing, accept a favorable rate and re-derive future runway without clearing that fence. Retry still calls the provider again and does not close `funded` through a funding abort. |
       | Fenced, undispatched control | Use the fenced, undispatched prefix above. Accept a favorable rate and re-derive funded runway without clearing the fence. Retry the same episode: observe a provider call and no funding-abort close to `funded`. The original attempt's `write_started_at` remains null; distinguish it from the fresh retry attempt's own initially unset marker. |
-      | Suspended, null fence | Use the route-1 prefix and suspension fan-out above. Accept a favorable rate and re-derive funded runway while suspension remains current; do not extend. Retry as operator and observe that the deciding transaction reads a null fence and a currently suspended tenant. Observe a provider call and no funding-abort close to `funded`. |
+      | Suspended, null fence | For each prefix, use its suspension fan-out above. Accept a favorable rate and re-derive funded runway while suspension remains current; do not extend. Retry as operator and observe that the deciding transaction reads a null fence and a currently suspended tenant. Observe a provider call and no funding-abort close to `funded`. |
 
       These assertions discriminate unconditional retry bypass (Order A), a funding re-check
       on every retry (fenced control), and a missing extension fence (Order B).

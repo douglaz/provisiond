@@ -1197,8 +1197,7 @@ the guarded retry exemption. It covers ordinary and retried attempts without ass
 reachability or a previously fenced episode. The enlarged lifecycle admits interruption,
 resolution and abstract pre-fence failure; the former RetryFenceInv and retry_has_episode_fence
 are withdrawn, falsified by sweep, claim, interrupt, resolve notApplied, retry with an open
-episode and null fence. Pre-fence failure is an over-approximation, not a specified injection
-point. The proof establishes no full crash/restore procedure, queue scheduling, database
+episode and null fence. For the survived-stop record see `OPS-21`: "A cancellation of `execute` that the engine survives MUST be recorded before the engine exits"; for the pre-fence conformance prefix see `CNF-312`. The model does not compose stop delivery or bounded recording with this lifecycle. The proof establishes no full crash/restore procedure, queue scheduling, database
 serialization, provider behavior or running-service conformance.*
 
 **OPS-42** **`OPS-41`'s re-check is not sufficient on its own, and a fence is what makes it work.**
