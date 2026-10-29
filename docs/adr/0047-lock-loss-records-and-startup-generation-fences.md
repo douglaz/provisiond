@@ -70,8 +70,8 @@ PostgreSQL 18 says `lock_timeout` “applies separately to each lock acquisition
 ([timeouts](https://www.postgresql.org/docs/18/runtime-config-client.html)), and of
 `statement_timeout`, “Abort any statement that takes more than the specified amount of
 time”; setting both bounds the whole wait. The same page
-says of both settings, “A value of zero (the default) disables the timeout”. `OVR-19` types
-the bound “finite, positive duration” and requires startup to “refuse to run on a missing or
+says of both settings, “A value of zero (the default) disables the timeout”. For the bound's current type, see
+`OVR-19`'s Startup-lock wait bound row. `OVR-19` requires startup to “refuse to run on a missing or
 out-of-range value”. A zero therefore stops startup rather than disabling the timeout;
 this also types the existing startup-lock retry's bound. `OPS-15` owns the fatal advance
 error: “On that timeout or any store error, including a lost reply on its commit, the engine
