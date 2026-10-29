@@ -142,3 +142,17 @@ records remain at their existing homes.
 | r50 | [Q33 amendment excerpt](r50/adr-0041-q33.md) |
 | r62 | [Manager's source-check notes](r62/notes.md) |
 | r63 | [Proposed WIR-48 coverage bead](r63/bead-wir48.md) |
+
+## Supplementary reading and handoff records
+
+These historical supporting records complete the archived material listed below. They retain
+superseded launch instructions and proposals; the requirement owners and decision records
+hold the current rules. The reader-specific r66d briefs carry their original seat preambles
+and the same common packet as the archived r66d brief. Raw logs and clones remain outside
+this archive.
+
+| Round | Supporting records |
+|---|---|
+| r62c–r62f | [r62c notes](r62/r62c/notes.md), [r62d notes](r62/r62d/notes.md), [r62e notes](r62/r62e/notes.md), [r62f notes](r62/r62f/notes.md) |
+| r66d | Reader-specific briefs: [fable](r66/r66d/brief-fable.md), [opus](r66/r66d/brief-opus.md), [astra](r66/r66d/brief-astra.md), [sol](r66/r66d/brief-sol.md) |
+| r66e | [Run handoff](r66/r66e/run-inputs.md) |
