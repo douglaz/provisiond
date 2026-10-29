@@ -272,6 +272,15 @@ theorem last_row_marker_unset_failed :
       k.lastRow = true → k ≠ .createMachine →
         classify currentRules k ⟨e, c, u, false, false, b⟩ ⟨false, true⟩ = some .failed := by decide
 
+/-- `OPS-11`: "Otherwise `needs_reconciliation` if the failure is *ambiguous*, otherwise
+`failed`." Dispatched reverse-DNS without known acceptance, with a clean rescue marker. -/
+@[req "OPS-11"]
+theorem reverse_dns_dispatched_ambiguous_needs_reconciliation :
+    ∀ (e : ErrorKind) (c : Bool) (u : Upstream) (g b : Bool),
+      ambiguous currentRules ⟨e, c, u, g, false, b⟩ = true →
+        classify currentRules .reverseDns ⟨e, c, u, g, false, b⟩ ⟨true, true⟩ =
+          some .needsReconciliation := by decide
+
 /-- `refresh` "Always `failed`. It is read-only; a failure changed nothing." -/
 @[req "OPS-11"]
 theorem refresh_always_failed (r : Rules) (f : Failure) (m : Markers) :
