@@ -423,6 +423,8 @@ its own work from running again (`STO-54`). While the record is open the create 
 create found `running` goes to `needs_reconciliation`, and a `suspend_tenant` parent follows the restore rule
 above.
 
+For marker provenance and its wire rendering, see `STO-54` and `WIR-9a`.
+
 `Provisiond.RestoreIndependent.original_skipped_pass_blocks`,
 `Provisiond.RestoreIndependent.both_guards_sweep_and_progress`,
 `Provisiond.RestoreIndependent.skipped_pass_required_claim_blocks`,

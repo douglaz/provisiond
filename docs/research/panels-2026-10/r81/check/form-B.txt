@@ -1,0 +1,10 @@
+The operator MUST select and retain one new incident id per actual restore before attempting
+establishment, and reuse that id on a lost-reply retry. If establishment with that id finds no
+committed matching record, it MUST insert the incident with restore_instant defined by STO-54
+for the newly begun transaction inserting it; an instant selected for an earlier attempt that
+did not commit is not reused. Repeating establishment with that id when a committed matching
+record exists MUST affect that record as a guarded no-op, not create or supersede another
+record, preserving its step marks and original restore instant. A mismatch in the committed
+id's restore instant or predecessor MUST be refused with both components stopped. The initial
+establishment or its matching no-op repeat MUST be acknowledged before either component starts.
+A new actual store restore uses a distinct id even when the predecessor incident is still open.

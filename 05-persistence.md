@@ -492,6 +492,7 @@ from every inventory query that filters out deleted rows. *Amended 2026-10-11 (`
 | `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, rescue inventory, power, reverse DNS, delete, release attachment (`OPS-27`, `OPS-31`, `OPS-45`, `WIR-35`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02. **The store MUST reject a value outside the set its operation's kind admits**, which is `WIR-35`'s rule enforced where `API-24` cannot reach |
 | `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean the destructive phase was allowed to begin — the old contents no longer represented as preserved, `OPS-45` — and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once, and nothing clears it** (`OPS-45`): a marker is a fact about this one operation. Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`). *Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): deleted the duplicate classification claim in favor of `OPS-11`.* |
 | `rescue_exited_cleanly` | boolean | nullable; `OPS-45`'s second marker — true when the driver's end-rescue call returned success, null only where no rescue session was opened, false where the exit failed or the operation died before reaching it; written `false` before `PRV-15` is dispatched and `true` on the end-rescue success (`OPS-45`, which owns the rule). **A null `write_started_at` alone does not make a failure deterministic**: entering rescue reboots the machine into another operating system and `PRV-22` makes a failed exit always ambiguous, so an untouched disk on a machine possibly still sitting in rescue is not "nothing happened". Both are copied into `request_summary` so an operator reading a resolved record still has them after the payload purge (`ADR-0005`); **these columns are authoritative and the copy is a convenience** |
+| `restore_markers_untrusted` | boolean | target non-null after `STO-13`'s staged migration; retained with the operation after payload purge; provenance owned by `STO-54`; wire rendering owned by `WIR-9a` |
 | `privileged_seconds`, `bytes_transferred`, `storage_seconds` | integer, integer, integer | nullable; `LDG-25`'s metering of a privileged operation — rescue occupancy or import-to-switchover, and for a catalogue install the bytes transferred and the storage-seconds of the re-hosted copy (`RSC-39`, `RSC-42`). Free in v1 and counted from the first release, because a price cannot be introduced later for something that was never counted. Metering facts, not caller payload: they survive `ADR-0005`'s purge. *Added 2026-09-05; the MUST had no column* |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
@@ -1417,13 +1418,37 @@ not mention them — the failure class this document's own scope note exists to 
 
 **STO-56** **`restore_incidents`** — `id`, `restore_instant`, `steps_completed` (0 to 3),
 `grace_ends_at`, nullable (*added 2026-09-25, `ADR-0028`*), `lost_window_starts_at`, nullable,
-`loss_end_at`, nullable, `history_evidence_ref`, non-null, and `closed_at`, nullable. One row per
+`loss_end_at`, nullable, `history_evidence_ref`, non-null, and `closed_at`, nullable, and
+`supersedes_incident_id`, nullable, a foreign key to the retained predecessor record. One row per
 restore (`STO-54`), written into the restored or promoted store before either component is started and closed
-by the operator; at most one row may have `closed_at` null, a partial unique index over the table.
+by the operator under the rules below; at most one row may have `closed_at` null, a partial unique index over
+the table.
 Both components read the open row before anything else they do: it is what says a starting process
 is continuing an incident rather than restarting, and `steps_completed` is what says where to
 resume, so neither fact depends on an operator being at the console when a process dies. *Added
 2026-09-20 (`ADR-0023`).*
+
+**Actual-restore supersession.** On an actual store restore whose restored store contains an open
+incident R, the transaction establishing the new record MUST close R by supersession and insert a
+distinct record naming R in `supersedes_incident_id`, with the new restore instant,
+`steps_completed` = 0, `grace_ends_at` = `null` and `closed_at` = `null`. R is retained. For
+provenance initialization and the start boundary, see `STO-54`. Supersession is the sole exception
+to the ordinary close conditions below: it replaces the predecessor's outstanding recovery
+obligations with the new incident's full procedure and close conditions, and no predecessor step
+mark satisfies a new step. No component starts between closing R and establishing the new record.
+Where the restored store has no open incident, the new record has `supersedes_incident_id` `null`. A
+process crash without an actual store restore creates and supersedes no incident.
+
+The operator MUST select and retain one new incident id per actual restore before attempting
+establishment, and reuse that id on a lost-reply retry. If establishment with that id finds no
+committed record with that id, it MUST insert the incident with restore_instant defined by STO-54
+for the newly begun transaction inserting it; an instant selected for an earlier attempt that
+did not commit is not reused. Repeating establishment with that id when a committed matching
+record exists MUST affect that record as a guarded no-op, not create or supersede another
+record, preserving its step marks and original restore instant. A mismatch in the committed
+id's restore instant or predecessor MUST be refused with both components stopped. The initial
+establishment or its matching no-op repeat MUST be acknowledged before either component starts.
+A new actual store restore uses a distinct id even when the predecessor incident is still open.
 
 `restore_instant` is non-null; its event-time definition and the meanings of
 `lost_window_starts_at`=b and `loss_end_at`=f belong to `STO-54`. The incident-keyed
@@ -1443,7 +1468,8 @@ The startup read above is taken once per process, so it cannot see an instant wr
 later in the incident. `STO-54` says "the freeze lifts at `grace_ends_at`"; keeping this record
 open does not prolong that freeze.
 
-**The operator MUST NOT close the record until** step (3) is marked, `grace_ends_at` has passed,
+**Except for the atomic supersession above, the operator MUST NOT close the record until** step (3)
+is marked, `grace_ends_at` has passed,
 the account sweep's second pass is done, every waiting parent is confirmed or cancelled, and,
 for **each currency**, either its accumulated rate-present time since step (3) has reached one
 re-derivation interval (`OPS-41`) or every machine priced in that currency is recorded gone or
@@ -1685,6 +1711,33 @@ engine and `api` process, and MUST start neither component until the transaction
   revoked inside Δ, so every spending token dies and each customer re-issues through the recovery
   credential (`API-56`) — and `deposits.derivation_index` is skipped forward by the stated gap
   (`OVR-19`) before any deposit is minted.
+- **Marker provenance.** An operation of any kind other than install or rescue inventory MUST be
+  inserted with `restore_markers_untrusted` = `false`; this column has no marker-rendering effect
+  for those kinds. A new install or rescue-inventory operation MUST be inserted with
+  `restore_markers_untrusted` = `false` in its admission transaction. On each actual store restore,
+  before either component starts, the acknowledged transaction that establishes the restore record
+  MUST set this column `true` on every surviving install or rescue-inventory row whose status is
+  `queued`, `running` or `needs_reconciliation`. The marker columns themselves are preserved. A
+  successor continuing an existing incident after a process crash MUST NOT repeat this
+  initialization. Once `true` the column MUST NOT be cleared on that operation, including at
+  incident closure or payload purge. Another actual restore applies the initialization again. An
+  open incident inherited from the restored store is superseded under `STO-56`; an ordinary process
+  successor never supersedes it. The column is operation metadata and is not added to
+  `request_summary`'s closed enumeration.
+
+  The restore quarantine and each startup pass preserve `restore_markers_untrusted`. In particular a
+  row newly admitted after step (3), interrupted by a process crash, and moved by its successor
+  retains `false` unless a later actual store restore invalidated it. Whether the incident is still
+  open does not itself invalidate markers of newly admitted work.
+
+  **Provenance upgrade.** The release that adds the column leaves it nullable; see `STO-13`. For an
+  install or rescue-inventory row, a `null` column MUST be treated as untrusted for rendering. The
+  backfill MUST set a still-null column `true` on every existing install or rescue-inventory row,
+  including a settled row, and `false` on other kinds; it MUST NOT overwrite a non-null value. After
+  previous-release writers are retired and the remaining nulls are backfilled, a later release
+  tightens the column to non-null. No pre-column marker history is treated as sufficient to
+  initialize `false`. This deliberately conceals legacy facts, including settled retained errors; it
+  does not claim those facts were rolled back.
 - **The procedure survives its own interruption, because the incident outlives the process.** The
   restore commits `STO-56`'s **restore record** — the restore instant, and which of the three steps
   have completed — before either component is started, and **a process that starts while a restore
@@ -1706,8 +1759,9 @@ engine and `api` process, and MUST start neither component until the transaction
   second skip of `deposits.derivation_index` allocates forward, the only direction that column moves
   — while `grace_ends_at` is written in the mark's own transaction (`STO-56`), so an interruption
   before the mark leaves it null and the repeat writes it once (*added 2026-09-25, `ADR-0028`*). The
-  operator closes the record only under `STO-56`'s close rule (*amended 2026-10-03, `ADR-0029`*),
-  after which a process that starts is an ordinary restart. *Added 2026-09-20 (`ADR-0023`): the
+  operator closes the record only under `STO-56`'s close rule (*amended 2026-10-03, `ADR-0029`*).
+  When no restore record remains open, a process that starts is an ordinary restart; for
+  supersession and the new open record, see `STO-56`. *Added 2026-09-20 (`ADR-0023`): the
   procedure ordered its steps and said nothing
   about a crash inside them, so `OPS-15`'s restore branch rested on knowledge no engine held.*
 - **`OPS-32`'s complete pass is a step, not a gate, and runs twice.** The first pass may record
@@ -1748,11 +1802,10 @@ payments;
 `STO-49` rows written in Δ are lost, and where `LDG-64`'s outage start is replayed from them its
 start and its computed deadline move with what the backup holds, and the possible-loss report
 identifies uncertainty in that history clock (*amended 2026-10-02, `ADR-0029`*); a `running` install
-found after a
-restore goes to `needs_reconciliation` with its `OPS-45` markers as the backup holds them, so a
-null marker there does not mean the disk is untouched and the operator resolves such a row as
-ambiguous — and `WIR-9a` renders both wire keys `unknown` on such a row for the same reason
-(*2026-09-16*); `LDG-72`'s checks pass on a consistent restore and prove nothing about it.*
+found after a restore goes to `needs_reconciliation` with its `OPS-45` marker columns as the backup
+holds them, so a `null` marker there does not mean the disk is untouched and the operator resolves
+such a row as ambiguous. See the marker-provenance rule above and `WIR-9a` for rendering; `LDG-72`'s
+checks pass on a consistent restore and prove nothing about it.*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): adopted the synchronous posture and classified promotions by WAL history with operator choice for a restore.*
 *Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): distinguished step (2)’s durable mark from the per-startup running-row pass.*
 

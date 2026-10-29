@@ -1,0 +1,6 @@
+{
+  "q2_only_exact_span_diff": true,
+  "identical_proof_gate_conformance_paths": 44,
+  "keep_sto_sha256": "b6ddcdc64ceaffc618044de75fa8aa30da3213efdd28576fcaaa8b4f33826064",
+  "replace_sto_sha256": "899fd6caaaa93ed144e3aa351ba4d00946e100b72ecb03fffdcf358dfe862f44"
+}

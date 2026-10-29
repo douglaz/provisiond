@@ -107,3 +107,24 @@ The r79 records preserve the STATE, notes, brief, reader answers and tally, incl
 repairs that were not adopted. Specification links name the frozen review base; scratch,
 draft and verification references retain their machine-local destinations. Raw logs and clones
 remain outside this archive. The requirement owners hold the rules.
+
+## PR #35 wording review, 2026-10-28
+
+| Round | Question | Settlement source |
+|---|---|---|
+| [r80](r80/brief.md) | permitsI documentation wording | [Tally](r80/tally.md); fixed [reading rules](r80/notes.md) and reader answers are retained with the reviewed brief |
+
+The records preserve the review at its frozen base. Specification links name that base;
+raw logs, clones and verification receipts remain under `/var/tmp`. The requirement owners hold the rules.
+
+## Restore retry clock and conformance reviews, 2026-10-28
+
+| Round | Question | Settlement source |
+|---|---|---|
+| [r81](r81/brief.md) | Restore-establishment retry clock | [Tally](r81/tally.md); fixed [reading rules](r81/notes.md), reader answers and exact option files are retained |
+| [r82](r82/brief.md) | Retry conformance paragraph and insertion-condition wording | [Tally](r82/tally.md); [exact paragraph and landing](r82/check/cnf-case.md), fixed [reading rules](r82/notes.md) and reader answers are retained |
+
+The records preserve the review at its frozen base, including dissent and unadopted proposals.
+Specification links name that base; links to omitted scratch, raw logs and launch receipts retain
+their machine-local destinations under `/var/tmp`. The check files retain the exact reviewed
+forms and source comparisons. The requirement owners hold the rules.

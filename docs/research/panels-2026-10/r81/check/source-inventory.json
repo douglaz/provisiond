@@ -1,0 +1,98 @@
+{
+  "cnf_items": [
+    "CNF-29",
+    "CNF-99",
+    "CNF-295",
+    "CNF-297",
+    "CNF-365",
+    "CNF-358",
+    "CNF-370",
+    "CNF-308",
+    "CNF-271",
+    "CNF-302",
+    "CNF-218"
+  ],
+  "options_A_replacements": [
+    {
+      "option": "A",
+      "label": "A1",
+      "path": "05-persistence.md",
+      "start": 1636,
+      "end": 1640,
+      "before": "  For backup restore and restore-class promotion, restore_instant is transaction_timestamp() of\n  the newly begun transaction inserting this incident. This is the event time of incident\n  creation, not the time of the recovered history. The transaction begins after the existing\n  stopping/fencing requirements are satisfied. Its timestamp's exact SQL definition is new; it\n  is not claimed as a fact already proved by the formal model.\n",
+      "after": "  For backup restore and restore-class promotion, restore_instant is the event time selected\n  and retained under STO-56 before the first establishment attempt for this actual restore.\n  This is the event time of that selection, not the time of the recovered history or of a\n  later inserting transaction. The selection occurs after the existing stopping/fencing\n  requirements are satisfied. Its clock definition is new; it is not claimed as a fact\n  already proved by the formal model.\n"
+    },
+    {
+      "option": "A",
+      "label": "A2",
+      "path": "05-persistence.md",
+      "start": 1660,
+      "end": 1666,
+      "before": "  A verified upper error bound on the incident transaction's event clock, with retained\n  stopping/fencing evidence that no old-history acknowledgement follows that transaction's\n  start, can supply f=restore_instant+e_event. Source and event clocks may have different error\n  bounds; record their provenance. If either endpoint cannot be certified, persist null for it\n  and say that endpoint is unknown. The event timestamp alone never substitutes for a missing\n  history bound. Retain evidence outside the lost failure domain or with the incident so that\n  continuation does not depend on the failed primary.\n",
+      "after": "  A verified upper error bound on the selected event time's clock, with retained\n  stopping/fencing evidence that no old-history acknowledgement follows that selection,\n  can supply f=restore_instant+e_event. Source and event clocks may have different error\n  bounds; record their provenance. If either endpoint cannot be certified, persist null for it\n  and say that endpoint is unknown. The event timestamp alone never substitutes for a missing\n  history bound. Retain evidence outside the lost failure domain or with the incident so that\n  continuation does not depend on the failed primary.\n"
+    },
+    {
+      "option": "A",
+      "label": "A3",
+      "path": "tools/formal/Provisiond/Restore.lean",
+      "start": 21,
+      "end": 28,
+      "before": "\n`Params` lists the guards dated amendments added, each a field so that removing it is a one-token\nchange a witness theorem exercises (`ADR-0025`). Every model here is one tenant, one machine, one\nengine (`OPS-47`), and time does not advance: `now` abstracts the incident-creation event\nclock. `STO-54` defines that event: \"restore_instant is transaction_timestamp() of the newly begun\ntransaction inserting this incident.\" The SQL definition is new; this model does not establish\nit or model recovered-history bounds. Interval/certificate publication and its evidence protocol\nremain outside the model's scope.\n",
+      "after": "`Params` lists the guards dated amendments added, each a field so that removing it is a one-token\nchange a witness theorem exercises (`ADR-0025`). Every model here is one tenant, one machine, one\nengine (`OPS-47`), and time does not advance: `now` abstracts the selected event time.\n`STO-54` defines that event: \"restore_instant is the event time selected and retained under\nSTO-56 before the first establishment attempt for this actual restore.\" This model does not\nestablish the clock selection or model recovered-history bounds. Interval/certificate\npublication and its evidence protocol remain outside the model's scope.\n"
+    },
+    {
+      "option": "A",
+      "label": "A4",
+      "path": "tools/formal/Provisiond/Restore.lean",
+      "start": 95,
+      "end": 98,
+      "before": "/-- `STO-56`'s restore record: `restore_instant`, and `grace_ends_at`, which \"is null until step\n(3) of `STO-54`'s procedure is marked\". The `Provisiond.Claim.RestoreRecord` it extends is the\nview a claim reads. `restoreInstant` abstracts the newly defined incident transaction event\ntime, not a recovered-history endpoint; the reporting endpoints and certificates are omitted. -/\n",
+      "after": "/-- `STO-56`'s restore record: `restore_instant`, and `grace_ends_at`, which \"is null until step\n(3) of `STO-54`'s procedure is marked\". The `Provisiond.Claim.RestoreRecord` it extends is the\nview a claim reads. `restoreInstant` abstracts the selected event time defined by `STO-54`,\nnot a recovered-history endpoint; the reporting endpoints and certificates are omitted. -/\n"
+    },
+    {
+      "option": "A",
+      "label": "A5",
+      "path": "tools/formal/Provisiond/Restore.lean",
+      "start": 156,
+      "end": 158,
+      "before": "/-- `STO-54`'s trace: the backup holds the store `delta` steps before the crash, the provider's\nfacts are the crash's, and `now` abstracts the incident transaction event time defined by\n`STO-54`, independently of the recovered history. -/\n",
+      "after": "/-- `STO-54`'s trace: the backup holds the store `delta` steps before the crash, the provider's\nfacts are the crash's, and `now` abstracts the selected event time defined by `STO-54`,\nindependently of the recovered history. -/\n"
+    },
+    {
+      "option": "A",
+      "label": "A6",
+      "path": "tools/formal/Provisiond/Restore.lean",
+      "start": 165,
+      "end": 167,
+      "before": "/-- The restored store: every row as the backup held it, with `applied` as the provider holds it,\nand the record open at its incident-creation event time \u2014 committed before the engine is started,\nso no run of the model has a window in which it is absent. -/\n",
+      "after": "/-- The restored store: every row as the backup held it, with `applied` as the provider holds it,\nand the record open, carrying its retained selected event time \u2014 committed before the engine starts,\nso no run of the model has a window in which it is absent. -/\n"
+    },
+    {
+      "option": "A",
+      "label": "A7",
+      "path": "tools/formal/Provisiond/Restore.lean",
+      "start": 431,
+      "end": 439,
+      "before": "/-- The successor. The crash clears `STO-51`'s session-scoped lock and this process's `passDone`.\nThe procedure marks, including `stepTwoMarked`, are the record's and stand, which is how\n\"a marked step does not run again\" survives the process\nthat made the mark. The mode is the record's, and the instant is \"read from the record and never\nre-computed\" \u2014 this model has no second clock to contradict it, so the parameter below decides the\nmode and not the instant. That instant remains the incident transaction event time, not a\nhistory bound. Everything else here is the store's or the trace's: the operator's\nconfirmation is the rows it moved, and `secondOrder`, `servedGens` and `parentResumedUnconfirmed`\nrecord what has already happened. -/\n",
+      "after": "/-- The successor. The crash clears `STO-51`'s session-scoped lock and this process's `passDone`.\nThe procedure marks, including `stepTwoMarked`, are the record's and stand, which is how\n\"a marked step does not run again\" survives the process\nthat made the mark. The mode is the record's, and the instant is \"read from the record and never\nre-computed\" \u2014 this model has no second clock to contradict it, so the parameter below decides the\nmode and not the instant. That instant remains the selected event time defined by `STO-54`, not a\nhistory bound. Everything else here is the store's or the trace's: the operator's\nconfirmation is the rows it moved, and `secondOrder`, `servedGens` and `parentResumedUnconfirmed`\nrecord what has already happened. -/\n"
+    },
+    {
+      "option": "A",
+      "label": "A8",
+      "path": "tools/formal/Provisiond/Restore.lean",
+      "start": 545,
+      "end": 546,
+      "before": "/-- `STO-54`: the engine comes up on the restored store; `t.now` is the incident transaction\nevent time retained by the record, not the time of the recovered history. -/\n",
+      "after": "/-- `STO-54`: the engine comes up on the restored store; `t.now` is the selected event time\nretained by the record, not the time of the recovered history. -/\n"
+    },
+    {
+      "option": "A",
+      "label": "A9",
+      "path": "docs/adr/0023-a-restore-is-a-recovery-incident-and-durability-is-bought-where-there-is-no-second-truth.md",
+      "start": 252,
+      "end": 270,
+      "before": "This supersedes the numeric-report clause under *The decision* above. The reporting contract\nand its arguments belong to `STO-54`: \u201cA bound without valid evidence is unknown, not an invented\nrecovery time.\u201d Its event definition is \u201crestore_instant is transaction_timestamp() of the newly\nbegun transaction inserting this incident.\u201d For the endpoint fields and incident-keyed retained\nevidence/unknown-reason reference, see `STO-56`; for the human deployment procedures, see\n`OVR-19`. The scenario and fixture inventory is `10-conformance-checklist.md`, with the reporting\nrehearsal in `CNF-295` and operator-promotion cases in `CNF-365`.\n\nThe accepted uncertainty does not impose finite-only admission: `STO-54` says \u201cMissing reporting\nevidence does not hold incident creation, the existing restore procedure or component startup\nonce its existing prerequisites are satisfied.\u201d The stopped-system ordering remains the decision\nin `ADR-0047`. The derivation-index obligation is separate: `05-persistence.md`'s\n`deposits.derivation_index` row says \u201cAllocated strictly increasing and never re-issued\u201d. This\namendment adds neither an allocation-evidence admission gate nor a proof of the configured gap.\n\nThe synchronization in `tools/formal/Provisiond/Restore.lean` changes documentation only.\nThe incident transaction event time is the abstraction used by `restoreInstant`/`now`;\n`Event.completeProcedure` retains step (3)'s separate instant. SQL timestamp semantics and the\nreporting-certificate protocol remain outside that model's scope; compilation proves neither.\n",
+      "after": "This supersedes the numeric-report clause under *The decision* above. The reporting contract\nand its arguments belong to `STO-54`: \u201cA bound without valid evidence is unknown, not an invented\nrecovery time.\u201d The retry-clock amendment replaces UO's original inserting-transaction definition. `STO-54`\nnow defines the event: \u201crestore_instant is the event time selected and retained under STO-56\nbefore the first establishment attempt for this actual restore.\u201d For the endpoint fields and incident-keyed retained\nevidence/unknown-reason reference, see `STO-56`; for the human deployment procedures, see\n`OVR-19`. The scenario and fixture inventory is `10-conformance-checklist.md`, with the reporting\nrehearsal in `CNF-295` and operator-promotion cases in `CNF-365`.\n\nThe accepted uncertainty does not impose finite-only admission: `STO-54` says \u201cMissing reporting\nevidence does not hold incident creation, the existing restore procedure or component startup\nonce its existing prerequisites are satisfied.\u201d The stopped-system ordering remains the decision\nin `ADR-0047`. The derivation-index obligation is separate: `05-persistence.md`'s\n`deposits.derivation_index` row says \u201cAllocated strictly increasing and never re-issued\u201d. This\namendment adds neither an allocation-evidence admission gate nor a proof of the configured gap.\n\nThe synchronization in `tools/formal/Provisiond/Restore.lean` changes documentation only.\nThe selected event time is the abstraction used by `restoreInstant`/`now`;\n`Event.completeProcedure` retains step (3)'s separate instant. Clock selection and the\nreporting-certificate protocol remain outside that model's scope; compilation proves neither.\n"
+    }
+  ]
+}

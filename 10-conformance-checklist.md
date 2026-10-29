@@ -1035,7 +1035,7 @@ takes the machines *and* the float" partly false.
       second, that it repeats no marked step — the listener is not taken down again, the token a
       tenant re-issued after step (3) still authenticates, and the record's `grace_ends_at` is not
       rewritten (*amended 2026-09-25, `ADR-0028`*);
-      and that once the operator closes the record a restart is an ordinary one, leaving `queued`
+      and that when no restore record remains open a restart is an ordinary one, leaving `queued`
       rows alone. Assert: no worker makes a
       provider mutation and nothing writes a disk before the first
       claim (`OPS-32`'s deletion of an orphaned imported image is the one provider call the freeze
@@ -3044,6 +3044,69 @@ rather than acquiring a default.
       one made at the dispatch instead: `OPS-45` states "false, written before begin rescue … is
       dispatched", and an implementation that waits for the dispatch renders that row `none`.
       (`OPS-45`, `OPS-15`, `RSC-19`, `WIR-9a`, `STO-50`, `STO-54`)
+
+      Keep a restore incident open through the following paired cases. Restore a backup with an
+      unsettled install whose markers are `null` although its destructive phase and rescue dispatch
+      occurred in the lost interval. Complete step (3), then assert the old row renders both keys
+      `unknown`. Admit separate fresh raw-disk installs after step (3), and crash the engine while
+      each remains `running`: (a) before either marker write, (b) after the write-started marker and
+      pre-rescue `false` marker have committed, (c) after the write-started marker and clean
+      rescue-exit `true` marker have committed but before settlement. Run the successor's startup
+      pass and assert each row is `needs_reconciliation`, with no replay or automatic deterministic
+      settlement. Assert `none`/`none` for (a), `destructive_boundary_crossed`/`unknown` for (b),
+      `destructive_boundary_crossed`/`clean` for (c). Repeat successor startup, close the incident
+      under its ordinary close conditions, and purge payloads; assert the retained wire values do
+      not change merely because of those events. In another actual restore from a backup containing
+      a still-unsettled formerly fresh row, assert both keys now render `unknown`. For rescue
+      inventory repeat the old-row and later-restore cases with `rescue_exit` `unknown`; for
+      separate fresh rescue-inventory rows with rescue marker `null`, `false` and `true` assert
+      `none`, `unknown`, `clean`. Do not write an install write-started marker or introduce
+      `disk_effect` on that kind. Check provenance and rendering across a lost transition reply and
+      a repeat.
+
+      Separately construct `CNF-300`'s unresolved failed-rescue-exit row with `disk_effect` `none` and
+      `rescue_exit` `unknown` without a prior restore, then back it up and actually restore it
+      (`CNF-300`: "`disk_effect: "none"` (it aborted before writing) and `rescue_exit:
+      "unknown"`"). It
+      remains `needs_reconciliation`, acquires `true` provenance before startup, and now renders
+      `unknown`/`unknown`. This is a declared conservative change on a row already awaiting
+      resolution. For settled rows with established `false` provenance, an actual restore does not
+      alone change their flag. During upgrade a `null` flag renders conservatively; backfill changes
+      only nulls, never a freshly admitted `false` row or an already-true row. Assert that a settled
+      pre-column install can therefore lose its former ordinary wire facts under the declared
+      upgrade policy, and that other operation kinds gain no marker wire keys.
+
+      Repeat the actual restore using a backup containing an open predecessor whose ordinary close
+      conditions are unmet. Assert the predecessor is retained and closed by supersession, the
+      distinct new record names it and starts unmarked with a `null` grace end, provenance is
+      `true`, and the complete new procedure and its close conditions apply. Neither component
+      starts before that transaction is acknowledged. Include predecessor cases with unexpired
+      wall-clock grace, unfinished rate-present grace, an unconfirmed parent and an unfinished
+      account-sweep second pass; test the selected supersession rule's stated consequences. A mere
+      process crash must create no new incident or supersession. A lost transaction reply must not
+      produce two open incidents or silently continue using predecessor step marks.
+
+      For one actual restore, lose the establishment transaction's connection before it commits,
+      so that no record with the retained id exists, and repeat establishment with that id in a
+      later transaction whose start time differs: assert exactly one record with that id, its
+      `restore_instant` the value `STO-54` defines, its predecessor closed by supersession and
+      provenance initialized in the repeating transaction, and neither component started before
+      that transaction is acknowledged. Separately let establishment commit, drop its reply and
+      repeat with the same id: assert the repeat is acknowledged as a guarded no-op preserving the
+      stored instant, predecessor and step marks, that it is not refused merely because the
+      repeating transaction starts later, and that the components then start and continue that
+      incident. Neither arm leaves two open incidents. This case selects no predecessor-comparison
+      algorithm.
+
+      | Install case after successor pass | `disk_effect` / `rescue_exit` |
+      |---|---|
+      | Old unsettled row exposed to rollback, restored null/null | `unknown` / `unknown` |
+      | Fresh (a), null/null, no later actual restore | `none` / `none` |
+      | Fresh (b), write marker set, rescue false | `destructive_boundary_crossed` / `unknown` |
+      | Fresh (c), write marker set, rescue true | `destructive_boundary_crossed` / `clean` |
+      | Formerly fresh unsettled row exposed to another actual restore | `unknown` / `unknown` |
+      | Existing unresolved CNF-300-derived row, after actual restore | `unknown` / `unknown` |
+
 - [ ] **CNF-303** — **The sweep deletes every eligible tagged key still registered.**
       *Amended 2026-10-12 (`ADR-0040`, Q24/Q26).* Kill the
       engine after registering a tagged caller key for an accepted create and a tagged rescue key; the

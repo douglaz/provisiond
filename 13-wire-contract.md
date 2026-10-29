@@ -215,11 +215,13 @@ the error also carries `rescue_address` and `rescue_port` (`RSC-19`): the machin
 and its address is already on `WIR-11`. It never carries a recovery-key path; the file is named by
 the operation id and the directory is the operator's (`RSC-20`).
 
-**Neither key is rendered from markers a restore may have rolled back** (*added 2026-09-16*). On an
-operation the restore quarantine or the post-restore startup pass moved (`STO-54`, `OPS-15`),
-`disk_effect` and `rescue_exit` are both `unknown` whatever the columns hold: `STO-54` says of
-exactly those rows that "a null marker there does not mean the disk is untouched", and `none` on
-either key would tell the caller the opposite of what the operator is told about the same row.
+**Restore marker provenance is durable (`STO-54`).** On an install or rescue-inventory operation's
+error, `disk_effect` (install) and `rescue_exit` (both kinds) are rendered `unknown` where
+`restore_markers_untrusted` is `true` or transitionally `null`, whatever the marker columns hold.
+Where it is `false`, the ordinary marker rendering above applies. An `unknown` `rescue_exit` retains
+the address-and-port requirements above; those fields are not replaced with `unknown`. Neither
+incident closure nor an ordinary restart with no open restore record changes the provenance used for
+rendering.
 
 *Amended 2026-10-22 (`pv-ss4`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed field-pointer form and validation ordering.*
 

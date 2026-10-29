@@ -268,3 +268,72 @@ The synchronization in `tools/formal/Provisiond/Restore.lean` changes documentat
 The incident transaction event time is the abstraction used by `restoreInstant`/`now`;
 `Event.completeProcedure` retains step (3)'s separate instant. SQL timestamp semantics and the
 reporting-certificate protocol remain outside that model's scope; compilation proves neither.
+
+
+## Marker provenance and actual-restore supersession — 2026-10-28
+
+The owner's answer, verbatim: **“Adopt P (Recommended)”**
+([owner decision](../research/panels-2026-10/r77/owner-decisions.md#pv-ymjo--decided-r77b);
+`pv-ymjo`, committed comment 839). Adopt P (Y-PROV-R): C1–C7, its selected P paragraph and
+column, and only the wording repairs counted toward P by the
+[frozen tally](../research/panels-2026-10/r77/r77b/tally.md#brief-defects-and-wording-normalization).
+The complete alternatives are in the
+[frozen brief](../research/panels-2026-10/r77/r77b/brief.md#complete-alternative-packages).
+R2 and the optional narrowing of already-unresolved rows are excluded; the
+[dissent and lost-reply trace](../research/panels-2026-10/r77/r77b/tally.md#lone-dissent-checked-in-full)
+remain on record. The requirement/conformance edits landed first, in `12c3da0`.
+
+For the rules, see the `operations` table, `STO-54` and `STO-56` in
+[05-persistence.md](../../05-persistence.md), and `WIR-9a` in
+[13-wire-contract.md](../../13-wire-contract.md). For the startup pointer, see `OPS-15` in
+[03-operation-lifecycle.md](../../03-operation-lifecycle.md). For conformance and the counted
+after-close wording correction, see `CNF-302` and `CNF-295` in
+[10-conformance-checklist.md](../../10-conformance-checklist.md).
+The landing, consistency and compatibility lists are in comment 839 and the frozen tally's
+*Factual audit at the pin*; this record adds no list of obligations.
+
+The adopted P costs and scope limits belong to
+[C7 in the frozen brief](../research/panels-2026-10/r77/r77b/brief.md#c7--scope-and-separate-costs)
+and the tally's *Factual audit at the pin*, read with the owner's adoption above. Recovery
+latency and WAL cost remain unmeasured. No runtime conformance or new formal coverage is claimed.
+The inspected declarations are unchanged; provenance and retained supersession remain outside
+those models. `ADR-0025` states “Authority is per clause” and “A theorem is never conformance”.
+
+
+## Establishment retry clock correction — 2026-10-29
+
+The owner's clock and check answers for `pv-ymjo`, verbatim
+([r82 owner answers](../research/panels-2026-10/r82/brief.md#owner-answers-verbatim)):
+
+- Clock: **“B: inserting txn (Recommended)”**
+- Check: **“Add one case (Recommended)”**
+
+The owner's wording instruction, verbatim: **“For such wording questions, try to solve by getting
+a consensus of the panel”**
+([r82 settlement](../research/panels-2026-10/r82/tally.md#settlement-under-fixed-rules-17)).
+
+This qualifies C5's retry paragraph in the P adoption recorded under
+[Marker provenance and actual-restore supersession — 2026-10-28](#marker-provenance-and-actual-restore-supersession--2026-10-28),
+whose sources are committed comment 839, the
+[owner decision](../research/panels-2026-10/r77/owner-decisions.md#pv-ymjo--decided-r77b)
+and the [r77b tally](../research/panels-2026-10/r77/r77b/tally.md).
+The [r81 settlement](../research/panels-2026-10/r81/tally.md#rule-6-and-settlement-under-rule-2)
+preceded the owner's clock adoption; the later
+[r82 settlement](../research/panels-2026-10/r82/tally.md#settlement-under-fixed-rules-17)
+selects Q2 REPLACE and Q1 D2 at its
+[exact landing](../research/panels-2026-10/r82/check/cnf-case.md).
+The acceptability, preferences, dissent and writing objection remain in those frozen records.
+
+The rule edit landed first in `7fbe5444f4fd019cdd64ddfbe322028d4ac63c80`; the conformance
+insertion followed in `ba5c1d9aa06e7eee74461d23e37223894d365afb`. For the retry rule, see
+`STO-56`; for the existing event-time definition, see `STO-54`, both in
+[05-persistence.md](../../05-persistence.md). For the conformance case, see `CNF-302` in
+[10-conformance-checklist.md](../../10-conformance-checklist.md).
+The earlier [Incident event time and possible-loss reporting — 2026-10-28](#incident-event-time-and-possible-loss-reporting--2026-10-28)
+record is unchanged.
+
+The original P costs and coverage limits remain at
+[C7](../research/panels-2026-10/r77/r77b/brief.md#c7--scope-and-separate-costs) and the
+[r77b factual audit](../research/panels-2026-10/r77/r77b/tally.md#factual-audit-at-the-pin).
+The landing, consistency and compatibility inventory remains in comment 839 and that audit.
+No new gate, formal coverage or runtime conformance is claimed by this correction.
