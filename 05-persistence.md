@@ -1439,13 +1439,16 @@ mark satisfies a new step. No component starts between closing R and establishin
 Where the restored store has no open incident, the new record has `supersedes_incident_id` `null`. A
 process crash without an actual store restore creates and supersedes no incident.
 
-The operator MUST select and retain one new incident id and restore instant per actual restore
-before attempting establishment, and reuse both on a lost-reply retry. Repeating establishment with
-that id MUST affect the matching record as a guarded no-op, not create or supersede another record,
-preserving its step marks and original restore instant. A mismatch in the id's restore instant or
-predecessor MUST be refused with both components stopped. The initial establishment or its matching
-no-op repeat MUST be acknowledged before either component starts. A new actual store restore uses a
-distinct id even when the predecessor incident is still open.
+The operator MUST select and retain one new incident id per actual restore before attempting
+establishment, and reuse that id on a lost-reply retry. If establishment with that id finds no
+committed record with that id, it MUST insert the incident with restore_instant defined by STO-54
+for the newly begun transaction inserting it; an instant selected for an earlier attempt that
+did not commit is not reused. Repeating establishment with that id when a committed matching
+record exists MUST affect that record as a guarded no-op, not create or supersede another
+record, preserving its step marks and original restore instant. A mismatch in the committed
+id's restore instant or predecessor MUST be refused with both components stopped. The initial
+establishment or its matching no-op repeat MUST be acknowledged before either component starts.
+A new actual store restore uses a distinct id even when the predecessor incident is still open.
 
 `restore_instant` is non-null; its event-time definition and the meanings of
 `lost_window_starts_at`=b and `loss_end_at`=f belong to `STO-54`. The incident-keyed
