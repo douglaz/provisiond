@@ -83,8 +83,9 @@ FOUR RULES, deliberately narrow.
            except in Markdown QUOTED: an exact case-insensitive whole word
            superseded wholly inside the candidate's paired content does not
            suppress that candidate. Every other history match still suppresses,
-           including superseded outside it or inside another quote, and embedded
-           substrings such as superseded_never_commits. All history occurrences
+           including superseded outside it or inside another quote. Embedded
+           superseded identifiers do not mark history in either input kind;
+           word boundaries use Python's Unicode semantics. All history occurrences
            are considered; ownership and cited pools use the original chunk.
            CNF-216's note beginning "Amended 2026-10-02" remains historical:
            corrupting "the greatest `increment end` among that subject's rows"
@@ -302,7 +303,7 @@ MODULES = os.path.join(ROOT, "tools", "formal", "Provisiond.lean")
 HISTORICAL = re.compile(
     r"\bwithdrawn\b|withdrew|until 20|previously|the original|first draft|old (?:item|text|wording)"
     r"|earlier (?:draft|version|text|wording|revision|note|phrasing)|stood (?:here|there)"
-    r"|used to|no longer|superseded|retired|amended|version one|version two|rewritten"
+    r"|used to|no longer|\bsuperseded\b|retired|amended|version one|version two|rewritten"
     r"|this said|it said|it read|had said|once (?:said|read|contained)|corrected|described it as|merged into|split into|the claim that did not",
     re.I,
 )
@@ -1181,14 +1182,22 @@ def check_markdown_quote_reach():
             ]:
                 name = f'preserved chunk history/teaching: {prose}'
                 assert find({filename: prose}, {}, {}) == ([], [], 0), name
-            # The unchanged HISTORICAL regex also matches embedded substrings.
+            # Embedded superseded is current; unrelated substring markers retain
+            # their existing policy. Candidate-local Markdown history still applies.
             for word in ['superseded_never_commits', 'xsuperseded', 'supersededx',
                          'ésuperseded', 'superseded9', 'xamendedx']:
-                for prose in [shape + f'"alpha beta {word} gamma WRONG"',
-                              shape + f'"alpha beta superseded gamma WRONG"; {word}']:
+                for quote, tail in [(f'alpha beta {word} gamma delta', ''),
+                                    ('alpha beta superseded gamma delta', f'; {word}')]:
+                    prose = shape + f'"{quote}"' + tail
                     name = f'embedded history: {prose}'
-                    assert HISTORICAL.search(prose), name
-                    assert find({filename: prose}, {}, {}) == ([], [], 0), name
+                    if word == 'xamendedx':
+                        assert HISTORICAL.search(prose), name
+                        assert find({filename: prose.replace('delta', 'WRONG')}, {}, {}) == ([], [], 0), name
+                    else:
+                        assert bool(HISTORICAL.search(prose)) == bool(tail), name
+                        compared(prose, quote, quote)
+                        wrong = quote.replace('delta', 'WRONG')
+                        compared(shape + f'"{wrong}"' + tail, quote, wrong, False)
 
         name = 'history in another quotation remains effective'
         first, second = 'alpha beta superseded gamma delta', 'epsilon zeta eta theta'
@@ -1205,9 +1214,13 @@ def check_markdown_quote_reach():
         name = 'historical UNQUOTED and teaching remain whole-chunk exclusions'
         for text in ['superseded: `OPS-41` says something else',
                      '`OPS-41` says "superseded just three"',
-                     '`OPS-41` says "' + 'superseded' * 45 + '"',
                      'for example: `OPS-41` says "alpha beta gamma WRONG"']:
             assert find({filename: text}, {}, {}) == ([], [], 0), text
+        name = 'concatenated marker is one ineligible word, not history'
+        text = '`OPS-41` says "' + 'superseded' * 45 + '"'
+        assert not HISTORICAL.search(text) and not list(quotations(text, max_length=None)), text
+        assert find({filename: text}, {}, {}) == (
+            [], [(filename, 'OPS-41', ' '.join(text.split())[:100])], 0), text
         name = 'current word minimum'
         for shape in shapes:
             assert find({filename: shape + '"just three words"'}, {}, {})[2] == 0
