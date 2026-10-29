@@ -93,9 +93,12 @@ in flight (the model holds one attempt, and every enqueue waits for it); full cr
 procedures. `interrupt` models only interruption while holding, before the fence transaction;
 `resolve` admits the non-create verbs only from a needs-reconciliation attempt and preserves
 closed episodes. It omits evidence gathering, scheduled resolution and database publication.
-`failBeforeFence` over-approximates worker-recorded pre-fence failure: no current ordering
-clause establishes that injection point. Proofs cover this larger trace set, which supplies
-no implementation conformance fixture. Also omitted: `LDG-62`'s sizing of the
+`failBeforeFence` admits worker-recorded failure before fencing, including a survived-stop
+record; see `OPS-21`: "A cancellation of `execute` that the engine survives MUST be recorded
+before the engine exits". It does not model stop delivery, bounded recording or their composition
+with this lifecycle; the event assumes that record landed with the attempt `failed`. It still
+admits failures beyond that specified route; the larger trace set is retained. Implementation
+observations remain conformance obligations. Also omitted: `LDG-62`'s sizing of the
 commitment it grows — `extend` takes the satoshis as given — and its wire answers (`API-7` owns collection and ordering; `Provisiond.Admission`
 checks that tail): every refusal here is the unchanged world, whichever test
 made it; the `late_attach_cleanup` reason and `LDG-40`'s no-rate attach transaction (2026-10-04,
@@ -979,8 +982,11 @@ def interrupt (w : World) : World :=
   | .holding n, some a => finish w n a .needsReconciliation .needsReconciliation
   | _, _ => w
 
-/-- Abstract worker-recorded failure before fencing. This is an over-approximation, not an
-established injection point; OPS-49 store failures are not classified by this event. -/
+/-- Worker-recorded failure before fencing, including a survived-stop record; see `OPS-21`:
+"A cancellation of `execute` that the engine survives MUST be recorded before the engine exits".
+Stop delivery and bounded recording are outside this model; store errors alone are not classified
+by this event (for the store-error path, see `OPS-49`: "the component MUST repeat the **whole
+transaction**"). -/
 @[req "OPS-45"]
 def failBeforeFence (w : World) : World :=
   match w.phase, w.attempt with
