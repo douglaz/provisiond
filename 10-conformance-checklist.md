@@ -3086,6 +3086,18 @@ rather than acquiring a default.
       process crash must create no new incident or supersession. A lost transaction reply must not
       produce two open incidents or silently continue using predecessor step marks.
 
+      For one actual restore, lose the establishment transaction's connection before it commits,
+      so that no record with the retained id exists, and repeat establishment with that id in a
+      later transaction whose start time differs: assert exactly one record with that id, its
+      `restore_instant` the value `STO-54` defines, its predecessor closed by supersession and
+      provenance initialized in the repeating transaction, and neither component started before
+      that transaction is acknowledged. Separately let establishment commit, drop its reply and
+      repeat with the same id: assert the repeat is acknowledged as a guarded no-op preserving the
+      stored instant, predecessor and step marks, that it is not refused merely because the
+      repeating transaction starts later, and that the components then start and continue that
+      incident. Neither arm leaves two open incidents. This case selects no predecessor-comparison
+      algorithm.
+
       | Install case after successor pass | `disk_effect` / `rescue_exit` |
       |---|---|
       | Old unsettled row exposed to rollback, restored null/null | `unknown` / `unknown` |
