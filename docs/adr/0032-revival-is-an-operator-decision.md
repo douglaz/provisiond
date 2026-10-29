@@ -1,7 +1,7 @@
 # Revival is an operator decision
 
 **Status:** accepted (2026-10-04, `pv-gip.11`, owner decisions Q11/Q12); amended
-2026-10-05 (`pv-gip.43`, Q14).
+2026-10-05 (`pv-gip.43`, Q14); amended 2026-10-29 (`pv-75w3`).
 
 A decision to delete deserves care before it is made. A provider hiccup followed by a favorable
 rate is no new decision to keep a machine. Automatic revival made that accident choose for the
@@ -27,7 +27,7 @@ episode has no recorded deletion decision to reverse: its retry decides from fun
 operator decision remains necessary to leave a stalled episode, apart from the gone-write;
 price maintenance alone does not close it. No state, verb, close reason, column or row is added.
 
-The established null-fence stalled routes are crash and restore through `OPS-15`: "move every
+The crash and restore null-fence stalled routes run through `OPS-15`: "move every
 `running` operation to `needs_reconciliation`". For restore its warning is "the row may have
 settled at the provider inside the lost interval". `OPS-31`'s `not_applied` outcome is "it did
 not, so it settles `failed`"; `OPS-48` renders "Resolved `not_applied` — the machine is still there" as `stalled`
@@ -40,6 +40,8 @@ goal-state kinds to "re-run, since `OPS-11` classifies ‘already in the target 
 defers, and writes no fence". That gate is distinct from step 3's funding-only paused-grace
 check, reached "Only if the predicate would cancel".
 
+**Historical scope (2026-10-05; superseded by the amendment below).**
+
 Owner comment 194 says "Covers all three routes", including worker-recorded pre-fence
 failure. The fence-keyed rule covers that condition if such an ordering is ever specified;
 no current clause orders a worker-recorded failure before the fence write: `OPS-45` says "This rule classifies a failure a worker recorded";
@@ -49,6 +51,8 @@ follow `OPS-49`'s "repeat the **whole transaction**" and, on exhaustion, "the en
 non-zero". Thus this amendment specifies no separate route-3 injection. The model deliberately
 admits abstract pre-fence failure as an over-approximation; `CNF-312` drives the established crash
 route only. In every case the rule is keyed on the fence, not the route.
+
+*Amended 2026-10-29 (`pv-75w3`):* `OPS-21` says "A cancellation of `execute` that the engine survives MUST be recorded before the engine exits". `CNF-312` owns the survived-stop pre-fence prefix alongside its crash prefix. For classification see `OPS-11`; for the record and its bounded exits see `OPS-21`; for extension/retry ordering see `OPS-41` and `OPS-42`. For store errors see `OPS-49`: "the component MUST repeat the **whole transaction**". The decision remains keyed on the fence, not the route.
 
 Rejected alternatives:
 
