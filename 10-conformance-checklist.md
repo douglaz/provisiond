@@ -1755,6 +1755,15 @@ rather than acquiring a default.
 - [ ] **CNF-369** — As `CNF-368`, but hold the session past the Startup-lock wait bound: assert
       the engine logs loudly and exits non-zero having claimed nothing, `STO-59`'s value is
       unchanged, and the session's commit then succeeds.
+      On independent startup attempts, supply a missing bound, zero, a negative duration,
+      a non-finite duration, 400 microseconds, 600 microseconds, 1500 microseconds, and a
+      whole-millisecond duration outside either store setting's accepted range. Assert startup
+      refuses each with a non-zero exit before the generation advance, with no generation change,
+      claim or provider call. With a bound of exactly 1 millisecond, assert validation accepts it
+      and both effective timeout settings on the advance's connection are 1 millisecond;
+      validation acceptance does not require the contested generation advance to succeed.
+      Preserve this item's held-share timeout case and its existing exit/generation/session-commit
+      assertions.
 
 - [ ] **CNF-370** — Start an engine; back up; restart the engine; stop every engine and `api`
       process; restore from that backup with null `lost_window_starts_at` and `loss_end_at`

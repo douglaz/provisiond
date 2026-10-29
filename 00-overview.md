@@ -412,7 +412,7 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | `allow_orders`, per ordering account | `DOM-16` | boolean | yes |
 | Negative-resolution window, per provider | `OPS-33` | duration | yes |
 | Tenant-to-account assignment policy | `API-57`, `SEC-43` | policy over assignable accounts | yes |
-| Startup-lock wait bound | `OPS-47`, `OPS-15` | finite, positive duration; also the generation advance's `statement_timeout` and `lock_timeout` (`OPS-15`) | yes |
+| Startup-lock wait bound | `OPS-47`, `OPS-15` | finite duration expressible exactly as a positive whole number of milliseconds accepted by both `OPS-15` timeout settings, minimum 1 ms; also the generation advance's `statement_timeout` and `lock_timeout` (`OPS-15`) | yes |
 | Startup-lock connection keepalives | `OPS-47` | durations | yes |
 | Store-retry bound | `OPS-49` | duration | yes |
 | Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets." and "The deployment's supervisor MUST wait at least the Stop-record bound after a stop before it kills the engine." | yes |
