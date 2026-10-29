@@ -3308,6 +3308,35 @@ rather than acquiring a default.
       against it succeeds. Every use of the verb emits a monitorable event naming principal, tenant,
       before and after, and reason. A customer token calling the route gets `404`. (`API-62`,
       `WIR-48`, `SEC-46`, `STO-36`)
+
+      **Assignment-status refusals** (`WIR-48`, `STO-36`). Cross the non-healthy members of
+      `STO-47`'s status inventory, “`healthy` | `account_unreachable` | `credentials_rejected` |
+      `terminated`”, with `WIR-48`'s modes: “`mode` ∈ {`add`, `replace`} and `replace` removes every
+      current assignment.” Name the cases **add/account_unreachable**,
+      **replace/account_unreachable**, **add/credentials_rejected**, **replace/credentials_rejected**,
+      **add/terminated** and **replace/terminated** (`STO-47`, `WIR-48`). Establish the selected
+      status before each assignment request with operator `record-status` on a separate configured
+      provider account (`API-63`, `WIR-50`, `STO-47`), independently of every other case, the healthy
+      controls and the termination-repair scenario above. Use provider accounts flagged assignable
+      and otherwise eligible except for the selected status (`WIR-48`, `STO-36`).
+      Give each case a separate tenant with an existing healthy provider-account assignment;
+      the requested provider account is distinct and not already assigned. Record the complete
+      original assignment set and provider-account identities through the fixture's actual
+      assignment-set observation (`STO-36`). Keep the fixture stable through the request and
+      before/after observations. Send an authenticated operator request to the `WIR-48` route
+      with a valid body, opaque `operator_ref` and fresh valid `Idempotency-Key`; arrange
+      authorization, validation and ceilings so no competing refusal or replay masks the status
+      check (`WIR-48`, `WIR-34`, `WIR-24`, `API-7`).
+      In every named case assert HTTP `409`, `error.kind: "conflict"` and
+      `error.details.reason: "state"` (`WIR-48`, `WIR-9`). Compare the complete assignment set and
+      provider-account identities before and after: they are identical. For `add`, the refused
+      provider account never appears; for `replace`, every original assignment remains, with no
+      remove-first effect (`STO-36`, `WIR-48`). Observe the actual assignment set, not merely a
+      nonempty customer health-filtered `GET /v1/providers` result (`WIR-29`).
+      **Healthy controls** (`WIR-48`, `STO-36`): under otherwise valid, comparable conditions,
+      independently assign a distinct, not-already-assigned `healthy` provider account in each
+      mode. Assert HTTP `200`; `add` retains the original assignments and includes the new provider
+      account, while `replace` leaves exactly the new provider account assigned (`WIR-48`).
 - [ ] **CNF-244** — **Suspension is effective when the call returns.** A write issued by the tenant
       immediately after `POST .../suspend` returns `202` — and before any worker has claimed the
       parent — is rejected `suspended`. Asserted with the worker pool stopped, which is the state the
