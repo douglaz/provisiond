@@ -3133,10 +3133,10 @@ rather than acquiring a default.
       incident. Neither arm leaves two open incidents. This case selects no predecessor-comparison
       algorithm.
 
-      Separately repeat establishment after acknowledged recovery progress. Establish an incident
-      and receive its acknowledgement, then let recovery complete and mark steps (1) and (2),
-      stopping before step (3) while the incident remains open. Record and assert stored
-      `steps_completed` = 2 and the completed step marks; retain its id, original `restore_instant`
+      Separately repeat establishment after progress through the restore procedure. Establish an
+      incident and receive its acknowledgement, then let the restore procedure complete and mark
+      steps (1) and (2), stopping before step (3) while the incident remains open. Record and assert
+      stored `steps_completed` = 2 and the completed step marks; retain its id, original `restore_instant`
       and `supersedes_incident_id` for comparison. Stop both components and perform no actual store
       restore between that progress and the repeat. In a later-starting transaction, repeat
       establishment with that same retained id and matching original incident values, including
