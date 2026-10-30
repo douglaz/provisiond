@@ -1,0 +1,4 @@
+not.* **A
+suspension is not a promise that the fleet is gone; it is a promise that every machine has been
+accounted for and that nothing further can be bought.** The terms and the operator documentation
+MUST say so in those words, because "suspended" reads as "stopped" and on this one branch it is not.

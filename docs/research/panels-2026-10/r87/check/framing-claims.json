@@ -1,0 +1,32 @@
+[
+  {
+    "source": "05-persistence.md",
+    "quote": "migrators and waiting runners",
+    "verified": true
+  },
+  {
+    "source": "05-persistence.md",
+    "quote": "Startup acquisition refusal exits for supervisor retry; `api` returns `overloaded` before any transaction; worker/periodic acquisition refusal is an `OPS-49` store error",
+    "verified": true
+  },
+  {
+    "source": "05-persistence.md",
+    "quote": "before any component of a release starts and while the previous release's engine and `api` keep running",
+    "verified": true
+  },
+  {
+    "source": "03-operation-lifecycle.md",
+    "quote": "a worker, or by a periodic component running in the engine process",
+    "verified": true
+  },
+  {
+    "source": "10-conformance-checklist.md",
+    "quote": "one waits on `STO-12`'s key",
+    "verified": true
+  },
+  {
+    "source": "10-conformance-checklist.md",
+    "quote": "startup refusal and supervisor retry, `api` refusal before any transaction, and worker/periodic refusal through the store-error loop",
+    "verified": true
+  }
+]

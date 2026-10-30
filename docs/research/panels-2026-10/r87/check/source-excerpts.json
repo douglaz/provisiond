@@ -1,0 +1,56 @@
+[
+  {
+    "path": "05-persistence.md",
+    "start": 247,
+    "end": 330,
+    "sha256": "0145631b4b3f69f3512ebd49a11f2c526f80de284722065d1682f787d20bf461"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 1529,
+    "end": 1610,
+    "sha256": "2e373c0f15b02ddc86defe741290fcf0c1a968dac810a570a5e00582a502c97d"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 166,
+    "end": 209,
+    "sha256": "3f07f64180fdd92cc1564b319bad3fe833e8f0597aa21c7a0f37e8ede48e9bd3"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 1925,
+    "end": 1945,
+    "sha256": "58570a241694e67f64ffa42e55a355e38bc812911fae14b4093dc5211b3a490c"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 365,
+    "end": 390,
+    "sha256": "678ae006435f88ea8eefceb17e3f9e8d0c6f2857e0e7f48170de73763349f837"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 1147,
+    "end": 1182,
+    "sha256": "a1eeb5e59b598ce766b0c341b364fea9033db69839a35b0a1da9d39cab55dcba"
+  },
+  {
+    "path": "00-overview.md",
+    "start": 338,
+    "end": 352,
+    "sha256": "65892b83cdb9450163538fb936aa1bdb70a1e28c722154a0bf5f2f61890aaf87"
+  },
+  {
+    "path": "00-overview.md",
+    "start": 363,
+    "end": 367,
+    "sha256": "a8a46ac2423b6a32a9dc074266d88853becae55787d60f51197dea8cd0d97037"
+  },
+  {
+    "path": "00-overview.md",
+    "start": 416,
+    "end": 437,
+    "sha256": "ab971b426899e753e5378a0ea387cc560ec1b9626f3cc1d31598dad9671e2f97"
+  }
+]

@@ -1,0 +1,40 @@
+{
+  "form-A": {
+    "present_verbatim_in_brief": true,
+    "sha256": "76f1466e4b8af332d145dc8d1576554b596fa50ea6f9cab0d589a146a63b1aee"
+  },
+  "form-B": {
+    "present_verbatim_in_brief": true,
+    "sha256": "6770a189b5f2dfc992173a5b51598c00b60f8a5d3bb8776fad40cbecc0257018"
+  },
+  "form-C": {
+    "present_verbatim_in_brief": true,
+    "sha256": "533842b39db258afb9f9758a5d1de29e9db11e248f59d20d2621c0f7e145e8fc"
+  },
+  "form-D": {
+    "present_verbatim_in_brief": true,
+    "sha256": "bd57b4e09cfbedfb955fff449748433f12867749525c43f8ee0c9c552e9c4ae7"
+  },
+  "prior-fable": {
+    "matches_parent_verbatim": true,
+    "present_verbatim_in_brief": true
+  },
+  "prior-opus": {
+    "matches_parent_verbatim": true,
+    "present_verbatim_in_brief": true
+  },
+  "prior-astra": {
+    "matches_parent_verbatim": true,
+    "present_verbatim_in_brief": true
+  },
+  "prior-sol": {
+    "matches_parent_verbatim": true,
+    "present_verbatim_in_brief": true
+  },
+  "dissent-quotes": {
+    "A suspension is not a promise that the fleet is gone; it is a promise that every machine has been accounted for and that nothing further can be bought.": true,
+    "The terms and the operator documentation MUST say so in those words, because \"suspended\" reads as \"stopped\" and on this one branch it is not.": true,
+    "the parent settles `succeeded` while a machine of a suspended tenant may still be running.": true,
+    "A `failed` attempt moves its episode to `stalled`": true
+  }
+}

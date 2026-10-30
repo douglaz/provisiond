@@ -1,0 +1,19 @@
+# r83b — ONE consensus round, Q4 only
+
+Pin: `3109b5b44eae17e288cf52aaa976993bd8c5626c`. The source remains unchanged. Q1–Q3 are not re-asked. This is the sole authorized consensus round for Q4 under r83 notes rule 4. Only the mechanics of pv-kv2 are on the ballot.
+
+Five configured seats: fable (claude-fable-5-1 xhigh), opus (claude-opus-5-5 xhigh), astra (gpt-6-astra high), sol (gpt-6.1-sol xhigh), grok (grok-4.7 xhigh). A fresh Grok check is required before launch. If down, use the owner's three-of-four fallback. Missing/empty/timeout/not-signed-in/usage-limit output, including Fable, is not a vote.
+
+1. Read every exact form completely. Preserve explicit final preference separately from ACCEPT / CANNOT ACCEPT. The verbatim r83 answers are in this packet; their Q1–Q3 discussion is context only. A requested counterargument is not a vote. An alternative is distinct and needs complete text and landing locations.
+2. Owner's exact settling rule: "a question is settled when at least three agree and more agree than disagree, and a tie comes to you. If grok is down, it falls back to three of four". Apply this to the same exact form, with no verified blocking loss under rule 3 and no synthesized tie-break. If more than one qualifies, preserve the explicit preferences. The owner's "you" is main relaying to the owner. The fixed Q4 policy cannot be reversed.
+3. A blocking loss must identify a checked verdict changed, made unreachable or vacuous (a conformance assertion or Lean theorem), or quote a MUST/SHOULD with file, owner and trace. Disclose collateral flips. Changed declarations, statement/guard hypotheses, normative obligations, fixtures and negative-control strength are substantive. A merely absent new runtime test is not a contradiction in the unchanged base. No permission to weaken checks or undo the fixed owner policy.
+4. This is the ONE consensus round: unresolved questions return to the owner. No further panel may be launched by the readers. A new form is unreviewed by other seats until actually read; no manager synthesis counts as settled.
+5. Check substantive outputs, not exit status alone. Record missing seats and apply rule 2.
+6. A verified brief error that changes the question's premise voids its tally; re-ask it corrected. Other brief errors are reported with the tally, identifying any vote whose reason rests on one.
+7. Do not weaken or delete a disputed rule to clear review. Preserve its purpose and name any changed normative/tested verdict. No unread combination counts as reviewed.
+
+Every tally prompt must say exactly: **apply notes.md rule 6 exactly as written; this prompt adds no void rule**.
+
+The owner answered "Stop before buying (Recommended)". Exact option: "At pickup the worker sees the customer is suspended and fails the order before spending anything. Nothing is bought or charged. Panel D then settles the exact error and race guard. This is the 10-27 triage's pick; it wasn't put to a panel because it's a policy choice." Provenance: owner-decisions-1030.md item 3. A create first picked up while suspended must not buy, charge, then cancel. Retain OPS-27 for already dispatched orders.
+
+Read-only clones, no builds/gates/Lean, no main checkout/tracker/other panel folders/units. Readers may write temporary files only under this round's tmp/<seat>/. No credentials/session/config access, ~/.claude, ~/.codex or ~/.grok. Each unit has MemoryMax=16G, MemorySwapMax=0, OOMPolicy=continue, StandardInput=null; npm-global first on PATH and TMPDIR in this round. Same CLI models/efforts/timeouts and wrapper behavior as r83. Quota exceptions: Fable week recorded but never holds; Claude session/all-models >80% or unavailable holds; Codex at 100%/usage error stops further Codex launches, not at 80%. Never switch accounts. Required manager gates validate the unchanged pinned base only.

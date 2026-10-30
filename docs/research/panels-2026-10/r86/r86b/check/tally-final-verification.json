@@ -1,0 +1,31 @@
+{
+  "completed_at": "2026-10-30T21:24:38.440674+00:00",
+  "gates": {
+    "before": 0,
+    "final": 0
+  },
+  "Q1": "A unanimously selected; OWNER APPROVAL pending",
+  "Q2": "A-cited/B-cited 2-2 after one consensus; OWNER DECISION pending",
+  "rule6": "no new premise-changing error; no void",
+  "Q1_consensus_shape": "verified under explicit user exception; tally.md evidence",
+  "r86c_launched": false,
+  "frozen_packet_candidates_outputs_unchanged": true,
+  "records": {
+    "/var/tmp/provisiond-panel-r86/r86b/tally.md": {
+      "bytes": 21837,
+      "sha256": "a9bfc77374c90af83975b462047041fcccd284d6a0c23a8f11eb3d90304d4cc2"
+    },
+    "/var/tmp/provisiond-panel-r86/r86b/owner-questions.md": {
+      "bytes": 7509,
+      "sha256": "29583095e150c9bbe22485f5fb6e1860d0017c794642d3bcc162f76d833f3cf3"
+    },
+    "/var/tmp/provisiond-panel-r86/r86b/STATE.md": {
+      "bytes": 7035,
+      "sha256": "802d23b8d429da894b26e179fdfa4509429630a1c6d46759d2325a6e4bf20c7a"
+    },
+    "/var/tmp/provisiond-panel-r86/STATE.md": {
+      "bytes": 9590,
+      "sha256": "0c929a26f4d71b793ccf902eacb9af211255c19312e327fb1237cbec5a558566"
+    }
+  }
+}

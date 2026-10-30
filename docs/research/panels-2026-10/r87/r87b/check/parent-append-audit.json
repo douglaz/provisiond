@@ -1,0 +1,20 @@
+{
+  "tally.md": {
+    "old_bytes": 13973,
+    "old_sha256": "aac4976b50b5bf46a6e96f95f5c69ef0d86a13e1ddff38d2b6ea50ff78ec36be",
+    "appended_bytes": 1245,
+    "prefix_preserved": true
+  },
+  "STATE.md": {
+    "old_bytes": 8764,
+    "old_sha256": "08afc218e24b84198f0ae9b24cba25a37389f1a3dd820b0644db0370952d69cb",
+    "appended_bytes": 1245,
+    "prefix_preserved": true
+  },
+  "owner-questions.md": {
+    "old_bytes": 0,
+    "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "appended_bytes": 2765,
+    "prefix_preserved": true
+  }
+}

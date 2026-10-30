@@ -1,0 +1,160 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "quoted_sections": [
+    {
+      "file": "01-domain-model.md",
+      "first_line": 515,
+      "last_line": 542,
+      "sha256": "b9012bdaa64d2d45715a8ed9efca7d5501168e4c829b74bfe9549e78f89babaf"
+    },
+    {
+      "file": "04-api-contract.md",
+      "first_line": 232,
+      "last_line": 258,
+      "sha256": "61bdeba28fe98428dc0d3cebc2cbb4fa432262a2cc8510ac7476e6289d472059"
+    },
+    {
+      "file": "03-operation-lifecycle.md",
+      "first_line": 2018,
+      "last_line": 2051,
+      "sha256": "4484b897bbb63aea48151998b8645a24df9355af3c20b5ff86cc84babce1a90b"
+    },
+    {
+      "file": "03-operation-lifecycle.md",
+      "first_line": 744,
+      "last_line": 754,
+      "sha256": "f1ebc5e57a7114796c80000fdf5afab2d9655de5dfdba1b45f813e77fa7fc3fb"
+    },
+    {
+      "file": "02-provider-contract.md",
+      "first_line": 716,
+      "last_line": 723,
+      "sha256": "990979fa282bb61f444fe59ea9a075b96210d9dd4e4beadb1c7d26fffb2bd4f5"
+    },
+    {
+      "file": "02-provider-contract.md",
+      "first_line": 851,
+      "last_line": 858,
+      "sha256": "2bf1dd7976d8222108f895fcad6305b67c0b6fc7321dc95512e1d4512f3c3d7f"
+    },
+    {
+      "file": "03-operation-lifecycle.md",
+      "first_line": 1076,
+      "last_line": 1111,
+      "sha256": "b3162bade31750bb9b886ab9ab7fca278cf07a4d84a98688c5ef83580d90af6a"
+    },
+    {
+      "file": "04-api-contract.md",
+      "first_line": 1050,
+      "last_line": 1062,
+      "sha256": "7cee25461670e46c20528f49d147cd99f0481825a2f6fd398f2cf7960c3c7b8b"
+    },
+    {
+      "file": "04-api-contract.md",
+      "first_line": 1102,
+      "last_line": 1117,
+      "sha256": "b757c3fbadb17cd1ddaa97d2fea2473db72d4edb9d9564cfb960e71c1fd94fd0"
+    },
+    {
+      "file": "03-operation-lifecycle.md",
+      "first_line": 945,
+      "last_line": 966,
+      "sha256": "09939bc6f6cc28d31face490121d84f0424a1c0b03f2f159ef3a9c982e68e43c"
+    },
+    {
+      "file": "03-operation-lifecycle.md",
+      "first_line": 1290,
+      "last_line": 1314,
+      "sha256": "fef807416fe7a5b07e91fb8bf44b77cd2fe9122799fabb14d101fdcd8594ffa2"
+    },
+    {
+      "file": "04-api-contract.md",
+      "first_line": 241,
+      "last_line": 242,
+      "sha256": "bd932f3993bfa95b77338c847415776d6af911761fb2c69802a4095c2bb91909"
+    },
+    {
+      "file": "04-api-contract.md",
+      "first_line": 262,
+      "last_line": 289,
+      "sha256": "f02391d85b4d0a5017f7f4d3501b828019bb84ceead63aaa439a86028acf9a02"
+    },
+    {
+      "file": "03-operation-lifecycle.md",
+      "first_line": 765,
+      "last_line": 800,
+      "sha256": "f0f1a069c78e5f76f20bda2fa88ae265601e14606369551e37f697059751aac3"
+    },
+    {
+      "file": "10-conformance-checklist.md",
+      "first_line": 340,
+      "last_line": 357,
+      "sha256": "0da747ec59ff61ff7af0bbade035e0f190c951b55da9f9a8363018f386b099a7"
+    },
+    {
+      "file": "10-conformance-checklist.md",
+      "first_line": 135,
+      "last_line": 154,
+      "sha256": "54fba08f9742fb72dedeed61ac89131b4b34ce350ea3c91a2751964ce310d648"
+    },
+    {
+      "file": "13-wire-contract.md",
+      "first_line": 641,
+      "last_line": 660,
+      "sha256": "e2521e7c3f58578f8967ad0d235f022981a3c089fc465a2d1d47cbdd397380d5"
+    },
+    {
+      "file": "13-wire-contract.md",
+      "first_line": 1034,
+      "last_line": 1050,
+      "sha256": "4d038509d5ef9136020136277d82504be400d487889b5a7676c71e4836f7e026"
+    },
+    {
+      "file": "02-provider-contract.md",
+      "first_line": 71,
+      "last_line": 84,
+      "sha256": "800c58cb6ea152eb57968052919e2795e8bd430110e72c9d743bb00d445da3ef"
+    },
+    {
+      "file": "05-persistence.md",
+      "first_line": 559,
+      "last_line": 582,
+      "sha256": "15db919604c74726d3dd7988693dfc05dc4a1501ae53f100f0cd4f2ecc97a054"
+    },
+    {
+      "file": "10-conformance-checklist.md",
+      "first_line": 30,
+      "last_line": 32,
+      "sha256": "98d787754d29983a378c8b4ea72c4d7108098e52247d6a8abf161ada7d90c6f0"
+    }
+  ],
+  "clones": {
+    "fable": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "opus": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "astra": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "sol": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    }
+  },
+  "wrapper_diffs_only_paths_units": true,
+  "owner_threshold_verbatim": true,
+  "packet_bytes": 68487,
+  "brief_sha256": "44c06b2bbdc99dbc5fdc5231202fb05acfece707982ce3b6e0258b7192c785ad",
+  "consistency_review_exit": 0,
+  "consistency_found": "Q2-A stale-listing CNF assertion did not specify old age",
+  "consistency_fix": "Exact age condition added to that assertion; no other inconsistency found by reviewer.",
+  "gates": {
+    "before": 0,
+    "final": 0
+  }
+}

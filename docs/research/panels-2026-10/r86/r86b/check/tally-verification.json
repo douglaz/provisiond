@@ -1,0 +1,388 @@
+{
+  "at": "2026-10-30T21:18:14.924442+00:00",
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "packet": {
+    "brief.md": {
+      "bytes": 148000,
+      "sha256": "1fdc3472f5e03ebd7b0be7985f880fb5b182d9bc09923472d75da6aaee24e7e6"
+    },
+    "notes.md": {
+      "bytes": 4702,
+      "sha256": "dad359afb112bfc245649eb1873fc97bcb794b08722dd06d504659427ec7c031"
+    }
+  },
+  "answers": {
+    "fable": {
+      "substantive": true,
+      "final_pick_Q1": "Q1-A",
+      "final_pick_Q2": "Q2-A-cited",
+      "files": {
+        ".md": {
+          "bytes": 16491,
+          "sha256": "9540bd5f8d3a9460db29545e829af3f8789a9a1d78274adc4c9e4c2d4c755c7a"
+        },
+        ".exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        ".err": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    "opus": {
+      "substantive": true,
+      "final_pick_Q1": "Q1-A",
+      "final_pick_Q2": "Q2-A-cited",
+      "files": {
+        ".md": {
+          "bytes": 15684,
+          "sha256": "b845585f3908dfa7d3f69d8b89721c67bfbbb066c0c6f9e381726f2cf6e07f19"
+        },
+        ".exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        ".err": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    "astra": {
+      "substantive": true,
+      "final_pick_Q1": "Q1-A",
+      "final_pick_Q2": "Q2-B-cited",
+      "files": {
+        ".md": {
+          "bytes": 14114,
+          "sha256": "3864c25341addc7ca36d449307e48612311281e270db98daadb4bac7ad88df80"
+        },
+        ".exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        ".out": {
+          "bytes": 14115,
+          "sha256": "c95a72e8189241313b1baeeb914936cb58b843babc130ed3752e4891511a5e46"
+        },
+        ".err": {
+          "bytes": 372155,
+          "sha256": "d3811d2db69701953bc6a02308f6579c0c78f3dac93719b014a9588648119836"
+        }
+      }
+    },
+    "sol": {
+      "substantive": true,
+      "final_pick_Q1": "Q1-A",
+      "final_pick_Q2": "Q2-B-cited",
+      "files": {
+        ".md": {
+          "bytes": 13299,
+          "sha256": "c8d0d9f5857d1b2a57163df9274031bbabe7c8206303e1b2dee0c7cc592cd3f6"
+        },
+        ".exit": {
+          "bytes": 2,
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        ".out": {
+          "bytes": 13300,
+          "sha256": "3fb6d81f69525ecb62bfb36d203af691e8c073a95c7aba19024f0d16bb06e0fe"
+        },
+        ".err": {
+          "bytes": 468480,
+          "sha256": "92e3a74290494b59e2b59141d53c1ed5e962c6db4353f20fc6ff741d1787b6e5"
+        }
+      }
+    }
+  },
+  "historical_answers": {
+    "fable": {
+      "bytes": 13046,
+      "sha256": "7249a885f78bf4f29d3d203ac697d7ab95773e9aa825602811ce08db3bbbb960",
+      "verbatim": true,
+      "brief_first_answer_line": 1343,
+      "brief_last_answer_line": 1455
+    },
+    "opus": {
+      "bytes": 15166,
+      "sha256": "661d76c1d5688bf52ac05ae2a2f930928203b7c2367325d846da26c5a77a93b2",
+      "verbatim": true,
+      "brief_first_answer_line": 1460,
+      "brief_last_answer_line": 1601
+    },
+    "astra": {
+      "bytes": 13190,
+      "sha256": "aec19e7f0374c7ded9e73c8f8060586e7968793d87f745170db5820bc8aa7769",
+      "verbatim": true,
+      "brief_first_answer_line": 1606,
+      "brief_last_answer_line": 1713
+    },
+    "sol": {
+      "bytes": 13303,
+      "sha256": "cd515103d04302fa71789a97c21c6f552e3d4a531931cd06d46358fd0e8a907f",
+      "verbatim": true,
+      "brief_first_answer_line": 1718,
+      "brief_last_answer_line": 1812
+    }
+  },
+  "clones": {
+    "fable": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status": ""
+    },
+    "opus": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status": ""
+    },
+    "astra": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status": ""
+    },
+    "sol": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status": ""
+    }
+  },
+  "sources": [
+    {
+      "path": "01-domain-model.md",
+      "first": 515,
+      "last": 542,
+      "matches_pin": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "first": 232,
+      "last": 258,
+      "matches_pin": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "first": 2018,
+      "last": 2051,
+      "matches_pin": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "first": 744,
+      "last": 754,
+      "matches_pin": true
+    },
+    {
+      "path": "02-provider-contract.md",
+      "first": 716,
+      "last": 723,
+      "matches_pin": true
+    },
+    {
+      "path": "02-provider-contract.md",
+      "first": 851,
+      "last": 858,
+      "matches_pin": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "first": 1076,
+      "last": 1111,
+      "matches_pin": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "first": 1050,
+      "last": 1062,
+      "matches_pin": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "first": 1102,
+      "last": 1117,
+      "matches_pin": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "first": 945,
+      "last": 966,
+      "matches_pin": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "first": 1290,
+      "last": 1314,
+      "matches_pin": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "first": 241,
+      "last": 242,
+      "matches_pin": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "first": 262,
+      "last": 289,
+      "matches_pin": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "first": 765,
+      "last": 800,
+      "matches_pin": true
+    },
+    {
+      "path": "10-conformance-checklist.md",
+      "first": 340,
+      "last": 357,
+      "matches_pin": true
+    },
+    {
+      "path": "10-conformance-checklist.md",
+      "first": 135,
+      "last": 154,
+      "matches_pin": true
+    },
+    {
+      "path": "13-wire-contract.md",
+      "first": 641,
+      "last": 660,
+      "matches_pin": true
+    },
+    {
+      "path": "13-wire-contract.md",
+      "first": 1034,
+      "last": 1050,
+      "matches_pin": true
+    },
+    {
+      "path": "02-provider-contract.md",
+      "first": 71,
+      "last": 84,
+      "matches_pin": true
+    },
+    {
+      "path": "05-persistence.md",
+      "first": 559,
+      "last": 582,
+      "matches_pin": true
+    },
+    {
+      "path": "10-conformance-checklist.md",
+      "first": 30,
+      "last": 32,
+      "matches_pin": true
+    },
+    {
+      "path": "00-overview.md",
+      "first": 22,
+      "last": 24,
+      "matches_pin": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "first": 17,
+      "last": 18,
+      "matches_pin": true
+    },
+    {
+      "path": "tools/formal/Provisiond/Admission.lean",
+      "first": 15,
+      "last": 20,
+      "matches_pin": true
+    },
+    {
+      "path": "tools/formal/Provisiond/Admission.lean",
+      "first": 317,
+      "last": 320,
+      "matches_pin": true
+    },
+    {
+      "path": "tools/formal/Provisiond/Admission.lean",
+      "first": 1180,
+      "last": 1257,
+      "matches_pin": true
+    },
+    {
+      "path": "docs/adr/0025-a-formalized-clause-lives-in-lean-and-the-markdown-renders-it.md",
+      "first": 175,
+      "last": 196,
+      "matches_pin": true
+    }
+  ],
+  "exact_forms": {
+    "Q1-A": {
+      "bytes": 3860,
+      "sha256": "db7f2b55cf4f49fcc22e6b57d6efc72daaa158817faff1cf2ad67981c19f28e3",
+      "in_packet_verbatim": true
+    },
+    "Q1-B": {
+      "bytes": 3027,
+      "sha256": "5b23043852a5c14bbe2824354b35a6ef98b1be43418ee2a5b1a9d1819e27daed",
+      "in_packet_verbatim": true
+    },
+    "Q2-A": {
+      "bytes": 6949,
+      "sha256": "b500fc13fec5e4ddb1bbd54dfa7a1337870f353138e9be1945854bf7dc07a249",
+      "in_packet_verbatim": true
+    },
+    "Q2-B": {
+      "bytes": 3037,
+      "sha256": "9bbbd381641780d144200c4a8c009480186d1f479755cf37910ca7b11ad115e3",
+      "in_packet_verbatim": true
+    },
+    "Q2-A-prime": {
+      "bytes": 8661,
+      "sha256": "e1c6032f030dd92bd7df056ae5a00a4e0e17bd0d4837cca3eb9e33479218b7d4",
+      "in_packet_verbatim": true
+    },
+    "Q2-A-cited": {
+      "bytes": 8750,
+      "sha256": "d611bbae87294a0fc0087c567fa82aa1404cd0c5a54abe394b5327488ec51ea2",
+      "in_packet_verbatim": true
+    },
+    "Q2-B-cited": {
+      "bytes": 3643,
+      "sha256": "1123678c76351dfc6db69098036a0eff6aef12487412f877888b843b7429cfdf",
+      "in_packet_verbatim": true
+    }
+  },
+  "Q1_consensus_shape": {
+    "aim_and_other_answers": "brief.md:3",
+    "disagreements": "brief.md:39-47",
+    "complete_A": "brief.md:686-743",
+    "complete_B": "brief.md:745-785 (API/OPS pointer insertions explicitly incorporated from A at line 785)",
+    "complete_C0": "brief.md:787-789",
+    "accept_and_final_request": "brief.md:1333",
+    "address_actual_dissent": "brief.md:1335",
+    "historical_answer_ranges": {
+      "fable": {
+        "bytes": 13046,
+        "sha256": "7249a885f78bf4f29d3d203ac697d7ab95773e9aa825602811ce08db3bbbb960",
+        "verbatim": true,
+        "brief_first_answer_line": 1343,
+        "brief_last_answer_line": 1455
+      },
+      "opus": {
+        "bytes": 15166,
+        "sha256": "661d76c1d5688bf52ac05ae2a2f930928203b7c2367325d846da26c5a77a93b2",
+        "verbatim": true,
+        "brief_first_answer_line": 1460,
+        "brief_last_answer_line": 1601
+      },
+      "astra": {
+        "bytes": 13190,
+        "sha256": "aec19e7f0374c7ded9e73c8f8060586e7968793d87f745170db5820bc8aa7769",
+        "verbatim": true,
+        "brief_first_answer_line": 1606,
+        "brief_last_answer_line": 1713
+      },
+      "sol": {
+        "bytes": 13303,
+        "sha256": "cd515103d04302fa71789a97c21c6f552e3d4a531931cd06d46358fd0e8a907f",
+        "verbatim": true,
+        "brief_first_answer_line": 1718,
+        "brief_last_answer_line": 1812
+      }
+    }
+  }
+}

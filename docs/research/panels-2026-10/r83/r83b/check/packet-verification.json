@@ -1,0 +1,13 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "packet_bytes": 135051,
+  "grok_threshold_bytes_approx": 1000000,
+  "answers": {
+    "fable": "f42b9023025a9aae9a28208b92ae3f63f3bba682e63b3404fd88fc29ce0b7ef9",
+    "opus": "6e0317ce04df8b818da96a8556ed40060fc191a53345a22e22a15dfd80074f0c",
+    "astra": "012647c8e62fe1b61bef07414d3a32059fb51cd272101372fa1210d3c05ff693",
+    "sol": "7851301b6fdbbce592047517b81aef6d5eebdf1fc7efa354e623ef8438d68979"
+  },
+  "D_is_exact_astra_excerpt": true,
+  "proposals_applied": false
+}

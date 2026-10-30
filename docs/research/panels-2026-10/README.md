@@ -203,3 +203,17 @@ under `r91/proposals/`. The source pin is `r91/PIN`. Historical attribution boil
 is omitted from copied source snapshots; their operative text is retained. Raw logs,
 clones and omitted machine-local launch receipts remain under `/var/tmp`.
 The requirement owners hold the rules.
+
+## Panels D, G, H and I decisions, 2026-10-30
+
+| Rounds | Questions | Decision sources |
+|---|---|---|
+| [r83](r83/brief.md), [r83b](r83/r83b/brief.md) | pv-kv2, pv-gvc, pv-bxh, pv-y0to | [Owner decisions](r83/owner-decisions.md), [original tally](r83/tally.md), [consensus tally](r83/r83b/tally.md); exact [Q4-D](r83/r83b/Q4-D.md), [Q1-B](r83/check/settled-Q1-B.txt), [Q2-A](r83/check/settled-Q2-A.txt), [Q3-A](r83/check/settled-Q3-A.txt) |
+| [r86](r86/brief.md), [r86b](r86/r86b/brief.md) | pv-5pmu, pv-e45e | [Owner decisions](r86/owner-decisions.md), [original tally](r86/tally.md), [consensus tally](r86/r86b/tally.md); exact [Q1-A](r86/r86b/Q1-A.md), [Q2-A-cited](r86/r86b/Q2-A-cited.md) |
+| [r87](r87/brief.md), [r87b](r87/r87b/brief.md) | pv-3zzo | [Owner decision](r87/owner-decisions.md), [original tally](r87/tally.md), [consensus tally](r87/r87b/tally.md); exact [F](r87/r87b/forms/q1-F.md) |
+| [r88](r88/brief.md) | pv-by1w | [Owner decision](r88/owner-decisions.md), [tally](r88/tally.md); exact [C-UNKNOWN](r88/form-C-UNKNOWN.md) |
+
+The owner records supersede the historical owner-pending status. These records preserve
+the reviewed forms, reader answers and verified dissent. Specification links name the frozen
+review base; raw logs, clones and omitted machine-local receipts remain under `/var/tmp`.
+The requirement owners hold the rules.

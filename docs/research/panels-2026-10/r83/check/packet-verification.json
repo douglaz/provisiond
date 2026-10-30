@@ -1,0 +1,37 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "beads": [
+    {
+      "id": "pv-bxh",
+      "status": "open",
+      "sha256": "097fdb5ed671c288068b6f93a14256cc7bf60c53c8f0b2ee96515a9d671d2137"
+    },
+    {
+      "id": "pv-gvc",
+      "status": "open",
+      "sha256": "84d3ddad9da5cae19657a92953826ff63142b1835b6fedc7a06d5c83fcd414b6"
+    },
+    {
+      "id": "pv-kv2",
+      "status": "open",
+      "sha256": "fe77baaf92d0e31b63654377e790c1940fd36cb6818f7aca0aa5b9c7b14b5f36"
+    },
+    {
+      "id": "pv-y0to",
+      "status": "open",
+      "sha256": "26b71939b3e0b0975bb91b9fb8028fccee60363ae29e20fb03b33fe167d4750d"
+    }
+  ],
+  "questions_dropped": [],
+  "claim_verification": {
+    "Q1_origin_gap_is_negative_cases": "CNF-202 2252\u20132275 already checks caller/null origin; STO-3 64\u201372 supplies exclusions/race/parent; no claim of all-origin absence.",
+    "Q1_release_ownership_open": "LDG-32 310\u2013328 already names deterministic-create failure; API-58 617\u2013669 does not explicitly name release; API-63 1370\u20131383 asserts the analogy. Candidates ask rather than presume a missing duty.",
+    "Q2_guard_has_no_retryable": "API-63 1405\u20131433 separates admission guard with no value from step-8 values; WIR-9a 165\u2013188 keys account rows on collection snapshot; CNF-278 2936\u20132970 second barrier has refusal only.",
+    "Q3_not_global_absence": "PRV-29, PRV-36, OPS-45 1515\u20131541, OVR-19 443\u2013451 and diagram 505\u2013519 all supplied as positive existing support.",
+    "Q4_fixed_policy": "owner-decisions-1030 item 3; OPS-43 757\u2013837 reads only account at step 1 and has account-only guard; API-58 617\u2013650 uses claimed-before; OPS-27 640\u2013654 keeps attach cancellation; LDG-69 463\u2013473 excludes provider call from money hold."
+  },
+  "packet_bytes": 130322,
+  "grok_full_packet_sent": false,
+  "grok_threshold_bytes_approximately": 1000000,
+  "source_excerpts_verified": 35
+}

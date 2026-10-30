@@ -1,0 +1,68 @@
+{
+  "checked_at": "2026-10-30T21:40:06.173560+00:00",
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "rows": [
+    {
+      "seat": "fable",
+      "explicit_final": "NEITHER",
+      "C-UNKNOWN": "ACCEPT",
+      "NEITHER": "ACCEPT",
+      "C-WITNESS": "CANNOT ACCEPT",
+      "answer_sha256": "2123d10fe4f81452c3b82021c76b5157f4c4946124725d23d930fff117de1524",
+      "exit": 0
+    },
+    {
+      "seat": "opus",
+      "explicit_final": "C-UNKNOWN",
+      "C-UNKNOWN": "ACCEPT",
+      "NEITHER": "ACCEPT",
+      "C-WITNESS": "CANNOT ACCEPT",
+      "answer_sha256": "c153088e80e1e286961995bfdcd84ac72fd6bc75b45fc82b1dbbb505079a3bdb",
+      "exit": 0
+    },
+    {
+      "seat": "astra",
+      "explicit_final": "C-UNKNOWN",
+      "C-UNKNOWN": "ACCEPT",
+      "NEITHER": "ACCEPT",
+      "C-WITNESS": "ACCEPT",
+      "answer_sha256": "1cce7019f2d4f4bbc9ca953a43751799fa4e8a93d25c9a45c1601fddfd5709da",
+      "exit": 0
+    },
+    {
+      "seat": "sol",
+      "explicit_final": "C-UNKNOWN",
+      "C-UNKNOWN": "ACCEPT",
+      "NEITHER": "ACCEPT",
+      "C-WITNESS": "ACCEPT",
+      "answer_sha256": "65c69fb8098171e3a56c96f566791fd2e4739741f3ad9c2ac2ba3212d9aedf71",
+      "exit": 0
+    }
+  ],
+  "grok": "MISSING: HTTP 402",
+  "preference_counts": {
+    "C-UNKNOWN": 3,
+    "NEITHER": 1,
+    "C-WITNESS": 0
+  },
+  "acceptance_counts": {
+    "C-UNKNOWN": [
+      4,
+      0
+    ],
+    "NEITHER": [
+      4,
+      0
+    ],
+    "C-WITNESS": [
+      2,
+      2
+    ]
+  },
+  "rule_6": "no premise-changing error; verified cost omissions reported",
+  "owner_approval_required": true,
+  "consensus_needed": false,
+  "forms_and_brief_remain_frozen": true,
+  "written_links_resolve": true,
+  "one_owner_question": true
+}

@@ -1,0 +1,1 @@
+No repository text changes. Retain API-63, WIR-9a and CNF-278 exactly as pinned. Acceptance requires citing the existing exact clause that yields one determinate retryable value for a healthy-snapshot admission guard refusal and identifying the existing race-free input it uses.

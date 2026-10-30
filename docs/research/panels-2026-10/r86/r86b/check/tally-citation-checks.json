@@ -1,0 +1,47 @@
+{
+  "base": {
+    "exit": 0,
+    "log": "tally-citations-base.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q1-A": {
+    "exit": 0,
+    "log": "tally-citations-Q1-A.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q2-A": {
+    "exit": 1,
+    "log": "tally-citations-Q2-A.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q2-B": {
+    "exit": 1,
+    "log": "tally-citations-Q2-B.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q2-A-prime": {
+    "exit": 0,
+    "log": "tally-citations-Q2-A-prime.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q2-A-cited": {
+    "exit": 0,
+    "log": "tally-citations-Q2-A-cited.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q2-B-cited": {
+    "exit": 0,
+    "log": "tally-citations-Q2-B-cited.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q1A+Q2Acited": {
+    "exit": 0,
+    "log": "tally-citations-Q1A+Q2Acited.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  },
+  "Q1A+Q2Bcited": {
+    "exit": 0,
+    "log": "tally-citations-Q1A+Q2Bcited.log",
+    "actual_same_pin_index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9"
+  }
+}

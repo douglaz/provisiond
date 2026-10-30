@@ -1,0 +1,11 @@
+{
+  "AGENTS.md": "30539b43f799a043b154ce24dc7d7a5de73313700cdafe5d3e0ddddef7b97ef2",
+  "01-domain-model.md": "9fd471843570ebd42601975b1b91f2c51088f60c8e0d2492fb38ff7c9334bcef",
+  "02-provider-contract.md": "f43d5ee54b0dbfb2e63871297fef9639cddef166427e8757d4553679ecb822a8",
+  "03-operation-lifecycle.md": "7be9b785be5b776b27391aa5f8870ce47e805e4ba32dfe1fdcd5586e516ea433",
+  "04-api-contract.md": "1485b87c42cc4ff424c9d7456cbac5ef0f8b85872b82db089ecf1816cdf5c3e4",
+  "05-persistence.md": "1cf78395b06485895bb36e84d74aab5f42d08f3c6a619ba5e61dde92e8f41f74",
+  "10-conformance-checklist.md": "a89cb201847c504f769c1131f408221f79ae4f2b77da9bc300e1828806c100ae",
+  "13-wire-contract.md": "7175a0253d71e6469e4982e12867d190e8a132d1eb84189d86d566d1c8439007",
+  ".beads/issues.jsonl": "0702e2b4e124088e3ddbd76bfe56346c2f471b08426c1d58bfd1f4c3aee3fe68"
+}

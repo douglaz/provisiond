@@ -1,0 +1,128 @@
+[
+  {
+    "path": "01-domain-model.md",
+    "first_line": 515,
+    "last_line": 542,
+    "matches_pin": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "first_line": 232,
+    "last_line": 258,
+    "matches_pin": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "first_line": 2018,
+    "last_line": 2051,
+    "matches_pin": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "first_line": 744,
+    "last_line": 754,
+    "matches_pin": true
+  },
+  {
+    "path": "02-provider-contract.md",
+    "first_line": 716,
+    "last_line": 723,
+    "matches_pin": true
+  },
+  {
+    "path": "02-provider-contract.md",
+    "first_line": 851,
+    "last_line": 858,
+    "matches_pin": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "first_line": 1076,
+    "last_line": 1111,
+    "matches_pin": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "first_line": 1050,
+    "last_line": 1062,
+    "matches_pin": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "first_line": 1102,
+    "last_line": 1117,
+    "matches_pin": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "first_line": 945,
+    "last_line": 966,
+    "matches_pin": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "first_line": 1290,
+    "last_line": 1314,
+    "matches_pin": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "first_line": 241,
+    "last_line": 242,
+    "matches_pin": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "first_line": 262,
+    "last_line": 289,
+    "matches_pin": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "first_line": 765,
+    "last_line": 800,
+    "matches_pin": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "first_line": 340,
+    "last_line": 357,
+    "matches_pin": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "first_line": 135,
+    "last_line": 154,
+    "matches_pin": true
+  },
+  {
+    "path": "13-wire-contract.md",
+    "first_line": 641,
+    "last_line": 660,
+    "matches_pin": true
+  },
+  {
+    "path": "13-wire-contract.md",
+    "first_line": 1034,
+    "last_line": 1050,
+    "matches_pin": true
+  },
+  {
+    "path": "02-provider-contract.md",
+    "first_line": 71,
+    "last_line": 84,
+    "matches_pin": true
+  },
+  {
+    "path": "05-persistence.md",
+    "first_line": 559,
+    "last_line": 582,
+    "matches_pin": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "first_line": 30,
+    "last_line": 32,
+    "matches_pin": true
+  }
+]

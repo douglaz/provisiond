@@ -1,0 +1,212 @@
+[
+  {
+    "path": "04-api-contract.md",
+    "start": 617,
+    "end": 669,
+    "sha256": "958c4b72f29eddbc94d170e425fb94ed0b4c4a277220decb6808b16ebee1dfd9"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 19,
+    "end": 81,
+    "sha256": "a5f78d919e8a5850b4dde975dd409d8424ad71e109f4947b1238a0b9c41fcd48"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "start": 310,
+    "end": 328,
+    "sha256": "9ad895196b8413187779131800fddcaf01872834b8d650ca91c566812ce0af68"
+  },
+  {
+    "path": "04-api-contract.md",
+    "start": 1370,
+    "end": 1383,
+    "sha256": "4f901a0ebf0e51907c503184ce01f4f982a1a193e22637395020dc6b4b4efdf2"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 2252,
+    "end": 2275,
+    "sha256": "23ebd0c291921ad2b50f383f3a5eacad136a67d3d1cf64d973c4debf22bab2ac"
+  },
+  {
+    "path": "04-api-contract.md",
+    "start": 1405,
+    "end": 1433,
+    "sha256": "cd3addfc0723686ec8f8c4f0f5084723907320e8e5600c962697bff7476ece8d"
+  },
+  {
+    "path": "04-api-contract.md",
+    "start": 296,
+    "end": 302,
+    "sha256": "ecfcf46602a0e31803fa8e1ffe8b43943fe86261c9c7358d322494f239cc430e"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "start": 165,
+    "end": 188,
+    "sha256": "871a05df44a40af2640e8566787724ae7ab7895163d7d017b0a92472c2768f94"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 2936,
+    "end": 2970,
+    "sha256": "460a978b70403623ab5495a0a31752353bf52b72d91be8daf742014b7c0f322e"
+  },
+  {
+    "path": "01-domain-model.md",
+    "start": 655,
+    "end": 662,
+    "sha256": "f30c632c5988a6ae7d09901695c2ae33a0f95cbd0888c26fd3d241e9068b31e8"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "start": 421,
+    "end": 457,
+    "sha256": "cdf697564ff024b13661c97f0104e29c22227b0af69be91e9a7bbfd308f289ef"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "start": 1100,
+    "end": 1152,
+    "sha256": "4657e9d88e0373315560dc4cf21c7d64fc034dcfe74f4be5dc3a01bc73889b29"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 79,
+    "end": 120,
+    "sha256": "7b9487128a37c3b2b03232e31c2e0a68ecb449e5171687abd90427be10bc629f"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 505,
+    "end": 519,
+    "sha256": "807b4c9aea82831d4c6e3a372f4a6ef6e210118d9479d02791690ac116052a13"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 555,
+    "end": 566,
+    "sha256": "032677b2d0fe071e97ccc091cf03349ab36156023ee3369a94d79e6282109f86"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 914,
+    "end": 916,
+    "sha256": "3016af2723a798ff04c8374fa580d8e01ce161a2c5d945f02f84997c7a5a3f24"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 1386,
+    "end": 1438,
+    "sha256": "2f9379ab23931592c611ee74ba1f9292f420d31fd99e9e9dc121b83908cc842c"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 1515,
+    "end": 1541,
+    "sha256": "9fab414f0a1e6d793833007310ce7a45814148660e59c0bdb3a9b86e4ae7d37f"
+  },
+  {
+    "path": "00-overview.md",
+    "start": 288,
+    "end": 311,
+    "sha256": "acc96fee04dc6a079de8a5afb848f884897e3c99133abed1b9cafc9226dd65a8"
+  },
+  {
+    "path": "00-overview.md",
+    "start": 389,
+    "end": 397,
+    "sha256": "71d228ff7adde94ae7007a1f807adbac1aaca9bc2fe7b8a6b3608a0eb81ecfc5"
+  },
+  {
+    "path": "00-overview.md",
+    "start": 443,
+    "end": 451,
+    "sha256": "c4be59ed854b43ab27f9f4164729e69d3830c327595e6924cbb8c55461b76f43"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 586,
+    "end": 589,
+    "sha256": "6a9b0545462a5f66b082de5da91cd74b24b8b1a9fa37dc50d53386b13c79e9cb"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 3402,
+    "end": 3408,
+    "sha256": "570f61747f728f366cb37a0170572a40b351d2dc6e35e6459133a53ede55c379"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "start": 4168,
+    "end": 4180,
+    "sha256": "ebaa6e806af2a7d5cc68974aa891cfb09b0b8bd2cd9f5bfb1e3a4e349e659a5a"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 757,
+    "end": 837,
+    "sha256": "5f5be4270539fb1ce7637d85cc759c074aa2cee35ed911a8e3cb8ed4184e3530"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 240,
+    "end": 267,
+    "sha256": "368554500739569a02a21b7293394afd45b5acf697d927e2133e1a246db918cf"
+  },
+  {
+    "path": "04-api-contract.md",
+    "start": 617,
+    "end": 650,
+    "sha256": "663f47e6749e7c8c9877769d9550127de7ef5a380909f8ff69d67bbc2f02a395"
+  },
+  {
+    "path": "04-api-contract.md",
+    "start": 728,
+    "end": 733,
+    "sha256": "d68f549b3f8c1473237e64700ce4f255ebbcd78a324b3ce824780cc6b8e6674d"
+  },
+  {
+    "path": "04-api-contract.md",
+    "start": 744,
+    "end": 753,
+    "sha256": "da6768e028a1c0cd721fa0bb473880daec9d43426a030a85eb8a7d33d00a25c5"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "start": 640,
+    "end": 654,
+    "sha256": "05662e3f809b1abb7b1076f4c62bef172e8bcc43f705fa91a92d891b765fe30e"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "start": 463,
+    "end": 473,
+    "sha256": "126a16b09c7d78c70931250c54b0a9325029664120ec011631558698ee5e7b2e"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 519,
+    "end": 521,
+    "sha256": "a4881cc0c41dac0658fdc768d777675e7578c7b35773fd972555a3adba4852b4"
+  },
+  {
+    "path": "05-persistence.md",
+    "start": 663,
+    "end": 673,
+    "sha256": "108a5d8681d47f741fb0b38f039cba558a1858125e2ec44b53e2695c21b1903e"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "start": 126,
+    "end": 142,
+    "sha256": "a1c37705594db5be0b9567d86ffa684eda67e74d74b09a0e425f11dbdb5e1daa"
+  },
+  {
+    "path": "04-api-contract.md",
+    "start": 1259,
+    "end": 1273,
+    "sha256": "a68174150fd1e7107ec497afe9392efc1608ae44e0507f07160d904ebc916830"
+  }
+]

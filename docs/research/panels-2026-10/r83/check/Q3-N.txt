@@ -1,0 +1,1 @@
+No repository text changes. Retain the pinned PRV-29, PRV-36, OPS-3, OPS-27, OPS-28, OPS-45, OVR-17, OVR-19 and CNF-237. Acceptance requires giving the executable chain for discovery, module ownership, per-kind dispatch, window origin, cadence, guarded settlement and operator fallback from the quoted sources, without inventing an automatic mutation retry.

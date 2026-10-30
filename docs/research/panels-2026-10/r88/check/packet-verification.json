@@ -1,0 +1,16 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "clones_clean": true,
+  "source_excerpts_match": true,
+  "short_premises_match": true,
+  "current_CNF365_unchanged_since_c7be186": true,
+  "rules_1_to_7_byte_identical_to_r82": true,
+  "launch_only_path_unit_label_changes": true,
+  "complete_form_copies_match": true,
+  "brief_bytes": 67144,
+  "grok_packet_below_1MB": true,
+  "no_candidate_adopted": true,
+  "source_excerpts_complete_paragraph_boundaries": true,
+  "consistency_findings_fixed_before_panel": true,
+  "per_seat_TMPDIR_paths_verified": true
+}

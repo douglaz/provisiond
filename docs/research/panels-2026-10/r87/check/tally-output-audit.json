@@ -1,0 +1,162 @@
+{
+  "readers": {
+    "fable": {
+      "md": {
+        "bytes": 13597,
+        "sha256": "16563bab620916c16467b0d1ca25f0c44d261d578e9f62ed9c319573f0145898"
+      },
+      "exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "exit_value": "0",
+      "err": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "err_first_last": [
+        "",
+        ""
+      ],
+      "limit_error_lines": [],
+      "drafts": []
+    },
+    "opus": {
+      "md": {
+        "bytes": 14829,
+        "sha256": "c04c4611e5559798b98f670f2fc844bfd0188e237fd49eb4682baf4076cf93d3"
+      },
+      "exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "exit_value": "0",
+      "err": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "err_first_last": [
+        "",
+        ""
+      ],
+      "limit_error_lines": [],
+      "drafts": []
+    },
+    "astra": {
+      "md": {
+        "bytes": 11667,
+        "sha256": "398423a9b0f33cc0b554267780b5d4adbe4c2f202c6239df2d16f2a211b0916c"
+      },
+      "exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "exit_value": "0",
+      "err": {
+        "bytes": 336608,
+        "sha256": "605ed43140bfe8a3b8d43f471b6f6407218fbdae535ce0afccc4a95be02356e7"
+      },
+      "err_first_last": [
+        "OpenAI Codex v0.165.0\n--------\nworkdir: /var/tmp/provisiond-panel-r87/astra\nmodel: gpt-6-astra\nprovider: openai\napproval: never\nsandbox: danger-full-access\nreasoning effort: high\nreasoning summaries: none\nsession id: 01a18ea4-e67b-74e2-8b1c-8ae275a70aac\n--------\nuser\n# r87 \u2014 triage-1030 Panel H: migration connection refusal (pv-3zzo)\n\nRead this brief and `/var/tmp/provisiond-panel-r87/notes.md` whole. Your independent reader clone is pinned to **3109b5b44eae17e288cf52aaa976993bd8c5626c**, fetched origin/master. No source has been amended. This is a launch-only reading round on the exact alternatives below, not an implementation or adoption.\n\nRead-only: do not change source, Git state, tracker or panel records; do not commit, push, checkout, reset, stash, clean, contact a PR or start subage",
+        "ases with component startup.\n\nI found no verified existing rule that settles the whole question. B\u2019s candidate inconsistency does not overturn the premise that the pinned migration-refusal outcome is missing. Under notes rule 6, I therefore identify no premise-changing brief error requiring this question to be voided. I make no tally.\n\n5. **Owner question**\n\n**For pv-3zzo, adopt the exact r87 Q1 package A\u2014STO-55 insertion, STO-13 release boundary and CNF-57 cases\u2014so a refused updater reports why and stops immediately, leaving the deployment to invoke it again?**\n\nThat choice accepts possible repeated deployment invocations and potentially indefinite overall release delay while capacity remains unavailable. B instead purchases an internally waiting process, repeated authority calls and a deployment-selected duration; its printed fixture conflict prevents accepting that exact package. Panel authorization adopted neither cost preference.\nhook: Stop\nhook: Stop Completed\ntokens used\n66,804\n"
+      ],
+      "limit_error_lines": [
+        "5. A reader answering with a usage-limit line is a missing seat, not a vote. This includes Fable regardless of exit code. Failed, empty, unavailable or non-substantive outputs are not votes. Verify actual output, not exit 0 alone. If grok is down after launch, apply rule 2's three-of-four fallback; a prelaunch \"Not signed in\" stops the launch for the owner to sign in.",
+        "Entry quota readings: Claude session 27% (reset Oct 30 23:00 UTC), week all models 61% (reset Nov 5 15:00 UTC), week Fable 86% exempt (same weekly reset); active Codex WEEK 95%, permitted below 100%. Session/all-model week >80% or unavailable holds; Fable never holds. Codex at 100% or a usage-limit error stops new Codex work, with main to handle switching. Read quotas again before reader launch and record in STATE.md."
+      ],
+      "out": {
+        "bytes": 11668,
+        "sha256": "65192054341bbc991ae1189cf114eb0aa048ba35b8840656ac1f333bb3e5f018"
+      },
+      "out_equals_md_ignoring_final_newline": true,
+      "drafts": []
+    },
+    "sol": {
+      "md": {
+        "bytes": 10604,
+        "sha256": "84c2cca9acc6bae80f01d764301e770fcd8294cbeafdd847c9660324b5f5982f"
+      },
+      "exit": {
+        "bytes": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "exit_value": "0",
+      "err": {
+        "bytes": 330670,
+        "sha256": "ae9080b6940f960d1624d20bc886336a57a141b7b7f340ef903a2a1b2b95c466"
+      },
+      "err_first_last": [
+        "OpenAI Codex v0.165.0\n--------\nworkdir: /var/tmp/provisiond-panel-r87/sol\nmodel: gpt-6.1-sol\nprovider: openai\napproval: never\nsandbox: danger-full-access\nreasoning effort: xhigh\nreasoning summaries: none\nsession id: 01a18ea4-e719-7c60-b432-a565c2982269\n--------\nuser\n# r87 \u2014 triage-1030 Panel H: migration connection refusal (pv-3zzo)\n\nRead this brief and `/var/tmp/provisiond-panel-r87/notes.md` whole. Your independent reader clone is pinned to **3109b5b44eae17e288cf52aaa976993bd8c5626c**, fetched origin/master. No source has been amended. This is a launch-only reading round on the exact alternatives below, not an implementation or adoption.\n\nRead-only: do not change source, Git state, tracker or panel records; do not commit, push, checkout, reset, stash, clean, contact a PR or start subagen",
+        "ce. Nor can the retry policy be imported from [OPS-49](https://github.com/douglaz/provisiond/blob/3109b5b44eae17e288cf52aaa976993bd8c5626c/03-operation-lifecycle.md#L1925), whose subject is \u201ca worker, or by a periodic component running in the engine process.\u201d\n\n**Premise check and owner question**\n\nThe pinned JSONL matches the packet bead, and the STO-55/STO-13 owner spans match the filing baseline. I found no premise-changing brief error and no candidate contradicting its own fixture. Under notes.md rule 6, I therefore identify no basis to void this question.\n\nThe owner question is: **Adopt exact r87 Q1 A, requiring immediate diagnostic failure and a later deployment invocation, or exact r87 Q1 B, keeping the migrator alive to retry within a validated deployment-stated bound?** I recommend A. B\u2019s waiting/resource cost and new parameter require an explicit owner choice; panel-launch approval did not make it.\n\nNo source, tracker or panel records were edited; no gates or builds were run.\nhook: Stop\nhook: Stop Completed\ntokens used\n79,598\n"
+      ],
+      "limit_error_lines": [
+        "5. A reader answering with a usage-limit line is a missing seat, not a vote. This includes Fable regardless of exit code. Failed, empty, unavailable or non-substantive outputs are not votes. Verify actual output, not exit 0 alone. If grok is down after launch, apply rule 2's three-of-four fallback; a prelaunch \"Not signed in\" stops the launch for the owner to sign in.",
+        "Entry quota readings: Claude session 27% (reset Oct 30 23:00 UTC), week all models 61% (reset Nov 5 15:00 UTC), week Fable 86% exempt (same weekly reset); active Codex WEEK 95%, permitted below 100%. Session/all-model week >80% or unavailable holds; Fable never holds. Codex at 100% or a usage-limit error stops new Codex work, with main to handle switching. Read quotas again before reader launch and record in STATE.md."
+      ],
+      "out": {
+        "bytes": 10605,
+        "sha256": "3a43989b6f564011949d1cd61b28ce84c58f4163a28d5e261ec7e0af153ea418"
+      },
+      "out_equals_md_ignoring_final_newline": true,
+      "drafts": []
+    }
+  },
+  "source_spans": [
+    {
+      "path": "05-persistence.md",
+      "lo": 247,
+      "hi": 330,
+      "verbatim": true
+    },
+    {
+      "path": "05-persistence.md",
+      "lo": 1529,
+      "hi": 1610,
+      "verbatim": true
+    },
+    {
+      "path": "05-persistence.md",
+      "lo": 166,
+      "hi": 209,
+      "verbatim": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "lo": 1925,
+      "hi": 1945,
+      "verbatim": true
+    },
+    {
+      "path": "10-conformance-checklist.md",
+      "lo": 365,
+      "hi": 390,
+      "verbatim": true
+    },
+    {
+      "path": "10-conformance-checklist.md",
+      "lo": 1147,
+      "hi": 1182,
+      "verbatim": true
+    },
+    {
+      "path": "00-overview.md",
+      "lo": 338,
+      "hi": 352,
+      "verbatim": true
+    },
+    {
+      "path": "00-overview.md",
+      "lo": 363,
+      "hi": 367,
+      "verbatim": true
+    },
+    {
+      "path": "00-overview.md",
+      "lo": 416,
+      "hi": 437,
+      "verbatim": true
+    }
+  ],
+  "gate_clone_pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "tracked_clone_status": ""
+}

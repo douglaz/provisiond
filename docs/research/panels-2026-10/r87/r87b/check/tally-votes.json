@@ -1,0 +1,134 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "question": "Q1 pv-3zzo",
+  "round": "r87b",
+  "one_consensus_round_exhausted": true,
+  "grok": {
+    "status": "missing",
+    "reason": "HTTP 402; round preflight and main 21:35Z check"
+  },
+  "votes": {
+    "fable": {
+      "final": "O",
+      "A": "CANNOT ACCEPT",
+      "B": "CANNOT ACCEPT",
+      "C": "ACCEPT",
+      "D": "CANNOT ACCEPT",
+      "F": "ACCEPT",
+      "O": "ACCEPT",
+      "strongest": "Immediate reported exit with deployment reinvocation; the authority-return wording adds an undefined response-shape obligation and credential tension.",
+      "conditions": "No repair needed for O; F also accepted. C accepted as a coherent weaker contract, not preferred."
+    },
+    "opus": {
+      "final": "F",
+      "A": "ACCEPT WITH THIS FIX",
+      "B": "CANNOT ACCEPT",
+      "C": "CANNOT ACCEPT",
+      "D": "CANNOT ACCEPT",
+      "F": "ACCEPT",
+      "O": "ACCEPT",
+      "strongest": "The authority-return wording identifies the reason source and allows the harness to compare the diagnostic with the actual refusal.",
+      "conditions": "O accepted without repair. A acceptance requires deleting the peer-status field and does not count for printed A. Credentials must still be redacted."
+    },
+    "astra": {
+      "final": "O",
+      "A": "ACCEPT",
+      "B": "CANNOT ACCEPT",
+      "C": "CANNOT ACCEPT",
+      "D": "CANNOT ACCEPT",
+      "F": "ACCEPT",
+      "O": "ACCEPT",
+      "strongest": "Preserve immediate failure, successful-migration boundary and independent fixtures while avoiding unnecessary peer-context and reason-format obligations.",
+      "conditions": "F also accepted exactly; A remains acceptable as additional deployment integration work, not impossible."
+    },
+    "sol": {
+      "final": "O",
+      "A": "ACCEPT",
+      "B": "CANNOT ACCEPT",
+      "C": "CANNOT ACCEPT",
+      "D": "CANNOT ACCEPT",
+      "F": "ACCEPT",
+      "O": "ACCEPT",
+      "strongest": "Deployment controls the next invocation; a truthful normalized refusal reason suffices without the extra provenance wording.",
+      "conditions": "F also accepted exactly. Withdraws r87 B acceptance after checking the release-before-confirmation trace."
+    }
+  },
+  "explicit_final_preferences": {
+    "O": [
+      "fable",
+      "astra",
+      "sol"
+    ],
+    "F": [
+      "opus"
+    ]
+  },
+  "acceptability": {
+    "A": {
+      "accept": [
+        "astra",
+        "sol"
+      ],
+      "conditional": [
+        "opus"
+      ],
+      "cannot_accept": [
+        "fable"
+      ]
+    },
+    "B": {
+      "accept": [],
+      "conditional": [],
+      "cannot_accept": [
+        "fable",
+        "opus",
+        "astra",
+        "sol"
+      ]
+    },
+    "C": {
+      "accept": [
+        "fable"
+      ],
+      "conditional": [],
+      "cannot_accept": [
+        "opus",
+        "astra",
+        "sol"
+      ]
+    },
+    "D": {
+      "accept": [],
+      "conditional": [],
+      "cannot_accept": [
+        "fable",
+        "opus",
+        "astra",
+        "sol"
+      ]
+    },
+    "F": {
+      "accept": [
+        "fable",
+        "opus",
+        "astra",
+        "sol"
+      ],
+      "conditional": [],
+      "cannot_accept": []
+    },
+    "O": {
+      "accept": [
+        "fable",
+        "opus",
+        "astra",
+        "sol"
+      ],
+      "conditional": [],
+      "cannot_accept": []
+    }
+  },
+  "void_under_rule_6": false,
+  "settlement": "O final preference 3\u20131; F and O each accepted by all four; preserve both acceptance sets and explicit preferences",
+  "next": "Owner approval of exact O, recommended; no adoption or new round"
+}

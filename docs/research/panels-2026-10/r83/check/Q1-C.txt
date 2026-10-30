@@ -1,0 +1,26 @@
+At the end of CNF-202, before its existing amendment note, append:
+
+Separately exercise the suspension fan-out's administrative write directly through the store,
+on independent fixtures. These are store cases, not a claim that normal queue ordering leaves
+an eligible create unclaimed. Independently for create, install and power, seed a never-claimed queued operation, a suspended tenant
+and this suspension's unsettled parent. Run the write and assert one affected row, failed,
+conflict with details.reason: "tenant_suspended", requested_by unchanged as caller,
+system_reason null, and no provider request. For a create seed an open commitment with a nonzero
+reserve, a nonzero setup fee and prepaid first unit; assert full release and no setup-fee or
+first-unit debit. LDG-32 says "the create fails deterministically".
+
+Vary one guard term at a time on fresh fixtures: requested_by system on a queued cancellation;
+requested_by operator on a queued API-64 retry; status running under a real claim; tenant active;
+and this suspension's parent already settled while the tenant is suspended. In each case assert
+zero affected rows, the operation and its origin/error unchanged, and no commitment or provider
+effect from this administrative write. Keep the other guard terms satisfied in each fixture.
+Include a stale old-parent write after resume and a fresh suspension: the old settled parent
+cannot authorize the write under the new suspension.
+
+Race a real claim against the administrative write in both orders. Administrative failure first
+prevents the claim. Claim first prevents the administrative failure, preserves the returned
+claim number, and leaves settlement to that worker. A claimed create first picked up while the
+tenant is suspended follows OPS-43's tenant-status refusal, not a purchase; it is not required
+to succeed merely because its claim defeated the administrative write. Preserve the existing
+held-power scenario above as the scheduling case; do not replace it with a normally eligible
+create.

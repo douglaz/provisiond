@@ -1,0 +1,35 @@
+{
+  "fable": [],
+  "opus": [],
+  "astra": [
+    "/run/current-system/sw/bin/bash -lc 'cat /var/tmp/provisiond-panel-r87/r87b/notes.md' in /var/tmp/provisiond-panel-r87/r87b/astra",
+    "/run/current-system/sw/bin/bash -lc 'git rev-parse HEAD' in /var/tmp/provisiond-panel-r87/r87b/astra",
+    "/run/current-system/sw/bin/bash -lc 'cat AGENTS.md docs/agents/domain.md' in /var/tmp/provisiond-panel-r87/r87b/astra",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '247,330p' 05-persistence.md",
+    "/run/current-system/sw/bin/bash -lc \"rg -n 'STO-55|STO-13|STO-12|admission|transactional_holds_nothing_refused|large_index_is_standalone|no_home_without_standalone_rule|migrateCreate|claimed_legacy_create_stays_unresolved' tools/formal/Provisiond/Migration.lean tools/formal/Provisiond/Restore.lean tools/formal/Provisiond/Witnesses.lean",
+    "/run/current-system/sw/bin/bash -lc \"wc -l CONTEXT.md",
+    "/run/current-system/sw/bin/bash -lc 'cat CONTEXT.md' in /var/tmp/provisiond-panel-r87/r87b/astra",
+    "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0024-migrations-run-before-the-release-and-only-a-contract-step-needs-an-outage.md docs/adr/0025-a-formalized-clause-lives-in-lean-and-the-markdown-renders-it.md docs/adr/0045-every-commit-waits-for-a-standby-and-promotion-follows-wal-history.md' in /var/tmp/provisiond-panel-r87/r87b/astra",
+    "/run/current-system/sw/bin/bash -lc \"cat tools/formal/Provisiond/Migration.lean",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '365,550p' CONTEXT.md",
+    "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0045-every-commit-waits-for-a-standby-and-promotion-follows-wal-history.md' in /var/tmp/provisiond-panel-r87/r87b/astra"
+  ],
+  "sol": [
+    "/run/current-system/sw/bin/bash -lc 'cat /var/tmp/provisiond-panel-r87/r87b/notes.md' in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"pwd && git rev-parse HEAD && git status --short && rg --files -g 'AGENTS.md' -g 'CONTEXT.md' -g 'README.md' -g '*migration*' -g '*Migration*' -g 'docs/agents/**' -g '*panel*' .\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"rg -n --glob '*.lean' 'STO-55|STO-13|STO-12|migration|migrateCreate|claimed_legacy_create|transactional_holds_nothing_refused|large_index_is_standalone|no_home_without_standalone_rule|admission|refusal' tools/formal && rg -n 'pv-3zzo|migration.*refus|admission.*migrat' .beads/issues.jsonl && rg --files tools .github\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc 'cat AGENTS.md docs/agents/domain.md CONTEXT.md' in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '150,330p' 05-persistence.md && sed -n '1520,1620p' 05-persistence.md && sed -n '125,150p' 03-operation-lifecycle.md && sed -n '1920,1955p' 03-operation-lifecycle.md\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '320,450p' 00-overview.md && sed -n '350,400p' 10-conformance-checklist.md && sed -n '1135,1190p' 10-conformance-checklist.md && cat docs/adr/0024-migrations-run-before-the-release-and-only-a-contract-step-needs-an-outage.md\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '365,390p' 10-conformance-checklist.md && sed -n '1147,1182p' 10-conformance-checklist.md && sed -n '338,367p' 00-overview.md && sed -n '416,437p' 00-overview.md\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0024-migrations-run-before-the-release-and-only-a-contract-step-needs-an-outage.md && cat tools/formal/Provisiond/Migration.lean' in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '278,325p' 05-persistence.md && sed -n '1529,1610p' 05-persistence.md && sed -n '135,143p' 03-operation-lifecycle.md && sed -n '1925,1948p' 03-operation-lifecycle.md\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"python3 - <<'PY'",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '1,200p' tools/check_obligations.py && sed -n '1,150p' tools/check_regions.py && rg -n 'Requirement conventions|@[[]req|formal|render' README.md && rg -n '\"'^#|STO-55|migrat|budget|capacity|reservation|admission'\"' docs/adr/0045*.md docs/adr/0025*.md\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '640,665p' tools/formal/Provisiond/Restore.lean && sed -n '1275,1305p' tools/formal/Provisiond/Witnesses.lean && sed -n '3195,3235p' tools/formal/Provisiond/Witnesses.lean && sed -n '505,540p' .github/workflows/ci.yml\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"rg -n -e 'Requirement conventions' -e 'formal' -e 'render' README.md && rg -n '\"'^#|STO-55|migrat|budget|capacity|reservation|admission'\"' docs/adr/0045*.md docs/adr/0025*.md\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '175,209p' 05-persistence.md && sed -n '115,150p' 00-overview.md && rg -n '\"'^##|'\"\\\\*\\\\*Migration|migrat|runner|pool|admission|reservation' CONTEXT.md && GIT_OPTIONAL_LOCKS=0 git status --short\" in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc 'GIT_OPTIONAL_LOCKS=0 git diff --quiet && GIT_OPTIONAL_LOCKS=0 git diff --cached --quiet && GIT_OPTIONAL_LOCKS=0 git status --short && git rev-parse HEAD' in /var/tmp/provisiond-panel-r87/r87b/sol",
+    "/run/current-system/sw/bin/bash -lc \"sed -n '1,37p' docs/adr/0045-every-commit-waits-for-a-standby-and-promotion-follows-wal-history.md && sed -n '82,107p' docs/adr/0045-every-commit-waits-for-a-standby-and-promotion-follows-wal-history.md && sed -n '37,75p' docs/adr/0025-a-formalized-clause-lives-in-lean-and-the-markdown-renders-it.md && sed -n '175,220p' docs/adr/0025-a-formalized-clause-lives-in-lean-and-the-markdown-renders-it.md\" in /var/tmp/provisiond-panel-r87/r87b/sol"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "source_excerpts_match": true,
+  "form_copies_match_frozen_brief": true,
+  "NEITHER_byte_identical": true,
+  "amendments_insert_only_in_owner_and_check": true,
+  "bead_matches_committed_pin": true,
+  "freshness_rechecked": true,
+  "reader_exits_substantive_and_stdout_matches": true,
+  "forms": {
+    "C-WITNESS": {
+      "sha256": "48bfd1c34d55e865ecb783acc01e730878d71ee7540b4de25613650e9bf97c23",
+      "bytes": 15006
+    },
+    "C-UNKNOWN": {
+      "sha256": "84b5e77d55ed3d3fcf1d4f0d2ffd8020d5abff978c3d949c991a7c449067902b",
+      "bytes": 12939
+    },
+    "NEITHER": {
+      "sha256": "0e72d316e4301c5b5765066250a2e73500dd21c68d841076619a503b71b3e7f2",
+      "bytes": 7385
+    }
+  },
+  "initial_gate_exit": 0,
+  "main_worktree_untouched": true,
+  "final_gate_exit": 0,
+  "initial_and_final_all_gates_pass_including_Lean": true,
+  "final_pinned_source_clean": true,
+  "finished_at": "2026-10-30T21:41:13.785087+00:00"
+}

@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-30T21:44:14.232586+00:00",
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "gates": {
+    "before": {
+      "actual_exit": 0,
+      "all_gates_passed": true,
+      "sha256": "1c9192e34674c091e55c24946c4488f8fffd326d4162b7f717b4cf05b11ff519",
+      "host_lake_build_count_at_admission": 1
+    },
+    "final": {
+      "actual_exit": 0,
+      "all_gates_passed": true,
+      "sha256": "4e1f46df8932e227ad761503a61763866274762d66d9fa96cbd456d7fe7e90de",
+      "host_lake_build_count_at_admission": 1
+    }
+  },
+  "reader_pins_and_clean_tracked_trees": true,
+  "gate_clone_pinned_tracked_clean": true,
+  "owner_question_count": 1,
+  "new_reader_rounds": 0,
+  "main_checkout_access": "none",
+  "panel_result": "O 3 final preferences; F 1; F and O each ACCEPT 4/4",
+  "owner_approval_required": true
+}

@@ -1,0 +1,45 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "verbatim_answers": {
+    "fable": {
+      "bytes": 13046,
+      "sha256": "7249a885f78bf4f29d3d203ac697d7ab95773e9aa825602811ce08db3bbbb960"
+    },
+    "opus": {
+      "bytes": 15166,
+      "sha256": "661d76c1d5688bf52ac05ae2a2f930928203b7c2367325d846da26c5a77a93b2"
+    },
+    "astra": {
+      "bytes": 13190,
+      "sha256": "aec19e7f0374c7ded9e73c8f8060586e7968793d87f745170db5820bc8aa7769"
+    },
+    "sol": {
+      "bytes": 13303,
+      "sha256": "cd515103d04302fa71789a97c21c6f552e3d4a531931cd06d46358fd0e8a907f"
+    }
+  },
+  "clones": {
+    "fable": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "opus": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "astra": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "sol": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "consistency": "3109b5b44eae17e288cf52aaa976993bd8c5626c"
+  },
+  "sizes": {
+    "brief.md": {
+      "bytes": 148000,
+      "sha256": "1fdc3472f5e03ebd7b0be7985f880fb5b182d9bc09923472d75da6aaee24e7e6"
+    },
+    "notes.md": {
+      "bytes": 4702,
+      "sha256": "dad359afb112bfc245649eb1873fc97bcb794b08722dd06d504659427ec7c031"
+    }
+  },
+  "caps": {
+    "consistency-caps.txt": "Id=panel-r86b-consistency.service\nActiveState=active\nSubState=running\nMainPID=383857\nOOMPolicy=continue\nExecStart={ path=/bin/sh ; argv[]=/bin/sh /var/tmp/provisiond-panel-r86/r86b/check/run-consistency.sh ; ignore_errors=no ; start_time=[Fri 2026-10-30 20:45:50 UTC] ; stop_time=[n/a] ; pid=383857 ; code=(null) ; status=0/0 }\nMemoryMax=17179869184\nMemorySwapMax=0\nEnvironment=PATH=/home/user/.npm-global/bin:/home/user/.npm-global/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-path:/home/user/.local/bin:/run/wrappers/bin:/home/user/.npm-global/bin:/home/user/.nix-profile/bin:/nix/profile/bin:/home/user/.local/state/nix/profile/bin:/etc/profiles/per-user/user/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin TMPDIR=/var/tmp/provisiond-panel-r86/r86b/tmp\n",
+    "grok-probe-caps.txt": "Id=panel-r86b-grok-probe.service\nActiveState=active\nSubState=running\nMainPID=383860\nOOMPolicy=continue\nExecStart={ path=/bin/sh ; argv[]=/bin/sh /var/tmp/provisiond-panel-r86/r86b/check/run-grok-probe.sh ; ignore_errors=no ; start_time=[Fri 2026-10-30 20:45:50 UTC] ; stop_time=[n/a] ; pid=383860 ; code=(null) ; status=0/0 }\nMemoryMax=17179869184\nMemorySwapMax=0\nEnvironment=PATH=/home/user/.npm-global/bin:/home/user/.npm-global/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-path:/home/user/.local/bin:/run/wrappers/bin:/home/user/.npm-global/bin:/home/user/.nix-profile/bin:/nix/profile/bin:/home/user/.local/state/nix/profile/bin:/etc/profiles/per-user/user/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin TMPDIR=/var/tmp/provisiond-panel-r86/r86b/tmp\n"
+  },
+  "packet_bytes": 152702,
+  "grok_size_verdict": "complete round packet fits below about 1 MB; no split needed",
+  "consistency": "one substantive pass, exit 0; both minimum wording corrections applied; no semantic resolution"
+}

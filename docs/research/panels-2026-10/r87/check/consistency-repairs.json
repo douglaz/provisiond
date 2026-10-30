@@ -1,0 +1,13 @@
+{
+  "consistency_review_exit": 0,
+  "reviewer_findings": 6,
+  "all_six_repaired_before_panel_votes": true,
+  "repairs": "check/consistency-repairs.diff",
+  "final_form_assertions_pass": true,
+  "packet_bytes": 60692,
+  "packet_sha256": {
+    "brief.md": "0ebaae92901977418691049ddc79df8e1935ba9befe49848cb081ba6df3e78a2",
+    "notes.md": "6a8978bf9789aeb884e536cdde3c312d3875a3bcdee015968e408720d5b7cd52"
+  },
+  "new_forms_not_yet_panel_voted": true
+}
