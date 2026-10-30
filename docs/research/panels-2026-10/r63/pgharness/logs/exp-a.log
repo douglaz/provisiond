@@ -1,0 +1,39 @@
+## (a) crash-restart makes a waiting commit visible
+# SETUP: p, s1, s2 up; s1:streaming:quorum s2:streaming:quorum; synchronous_standby_names=ANY 1 (s1, s2)
+# stopped s1 (fast)
+# stopped s2 (fast)
+# FREEZE: both standbys stopped
+$ [p postgres] show restart_after_crash
+on
+$ [p postgres] select pid, usename, wait_event, state, left(query,40) from pg_stat_activity where wait_event='SyncRep'
+2350254|app|SyncRep|active|insert into t values (1,'D')
+$ [p postgres] select count(*) as row1_visible_before from t where id=1
+0
+# postmaster pid before crash: 2349676; start time: 2026-10-23 05:34:34.475319+00
+# kill -9 backend 2350281 (parent 2349676 = postmaster of p)
+# postmaster pid after crash: 2349676; start time: 2026-10-23 05:34:34.475319+00
+# waiting client's output (exit 2):
+WARNING:  terminating connection because of crash of another server process
+DETAIL:  The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.
+HINT:  In a moment you should be able to reconnect to the database and repeat your command.
+server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+connection to server was lost
+$ [p postgres] select * from t where id=1
+1|D
+$ [p postgres] select application_name, state, flush_lsn from pg_stat_replication
+# server log lines:
+2026-10-23 05:34:34.519 UTC [2349676] LOG:  database system is ready to accept connections
+2026-10-23 05:34:46.205 UTC [2349676] LOG:  client backend (PID 2350281) was terminated by signal 9: Killed
+2026-10-23 05:34:46.207 UTC [2349676] LOG:  all server processes terminated; reinitializing
+2026-10-23 05:34:47.116 UTC [2350307] LOG:  redo done at 0/40085C8 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-10-23 05:34:47.243 UTC [2349676] LOG:  database system is ready to accept connections
+# new connection: primary flush position T=0/4008668, insert=0/4012180
+$ [p postgres] select count(*) as named_standbys_at_or_past_T from pg_stat_replication where application_name in ('s1','s2') and flush_lsn >= '0/4008668'
+0
+$ [p postgres] select application_name, state, flush_lsn, flush_lsn >= '0/4008668' as passed from pg_stat_replication
+s1|streaming|0/4012000|t
+$ [s1 postgres] select * from t where id=1
+1|D
+# teardown done

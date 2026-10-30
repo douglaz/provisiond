@@ -1,0 +1,1 @@
+psql: error: connection to server on socket "/var/tmp/provisiond-pgharness/sock/.s.PGSQL.55432" failed: FATAL:  remaining connection slots are reserved for roles with the SUPERUSER attribute

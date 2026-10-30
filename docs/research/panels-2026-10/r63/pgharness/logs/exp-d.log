@@ -1,0 +1,49 @@
+## (d) cross-failover barrier counterexample
+# SETUP: p, s1, s2 up; s1:streaming:quorum s2:streaming:quorum; synchronous_standby_names=ANY 1 (s1, s2)
+# stopped s1 (fast)
+# stopped s2 (fast)
+# FREEZE: both standbys stopped
+# postmaster pid before crash: 2376089; start time: 2026-10-23 05:36:55.838169+00
+# kill -9 backend 2376589 (parent 2376089 = postmaster of p)
+# postmaster pid after crash: 2376089; start time: 2026-10-23 05:36:55.838169+00
+# a client reads D on p (its own transaction):
+$ [p app] select v from t where id=1
+D
+# p end of WAL before loss: insert=0/47BC3B0 timeline=1
+# stopped p (immediate)
+$ [s1 postgres] select 's1' as node, pg_last_wal_receive_lsn() as receive, pg_last_wal_replay_lsn() as replay
+s1|0/4000000|0/4000000
+$ [s2 postgres] select 's2' as node, pg_last_wal_receive_lsn() as receive, pg_last_wal_replay_lsn() as replay
+s2|0/4000000|0/4000000
+# promoted s1
+# stopped s2 (fast)
+$ [s1 postgres] show synchronous_standby_names
+ANY 1 (s1, s2)
+# barrier on the promoted store, as app:
+$ [s1 app] insert into barrier default values returning id
+1
+INSERT 0 1
+$ [s1 postgres] select application_name, state, sync_state, flush_lsn >= pg_current_wal_flush_lsn() as acked_through_now from pg_stat_replication
+s2|streaming|quorum|t
+$ [s1 postgres] select count(*) as row1_on_promoted_store from t where id=1
+0
+$ [s2 postgres] select count(*) as row1_on_s2 from t where id=1
+0
+## (e2) old primary rejoins as a standby of s1 WITHOUT pg_rewind
+# old p log lines:
+2026-10-23 05:37:10.955 UTC [2376889] LOG:  primary server contains no more WAL on requested timeline 1
+2026-10-23 05:37:10.955 UTC [2376818] LOG:  new timeline 2 forked off current database system timeline 1 before current recovery point 0/47B2898
+2026-10-23 05:37:10.955 UTC [2376889] LOG:  primary server contains no more WAL on requested timeline 1
+2026-10-23 05:37:10.955 UTC [2376818] LOG:  new timeline 2 forked off current database system timeline 1 before current recovery point 0/47B2898
+2026-10-23 05:37:15.960 UTC [2376889] LOG:  primary server contains no more WAL on requested timeline 1
+2026-10-23 05:37:15.960 UTC [2376818] LOG:  new timeline 2 forked off current database system timeline 1 before current recovery point 0/47B2898
+$ [p postgres] select 'p' as node, pg_last_wal_receive_lsn() as receive, pg_last_wal_replay_lsn() as replay, (select timeline_id from pg_control_checkpoint()) as checkpoint_tli, (select received_tli from pg_stat_wal_receiver) as received_tli
+p|0/4000000|0/47B2898|1|1
+$ [s2 postgres] select 's2' as node, pg_last_wal_receive_lsn() as receive, pg_last_wal_replay_lsn() as replay, (select timeline_id from pg_control_checkpoint()) as checkpoint_tli, (select received_tli from pg_stat_wal_receiver) as received_tli
+s2|0/4004658|0/4004658|1|2
+$ [s1 postgres] select 's1' as node, pg_current_wal_flush_lsn() as flush, (select timeline_id from pg_control_checkpoint()) as tli
+s1|0/4004658|2
+$ [s1 postgres] select application_name, state from pg_stat_replication
+s2|streaming
+p|startup
+# teardown done

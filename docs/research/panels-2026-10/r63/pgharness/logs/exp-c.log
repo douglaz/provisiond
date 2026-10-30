@@ -1,0 +1,57 @@
+## (c) abandoned clients
+# SETUP: p, s1, s2 up; s1:streaming:quorum s2:streaming:quorum; synchronous_standby_names=ANY 1 (s1, s2)
+# stopped s1 (fast)
+# stopped s2 (fast)
+# FREEZE: both standbys stopped
+# postmaster pid 2355506; max_connections=20, superuser_reserved_connections=3
+# kill -9 client psql 2359195 (our child)
+$ [p postgres] select pid, usename, wait_event, state from pg_stat_activity where wait_event='SyncRep'
+2359199|app|SyncRep|active
+$ [p postgres] set lock_timeout='1s'; insert into t values (10,'dup')
+SET
+ERROR:  canceling statement due to lock timeout
+CONTEXT:  while inserting index tuple (0,2) in relation "t_pkey"
+# kill -9 client psql 2361654 (our child)
+# kill -9 client psql 2361893 (our child)
+# kill -9 client psql 2361920 (our child)
+# kill -9 client psql 2361948 (our child)
+# kill -9 client psql 2361972 (our child)
+# kill -9 client psql 2362226 (our child)
+# kill -9 client psql 2362239 (our child)
+# kill -9 client psql 2362251 (our child)
+# kill -9 client psql 2362290 (our child)
+# kill -9 client psql 2362328 (our child)
+# kill -9 client psql 2362356 (our child)
+# kill -9 client psql 2362368 (our child)
+# kill -9 client psql 2362380 (our child)
+# kill -9 client psql 2362398 (our child)
+# kill -9 client psql 2362410 (our child)
+# kill -9 client psql 2362422 (our child)
+# attempt 27 refused:
+psql: error: connection to server on socket "/var/tmp/provisiond-pgharness/sock/.s.PGSQL.55432" failed: FATAL:  remaining connection slots are reserved for roles with the SUPERUSER attribute
+# abandoned waiters created in the loop: 16 (plus id 10)
+$ [p postgres] select count(*) as syncrep_backends from pg_stat_activity where wait_event='SyncRep'
+17
+# postmaster pid now 2355506 (was 2355506): no restart
+$ [p postgres] select count(*) as syncrep_backends_after_release from pg_stat_activity where wait_event='SyncRep'
+0
+$ [p postgres] select count(*) as rows_visible from t where id between 10 and 40
+17
+$ [p postgres] alter system set client_connection_check_interval='1s'
+ALTER SYSTEM
+$ [p postgres] alter system set tcp_keepalives_idle=1
+ALTER SYSTEM
+$ [p postgres] alter system set tcp_keepalives_interval=1
+ALTER SYSTEM
+$ [p postgres] alter system set tcp_keepalives_count=2
+ALTER SYSTEM
+$ [p postgres] select pg_reload_conf()
+t
+# stopped s1 (fast)
+# FREEZE again
+$ [p postgres] select pid, client_addr, wait_event, (select setting from pg_settings where name='client_connection_check_interval') from pg_stat_activity where wait_event='SyncRep'
+2362620|127.0.0.1|SyncRep|1000
+# kill -9 client psql 2362614 (our child)
+$ [p postgres] select pid, client_addr, wait_event, state, round(extract(epoch from now()-query_start)) as secs from pg_stat_activity where wait_event='SyncRep'
+2362620|127.0.0.1|SyncRep|active|30
+# teardown done

@@ -1,0 +1,6 @@
+WARNING:  canceling the wait for synchronous replication and terminating connection due to administrator command
+DETAIL:  The transaction has already committed locally, but might not have been replicated to the standby.
+server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+connection to server was lost

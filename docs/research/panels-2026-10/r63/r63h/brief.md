@@ -22,7 +22,7 @@ You are one of four independent readers. Read, verify and vote.
 - `/var/tmp/provisiond-panel-r63g/{opus,astra,sol}.md` and `fable.draft.md`: r63g's four answers. Read them only to
   check a quote.
 - `/var/tmp/provisiond-panel-r63g/verify.md`: the claims of the external review, checked. Mind the errata.
-- `/var/tmp/provisiond-pgharness/results.md`: a PostgreSQL 18.6 harness with a primary and two standbys,
+- `/var/tmp/provisiond-pgharness/results.md` (repository copy: `docs/research/panels-2026-10/r63/pgharness/results.md`): a PostgreSQL 18.6 harness with a primary and two standbys,
   `ANY 1 (s1, s2)`. It is cited as H-a … H-f.
 - Sources:
   - `/var/tmp/provisiond-panel-r63f/src/`: PostgreSQL 18 `18-xact.c`, `18-syncrep.c`, `postmaster.c`, `walsender.c`

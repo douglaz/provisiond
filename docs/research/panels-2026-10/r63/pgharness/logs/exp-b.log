@@ -1,0 +1,34 @@
+## (b) cancelled wait
+# SETUP: p, s1, s2 up; s1:streaming:quorum s2:streaming:quorum; synchronous_standby_names=ANY 1 (s1, s2)
+# stopped s1 (fast)
+# stopped s2 (fast)
+# FREEZE: both standbys stopped
+$ [p postgres] select pid, wait_event, state, round(extract(epoch from now()-query_start)) as secs_waiting, (select setting from pg_settings where name='statement_timeout') from pg_stat_activity where wait_event='SyncRep'
+2354014|SyncRep|active|6|0
+# waiter's session settings: statement_timeout=2s, transaction_timeout=3s (psql -c 'set ...')
+$ [p postgres] select count(*) as row2_visible_before from t where id=2
+0
+$ [p postgres] select pg_cancel_backend(pid) from pg_stat_activity where wait_event='SyncRep'
+t
+# waiter's output after pg_cancel_backend (exit 0):
+SET
+SET
+WARNING:  canceling wait for synchronous replication due to user request
+DETAIL:  The transaction has already committed locally, but might not have been replicated to the standby.
+INSERT 0 1
+$ [p postgres] select * from t where id=2
+2|B
+$ [p postgres] select count(*) as standbys from pg_stat_replication
+0
+$ [p postgres] select pg_terminate_backend(pid) from pg_stat_activity where wait_event='SyncRep'
+t
+# waiter's output after pg_terminate_backend (exit 2):
+WARNING:  canceling the wait for synchronous replication and terminating connection due to administrator command
+DETAIL:  The transaction has already committed locally, but might not have been replicated to the standby.
+server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+connection to server was lost
+$ [p postgres] select * from t where id=3
+3|T
+# teardown done

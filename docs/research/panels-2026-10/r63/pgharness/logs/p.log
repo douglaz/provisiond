@@ -1,0 +1,22 @@
+2026-10-23 05:39:01.268 UTC [2381722] LOG:  starting PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by clang version 21.1.8, 64-bit
+2026-10-23 05:39:01.268 UTC [2381722] LOG:  listening on IPv4 address "127.0.0.1", port 55432
+2026-10-23 05:39:01.288 UTC [2381722] LOG:  listening on Unix socket "/var/tmp/provisiond-pgharness/sock/.s.PGSQL.55432"
+2026-10-23 05:39:01.317 UTC [2381732] LOG:  database system was shut down at 2026-10-23 05:39:00 UTC
+2026-10-23 05:39:01.334 UTC [2381722] LOG:  database system is ready to accept connections
+2026-10-23 05:39:01.478 UTC [2381745] FATAL:  role "user" does not exist
+2026-10-23 05:39:01.516 UTC [2381730] LOG:  checkpoint starting: force wait
+2026-10-23 05:39:07.992 UTC [2381730] LOG:  checkpoint complete: wrote 63 buffers (1.5%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=6.336 s, sync=0.039 s, total=6.477 s; sync files=55, longest=0.007 s, average=0.001 s; distance=8825 kB, estimate=8825 kB; lsn=0/2000080, redo lsn=0/2000028
+2026-10-23 05:39:09.797 UTC [2382039] LOG:  standby "s1" is now a candidate for quorum synchronous standby
+2026-10-23 05:39:09.797 UTC [2382039] STATEMENT:  START_REPLICATION 0/3000000 TIMELINE 1
+2026-10-23 05:39:09.956 UTC [2381730] LOG:  checkpoint starting: force wait
+2026-10-23 05:39:10.060 UTC [2381730] LOG:  checkpoint complete: wrote 0 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.024 s, sync=0.001 s, total=0.105 s; sync files=0, longest=0.000 s, average=0.000 s; distance=16384 kB, estimate=16384 kB; lsn=0/3000080, redo lsn=0/3000028
+2026-10-23 05:39:12.065 UTC [2382148] LOG:  standby "s2" is now a candidate for quorum synchronous standby
+2026-10-23 05:39:12.065 UTC [2382148] STATEMENT:  START_REPLICATION 0/4000000 TIMELINE 1
+2026-10-23 05:40:01.949 UTC [2381722] LOG:  received immediate shutdown request
+2026-10-23 05:40:01.956 UTC [2384294] LOG:  could not send data to client: Broken pipe
+2026-10-23 05:40:01.956 UTC [2384294] STATEMENT:  insert into barrier default values
+2026-10-23 05:40:01.956 UTC [2384259] LOG:  could not send data to client: Broken pipe
+2026-10-23 05:40:01.956 UTC [2384259] STATEMENT:  insert into barrier default values
+2026-10-23 05:40:01.956 UTC [2384238] LOG:  could not send data to client: Broken pipe
+2026-10-23 05:40:01.956 UTC [2384238] STATEMENT:  insert into barrier default values
+2026-10-23 05:40:01.958 UTC [2381722] LOG:  database system is shut down

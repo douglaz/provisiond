@@ -1,0 +1,8 @@
+BEGIN
+ v 
+---
+ D
+(1 row)
+
+INSERT 0 1
+COMMIT

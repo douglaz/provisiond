@@ -2,7 +2,7 @@
 
 Base: /var/tmp/provisiond-panel-r63e/forms-final.md ("forms-final"), which holds the voted text with two slots still
 PENDING (S2-STOP and S3). The items below add to it or fill it. Facts are in verify.md and in
-/var/tmp/provisiond-pgharness/results.md (H-a … H-f). Line numbers are at `dc5d40d`.
+/var/tmp/provisiond-pgharness/results.md (repository copy: docs/research/panels-2026-10/r63/pgharness/results.md) (H-a … H-f). Line numbers are at `dc5d40d`.
 
 ## NA: a sent COMMIT is never abandoned (new; Finding 1)
 
