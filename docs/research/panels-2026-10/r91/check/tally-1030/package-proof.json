@@ -1,0 +1,36 @@
+{
+  "N": {
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "changed_existing_functions": [],
+    "all_existing_self_tests_and_comparison_functions_identical": true,
+    "all_inventory_quote_slices_retained": true
+  },
+  "A": {
+    "patch_sha256": "4972322f32d999e154ef63c175d13d8b32647861e57673c7994a8825246e3624",
+    "changed_existing_functions": [
+      "load_lean_docstrings",
+      "main"
+    ],
+    "all_existing_self_tests_and_comparison_functions_identical": true,
+    "all_inventory_quote_slices_retained": true
+  },
+  "B": {
+    "patch_sha256": "83bfb0664c8a37b4f60bcf9052ea77397a42927dc2a76fb330cb5c8b95e462d2",
+    "changed_existing_functions": [
+      "chunks",
+      "quotations",
+      "main"
+    ],
+    "all_existing_self_tests_and_comparison_functions_identical": true,
+    "all_inventory_quote_slices_retained": true
+  },
+  "C": {
+    "patch_sha256": "7fe46ae3b60c21c6b19b2dc553c1bd7d2617497ef18cef509aa891ee6406903f",
+    "changed_existing_functions": [
+      "load_lean_docstrings",
+      "main"
+    ],
+    "all_existing_self_tests_and_comparison_functions_identical": true,
+    "all_inventory_quote_slices_retained": true
+  }
+}

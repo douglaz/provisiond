@@ -1,0 +1,109 @@
+{
+  "pin": "aeb7ff65369238212903d6b60b8ae1622f5c93d8",
+  "previous_pin": "01210c62f17f0a77a71056b80c886d7a8ee0efeb",
+  "changes_since_previous": [
+    ".beads/issues.jsonl",
+    "docs/research/panels-2026-10/README.md",
+    "docs/research/panels-2026-10/r84/STATE.md",
+    "docs/research/panels-2026-10/r84/astra.md",
+    "docs/research/panels-2026-10/r84/brief.md",
+    "docs/research/panels-2026-10/r84/check/beads-at-pin.json",
+    "docs/research/panels-2026-10/r84/check/consistency-disposition.md",
+    "docs/research/panels-2026-10/r84/check/consistency.md",
+    "docs/research/panels-2026-10/r84/check/fingerprint-reference.json",
+    "docs/research/panels-2026-10/r84/check/manual-consistency.md",
+    "docs/research/panels-2026-10/r84/check/packet.sha256",
+    "docs/research/panels-2026-10/r84/check/prelaunch-verify.py",
+    "docs/research/panels-2026-10/r84/check/source-receipt.json",
+    "docs/research/panels-2026-10/r84/check/tally/calculations.json",
+    "docs/research/panels-2026-10/r84/check/tally/extract-check.json",
+    "docs/research/panels-2026-10/r84/check/tally/history-check.json",
+    "docs/research/panels-2026-10/r84/check/tally/q2-A.md",
+    "docs/research/panels-2026-10/r84/check/tally/q3-E.md",
+    "docs/research/panels-2026-10/r84/check/tally/verify-calculations.py",
+    "docs/research/panels-2026-10/r84/check/triage-rows.md",
+    "docs/research/panels-2026-10/r84/check/verification.md",
+    "docs/research/panels-2026-10/r84/fable.md",
+    "docs/research/panels-2026-10/r84/notes.md",
+    "docs/research/panels-2026-10/r84/opus.md",
+    "docs/research/panels-2026-10/r84/owner-decisions.md",
+    "docs/research/panels-2026-10/r84/owner-question.md",
+    "docs/research/panels-2026-10/r84/r84b/STATE.md",
+    "docs/research/panels-2026-10/r84/r84b/astra.md",
+    "docs/research/panels-2026-10/r84/r84b/brief.md",
+    "docs/research/panels-2026-10/r84/r84b/check/assembly-check.json",
+    "docs/research/panels-2026-10/r84/r84b/check/consistency-disposition.md",
+    "docs/research/panels-2026-10/r84/r84b/check/consistency.md",
+    "docs/research/panels-2026-10/r84/r84b/check/packet.sha256",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/calculations.json",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/extract-check.json",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/q1-A.md",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/q1-B.md",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/q1-C.md",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/q3-A.md",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/q3-B.md",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/q3-E.md",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/reader-execution-audit.json",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/result.json",
+    "docs/research/panels-2026-10/r84/r84b/check/tally/verify.py",
+    "docs/research/panels-2026-10/r84/r84b/fable.md",
+    "docs/research/panels-2026-10/r84/r84b/notes.md",
+    "docs/research/panels-2026-10/r84/r84b/opus.md",
+    "docs/research/panels-2026-10/r84/r84b/owner-question.md",
+    "docs/research/panels-2026-10/r84/r84b/owner-questions.md",
+    "docs/research/panels-2026-10/r84/r84b/sol.md",
+    "docs/research/panels-2026-10/r84/r84b/tally.md",
+    "docs/research/panels-2026-10/r84/sol.md",
+    "docs/research/panels-2026-10/r84/tally.md"
+  ],
+  "pv602_identical_and_deferred": true,
+  "unchanged_functions": {
+    "A": {
+      "changed_existing_functions": [
+        "load_lean_docstrings",
+        "main"
+      ],
+      "all_existing_selftests_identical": true
+    },
+    "B": {
+      "changed_existing_functions": [
+        "chunks",
+        "main",
+        "quotations"
+      ],
+      "all_existing_selftests_identical": true
+    },
+    "C": {
+      "changed_existing_functions": [
+        "load_lean_docstrings",
+        "main"
+      ],
+      "all_existing_selftests_identical": true
+    }
+  },
+  "unmigrated_guard_findings": {
+    "A": [
+      [
+        "10-conformance-checklist.md",
+        3096,
+        "CNF-300"
+      ]
+    ],
+    "C": [
+      [
+        "10-conformance-checklist.md",
+        3096,
+        "CNF-300"
+      ]
+    ]
+  },
+  "required_packet_bytes": 676655,
+  "grok_packet_under_one_MB": true,
+  "launch_quota": {
+    "Current session": 61,
+    "Current week (all models)": 67,
+    "Current week (Fable)": 94,
+    "Codex_WEEK": 3
+  },
+  "frozen_at": "2026-10-30T21:45:50.452019+00:00"
+}

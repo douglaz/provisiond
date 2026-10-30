@@ -1,0 +1,29 @@
+{
+  "source": "Live systemctl --user show outputs captured in this tally session immediately after each systemd-run; both units later unloaded. Post-completion default properties are not runtime evidence.",
+  "before": {
+    "MainPID": 900353,
+    "MemoryMax": 17179869184,
+    "MemorySwapMax": 0,
+    "OOMPolicy": "continue",
+    "StandardInput": "null",
+    "ActiveState": "active",
+    "SubState": "running"
+  },
+  "final": {
+    "MainPID": 929948,
+    "MemoryMax": 17179869184,
+    "MemorySwapMax": 0,
+    "OOMPolicy": "continue",
+    "StandardInput": "null",
+    "ActiveState": "active",
+    "SubState": "running"
+  },
+  "PATH_and_TMPDIR": "Assigned in check/tally-1030/run-gate.sh; no claim of post-completion live /proc verification.",
+  "quota_before_final": {
+    "claude_session": 75,
+    "claude_week": 69,
+    "fable_week": 98,
+    "fable_exempt": true,
+    "codex_week": 5
+  }
+}

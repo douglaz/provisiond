@@ -190,3 +190,16 @@ the complete reviewed forms, packets, reader answers, original dissent, consensu
 durable verification records. Specification links name the frozen review base; raw logs,
 clones, launchers and machine-local receipts remain under `/var/tmp`.
 The requirement owners hold the rules.
+
+## Panel L nested-quotation decision, 2026-10-30
+
+| Round | Question | Decision sources |
+|---|---|---|
+| [r91](r91/brief.md) | pv-602 | [Owner decision](r91/owner-decisions.md), [tally](r91/tally.md), [exact C package](r91/candidates/C/exact.patch), [candidates](r91/candidates/), [source evidence](r91/source-evidence.md) |
+
+The owner record supersedes the historical owner-pending status. These records preserve
+the reviewed forms, reader answers and dissent, including the separate unadopted repairs
+under `r91/proposals/`. The source pin is `r91/PIN`. Historical attribution boilerplate
+is omitted from copied source snapshots; their operative text is retained. Raw logs,
+clones and omitted machine-local launch receipts remain under `/var/tmp`.
+The requirement owners hold the rules.

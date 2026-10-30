@@ -1,0 +1,1525 @@
+#!/usr/bin/env python3
+"""Citation-attribution gate.
+
+A requirement that reports what another requirement SAYS is making a checkable
+claim about a specific span of text. On 2026-09-03 several of those claims were
+false, in both directions: `WIR-20` and `WIR-35` attributed this set's
+wire-contract precedence rule to `WIR-1`, which carries the JSON, money and
+timestamp conventions and says nothing of the kind; `DOM-30` reported that
+`WIR-30` forbids what `WIR-30` in fact mandates. Two full review passes at
+`high` effort read past all of them. See `ddd3df0` and `254fc24`.
+
+The other gates cannot see this class. `check_ids.py` is satisfied -- the
+citation resolves to a real identifier. `check_obligations.py` is satisfied --
+no duty is being assigned. The sentence reads fluently. Only the relationship
+between the claim and the cited text is broken.
+
+FOUR RULES, deliberately narrow.
+
+  QUOTED   A quoted phrase attributed to `X` must appear in X's own body, or in
+           a document the same chunk cites: a document DOC matches by file name
+           (a numbered requirement document, README.md, CONTEXT.md or
+           AGENTS.md), or an ADR by `ADR-NNNN` -- that ADR's file alone. Until 2026-10-02 the
+           concatenated text of every ADR satisfied any attribution, which let
+           `11-open-findings.md` attribute to `OPS-47` and `OPS-39` wording
+           only `ADR-0019` and `ADR-0021` still hold (`pv-vwe.25`).
+           Unbaselined findings fail. Reads the root *.md Markdown
+           documents and /-- ... -/ and /-! ... -/ docstrings under tools/formal/,
+           excluding .lake/. check_docstrings() first runs fixture cases for
+           nested comments, literals and intact extraction of later docstrings;
+           a failed case prints FAIL and exits 1. An unterminated block comment
+           in real Lean source (doc or ordinary) prints FAIL with its filename
+           and cause and exits 1 without a traceback. ADRs are sources, not
+           QUOTED input. Standing
+           Markdown residue is keyed by file:id:quote with individual reasons
+           in citation-baseline.json's markdown_quoted_attributions. Each entry
+           allows one finding only; further occurrences of that same signature
+           fail, even if a different historical finding disappears. Lean
+           residue is ratcheted in
+           citation-baseline.json's quoted_attributions, keyed by file:id:quote
+           with the full normalized quote; its note owns the causes and exits.
+           On 2026-09-15 a Lean docstring quoting withdrawn wording stayed green
+           for a day, motivating the Lean QUOTED pass.
+           REACH: a quote is checked only when its SPLIT chunk carries an
+           ATTRIB match (a speech verb, or `X`'s <noun> that) before it, or is
+           directly after a bare possessive (`X`'s "four or more words") or,
+           in root Markdown only, a colon (`X`: "four or more words"). The
+           chunk must not be TEACHING. Lean also skips HISTORICAL chunks;
+           Markdown assesses history per candidate as described below. A bare possessive
+           owns only its immediately following quote; each such pair is checked,
+           even with multiple owners in a chunk. The colon shape has the same
+           immediate-quote ownership and never adds UNQUOTED input either.
+           Colon coverage excludes Lean docstrings: EXISTS already compares
+           every eligible docstring quote against the corpus; ci.yml's
+           "Prove the citation gate rejects a Lean docstring quote found nowhere"
+           relies on Wire.lean's colon-form API-11 chunk staying outside QUOTED.
+           Extending the shape to Lean docstrings is pv-s4g's open follow-up.
+           In Lean docstrings that was the minority: at `c5e31be` (2026-10-02), 56 of the 925 quotes of four
+           or more normalised words were compared. The gate prints both figures
+           on every run; the numbers here are that day's reading, not a rule.
+           Paired quotations stay in one chunk, including sentence enders and
+           spaced elisions. Marks are paired before length/word filtering, so a
+           short span cannot steal the next quote's opening mark (pv-vwe.35).
+           Before these rules, unpaired straight or curly double marks fail
+           with a source file and line, even in historical/teaching prose or
+           spans outside the word/length limits. Each paragraph is checked
+           independently; separately extracted Lean docstrings stay separate.
+           What it cannot see: balanced nested or mispaired straight/curly
+           marks can still select the wrong span within a paragraph. Two stray
+           straight marks, such as inch marks surrounding a real quotation,
+           can pair with its marks and hide it, including in a Lean docstring:
+           A 3.5" drive. `OPS-29` says "A correlator match MUST be exact.". A 2.5" drive.
+           The quotation in that sentence gets no QUOTED or EXISTS comparison,
+           even if corrupted; Lean UNQUOTED findings are not enforced. Balancing
+           alone cannot identify the intended quotation boundaries. Prefer a
+           spelled-out unit (3.5 inch); the double-prime unit symbol (3.5″) also
+           avoids straight marks. Inline code spans and fenced code blocks do
+           not shield marks from the guard; a lone inch mark there still fails.
+           Curly double quotation marks are checked separately and are not a
+           substitute for the double-prime unit symbol. Blank lines
+           are hard boundaries, including between separate Lean docstrings.
+           This is a paired-mark scanner, not a Markdown or Lean prose parser.
+           TEACHING applies to the whole resulting chunk. HISTORICAL does too,
+           except in Markdown QUOTED: an exact case-insensitive whole word
+           superseded wholly inside the candidate's paired content does not
+           suppress that candidate. Every other history match still suppresses,
+           including superseded outside it or inside another quote. Embedded
+           superseded identifiers do not mark history in either input kind;
+           word boundaries use Python's Unicode semantics. All history occurrences
+           are considered; ownership and cited pools use the original chunk.
+           CNF-216's note beginning "Amended 2026-10-02" remains historical:
+           corrupting "the greatest `increment end` among that subject's rows"
+           there is skipped; the same attribution in a current chunk is checked.
+           Possessives require a straight apostrophe and whitespace immediately
+           followed by the opening quote; intervening prose or markup is not
+           this shape. Colons require whitespace immediately followed by the
+           opening quote: intervening prose or markup, or no whitespace, is
+           outside the shape. An ADR id or document name before a colon is
+           outside it too. An explanatory colon after a requirement citation
+           is read as attribution, so write such a colon only before the
+           cited requirement's own words.
+           A colon-form quote in a Lean docstring gets only EXISTS's owner-free
+           comparison unless another supported attribution shape applies.
+           Quotes below four normalized words remain outside QUOTED. Markdown
+           QUOTED has no length cap; Lean QUOTED retains the 400-character cap.
+           Comparison locates candidate source spans without quotation marks,
+           then compares their content, including adjacent apostrophes. Only
+           locally paired delimiters are formatting; word-internal and unpaired
+           trailing apostrophes remain content. See comparison_text() and
+           span_content() for the bounds and ambiguous-punctuation limitation.
+           QUOTED comparison ignores a blockquote marker only at the start of
+           a continuation line: newline, optional spaces/tabs, > and at most
+           one following space. Other > characters remain content. quotations()
+           still yields exact source slices; signature identity still uses
+           norm(), retaining all marks, including blockquote markers.
+           A chunk shaped `X` says `Y`'s "four or more words" compares against
+           both owners; the same applies to `X` says `Y`: "four or more words"
+           in Markdown. No precedence rule was chosen. A nested example can
+           gain a second attribution. An allowance is per full signature, not
+           positional: deleting its standing occurrence and restating it
+           elsewhere in the same file can pass. Making the standing chunk
+           historical (e.g. "was itself overbroad" -> "was previously overbroad")
+           and restating identical wording as current can also pass.
+
+  EXISTS   Every quote of four or more normalised words in a Lean docstring
+           must appear somewhere in the corpus -- every root *.md plus
+           docs/adr/*.md -- whether or not its chunk carries an attribution
+           (`pv-vwe.25`, decided 2026-10-01). A quote is what QUOTE matches:
+           a paired span of at most 400 characters containing at least four
+           normalised words. Longer Lean quotations are counted by neither rule,
+           but their marks are consumed before scanning the next span.
+           EXISTS removes every ' and " after norm() on both sides, since a docstring
+           writes a nested quotation with single marks where the document has
+           double ones. Unlike QUOTED, it also ignores word-internal apostrophes.
+           Signature identity still uses norm(), retaining marks.
+           Chunks HISTORICAL or TEACHING match are skipped, as
+           Lean QUOTED skips them, and elisions split a quote into fragments
+           matched one by one, as QUOTED's do; both spaced `...` and `…`
+           remain inside the paired quotation. Residue is ratcheted in
+           citation-baseline.json's quoted_existence, keyed by file:quote, each
+           entry carrying its own reason; a finding not in it is exit 1.
+           Lean docstrings only: Markdown is out of its scope by decision.
+           What it cannot see: a verbatim quote attributed to the wrong
+           requirement passes, because no owner is consulted; a misquote
+           that happens to match text anywhere in the corpus passes, including
+           `11-open-findings.md`'s and the ADRs' records of withdrawn or wrong
+           wording; and a quote QUOTE mispairs is as invisible here as under
+           QUOTED, for the reasons given there. Explicit attribution syntax is
+           the owner's named direction if verbatim-but-misattributed quotes
+           start to matter (`pv-vwe.25`, the decision of 2026-10-01).
+
+  UNQUOTED "`X` says/states/reads ..." with no quote at all is unverifiable by
+           construction. Ratcheted against `citation-baseline.json` rather than
+           failed outright, because such sentences already exist and a gate that
+           fails a clean tree is a gate someone deletes. New ones are refused;
+           the standing ones come down as their requirements are next edited.
+           The count lives in that file and nowhere else -- a number written
+           into prose is wrong the first time either end moves, which this set
+           has now learned in `ADR-0003`, `ADR-0011` and `F16`.
+           HISTORICAL and TEACHING retain their whole-chunk suppression here,
+           including history inside a paired quotation.
+
+Summary verbs are deliberately OUT OF SCOPE. "`OPS-12` forbids automatic retry"
+is a correct, useful paraphrase, and most attributions in the set are of that
+shape. Demanding a quote there would fire on legitimate prose, which is how a
+checklist item ends up unsatisfiable by every conforming implementation
+(`CNF-224`).
+
+WHAT THIS DOES NOT CATCH, stated plainly because a gate's limits are part of its
+contract: a wrong SUMMARY. "`WIR-30` forbids the server resolving eligibility
+that way" reverses `WIR-30`'s meaning, uses a summary verb, and carries no
+quote -- no lexical signal separates it from a correct summary. That one was the
+worst defect of 2026-09-03 and it stays a review problem. Lean docstrings participate
+in the mark guard, QUOTED and EXISTS: they supply neither requirement bodies nor
+UNQUOTED or NAMES input.
+
+The fourth rule, added with the rendering gate (`ADR-0025`, 2026-09-15):
+
+  NAMES    A backticked `Provisiond.*` name is a citation of a Lean declaration
+           and must resolve against the index `lake exe gate` writes: a tagged
+           declaration, a namespace or module holding one, or the `Explore`
+           namespace `Gate.lean` exempts. A renamed declaration leaves a
+           dangling name, and this is the gate that sees it. Hard failure. Not
+           caught: a declaration renamed with a new one tagged under the old
+           name, which resolves. The
+           index is written by `tools/check_formal.sh`, which `check-all.sh`
+           runs first; a missing index is a red gate, not a skipped rule.
+
+The committed baseline is read-only input: every exemption-family key is required,
+including empty families. Missing keys or an unreadable baseline fail without
+initializing or rewriting it; restore the damaged baseline from version control.
+Every signature must still have a finding: stale entries fail and name the family
+and exact entry to remove. New findings and stale entries are reported together;
+one disappearing Markdown signature cannot pay for another signature's duplicate.
+A scan discovering no source .lean files outside .lake fails even with a valid
+index and empty Lean exemption families. Files without docstrings still count.
+
+Exit 0 = clean, 1 = unpaired double marks, an unverifiable quote, a Lean docstring
+quote found nowhere, an unresolved name, a new finding or stale baseline entry,
+a damaged baseline, an empty Lean source scan, an unterminated Lean block comment
+or a failed extractor case,
+2 = the index is missing.
+"""
+
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASELINE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "citation-baseline.json")
+NS = "OVR|DOM|PRV|OPS|API|STO|RSC|SEC|DEF|CNF|LDG|WIR"
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from check_obligations import bodies  # noqa: E402  -- one span-splitter, not two
+
+# Direct-speech attribution only. Summary verbs (forbids, requires, mandates,
+# calls, makes) are out of scope by design -- see the module docstring.
+#
+# Two shapes, because the 2026-09-03 miscitations used one each: the verb form
+# ("`WIR-1` says ...") and the possessive form ("`WIR-1`'s rule that ..."), which
+# claims what a requirement contains just as directly.
+SPEECH = r"says|said|states|stated|reads|read"
+NOUN = r"rule|claim|wording|statement|sentence|words|text"
+ATTRIB = re.compile(
+    r"`((?:%s)-\d+[a-z]?)`(?:'s)?\s+(?:own\s+)?(%s)\b"
+    r"|`((?:%s)-\d+[a-z]?)`'s\s+(?:own\s+)?(%s)\s+that\b" % (NS, SPEECH, NS, NOUN)
+)
+
+# A bare possessive owns its immediately following quotation, not subsequent
+# quotations in the chunk. Short quotes are ignored, never called UNQUOTED.
+POSSESSIVE = re.compile(r"`((?:%s)-\d+[a-z]?)`'s\s+(?=[\"“])" % NS)
+
+# Markdown's colon form has the same immediate-quote ownership, independently
+# of speech verbs and possessives. Lean docstrings retain their existing reach.
+COLON = re.compile(r"`((?:%s)-\d+[a-z]?)`:\s+(?=[\"“])" % NS)
+
+# "reads" is two verbs. "`WIR-9` reads \"...\"" attributes text; "`LDG-74` reads
+# it" and "`LDG-38` reads both from this record" mean CONSULTS, and consulting
+# never carries a quote -- so the unquoted rule would fire on every one of them.
+# Checked when a quote is present, ignored when one is not.
+CONSULTS = {"reads", "read"}
+# Sentence enders may precede closing markup. The named group locates the
+# boundary AFTER all closers, retaining them in the preceding chunk. chunks()
+# tests that position (not the match start) against paired quotations, also for
+# list markers and table rows. Blank lines stay hard boundaries: QUOTE cannot
+# cross them.
+SPLIT = re.compile(r'(?<=[.!?])[*`"”)\]]*(?P<sentence>\s+)|\n\s*[-*]\s+|\n\s*\n|\n(?=\|)')
+
+# Pair every span before filtering its length. A short or overlong span's closing
+# mark must never be recycled as the opening mark of the next quotation.
+QUOTE = re.compile(r'“((?:[^”\n]|\n(?!\s*\n))*)”|"((?:[^"\n]|\n(?!\s*\n))*)"')
+
+
+def chunks(text):
+    """Apply SPLIT only outside paired quotations, regardless of their length."""
+    spans = iter(QUOTE.finditer(text))
+    span = next(spans, None)
+    start = pos = 0
+    while boundary := SPLIT.search(text, pos):
+        pos = boundary.end()
+        cut = boundary.start('sentence') if boundary.group('sentence') else boundary.start()
+        while span and span.end() <= cut:
+            span = next(spans, None)
+        if span and span.start() < cut < span.end():
+            continue
+        yield text[start:cut]
+        start = boundary.end()
+        if boundary.group('sentence') and boundary.start() < cut:
+            # A new cut after closers can consume the newline that used to
+            # start a list delimiter. Let the existing structural alternative
+            # consume that delimiter too; plain punctuation keeps its behavior.
+            newline = text.find('\n', cut, start)
+            structural = SPLIT.match(text, newline) if newline >= 0 else None
+            if structural:
+                start = max(start, structural.end())
+        # Resume beyond everything consumed, so an overlapping match cannot
+        # swallow a later list or paragraph boundary.
+        pos = start
+    yield text[start:]
+
+
+def quotations(text, max_length=400):
+    """Yield (position, wording) after pairing, then applying the reach limits."""
+    for match in QUOTE.finditer(text):
+        wording = match.group(1) or match.group(2) or ""
+        if (max_length is None or len(wording) <= max_length) and len(norm(wording).split()) >= 4:
+            yield match.start(), wording
+
+
+DOC = re.compile(r"`(\d\d-[a-z-]+\.md|README\.md|CONTEXT\.md|AGENTS\.md)`")
+ADR = re.compile(r"`(ADR-\d{4})`")
+LEAN = re.compile(r"`(Provisiond\.[A-Za-z0-9_.]+)`(?<!\.lean`)")  # `Provisiond.lean` is a file
+INDEX = os.path.join(ROOT, "tools", "formal", ".lake", "index.jsonl")
+MODULES = os.path.join(ROOT, "tools", "formal", "Provisiond.lean")
+
+# A quotation of wording that was deliberately removed cannot be found in the
+# body, and this set retains such quotations on purpose (README, "Identifiers
+# are append-only. Text is not."). Recognise the sentence, do not check it.
+# "withdrawn" marks retained wording; domain withdrawal prose does not.
+HISTORICAL = re.compile(
+    r"\bwithdrawn\b|withdrew|until 20|previously|the original|first draft|old (?:item|text|wording)"
+    r"|earlier (?:draft|version|text|wording|revision|note|phrasing)|stood (?:here|there)"
+    r"|used to|no longer|\bsuperseded\b|retired|amended|version one|version two|rewritten"
+    r"|this said|it said|it read|had said|once (?:said|read|contained)|corrected|described it as|merged into|split into|the claim that did not",
+    re.I,
+)
+
+# A document teaching this rule must be able to show the mistake it forbids.
+TEACHING = re.compile(r"is an assertion|is a claim, and|checkable;|for example", re.I)
+
+
+def historical_quote(text, position, wording):
+    """Markdown QUOTED history, exempting only candidate-local whole superseded."""
+    whole_word = re.compile(r'\bsuperseded\b', re.I)
+    for marker in HISTORICAL.finditer(text):
+        word = whole_word.match(text, marker.start())
+        if (word and word.end() == marker.end() and position < marker.start()
+                and marker.end() <= position + 1 + len(wording)):
+            continue
+        return True
+    return False
+
+
+def norm(s):
+    s = (s.replace("“", '"').replace("”", '"')
+          .replace("’", "'").replace("‘", "'")
+          .replace("—", "-").replace("–", "-"))
+    s = re.sub(r"[*`~]", "", s)
+    return re.sub(r"\s+", " ", s).lower().strip(" .,;:")
+
+
+def comparison_text(s):
+    """Normalize QUOTED source context, retaining pairing boundaries as newlines.
+
+    These boundaries constrain delimiter pairing only, not substring reach.
+    Whitespace still matches whitespace across sentences, paragraphs, list items
+    and table rows. norm() and the finding signatures are deliberately unchanged.
+    """
+    s = re.sub(r'\n[ \t]*> ?', '\n', s)
+
+    def whitespace(m):
+        gap = m.group()
+        structural = ('\n' in gap and
+                      (re.search(r'\n[ \t]*\n', gap) or
+                       re.match(r'[-*]\s|\|', s[m.end():])))
+        before = m.start() - 1
+        while before >= 0 and s[before] in '*`"”)]':
+            before -= 1
+        sentence = before >= 0 and s[before] in '.!?'
+        return '\0' if structural or sentence else ' '
+
+    normalized = norm(re.sub(r'\s+', whitespace, s))
+    # norm() can remove a list's '*' between two whitespace runs. Collapse those
+    # runs together while retaining their boundary, just as norm() does without it.
+    return re.sub(r'[ \0]*\0[ \0]*', '\n', normalized).strip(' \n.,;:')
+
+
+def span_edges(text, start, end):
+    """Include adjoining marks; a candidate edge is not a word edge."""
+    while start and text[start - 1] in '\"\'':
+        start -= 1
+    while end < len(text) and text[end] in '\"\'':
+        end += 1
+    return start, end
+
+
+def double_pairs(text, start, end):
+    """Double-delimiter evidence in bounded context, including nested edges."""
+    # comparison_text retains a sentence boundary after dots; an explicit
+    # elision is not a pairing boundary. Keep positions unchanged.
+    text = text.replace('...\n', '... ')
+    left = max(0, start - 401, text.rfind('\n', 0, start) + 1)
+    boundary = text.find('\n', end)
+    right = min(len(text), end + 401, boundary if boundary >= 0 else len(text))
+    return [(left + pair.start(1), left + pair.end() - 1)
+            for pair in re.finditer(r'''(?<![\w"'])'*(")[^"\n]{0,400}"(?!\w)''', text[left:right])]
+
+
+def delimiter_edge(text, pos, role, roles):
+    """An adjacent mark is transparent only in an established matching role."""
+    step = -1 if role == 'open' else 1
+    outside = pos + step
+    while 0 <= outside < len(text) and roles.get(outside) == role:
+        outside += step
+    before = text[outside] if 0 <= outside < len(text) else ' '
+    inside = pos - step
+    return (not re.match(r'''[\w"']''', before) and 0 <= inside < len(text)
+            and not text[inside].isspace())
+
+
+def corresponding_roles(source, quote, candidates):
+    """Establish local pairs using endpoints aligned by fragment candidates.
+
+    Both endpoints of a transferred single pair must be present in candidate
+    alignments and enclose at most 400 characters without a structural boundary
+    (the whitespace after an explicit three-dot elision is not such a boundary).
+    They may come from different elision fragments; fragments still locate their
+    occurrences independently, without a contiguous or ordered whole-quote match.
+    Only established roles let adjacent nested marks pass the lexical edge check.
+    """
+    texts = (source, quote)
+    roles = ({}, {})
+    maps = ({}, {})
+    pairs = (set(), set())
+
+    def offsets(text, start, end):
+        result, offset = {}, 0
+        for pos in range(start, end):
+            if text[pos] in '\"\'':
+                result.setdefault(offset, []).append(pos)
+            else:
+                offset += 1
+        return result
+
+    for start, end, qstart, qend in candidates:
+        spans = (span_edges(source, start, end), span_edges(quote, qstart, qend))
+        slots = [offsets(text, *span) for text, span in zip(texts, spans)]
+        for side in (0, 1):
+            for opening, closing in double_pairs(texts[side], *spans[side]):
+                pairs[side].add((opening, closing))
+                roles[side].update({opening: 'open', closing: 'close'})
+            for slot, positions in slots[side].items():
+                for pos in positions:
+                    maps[side].setdefault(pos, set()).update(slots[1 - side].get(slot, []))
+
+    # Double pairs are the evidence; transferred roles cannot seed new pairs.
+    changed = True
+    while changed:
+        changed = False
+        for side in (0, 1):
+            other_side = 1 - side
+            text, own = texts[side], roles[side]
+            for opening, closing in pairs[other_side]:
+                for endpoint, role in [(opening, 'open'), (closing, 'close')]:
+                    for pos in maps[other_side].get(endpoint, []):
+                        if text[pos] == '"' and pos not in own:
+                            own[pos] = role
+                            changed = True
+                opens = [p for p in maps[other_side].get(opening, [])
+                         if text[p] == "'" and delimiter_edge(text, p, 'open', own)]
+                closes = [p for p in maps[other_side].get(closing, [])
+                          if text[p] == "'" and delimiter_edge(text, p, 'close', own)]
+                for a in opens:
+                    # Multiple occurrences are independent candidates, but an
+                    # ambiguous local partner does not establish a delimiter.
+                    partners = [b for b in closes if 0 < b - a <= 401
+                                and '\n' not in text[a:b].replace('...\n', '... ')]
+                    if len(partners) == 1:
+                        b = partners[0]
+                        if a not in own or b not in own:
+                            own.update({a: 'open', b: 'close'})
+                            changed = True
+    return roles
+
+
+def span_content(text, start, end, roles):
+    """Compare content after established roles and remaining local lexical pairs.
+
+    Remaining openers pair with the last closer before the next opener, within
+    one structural segment and 400 enclosed characters. Internal apostrophes
+    remain content. This bounded convention is not an English parser; ambiguous
+    punctuation and truncated single pairs may still be conservatively rejected.
+    An outside single partner can contribute only through corresponding_roles(),
+    where both endpoints must align with a complete double pair.
+    """
+    start, end = span_edges(text, start, end)
+    ignored = set(roles)
+    opener = closer = None
+    for pos in range(start, end):
+        mark = text[pos]
+        if mark == '\n':
+            if opener is not None and closer is not None:
+                ignored.update((opener, closer))
+            opener = closer = None
+        elif mark in '\"\'' and pos not in ignored:
+            if delimiter_edge(text, pos, 'open', roles):
+                if opener is not None and closer is not None:
+                    ignored.update((opener, closer))
+                opener, closer = pos, None
+            elif (opener is not None and mark == text[opener]
+                  and pos - opener - 1 <= 400
+                  and delimiter_edge(text, pos, 'close', roles)):
+                closer = pos
+    if opener is not None and closer is not None:
+        ignored.update((opener, closer))
+    return ''.join(text[p] for p in range(start, end) if p not in ignored).replace('\n', ' ')
+
+
+def contains_quote(source, quote):
+    """Find independent fragment spans, then compare their punctuation content.
+
+    Complete delimiter pairs retain evidence across elision splits. Removing
+    marks is candidate discovery only, never an acceptance fallback.
+    """
+    positions = [p for p, char in enumerate(source) if char not in '\"\'']
+    plain = ''.join(source[p] for p in positions).replace('\n', ' ')
+    quote = comparison_text(quote)
+    quote_offset = 0
+    groups = []
+    for fragment in fragments(quote):
+        qstart = quote.index(fragment, quote_offset)
+        qend = qstart + len(fragment)
+        quote_offset = qend
+        needle = fragment.replace('"', '').replace("'", '').replace('\n', ' ')
+        offset, candidates = 0, []
+        while needle and (at := plain.find(needle, offset)) >= 0:
+            start, end = positions[at], positions[at + len(needle) - 1] + 1
+            candidates.append((start, end, qstart, qend))
+            offset = at + 1
+        if not candidates:
+            return False
+        groups.append(candidates)
+    source_roles, quote_roles = corresponding_roles(
+        source, quote, [candidate for group in groups for candidate in group])
+    for candidates in groups:
+        for start, end, qstart, qend in candidates:
+            content = span_content(quote, qstart, qend, quote_roles)
+            if span_content(source, start, end, source_roles) == content:
+                break
+        else:
+            return False
+    return True
+
+
+def unpaired_marks(text, first_line=1):
+    """Yield (source line, mark kind) locations before filtering each paragraph.
+
+    Straight marks have no direction: every distinct line containing a mark in
+    an odd set is a candidate, since we cannot identify which mark is unpaired.
+    Curly marks must balance in opening/closing order; report the first unmatched
+    mark's line. Balanced nesting remains a limitation of QUOTE's flat pairing.
+    """
+    offset = 0
+    for paragraph in re.split(r'(\n\s*\n)', text):
+        straight, curly, unmatched = [], [], []
+        for pos, mark in enumerate(paragraph):
+            if mark == '"':
+                straight.append(pos)
+            elif mark == '“':
+                curly.append(pos)
+            elif mark == '”':
+                if curly:
+                    curly.pop()
+                else:
+                    unmatched.append(pos)
+        for kind, positions in [('straight', straight if len(straight) % 2 else []),
+                                ('curly', unmatched + curly)]:
+            if positions:
+                if kind == 'curly':
+                    positions = [min(positions)]
+                lines = {first_line + text.count('\n', 0, offset + pos) for pos in positions}
+                for line in sorted(lines):
+                    yield line, kind
+        offset += len(paragraph)
+
+
+def fragments(q):
+    """A `...`/`…` elision splits a normalised quote into fragments matched one by one."""
+    return [x for x in (p.strip() for p in re.split(r"\.\.\.|…", q)) if x]
+
+
+def load(rev=None):
+    os.chdir(ROOT)
+    def read(f):
+        if rev:
+            return subprocess.run(["git", "show", f"{rev}:{f}"],
+                                  capture_output=True, text=True).stdout
+        return open(f).read()
+    docs = {f: read(f) for f in sorted(glob.glob("*.md"))}
+    # Keyed by the id a chunk cites, so find() can admit one ADR's file and no other.
+    adrs = {f"ADR-{os.path.basename(f)[:4]}": read(f)
+            for f in sorted(glob.glob("docs/adr/*.md"))}
+    reqs = {}
+    for f, t in docs.items():
+        for k, v in bodies(t).items():
+            reqs.setdefault(k, (f, v))
+    return docs, adrs, reqs
+
+
+def docstrings(text, with_offsets=False):
+    """Yield Lean doc comments, respecting nested block comments.
+
+    Skip literals and line comments outside blocks so quoted or commented-out
+    delimiters cannot become docstrings. Quotes inside blocks have no effect.
+    Separate blocks stay separate sentences. Optional character offsets refer
+    to the original source, never to concatenated extracted prose.
+    """
+    string = r'"(?:\\.|[^"\\])*"'
+    raw = r'r(?P<hashes>#*)".*?"(?P=hashes)'
+    char = r"'(?:\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|.)|[^'\\])'"
+    tokens = re.compile(raw + '|' + char + '|' + string + r'|--[^\n]*|/-', re.S)
+    delimiters = re.compile(r'/-|-/')
+    pos = 0
+    while m := tokens.search(text, pos):
+        pos = m.end()
+        if m.group() != '/-':
+            continue
+        is_doc = text[pos:pos + 1] in ('-', '!')
+        start, depth = pos + 1, 1
+        while depth:
+            end = delimiters.search(text, pos)
+            if end is None:
+                raise ValueError('unterminated Lean block comment')
+            if end.group() == '/-':
+                depth += 1
+            elif end.group() == '-/':
+                depth -= 1
+            pos = end.end()
+        if is_doc:
+            body = text[start:end.start()]
+            yield (start, body) if with_offsets else body
+
+
+def load_lean_docstrings(mark_errors=None):
+    """Keep Lean prose separate from load()'s requirement and name sources."""
+    docs = {}
+    for directory, dirs, files in os.walk(os.path.join(ROOT, 'tools', 'formal')):
+        dirs[:] = sorted(d for d in dirs if d != '.lake')
+        for name in sorted(files):
+            if name.endswith('.lean'):
+                path = os.path.join(directory, name)
+                with open(path) as source:
+                    text = source.read()
+                filename = os.path.relpath(path, ROOT)
+                try:
+                    blocks = list(docstrings(text, with_offsets=True))
+                except ValueError as exc:
+                    print(f"FAIL: {filename}: {exc}")
+                    sys.exit(1)
+                if mark_errors is not None:
+                    for start, body in blocks:
+                        first_line = text.count('\n', 0, start) + 1
+                        mark_errors.extend((filename, line, kind)
+                                           for line, kind in unpaired_marks(body, first_line))
+                docs[filename] = '\n\n'.join(body for _, body in blocks)
+    return docs
+
+
+def find(docs, adrs, reqs, corpus=None):
+    """Return (unverified_quotes, unquoted_attributions, quotes_compared).
+
+    `corpus` is where a cited root document (`DOC`) is looked up; it defaults to
+    the texts being checked, which is right for Markdown and wrong for Lean
+    docstrings, whose caller passes the Markdown set. Until 2026-10-02 the Lean
+    pass looked the citation up in the Lean set and no root document ever
+    resolved. The count is the quotes that sat after an attribution and were
+    compared, after the HISTORICAL/TEACHING skip; main() prints it."""
+    bad, unquoted, checked = [], [], 0
+    ndocs = {f: comparison_text(t) for f, t in (docs if corpus is None else corpus).items()}
+    nadrs = {a: comparison_text(t) for a, t in adrs.items()}
+    for f, text in docs.items():
+        for sent in chunks(text):
+            lean = f.endswith('.lean')
+            historical = HISTORICAL.search(sent)
+            if TEACHING.search(sent) or (lean and historical):
+                continue
+            quotes = list(quotations(sent, max_length=400 if lean else None))
+            attributions = []
+            m = ATTRIB.search(sent)
+            if m:
+                # Speech ownership follows the verb, not the nearest citation:
+                # `STO-43` says `STO-14` "reaches settled operations and nothing
+                # else" attributes STO-43's sentence about STO-14 to STO-43.
+                # Choosing STO-14 instead would invert that claim.
+                rid = m.group(1) or m.group(3)
+                verb = (m.group(2) or "").lower()
+                # Preserve the speech-verb contract: the first attribution owns
+                # later quotes in its chunk, not quotes before its introduction.
+                # CNF-6's merge marker quotes its own "two tenants cannot both
+                # hold a record for the same external machine" before CNF-107
+                # reads "two tenants cannot both hold the same ...". That site
+                # is now skipped by HISTORICAL ("It read"); the ordering still
+                # matters for the same shape in a current chunk.
+                later = [(p, q) for p, q in quotes if p > m.start()]
+                if later:
+                    attributions.append((rid, later))
+                elif verb not in CONSULTS and not historical:
+                    unquoted.append((f, rid, " ".join(sent.split())[:100]))
+            for possessive in POSSESSIVE.finditer(sent):
+                direct = [(p, q) for p, q in quotes if p == possessive.end()]
+                if direct:
+                    attributions.append((possessive.group(1), direct))
+            if not f.endswith('.lean'):
+                for colon in COLON.finditer(sent):
+                    direct = [(p, q) for p, q in quotes if p == colon.end()]
+                    if direct:
+                        attributions.append((colon.group(1), direct))
+            # What the chunk cites by name joins the pool: a root document, or
+            # one ADR's file. Never every ADR -- withdrawn wording an ADR records
+            # must be cited as that ADR's, not passed off as the requirement's.
+            docpool = [ndocs[d] for d in DOC.findall(sent) if d in ndocs]
+            docpool += [nadrs[a] for a in ADR.findall(sent) if a in adrs]
+            for owner, attributed in attributions:
+                pool = [comparison_text(reqs[owner][1])] if owner in reqs else []
+                pool += docpool
+                for _pos, q in attributed:
+                    if not lean and historical and historical_quote(sent, _pos, q):
+                        continue
+                    checked += 1
+                    if not any(contains_quote(p, q) for p in pool):
+                        bad.append((f, owner, norm(q)))
+    return bad, unquoted, checked
+
+
+def exists(lean, corpus):
+    """EXISTS: return (absent_quotes, quotes_counted) over Lean docstrings.
+
+    Owner-free; retains its established removal of all single and double marks."""
+    def comparison(s):
+        return norm(s).replace('"', "").replace("'", "")
+
+    corpus = [comparison(t) for t in corpus]
+    missing, total = [], 0
+    for f, text in lean.items():
+        for sent in chunks(text):
+            quotes = [norm(q) for _, q in quotations(sent)]
+            total += len(quotes)
+            if HISTORICAL.search(sent) or TEACHING.search(sent):
+                continue
+            for q in quotes:
+                frags = fragments(comparison(q))
+                if not any(all(fr in c for fr in frags) for c in corpus):
+                    missing.append((f, q))
+    return missing, total
+
+
+def check_quote_content():
+    """Finite QUOTED comparisons through each existing input and source-pool path."""
+    cases = []
+
+    def case(name, source, quote, accepted, exists_ok=True):
+        cases.append((name, source, quote, accepted, exists_ok))
+
+    possessive = "the rows' values remain positive"
+    plain = possessive.replace("'", '')
+    case('trailing omission', possessive, plain, False)
+    case('trailing insertion', plain, possessive, False)
+    for marked in [possessive, "the tenant's balance remains positive"]:
+        for mark in ["'", '‘', '’']:
+            source = marked.replace("'", mark)
+            for other in ["'", '‘', '’']:
+                case('apostrophe typography', source, marked.replace("'", other), True)
+            case('apostrophe omission', source, marked.replace("'", ''), False)
+            case('apostrophe insertion', marked.replace("'", ''), source, False)
+    multiple = "the rows' values and tenants' balances remain positive"
+    for position in [multiple.index("'"), multiple.rindex("'")]:
+        missing = multiple[:position] + multiple[position + 1:]
+        case('independent possessive omission', multiple, missing, False)
+        case('independent possessive insertion', missing, multiple, False)
+    for phrase in ['Succeeds', 'rows', "the rows' values", "the tenant's balance"]:
+        single = f"'{phrase}' means the resource is gone"
+        double = f'"{phrase}" means the resource is gone'
+        for source, quote in [(single, double), (double, single)]:
+            case('nested delimiters', source, quote, True)
+            case('nested wording', source, quote.replace(phrase, 'WRONG'), False, False)
+            if "'" in phrase:
+                case('nested possessive omission', source,
+                     quote.replace(phrase, phrase.replace("'", '')), False)
+    for gap in [' ', '. ', '\n\n', '\n- ', '\n* ', '\n|']:
+        source = 'unrelated' + gap + possessive
+        case('whitespace reach across boundaries', source, norm(source), True)
+        case('outside opener before', "'unrelated" + gap + possessive, plain, False)
+        case('outside opener after', possessive + gap + "'unrelated", plain, False)
+        case('exact despite outside opener', "'unrelated" + gap + possessive,
+             possessive, True)
+        if gap != ' ':
+            source = "'unrelated" + gap + possessive
+            case('pairing boundary', source, norm(source).replace("'", ''), False)
+            if gap != '\n\n':  # QUOTE deliberately cannot span a paragraph.
+                case('exact structural content', source, source, True)
+    for phrase, variant in [('Succeeds', 'Succeeds'),
+                            ("the rows' values", "the rows' values"),
+                            ("Succeeds' and 'Fails", 'Succeeds" and "Fails')]:
+        tail = (" determine the tenants' balances" if 'rows' in phrase
+                else " means the deposits' addresses are gone")
+        single, double = f"'{phrase}'{tail}", f'"{variant}"{tail}'
+        for source, quote in [(single, double), (double, single)]:
+            case('R1 following possessive', source, quote, True)
+            case('R1 same style', source, source, True)
+            word = 'values' if 'rows' in phrase else 'Succeeds'
+            case('R1 enclosed wording', source, quote.replace(word, 'WRONG'), False, False)
+            for word in ['rows', 'tenants', 'deposits']:
+                if word + "'" in quote:
+                    missing = quote.replace(word + "'", word)
+                    case('R1 independent omission ' + word, source, missing, False)
+                    case('R1 independent insertion ' + word, missing, source, False)
+    single = "'a \"the rows' values\" clause remains'"
+    double = '"a \'the rows\' values\' clause remains"'
+    for source, quote in [(single, double), (double, single)]:
+        case('R2 nested pairs', source, quote, True)
+        case('R2 same style', source, source, True)
+        case('R2 enclosed wording', source, quote.replace('values', 'WRONG'), False, False)
+        missing = quote.replace("rows'", 'rows')
+        case('R2 possessive omission', source, missing, False)
+        case('R2 possessive insertion', missing, source, False)
+    for elision in ['…', '...']:
+        source = f'the price is "an indicative quote {elision} binding is false", and the auction channel'
+        case('R3 exact elision', source, source, True)
+        case('R3 elision wording', source, source.replace('binding', 'WRONG'), False, False)
+        marked = source.replace('quote ', "quotes' ")
+        case('R3 exact possessive elision', marked, marked, True)
+        missing = marked.replace("quotes'", 'quotes')
+        case('R3 possessive omission', marked, missing, False)
+        case('R3 possessive insertion', missing, marked, False)
+    source = '"alpha beta" and then "gamma delta"'
+    quote = 'alpha beta" and then "gamma'
+    case('R4 balanced partial doubles', source, quote, True)
+    case('R4 partial wording', source, quote.replace('beta', 'WRONG'), False, False)
+    case('R4 inserted possessive', source, quote.replace('beta', "beta'"), False)
+    case('R4 omitted possessive', source.replace('beta', "beta'"), quote, False)
+    for elision in ['…', '...', 'and']:
+        pairs = [
+            (f"the price is 'an indicative quote {elision} binding is false', and the auction channel",
+             f'the price is "an indicative quote {elision} binding is false", and the auction channel'),
+            (f"'a \"the rows' values\" clause {elision} remains'",
+             f'"a \'the rows\' values\' clause {elision} remains"'),
+        ]
+        for single, double in pairs:
+            for source, quote in [(single, double), (double, single)]:
+                case('R5 elision pairs', source, quote, True)
+                case('R5 same style', source, source, True)
+                case('R5 enclosed wording', source, quote.replace('is false', 'is WRONG')
+                     if 'price' in quote else quote.replace('values', 'WRONG'), False, False)
+                if "rows'" in quote:
+                    missing = quote.replace("rows'", 'rows')
+                    case('R5 possessive omission', source, missing, False)
+                    case('R5 possessive insertion', missing, source, False)
+    pairs = [
+        ("'remain delta \"rows gamma\"' gone now", '\"remain delta \'rows gamma\'" gone now'),
+        ("'a clause \"the rows' values\"' remains here", '\"a clause \'the rows\' values\'" remains here'),
+        ("'\"the rows' values\" clause remains' here", '\"\'the rows\' values\' clause remains" here'),
+    ]
+    for single, double in pairs:
+        for source, quote in [(single, double), (double, single)]:
+            case('R6 shared edge', source, quote, True)
+            case('R6 same style', source, source, True)
+            case('R6 enclosed wording', source, quote.replace('rows', 'WRONG'), False, False)
+            if "rows'" in quote:
+                missing = quote.replace("rows'", 'rows')
+                case('R6 possessive omission', source, missing, False)
+                case('R6 possessive insertion', missing, source, False)
+    for single, double in [("'", '"'), ('"', "'")]:
+        source = single + "alpha first rows' values second omega" + single
+        quote = double + "alpha … second … first rows' values … omega" + double
+        case('R5 independent reordered pair fragments', source, quote, True)
+        case('R5 reordered possessive omission', source, quote.replace("rows'", 'rows'), False)
+        case('R5 reordered possessive insertion', source.replace("rows'", 'rows'), quote, False)
+    for source in ['\"the rows values\"\' remain here', '\'\"the rows values\" remain here',
+                   '\"the rows values\"\'\' remain here']:
+        case('R6 adjacent stray omission', source, source.replace("'", ''), False)
+        case('R6 adjacent stray insertion', source.replace("'", ''), source, False)
+    source = "watch only the rows' values remain positive"
+    case('trailing candidate edge', source, 'watch only the rows', False)
+    case('exact trailing candidate edge', source, "watch only the rows'", True)
+    case('leading candidate edge', source, "' values remain positive", True)
+    case('inserted edge apostrophe', plain, "'the rows values remain positive", False)
+    case('substring reach', possessive, "ows' values remain positive", True)
+    case('later valid candidate', plain + '; ' + possessive, possessive, True)
+    case('double wrapper prefix', '"' + possessive + '"', "the rows' values remain", True)
+    case('double wrapper suffix', '"prefix ' + possessive + '"', possessive, True)
+    case('independent elisions', "balances stay positive; watch only the rows' values",
+         "watch only the rows' ... balances stay positive", True)
+    case('elision edge omission', "watch only the rows' values; balances stay positive",
+         'watch only the rows ... balances stay positive', False)
+    case('elision insertion', 'watch only the rows values; balances stay positive',
+         "watch only the rows' … balances stay positive", False)
+    limit = 'rows values remain ' + 'x' * (400 - len('rows values remain '))
+    for mark in ["'", '"']:
+        case('delimiter content length limit', mark + limit + mark, limit, True)
+
+    name = ''
+    try:
+        for name, source, quote, accepted, exists_ok in cases:
+            for pool in ['requirement', 'document', 'ADR']:
+                cite = {'requirement': '', 'document': ', per `CONTEXT.md`',
+                        'ADR': ', per `ADR-0001`'}[pool]
+                prose = f'`OPS-41` says{cite} “{quote}”.'
+                reqs = {'OPS-41': ('source.md', source if pool == 'requirement' else '')}
+                corpus = {'CONTEXT.md': source} if pool == 'document' else {}
+                adrs = {'ADR-0001': source} if pool == 'ADR' else {}
+                for filename in ['probe.md', 'probe.lean']:
+                    text = ('\n\n'.join(docstrings('/-- ' + prose + ' -/'))
+                            if filename.endswith('.lean') else prose)
+                    assert not list(unpaired_marks(text)), (name, text)
+                    expected = [] if accepted else [(filename, 'OPS-41', norm(quote))]
+                    actual = find({filename: text}, adrs, reqs, corpus=corpus)
+                    assert actual == (expected, [], 1), (pool, filename, source, quote, actual)
+                    missing = [] if exists_ok else [(filename, norm(quote))]
+                    assert exists({filename: text}, [source]) == (missing, 1), (name, pool)
+                    if pool != 'requirement':
+                        uncited = text.replace(cite, '')
+                        assert find({filename: uncited}, adrs, reqs, corpus=corpus) == (
+                            [(filename, 'OPS-41', norm(quote))], [], 1), (name, pool)
+        assert norm("“The rows’ values” and ‘tenant’s balance’") == (
+            '\"the rows\' values\" and \'tenant\'s balance\'')
+    except AssertionError as exc:
+        print(f'FAIL: quote content: {name}: {exc}')
+        return 1
+    print('PASS: quote content: apostrophes, local delimiters, boundaries, edges and elisions; '
+          'Markdown/Lean owners and cited pools; EXISTS and signatures unchanged')
+    return 0
+
+
+def check_sentence_boundaries():
+    """Keep closing marks, then protect paired spans at the actual cut position."""
+    name = 'closing markup'
+    try:
+        for ending in ['.', '!', '?']:
+            for opening, closing in [('', ''), ('*', '*'), ('**', '**'), ('`', '`'),
+                                     ('"', '"'), ('“', '”'), ('(', ')'), ('[', ']'),
+                                     ('[(*`“', '”`*)]'), ('*' * 25, '*' * 25)]:
+                first = f'The engine {opening}runs{ending}{closing}'
+                text = first + ' Another sentence.'
+                assert list(chunks(text)) == [first, 'Another sentence.'], text
+        for separator in ['\n- ', '\n* ', '\n\n', '\n \n', '\n|']:
+            text = 'first' + separator + 'second'
+            second = '|second' if separator == '\n|' else 'second'
+            assert list(chunks(text)) == ['first', second], text
+        # Even structural candidates inside a paired span remain protected;
+        # paragraphs and separate docstrings cannot form such a span.
+        for separator in ['\n- ', '\n* ', '\n|']:
+            text = '"alpha beta' + separator + 'gamma delta"'
+            assert list(chunks(text)) == [text], text
+        assert list(chunks('"alpha beta\n\ngamma delta"')) == ['"alpha beta', 'gamma delta"']
+        print('PASS: sentence boundaries: closing markup and structural boundaries')
+
+        name = 'closing markup before list delimiters'
+        attribution = '`OPS-41` says "alpha beta gamma delta".'
+        for first in ['Intro *ends.*', 'Intro **ends!**', 'Intro `ends?`',
+                      'Intro [(*ends.*)]', 'Intro "ends."']:
+            for separator in ['\n- ', '\n* ', '\n  - ', '\n\t* ',
+                              '\n\n- ', '\n \n  * ']:
+                text = first + separator + attribution
+                assert list(chunks(text)) == [first, attribution], text
+                reqs = {'OPS-41': ('source.md', 'alpha beta gamma delta')}
+                assert find({'probe': text}, {}, reqs) == ([], [], 1), text
+                wrong = text.replace('gamma', 'WRONG')
+                assert find({'probe': wrong}, {}, reqs) == (
+                    [('probe', 'OPS-41', 'alpha beta wrong delta')], [], 1), text
+        assert list(chunks('Intro ends.\n- ' + attribution)) == [
+            'Intro ends.', '- ' + attribution]
+        for separator, second in [('\n|', '|next'), ('\n\n', 'next'),
+                                  ('\n \n', 'next')]:
+            assert list(chunks('Intro *ends.*' + separator + 'next')) == [
+                'Intro *ends.*', second]
+        for opening, closing in [('"', '"'), ('“', '”')]:
+            for wording in ['*ends.*\n- x', '*ends.*\n  * ' + 'x' * 401]:
+                text = opening + wording + closing
+                assert list(chunks(text)) == [text], text
+        assert list(chunks('"Intro *ends.*\n\n- next"')) == ['"Intro *ends.*', 'next"']
+        print(f'PASS: sentence boundaries: {name}: chunks, protection and comparisons')
+
+        for name, separator in [('consecutive empty list items', '\n-\n-\n- '),
+                                ('empty list items before paragraph', '\n- \n-\n\n')]:
+            text = 'Intro *ends.*' + separator + attribution
+            expected = ['Intro *ends.*', '-', attribution]
+            assert list(chunks(text)) == expected, (text, list(chunks(text)))
+            reqs = {'OPS-41': ('source.md', 'alpha beta gamma delta')}
+            assert find({'probe': text}, {}, reqs) == ([], [], 1), name
+            assert exists({'probe': text}, ['alpha beta gamma delta']) == ([], 1), name
+            wrong = text.replace('gamma', 'WRONG')
+            assert find({'probe': wrong}, {}, reqs) == (
+                [('probe', 'OPS-41', 'alpha beta wrong delta')], [], 1), name
+            assert exists({'probe': wrong}, ['alpha beta gamma delta']) == (
+                [('probe', 'alpha beta wrong delta')], 1), name
+            print(f'PASS: sentence boundaries: {name}: chunks, owners, counts and corruption')
+
+        first = '`LDG-59` says "**Falling back to the last known rate MUST NOT happen.**"'
+        later = 'A purchase is "authorized like a purchase".'
+        cases = [
+            ('LDG-59 ownership', [first, later],
+             {'LDG-59': '**Falling back to the last known rate MUST NOT happen.**',
+              'LDG-62': 'authorized like a purchase'},
+             [('LDG-59', '**Falling back to the last known rate MUST NOT happen.**')]),
+            ('distinct sentence owners',
+             ['`OPS-41` says "alpha beta gamma delta."',
+              '`OPS-42` says “epsilon zeta eta theta.”'],
+             {'OPS-41': 'alpha beta gamma delta.', 'OPS-42': 'epsilon zeta eta theta.'},
+             [('OPS-41', 'alpha beta gamma delta.'), ('OPS-42', 'epsilon zeta eta theta.')]),
+            ('inverted attribution', ['`OPS-41` says `OPS-42` "alpha beta gamma delta."'],
+             {'OPS-41': 'alpha beta gamma delta.', 'OPS-42': 'epsilon zeta eta theta.'},
+             [('OPS-41', 'alpha beta gamma delta.')]),
+            ('bare possessive owners',
+             ['`OPS-41`\'s "alpha beta gamma delta"; `OPS-42`\'s “epsilon zeta eta theta.”',
+              'Another "unattributed four word phrase".'],
+             {'OPS-41': 'alpha beta gamma delta', 'OPS-42': 'epsilon zeta eta theta.',
+              'OPS-43': 'unattributed four word phrase'},
+             [('OPS-41', 'alpha beta gamma delta'), ('OPS-42', 'epsilon zeta eta theta.')]),
+        ]
+        source = 'alpha *beta.* gamma delta. (epsilon.) zeta eta theta.'
+        for prefix in ['', '"now. yes"; ', '""; ', '"x.** ' + 'x' * 401 + '"; ']:
+            for quote in [source, 'alpha *beta.* ... zeta eta theta.',
+                          'alpha *beta.* … zeta eta theta.']:
+                text = '`OPS-41` says ' + prefix + f'“{quote}”'
+                cases.append(('paired span ' + repr(prefix[:12]), [text, 'Following prose.'],
+                              {'OPS-41': source}, [('OPS-41', quote)]))
+        for name, parts, sources, attributed in cases:
+            text = ' '.join(parts)
+            reqs = {rid: ('source.md', body) for rid, body in sources.items()}
+            assert list(chunks(text)) == parts, (name, list(chunks(text)))
+            # Equality checks include comparison counts: losing a closing mark
+            # must not make a valid quotation silently disappear.
+            assert find({'probe': text}, {}, reqs) == ([], [], len(attributed)), name
+            total = len(list(quotations(text)))
+            assert exists({'probe': text}, sources.values()) == ([], total), name
+            for owner, quote in attributed:
+                wrong_quote = quote.replace(' ', ' WRONG ', 1)
+                wrong = text.replace(quote, wrong_quote, 1)
+                expected = [('probe', owner, norm(wrong_quote))]
+                assert find({'probe': wrong}, {}, reqs) == (expected, [], len(attributed)), name
+                assert exists({'probe': wrong}, sources.values()) == (
+                    [('probe', norm(wrong_quote))], total), name
+            print(f'PASS: sentence boundaries: {name}: exact owners and counts; named QUOTED/EXISTS corruption')
+    except AssertionError as exc:
+        print(f'FAIL: sentence boundaries: {name}: {exc}')
+        return 1
+    return 0
+
+
+def check_quotations():
+    """Guard quote reach independently of the corpus's current wording."""
+    source = "alpha beta gamma delta. epsilon zeta eta theta"
+    cases = [
+        ('two sentences', f'"{source}"'),
+        ('spaced elision', '"alpha beta ... epsilon zeta eta theta"'),
+        ('short span first', f'"now"; "{source}"'),
+        ('empty span first', f'""; "{source}"'),
+        ('overlong span first', '"' + 'x' * 401 + f'"; "{source}"'),
+        ('curly marks', f'“now”; “{source}”'),
+        ('four short words', '"a b c d"'),
+    ]
+    for name, quotes in cases:
+        body = source + ' a b c d'
+        text = '`OPS-41` says ' + quotes
+        reqs = {'OPS-41': ('probe.md', body)}
+        good = find({'probe': text}, {}, reqs)
+        wrong = text.replace('epsilon', 'WRONG').replace('a b c d', 'a b c WRONG')
+        bad, _, compared = find({'probe': wrong}, {}, reqs)
+        missing, total = exists({'probe': wrong}, [body])
+        if (list(unpaired_marks(text)) or good != ([], [], 1) or len(bad) != 1
+                or compared != 1 or len(missing) != 1 or total != 1):
+            print(f'FAIL: {name}: exact={good}; corrupted={bad}, {missing}, {compared}, {total}')
+            return 1
+        print(f'PASS: {name}: exact quote passes; corruption reaches QUOTED and EXISTS')
+    return 0
+
+
+def check_withdrawal_history():
+    """Exercise withdrawal comparisons and historical/teaching exclusions."""
+    source = 'alpha beta gamma delta'
+    reqs = {'OPS-41': ('source.md', source)}
+    name = ''
+    try:
+        for word in ['withdraw', 'withdraws', 'withdrawing', 'withdrawal', 'withdrawals',
+                     'Withdrawal']:
+            for quote in [source, source.replace('delta', 'WRONG')]:
+                name = f'live {word}: {quote}'
+                # Keep the domain word both outside and inside the quotation.
+                for inside in [False, True]:
+                    body = word + ' ' + source if inside else source
+                    wording = word + ' ' + quote if inside else quote
+                    prose = f'`OPS-41`\'s "{wording}" applies to {word} bodies.'
+                    for filename in ['probe.md', 'probe.lean']:
+                        text = ('\n\n'.join(docstrings('/-- ' + prose + ' -/'))
+                                if filename.endswith('.lean') else prose)
+                        owners = {'OPS-41': ('source.md', body)}
+                        bad = [] if quote == source else [(filename, 'OPS-41', norm(wording))]
+                        actual = find({filename: text}, {}, owners)
+                        assert actual == (bad, [], 1), (filename, inside, actual)
+                        missing = [] if quote == source else [(filename, norm(wording))]
+                        assert exists({filename: text}, [body]) == (missing, 1), filename
+
+        # Each marker still exempts deliberately absent wording. EXISTS counts
+        # eligible quotes before skipping, whereas QUOTED counts comparisons.
+        for marker in ['Withdrawn wording', 'WITHDRAWN wording', 'withdrew', 'until 2020',
+                       'previously', 'the original', 'first draft', 'old item', 'old text',
+                       'old wording', 'earlier draft', 'earlier version', 'earlier text',
+                       'earlier wording', 'earlier revision', 'earlier note', 'earlier phrasing',
+                       'stood here', 'stood there', 'used to', 'no longer', 'superseded',
+                       'retired', 'amended', 'version one', 'version two', 'rewritten',
+                       'this said', 'it said', 'it read', 'had said', 'once said', 'once read',
+                       'once contained', 'corrected', 'described it as', 'merged into',
+                       'split into', 'the claim that did not', 'is an assertion',
+                       'is a claim, and', 'checkable;', 'for example']:
+            name = f'excluded {marker}'
+            prose = f'{marker}: `OPS-41`\'s "wording absent from the owner".'
+            for filename in ['probe.md', 'probe.lean']:
+                text = ('\n\n'.join(docstrings('/-! ' + prose + ' -/'))
+                        if filename.endswith('.lean') else prose)
+                assert find({filename: text}, {}, reqs) == ([], [], 0), filename
+                assert exists({filename: text}, [source]) == ([], 1), filename
+
+        name = 'owner-free EXISTS'
+        prose = '`OPS-41`\'s "a withdrawal body remains accepted".'
+        quote = next(quotations(prose))[1]
+        assert find({'probe.lean': prose}, {}, reqs) == (
+            [('probe.lean', 'OPS-41', norm(quote))], [], 1)
+        assert exists({'probe.lean': prose}, [quote]) == ([], 1)
+    except AssertionError as exc:
+        print(f'FAIL: withdrawal history: {name}: {exc}')
+        return 1
+    print('PASS: withdrawal history: live Markdown/Lean owners and comparisons; '
+          'corruption detected; historical/teaching skips and owner-free EXISTS retained')
+    return 0
+
+
+def check_markdown_quote_reach():
+    """Independent history/length controls and preservation of other exclusions."""
+    from unittest.mock import call, patch
+
+    shapes = ['`OPS-41` says ', "`OPS-41`'s ", '`OPS-41`: ']
+    filename = 'probe.md'
+    name = ''
+
+    def compared(prose, source, quote, accepted=True):
+        owners = {'OPS-41': ('source.md', source)}
+        with patch.object(sys.modules[__name__], 'contains_quote', wraps=contains_quote) as compare:
+            actual = find({filename: prose}, {}, owners)
+        expected = [] if accepted else [(filename, 'OPS-41', norm(quote))]
+        assert actual == (expected, [], 1), (name, actual)
+        assert compare.call_args_list == [call(comparison_text(source), quote)], (name, compare.call_args_list)
+
+    try:
+        for shape in shapes:
+            for opening, closing in [('"', '"'), ('“', '”')]:
+                for word in ['superseded', 'SuPeRsEdEd']:
+                    name = f'history alone: {shape}, {opening}, {word}'
+                    quote = f'alpha beta {word} gamma delta'
+                    assert len(quote) < 400
+                    prose = shape + opening + quote + closing
+                    compared(prose, quote, quote)
+                    wrong = quote.replace('delta', 'WRONG')
+                    compared(shape + opening + wrong + closing, quote, wrong, False)
+                    # The Markdown exception must not extend into Lean QUOTED/EXISTS.
+                    assert find({'probe.lean': prose}, {}, {'OPS-41': ('source.md', quote)}) == ([], [], 0)
+                    assert exists({'probe.lean': prose.replace('delta', 'WRONG')}, []) == ([], 1)
+
+                for length in [400, 401, 450]:
+                    name = f'length alone: {shape}, {opening}, {length}'
+                    prefix, suffix = 'alpha beta gamma ', ' omega'
+                    quote = prefix + 'x' * (length - len(prefix) - len(suffix)) + suffix
+                    assert len(quote) == length and len(norm(quote).split()) >= 4
+                    assert not HISTORICAL.search(quote) and not TEACHING.search(quote)
+                    prose = shape + opening + quote + closing
+                    compared(prose, quote, quote)
+                    wrong = quote[:-1] + 'z'
+                    if length > 400:
+                        assert wrong[:400] == quote[:400], 'plant must be beyond character 400'
+                    compared(shape + opening + wrong + closing, quote, wrong, False)
+                    lean = {'probe.lean': prose}
+                    owners = {'OPS-41': ('source.md', quote)}
+                    if length == 400:
+                        # Colon remains outside Lean QUOTED but inside EXISTS.
+                        assert find(lean, {}, owners) == ([], [], 0 if shape == shapes[2] else 1)
+                        assert exists(lean, [quote]) == ([], 1)
+                        assert exists({'probe.lean': prose.replace(quote, wrong)}, [quote]) == (
+                            [('probe.lean', norm(wrong))], 1)
+                    else:
+                        bad, unquoted, count = find(lean, {}, owners)
+                        assert not bad and count == 0
+                        assert len(unquoted) == (1 if shape == shapes[0] else 0)
+                        assert exists(lean, []) == ([], 0)
+
+            quote = 'alpha superseded beta SUPERSEDED gamma delta'
+            name = f'multiple candidate-local history matches: {shape}'
+            compared(shape + f'"{quote}"', quote, quote)
+            wrong = quote.replace('delta', 'WRONG')
+            compared(shape + f'"{wrong}"', quote, wrong, False)
+            for prose in [
+                f'Superseded: {shape}"alpha beta gamma WRONG"',
+                shape + '"alpha beta gamma WRONG"; superseded',
+                shape + '"alpha beta superseded gamma WRONG"; superseded',
+                f'superseded: {shape}"alpha beta superseded gamma WRONG"',
+                shape + '"alpha beta superseded no longer gamma WRONG"',
+                shape + '"alpha beta no longer superseded gamma WRONG"',
+                shape + '"alpha beta superseded gamma WRONG"; "another no longer current phrase"',
+                shape + '"alpha beta superseded gamma WRONG"; for example',
+                shape + '"alpha beta for example superseded gamma WRONG"',
+            ]:
+                name = f'preserved chunk history/teaching: {prose}'
+                assert find({filename: prose}, {}, {}) == ([], [], 0), name
+            # Embedded superseded is current; unrelated substring markers retain
+            # their existing policy. Candidate-local Markdown history still applies.
+            for word in ['superseded_never_commits', 'xsuperseded', 'supersededx',
+                         'ésuperseded', 'superseded9', 'xamendedx']:
+                for quote, tail in [(f'alpha beta {word} gamma delta', ''),
+                                    ('alpha beta superseded gamma delta', f'; {word}')]:
+                    prose = shape + f'"{quote}"' + tail
+                    name = f'embedded history: {prose}'
+                    if word == 'xamendedx':
+                        assert HISTORICAL.search(prose), name
+                        assert find({filename: prose.replace('delta', 'WRONG')}, {}, {}) == ([], [], 0), name
+                    else:
+                        assert bool(HISTORICAL.search(prose)) == bool(tail), name
+                        compared(prose, quote, quote)
+                        wrong = quote.replace('delta', 'WRONG')
+                        compared(shape + f'"{wrong}"' + tail, quote, wrong, False)
+
+        name = 'history in another quotation remains effective'
+        first, second = 'alpha beta superseded gamma delta', 'epsilon zeta eta theta'
+        text = f'`OPS-41` says "{first}"; "{second}"'
+        compared(text, first, first)  # First-speech ownership is unchanged.
+        compared(text.replace('theta', 'WRONG'), first, first)
+        assert find({filename: text.replace('delta', 'WRONG')}, {},
+                    {'OPS-41': ('source.md', first)}) == (
+                        [(filename, 'OPS-41', norm(first.replace('delta', 'WRONG')))], [], 1)
+        # Conversely, history in the later quote suppresses the earlier quote.
+        text = f'`OPS-41` says "{second}"; "{first}"'
+        compared(text, first, first)
+
+        name = 'historical UNQUOTED and teaching remain whole-chunk exclusions'
+        for text in ['superseded: `OPS-41` says something else',
+                     '`OPS-41` says "superseded just three"',
+                     'for example: `OPS-41` says "alpha beta gamma WRONG"']:
+            assert find({filename: text}, {}, {}) == ([], [], 0), text
+        name = 'concatenated marker is one ineligible word, not history'
+        text = '`OPS-41` says "' + 'superseded' * 45 + '"'
+        assert not HISTORICAL.search(text) and not list(quotations(text, max_length=None)), text
+        assert find({filename: text}, {}, {}) == (
+            [], [(filename, 'OPS-41', ' '.join(text.split())[:100])], 0), text
+        name = 'current word minimum'
+        for shape in shapes:
+            assert find({filename: shape + '"just three words"'}, {}, {})[2] == 0
+    except AssertionError as exc:
+        print(f'FAIL: Markdown quote reach: {name}: {exc}')
+        return 1
+    print('PASS: Markdown quote reach: independent history and length comparisons, full-content '
+          'corruptions, candidate-local history, retained exclusions and Lean reach')
+    return 0
+
+
+def check_possessives():
+    """Direct ownership must not collect a neighbour's quote or change UNQUOTED."""
+    reqs = {'OPS-41': ('probe.md', 'alpha beta gamma delta'),
+            'OPS-42': ('probe.md', 'epsilon zeta eta theta')}
+    cases = [
+        ("`OPS-41`'s \"alpha beta gamma delta\"", 1),
+        ("`OPS-41`'s “alpha beta gamma delta”", 1),
+        ("`OPS-41`'s \"now\"; `OPS-42`'s \"epsilon zeta eta theta\"", 1),
+        ("`OPS-41`'s \"alpha beta gamma delta\"; `OPS-42`'s \"epsilon zeta eta theta\"", 2),
+        ("`OPS-41`'s \"alpha beta gamma delta\"; another \"unattributed four word phrase\"", 1),
+        ("`OPS-41`'s \"just three words\"", 0),
+    ]
+    for text, expected in cases:
+        good = find({'probe': text}, {}, reqs)
+        wrong = text.replace('delta', 'WRONG').replace('theta', 'WRONG')
+        bad, unquoted, compared = find({'probe': wrong}, {}, reqs)
+        if good != ([], [], expected) or len(bad) != expected or unquoted or compared != expected:
+            print(f'FAIL: bare possessive: {text}: {good}, {bad}, {unquoted}, {compared}')
+            return 1
+    print('PASS: bare possessives: direct owner, adjacent owners, short spans, exact and corrupt quotes')
+    return 0
+
+
+def check_colons():
+    """Markdown colon owners are direct; source slices and Lean reach stay intact."""
+    reqs = {'OPS-41': ('probe.md', 'alpha beta gamma delta'),
+            'OPS-42': ('probe.md', 'epsilon zeta eta theta')}
+    first = ('probe.md', 'OPS-41', 'alpha beta gamma wrong')
+    second = ('probe.md', 'OPS-42', 'epsilon zeta eta wrong')
+    cases = [
+        ('`OPS-41`: "alpha beta gamma delta"', [first]),
+        ('`OPS-41`: “alpha beta gamma delta”', [first]),
+        ('`OPS-41`: "now"; `OPS-42`: "epsilon zeta eta theta"', [second]),
+        ('`OPS-41`: "alpha beta gamma delta"; `OPS-42`: "epsilon zeta eta theta"', [first, second]),
+        ('`OPS-41`: "alpha beta gamma delta"; another "unattributed four word phrase"', [first]),
+        ('`OPS-41`: "just three words"', []),
+        ('> `OPS-41`: "alpha beta\n> gamma delta"',
+         [('probe.md', 'OPS-41', 'alpha beta > gamma wrong')]),
+    ]
+    for text, expected_bad in cases:
+        expected = len(expected_bad)
+        good = find({'probe.md': text}, {}, reqs)
+        wrong = text.replace('delta', 'WRONG').replace('theta', 'WRONG')
+        bad, unquoted, compared = find({'probe.md': wrong}, {}, reqs)
+        if (good != ([], [], expected) or bad != expected_bad or unquoted
+                or compared != expected):
+            print(f'FAIL: colon form: {text}: {good}, {bad}, {unquoted}, {compared}')
+            return 1
+    try:
+        text = '> `OPS-41`: "alpha beta\n> gamma delta"'
+        assert list(quotations(text)) == [(text.index('"'), 'alpha beta\n> gamma delta')]
+        assert norm(next(quotations(text))[1]) == 'alpha beta > gamma delta'
+        assert find({'probe.lean': text.replace('delta', 'WRONG')}, {}, reqs) == ([], [], 0)
+        # A speech verb and a colon both own the same quote, independently.
+        text = '`OPS-41` says `OPS-42`: "alpha beta gamma delta"'
+        assert find({'probe.md': text}, {}, reqs) == (
+            [('probe.md', 'OPS-42', 'alpha beta gamma delta')], [], 2)
+        for prefix in ['`OPS-41`:','`OPS-41`: prose ', '`OPS-41`: *',
+                       "`OPS-41`'s rule: ", '`ADR-0017`: ', '`README.md`: ']:
+            assert find({'probe.md': prefix + '"alpha beta gamma delta"'}, {}, reqs) == ([], [], 0)
+        for quote in ['alpha > beta gamma delta', '> alpha beta gamma delta']:
+            assert not contains_quote(comparison_text(reqs['OPS-41'][1]), quote)
+        for gap in ['\n>', '\n> ', '\n \t> ']:
+            assert contains_quote(comparison_text(reqs['OPS-41'][1]), 'alpha beta' + gap + 'gamma delta')
+        # A second marker is content, rather than another formatting layer.
+        assert not contains_quote(comparison_text(reqs['OPS-41'][1]), 'alpha beta\n> > gamma delta')
+        # Named document and ADR pools work just as for the other shapes.
+        for citation, docs, adrs in [('`CONTEXT.md`', {'CONTEXT.md': 'alpha beta gamma delta'}, {}),
+                                    ('`ADR-0017`', {}, {'ADR-0017': 'alpha beta gamma delta'})]:
+            text = f'{citation}; `OPS-42`: "alpha beta gamma delta"'
+            assert find({'probe.md': text}, adrs, reqs, corpus=docs) == ([], [], 1)
+            assert find({'probe.md': text.replace('delta', 'WRONG')}, adrs, reqs, corpus=docs) == (
+                [('probe.md', 'OPS-42', 'alpha beta gamma wrong')], [], 1)
+        for prefix in ['Previously ', 'For example, ']:
+            assert find({'probe.md': prefix + '`OPS-41`: "alpha beta gamma WRONG"'}, {}, reqs) == ([], [], 0)
+    except AssertionError as exc:
+        print(f'FAIL: colon form: scope, ownership or blockquote comparison: {exc}')
+        return 1
+    print('PASS: colon forms: exact and corrupt quotes, direct owners, short spans, blockquote continuation, pools and Markdown-only reach')
+    return 0
+
+
+def check_docstrings():
+    """Check the extractor before trusting it with the specification artifacts.
+
+    The quoted-closer case is omitted: Lean rejects that source because a quote
+    does not escape a comment delimiter, so check_formal.sh owns it.
+    The odd-mark docstring checks extraction integrity, not admission: main()
+    rejects its malformed prose through the separate mark guard.
+    """
+    good = ' `OPS-41` says "metered through the outage". '
+    cases = [
+        ('module docstring', '/-! Module documentation. -/', [' Module documentation. ']),
+        ('character literal', '''def c : Char := '"' ''', []),
+        ('raw string', 'def s : String := r#"a " quote"#', []),
+        ('string with closer', 'def s : String := "ends -/ here"', []),
+        ('non-doc comment with odd quote', '/- A 5" disk note -/', []),
+        ('docstring with odd quote', '/-- A 5" disk. -/\ndef b : String := "x"',
+         [' A 5" disk. ']),
+        ('nested comment', '/-- Outer /- inner -/ tail. -/\ndef first := 0',
+         [' Outer /- inner -/ tail. ']),
+        ('commented-out opener', '-- /-- a commented-out opener', []),
+    ]
+    for name, prefix, first in cases:
+        text = f'{prefix}\n/--{good}-/\ndef after1 := 0\n/--{good}-/\ndef after2 := 0\n'
+        try:
+            assert list(docstrings(text)) == first + [good, good], name
+            # A misquote after each construct must still reach QUOTED.
+            wrong = text.replace('metered through the outage', 'billed through the blackout')
+            bad, _, _ = find({'probe.lean': '\n\n'.join(docstrings(wrong))}, {},
+                             {'OPS-41': ('probe.md', 'metered through the outage')})
+            assert len(bad) == 2, (name, bad)
+        except (AssertionError, ValueError) as exc:
+            print(f'FAIL: {name}: {exc}')
+            return 1
+        print(f'PASS: {name}: following docstrings intact; both misquotes detected')
+    # A root document a Lean docstring cites is looked up in the Markdown corpus,
+    # not in the Lean set being checked (pv-vwe.25, 2026-10-02): the cited form
+    # passes on the document alone, and the same docstring uncited fails.
+    cited = '/-- `OPS-41` says, per `CONTEXT.md`, "metered through the outage". -/\ndef d := 0\n'
+    corpus = {'CONTEXT.md': 'Billing is metered through the outage.'}
+    reqs = {'OPS-41': ('probe.md', 'nothing of the kind')}
+    probes = {'cited': cited, 'uncited': cited.replace(', per `CONTEXT.md`', '')}
+    bad = {k: find({'probe.lean': '\n\n'.join(docstrings(v))}, {}, reqs, corpus=corpus)[0]
+           for k, v in probes.items()}
+    if bad['cited'] or len(bad['uncited']) != 1:
+        print(f'FAIL: cited root document: {bad}')
+        return 1
+    print('PASS: cited root document: vouches for a Lean docstring quote; uncited fails')
+    return 0
+
+
+def read_index():
+    """The index `lake exe gate` writes, as {declaration: requirement id}. Shared with
+    check_regions.py -- one reader, not two. Missing = exit 2, never a skip."""
+    if not os.path.exists(INDEX):
+        print(f"FAIL: {INDEX} missing -- run tools/check_formal.sh first "
+              f"(check-all.sh orders it before this gate)")
+        sys.exit(2)
+    rows = [json.loads(l) for l in open(INDEX) if l.strip()]
+    return {r["decl"]: r["req"] for r in rows}
+
+
+def lean_names():
+    """Every name a document may cite: tagged declarations, their namespaces, the
+    modules the build imports, and the one namespace the gate exempts by policy.
+    Not caught: a declaration renamed and a new one tagged under the old name."""
+    names = {"Provisiond.Explore"}
+    for decl in read_index():
+        parts = decl.split(".")
+        names.update(".".join(parts[:k]) for k in range(1, len(parts) + 1))
+    for line in open(MODULES):
+        if line.startswith("import "):
+            names.add(line.split()[1])
+    return names
+
+
+def unresolved(docs, adrs):
+    names = lean_names()
+    texts = list(docs.items()) + list(adrs.items())
+    return [(f, n) for f, t in texts for n in LEAN.findall(t) if n not in names]
+
+
+def main():
+    if (check_sentence_boundaries() or check_docstrings() or check_quotations()
+            or check_withdrawal_history() or check_markdown_quote_reach()
+            or check_possessives() or check_colons()
+            or check_quote_content()):
+        return 1
+    try:
+        with open(BASELINE) as source:
+            baseline = json.load(source)
+        base = set(baseline["unquoted_attributions"])
+        quoted_base = set(baseline["quoted_attributions"])
+        exists_base = dict(baseline["quoted_existence"])
+        markdown_base = dict(baseline["markdown_quoted_attributions"])
+    except KeyError as exc:
+        print(f"FAIL: {BASELINE}: missing exemption-family key {exc.args[0]!r}; "
+              f"restore this key and its committed exemptions from version control. "
+              f"Baseline left unchanged.")
+        return 1
+    except (OSError, ValueError, TypeError):
+        print(f"FAIL: {BASELINE}: cannot read citation baseline; restore the committed "
+              f"baseline from version control. Baseline left unchanged.")
+        return 1
+    docs, adrs, reqs = load()
+    mark_errors = [(f, line, kind) for f, text in docs.items()
+                   for line, kind in unpaired_marks(text)]
+    lean = load_lean_docstrings(mark_errors)
+    if not lean:
+        print("FAIL: no source .lean files discovered under tools/formal (excluding .lake); "
+              "restore the Lean sources and check the scan path. A preexisting index "
+              "does not replace the source scan.")
+        return 1
+    for f, line, kind in mark_errors:
+        if kind == 'straight':
+            print(f"  {f}:{line}: candidate line for odd set of straight double quotation marks")
+        else:
+            print(f"  {f}:{line}: unpaired {kind} double quotation marks")
+    if mark_errors:
+        print(f"FAIL: {len(mark_errors)} quotation mark source-line finding(s)")
+        return 1
+    bad, unquoted, markdown_compared = find(docs, adrs, reqs)
+    lean_bad, _, compared = find(lean, adrs, reqs, corpus=docs)
+    missing, total = exists(lean, list(docs.values()) + list(adrs.values()))
+    lean_new = [(f, rid, q) for f, rid, q in lean_bad
+                if f"{f}:{rid}:{q}" not in quoted_base]
+    markdown_bad = bad
+    remaining = set(markdown_base)
+    bad = []
+    for f, rid, q in markdown_bad:
+        signature = f"{f}:{rid}:{q}"
+        if signature in remaining:
+            remaining.remove(signature)
+        else:
+            bad.append((f, rid, q))
+    bad += lean_new
+    for f, rid, q in bad:
+        print(f"  {f} attributes to {rid} a phrase {rid} does not contain:")
+        print(f'      "{q}"')
+    missing_new = [(f, q) for f, q in missing if f"{f}:{q}" not in exists_base]
+    for f, q in missing_new:
+        print(f"  {f} quotes a phrase found in no document or ADR:")
+        print(f'      "{q}"')
+    if bad or missing_new:
+        print(f"\nFAIL: {len(bad)} unverifiable quoted attribution(s) and {len(missing_new)} "
+              f"Lean docstring quote(s) found nowhere. Quote the requirement's own "
+              f"words, or cite it without quoting.")
+    else:
+        print("quoted attributions verified: no new findings")
+        print(f"Markdown quoted attributions: {markdown_compared} compared; {len(markdown_bad)}, "
+              f"none new against baseline {len(markdown_base)}")
+        print(f"Lean quoted attributions: {len(lean_bad)}, none new against baseline {len(quoted_base)}")
+        print(f"Lean docstring quotes: {total}; {compared} compared under QUOTED; EXISTS finds "
+              f"{len(missing)} absent, none new against baseline {len(exists_base)}")
+
+    dangling = unresolved(docs, adrs)
+    for f, n in dangling:
+        print(f"  {f} cites `{n}`, which the index does not carry")
+    if dangling:
+        print(f"\nFAIL: {len(dangling)} Provisiond.* name(s) do not resolve against "
+              f"tools/formal/.lake/index.jsonl. Cite the tagged declaration by its current name.")
+    else:
+        print(f"Provisiond.* names resolved: "
+              f"{sum(len(LEAN.findall(t)) for t in list(docs.values()) + list(adrs.values()))}")
+
+    sigs = sorted({f"{f}:{rid}" for f, rid, _ in unquoted})
+    new = [x for x in sigs if x not in base]
+    if new:
+        for sig in new:
+            f, rid = sig.split(":", 1)
+            ex = next(s for g, r, s in unquoted if g == f and r == rid)
+            print(f"  {f} reports what {rid} says without quoting it:")
+            print(f"      {ex}")
+        print(f"\nFAIL: {len(new)} new unquoted attribution(s). Carry the "
+              f"requirement's own words, or use a summary verb and drop the claim "
+              f"to report what it says.")
+    else:
+        print(f"unquoted attributions: {len(sigs)}, none new against baseline {len(base)}")
+
+    stale = {
+        "unquoted_attributions": base - set(sigs),
+        "quoted_attributions": quoted_base - {f"{f}:{rid}:{q}" for f, rid, q in lean_bad},
+        "quoted_existence": set(exists_base) - {f"{f}:{q}" for f, q in missing},
+        "markdown_quoted_attributions": remaining,
+    }
+    for family, entries in stale.items():
+        for signature in sorted(entries):
+            print(f"FAIL: stale baseline entry in {family}: {signature!r}; "
+                  f"remove this entry from {BASELINE} (its finding disappeared).")
+    return int(bool(bad or missing_new or dangling or new or any(stale.values())))
+
+
+if __name__ == "__main__":
+    # The gate's known-positives are the 2026-09-03 miscitations. A gate nobody
+    # has watched fail is a gate nobody has tested.
+    if "--selftest" in sys.argv:
+        rev = "5aecdbe"
+        try:
+            docs, adrs, reqs = load(rev)
+        except Exception as exc:  # noqa: BLE001 -- selftest is best-effort
+            print(f"SKIP: cannot read {rev} ({exc})")
+            sys.exit(0)
+        bad, unq, _ = find(docs, adrs, reqs)
+        hit = [x for x in bad + unq if x[1] == "WIR-1"]
+        if not hit:
+            print(f"SELFTEST FAIL: no longer detects the {rev} WIR-1 miscitation")
+            sys.exit(1)
+        print(f"SELFTEST OK: detects {len(hit)} unquoted WIR-1 attribution(s) at {rev}")
+        sys.exit(0)
+    sys.exit(main())

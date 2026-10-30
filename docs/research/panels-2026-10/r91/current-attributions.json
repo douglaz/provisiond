@@ -1,0 +1,3978 @@
+[
+  {
+    "file": "00-overview.md",
+    "owner": "STO-43",
+    "quote": "reaches **settled operations** and nothing else",
+    "quote_position_in_chunk": 52,
+    "passes": true,
+    "chunk_id": 0
+  },
+  {
+    "file": "00-overview.md",
+    "owner": "OPS-50",
+    "quote": "the engine MUST log loudly that it was superseded and exit non-zero at once",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 1
+  },
+  {
+    "file": "00-overview.md",
+    "owner": "OPS-21",
+    "quote": "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets.",
+    "quote_position_in_chunk": 74,
+    "passes": true,
+    "chunk_id": 2
+  },
+  {
+    "file": "00-overview.md",
+    "owner": "OPS-12",
+    "quote": "MUST NOT automatically retry an ambiguous mutation under any other name",
+    "quote_position_in_chunk": 85,
+    "passes": true,
+    "chunk_id": 3
+  },
+  {
+    "file": "01-domain-model.md",
+    "owner": "API-50",
+    "quote": "Every `429` MUST identify an exhausted principal allowance as `ceiling_exceeded`",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 4
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-26",
+    "quote": "This applies to create and to nothing else.",
+    "quote_position_in_chunk": 50,
+    "passes": true,
+    "chunk_id": 5
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload\nor order request) MUST settle `failed`, whatever its kind",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 6
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-11",
+    "quote": "The commitment is released in full\nunder `LDG-32` … with no setup-fee or first-unit debit",
+    "quote_position_in_chunk": 175,
+    "passes": true,
+    "chunk_id": 6
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-13c",
+    "quote": "The required shape is read-and-branch: order, then **read**\nthe provider's per-machine cancellation constraint.",
+    "quote_position_in_chunk": 15,
+    "passes": true,
+    "chunk_id": 7
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-44",
+    "quote": "Like `cancellation_bound`, it MAY\nbe reported on the offer instead",
+    "quote_position_in_chunk": 239,
+    "passes": true,
+    "chunk_id": 8
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-29",
+    "quote": "bound the time after which its evidence is truthful",
+    "quote_position_in_chunk": 28,
+    "passes": true,
+    "chunk_id": 9
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-39",
+    "quote": "pacing MAY delay such a cancellation\nbriefly",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 10
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-13c",
+    "quote": "materially in the future",
+    "quote_position_in_chunk": 12,
+    "passes": true,
+    "chunk_id": 11
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-13c",
+    "quote": "materially in the future",
+    "quote_position_in_chunk": 58,
+    "passes": true,
+    "chunk_id": 12
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "LDG-16",
+    "quote": "no single rate observation moves the rate outside the\nrange the window's other observations carry",
+    "quote_position_in_chunk": 24,
+    "passes": true,
+    "chunk_id": 13
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "LDG-16",
+    "quote": "a plausible price carried by half the window\ncan move the rate to itself",
+    "quote_position_in_chunk": 133,
+    "passes": true,
+    "chunk_id": 13
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-13",
+    "quote": "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 14
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-13",
+    "quote": "For a future earliest date, cost through that date runs to the end of its provider-local day",
+    "quote_position_in_chunk": 124,
+    "passes": true,
+    "chunk_id": 14
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-13",
+    "quote": "MUST NOT issue `GET /server/{n}/cancellation` as a pre-read in that cancellation\ndispatch path.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 15
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-27",
+    "quote": "the first row\nMUST be confirmed by a direct read before it attaches anything",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 16
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "LDG-33",
+    "quote": "or, where `machines.earliest_cancellation_date` is null, through `machines.declared_cancellation_bound`",
+    "quote_position_in_chunk": 41,
+    "passes": true,
+    "chunk_id": 17
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-5",
+    "quote": "raise a monitorable alarm naming the\nprovider account and request path",
+    "quote_position_in_chunk": 50,
+    "passes": true,
+    "chunk_id": 18
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-49",
+    "quote": "with the provider's outcome retained in memory",
+    "quote_position_in_chunk": 77,
+    "passes": true,
+    "chunk_id": 19
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-49",
+    "quote": "the outcome in hand is thrown away",
+    "quote_position_in_chunk": 132,
+    "passes": true,
+    "chunk_id": 20
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "WIR-35",
+    "quote": "attaches a discovered resource (`OPS-27`)",
+    "quote_position_in_chunk": 96,
+    "passes": true,
+    "chunk_id": 21
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-32",
+    "quote": "The sweep MUST also visit attachments of every machine still retained by\n`STO-18`",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 22
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-20",
+    "quote": "Refresh MUST NOT downgrade a session",
+    "quote_position_in_chunk": 45,
+    "passes": true,
+    "chunk_id": 23
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-5",
+    "quote": "every Robot `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the\nprovider account and request path",
+    "quote_position_in_chunk": 51,
+    "passes": true,
+    "chunk_id": 24
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "DOM-15",
+    "quote": "declaration and implementation MUST agree",
+    "quote_position_in_chunk": 339,
+    "passes": true,
+    "chunk_id": 25
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "OPS-11",
+    "quote": "On failure, the system MUST classify the error",
+    "quote_position_in_chunk": 80,
+    "passes": true,
+    "chunk_id": 26
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "LDG-74",
+    "quote": "The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence",
+    "quote_position_in_chunk": 129,
+    "passes": true,
+    "chunk_id": 27
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-5",
+    "quote": "every Robot `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the\nprovider account and request path",
+    "quote_position_in_chunk": 96,
+    "passes": true,
+    "chunk_id": 28
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "PRV-5",
+    "quote": "every Robot\n`403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider account and\nrequest path",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 29
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "LDG-39",
+    "quote": "Deterministic rejection before acceptance",
+    "quote_position_in_chunk": 57,
+    "passes": true,
+    "chunk_id": 30
+  },
+  {
+    "file": "02-provider-contract.md",
+    "owner": "API-7",
+    "quote": "ordinary HTTP `409 conflict`/`state` error with `retryable: false`, no\n`details.refusals`, no synthesized pacing or `Retry-After`, and no commitment,\noperation or receipt",
+    "quote_position_in_chunk": 50,
+    "passes": true,
+    "chunk_id": 31
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-55",
+    "quote": "Startup acquisition refusal exits for supervisor retry",
+    "quote_position_in_chunk": 153,
+    "passes": true,
+    "chunk_id": 32
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 33
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "MUST read `STO-59`'s row `FOR SHARE` as its first statement",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 34
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "MUST read `STO-59`'s row `FOR SHARE` as its first statement",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 35
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "compare it for equality with the value the engine's own startup pass wrote",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 36
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 95,
+    "passes": true,
+    "chunk_id": 36
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-6",
+    "quote": "every write that worker makes to the operation MUST carry `claim_number = mine`",
+    "quote_position_in_chunk": 68,
+    "passes": true,
+    "chunk_id": 37
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-3",
+    "quote": "The guarded status write precedes every money write in the transaction and short-circuits the rest",
+    "quote_position_in_chunk": 63,
+    "passes": true,
+    "chunk_id": 38
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-58",
+    "quote": "Its lifetime follows the winning create's outcome settlement",
+    "quote_position_in_chunk": 79,
+    "passes": true,
+    "chunk_id": 39
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-15",
+    "quote": "the engine MUST move every `running` operation to `needs_reconciliation`",
+    "quote_position_in_chunk": 65,
+    "passes": true,
+    "chunk_id": 40
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-22",
+    "quote": "Failure of end\nrescue is *always* ambiguous",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 41
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-5",
+    "quote": "MUST report `details.accepted: null` with the mutating request's own failure mapped as above",
+    "quote_position_in_chunk": 37,
+    "passes": true,
+    "chunk_id": 42
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13c",
+    "quote": "A failed\npost-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and\nMUST NOT change the create's settlement.",
+    "quote_position_in_chunk": 15,
+    "passes": true,
+    "chunk_id": 43
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "MUST read `STO-59`'s row `FOR SHARE`\nas its first statement, compare it for equality with the value the engine's own startup pass\nwrote",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 44
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 156,
+    "passes": true,
+    "chunk_id": 44
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "Except for `OPS-15`'s generation-advance transaction",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 45
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-7",
+    "quote": "A\nstandby wait has no server-side timeout",
+    "quote_position_in_chunk": 43,
+    "passes": true,
+    "chunk_id": 46
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "Where a store call by a worker, or by a periodic component running in the engine\nprocess (`OVR-17`), errors or times out",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 47
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "hold that lock until it commits",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 48
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 52,
+    "passes": true,
+    "chunk_id": 48
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OVR-18",
+    "quote": "its startup exit on\nthe generation advance's timeout (`OPS-15`)",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 49
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-54",
+    "quote": "a process that starts while a restore record is open is continuing that\nincident, not restarting",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 50
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-5",
+    "quote": "stays claimed until it settles, defers under `OPS-8`, or the\nstartup pass finds it (`OPS-15`)",
+    "quote_position_in_chunk": 35,
+    "passes": true,
+    "chunk_id": 51
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-16",
+    "quote": "fills in an error only where none exists",
+    "quote_position_in_chunk": 59,
+    "passes": true,
+    "chunk_id": 52
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-45",
+    "quote": "an operation interrupted rather than classified is `OPS-15`'s",
+    "quote_position_in_chunk": 54,
+    "passes": true,
+    "chunk_id": 53
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-32",
+    "quote": "the create fails deterministically",
+    "quote_position_in_chunk": 119,
+    "passes": true,
+    "chunk_id": 54
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-39",
+    "quote": "Deterministic rejection before acceptance",
+    "quote_position_in_chunk": 175,
+    "passes": true,
+    "chunk_id": 54
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-47",
+    "quote": "The lock is not a\nfence",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 55
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 33
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13c",
+    "quote": "The landed-order transaction MUST write the date of a successful read the committing pass holds, otherwise null, in `machines.earliest_cancellation_date` with the machine row",
+    "quote_position_in_chunk": 144,
+    "passes": true,
+    "chunk_id": 56
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13c",
+    "quote": "The system MUST record the date of the committing pass's successful post-order read in `machines.earliest_cancellation_date`",
+    "quote_position_in_chunk": 15,
+    "passes": true,
+    "chunk_id": 57
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13c",
+    "quote": "An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it to that column",
+    "quote_position_in_chunk": 143,
+    "passes": true,
+    "chunk_id": 57
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13c",
+    "quote": "After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date",
+    "quote_position_in_chunk": 260,
+    "passes": true,
+    "chunk_id": 57
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13c",
+    "quote": "once, when the create settles, after `OPS-27`'s confirming read",
+    "quote_position_in_chunk": 15,
+    "passes": true,
+    "chunk_id": 58
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "WIR-30",
+    "quote": "an indicative quote\n… `binding` is `false`",
+    "quote_position_in_chunk": 32,
+    "passes": true,
+    "chunk_id": 59
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-44",
+    "quote": "The descriptor is a typed, immutable value",
+    "quote_position_in_chunk": 62,
+    "passes": true,
+    "chunk_id": 60
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "API-63",
+    "quote": "`details.reason: \"account_terminated\"`\n   where the status is `terminated` and `\"state\"` for the two recoverable statuses, since\n   presenting an unreachable account as a permanent termination is false, and with\n   `retryable: false` for `\"account_terminated\"` and `retryable: true` for `\"state\"` on both the\n   error and the operation view",
+    "quote_position_in_chunk": 68,
+    "passes": true,
+    "chunk_id": 61
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-39",
+    "quote": "Deterministic rejection\n   before acceptance",
+    "quote_position_in_chunk": 80,
+    "passes": true,
+    "chunk_id": 62
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-40",
+    "quote": "the worker MUST read the stored closure for that\n   account and ordering channel when it claims the operation (`OPS-5`), before any provider\n   request, including a per-order key upload",
+    "quote_position_in_chunk": 43,
+    "passes": true,
+    "chunk_id": 63
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-23",
+    "quote": "Validation that was performed at the API boundary\n   MUST be repeated in the worker before the driver is called",
+    "quote_position_in_chunk": 43,
+    "passes": true,
+    "chunk_id": 64
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-8",
+    "quote": "at least one SSH public key",
+    "quote_position_in_chunk": 75,
+    "passes": true,
+    "chunk_id": 65
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-10",
+    "quote": "the account is configured to allow ordering",
+    "quote_position_in_chunk": 235,
+    "passes": true,
+    "chunk_id": 65
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-6",
+    "quote": "every write that worker makes to the operation MUST carry `claim_number = mine`",
+    "quote_position_in_chunk": 272,
+    "passes": true,
+    "chunk_id": 66
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "API-63",
+    "quote": "where it affects no row MUST\n   fail the operation deterministically",
+    "quote_position_in_chunk": 79,
+    "passes": true,
+    "chunk_id": 67
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 80,
+    "passes": true,
+    "chunk_id": 68
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "repeat the **whole transaction**",
+    "quote_position_in_chunk": 47,
+    "passes": true,
+    "chunk_id": 69
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-9",
+    "quote": "the driver MUST register and\n   attach them as temporary provider-side resources",
+    "quote_position_in_chunk": 107,
+    "passes": true,
+    "chunk_id": 70
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-40",
+    "quote": "If the channel is closed at that read, the worker MUST\nmake no provider request and settle the existing operation `failed` with `rate_limited`",
+    "quote_position_in_chunk": 111,
+    "passes": true,
+    "chunk_id": 71
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-42",
+    "quote": "a missing offer MUST NOT be ordered",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 72
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 73
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "WIR-9",
+    "quote": "The inner\n`error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is\nthe object `WIR-10b` embeds in an operation view",
+    "quote_position_in_chunk": 66,
+    "passes": true,
+    "chunk_id": 74
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "WIR-9a",
+    "quote": "no cap or balance result or amount derived from the\nwithheld offer's price",
+    "quote_position_in_chunk": 28,
+    "passes": true,
+    "chunk_id": 75
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-39",
+    "quote": "Deterministic rejection before acceptance",
+    "quote_position_in_chunk": 52,
+    "passes": true,
+    "chunk_id": 76
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-58",
+    "quote": "Its lifetime\nfollows the winning create's outcome settlement",
+    "quote_position_in_chunk": 82,
+    "passes": true,
+    "chunk_id": 77
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-42",
+    "quote": "An unresolved create retains the\nclaim until its outcome is known",
+    "quote_position_in_chunk": 156,
+    "passes": true,
+    "chunk_id": 77
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "the same\nwrite as `OPS-8`'s defer, though nothing refused it",
+    "quote_position_in_chunk": 80,
+    "passes": true,
+    "chunk_id": 78
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-8",
+    "quote": "MUST return the\noperation to `queued` with a short delay",
+    "quote_position_in_chunk": 88,
+    "passes": true,
+    "chunk_id": 79
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-54",
+    "quote": "the freeze lifts at `grace_ends_at`",
+    "quote_position_in_chunk": 46,
+    "passes": true,
+    "chunk_id": 80
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-36",
+    "quote": "This is the branch that makes\n`OPS-33`'s early release safe",
+    "quote_position_in_chunk": 29,
+    "passes": true,
+    "chunk_id": 81
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-21",
+    "quote": "A cancellation of `execute` that the engine survives MUST be recorded before the engine exits",
+    "quote_position_in_chunk": 43,
+    "passes": true,
+    "chunk_id": 82
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "API-63",
+    "quote": "That is the honest end\nfor it",
+    "quote_position_in_chunk": 247,
+    "passes": true,
+    "chunk_id": 83
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-11",
+    "quote": "the operation's mutating request was accepted by the provider",
+    "quote_position_in_chunk": 146,
+    "passes": true,
+    "chunk_id": 84
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "DOM-19",
+    "quote": "Passing the date\nalone is no evidence of absence.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 85
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-38",
+    "quote": "the earlier of its `effective_cancellation_date` and any gone observation",
+    "quote_position_in_chunk": 181,
+    "passes": true,
+    "chunk_id": 86
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-74",
+    "quote": "A machine **still present after\nits date** has its meter stopped and is billing the operator",
+    "quote_position_in_chunk": 62,
+    "passes": true,
+    "chunk_id": 87
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 221,
+    "passes": true,
+    "chunk_id": 88
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-36",
+    "quote": "a read of provider state is not authoritative about a mutation the driver issued until that\nprovider's effective visibility window has elapsed",
+    "quote_position_in_chunk": 68,
+    "passes": true,
+    "chunk_id": 89
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-74",
+    "quote": "The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence",
+    "quote_position_in_chunk": 165,
+    "passes": true,
+    "chunk_id": 90
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "DOM-8",
+    "quote": "`OPS-32`'s account sweep reads each provider account independently of any caller and MUST\nwrite what it saw (state, and `machines.state_observed_at`, `STO-48`)",
+    "quote_position_in_chunk": 54,
+    "passes": true,
+    "chunk_id": 91
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-9",
+    "quote": "A vanished operation record satisfies only the settlement condition; the sweep MUST still check the provisioning condition against retained `machines` rows.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 92
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "MUST read `STO-59`'s row `FOR SHARE` as its first statement",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 93
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "Where\nthe values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 80,
+    "passes": true,
+    "chunk_id": 93
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-15",
+    "quote": "the engine\nMUST move every `running` operation to `needs_reconciliation`",
+    "quote_position_in_chunk": 66,
+    "passes": true,
+    "chunk_id": 94
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "the server decides\nevery statement's fate before the client does",
+    "quote_position_in_chunk": 59,
+    "passes": true,
+    "chunk_id": 95
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 73
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "the server decides every statement's fate before the client does",
+    "quote_position_in_chunk": 59,
+    "passes": true,
+    "chunk_id": 96
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "A worker cancelled during the retry loop stops retrying and exits",
+    "quote_position_in_chunk": 39,
+    "passes": true,
+    "chunk_id": 97
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "on exhaustion the outcome in hand is\nthrown away and `OPS-15` classifies the row as interrupted",
+    "quote_position_in_chunk": 60,
+    "passes": true,
+    "chunk_id": 98
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-47",
+    "quote": "treat the loss as a stop of every worker not already recording one",
+    "quote_position_in_chunk": 93,
+    "passes": true,
+    "chunk_id": 99
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "A\nrefused generation check ends recording without another attempt; an earlier attempt may already\nhave committed with its reply lost.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 100
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "do not consume the bound",
+    "quote_position_in_chunk": 49,
+    "passes": true,
+    "chunk_id": 101
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-49",
+    "quote": "unless the bound's last\nrepeat committed and its reply was lost",
+    "quote_position_in_chunk": 38,
+    "passes": true,
+    "chunk_id": 102
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13c",
+    "quote": "A failed post-order\nread of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and MUST NOT\nchange the create's settlement.",
+    "quote_position_in_chunk": 15,
+    "passes": true,
+    "chunk_id": 103
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-13",
+    "quote": "If the machine remains present, or this read\nfails for any reason including throttle, authentication, network error or deadline expiry, the\naccepted attempt settles `succeeded` as `cancellation_scheduled` with its effective date.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 104
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "the engine MUST log loudly that it was superseded and exit non-zero at once",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 105
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "the engine MUST log\nloudly that it was superseded and exit non-zero at once",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 106
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-50",
+    "quote": "A mismatch is not a store error (`OPS-49`) and is never repeated.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 107
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "STO-55",
+    "quote": "worker/periodic acquisition refusal is an `OPS-49` store error",
+    "quote_position_in_chunk": 99,
+    "passes": true,
+    "chunk_id": 108
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-15",
+    "quote": "nothing but a restart can",
+    "quote_position_in_chunk": 176,
+    "passes": true,
+    "chunk_id": 109
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-21",
+    "quote": "A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 110
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-21",
+    "quote": "The record write MUST NOT be cancelled by the cancellation that stopped `execute`.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 111
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-21",
+    "quote": "A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded.",
+    "quote_position_in_chunk": 89,
+    "passes": true,
+    "chunk_id": 112
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-21",
+    "quote": "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation.",
+    "quote_position_in_chunk": 115,
+    "passes": true,
+    "chunk_id": 113
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-47",
+    "quote": "The loss is not a later stop",
+    "quote_position_in_chunk": 40,
+    "passes": true,
+    "chunk_id": 114
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OVR-17",
+    "quote": "run in the engine process",
+    "quote_position_in_chunk": 403,
+    "passes": true,
+    "chunk_id": 115
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-43",
+    "quote": "Step 9 MUST begin only after step 8's\ntransaction is acknowledged",
+    "quote_position_in_chunk": 147,
+    "passes": true,
+    "chunk_id": 116
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "PRV-41",
+    "quote": "A driver MUST therefore treat an `authentication` failure as terminal for that credential, MUST NOT re-attempt it on a schedule, and MUST surface it for an operator (`OPS-26`).",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 117
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 62,
+    "passes": true,
+    "chunk_id": 118
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "LDG-39",
+    "quote": "Deterministic rejection before acceptance",
+    "quote_position_in_chunk": 65,
+    "passes": true,
+    "chunk_id": 119
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "owner": "WIR-9a",
+    "quote": "`none` where this operation is established to have written\nnothing to the target disk",
+    "quote_position_in_chunk": 93,
+    "passes": true,
+    "chunk_id": 120
+  },
+  {
+    "file": "04-api-contract.md",
+    "owner": "WIR-30",
+    "quote": "an account whose\n`STO-47` status is not `healthy` `404`s on this route too",
+    "quote_position_in_chunk": 135,
+    "passes": true,
+    "chunk_id": 121
+  },
+  {
+    "file": "04-api-contract.md",
+    "owner": "API-1",
+    "quote": "MUST return\n`202 Accepted` with an operation view",
+    "quote_position_in_chunk": 106,
+    "passes": true,
+    "chunk_id": 122
+  },
+  {
+    "file": "04-api-contract.md",
+    "owner": "API-7",
+    "quote": "enqueue an operation, then `202`",
+    "quote_position_in_chunk": 55,
+    "passes": true,
+    "chunk_id": 123
+  },
+  {
+    "file": "04-api-contract.md",
+    "owner": "API-62",
+    "quote": "MUST surface the affected tenants",
+    "quote_position_in_chunk": 30,
+    "passes": true,
+    "chunk_id": 124
+  },
+  {
+    "file": "04-api-contract.md",
+    "owner": "PRV-26",
+    "quote": "before the order is\nsent",
+    "quote_position_in_chunk": 156,
+    "passes": true,
+    "chunk_id": 125
+  },
+  {
+    "file": "04-api-contract.md",
+    "owner": "OPS-15",
+    "quote": "the engine MUST move every `running` operation to `needs_reconciliation`",
+    "quote_position_in_chunk": 64,
+    "passes": true,
+    "chunk_id": 126
+  },
+  {
+    "file": "04-api-contract.md",
+    "owner": "OPS-15",
+    "quote": "A create found `running` at startup with\n`about_to_order_at` null MUST be settled `failed`, on a restart only.",
+    "quote_position_in_chunk": 184,
+    "passes": true,
+    "chunk_id": 126
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "API-53",
+    "quote": "strictly increases on each client-visible modification",
+    "quote_position_in_chunk": 349,
+    "passes": true,
+    "chunk_id": 127
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-50",
+    "quote": "MUST read\n  `STO-59`'s row `FOR SHARE` as its first statement",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 128
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-11",
+    "quote": "MUST settle `failed`, whatever its kind",
+    "quote_position_in_chunk": 60,
+    "passes": true,
+    "chunk_id": 129
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-15",
+    "quote": "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.",
+    "quote_position_in_chunk": 211,
+    "passes": true,
+    "chunk_id": 130
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-50",
+    "quote": "MUST read `STO-59`'s row\n  `FOR SHARE` as its first statement, compare it for equality with the value the engine's own\n  startup pass wrote",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 131
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 160,
+    "passes": true,
+    "chunk_id": 131
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-15",
+    "quote": "every earlier engine's write either committed before it, and is swept here, or is refused\n  after it",
+    "quote_position_in_chunk": 16,
+    "passes": true,
+    "chunk_id": 132
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-43",
+    "quote": "guarded on `(id, status = running,\nclaim_number = mine)`",
+    "quote_position_in_chunk": 51,
+    "passes": true,
+    "chunk_id": 133
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-43",
+    "quote": "a\nwhole-transaction repeat after a lost reply affects one row and changes nothing",
+    "quote_position_in_chunk": 124,
+    "passes": true,
+    "chunk_id": 134
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-50",
+    "quote": "compare it for equality with the value the engine's own startup pass wrote",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 135
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back",
+    "quote_position_in_chunk": 95,
+    "passes": true,
+    "chunk_id": 135
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-15",
+    "quote": "MUST contain only the replacement of `STO-59`'s startup generation",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 136
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-50",
+    "quote": "compare it for equality with the value the engine's\nown startup pass wrote",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 137
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "STO-51",
+    "quote": "The fence is `STO-59`'s generation (`OPS-50`).",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 138
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "LDG-74",
+    "quote": "MUST be stated as a customer-billing residual",
+    "quote_position_in_chunk": 221,
+    "passes": true,
+    "chunk_id": 139
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "STO-27",
+    "quote": "conditional-write claim on `(provider_account,\nordering_channel, offer_id)`",
+    "quote_position_in_chunk": 279,
+    "passes": true,
+    "chunk_id": 140
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "API-50",
+    "quote": "MUST never be throttled by the deployment's caller-throughput pacing",
+    "quote_position_in_chunk": 61,
+    "passes": true,
+    "chunk_id": 141
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-49",
+    "quote": "An\n  attempt denied by `STO-55` admission is a store error for this loop and sends no SQL",
+    "quote_position_in_chunk": 183,
+    "passes": true,
+    "chunk_id": 142
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "LDG-38",
+    "quote": "The seconds are read from `machines.billing_unit_seconds`",
+    "quote_position_in_chunk": 10,
+    "passes": true,
+    "chunk_id": 143
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "PRV-13c",
+    "quote": "The system MUST record the date of the committing pass's successful post-order read in `machines.earliest_cancellation_date`",
+    "quote_position_in_chunk": 15,
+    "passes": true,
+    "chunk_id": 144
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "PRV-13c",
+    "quote": "An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it to that column",
+    "quote_position_in_chunk": 143,
+    "passes": true,
+    "chunk_id": 144
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "PRV-13c",
+    "quote": "After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date",
+    "quote_position_in_chunk": 260,
+    "passes": true,
+    "chunk_id": 144
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "API-68",
+    "quote": "write the `LDG-33` re-derived `runway_until` using the transaction's rate and clock",
+    "quote_position_in_chunk": 156,
+    "passes": true,
+    "chunk_id": 145
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "PRV-26",
+    "quote": "before the order is sent",
+    "quote_position_in_chunk": 140,
+    "passes": true,
+    "chunk_id": 146
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "API-63",
+    "quote": "the last write before the ordering call",
+    "quote_position_in_chunk": 178,
+    "passes": true,
+    "chunk_id": 146
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-35",
+    "quote": "before any driver call",
+    "quote_position_in_chunk": 48,
+    "passes": true,
+    "chunk_id": 147
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-43",
+    "quote": "MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`",
+    "quote_position_in_chunk": 10,
+    "passes": true,
+    "chunk_id": 148
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "PRV-50",
+    "quote": "The driver's List offers MUST be read-only under `PRV-12`'s guarantee: \"Get machine MUST be read-only and free of side effects\".",
+    "quote_position_in_chunk": 79,
+    "passes": true,
+    "chunk_id": 149
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "DOM-9",
+    "quote": "Prices MUST be carried as strings exactly as the provider returned them.",
+    "quote_position_in_chunk": 62,
+    "passes": true,
+    "chunk_id": 150
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "PRV-40",
+    "quote": "retain a closure for the reported `interval`",
+    "quote_position_in_chunk": 180,
+    "passes": true,
+    "chunk_id": 151
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "PRV-42",
+    "quote": "An unresolved create retains the claim until its\n  outcome is known",
+    "quote_position_in_chunk": 210,
+    "passes": true,
+    "chunk_id": 152
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "STO-27",
+    "quote": "The primitive\n  MUST reject a competing claim atomically even when both callers read the same older snapshot",
+    "quote_position_in_chunk": 333,
+    "passes": true,
+    "chunk_id": 152
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "OPS-11",
+    "quote": "MUST settle `failed`, whatever its kind",
+    "quote_position_in_chunk": 95,
+    "passes": true,
+    "chunk_id": 153
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "LDG-59",
+    "quote": "The window's staleness is tested continuously,\nand no pass is needed for it to produce no rate",
+    "quote_position_in_chunk": 208,
+    "passes": true,
+    "chunk_id": 154
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "API-63",
+    "quote": "Recording a\nstatus the driver itself reports MUST be refused",
+    "quote_position_in_chunk": 197,
+    "passes": true,
+    "chunk_id": 155
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "STO-54",
+    "quote": "Continuations reuse the persisted endpoints and\nevidence unchanged.",
+    "quote_position_in_chunk": 10,
+    "passes": true,
+    "chunk_id": 156
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "STO-54",
+    "quote": "A marked step does\nnot run again",
+    "quote_position_in_chunk": 192,
+    "passes": true,
+    "chunk_id": 157
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "STO-54",
+    "quote": "the freeze lifts at `grace_ends_at`",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 158
+  },
+  {
+    "file": "05-persistence.md",
+    "owner": "STO-53",
+    "quote": "never an engine write",
+    "quote_position_in_chunk": 194,
+    "passes": true,
+    "chunk_id": 159
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "An awaiting Robot session\n   cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in",
+    "quote_position_in_chunk": 74,
+    "passes": true,
+    "chunk_id": 160
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "Robot never falls back to first-use trust, including when caller keys are supplied",
+    "quote_position_in_chunk": 205,
+    "passes": true,
+    "chunk_id": 160
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "An awaiting Robot session cannot become eligible for first-use trust",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 161
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins\nMUST be refused before authentication",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 162
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "The engine MUST pin the matching presented full key for the connection",
+    "quote_position_in_chunk": 145,
+    "passes": true,
+    "chunk_id": 162
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "Robot never falls back to first-use trust, including when caller keys are supplied",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 163
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "Refresh MUST NOT downgrade a session",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 164
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "The same rule protects fingerprint pins",
+    "quote_position_in_chunk": 54,
+    "passes": true,
+    "chunk_id": 164
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "An awaiting Robot session cannot become eligible for first-use trust",
+    "quote_position_in_chunk": 101,
+    "passes": true,
+    "chunk_id": 164
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "PRV-20",
+    "quote": "If eligible pins have not arrived by `RSC-9`'s deadline … connection fails `integrity`",
+    "quote_position_in_chunk": 25,
+    "passes": true,
+    "chunk_id": 165
+  },
+  {
+    "file": "06-rescue-install.md",
+    "owner": "WIR-30",
+    "quote": "`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 166
+  },
+  {
+    "file": "07-security-requirements.md",
+    "owner": "WIR-47",
+    "quote": "Selection uses positive evidence, never timestamp order",
+    "quote_position_in_chunk": 108,
+    "passes": true,
+    "chunk_id": 167
+  },
+  {
+    "file": "08-provider-notes.md",
+    "owner": "PRV-44",
+    "quote": "A value the engine reads MUST come from here and never from `08-provider-notes.md`",
+    "quote_position_in_chunk": 42,
+    "passes": true,
+    "chunk_id": 168
+  },
+  {
+    "file": "08-provider-notes.md",
+    "owner": "PRV-48",
+    "quote": "It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag",
+    "quote_position_in_chunk": 10,
+    "passes": true,
+    "chunk_id": 169
+  },
+  {
+    "file": "08-provider-notes.md",
+    "owner": "PRV-13a",
+    "quote": "A DigitalOcean driver MUST NOT set `backups: true` on create",
+    "quote_position_in_chunk": 66,
+    "passes": true,
+    "chunk_id": 170
+  },
+  {
+    "file": "08-provider-notes.md",
+    "owner": "PRV-36",
+    "quote": "the worst observed request-to-observation latency over at least twenty real mutations",
+    "quote_position_in_chunk": 35,
+    "passes": true,
+    "chunk_id": 171
+  },
+  {
+    "file": "08-provider-notes.md",
+    "owner": "OPS-33",
+    "quote": "poll through an `in process` state with no documented bound",
+    "quote_position_in_chunk": 157,
+    "passes": true,
+    "chunk_id": 172
+  },
+  {
+    "file": "08-provider-notes.md",
+    "owner": "RSC-19",
+    "quote": "The route back is to activate rescue\n   again",
+    "quote_position_in_chunk": 71,
+    "passes": true,
+    "chunk_id": 173
+  },
+  {
+    "file": "08-provider-notes.md",
+    "owner": "PRV-18",
+    "quote": "clean up after itself on partial failure",
+    "quote_position_in_chunk": 138,
+    "passes": true,
+    "chunk_id": 174
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "LDG-38",
+    "quote": "A machine's first seed is eligible for an offset only if its first unit was actually\ndebited to the customer",
+    "quote_position_in_chunk": 102,
+    "passes": true,
+    "chunk_id": 175
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-15",
+    "quote": "MUST be returned to `queued`",
+    "quote_position_in_chunk": 216,
+    "passes": true,
+    "chunk_id": 176
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-15",
+    "quote": "Where no error is\n      recorded, it MUST carry an `internal` error naming the restart, with `retryable: true` on\n      both the error and the operation view",
+    "quote_position_in_chunk": 475,
+    "passes": true,
+    "chunk_id": 177
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-11",
+    "quote": "`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`",
+    "quote_position_in_chunk": 100,
+    "passes": true,
+    "chunk_id": 178
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "WIR-17",
+    "quote": "`acknowledge_purchase` MUST be literal `true`",
+    "quote_position_in_chunk": 109,
+    "passes": true,
+    "chunk_id": 179
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-43",
+    "quote": "the accepted recurring price, its currency and its period",
+    "quote_position_in_chunk": 271,
+    "passes": true,
+    "chunk_id": 179
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "LDG-16",
+    "quote": "no single\n      rate observation moves the rate outside the range the window's other observations carry",
+    "quote_position_in_chunk": 88,
+    "passes": true,
+    "chunk_id": 180
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "STO-37",
+    "quote": "Nor does the worker's `OPS-41` contend\n      open one",
+    "quote_position_in_chunk": 186,
+    "passes": true,
+    "chunk_id": 181
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "STO-55",
+    "quote": "component pools, reconnects, rollout incarnations, startup-lock holders, migrators and\n      waiting runners",
+    "quote_position_in_chunk": 176,
+    "passes": true,
+    "chunk_id": 182
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "STO-54",
+    "quote": "Only an operator starts a promotion that is a restore",
+    "quote_position_in_chunk": 268,
+    "passes": true,
+    "chunk_id": 183
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "LDG-40",
+    "quote": "An incomplete cost alone, like a missing rate\n      alone, MUST NOT start a solvency halt",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 184
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "LDG-40",
+    "quote": "A shortfall on the valued terms is a computed\n      failure and MUST trigger `LDG-20`'s deployment-wide consequences",
+    "quote_position_in_chunk": 110,
+    "passes": true,
+    "chunk_id": 184
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-50",
+    "quote": "Where the values differ, the transaction MUST roll back, and the engine MUST\n      log loudly that it was superseded and exit non-zero at once",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 185
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "CNF-30",
+    "quote": "The\n      startup pass does not overwrite an error already recorded",
+    "quote_position_in_chunk": 140,
+    "passes": true,
+    "chunk_id": 186
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 187
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 188
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "a cancellation of\n      `execute` recorded before step 9 is the exception",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 189
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-50",
+    "quote": "The driver's List offers MUST be read-only",
+    "quote_position_in_chunk": 51,
+    "passes": true,
+    "chunk_id": 190
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-47",
+    "quote": "The loss is not a later stop",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 191
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-49",
+    "quote": "the component MUST repeat the **whole transaction**",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 192
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-11",
+    "quote": "the system MUST classify the error into `failed` or `needs_reconciliation` using the operation kind and the error kind",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 193
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 194
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-51",
+    "quote": "An operation in\n      `needs_reconciliation` MUST be delivered with `retryable: false`",
+    "quote_position_in_chunk": 158,
+    "passes": true,
+    "chunk_id": 195
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out, subject to the same Stop-record bound and exits.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 196
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The record write MUST NOT be cancelled by the cancellation that stopped `execute`.",
+    "quote_position_in_chunk": 29,
+    "passes": true,
+    "chunk_id": 197
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets.",
+    "quote_position_in_chunk": 25,
+    "passes": true,
+    "chunk_id": 198
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives.",
+    "quote_position_in_chunk": 30,
+    "passes": true,
+    "chunk_id": 199
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The sent transaction's fate is the server's",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 200
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 201
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "Where the row reads `OPS-45`'s markers, the record MUST classify against the markers its own transaction reads, since a marker write whose reply was lost may have committed.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 202
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 203
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The settle write that records a stop after `execute` returns MUST NOT be cancelled or abandoned by that stop.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 204
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 205
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the superseded exit (`OPS-50`), the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent inside `execute`.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 206
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "For a `suspend_tenant` parent that `execute` left waiting on its children, that write is the defer above, which records no error.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 207
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "A stop the engine survives after a create's settle-time confirming read succeeds, or after a delete's cancellation is accepted with an effective date, and before `execute` returns MUST NOT cancel `execute`.",
+    "quote_position_in_chunk": 34,
+    "passes": true,
+    "chunk_id": 208
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The worker still makes the read that follows, the stop ends it at once as a failed read unless it has already completed, `execute` returns the outcome that read gives, and the settle write records the stop as it records a stop after `execute` returns.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 209
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-11",
+    "quote": "already in the target state",
+    "quote_position_in_chunk": 190,
+    "passes": true,
+    "chunk_id": 210
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-5",
+    "quote": "every Robot\n      `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider\n      account and request path",
+    "quote_position_in_chunk": 66,
+    "passes": true,
+    "chunk_id": 211
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "WIR-9",
+    "quote": "exactly `kind`/`message`/`retryable`/`details` and nothing else",
+    "quote_position_in_chunk": 113,
+    "passes": true,
+    "chunk_id": 212
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-8",
+    "quote": "A claim (`OPS-5`) that the index refuses\n      because another running operation holds the machine MUST return the operation to `queued`\n      with a short delay",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 213
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-6",
+    "quote": "A claim the per-machine index refuses\n      (`OPS-8`) never left `queued` and does not advance the number",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 214
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-58",
+    "quote": "`queued` but never claimed straight to\n      `failed`, carrying the reason in the operation's `error`: `conflict`, with\n      `details.reason: \"tenant_suspended\"`",
+    "quote_position_in_chunk": 113,
+    "passes": true,
+    "chunk_id": 215
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-58",
+    "quote": "Its `requested_by` stays `caller` and its\n      `system_reason` stays null",
+    "quote_position_in_chunk": 91,
+    "passes": true,
+    "chunk_id": 216
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-58",
+    "quote": "it\n      has touched no provider",
+    "quote_position_in_chunk": 58,
+    "passes": true,
+    "chunk_id": 217
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "WIR-30",
+    "quote": "The gate reads the copy\n      the machine took at create",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 218
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "RSC-26",
+    "quote": "An identifier that does not resolve to exactly one device MUST abort `integrity` before\n      any write.",
+    "quote_position_in_chunk": 20,
+    "passes": true,
+    "chunk_id": 219
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-42",
+    "quote": "releases it before the provider\n      call",
+    "quote_position_in_chunk": 25,
+    "passes": true,
+    "chunk_id": 220
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-45",
+    "quote": "an operation interrupted rather than classified\n      is `OPS-15`'s, whatever the markers hold",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 221
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-58",
+    "quote": "append\n      `tenant_suspended` to that episode's `reasons` set",
+    "quote_position_in_chunk": 93,
+    "passes": true,
+    "chunk_id": 222
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-58",
+    "quote": "name its `current_operation_id`\n      in `cancellations`",
+    "quote_position_in_chunk": 163,
+    "passes": true,
+    "chunk_id": 222
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-41",
+    "quote": "A claim made while\n      a restore record is open and its `grace_ends_at` is null or in the future defers, and writes\n      no fence",
+    "quote_position_in_chunk": 71,
+    "passes": true,
+    "chunk_id": 223
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-41",
+    "quote": "The rule applies whichever path enqueued the cancellation — a delete\n      re-run by step (2), an operator's retry",
+    "quote_position_in_chunk": 210,
+    "passes": true,
+    "chunk_id": 223
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-13c",
+    "quote": "materially in the future",
+    "quote_position_in_chunk": 179,
+    "passes": true,
+    "chunk_id": 224
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-63",
+    "quote": "with\n      `retryable: false` for `\"account_terminated\"` and `retryable: true` for `\"state\"` on both the\n      error and the operation view",
+    "quote_position_in_chunk": 252,
+    "passes": true,
+    "chunk_id": 225
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-45",
+    "quote": "false, written before begin rescue … is\n      dispatched",
+    "quote_position_in_chunk": 129,
+    "passes": true,
+    "chunk_id": 226
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-33",
+    "quote": "attaching a discovered machine to a tenant MUST be an operator action",
+    "quote_position_in_chunk": 140,
+    "passes": true,
+    "chunk_id": 227
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-43",
+    "quote": "telling the caller to re-submit, and\n      `retryable: true` on both the error and the operation view",
+    "quote_position_in_chunk": 83,
+    "passes": true,
+    "chunk_id": 228
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-44",
+    "quote": "each with `correlator: operation_id | per_order_key | none`",
+    "quote_position_in_chunk": 173,
+    "passes": true,
+    "chunk_id": 229
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-32",
+    "quote": "`PRV-9` already requires the driver to\n      register a temporary key per order",
+    "quote_position_in_chunk": 66,
+    "passes": true,
+    "chunk_id": 230
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-44",
+    "quote": "or explicit `null` where no bound is declared",
+    "quote_position_in_chunk": 99,
+    "passes": true,
+    "chunk_id": 231
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "WIR-9",
+    "quote": "exactly\n      `kind`/`message`/`retryable`/`details` and nothing else",
+    "quote_position_in_chunk": 26,
+    "passes": true,
+    "chunk_id": 232
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-58",
+    "quote": "`queued` but never claimed straight to `failed`,\n      carrying the reason in the operation's `error`: `conflict`, with\n      `details.reason: \"tenant_suspended\"`",
+    "quote_position_in_chunk": 38,
+    "passes": true,
+    "chunk_id": 233
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-43",
+    "quote": "fail the operation deterministically — before any provider\n      mutation — where the provider's price has risen past what the reserve covers: `conflict`,\n      `details.reason: \"price_moved\"`, the shortfall in `details`",
+    "quote_position_in_chunk": 33,
+    "passes": true,
+    "chunk_id": 234
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-63",
+    "quote": "transition every `queued`, never-claimed create naming\n      that account straight to `failed` — `conflict`, `details.reason: \"account_terminated\"` — and\n      close and release its commitment",
+    "quote_position_in_chunk": 40,
+    "passes": true,
+    "chunk_id": 235
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-23",
+    "quote": "A field the `api` itself writes when it admits the\n      operation fails `conflict`, with `details.reason: \"incomplete_record\"` and `retryable: true` …\n      These missing-field failures settle `failed` under `OPS-11`",
+    "quote_position_in_chunk": 39,
+    "passes": true,
+    "chunk_id": 236
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-21",
+    "quote": "The recorded error is a cut-off `conflict`",
+    "quote_position_in_chunk": 29,
+    "passes": true,
+    "chunk_id": 237
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "LDG-32",
+    "quote": "keep the commitment open while any billable\n      attachment's `released_at` is null",
+    "quote_position_in_chunk": 273,
+    "passes": true,
+    "chunk_id": 238
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-33",
+    "quote": "the search it bounds is an **operator** search, not an automatic one",
+    "quote_position_in_chunk": 95,
+    "passes": true,
+    "chunk_id": 239
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "OPS-43",
+    "quote": "After the sale re-test passes, and before any per-order key upload or other provider mutation, the worker MUST re-read the offer's current price from that same List offers result **in the provider's own currency** and compare it with the native price the commitment was sized from — **carried on the operation's `request_summary`, which MUST hold the accepted recurring price, its currency and its period, and the accepted setup fee and prepaid first unit, the unit with its `billing_unit.seconds`** (`LDG-2`, `LDG-67`; *the unit and its seconds added 2026-10-08, `ADR-0033`, because the machine's row copies the seconds for its first seed, `LDG-38`, `05-persistence.md`*; *the fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any provider mutation — where the provider's price has risen past what the reserve covers**: `conflict`, `details.reason: \"price_moved\"`, the shortfall in `details`, telling the caller to re-submit, and `retryable: true` on both the error and the operation view (`WIR-9b`).",
+    "quote_position_in_chunk": 302,
+    "passes": true,
+    "chunk_id": 240
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "WIR-35",
+    "quote": "Without the date, `applied` asserts a completed release",
+    "quote_position_in_chunk": 20,
+    "passes": true,
+    "chunk_id": 241
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "PRV-13b",
+    "quote": "An\n      offer with no declared traffic bound MUST NOT be sold",
+    "quote_position_in_chunk": 165,
+    "passes": true,
+    "chunk_id": 242
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "API-35",
+    "quote": "The minimum MUST be large enough to purchase something",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 243
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "owner": "LDG-31",
+    "quote": "The decrement clamps at zero and the excess is the\n      operator's",
+    "quote_position_in_chunk": 30,
+    "passes": true,
+    "chunk_id": 244
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-47",
+    "quote": "Every engine write to `operations` and `machines` MUST be\nguarded on `epoch = mine`",
+    "quote_position_in_chunk": 48,
+    "passes": true,
+    "chunk_id": 245
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-47",
+    "quote": "stamped by `STO-1`'s claim",
+    "quote_position_in_chunk": 162,
+    "passes": true,
+    "chunk_id": 245
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "PRV-31",
+    "quote": "is read before\nits commitment opens",
+    "quote_position_in_chunk": 461,
+    "passes": true,
+    "chunk_id": 246
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-11",
+    "quote": "the operation's mutating request was accepted by the\nprovider",
+    "quote_position_in_chunk": 37,
+    "passes": true,
+    "chunk_id": 247
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "PRV-5",
+    "quote": "every driver error MUST carry\n`details.accepted`",
+    "quote_position_in_chunk": 141,
+    "passes": true,
+    "chunk_id": 247
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "DOM-11",
+    "quote": "A rescue session carries a live credential. It MUST NOT\n  be persisted",
+    "quote_position_in_chunk": 190,
+    "passes": true,
+    "chunk_id": 248
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-6",
+    "quote": "does not advance the number",
+    "quote_position_in_chunk": 80,
+    "passes": true,
+    "chunk_id": 249
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-26",
+    "quote": "nothing automatic will look at it again",
+    "quote_position_in_chunk": 347,
+    "passes": false,
+    "chunk_id": 250
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "CNF-272",
+    "quote": "resume the tenant, fund the machine, retry the\nepisode, and assert the machine survives",
+    "quote_position_in_chunk": 343,
+    "passes": false,
+    "chunk_id": 251
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-39",
+    "quote": "A tombstoned machine keeps any episode\nthat is still open",
+    "quote_position_in_chunk": 113,
+    "passes": true,
+    "chunk_id": 252
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "API-63",
+    "quote": "That is the honest end for it",
+    "quote_position_in_chunk": 356,
+    "passes": true,
+    "chunk_id": 253
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "LDG-46",
+    "quote": "MUST return\n   *both* a Lightning destination and an on-chain destination",
+    "quote_position_in_chunk": 126,
+    "passes": true,
+    "chunk_id": 254
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "STO-39",
+    "quote": "repeat-offence policy\n(which remains deliberately absent)",
+    "quote_position_in_chunk": 171,
+    "passes": true,
+    "chunk_id": 255
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "PRV-36",
+    "quote": "MUST be widened\nby any observed sample that exceeds it",
+    "quote_position_in_chunk": 11,
+    "passes": false,
+    "chunk_id": 256
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "PRV-34",
+    "quote": "the entire dedicated ordering path — request shape, authorization,\nthe transaction listing, and the correlator round-trip of `PRV-32` — can be exercised against the\n**live** API without a setup fee or a server.",
+    "quote_position_in_chunk": 30,
+    "passes": true,
+    "chunk_id": 257
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-13",
+    "quote": "holds a list aligned one-to-one with\n`correlator_value`",
+    "quote_position_in_chunk": 55,
+    "passes": true,
+    "chunk_id": 258
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "OPS-13",
+    "quote": "Resolution uses the entry of the attempt **whose correlator matched**",
+    "quote_position_in_chunk": 118,
+    "passes": true,
+    "chunk_id": 258
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "CNF-228",
+    "quote": "the case's `consequence` states the drain",
+    "quote_position_in_chunk": 312,
+    "passes": true,
+    "chunk_id": 259
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "SEC-42",
+    "quote": "enforce what it can",
+    "quote_position_in_chunk": 389,
+    "passes": true,
+    "chunk_id": 260
+  },
+  {
+    "file": "11-open-findings.md",
+    "owner": "PRV-36",
+    "quote": "the worst\nobserved request-to-observation latency over at least twenty real mutations",
+    "quote_position_in_chunk": 60,
+    "passes": true,
+    "chunk_id": 261
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-38",
+    "quote": "every increment is priced at a rate that held for the whole of it",
+    "quote_position_in_chunk": 188,
+    "passes": true,
+    "chunk_id": 262
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-5",
+    "quote": "**Balance is the sum of entries** and\nnothing else",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 263
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 264
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "WIR-30",
+    "quote": "an offer is a live listing that can change or disappear between the two",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 265
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "WIR-30",
+    "quote": "each listing left the feed on purchase",
+    "quote_position_in_chunk": 120,
+    "passes": true,
+    "chunk_id": 265
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "PRV-13e",
+    "quote": "`runway_until`, not the\ncommitment",
+    "quote_position_in_chunk": 48,
+    "passes": true,
+    "chunk_id": 266
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "STO-45",
+    "quote": "MUST be written in the same transaction as the increment it closes",
+    "quote_position_in_chunk": 221,
+    "passes": true,
+    "chunk_id": 267
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-38",
+    "quote": "stop boundary is the earlier of its\n  `effective_cancellation_date` and any gone observation",
+    "quote_position_in_chunk": 70,
+    "passes": true,
+    "chunk_id": 268
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "PRV-36",
+    "quote": "A read showing the post-mutation\n  state is evidence at any time",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 269
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "WIR-47",
+    "quote": "Selection uses positive\nevidence, never timestamp order",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 270
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-37",
+    "quote": "cancellation acceptance alone does not stop the meter",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 271
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "STO-45",
+    "quote": "An increment `LDG-38` discards moves nothing — no row write, `r` and the mark where they were, no\ndeficiency, no entry",
+    "quote_position_in_chunk": 126,
+    "passes": true,
+    "chunk_id": 272
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-7",
+    "quote": "**Every entry moves real money.**",
+    "quote_position_in_chunk": 343,
+    "passes": true,
+    "chunk_id": 273
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "STO-45",
+    "quote": "a zero-value ledger row is not legal",
+    "quote_position_in_chunk": 18,
+    "passes": true,
+    "chunk_id": 274
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "OPS-15",
+    "quote": "A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.",
+    "quote_position_in_chunk": 147,
+    "passes": true,
+    "chunk_id": 275
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "OPS-11",
+    "quote": "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 264
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-31",
+    "quote": "MUST NOT be taken from available balance: that\n  would be the automatic seizure `ADR-0011` exists to forbid",
+    "quote_position_in_chunk": 47,
+    "passes": true,
+    "chunk_id": 276
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "OPS-33",
+    "quote": "is a cost the operator can see, price and absorb",
+    "quote_position_in_chunk": 128,
+    "passes": true,
+    "chunk_id": 277
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-58",
+    "quote": "the rate holds until the next such pass",
+    "quote_position_in_chunk": 310,
+    "passes": true,
+    "chunk_id": 278
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-74",
+    "quote": "a machine established gone has nothing left to cancel",
+    "quote_position_in_chunk": 10,
+    "passes": true,
+    "chunk_id": 279
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-74",
+    "quote": "the earlier of its\n`effective_cancellation_date` and the observation",
+    "quote_position_in_chunk": 175,
+    "passes": true,
+    "chunk_id": 280
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-74",
+    "quote": "A machine **still present after its date** has its meter stopped and is billing the operator",
+    "quote_position_in_chunk": 337,
+    "passes": true,
+    "chunk_id": 281
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-38",
+    "quote": "stop boundary is the\nearlier of its `effective_cancellation_date` and any gone observation",
+    "quote_position_in_chunk": 223,
+    "passes": true,
+    "chunk_id": 281
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-74",
+    "quote": "a machine established gone has nothing left to cancel",
+    "quote_position_in_chunk": 10,
+    "passes": true,
+    "chunk_id": 279
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "LDG-64",
+    "quote": "**cancel\nmachines at that bound** if no rate has returned",
+    "quote_position_in_chunk": 59,
+    "passes": true,
+    "chunk_id": 282
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "owner": "OPS-41",
+    "quote": "**The funding re-check does not apply where the\nmachine's tenant IS suspended** at the moment of the re-check",
+    "quote_position_in_chunk": 63,
+    "passes": true,
+    "chunk_id": 283
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "DOM-17",
+    "quote": "whether repeating\nthe same request is safe and sensible",
+    "quote_position_in_chunk": 77,
+    "passes": true,
+    "chunk_id": 284
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "RSC-26",
+    "quote": "Every disk reported by the rescue environment MUST remain in the inventory and in\nthe fingerprint, including a disk with no identifier.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 285
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "WIR-30",
+    "quote": "the commitment is priced at accept\ntime",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 286
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "RSC-3",
+    "quote": "Abort with an `integrity` error",
+    "quote_position_in_chunk": 70,
+    "passes": true,
+    "chunk_id": 287
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "PRV-20",
+    "quote": "If eligible pins have not arrived by `RSC-9`'s deadline … connection fails `integrity`",
+    "quote_position_in_chunk": 25,
+    "passes": true,
+    "chunk_id": 288
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "RSC-3",
+    "quote": "Caller supplied expected host keys and the driver published none",
+    "quote_position_in_chunk": 116,
+    "passes": true,
+    "chunk_id": 289
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "RSC-3",
+    "quote": "Pin exactly those. Strict checking.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 290
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "RSC-3",
+    "quote": "On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 291
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "RSC-3",
+    "quote": "The actual Robot connection MUST match an accepted provider pin, even when a caller key is supplied.",
+    "quote_position_in_chunk": 24,
+    "passes": true,
+    "chunk_id": 292
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "PRV-20",
+    "quote": "An awaiting Robot session cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in",
+    "quote_position_in_chunk": 79,
+    "passes": true,
+    "chunk_id": 293
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "RSC-3",
+    "quote": "They MUST overlap. No overlap is an `integrity` failure, and the engine MUST abort before connecting.",
+    "quote_position_in_chunk": 54,
+    "passes": true,
+    "chunk_id": 294
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "PRV-20",
+    "quote": "An awaiting Robot session cannot become eligible for first-use trust",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 295
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "PRV-45",
+    "quote": "MUST store that date on the attachment row",
+    "quote_position_in_chunk": 29,
+    "passes": true,
+    "chunk_id": 296
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "PRV-45",
+    "quote": "MUST NOT write\n`released_at` merely from that result",
+    "quote_position_in_chunk": 78,
+    "passes": true,
+    "chunk_id": 296
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "WIR-42",
+    "quote": "`operator_ref` MUST be an opaque reference to a record kept outside this system",
+    "quote_position_in_chunk": 73,
+    "passes": true,
+    "chunk_id": 297
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "WIR-2",
+    "quote": "Unknown fields in a request body MUST be\nrejected",
+    "quote_position_in_chunk": 16,
+    "passes": true,
+    "chunk_id": 298
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "WIR-24",
+    "quote": "the commitment change and an idempotency record (fingerprint, status, the exact response body)\nMUST commit in one transaction",
+    "quote_position_in_chunk": 149,
+    "passes": true,
+    "chunk_id": 299
+  },
+  {
+    "file": "13-wire-contract.md",
+    "owner": "API-62",
+    "quote": "MUST surface the affected tenants",
+    "quote_position_in_chunk": 29,
+    "passes": true,
+    "chunk_id": 300
+  },
+  {
+    "file": "CONTEXT.md",
+    "owner": "OPS-41",
+    "quote": "A worker executing **any**\nexposure-reducing cancellation",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 301
+  },
+  {
+    "file": "CONTEXT.md",
+    "owner": "OPS-39",
+    "quote": "For an exposure-reducing cancellation the key is\nthe action, `delete`, not the `system_reason`",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 302
+  },
+  {
+    "file": "CONTEXT.md",
+    "owner": "OPS-47",
+    "quote": "**The lock is not a fence**",
+    "quote_position_in_chunk": 70,
+    "passes": true,
+    "chunk_id": 303
+  },
+  {
+    "file": "executive-summary.md",
+    "owner": "SEC-39",
+    "quote": "A per-request\nacknowledgement is not a control when the caller is not human… An autonomous caller sets the flag\nfrom a template on every request; it becomes a constant, and the safety property it was carrying\nquietly disappears while the field is still present and still `true`.",
+    "quote_position_in_chunk": 30,
+    "passes": true,
+    "chunk_id": 304
+  },
+  {
+    "file": "executive-summary.md",
+    "owner": "LDG-16",
+    "quote": "no single rate observation moves the rate outside the range the window's other\nobservations carry",
+    "quote_position_in_chunk": 121,
+    "passes": true,
+    "chunk_id": 305
+  },
+  {
+    "file": "executive-summary.md",
+    "owner": "LDG-16",
+    "quote": "It promises no more than that.",
+    "quote_position_in_chunk": 242,
+    "passes": true,
+    "chunk_id": 305
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OVR-9",
+    "quote": "`api` MUST NOT depend on `providers` or `rescue` at all, and MUST reach `engine` only\n> through a trait whose signatures mention no credential type. `engine` MUST NOT depend on `api`.",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 306
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OVR-10a",
+    "quote": "The boundary MUST be enforced by the code's structure — module privacy, a narrow trait,\n> a dedicated type owning the secret — and not merely documented.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 307
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OVR-10c",
+    "quote": "Provider credentials MUST be read from the environment exactly once, at startup, by\n> the credential-owning module — and then removed from the process environment.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 308
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OPS-1",
+    "quote": "Every mutating request MUST create or return a durable operation record before any\n> provider call is made, and MUST respond `202 Accepted` with that record.",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 309
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OVR-5",
+    "quote": "The mutation MUST NOT be retried automatically, and no timer may clear the state.",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 310
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "RSC-2",
+    "quote": "The engine MUST NOT contain provider conditionals. Everything provider-specific lives\n> behind the driver interface.",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 311
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OPS-46",
+    "quote": "A requeue is admissible only for an exposure-reducing cancellation — a cancel or a\n> delete.",
+    "quote_position_in_chunk": 12,
+    "passes": false,
+    "chunk_id": 312
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OVR-4",
+    "quote": "Every write operation MUST be asynchronous and durable.",
+    "quote_position_in_chunk": 11,
+    "passes": false,
+    "chunk_id": 313
+  },
+  {
+    "file": "impl-report-01.md",
+    "owner": "OPS-11",
+    "quote": "adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing.",
+    "quote_position_in_chunk": 12,
+    "passes": false,
+    "chunk_id": 314
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "LDG-20",
+    "quote": "The operations that *reduce* exposure MUST never be gated by\nthe check that fires because exposure is too high.",
+    "quote_position_in_chunk": 398,
+    "passes": true,
+    "chunk_id": 315
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-7",
+    "quote": "A refusal stops here and is not collected by the tail.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 316
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-7",
+    "quote": "Steps 1–5 are common to every authenticated write",
+    "quote_position_in_chunk": 10,
+    "passes": true,
+    "chunk_id": 317
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "PRV-31",
+    "quote": "A missing declared cancellation bound in both the descriptor and the offer is an\nunsellable offer",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 318
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "PRV-31",
+    "quote": "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or\nits offer-reported bound is later than the provider's local today.",
+    "quote_position_in_chunk": 118,
+    "passes": true,
+    "chunk_id": 318
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-7",
+    "quote": "**whose** tenant steps 2 and 5b read",
+    "quote_position_in_chunk": 202,
+    "passes": true,
+    "chunk_id": 319
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-5",
+    "quote": "the operator token's principal is the\noperator",
+    "quote_position_in_chunk": 54,
+    "passes": true,
+    "chunk_id": 320
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-7",
+    "quote": "sits **after** 5a and 5b for the same reasons those sit where they do",
+    "quote_position_in_chunk": 86,
+    "passes": true,
+    "chunk_id": 321
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-7",
+    "quote": "**gate a create on its ordering capability**",
+    "quote_position_in_chunk": 72,
+    "passes": true,
+    "chunk_id": 322
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-7",
+    "quote": "If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing.",
+    "quote_position_in_chunk": 64,
+    "passes": true,
+    "chunk_id": 323
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-24",
+    "quote": "`kind` MUST come from the closed set in `DOM-17`",
+    "quote_position_in_chunk": 55,
+    "passes": true,
+    "chunk_id": 324
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-24",
+    "quote": "Handlers MUST NOT choose\nstatuses independently.",
+    "quote_position_in_chunk": 110,
+    "passes": true,
+    "chunk_id": 324
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-5",
+    "quote": "MUST be ignored rather than\nhonoured for it",
+    "quote_position_in_chunk": 57,
+    "passes": true,
+    "chunk_id": 325
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "OPS-39",
+    "quote": "ends at the rate's return or at `LDG-64`'s bound",
+    "quote_position_in_chunk": 50,
+    "passes": true,
+    "chunk_id": 326
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "LDG-65",
+    "quote": "A machine that reaches\n`LDG-64`'s bound is cancelled there",
+    "quote_position_in_chunk": 163,
+    "passes": true,
+    "chunk_id": 327
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "API-7",
+    "quote": "that sweep enqueues directly and never traverses this pipeline",
+    "quote_position_in_chunk": 123,
+    "passes": true,
+    "chunk_id": 328
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "owner": "PRV-31",
+    "quote": "later than the provider's local today",
+    "quote_position_in_chunk": 77,
+    "passes": true,
+    "chunk_id": 329
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "OPS-49",
+    "quote": "are not store errors and do not consume the bound",
+    "quote_position_in_chunk": 388,
+    "passes": true,
+    "chunk_id": 330
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "OPS-6",
+    "quote": "is not a fence against a second\nengine",
+    "quote_position_in_chunk": 74,
+    "passes": true,
+    "chunk_id": 331
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "STO-3",
+    "quote": "the written columns are not\ndistinct from what is being written",
+    "quote_position_in_chunk": 111,
+    "passes": true,
+    "chunk_id": 332
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "STO-56",
+    "quote": "is\nnull until step (3) of `STO-54`'s procedure is marked",
+    "quote_position_in_chunk": 89,
+    "passes": true,
+    "chunk_id": 333
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "OPS-6",
+    "quote": "MUST select the oldest\n`queued` operation",
+    "quote_position_in_chunk": 71,
+    "passes": true,
+    "chunk_id": 334
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "OPS-22",
+    "quote": "something that was not this execution moved the operation",
+    "quote_position_in_chunk": 87,
+    "passes": true,
+    "chunk_id": 335
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "OPS-49",
+    "quote": "the\noutcome in hand is thrown away and `OPS-15` classifies the row as interrupted",
+    "quote_position_in_chunk": 205,
+    "passes": true,
+    "chunk_id": 336
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "owner": "OPS-50",
+    "quote": "A mismatch is not a store error (`OPS-49`) and is never repeated.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 337
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "OPS-41",
+    "quote": "`LDG-35`'s per-tenant primitive orders nothing against a\ndeployment-wide event",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 338
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "STO-37",
+    "quote": "The row is the subject's, and the meter\nopens it",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 339
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "LDG-64",
+    "quote": "compute the outage's deadline from history, and\nstore it nowhere",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 340
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "LDG-38",
+    "quote": "The exit closes an open\nsubject outage row at that end",
+    "quote_position_in_chunk": 48,
+    "passes": true,
+    "chunk_id": 341
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "PRV-13",
+    "quote": "Read failure does not turn the accepted\ndated cancellation into `needs_reconciliation` or establish absence",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 342
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "OPS-41",
+    "quote": "An outage MUST pause that measure, neither spending the remaining grace nor\nresetting what accumulated",
+    "quote_position_in_chunk": 71,
+    "passes": true,
+    "chunk_id": 343
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "OPS-41",
+    "quote": "The worker re-derives and applies the predicate above **first**",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 344
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "LDG-64",
+    "quote": "compute the outage's deadline from history, and store it nowhere",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 345
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "LDG-16",
+    "quote": "is no clause of this predicate",
+    "quote_position_in_chunk": 35,
+    "passes": true,
+    "chunk_id": 346
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "STO-37",
+    "quote": "The row is the\nsubject's, and the meter opens it",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 347
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "OPS-41",
+    "quote": "`LDG-35`'s per-tenant primitive orders nothing against a\ndeployment-wide event",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 338
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "LDG-59",
+    "quote": "A pass below the quorum accepts\nno observation and recomputes nothing, and the rate in force holds",
+    "quote_position_in_chunk": 58,
+    "passes": true,
+    "chunk_id": 348
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "STO-37",
+    "quote": "The row\nis the subject's, and the meter opens it",
+    "quote_position_in_chunk": 55,
+    "passes": true,
+    "chunk_id": 349
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "STO-37",
+    "quote": "The row is the\nsubject's, and the meter opens it",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 347
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "LDG-65",
+    "quote": "Nothing\nis cancelled on a date that passes while there is no rate",
+    "quote_position_in_chunk": 79,
+    "passes": true,
+    "chunk_id": 350
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "LDG-64",
+    "quote": "Each outage has its own start and so its own deadline",
+    "quote_position_in_chunk": 89,
+    "passes": true,
+    "chunk_id": 351
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "PRV-13e",
+    "quote": "recomputes is `runway_until`, not the commitment",
+    "quote_position_in_chunk": 76,
+    "passes": true,
+    "chunk_id": 352
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "owner": "API-68",
+    "quote": "conditional-write on `(id, state = stalled)`",
+    "quote_position_in_chunk": 35,
+    "passes": true,
+    "chunk_id": 353
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "API-58",
+    "quote": "A funded tenant MUST be\nsuspended, never deleted",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 354
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "LDG-38",
+    "quote": "the discard above is the case with nothing left\nafter the mark",
+    "quote_position_in_chunk": 301,
+    "passes": true,
+    "chunk_id": 355
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "LDG-38",
+    "quote": "Every transition of a subject into\nbillable MUST write that subject's high-water mark at its seed instant",
+    "quote_position_in_chunk": 46,
+    "passes": true,
+    "chunk_id": 356
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "LDG-38",
+    "quote": "greatest `increment end`\nalready closed for it",
+    "quote_position_in_chunk": 27,
+    "passes": true,
+    "chunk_id": 357
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "LDG-66",
+    "quote": "provider-native amount\nand currency (`LDG-2`)",
+    "quote_position_in_chunk": 348,
+    "passes": true,
+    "chunk_id": 358
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "LDG-38",
+    "quote": "new period's `meter_totals` row starts with\n`r = 0`",
+    "quote_position_in_chunk": 278,
+    "passes": true,
+    "chunk_id": 359
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "LDG-5",
+    "quote": "naming the entry it corrects",
+    "quote_position_in_chunk": 60,
+    "passes": true,
+    "chunk_id": 360
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "API-34",
+    "quote": "maximum on-chain finality window",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 361
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "owner": "LDG-38",
+    "quote": "any later re-entry into a billable state",
+    "quote_position_in_chunk": 142,
+    "passes": true,
+    "chunk_id": 362
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-70",
+    "quote": "`balance_after` on the greatest `seq` for that\ntenant",
+    "quote_position_in_chunk": 56,
+    "passes": true,
+    "chunk_id": 363
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-66",
+    "quote": "is NOT a ledger entry",
+    "quote_position_in_chunk": 140,
+    "passes": true,
+    "chunk_id": 364
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-66",
+    "quote": "MUST NOT alter any tenant\nbalance",
+    "quote_position_in_chunk": 168,
+    "passes": true,
+    "chunk_id": 364
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-31",
+    "quote": "there is no debit left that pairs with\nnothing",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 365
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-31",
+    "quote": "It MUST NOT be taken from available balance",
+    "quote_position_in_chunk": 67,
+    "passes": true,
+    "chunk_id": 365
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-32",
+    "quote": "A commitment MUST be closed, and its remaining amount released in full",
+    "quote_position_in_chunk": 79,
+    "passes": true,
+    "chunk_id": 366
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-28",
+    "quote": "Releasing a commitment returns **the exact satoshi amount still reserved**",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 367
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-31",
+    "quote": "the commitment decrements to zero, the tenant is debited only up to the authority it granted,\nand the remainder is recorded as an **operator deficiency**",
+    "quote_position_in_chunk": 193,
+    "passes": true,
+    "chunk_id": 368
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-32",
+    "quote": "A commitment MUST be closed, and its remaining amount released in full",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 369
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-6",
+    "quote": "a per-tenant monotonic sequence number",
+    "quote_position_in_chunk": 42,
+    "passes": true,
+    "chunk_id": 370
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-6",
+    "quote": "the signed satoshi amount",
+    "quote_position_in_chunk": 84,
+    "passes": true,
+    "chunk_id": 370
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-6",
+    "quote": "the running balance\nafter it",
+    "quote_position_in_chunk": 116,
+    "passes": true,
+    "chunk_id": 370
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-70",
+    "quote": "`balance_after` on the greatest `seq` for that tenant",
+    "quote_position_in_chunk": 19,
+    "passes": true,
+    "chunk_id": 371
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "owner": "LDG-6",
+    "quote": "per-tenant monotonic\nsequence number",
+    "quote_position_in_chunk": 72,
+    "passes": true,
+    "chunk_id": 372
+  },
+  {
+    "file": "tools/formal/Provisiond/Migration.lean",
+    "owner": "STO-13",
+    "quote": "A `CONCURRENTLY` build cannot run inside a transaction, so it is its own\nmigration under `STO-12`'s non-transactional rule",
+    "quote_position_in_chunk": 115,
+    "passes": true,
+    "chunk_id": 373
+  },
+  {
+    "file": "tools/formal/Provisiond/Period.lean",
+    "owner": "LDG-38",
+    "quote": "every increment is priced at a rate that held for the whole of it",
+    "quote_position_in_chunk": 230,
+    "passes": true,
+    "chunk_id": 374
+  },
+  {
+    "file": "tools/formal/Provisiond/Period.lean",
+    "owner": "LDG-68",
+    "quote": "A period begins at `00:00:00Z` on the first day of a\nmonth",
+    "quote_position_in_chunk": 522,
+    "passes": true,
+    "chunk_id": 375
+  },
+  {
+    "file": "tools/formal/Provisiond/Period.lean",
+    "owner": "LDG-68",
+    "quote": "which entries a correction may name",
+    "quote_position_in_chunk": 1689,
+    "passes": true,
+    "chunk_id": 375
+  },
+  {
+    "file": "tools/formal/Provisiond/Period.lean",
+    "owner": "LDG-68",
+    "quote": "deriving it from the machine's create instant",
+    "quote_position_in_chunk": 53,
+    "passes": true,
+    "chunk_id": 376
+  },
+  {
+    "file": "tools/formal/Provisiond/Rate.lean",
+    "owner": "LDG-16",
+    "quote": "a plausible price carried by half the window can move the rate to itself",
+    "quote_position_in_chunk": 48,
+    "passes": true,
+    "chunk_id": 377
+  },
+  {
+    "file": "tools/formal/Provisiond/Rate.lean",
+    "owner": "LDG-16",
+    "quote": "It promises no more than that.",
+    "quote_position_in_chunk": 128,
+    "passes": true,
+    "chunk_id": 377
+  },
+  {
+    "file": "tools/formal/Provisiond/Rate.lean",
+    "owner": "STO-49",
+    "quote": "a pass that reads early and commits late",
+    "quote_position_in_chunk": 66,
+    "passes": true,
+    "chunk_id": 378
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "owner": "OPS-32",
+    "quote": "a failed direct absence confirmation cannot record absence",
+    "quote_position_in_chunk": 474,
+    "passes": true,
+    "chunk_id": 379
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "owner": "OPS-32",
+    "quote": "It is `PRV-36`'s window and NOT `OPS-33`'s negative window,\nand the two must not be conflated",
+    "quote_position_in_chunk": 188,
+    "passes": true,
+    "chunk_id": 380
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "owner": "OPS-32",
+    "quote": "A machine with no create of its own\nhas no window at all",
+    "quote_position_in_chunk": 361,
+    "passes": true,
+    "chunk_id": 381
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "owner": "PRV-36",
+    "quote": "`OPS-27`'s resolution MUST NOT take its first read before the window has elapsed",
+    "quote_position_in_chunk": 550,
+    "passes": true,
+    "chunk_id": 381
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "owner": "OPS-32",
+    "quote": "what it observed\n*present* it may still record",
+    "quote_position_in_chunk": 721,
+    "passes": true,
+    "chunk_id": 381
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "Connect to the\naddress that was validated, pinning it for the connection, or re-validate at connect time",
+    "quote_position_in_chunk": 77,
+    "passes": true,
+    "chunk_id": 382
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-42",
+    "quote": "A fresh copy arrives only by the caller sending a fresh install",
+    "quote_position_in_chunk": 121,
+    "passes": true,
+    "chunk_id": 383
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "IPv4-mapped or IPv4-compatible IPv6\naddress wrapping any of those",
+    "quote_position_in_chunk": 56,
+    "passes": true,
+    "chunk_id": 384
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "or an IPv4-mapped or IPv4-compatible IPv6\naddress wrapping any of those",
+    "quote_position_in_chunk": 52,
+    "passes": true,
+    "chunk_id": 385
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "both families, every A and AAAA record",
+    "quote_position_in_chunk": 117,
+    "passes": true,
+    "chunk_id": 386
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "cap the redirect count",
+    "quote_position_in_chunk": 28,
+    "passes": true,
+    "chunk_id": 387
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "never report why\nin a way that describes the target",
+    "quote_position_in_chunk": 58,
+    "passes": true,
+    "chunk_id": 388
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "again after every redirect",
+    "quote_position_in_chunk": 73,
+    "passes": true,
+    "chunk_id": 389
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-44",
+    "quote": "cap the redirect count",
+    "quote_position_in_chunk": 92,
+    "passes": true,
+    "chunk_id": 390
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-40",
+    "quote": "It counts the bytes and hashes them",
+    "quote_position_in_chunk": 37,
+    "passes": true,
+    "chunk_id": 391
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-39",
+    "quote": "verify its `sha256` **as it\nstreams**",
+    "quote_position_in_chunk": 149,
+    "passes": true,
+    "chunk_id": 392
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-41",
+    "quote": "On re-acquiring the\nmachine",
+    "quote_position_in_chunk": 27,
+    "passes": true,
+    "chunk_id": 393
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-42",
+    "quote": "may fail or be lost",
+    "quote_position_in_chunk": 93,
+    "passes": true,
+    "chunk_id": 394
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-41",
+    "quote": "A maximum import wait MUST be stated, past which the\noperation aborts and the imported image is deleted",
+    "quote_position_in_chunk": 24,
+    "passes": true,
+    "chunk_id": 395
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "owner": "RSC-41",
+    "quote": "On re-acquiring the machine the operation MUST re-validate before the rebuild\n(`OPS-23`)",
+    "quote_position_in_chunk": 101,
+    "passes": true,
+    "chunk_id": 396
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "PRV-20",
+    "quote": "An awaiting Robot session\ncannot become eligible for first-use trust, even with the caller's explicit first-use opt-in",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 397
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "RSC-3",
+    "quote": "On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 398
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "PRV-20",
+    "quote": "An awaiting Robot session cannot become\neligible for first-use trust, even with the caller's explicit first-use opt-in",
+    "quote_position_in_chunk": 43,
+    "passes": true,
+    "chunk_id": 399
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "PRV-20",
+    "quote": "a presented key whose SHA256\nfingerprint and algorithm match none of the accepted pins MUST be refused before authentication",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 400
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "RSC-26",
+    "quote": "duplicate or empty serials are real on consumer and virtualised\ndisks",
+    "quote_position_in_chunk": 92,
+    "passes": true,
+    "chunk_id": 401
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "RSC-26",
+    "quote": "abort with `integrity` —\nbefore writing a single byte",
+    "quote_position_in_chunk": 42,
+    "passes": true,
+    "chunk_id": 402
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "OPS-45",
+    "quote": "is guarded like any other worker write\n(`STO-3`)",
+    "quote_position_in_chunk": 150,
+    "passes": true,
+    "chunk_id": 403
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "STO-3",
+    "quote": "(id, status = running, claim_number = mine)",
+    "quote_position_in_chunk": 47,
+    "passes": true,
+    "chunk_id": 403
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "OPS-45",
+    "quote": "`false` is the\nconservative value as much as the open-session one: a process that dies between that write and the\ndispatch leaves `false` over a machine that was never rebooted into rescue",
+    "quote_position_in_chunk": 87,
+    "passes": true,
+    "chunk_id": 404
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "owner": "PRV-9",
+    "quote": "A vanished operation record satisfies only the settlement condition; the sweep\nMUST still check the provisioning condition against retained `machines` rows.",
+    "quote_position_in_chunk": 13,
+    "passes": true,
+    "chunk_id": 405
+  },
+  {
+    "file": "tools/formal/Provisiond/Restore.lean",
+    "owner": "OPS-43",
+    "quote": "Step 9 MUST begin only after step 8's transaction is acknowledged.",
+    "quote_position_in_chunk": 16,
+    "passes": true,
+    "chunk_id": 406
+  },
+  {
+    "file": "tools/formal/Provisiond/Restore.lean",
+    "owner": "STO-54",
+    "quote": "the freeze lifts at `grace_ends_at`",
+    "quote_position_in_chunk": 48,
+    "passes": true,
+    "chunk_id": 407
+  },
+  {
+    "file": "tools/formal/Provisiond/Restore.lean",
+    "owner": "STO-54",
+    "quote": "except the exception, whose own later condition stands\non top: it stays off until the operator has confirmed or cancelled every waiting parent",
+    "quote_position_in_chunk": 321,
+    "passes": true,
+    "chunk_id": 408
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "The Stop-record bound is measured from the stop, counts every repeat including\nserialization failures, and never resets.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 409
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "The record write MUST NOT be cancelled by the cancellation that stopped `execute`.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 410
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "is not a later stop",
+    "quote_position_in_chunk": 77,
+    "passes": true,
+    "chunk_id": 411
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-49",
+    "quote": "A serialization failure is repeated at once",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 412
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "It records no error.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 413
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-8",
+    "quote": "already deferred, or already claimed again",
+    "quote_position_in_chunk": 88,
+    "passes": true,
+    "chunk_id": 414
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and\nthe engine MUST NOT wait for it past that bound.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 415
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "The Stop-record bound is measured from the stop, counts every repeat including\nserialization failures, and never resets.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 409
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "whichever ends first ends the record",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 416
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-50",
+    "quote": "A refused generation check ends recording without another attempt; an earlier\nattempt may already have committed with its reply lost.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 417
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-21",
+    "quote": "A cancellation of `execute` that the engine survives MUST be recorded before\n the engine exits, for every operation kind",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 418
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "owner": "OPS-49",
+    "quote": "unless the bound's last\nrepeat committed and its reply was lost",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 419
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "owner": "OPS-11",
+    "quote": "is a provider fact, so the mapping belongs in the driver",
+    "quote_position_in_chunk": 461,
+    "passes": true,
+    "chunk_id": 420
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "owner": "OPS-11",
+    "quote": "5xx, or no upstream status was\nrecorded at all",
+    "quote_position_in_chunk": 64,
+    "passes": true,
+    "chunk_id": 421
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "owner": "OPS-11",
+    "quote": "before any step-9 request\n(before any per-order key upload or order request)",
+    "quote_position_in_chunk": 59,
+    "passes": true,
+    "chunk_id": 422
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "owner": "OPS-11",
+    "quote": "A later `rate_limited`, `not_found`, `authentication`, or provider 4xx error MUST NOT\nclassify that accepted mutation `failed`",
+    "quote_position_in_chunk": 95,
+    "passes": true,
+    "chunk_id": 423
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "owner": "STO-8a",
+    "quote": "'Succeeds' means the resource is gone",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 424
+  },
+  {
+    "file": "tools/formal/Provisiond/Types.lean",
+    "owner": "OPS-49",
+    "quote": "are not store errors and do not consume the bound",
+    "quote_position_in_chunk": 218,
+    "passes": true,
+    "chunk_id": 425
+  },
+  {
+    "file": "tools/formal/Provisiond/Types.lean",
+    "owner": "OPS-49",
+    "quote": "the only\nlost reply is a dead transport",
+    "quote_position_in_chunk": 74,
+    "passes": true,
+    "chunk_id": 426
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "owner": "DOM-6",
+    "quote": "floor, not a ceiling",
+    "quote_position_in_chunk": 471,
+    "passes": true,
+    "chunk_id": 427
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "owner": "WIR-1a",
+    "quote": "A body MUST reject a duplicate object\nmember",
+    "quote_position_in_chunk": 51,
+    "passes": true,
+    "chunk_id": 428
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "OPS-41",
+    "quote": "write that re-derived `runway_until` to the\nmachine row",
+    "quote_position_in_chunk": 148,
+    "passes": true,
+    "chunk_id": 429
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "API-68",
+    "quote": "admissible only in `stalled`",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 430
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "OPS-41",
+    "quote": "would let the worker delete a funded fleet on stale evidence",
+    "quote_position_in_chunk": 83,
+    "passes": true,
+    "chunk_id": 431
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "STO-54",
+    "quote": "the grace is written once per incident — `STO-56`'s `grace_ends_at`, in step (3)'s\nmark transaction",
+    "quote_position_in_chunk": 261,
+    "passes": true,
+    "chunk_id": 432
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "STO-54",
+    "quote": "the freeze lifts at `grace_ends_at`",
+    "quote_position_in_chunk": 53,
+    "passes": true,
+    "chunk_id": 433
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "LDG-31",
+    "quote": "the commitment decrements to zero",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 434
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "LDG-10",
+    "quote": "`available` MUST NOT go negative",
+    "quote_position_in_chunk": 304,
+    "passes": true,
+    "chunk_id": 435
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "LDG-70",
+    "quote": "`balance_after` on the greatest `seq` for that tenant",
+    "quote_position_in_chunk": 19,
+    "passes": true,
+    "chunk_id": 436
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "LDG-8",
+    "quote": "generated by the receiving code",
+    "quote_position_in_chunk": 51,
+    "passes": true,
+    "chunk_id": 437
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "STO-31",
+    "quote": "never from the deposit, which may legitimately\nproduce two credits",
+    "quote_position_in_chunk": 42,
+    "passes": true,
+    "chunk_id": 438
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "LDG-72",
+    "quote": "a mark ahead of every entry is ordinary",
+    "quote_position_in_chunk": 130,
+    "passes": true,
+    "chunk_id": 439
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "LDG-38",
+    "quote": "1 then 0 carrying `r`",
+    "quote_position_in_chunk": 109,
+    "passes": true,
+    "chunk_id": 440
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "RSC-3",
+    "quote": "The actual Robot connection\nMUST match an accepted provider pin, even when a caller key is supplied.",
+    "quote_position_in_chunk": 48,
+    "passes": true,
+    "chunk_id": 441
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "OPS-45",
+    "quote": "`false` is\nthe conservative value as much as the open-session one: a process that dies between that write and\nthe dispatch leaves `false` over a machine that was never rebooted into rescue",
+    "quote_position_in_chunk": 84,
+    "passes": true,
+    "chunk_id": 442
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "SEC-39",
+    "quote": "stated override path for a genuine incident",
+    "quote_position_in_chunk": 11,
+    "passes": true,
+    "chunk_id": 443
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "owner": "PRV-31",
+    "quote": "The bound is declared in the descriptor's `cancellation_bound` (`PRV-44`),\nor reported on the offer.",
+    "quote_position_in_chunk": 14,
+    "passes": true,
+    "chunk_id": 444
+  }
+]

@@ -1,0 +1,235 @@
+--- a/tools/check_citations.py
++++ b/tools/check_citations.py
+@@ -64,7 +64,13 @@
+            with a source file and line, even in historical/teaching prose or
+            spans outside the word/length limits. Each paragraph is checked
+            independently; separately extracted Lean docstrings stay separate.
+-           What it cannot see: balanced nested or mispaired straight/curly
++           A straight quotation opened outside a paired backtick span skips
++           straight marks inside such spans when selecting its closing mark.
++           Its exact content, including nested quoted values, is then compared.
++           Matching backtick runs are paragraph-local; fenced blocks receive
++           no special parsing. Curly spans and quotations opened inside code
++           keep their existing extraction. This does not parse arbitrary nesting.
++           What it cannot see: other balanced nested or mispaired straight/curly
+            marks can still select the wrong span within a paragraph. Two stray
+            straight marks, such as inch marks surrounding a real quotation,
+            can pair with its marks and hide it, including in a Lean docstring:
+@@ -124,7 +130,7 @@
+   EXISTS   Every quote of four or more normalised words in a Lean docstring
+            must appear somewhere in the corpus -- every root *.md plus
+            docs/adr/*.md -- whether or not its chunk carries an attribution
+-           (`pv-vwe.25`, decided 2026-10-01). A quote is what QUOTE matches:
++           (`pv-vwe.25`, decided 2026-10-01). A quote is what quotations() yields:
+            a paired span of at most 400 characters containing at least four
+            normalised words. Longer Lean quotations are counted by neither rule,
+            but their marks are consumed before scanning the next span.
+@@ -143,7 +149,7 @@
+            requirement passes, because no owner is consulted; a misquote
+            that happens to match text anywhere in the corpus passes, including
+            `11-open-findings.md`'s and the ADRs' records of withdrawn or wrong
+-           wording; and a quote QUOTE mispairs is as invisible here as under
++           wording; and a quote the scanner mispairs is as invisible here as under
+            QUOTED, for the reasons given there. Explicit attribution syntax is
+            the owner's named direction if verbatim-but-misattributed quotes
+            start to matter (`pv-vwe.25`, the decision of 2026-10-01).
+@@ -254,17 +260,66 @@
+ QUOTE = re.compile(r'“((?:[^”\n]|\n(?!\s*\n))*)”|"((?:[^"\n]|\n(?!\s*\n))*)"')
+ 
+ 
++def inline_code_spans(text):
++    """Content bounds of matching backtick runs, confined to one paragraph.
++
++    This is the gate's bounded prose scanner, not a Markdown parser. A run
++    closes only on a run of the same length; a different-length run is content.
++    Unmatched runs are literal. Fenced blocks receive no special treatment.
++    """
++    offset = 0
++    for paragraph in re.split(r'(\n\s*\n)', text):
++        runs = list(re.finditer(r'`+', paragraph))
++        i = 0
++        while i < len(runs):
++            j = next((j for j in range(i + 1, len(runs))
++                      if len(runs[j].group()) == len(runs[i].group())), None)
++            if j is None:
++                i += 1
++            else:
++                yield offset + runs[i].end(), offset + runs[j].start()
++                i = j + 1
++        offset += len(paragraph)
++
++
++def quotation_spans(text):
++    """Yield exact (start, end, content) slices; extend only crossed code ends.
++
++    A straight opener outside code closes at the next straight mark outside
++    code, when flat pairing would close inside code. Curly spans and straight
++    spans opened inside code retain their existing extraction. Blank lines
++    remain hard boundaries. The existing unpaired-mark guard still runs first.
++    """
++    codes = list(inline_code_spans(text))
++    cursor = 0
++    while match := QUOTE.search(text, cursor):
++        start, end = match.span()
++        wording = match.group(1) if match.group(1) is not None else match.group(2)
++        inside = lambda pos: any(left <= pos < right for left, right in codes)
++        if match.group(2) is not None and not inside(start) and inside(end - 1):
++            boundary = re.search(r'\n\s*\n', text[start:])
++            limit = start + boundary.start() if boundary else len(text)
++            closing = text.find('"', end, limit)
++            while closing >= 0 and inside(closing):
++                closing = text.find('"', closing + 1, limit)
++            if closing >= 0:
++                end = closing + 1
++                wording = text[start + 1:closing]
++        yield start, end, wording
++        cursor = end
++
++
+ def chunks(text):
+     """Apply SPLIT only outside paired quotations, regardless of their length."""
+-    spans = iter(QUOTE.finditer(text))
++    spans = iter(quotation_spans(text))
+     span = next(spans, None)
+     start = pos = 0
+     while boundary := SPLIT.search(text, pos):
+         pos = boundary.end()
+         cut = boundary.start('sentence') if boundary.group('sentence') else boundary.start()
+-        while span and span.end() <= cut:
++        while span and span[1] <= cut:
+             span = next(spans, None)
+-        if span and span.start() < cut < span.end():
++        if span and span[0] < cut < span[1]:
+             continue
+         yield text[start:cut]
+         start = boundary.end()
+@@ -284,10 +339,9 @@
+ 
+ def quotations(text, max_length=400):
+     """Yield (position, wording) after pairing, then applying the reach limits."""
+-    for match in QUOTE.finditer(text):
+-        wording = match.group(1) or match.group(2) or ""
++    for start, _end, wording in quotation_spans(text):
+         if (max_length is None or len(wording) <= max_length) and len(norm(wording).split()) >= 4:
+-            yield match.start(), wording
++            yield start, wording
+ 
+ 
+ DOC = re.compile(r"`(\d\d-[a-z-]+\.md|README\.md|CONTEXT\.md|AGENTS\.md)`")
+@@ -904,6 +958,51 @@
+     return 0
+ 
+ 
++def check_nested_inline_code():
++    """Nested values, raw short prefixes, input kinds and existing outer marks."""
++    source = '`details.reason: "account_terminated"` where the status is `terminated` and `"state"` for the two recoverable statuses, since presenting an unreachable account as a permanent termination is false, and with `retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both the error and the operation view'
++    reqs = {'API-63': ('source.md', source)}
++    shapes = ["`API-63` says ", "`API-63`'s ", "`API-63`'s rule that ",
++              "`API-63`: "]
++    try:
++        for filename in ['probe.md', 'probe.lean']:
++            for shape in shapes:
++                if filename.endswith('.lean') and shape == shapes[-1]:
++                    continue  # the Markdown-only colon rule is unchanged
++                for ticks in ['`', '``']:
++                    wording = source.replace('`', ticks)
++                    owners = {'API-63': ('source.md', wording)}
++                    for left, right in [('“', '”'), ('"', '"')]:
++                        prose = shape + left + wording + right
++                        if filename.endswith('.lean'):
++                            prose = '\n\n'.join(docstrings('/-- ' + prose + ' -/')).strip()
++                        assert not list(unpaired_marks(prose))
++                        changed = [prose.replace('account_terminated', 'account_terminatd', 1),
++                                   prose.replace('"state"', '"stat"', 1),
++                                   prose.replace('two recoverable', 'three recoverable', 1)]
++                        assert list(quotations(prose)) == [(len(shape), wording)], prose
++                        assert find({filename: prose}, {}, owners) == ([], [], 1), prose
++                        assert exists({filename: prose}, [wording]) == ([], 1), prose
++                        for wrong in changed:
++                            assert find({filename: wrong}, {}, owners)[0], wrong
++                            assert exists({filename: wrong}, [wording])[0], wrong
++        plain = '`API-63` says "alpha beta gamma delta"'
++        assert find({'probe.md': plain}, {}, {'API-63': ('source.md', 'alpha beta gamma delta')}) == ([], [], 1)
++        wrapped = '`API-63` says `"alpha beta gamma delta"`'
++        assert list(quotations(wrapped)) == [(wrapped.index('"'), 'alpha beta gamma delta')]
++        assert find({'probe.md': wrapped}, {}, {'API-63': ('source.md', 'alpha beta gamma delta')}) == ([], [], 1)
++        for gap in ['. ', '\n- ', '\n|']:
++            wording = source.replace(' where', gap + 'where', 1)
++            prose = shapes[0] + '"' + wording + '"'
++            assert list(chunks(prose)) == [prose]
++        assert list(quotation_spans('"alpha beta\n\ngamma delta"')) == []
++    except AssertionError as exc:
++        print(f'FAIL: nested inline-code citation: {exc}')
++        return 1
++    print('PASS: nested inline-code citations: exact marks, short prefixes and value corruptions')
++    return 0
++
++
+ def check_sentence_boundaries():
+     """Keep closing marks, then protect paired spans at the actual cut position."""
+     name = 'closing markup'
+@@ -1399,7 +1498,7 @@
+     if (check_sentence_boundaries() or check_docstrings() or check_quotations()
+             or check_withdrawal_history() or check_markdown_quote_reach()
+             or check_possessives() or check_colons()
+-            or check_quote_content()):
++            or check_quote_content() or check_nested_inline_code()):
+         return 1
+     try:
+         with open(BASELINE) as source:
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -201,6 +201,53 @@
+           fi
+           grep -q 'attributes to OVR-1 a phrase OVR-1 does not contain' citations.log
+           echo "citation gate correctly rejected an unverifiable quoted attribution"
++
++      - name: Prove the citation gate rejects nested inline-code value corruptions
++        if: matrix.shard == 0
++        run: |
++          python3 - <<'PY'
++          from pathlib import Path
++          import shutil
++          import subprocess
++          from tempfile import TemporaryDirectory
++
++          # Exercise the actual CLI in an isolated full copy, retaining the built index.
++          with TemporaryDirectory(prefix='nested-citation-') as directory:
++              root = Path(directory) / 'repo'
++              shutil.copytree('.', root, ignore=shutil.ignore_patterns('.git', '__pycache__'))
++              path = root / '03-operation-lifecycle.md'
++              original = path.read_text()
++              prefix = "with `API-63`'s “"
++              assert original.count(prefix) == 1
++              start = original.index(prefix) + len(prefix) - 1
++              end = original.index('”', start) + 1
++              quoted = original[start + 1:end - 1]
++              assert '"account_terminated"' in quoted and '"state"' in quoted
++              assert 'two recoverable' in quoted
++
++              def run(text, expected, diagnostic=None):
++                  path.write_text(text)
++                  result = subprocess.run(['python3', 'tools/check_citations.py'], cwd=root,
++                                          capture_output=True, text=True)
++                  assert result.returncode == expected, (expected, result.returncode, result.stdout, result.stderr)
++                  if diagnostic:
++                      assert diagnostic in result.stdout, result.stdout
++
++              run(original, 0)
++              straight = original[:start] + '"' + quoted + '"' + original[end:]
++              run(straight, 0)
++              for before, after in [('account_terminated', 'account_terminatd'),
++                                    ('"state"', '"stat"'), ('two recoverable', 'three recoverable')]:
++                  changed = quoted.replace(before, after, 1)
++                  assert changed != quoted
++                  # The cited owner and every other source stay unchanged.
++                  curly_wrong = original[:start] + '“' + changed + '”' + original[end:]
++                  straight_wrong = original[:start] + '"' + changed + '"' + original[end:]
++                  run(curly_wrong, 1, 'attributes to API-63 a phrase API-63 does not contain')
++                  run(straight_wrong, 1, 'attributes to API-63 a phrase API-63 does not contain')
++              run(original, 0)
++          print('PASS: live nested citation: valid source, three corruptions and restoration')
++          PY
+ 
+       # Exercise the unchanged live site as well as the one-word plant: a skip
+       # must not pass for a successful comparison. The control copies the index

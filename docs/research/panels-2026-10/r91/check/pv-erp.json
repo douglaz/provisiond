@@ -1,0 +1,27 @@
+{
+  "id": "pv-erp",
+  "title": "QUOTED: alternative occurrences can lend incompatible delimiter evidence (R7/R8 of pv-muf)",
+  "description": "Residue of pv-muf, stopped after Round 4. The Round-3 checker (c23c2d2) unions all candidate occurrences of every elision fragment before corresponding_roles(), so alternatives can jointly supply evidence no single selection has. Verified cases (Run 20261005T174914, task.md 'R7-R8 preservation cases'): R7a and R8 accept a corrupted quote (a check's ability to fail); R7b/R7c reject a valid one (loud). Round 4 fixed them with an exhaustive itertools.product over occurrences, which went exponential on realistic quotes (39 s on one LDG-57 probe) and was reverted. A fix needs a joint search that prunes per fragment and stays linear-ish in occurrences; the Round-5 brief (R9) in that Run directory states the cases and timing probes. All inputs found so far are synthetic nested-delimiter text; no current corpus quote is affected. Not for an unattended Sequence: design the search first.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "bug",
+  "created_at": "2026-10-05T20:42:06.713057854Z",
+  "created_by": "master",
+  "updated_at": "2026-10-13T14:50:28.664898943Z",
+  "source_repo": "provisiond-spec",
+  "source_repo_path": "/home/master/projects/provisiond-spec",
+  "compaction_level": 0,
+  "original_size": 0,
+  "labels": [
+    "ready-for-human"
+  ],
+  "comments": [
+    {
+      "id": 325,
+      "issue_id": "pv-erp",
+      "author": "user",
+      "text": "Parked at P4 (owner decision Q30, 2026-10-13; panel r47: 3-1 park). A read-only run over the corpus at 32c77dc found no affected quote (131 Markdown and 107 Lean quote comparisons; 4 repeated-fragment cases, none whose alternatives disagree). The 'reject when a fragment recurs and a quote mark is present' shortcut is WRONG: it goes red on today's corpus (\"enforce what it can\" recurs with marks) and breaks a passing self-test (\"the rows' values remain positive\"). The acceptance cases, copied from the Run directory that the repository does not hold (rloop 20261005T174914, Round-5 brief):\n\n## R7–R8 preservation cases\n\nThe existing matrix in `check_quote_content()` remains acceptance, including both elision spellings, Markdown and extracted Lean inputs, requirement/cited-document/cited-ADR pools, and its corruption variants. These concrete cases explain the candidate-consistency requirements the optimization must preserve:\n\n| Case | Source | Quote | Expected |\n|---|---|---|---|\n| R7a | `'rows unrelated the rows' values remain positive` | `\"rows\" … the rows values remain positive` | Named QUOTED failure |\n| R7a parallel | `A deployment 'deposits MUST watch only unexpired deposits' addresses` | `A deployment … \"deposits\" … MUST watch only unexpired deposits addresses` | Named QUOTED failure |\n| R7b | `the term 'settled means \"settled\"'` | `the term 'settled … \"settled\"'` | Pass |\n| R7b parallel | `the lead 'clause clause \"clause\"'` | `the lead 'clause … \"clause\"'` | Pass |\n| R7c | `'Succeeds' means the deposits' addresses are gone; 'Succeeds' means the deposits addresses are gone` | `\"Succeeds\" means the deposits' addresses are gone` | Pass |\n| R8 | `'alpha beta gamma' and the rows' values remain` | `\"alpha beta … the rows\"` | Named QUOTED failure |\n\nR7c's valid occurrence alone and both source orders must pass; the invalid occurrence alone must fail. An unsuccessful alternative cannot invalidate a good match or supply missing evidence to a bad one. A fragment's alternatives cannot jointly establish a pair. Different elision fragments can still supply corresponding endpoints of a genuine complete pair, as R5 requires; fragments may be independent and reordered. Keep the R8 complete-pair positive with source `'alpha beta gamma and the rows' values remain` and quote `\"alpha beta … the rows\"`.\n\nDo not restore the Round-3 union of all candidates, discard partner uniqueness without sufficient evidence, choose the first occurrence only, or remove apostrophes as an acceptance fallback. None is a performance repair that preserves the required behavior.",
+      "created_at": "2026-10-13T14:50:28Z"
+    }
+  ]
+}

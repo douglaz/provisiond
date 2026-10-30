@@ -1,0 +1,5 @@
+`details.reason: "account_terminated"`
+   where the status is `terminated` and `"state"` for the two recoverable statuses, since
+   presenting an unreachable account as a permanent termination is false, and with
+   `retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both the
+   error and the operation view

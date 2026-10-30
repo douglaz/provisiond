@@ -1,0 +1,241 @@
+[
+  {
+    "form": "N",
+    "case": "speech-valid",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "N",
+    "case": "speech-reason",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "N",
+    "case": "earlier-code-cut",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "N",
+    "case": "wholly-inside-code",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "N",
+    "case": "long-valid",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "N",
+    "case": "long-recoverable",
+    "exit": 1,
+    "diagnostics": [
+      "  tools/formal/TallyProbe.lean attributes to API-63 a phrase API-63 does not contain:",
+      "  tools/formal/TallyProbe.lean quotes a phrase found in no document or ADR:",
+      "FAIL: 1 unverifiable quoted attribution(s) and 1 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting."
+    ]
+  },
+  {
+    "form": "N",
+    "case": "exists-Rescue",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "N",
+    "case": "exists-Witnesses",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "A",
+    "case": "speech-valid",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: 03-operation-lifecycle.md:778: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: 03-operation-lifecycle.md:779: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: 03-operation-lifecycle.md:781: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: 03-operation-lifecycle.md:781: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "A",
+    "case": "speech-reason",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: 03-operation-lifecycle.md:778: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: 03-operation-lifecycle.md:779: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: 03-operation-lifecycle.md:781: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: 03-operation-lifecycle.md:781: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "A",
+    "case": "earlier-code-cut",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: 03-operation-lifecycle.md:778: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "A",
+    "case": "wholly-inside-code",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: README.md:319: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "A",
+    "case": "long-valid",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: tools/formal/TallyProbe.lean:1: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: tools/formal/TallyProbe.lean:2: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: tools/formal/TallyProbe.lean:3: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: tools/formal/TallyProbe.lean:4: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "A",
+    "case": "long-recoverable",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: tools/formal/TallyProbe.lean:1: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: tools/formal/TallyProbe.lean:2: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: tools/formal/TallyProbe.lean:3: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d).",
+      "FAIL: tools/formal/TallyProbe.lean:4: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "A",
+    "case": "exists-Rescue",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "A",
+    "case": "exists-Witnesses",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "B",
+    "case": "speech-valid",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "B",
+    "case": "speech-reason",
+    "exit": 1,
+    "diagnostics": [
+      "  03-operation-lifecycle.md attributes to API-63 a phrase API-63 does not contain:",
+      "FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting."
+    ]
+  },
+  {
+    "form": "B",
+    "case": "earlier-code-cut",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "B",
+    "case": "wholly-inside-code",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "B",
+    "case": "long-valid",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "B",
+    "case": "long-recoverable",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "B",
+    "case": "exists-Rescue",
+    "exit": 1,
+    "diagnostics": [
+      "  tools/formal/Provisiond/Rescue.lean quotes a phrase found in no document or ADR:",
+      "FAIL: 0 unverifiable quoted attribution(s) and 1 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting."
+    ]
+  },
+  {
+    "form": "B",
+    "case": "exists-Witnesses",
+    "exit": 1,
+    "diagnostics": [
+      "  tools/formal/Provisiond/Witnesses.lean quotes a phrase found in no document or ADR:",
+      "FAIL: 0 unverifiable quoted attribution(s) and 1 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting."
+    ]
+  },
+  {
+    "form": "C",
+    "case": "speech-valid",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: 03-operation-lifecycle.md:778: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "C",
+    "case": "speech-reason",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: 03-operation-lifecycle.md:778: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "C",
+    "case": "earlier-code-cut",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: 03-operation-lifecycle.md:778: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "C",
+    "case": "wholly-inside-code",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "C",
+    "case": "long-valid",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: tools/formal/TallyProbe.lean:1: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "C",
+    "case": "long-recoverable",
+    "exit": 1,
+    "diagnostics": [
+      "FAIL: tools/formal/TallyProbe.lean:1: API-63 straight quotation closes inside inline code; use curly outer marks (\u201c\u2026\u201d)."
+    ]
+  },
+  {
+    "form": "C",
+    "case": "exists-Rescue",
+    "exit": 0,
+    "diagnostics": []
+  },
+  {
+    "form": "C",
+    "case": "exists-Witnesses",
+    "exit": 0,
+    "diagnostics": []
+  }
+]
