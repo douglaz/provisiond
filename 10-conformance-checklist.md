@@ -3133,6 +3133,25 @@ rather than acquiring a default.
       incident. Neither arm leaves two open incidents. This case selects no predecessor-comparison
       algorithm.
 
+      Separately repeat establishment after acknowledged recovery progress. Establish an incident
+      and receive its acknowledgement, then let recovery complete and mark steps (1) and (2),
+      stopping before step (3) while the incident remains open. Record and assert stored
+      `steps_completed` = 2 and the completed step marks; retain its id, original `restore_instant`
+      and `supersedes_incident_id` for comparison. Stop both components and perform no actual store
+      restore between that progress and the repeat. In a later-starting transaction, repeat
+      establishment with that same retained id and matching original incident values, including
+      the original instant and predecessor. While both components remain stopped, observe the
+      repeat and its acknowledgement: assert a guarded no-op, no newly created incident, no
+      supersession, the same open incident id, unchanged nonzero `steps_completed` = 2 and step
+      marks, and the original `restore_instant` and `supersedes_incident_id` unchanged. Assert that
+      the later transaction's timestamp neither replaces the original instant nor causes a
+      mismatch refusal (`STO-56`). Only after that acknowledgement, start components and assert
+      continuation of that same incident at step (3), without executing either already marked
+      procedure step again (`STO-54`: “It resumes at the first step the record does not mark” and
+      “A marked step does not run again”). Allow ordinary startup work (`STO-54`: “Its mark keeps
+      this step from running again; it never suppresses `OPS-15`'s pass over `running` rows, which
+      runs at every startup”).
+
       | Install case after successor pass | `disk_effect` / `rescue_exit` |
       |---|---|
       | Old unsettled row exposed to rollback, restored null/null | `unknown` / `unknown` |
