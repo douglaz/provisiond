@@ -2,7 +2,7 @@
 
 Base: /var/tmp/provisiond-panel-r63e/forms-final.md ("forms-final"), amended by
 /var/tmp/provisiond-panel-r63g/forms-r63g.md ("forms-r63g") as r63g settled it, with the errata below. Line numbers are
-at `dc5d40d`. The harness is /var/tmp/provisiond-pgharness/results.md (H-a … H-f). r63g's tally is
+at `dc5d40d`. The harness is /var/tmp/provisiond-pgharness/results.md (repository copy: docs/research/panels-2026-10/r63/pgharness/results.md) (H-a … H-f). r63g's tally is
 /var/tmp/provisiond-panel-r63g/tally.md.
 
 ## Settled in r63g, not re-voted here

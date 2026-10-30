@@ -1,0 +1,56 @@
+## (f) read-only WAL check
+# SETUP: p, s1, s2 up; s1:streaming:quorum s2:streaming:quorum; synchronous_standby_names=ANY 1 (s1, s2)
+$ [p app] select * from pg_stat_replication
+2382039|10|postgres|s1||||||||||||||||
+2382148|10|postgres|s2||||||||||||||||
+$ [p app] select pg_current_wal_insert_lsn(), pg_current_wal_flush_lsn(), pg_current_wal_lsn()
+0/40009C0|0/4000000|0/4000000
+$ [p app] show synchronous_commit
+on
+$ [p app] show synchronous_standby_names
+ANY 1 (s1, s2)
+$ [p app] show restart_after_crash
+on
+$ [p app] set synchronous_commit = local; show synchronous_commit
+SET
+local
+$ [p app] begin; set local synchronous_commit = on; show synchronous_commit; commit
+BEGIN
+SET
+on
+COMMIT
+$ [p postgres] set synchronous_commit = local; create role statsreader nologin; grant pg_read_all_stats to statsreader; create function standby_flushed(target pg_lsn) returns boolean language sql stable security definer set search_path = pg_catalog as $$ select exists (select 1 from pg_stat_replication where application_name in ('s1','s2') and flush_lsn >= target) $$; alter function standby_flushed(pg_lsn) owner to statsreader; revoke execute on function standby_flushed(pg_lsn) from public; grant execute on function standby_flushed(pg_lsn) to app;
+SET
+CREATE ROLE
+GRANT ROLE
+CREATE FUNCTION
+ALTER FUNCTION
+REVOKE
+GRANT
+$ [p app] select standby_flushed(pg_current_wal_flush_lsn()) as via_function
+f
+# right after a commit: insert target 0/401EE68 -> 9 ms; flush target 0/401EE68 -> 10 ms
+# idle primary, sampled every 5 s (insert | flush | standby flush):
+  0/401EE68 | 0/401EE68 | s1=0/401EE68 s2=0/401EE68
+  0/401EEA0 | 0/401EEA0 | s1=0/401EEA0 s2=0/401EEA0
+  0/401EEA0 | 0/401EEA0 | s1=0/401EEA0 s2=0/401EEA0
+  0/401EEA0 | 0/401EEA0 | s1=0/401EEA0 s2=0/401EEA0
+  0/401EEA0 | 0/401EEA0 | s1=0/401EEA0 s2=0/401EEA0
+  0/401EEA0 | 0/401EEA0 | s1=0/401EEA0 s2=0/401EEA0
+  0/401EEA0 | 0/401EEA0 | s1=0/401EEA0 s2=0/401EEA0
+  0/401EEA0 | 0/401EEA0 | s1=0/401EEA0 s2=0/401EEA0
+# idle: insert target 0/401EEA0 -> 9; flush target 0/401EEA0 -> 8
+# immediately after a commit: 0/401EF88 vs s1=0/401EF50 s2=0/401EF50
+## (f-freeze) read-only check vs write-on-connect check while frozen
+# stopped s1 (fast)
+# stopped s2 (fast)
+# FREEZE: both standbys stopped
+# read-only check, 3 s client timeout: timeout
+$ [p postgres] select count(*) as syncrep_backends_after_readonly_checks from pg_stat_activity where wait_event='SyncRep'
+0
+# kill -9 client psql 2384236 (our child)
+# kill -9 client psql 2384257 (our child)
+# kill -9 client psql 2384292 (our child)
+$ [p postgres] select count(*) as syncrep_backends_after_3_write_checks from pg_stat_activity where wait_event='SyncRep'
+3
+# teardown done

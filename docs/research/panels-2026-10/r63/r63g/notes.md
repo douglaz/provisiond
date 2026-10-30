@@ -4,7 +4,7 @@ Inputs:
 - the external review, verbatim, at /var/tmp/provisiond-manager/external-review-2026-10-23.md. Readers do NOT get
   it: they get verify.md, which holds the verified facts, and results.md;
 - the manager's verification: verify.md;
-- the harness, /var/tmp/provisiond-pgharness/results.md: PostgreSQL 18.6 with three instances, every experiment
+- the harness, /var/tmp/provisiond-pgharness/results.md (repository copy: docs/research/panels-2026-10/r63/pgharness/results.md): PostgreSQL 18.6 with three instances, every experiment
   demonstrated;
 - the forms: forms-r63g.md, on top of r63e/forms-final.md;
 - the draft owner questions: owner-questions-draft.md.

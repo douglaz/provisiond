@@ -1,0 +1,21 @@
+## (e) lagging-standby promotion
+# SETUP: p, s1, s2 up; s1:streaming:quorum s2:streaming:quorum; synchronous_standby_names=ANY 1 (s1, s2)
+# stopped s2 (fast)
+# s2 stopped (lagging); s1 streaming
+$ [p app] insert into t values (7,'acknowledged')
+INSERT 0 1
+# commit returned in 88 ms, acknowledged by s1
+$ [p postgres] select application_name, flush_lsn, flush_lsn >= pg_current_wal_flush_lsn() as has_it from pg_stat_replication
+s1|0/40085F8|t
+# stopped s1 (fast)
+# stopped p (immediate)
+$ [s1 postgres] select 's1' as node, pg_last_wal_receive_lsn() as receive, pg_last_wal_replay_lsn() as replay, (select status from pg_stat_wal_receiver) as walrcv
+s1|0/4000000|0/40085F8|
+$ [s2 postgres] select 's2' as node, pg_last_wal_receive_lsn() as receive, pg_last_wal_replay_lsn() as replay, (select status from pg_stat_wal_receiver) as walrcv
+s2|0/4000000|0/4000000|
+$ [s1 postgres] select count(*) as row7_on_s1 from t where id=7
+1
+# promoted s2 (the lagging one)
+$ [s2 postgres] select count(*) as row7_on_promoted_s2 from t where id=7
+0
+# teardown done

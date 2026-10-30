@@ -14,7 +14,7 @@ the only file you may write. Finish within 55 minutes.
 - `/var/tmp/provisiond-panel-r63g/forms-r63g.md`: **the items you vote on**, on top of forms-final.
 - `/var/tmp/provisiond-panel-r63g/verify.md`: the manager's verification of the external review's claims against
   the spec, the PostgreSQL 18 docs and source, and the Patroni docs. Each claim is classed NEW, COVERED or WRONG.
-- `/var/tmp/provisiond-pgharness/results.md`: a fault-injection harness of three real PostgreSQL 18.6 instances
+- `/var/tmp/provisiond-pgharness/results.md` (repository copy: `docs/research/panels-2026-10/r63/pgharness/results.md`): a fault-injection harness of three real PostgreSQL 18.6 instances
   (primary + two standbys, `ANY 1 (s1, s2)`, `synchronous_commit = on`). It has a summary table and the verbatim
   transcripts. Cited as H-a … H-f.
 - `/var/tmp/provisiond-panel-r63g/owner-questions-draft.md`: the owner questions as they would be asked.

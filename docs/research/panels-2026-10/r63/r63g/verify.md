@@ -3,7 +3,7 @@
 Input: /var/tmp/provisiond-manager/external-review-2026-10-23.md (the review, verbatim). Checked against the spec
 (master and branch `panel-c`, both at `dc5d40d`), the panel draft /var/tmp/provisiond-panel-r63e/forms-final.md
 ("draft"), PostgreSQL 18 docs and source (r63f/src, r63g/src), Patroni docs (r63f/src) and the harness
-(/var/tmp/provisiond-pgharness/results.md, cited as H-a … H-f).
+(/var/tmp/provisiond-pgharness/results.md (repository copy: docs/research/panels-2026-10/r63/pgharness/results.md), cited as H-a … H-f).
 
 Classes: **NEW** = correct and new; **COVERED** = correct and already covered (named where); **WRONG**.
 
