@@ -1202,8 +1202,16 @@ takes the machines *and* the float" partly false.
   primary, restart both standbys, and assert the procedure promotes the one holding that write, then repeat with the standbys' roles swapped.
   Promote a lagging standby as an operator restore with verified prefix/clock evidence and
   assert the incident stores certified bounds. Repeat with an idle restarted standby that has
-  replayed no transaction record and no retained fallback proof: assert unknown history bound
-  and an explicit nonnumeric report, followed by the existing restore procedure. Repeat with no
+  replayed no transaction record and no retained fallback proof, leaving the lower history endpoint
+  unknown, but supply valid retained event-clock and stopping/fencing evidence certifying an
+  upper endpoint under `STO-54`. Assert that the incident persists `lost_window_starts_at` as
+  null and `loss_end_at` as that certified upper endpoint, with a non-null incident-keyed
+  `history_evidence_ref` identifying the retained evidence and the unknown-lower-endpoint
+  reason (`STO-54`, `STO-56`). For this fixture, assert that the operator report publishes
+  the certified upper endpoint and its clock/provenance assumptions, identifies the lower
+  endpoint as unknown and states that no finite duration is established (`STO-54`).
+  A report omitting the certified upper endpoint or inventing a finite loss duration fails
+  this case. Follow with the existing restore procedure. Repeat with no
   verified event-clock bound and assert an unknown upper bound. Do not use a restart time or a
   backup name to fill an unknown history bound.
   For these operator-restore arms, supply certified evidence for each asserted known
