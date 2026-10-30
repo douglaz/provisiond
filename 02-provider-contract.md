@@ -15,8 +15,7 @@ default implementation that fails with an `unsupported` error naming the operati
 the account. A driver opts in by overriding; it MUST NOT be possible to add an operation
 to the interface and silently get a wrong default behaviour in every existing driver.
 Of those three, *get machine* is MUST-implement (`PRV-3`); *describe capabilities* is not defaulted
-either, but it carries no separate mandate and needs none — `PRV-4` and `DOM-15` make an undeclared
-capability unusable, so a driver that declares nothing can do nothing. The third is the one operation
+either, but it carries no separate mandate and needs none — see `DOM-10`. The third is the one operation
 with an explicit non-failing default — `PRV-19` returns the session unchanged, which is safe
 only because `PRV-20` forbids a refresh that downgrades one.
 
