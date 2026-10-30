@@ -1,0 +1,150 @@
+{
+  "quoted_sources": [
+    {
+      "owner": "WIR-2",
+      "path": "13-wire-contract.md",
+      "start": 28,
+      "end": 39
+    },
+    {
+      "owner": "WIR-9 / WIR-9a",
+      "path": "13-wire-contract.md",
+      "start": 121,
+      "end": 144
+    },
+    {
+      "owner": "WIR-9a / WIR-9b",
+      "path": "13-wire-contract.md",
+      "start": 195,
+      "end": 236
+    },
+    {
+      "owner": "WIR-20",
+      "path": "13-wire-contract.md",
+      "start": 684,
+      "end": 710
+    },
+    {
+      "owner": "WIR-20",
+      "path": "13-wire-contract.md",
+      "start": 726,
+      "end": 748
+    },
+    {
+      "owner": "WIR-35",
+      "path": "13-wire-contract.md",
+      "start": 906,
+      "end": 913
+    },
+    {
+      "owner": "API-13 / API-14",
+      "path": "04-api-contract.md",
+      "start": 962,
+      "end": 985
+    },
+    {
+      "owner": "RSC-4",
+      "path": "06-rescue-install.md",
+      "start": 101,
+      "end": 102
+    },
+    {
+      "owner": "PRV-47",
+      "path": "02-provider-contract.md",
+      "start": 166,
+      "end": 176
+    },
+    {
+      "owner": "PRV-5",
+      "path": "02-provider-contract.md",
+      "start": 39,
+      "end": 50
+    },
+    {
+      "owner": "OPS-11",
+      "path": "03-operation-lifecycle.md",
+      "start": 248,
+      "end": 250
+    },
+    {
+      "owner": "OPS-45",
+      "path": "03-operation-lifecycle.md",
+      "start": 1489,
+      "end": 1513
+    },
+    {
+      "owner": "OPS-23",
+      "path": "03-operation-lifecycle.md",
+      "start": 2018,
+      "end": 2054
+    },
+    {
+      "owner": "CNF-34",
+      "path": "10-conformance-checklist.md",
+      "start": 256,
+      "end": 274
+    },
+    {
+      "owner": "CNF-342",
+      "path": "10-conformance-checklist.md",
+      "start": 4293,
+      "end": 4310
+    }
+  ],
+  "disputed_blocks_unchanged_since_08191bb": {
+    "**PRV-47**": true,
+    "**OPS-23**": true,
+    "**WIR-20**": true,
+    "**WIR-2**": true
+  },
+  "wire_pointer_row_unchanged": true,
+  "fixture_values_verified": true,
+  "beads_open_at_pin": [
+    "pv-hups",
+    "pv-xzre",
+    "pv-y1zy"
+  ],
+  "reader_clones": {
+    "fable": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "origin": "git@github.com:douglaz/provisiond.git",
+      "git_dir": "/var/tmp/provisiond-panel-r85/fable/.git",
+      "clean": true
+    },
+    "opus": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "origin": "git@github.com:douglaz/provisiond.git",
+      "git_dir": "/var/tmp/provisiond-panel-r85/opus/.git",
+      "clean": true
+    },
+    "astra": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "origin": "git@github.com:douglaz/provisiond.git",
+      "git_dir": "/var/tmp/provisiond-panel-r85/astra/.git",
+      "clean": true
+    },
+    "sol": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "origin": "git@github.com:douglaz/provisiond.git",
+      "git_dir": "/var/tmp/provisiond-panel-r85/sol/.git",
+      "clean": true
+    }
+  },
+  "gate_exits": {
+    "before": 0,
+    "final": 0
+  },
+  "brief_bytes": 71834,
+  "notes_bytes": 7246,
+  "packet_below_grok_size_threshold": true,
+  "self_consistency_pass": "check/self-consistency.md",
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "sha256": {
+    "brief.md": "ec495d5dc35fa0ddaf6be1762883ca580cb04e29b80217cff4c14fab979f2129",
+    "notes.md": "b77d7bb317f2f018abb7cb964e9879fe1d67b2e920796ddf7f86bb7d11dc72ab",
+    "check/q1-fixtures.json": "349565372a3a21dad7d6a4579dff5c178f9e69e8535d712ac6067aafcc993fbf",
+    "launch.sh": "541e43ee2d2530ba8dc5da765b8086af89c2f8118e3fb898f439ba43dafb99c4",
+    "run-claude-stdin.sh": "bbec251599eff4325ee32cee7ec9fd9c17ddd2cbdbbcc6c199f8f1b06bc8aeb2",
+    "run-codex.sh": "856be88f3d58e8c4a6e9ccb0a5e1851fa972a0aa028e0430545cbacc1da65372"
+  }
+}

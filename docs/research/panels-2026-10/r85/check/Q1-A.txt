@@ -1,0 +1,18 @@
+| `invalid_request` naming a field (`WIR-2`, `OPS-23`, `PRV-47`) | `field`: an RFC 6901 JSON Pointer into the request body (`"/acknowledge_purchase"`, `"/provider_options/location"`), also where the named field is absent. Where one validation step rejects several fields (an `API-7` step, `OPS-23`'s repeated check of caller-supplied fields, or `PRV-47`'s validation), the least escaped pointer, compared by unsigned UTF-16 code units, the order RFC 8785 (`WIR-3`) sorts member names in |
+
+For this row, determine the rejected-field set before ordering its pointers. A rejected
+value's own member is named, including when that required member is absent. A value of the
+wrong JSON type names that member rather than hypothetical children. When several present
+members violate an exactly-one or mutually-exclusive group, every present member of that
+group is rejected; when a required exactly-one group has no member, the containing object
+is rejected. If a discriminated union's discriminator is absent or invalid, that discriminator
+is rejected, and no variant-member rejection is inferred merely from being unable to select
+a variant. A member belonging to no variant remains an independent unknown-field rejection;
+a member recognized by at least one variant is not unknown solely because the discriminator
+is invalid. Other independent failures in the same validation step remain in the set.
+An invalid array element names its indexed position, with a decimal index and no leading
+zeroes; a failed constraint on the array as a whole names the array. For a rejected member
+within an object element, use that member's pointer. Escape each pointer under RFC 6901 and
+apply the row's existing order to the complete set. Do not add an ancestor pointer solely
+because a selected descendant failed. These rules select fields within the
+invalid_request category; they do not select between error kinds.

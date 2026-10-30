@@ -1,0 +1,15 @@
+      Repeat the install caller-field fixture with acknowledge_destruction present but
+      false in the stored request, after admission with a valid true value. Use ordinary
+      trusted marker provenance (restore_markers_untrusted false) and initially null marker
+      columns. Assert the repeated validation completes before either marker write and
+      rejects invalid_request, details.field /acknowledge_destruction, retryable false on
+      error and operation view, failed, no driver call, both markers still null, disk_effect
+      none and rescue_exit none. Instrument a proposed execution that writes the rescue
+      marker false before this validation, then tries to validate before begin-rescue
+      dispatch: assert this execution violates the required ordering even though dispatch
+      has not occurred. Do not clear the marker or synthesize rescue_exit none from false
+      to make that proposed execution pass. Repeat for a present-but-invalid api-written
+      install field only if the release names such a field; identify it and retain
+      conflict/incomplete_record, retryable true and the same before-both-markers assertions.
+      No api-written install field is invented for the fixture. The complete-record control
+      proceeds past validation. (`OPS-23`, `OPS-45`, `API-14`, `WIR-9a`, `WIR-9b`)

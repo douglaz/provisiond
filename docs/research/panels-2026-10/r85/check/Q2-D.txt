@@ -1,0 +1,2 @@
+A caller-supplied value this validation rejects fails `invalid_request` naming the rejected value's
+field, with `retryable: false` on both the error and the operation view (`WIR-9b`). A value this system wrote rather than the caller, such as `PRV-9`'s operation id as a temporary key's "provider-side name or tag" or `PRV-32`'s per-order throwaway SSH key, that this validation rejects fails `internal` (`DOM-17`); `OPS-11`'s create row gives its `retryable`.

@@ -1,0 +1,383 @@
+{
+  "timestamp": "2026-10-30T20:41:24.908649+00:00",
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "source_quotes": [
+    {
+      "owner": "WIR-2",
+      "path": "13-wire-contract.md",
+      "start": 28,
+      "end": 39,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "WIR-9 / WIR-9a",
+      "path": "13-wire-contract.md",
+      "start": 121,
+      "end": 144,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "WIR-9a / WIR-9b",
+      "path": "13-wire-contract.md",
+      "start": 195,
+      "end": 236,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "WIR-20",
+      "path": "13-wire-contract.md",
+      "start": 684,
+      "end": 710,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "WIR-20",
+      "path": "13-wire-contract.md",
+      "start": 726,
+      "end": 748,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "WIR-35",
+      "path": "13-wire-contract.md",
+      "start": 906,
+      "end": 913,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "API-13 / API-14",
+      "path": "04-api-contract.md",
+      "start": 962,
+      "end": 985,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "RSC-4",
+      "path": "06-rescue-install.md",
+      "start": 101,
+      "end": 102,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "PRV-47",
+      "path": "02-provider-contract.md",
+      "start": 166,
+      "end": 176,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "PRV-5",
+      "path": "02-provider-contract.md",
+      "start": 39,
+      "end": 50,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "OPS-11",
+      "path": "03-operation-lifecycle.md",
+      "start": 248,
+      "end": 250,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "OPS-45",
+      "path": "03-operation-lifecycle.md",
+      "start": 1489,
+      "end": 1513,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "OPS-23",
+      "path": "03-operation-lifecycle.md",
+      "start": 2018,
+      "end": 2054,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "CNF-34",
+      "path": "10-conformance-checklist.md",
+      "start": 256,
+      "end": 274,
+      "pin_matches": true,
+      "bytes_match": true
+    },
+    {
+      "owner": "CNF-342",
+      "path": "10-conformance-checklist.md",
+      "start": 4293,
+      "end": 4310,
+      "pin_matches": true,
+      "bytes_match": true
+    }
+  ],
+  "readers": [
+    {
+      "seat": "fable",
+      "exit": 0,
+      "answer_bytes": 13227,
+      "sha256": "8c79fcfcca5c76f82d0b1b7884084cd3adeae95b426a74857fe865dd3d86ef41",
+      "substantive": true,
+      "limit_or_signin_answer": false,
+      "out_exists": false,
+      "out_same_answer": null,
+      "err_bytes": 0,
+      "commands": [],
+      "drafts": [],
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_status": ""
+    },
+    {
+      "seat": "opus",
+      "exit": 0,
+      "answer_bytes": 15527,
+      "sha256": "c77586e57f57a058a9d8028e9a0ec8bba89436462eb5eb8f089c470e05eeff3a",
+      "substantive": true,
+      "limit_or_signin_answer": false,
+      "out_exists": false,
+      "out_same_answer": null,
+      "err_bytes": 0,
+      "commands": [],
+      "drafts": [],
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_status": ""
+    },
+    {
+      "seat": "astra",
+      "exit": 0,
+      "answer_bytes": 13877,
+      "sha256": "6da33ce06aae2b56568d7751e246858cc1cdb9a0ac9dfd1fd8f7144f2e5ebc70",
+      "substantive": true,
+      "limit_or_signin_answer": false,
+      "out_exists": true,
+      "out_same_answer": true,
+      "err_bytes": 359129,
+      "commands": [
+        "/run/current-system/sw/bin/bash -lc 'cat /var/tmp/provisiond-panel-r85/notes.md' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'git rev-parse HEAD' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'cat AGENTS.md docs/agents/domain.md' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'cat /home/user/.agents/skills/dpc-public-skills/multipart-review/SKILL.md' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'cat CONTEXT.md' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'rg --files docs/adr' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'WIR-9a|OPS-23|PRV-47|ssh_public_keys|incomplete_record|invalid_request' tools/formal\" in /var/tmp/provisiond-panel-r85/astra\nhook: PostToolUse",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '1,285p' 13-wire-contract.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0024-migrations-run-before-the-release-and-only-a-contract-step-needs-an-outage.md docs/adr/0036-the-robot-order-budget-is-closed-by-the-providers-throttle-and-not-shared-out.md docs/adr/0043-a-create-failure-recorded-before-step-9-settles-failed-by-worker-position.md docs/adr/0025-a-formalized-clause-lives-in-lean-and-the-markdown-renders-it.md' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'pv-y1zy|pv-xzre|pv-hups|\\\\*\\\\*DOM-17|\\\\*\\\\*API-51|\\\\*\\\\*OPS-43|\\\\*\\\\*PRV-32|\\\\*\\\\*PRV-9' .beads/issues.jsonl 01-domain-model.md 04-api-contract.md 03-operation-lifecycle.md 02-provider-contract.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '570,638p' 13-wire-contract.md\nsed -n '680,790p' 13-wire-contract.md\nsed -n '900,965p' 13-wire-contract.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '570,638p' 13-wire-contract.md\nsed -n '684,790p' 13-wire-contract.md\nsed -n '906,965p' 13-wire-contract.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '642,682p' 13-wire-contract.md\nsed -n '655,715p' 01-domain-model.md\nsed -n '1259,1298p' 04-api-contract.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '757,900p' 03-operation-lifecycle.md\nsed -n '2018,2058p' 03-operation-lifecycle.md\nsed -n '961,992p' 02-provider-contract.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '900,990p' tools/formal/Provisiond/Rescue.lean\nsed -n '1350,1445p' tools/formal/Provisiond/Admission.lean\nsed -n '80,210p' tools/formal/Provisiond/Tables.lean\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'details\\\\.field|\\\"field\\\"\\\\s*:|/layout/drives|/ssh_public_keys/|/trust/' --glob '*.md' --glob '*.lean' --glob '\"'!docs/research/**'\"' .\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '256,277p' 10-conformance-checklist.md\nsed -n '4293,4325p' 10-conformance-checklist.md\nsed -n '1465,1515p' 03-operation-lifecycle.md\nsed -n '962,987p' 04-api-contract.md\nsed -n '100,105p' 06-rescue-install.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0036-the-robot-order-budget-is-closed-by-the-providers-throttle-and-not-shared-out.md' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0024-migrations-run-before-the-release-and-only-a-contract-step-needs-an-outage.md docs/adr/0043-a-create-failure-recorded-before-step-9-settles-failed-by-worker-position.md' in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'restore.*[Mm]arker|restoreMarkers|rescueExit|marker.*unknown' tools/formal/Provisiond/Wire.lean tools/formal/Provisiond/Restore.lean\nsed -n '138,176p' 02-provider-contract.md\nsed -n '32,51p' 02-provider-contract.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'OPS-23|re-validat|revalidat|repeated validation' 06-rescue-install.md tools/formal/Provisiond/Rehost.lean tools/formal/Provisiond/Witnesses.lean\nsed -n '250,275p' 03-operation-lifecycle.md\nsed -n '1514,1540p' 03-operation-lifecycle.md\" in /var/tmp/provisiond-panel-r85/astra",
+        "/run/current-system/sw/bin/bash -lc \"rg -n '\"'^def installRow|''^def rescueExit|''^theorem create_before_step9_failed|'\"\\\\*\\\\*OPS-23|\\\\*\\\\*PRV-47|\\\\*\\\\*WIR-9a|\\\\*\\\\*DOM-17|\\\\*\\\\*CNF-34\\\\*|\\\\*\\\\*CNF-342\\\\*|\\\\*\\\\*Restore marker' tools/formal/Provisiond/Tables.lean tools/formal/Provisiond/Rescue.lean 03-operation-lifecycle.md 02-provider-contract.md 13-wire-contract.md 01-domain-model.md 10-conformance-checklist.md\" in /var/tmp/provisiond-panel-r85/astra"
+      ],
+      "drafts": [],
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_status": ""
+    },
+    {
+      "seat": "sol",
+      "exit": 0,
+      "answer_bytes": 13444,
+      "sha256": "6ba8c05f5071ce6bb8908b46450a1b5d3aa164c62843ceff7596278fd923f238",
+      "substantive": true,
+      "limit_or_signin_answer": false,
+      "out_exists": true,
+      "out_same_answer": true,
+      "err_bytes": 1444645,
+      "commands": [
+        "/run/current-system/sw/bin/bash -lc 'cat /var/tmp/provisiond-panel-r85/notes.md' in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc 'cat AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md' in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc 'git rev-parse HEAD' in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc 'cat CONTEXT.md' in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '24,265p' 13-wire-contract.md\nsed -n '684,813p' 13-wire-contract.md\nsed -n '896,969p' 13-wire-contract.md\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'WIR-9a|PRV-47|OPS-23|pv-y1zy|pv-xzre|pv-hups|field.pointer|field pointer|validation|marker' docs/adr tools/formal .beads/issues.jsonl\" in /var/tmp/provisiond-panel-r85/sol\nhook: PostToolUse\nhook: PostToolUse\nhook: PostToolUse Completed\nhook: PostToolUse Completed",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '360,620p' CONTEXT.md\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"rg -l 'WIR-9a|PRV-47|OPS-23|field.pointer|field pointer' docs/adr tools/formal\nrg -n 'WIR-9a|PRV-47|OPS-23' tools/formal --glob '*.lean'\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"python -B - <<'PY'\nimport json\nfrom pathlib import Path\nwanted={'pv-y1zy','pv-xzre','pv-hups'}\nfor line in Path('.beads/issues.jsonl').read_text().splitlines():\n    row=json.loads(line)\n    if row.get('id') in wanted:\n        print(json.dumps(row,indent=2))\nPY\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0024-migrations-run-before-the-release-and-only-a-contract-step-needs-an-outage.md docs/adr/0030-purchase-tails-report-all-applicable-refusals.md docs/adr/0043-a-create-failure-recorded-before-step-9-settles-failed-by-worker-position.md' in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"rg --files docs/adr\nrg -n 'validation|field|pointer|PRV-47|OPS-23|accepted' docs/adr/0035* docs/adr/0036* docs/adr/0025*\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"nl -ba 13-wire-contract.md | sed -n '28,44p'\nnl -ba 13-wire-contract.md | sed -n '121,147p'\nnl -ba 13-wire-contract.md | sed -n '195,246p'\nnl -ba 13-wire-contract.md | sed -n '519,595p'\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"nl -ba 13-wire-contract.md | sed -n '610,684p'\nnl -ba 03-operation-lifecycle.md | sed -n '2018,2057p'\nnl -ba 04-api-contract.md | sed -n '955,985p'\nnl -ba 06-rescue-install.md | sed -n '97,109p'\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"nl -ba 02-provider-contract.md | sed -n '18,56p'\nnl -ba 02-provider-contract.md | sed -n '158,179p'\nnl -ba 03-operation-lifecycle.md | sed -n '220,260p'\nrg -n 'retryable|\\\\*\\\\*API-51\\\\*\\\\*|\\\\*\\\\*DOM-17\\\\*\\\\*|\\\\*\\\\*OPS-43\\\\*\\\\*' 04-api-contract.md 01-domain-model.md 03-operation-lifecycle.md\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc 'cat docs/adr/0035-a-failure-after-the-provider-accepted-a-mutation-is-ambiguous.md docs/adr/0036-the-robot-order-budget-is-closed-by-the-providers-throttle-and-not-shared-out.md' in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"nl -ba 01-domain-model.md | sed -n '625,671p'\nnl -ba 04-api-contract.md | sed -n '1253,1280p'\nnl -ba 03-operation-lifecycle.md | sed -n '319,337p'\nnl -ba 03-operation-lifecycle.md | sed -n '757,821p'\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '1,110p' tools/formal/Provisiond/Rescue.lean\nsed -n '910,1015p' tools/formal/Provisiond/Rescue.lean\nsed -n '1360,1448p' tools/formal/Provisiond/Admission.lean\nrg -n 'beforeOrder|before.*Step|preStep|before.*step|caller|invalidRequest|rescueExit' tools/formal/Provisiond/Tables.lean\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"nl -ba 01-domain-model.md | sed -n '564,625p'\nnl -ba 10-conformance-checklist.md | sed -n '256,277p'\nnl -ba 10-conformance-checklist.md | sed -n '4286,4323p'\nnl -ba 03-operation-lifecycle.md | sed -n '1464,1538p'\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"sed -n '320,365p' CONTEXT.md\nsed -n '1,91p' docs/adr/0025-a-formalized-clause-lives-in-lean-and-the-markdown-renders-it.md\nsed -n '172,210p' docs/adr/0025-a-formalized-clause-lives-in-lean-and-the-markdown-renders-it.md\nnl -ba tools/formal/Provisiond/Witnesses.lean | sed -n '3750,3802p'\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'OPS-23|re.validat|repeat.*validat' --glob '*.md' --glob '\"'!docs/research/**'\"' --glob '\"'!impl-report*'\"' .\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"nl -ba 03-operation-lifecycle.md | sed -n '184,224p'\nnl -ba 02-provider-contract.md | sed -n '800,847p'\nnl -ba 06-rescue-install.md | sed -n '477,526p'\nnl -ba 03-operation-lifecycle.md | sed -n '1155,1245p'\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"rg -n 'false_over_a_machine_never_in_rescue|none_means_no_session' tools/formal/Provisiond/Rescue.lean tools/formal/Provisiond/Witnesses.lean\nrg -n 'WIR-9a|pointer|field|CNF-342|CNF-34|OPS-23|PRV-47' tools/check*.py .github/workflows/ci.yml\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"nl -ba tools/formal/Provisiond/Witnesses.lean | sed -n '3610,3643p'\nnl -ba tools/formal/Provisiond/Rescue.lean | sed -n '738,770p'\nnl -ba tools/formal/Provisiond/Tables.lean | sed -n '195,224p'\nsed -n '95,150p' docs/adr/0043-a-create-failure-recorded-before-step-9-settles-failed-by-worker-position.md\" in /var/tmp/provisiond-panel-r85/sol",
+        "/run/current-system/sw/bin/bash -lc \"python -B - <<'PY'\nimport base64,struct\n\ndef esc(parts):\n    return ''.join('/'+str(x).replace('~','~0').replace('/','~1') for x in parts)\ndef utf16(s):\n    b=s.encode('utf-16-be')\n    return tuple(int.from_bytes(b[i:i+2],'big') for i in range(0,len(b),2))\ncases={\n    'trust A':[['trust','expected_host_keys'],['trust','accept_unpinned']],\n    'trust with unknown A':[['trust','expected_host_keys'],['trust','accept_unpinned'],['aaa']],\n    'trust with unknown B':[['trust'],['aaa']],\n    'bad discriminator plus unknown':[['strategy'],['aaa']],\n    'escaped driver options':[['provider_options','a/b'],['provider_options','a~b']],\n    'indexed elements 2 and 10':[['ssh_public_keys',2],['ssh_public_keys',10]],\n    'array-wide and element failure A':[['ssh_public_keys'],['ssh_public_keys',1]],\n}\nfor name,parts in cases.items():\n    paths=sorted(map(esc,parts),key=utf16)\n    print(name,':',paths,'=>',paths[0])\ns='AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f'\nb=base64.b64decode(s,validate=True)\nalglen=struct.unpack('>I',b[:4])[0]\nkeylen=struct.unpack('>I',b[4+alglen:8+alglen])[0]\nprint('fixture key wire structure:',b[4:4+alglen].decode(),'key length',keylen,'remaining bytes',len(b)-8-alglen)\nPY\" in /var/tmp/provisiond-panel-r85/sol"
+      ],
+      "drafts": [],
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_status": ""
+    }
+  ],
+  "grok_missing": "HTTP 402, original launch preflight; no retry this tally turn",
+  "before_gate": 0,
+  "canonical_brief_sha256": "ec495d5dc35fa0ddaf6be1762883ca580cb04e29b80217cff4c14fab979f2129",
+  "canonical_notes_sha256": "b77d7bb317f2f018abb7cb964e9879fe1d67b2e920796ddf7f86bb7d11dc72ab",
+  "rule_6": "apply notes.md rule 6 exactly as written; this prompt adds no void rule",
+  "settlements": {
+    "Q1": {
+      "form": "A",
+      "first_picks": {
+        "fable": "A",
+        "opus": "A-prime",
+        "astra": "A",
+        "sol": "A"
+      },
+      "accepted_by": {
+        "A": [
+          "fable",
+          "astra",
+          "sol"
+        ],
+        "B": [
+          "fable",
+          "astra",
+          "sol"
+        ],
+        "C": [
+          "astra",
+          "sol"
+        ],
+        "D": [
+          "fable",
+          "astra",
+          "sol"
+        ]
+      },
+      "next_step": "owner question; no verified blocker; opus fixture scope qualification preserved"
+    },
+    "Q2": {
+      "form": "B",
+      "first_picks": {
+        "fable": "B",
+        "opus": "B",
+        "astra": "B",
+        "sol": "B"
+      },
+      "accepted_by": {
+        "A": [
+          "astra",
+          "sol"
+        ],
+        "B": [
+          "fable",
+          "opus",
+          "astra",
+          "sol"
+        ],
+        "C": [
+          "astra",
+          "sol"
+        ],
+        "D": []
+      },
+      "next_step": "owner question"
+    },
+    "Q3": {
+      "form": "A",
+      "first_picks": {
+        "fable": "A",
+        "opus": "A",
+        "astra": "A",
+        "sol": "A"
+      },
+      "accepted_by": {
+        "A": [
+          "fable",
+          "opus",
+          "astra",
+          "sol"
+        ],
+        "B": [
+          "fable",
+          "opus"
+        ],
+        "C": [
+          "fable",
+          "opus",
+          "astra",
+          "sol"
+        ]
+      },
+      "next_step": "owner question"
+    }
+  },
+  "key_checks": {
+    "r85_fixture": {
+      "bytes": 51,
+      "algorithm": "ssh-ed25519",
+      "declared_key_bytes": 32,
+      "actual_key_bytes": 32,
+      "valid_blob": true
+    },
+    "current_WIR20_example": {
+      "bytes": 42,
+      "algorithm": "ssh-ed25519",
+      "declared_key_bytes": 34,
+      "actual_key_bytes": 23,
+      "valid_blob": false
+    }
+  },
+  "pointer_comparisons": [
+    [
+      "/trust/accept_unpinned",
+      "/trust/expected_host_keys"
+    ],
+    [
+      "/provider_options/a~0b",
+      "/provider_options/a~1b"
+    ],
+    [
+      "/ssh_public_keys/10",
+      "/ssh_public_keys/2"
+    ],
+    [
+      "/ssh_public_keys",
+      "/ssh_public_keys/1"
+    ],
+    [
+      "/resolution",
+      "/ssh_public_keys/1",
+      "/strategy",
+      "/trust",
+      "/zzz"
+    ]
+  ],
+  "quota_final": {
+    "claude_session": 19,
+    "claude_all_models_week": 60,
+    "claude_fable_week": 83,
+    "fable_exempt": true,
+    "codex_active_week": 93,
+    "hold": false
+  },
+  "final_gate": 0,
+  "completed_at": "2026-10-30T20:45:16.814808+00:00",
+  "gate_spec_tracked_state": "clean at pin",
+  "consensus_round": "not needed; every question settled",
+  "adopted": false
+}

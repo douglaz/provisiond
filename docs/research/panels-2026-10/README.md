@@ -156,3 +156,14 @@ this archive.
 | r62c–r62f | [r62c notes](r62/r62c/notes.md), [r62d notes](r62/r62d/notes.md), [r62e notes](r62/r62e/notes.md), [r62f notes](r62/r62f/notes.md) |
 | r66d | Reader-specific briefs: [fable](r66/r66d/brief-fable.md), [opus](r66/r66d/brief-opus.md), [astra](r66/r66d/brief-astra.md), [sol](r66/r66d/brief-sol.md) |
 | r66e | [Run handoff](r66/r66e/run-inputs.md) |
+
+## Panel F validation decisions, 2026-10-30
+
+| Round | Questions | Decision sources |
+|---|---|---|
+| [r85](r85/brief.md) | pv-y1zy, pv-xzre, pv-hups | [Owner decisions](r85/owner-decisions.md), [tally](r85/tally.md), exact forms and [field-selection fixtures](r85/q1-fixtures.json) |
+
+The owner record supersedes the historical owner-pending status. These records preserve
+the reviewed forms, reader answers and verified dissent. Specification links name the frozen
+review base; raw logs, clones and omitted machine-local receipts remain under `/var/tmp`.
+The requirement owners hold the rules.
