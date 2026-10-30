@@ -1,0 +1,110 @@
+[
+  [
+    "Configuration catalogue",
+    "00-overview.md",
+    403,
+    416
+  ],
+  [
+    "Capability owners",
+    "01-domain-model.md",
+    515,
+    538
+  ],
+  [
+    "Capability/opt-in scope owners",
+    "01-domain-model.md",
+    564,
+    573
+  ],
+  [
+    "Provider opt-in owner",
+    "02-provider-contract.md",
+    159,
+    164
+  ],
+  [
+    "API acknowledgement owner",
+    "04-api-contract.md",
+    983,
+    992
+  ],
+  [
+    "API gate position",
+    "04-api-contract.md",
+    203,
+    213
+  ],
+  [
+    "API ordering gate",
+    "04-api-contract.md",
+    241,
+    241
+  ],
+  [
+    "Claim gates",
+    "03-operation-lifecycle.md",
+    774,
+    800
+  ],
+  [
+    "Wire field owner",
+    "13-wire-contract.md",
+    665,
+    668
+  ],
+  [
+    "Illustrative matrix",
+    "08-provider-notes.md",
+    24,
+    32
+  ],
+  [
+    "Historical defect wording",
+    "09-known-defects.md",
+    161,
+    169
+  ],
+  [
+    "Existing conformance capability cases",
+    "10-conformance-checklist.md",
+    124,
+    154
+  ],
+  [
+    "Existing worker validation case",
+    "10-conformance-checklist.md",
+    256,
+    279
+  ],
+  [
+    "Existing acknowledgement case",
+    "10-conformance-checklist.md",
+    340,
+    359
+  ],
+  [
+    "Robot test mode",
+    "10-conformance-checklist.md",
+    2371,
+    2376
+  ],
+  [
+    "Worker acknowledgement paragraph",
+    "10-conformance-checklist.md",
+    4311,
+    4320
+  ],
+  [
+    "Channel declarations",
+    "10-conformance-checklist.md",
+    4358,
+    4363
+  ],
+  [
+    "Launch and sale scope",
+    "docs/adr/0010-v1-ships-three-drivers-across-two-companies.md",
+    62,
+    66
+  ]
+]

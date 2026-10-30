@@ -1,0 +1,6 @@
+00-overview.md:412:| `allow_orders`, per ordering account | `DOM-16` | boolean | yes |
+01-domain-model.md:570:**DOM-16** Ordering capabilities (`provision_virtual`, `provision_bare_metal`) for providers that bill per order MUST be conditional on an explicit per-account `allow_orders` configuration flag: the descriptor (`PRV-44`) of an account whose flag is false does not declare them, so that a misconfigured deployment cannot spend money. This is in addition to, not instead of, the per-request purchase acknowledgement
+02-provider-contract.md:159:**PRV-10** For a provider that bills on order, create MUST reject the request unless the
+04-api-contract.md:987:**API-15** A create request against an order-billed provider MUST carry an explicit
+09-known-defects.md:163:Requeue re-executed the original request verbatim. For a create against an order-billed
+10-conformance-checklist.md:340:- [ ] **CNF-55** — Create against an order-billed provider is rejected without both the

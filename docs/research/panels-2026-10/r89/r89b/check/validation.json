@@ -1,0 +1,50 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "packet_bytes": 176666,
+  "packet_sha256": "49b6485d6b1f76a30961db7832dd5bc33fccfcf81b56fff301348904107f5353",
+  "clones": {
+    "fable": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "opus": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "astra": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "sol": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "consistency": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "grok": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    }
+  },
+  "answers_verbatim": [
+    "fable",
+    "opus",
+    "astra",
+    "sol"
+  ],
+  "forms_complete": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "Cprime"
+  ],
+  "baseline_full_unpiped_gates": {
+    "before": 0,
+    "final": 0
+  },
+  "grok": "missing: HTTP 402; one actual call",
+  "threshold": "three of four"
+}
