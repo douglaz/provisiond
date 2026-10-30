@@ -1,0 +1,38 @@
+[
+  {
+    "set": "AE",
+    "field": "serial",
+    "normalized": "ab",
+    "list_bytes": "[{\"serial\":\"ab\",\"size_bytes\":1024,\"wwn\":null}]",
+    "list_digest": "8a7ab8eb85404e4ef4022bdf6f1cfc768b029d7f68271f0f60c931d494b72641",
+    "element_bytes": "{\"serial\":\"ab\",\"size_bytes\":1024,\"wwn\":null}",
+    "element_digest": "b2fa45b2bdac148628b4ec507afb927aafd8d8c51a5389e5a1a35a8d117bbc05"
+  },
+  {
+    "set": "AE",
+    "field": "wwn",
+    "normalized": "ab",
+    "list_bytes": "[{\"serial\":null,\"size_bytes\":1024,\"wwn\":\"ab\"}]",
+    "list_digest": "251725a8a8cfb350f22a6c3e2c8fdae0f725bd6f7f75b36b4d1dbb1651b3fd82",
+    "element_bytes": "{\"serial\":null,\"size_bytes\":1024,\"wwn\":\"ab\"}",
+    "element_digest": "6ecdd54342dcfeca495fc99c3b9acd9ccb0f8876e384b74481d20014d736c457"
+  },
+  {
+    "set": "B",
+    "field": "serial",
+    "normalized": "\u000b0xab\u000b",
+    "list_bytes": "[{\"serial\":\"\\u000b0xab\\u000b\",\"size_bytes\":1024,\"wwn\":null}]",
+    "list_digest": "00bf39db1976286c56c1403bb1603a6bf969927d0b5a96c47a15370586336d60",
+    "element_bytes": "{\"serial\":\"\\u000b0xab\\u000b\",\"size_bytes\":1024,\"wwn\":null}",
+    "element_digest": "f296ab5aa6c873ff45895cc39a82fa30b4d1a97a5e0b9bea5ddd0537b1a77496"
+  },
+  {
+    "set": "B",
+    "field": "wwn",
+    "normalized": "\u000b0xab\u000b",
+    "list_bytes": "[{\"serial\":null,\"size_bytes\":1024,\"wwn\":\"\\u000b0xab\\u000b\"}]",
+    "list_digest": "f26dd8f15deaded4c3bef4ec4a1b3e6771efcf5c9cb376e25e9179ac7b504de5",
+    "element_bytes": "{\"serial\":null,\"size_bytes\":1024,\"wwn\":\"\\u000b0xab\\u000b\"}",
+    "element_digest": "b26fc7c734bd437bb3e13f300b4ff42dea092de6c8f3aaa51e2bd9743e530573"
+  }
+]

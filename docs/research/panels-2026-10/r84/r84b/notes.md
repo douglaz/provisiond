@@ -1,0 +1,21 @@
+# r84b — the ONE consensus round for Panel E Q1 and Q3
+
+Frozen before launch. Pin `3109b5b44eae17e288cf52aaa976993bd8c5626c`. Scope: Q1 pv-ez8 and Q3 pv-tbrs only. Q2 pv-2j3 was settled technically on exact Q2-A and awaits a separate owner policy answer; it is context, not a question in this round. No specification, tracker, main checkout, manager brief or other panel change is authorized.
+
+The panel has five seats: fable (claude-fable-5-1 xhigh), opus (claude-opus-5-5 xhigh), astra (gpt-6-astra high), sol (gpt-6.1-sol xhigh), grok (grok-4.7 xhigh). A failed/unavailable/usage-limited seat is missing, not a vote. Grok gets one fresh preflight; HTTP 402 means down and use three of four. Do not retry its probe. A sign-in failure must be reported, not silently called a substantive read.
+
+## Outcome rules
+
+1. For Q1 and Q3 separately, give explicit ACCEPT / CAN ACCEPT WITH THIS EXACT FIX / CANNOT ACCEPT for every complete form and a separate final preference. An amendment is a distinct complete exact form, not an acceptance of the printed form. Preserve preference and acceptability separately. Requested counterarguments are not votes. Verify factual claims at the pin.
+2. Owner's exact settling rule: "a question is settled when at least three agree and more agree than disagree, and a tie comes to you. If grok is down, it falls back to three of four". Apply it to the same exact form, with no verified blocking loss under rule 3 and no synthesized tie-break. If more than one form qualifies, preserve explicit preferences rather than inventing a tie-break. "You" is main relaying to the owner. No candidate is adopted merely by this reader round.
+3. A blocking loss identifies a checked verdict changed, made unreachable or vacuous (conformance assertion or Lean theorem), or quotes a MUST/SHOULD with file, owner and full trace. Disclose collateral flips. Changed declarations, proof statements, guards, normative obligations, fixtures or negative-control strength are substantive, not editorial. An absent new runtime test alone is not a contradiction. Deliberately printed policy changes must be reported, not turned into permission to weaken another owner.
+4. Owner: "If there are ties, try to run the panel once more focusing on reaching consensus". This is that ONE round for each listed question. Every reader sees the previous answers verbatim and every complete candidate. A qualifying exact form settles technically; if still tied/no settlement, return to the owner. No r84c/second consensus round for these questions and no manager-synthesized tie-break.
+5. Check actual output, not exit status alone: session/usage-limit, sign-in, empty, failed, timeout or non-substantive output is missing, including Fable. Apply the owner's three-of-four fallback while grok is down. Quota policy: Claude session/all-models week >80% or unreadable holds new work; Fable weekly never holds. Codex active WEEK is recorded and allowed below 100%; at 100%/usage-limit start no further Codex work and report to main. Never switch/log out.
+6. A verified brief error that changes the question's premise voids its tally; re-ask it corrected. Other brief errors are reported with the tally, identifying any vote whose reason rests on one.
+7. Do not weaken/delete a disputed rule to clear a review. Preserve what it protects and name each normative/tested verdict lost before proposing a substantive departure. An unread combination is not reviewed. Do not re-ask Q2 or treat answers reproduced for history as new votes.
+
+Every tally prompt: **apply notes.md rule 6 exactly as written; this prompt adds no void rule**.
+
+## Reader fences and launcher
+
+Independent reader clones are detached at the pin under r84b/<seat>. Units panel-r84b-<seat> use MemoryMax=16G, MemorySwapMax=0, OOMPolicy=continue, StandardInput=null, npm-global-first PATH, TMPDIR inside r84b and the r84 copied wrappers with timeout 3600. Readers run no Lean/full gates; the manager supplies independent unchanged-pin initial/final full Nix gate evidence. Each reader receives the same complete brief, including all four prior answers verbatim. Prior Q2 material in those answers is history only. No source/Git/tracker/panel-record write, no main/other panel/config/session/credential access, no subagents/background work. Temporary calculations only under r84b/tmp/<seat>.

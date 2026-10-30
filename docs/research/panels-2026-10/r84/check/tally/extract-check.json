@@ -1,0 +1,68 @@
+[
+  {
+    "file": "04-api-contract.md",
+    "lo": "958",
+    "hi": "981",
+    "exact": true
+  },
+  {
+    "file": "07-security-requirements.md",
+    "lo": "280",
+    "hi": "281",
+    "exact": true
+  },
+  {
+    "file": "06-rescue-install.md",
+    "lo": "245",
+    "hi": "288",
+    "exact": true
+  },
+  {
+    "file": "06-rescue-install.md",
+    "lo": "312",
+    "hi": "330",
+    "exact": true
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "lo": "2243",
+    "hi": "2245",
+    "exact": true
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "lo": "2295",
+    "hi": "2333",
+    "exact": true
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "lo": "2018",
+    "hi": "2046",
+    "exact": true
+  },
+  {
+    "file": "01-domain-model.md",
+    "lo": "575",
+    "hi": "582",
+    "exact": true
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "lo": "295",
+    "hi": "329",
+    "exact": true
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "lo": "345",
+    "hi": "357",
+    "exact": true
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "lo": "371",
+    "hi": "396",
+    "exact": true
+  }
+]
