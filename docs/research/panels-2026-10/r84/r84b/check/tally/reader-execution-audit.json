@@ -1,0 +1,42 @@
+[
+  {
+    "seat": "fable",
+    "exit": "0",
+    "bytes": 11398,
+    "sha256": "2415d72c301d916ca92ddeec9a7b313a207d6287265430403cb396f0989c0ce2",
+    "stderr_bytes": 0,
+    "stdout_bytes": null,
+    "stdout_matches": null,
+    "drafts": []
+  },
+  {
+    "seat": "opus",
+    "exit": "0",
+    "bytes": 12178,
+    "sha256": "ee938748934a16db62608ae5e88829095a2cdf28747856cd4e8eddea18681d57",
+    "stderr_bytes": 0,
+    "stdout_bytes": null,
+    "stdout_matches": null,
+    "drafts": []
+  },
+  {
+    "seat": "astra",
+    "exit": "0",
+    "bytes": 11258,
+    "sha256": "87b1cd1de4266acf4fea6e8712f1cccdefff23cd72046627734c43e483b81c14",
+    "stderr_bytes": 209942,
+    "stdout_bytes": 11259,
+    "stdout_matches": true,
+    "drafts": []
+  },
+  {
+    "seat": "sol",
+    "exit": "0",
+    "bytes": 8538,
+    "sha256": "40dc2d58b575b8d2b4b7d89272024e6f233619ccb9f976ac24cd7b5fc0e1dd39",
+    "stderr_bytes": 141274,
+    "stdout_bytes": 8539,
+    "stdout_matches": true,
+    "drafts": []
+  }
+]

@@ -167,3 +167,14 @@ The owner record supersedes the historical owner-pending status. These records p
 the reviewed forms, reader answers and verified dissent. Specification links name the frozen
 review base; raw logs, clones and omitted machine-local receipts remain under `/var/tmp`.
 The requirement owners hold the rules.
+
+## Panel E disk-identifier decisions, 2026-10-30
+
+| Rounds | Questions | Decision sources |
+|---|---|---|
+| [r84](r84/brief.md), [r84b](r84/r84b/brief.md) | pv-ez8, pv-2j3, pv-tbrs | [Owner decisions](r84/owner-decisions.md), [original tally](r84/tally.md), [consensus tally](r84/r84b/tally.md); exact [Q1-A](r84/r84b/check/tally/q1-A.md), [Q2-A](r84/check/tally/q2-A.md) and [Q3-E](r84/r84b/check/tally/q3-E.md) |
+
+The owner record supersedes the historical owner-pending status. These records preserve
+the reviewed forms, reader answers and verified dissent. Specification links name the frozen
+review base; raw logs, clones and omitted machine-local receipts remain under `/var/tmp`.
+The requirement owners hold the rules.

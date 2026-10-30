@@ -1,0 +1,32 @@
+[
+  {
+    "file": "04-api-contract.md",
+    "current_lo": 958,
+    "current_hi": 981,
+    "present_intact_in_08191bb": true
+  },
+  {
+    "file": "06-rescue-install.md",
+    "current_lo": 245,
+    "current_hi": 330,
+    "present_intact_in_08191bb": true
+  },
+  {
+    "file": "07-security-requirements.md",
+    "current_lo": 280,
+    "current_hi": 281,
+    "present_intact_in_08191bb": true
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "current_lo": 2243,
+    "current_hi": 2245,
+    "present_intact_in_08191bb": true
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "current_lo": 2295,
+    "current_hi": 2333,
+    "present_intact_in_08191bb": true
+  }
+]

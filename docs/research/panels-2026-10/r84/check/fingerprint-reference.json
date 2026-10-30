@@ -1,0 +1,38 @@
+[
+  {
+    "form": "Q3-A",
+    "field": "serial",
+    "raw": "\u000b0XAb\u000b",
+    "wire": "0XAb",
+    "normalized": "ab",
+    "canonical_utf8": "[{\"serial\":\"ab\",\"size_bytes\":1024,\"wwn\":null}]",
+    "sha256": "8a7ab8eb85404e4ef4022bdf6f1cfc768b029d7f68271f0f60c931d494b72641"
+  },
+  {
+    "form": "Q3-A",
+    "field": "wwn",
+    "raw": "\u000b0XAb\u000b",
+    "wire": "0XAb",
+    "normalized": "ab",
+    "canonical_utf8": "[{\"serial\":null,\"size_bytes\":1024,\"wwn\":\"ab\"}]",
+    "sha256": "251725a8a8cfb350f22a6c3e2c8fdae0f725bd6f7f75b36b4d1dbb1651b3fd82"
+  },
+  {
+    "form": "Q3-B",
+    "field": "serial",
+    "raw": "\u000b0XAb\u000b",
+    "wire": "\u000b0XAb\u000b",
+    "normalized": "\u000b0xab\u000b",
+    "canonical_utf8": "[{\"serial\":\"\\u000b0xab\\u000b\",\"size_bytes\":1024,\"wwn\":null}]",
+    "sha256": "00bf39db1976286c56c1403bb1603a6bf969927d0b5a96c47a15370586336d60"
+  },
+  {
+    "form": "Q3-B",
+    "field": "wwn",
+    "raw": "\u000b0XAb\u000b",
+    "wire": "\u000b0XAb\u000b",
+    "normalized": "\u000b0xab\u000b",
+    "canonical_utf8": "[{\"serial\":null,\"size_bytes\":1024,\"wwn\":\"\\u000b0xab\\u000b\"}]",
+    "sha256": "f26dd8f15deaded4c3bef4ec4a1b3e6771efcf5c9cb376e25e9179ac7b504de5"
+  }
+]

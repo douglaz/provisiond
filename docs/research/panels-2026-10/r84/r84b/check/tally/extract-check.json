@@ -1,0 +1,68 @@
+[
+  {
+    "path": "04-api-contract.md",
+    "first": 958,
+    "last": 981,
+    "exact": true
+  },
+  {
+    "path": "07-security-requirements.md",
+    "first": 280,
+    "last": 281,
+    "exact": true
+  },
+  {
+    "path": "06-rescue-install.md",
+    "first": 245,
+    "last": 288,
+    "exact": true
+  },
+  {
+    "path": "06-rescue-install.md",
+    "first": 312,
+    "last": 330,
+    "exact": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "first": 2243,
+    "last": 2245,
+    "exact": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "first": 2295,
+    "last": 2333,
+    "exact": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "first": 2018,
+    "last": 2046,
+    "exact": true
+  },
+  {
+    "path": "01-domain-model.md",
+    "first": 575,
+    "last": 582,
+    "exact": true
+  },
+  {
+    "path": "tools/formal/Provisiond/Rescue.lean",
+    "first": 295,
+    "last": 329,
+    "exact": true
+  },
+  {
+    "path": "tools/formal/Provisiond/Rescue.lean",
+    "first": 345,
+    "last": 357,
+    "exact": true
+  },
+  {
+    "path": "tools/formal/Provisiond/Rescue.lean",
+    "first": 371,
+    "last": 396,
+    "exact": true
+  }
+]

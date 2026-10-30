@@ -1,0 +1,5 @@
+# One consistency-only pass — disposition
+
+Exit 0, substantive answer, whole `consistency.md` read. The sole identified contradiction is exactly the original Q3-A/B element-hash versus retained RSC-46 list-hash defect already named in the packet and verified in the r84 tally. The reviewer independently reproduced the unequal digests. It found no additional contradiction in scope, trimming examples, composition or counting; Q2 is consistently excluded from new votes.
+
+No candidate or packet text is changed. Original Q3-A/B remain unchanged and complete so that historical votes are not rewritten and readers can independently assess the dissent. The packet explicitly identifies their disputed defect; separately printed exact Q3-E is Astra's proposed complete repair and is not claimed accepted until read. This pass casts no policy vote and its result is not counted as a fifth seat. There is no unaddressed assembly contradiction requiring a new synthesized form. One pass only; proceed to the authorized Q1/Q3 consensus read.

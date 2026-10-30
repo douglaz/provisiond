@@ -1,0 +1,107 @@
+{
+  "answers": {
+    "fable": {
+      "bytes": 10324,
+      "sha256": "00641e7fe4749656c079ffb75c91663f6e9abea8da7dd2bbc14e8ecfd3fc6526",
+      "included_verbatim": true,
+      "exit": 0
+    },
+    "opus": {
+      "bytes": 11348,
+      "sha256": "853ae39da3d536ae9ce2d7371d64832ba0f50e2025792fa7c8bf2c8e99bbd50f",
+      "included_verbatim": true,
+      "exit": 0
+    },
+    "astra": {
+      "bytes": 12050,
+      "sha256": "e5ef73ecea1b877b274a8e5a3f1e19bead802be62074db2185d4529c4695c165",
+      "included_verbatim": true,
+      "exit": 0
+    },
+    "sol": {
+      "bytes": 11264,
+      "sha256": "92ad29171ecfd91b010f227e1a8589253052859bc47a1b82cbfbdae111a58d4d",
+      "included_verbatim": true,
+      "exit": 0
+    }
+  },
+  "candidate_fences": {
+    "run-codex.sh": "exact original with panel path/unit-name substitutions only",
+    "run-claude-stdin.sh": "exact original with panel path/unit-name substitutions only",
+    "launch.sh": "exact original with panel path/unit-name substitutions only"
+  },
+  "source_extracts": [
+    {
+      "file": "04-api-contract.md",
+      "lo": "958",
+      "hi": "981",
+      "exact": true
+    },
+    {
+      "file": "07-security-requirements.md",
+      "lo": "280",
+      "hi": "281",
+      "exact": true
+    },
+    {
+      "file": "06-rescue-install.md",
+      "lo": "245",
+      "hi": "288",
+      "exact": true
+    },
+    {
+      "file": "06-rescue-install.md",
+      "lo": "312",
+      "hi": "330",
+      "exact": true
+    },
+    {
+      "file": "10-conformance-checklist.md",
+      "lo": "2243",
+      "hi": "2245",
+      "exact": true
+    },
+    {
+      "file": "10-conformance-checklist.md",
+      "lo": "2295",
+      "hi": "2333",
+      "exact": true
+    },
+    {
+      "file": "03-operation-lifecycle.md",
+      "lo": "2018",
+      "hi": "2046",
+      "exact": true
+    },
+    {
+      "file": "01-domain-model.md",
+      "lo": "575",
+      "hi": "582",
+      "exact": true
+    },
+    {
+      "file": "tools/formal/Provisiond/Rescue.lean",
+      "lo": "295",
+      "hi": "329",
+      "exact": true
+    },
+    {
+      "file": "tools/formal/Provisiond/Rescue.lean",
+      "lo": "345",
+      "hi": "357",
+      "exact": true
+    },
+    {
+      "file": "tools/formal/Provisiond/Rescue.lean",
+      "lo": "371",
+      "hi": "396",
+      "exact": true
+    }
+  ],
+  "whole_options": {
+    "Q1-A/B/C": "exact original",
+    "Q3-A/B": "exact original",
+    "Q3-E": "exact astra alternative",
+    "Q2-A": "context only; not re-asked"
+  }
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "pv-2j3",
+    "title": "API-13's disk-identifier row sets no length cap, though SEC-29 caps individual fields per API-13 (SEC-29, API-13)",
+    "description": "Found during the `pv-6p8` drain review (branch `pv-6p8`), 2026-10-22.\n\n**The problem.** `SEC-29` says \"Request bodies MUST be size-capped globally, and individual fields MUST be capped per `API-13`.\" `pv-6p8` added an `API-13` row for disk identifiers, `target.identifier` and `layout.drives[].identifier`: \"a JSON string, non-empty after normalization (`RSC-46`)\". It sets no length cap. The panel's reviewed form set none either.\n\nEvery other caller string in `API-13`'s table has one: hostname \"1\u2013253 characters\", offer identifier \"1\u2013256 characters\", catalog image \"1\u2013256 characters\". So a single disk identifier can fill the global body cap (\"2 MiB is a reasonable default\"). It is then stored in the operation's request and compared in the worker.\n\n**Example.** A caller sends a 1.9 MiB `target.identifier`. Engine A refuses it, reading `SEC-29` as requiring a per-field cap. Engine B admits it, because `API-13` states none, and repeats the comparison in the worker (`OPS-23`). Both conform to `API-13` as written.\n\n**Question.** What is the disk identifier's length cap in `API-13`, if any? Should `SEC-29` say that a row without a cap is capped only by the body cap?\n",
+    "status": "open",
+    "priority": 3,
+    "issue_type": "task",
+    "created_at": "2026-10-22T02:15:07.194268831Z",
+    "created_by": "user",
+    "updated_at": "2026-10-22T02:15:07.194268831Z",
+    "source_repo": "provisiond-spec",
+    "source_repo_path": "/home/user/projects/provisiond-spec",
+    "compaction_level": 0,
+    "original_size": 0,
+    "labels": [
+      "needs-triage"
+    ]
+  },
+  {
+    "id": "pv-ez8",
+    "title": "CNF-200's \"rejected\" doesn't say whether a path-shaped disk identifier is refused at admission or aborts integrity (CNF-200, API-13, RSC-26, CNF-363)",
+    "description": "Found during the `pv-6p8` drain review (branch `pv-6p8`), 2026-10-22.\n\n**The problem.** `CNF-200` says \"A rootfs install naming a drive by unstable device path is rejected; the layout carries stable identifiers checked against the inventory fingerprint, exactly as raw-disk does.\" It does not say how a path-shaped `layout.drives[].identifier` is rejected.\n\n- After `pv-6p8`, `API-13`'s new row admits any \"JSON string, non-empty after normalization (`RSC-46`)\". `/dev/sda` is such a string, so it is not refused `invalid_request` before enqueue.\n- It then resolves against the re-read inventory under `RSC-26`, which says \"An identifier that does not resolve to exactly one device MUST abort `integrity` before any write\". The install is admitted, enters rescue, and aborts `integrity`.\n- `CNF-363` case (14) avoided the clash by using an unmatched identifier \"that is not path-shaped\".\n\n**Example.** Engine A refuses `{\"identifier\": \"/dev/sda\"}` with `invalid_request` before enqueue, reading `CNF-200`'s \"rejected\" as an admission refusal. Engine B admits it, boots rescue, and aborts `integrity`. Both can claim to pass `CNF-200`. Under `API-13` as amended, A refuses a value the admission table admits. B reboots the customer's machine into rescue for a request no real disk can match.\n\n**Question.** Does a path-shaped disk identifier fail at admission (a new `API-13` rule) or at resolution (`integrity`, as `RSC-26` reads now)? `CNF-200` then asserts that outcome, not \"rejected\". If the answer is resolution, does `CNF-363` case (14) drop \"that is not path-shaped\", so that it also drives the stale-path echo? The review of `pv-6p8` noticed that the form's case says only \"A well-formed identifier that matches nothing aborts `integrity`\".\n",
+    "status": "open",
+    "priority": 3,
+    "issue_type": "task",
+    "created_at": "2026-10-22T02:15:06.944581730Z",
+    "created_by": "user",
+    "updated_at": "2026-10-22T02:15:06.944581730Z",
+    "source_repo": "provisiond-spec",
+    "source_repo_path": "/home/user/projects/provisiond-spec",
+    "compaction_level": 0,
+    "original_size": 0,
+    "labels": [
+      "needs-triage"
+    ]
+  },
+  {
+    "id": "pv-tbrs",
+    "title": "RSC-46's \"ASCII whitespace\" is undefined, and common definitions disagree on U+000B (RSC-46, CNF-363)",
+    "description": "Found during the `pv-6p8` drain review (branch `pv-6p8`), 2026-10-22. This is the reviewed form's out-of-scope bullet about pinning \"ASCII whitespace\" to U+0009\u2013U+000D plus U+0020. Two readers proposed it in r61c.\n\n**The problem.** `RSC-46` normalizes an identifier with \"trim ASCII whitespace, ASCII-lowercase, then strip exactly one leading `0x`\", and the wire values are \"trimmed of ASCII whitespace\". The set doesn't define \"ASCII whitespace\", and common definitions disagree on U+000B (vertical tab):\n- WHATWG Infra's \"ASCII whitespace\" is U+0009, U+000A, U+000C, U+000D and U+0020. It excludes U+000B.\n- C `isspace` and Python `bytes.strip()` include U+000B.\n\nThe trimmed value is what the wire shows, what matching compares, and what the `inventory_fingerprint` hashes.\n\n**Example.** A disk's serial is read as `\"ABC123\\v\"`. Engine A trims it to `ABC123`. Engine B keeps `ABC123\\v`. They show different `serial` and `identifier` values and compute different fingerprints over the same disks. `CNF-363` case (2) asserts the fingerprint \"equals an independently computed hash\". Its outcome then depends on which definition the conformance suite uses.\n\n**Question.** Pin \"ASCII whitespace\" in `RSC-46`, for example to U+0009\u2013U+000D plus U+0020, or cite a definition?\n",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "created_at": "2026-10-22T02:15:07.930306511Z",
+    "created_by": "user",
+    "updated_at": "2026-10-22T02:15:07.930306511Z",
+    "source_repo": "provisiond-spec",
+    "source_repo_path": "/home/user/projects/provisiond-spec",
+    "compaction_level": 0,
+    "original_size": 0,
+    "labels": [
+      "needs-triage"
+    ]
+  }
+]
