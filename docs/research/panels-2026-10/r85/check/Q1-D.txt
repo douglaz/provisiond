@@ -1,0 +1,13 @@
+| `invalid_request` naming a field (`WIR-2`, `OPS-23`, `PRV-47`) | `field`: an RFC 6901 JSON Pointer into the request body (`"/acknowledge_purchase"`, `"/provider_options/location"`), also where the named field is absent. Where one validation step rejects several fields (an `API-7` step, `OPS-23`'s repeated check of caller-supplied fields, or `PRV-47`'s validation), the least escaped pointer, compared by unsigned UTF-16 code units, the order RFC 8785 (`WIR-3`) sorts member names in |
+
+For the rescue-entering WIR-20 install variants, rejecting several present trust alternatives
+rejects every present alternative member; rejecting an empty trust object rejects /trust.
+If strategy is absent or invalid, reject /strategy and infer no variant-member rejection
+merely from the inability to select a variant. An independent top-level member belonging
+to no install variant is still rejected. For WIR-35, apply that discriminator rule to
+/resolution. For WIR-17's ssh_public_keys, a rejected element names its indexed position
+(/ssh_public_keys/0 for the first element); a wrong array type, absent required array or
+failed array-wide bound names /ssh_public_keys. Indices are decimal without leading zeroes.
+Apply the row's existing escaped-pointer order to these fields and any independently
+rejected fields in the same step. These case-specific rules do not define a new rejected-set
+rule for other groups, unions or arrays, and select fields only within invalid_request.

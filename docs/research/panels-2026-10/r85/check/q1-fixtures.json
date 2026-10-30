@@ -1,0 +1,141 @@
+[
+  {
+    "id": "F1",
+    "endpoint": "POST /v1/machines/fixture-machine/actions/install",
+    "request": {
+      "strategy": "raw_disk",
+      "source": {
+        "type": "raw_disk",
+        "url": "https://images.example.net/disk.img",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "compression": "none"
+      },
+      "target": {
+        "identifier": "S4EVNF0N123456",
+        "inventory_fingerprint": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "trust": {
+        "expected_host_keys": [
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"
+        ],
+        "accept_unpinned": true
+      },
+      "acknowledge_destruction": true
+    },
+    "A": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/trust/accept_unpinned"
+      }
+    },
+    "B": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/trust"
+      }
+    }
+  },
+  {
+    "id": "F2",
+    "endpoint": "POST /v1/machines/fixture-machine/actions/install",
+    "request": {
+      "strategy": "not_a_strategy",
+      "source": {
+        "type": "raw_disk",
+        "url": "https://images.example.net/disk.img",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "compression": "none"
+      },
+      "target": {
+        "identifier": "S4EVNF0N123456",
+        "inventory_fingerprint": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "trust": {
+        "use_provider_keys": true
+      },
+      "acknowledge_destruction": true
+    },
+    "A": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/strategy"
+      }
+    },
+    "B": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/strategy"
+      }
+    }
+  },
+  {
+    "id": "F3",
+    "endpoint": "POST /v1/operations/fixture-operation/actions/resolve",
+    "request": {
+      "resolution": "not_a_resolution",
+      "external_id": "2345678",
+      "operator_ref": "opref-7d41c9"
+    },
+    "A": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/resolution"
+      }
+    },
+    "B": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/resolution"
+      }
+    }
+  },
+  {
+    "id": "F4",
+    "endpoint": "POST /v1/machines",
+    "request": {
+      "provider_account": "fixture-account",
+      "offer": "fixture-offer",
+      "region": "fixture-region",
+      "hostname": "worker-1",
+      "image": null,
+      "ssh_public_keys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f",
+        17
+      ],
+      "user_data": null,
+      "labels": {},
+      "runway_seconds": 2592000,
+      "max_commitment_sats": 90000,
+      "acknowledge_purchase": true,
+      "provider_options": {}
+    },
+    "A": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/ssh_public_keys/1"
+      }
+    },
+    "B": {
+      "kind": "invalid_request",
+      "message": "validation failed",
+      "retryable": false,
+      "details": {
+        "field": "/ssh_public_keys"
+      }
+    }
+  }
+]

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "pv-hups",
+    "title": "OPS-23's install timing binds 'these checks'; a present-value check run after the rescue marker would settle with a rescue_exit the marker contradicts (OPS-23, OPS-45, WIR-9a)",
+    "description": "> *Filed 2026-10-22 while judging panel B (pv-7j3, pv-p3k, pv-009, pv-gpw, pv-ss4), from a full read of the set at `1bdf453`.*\n\nOn an install, does `OPS-23`'s new present-value check have to run before the `OPS-45` markers, as the missing-field checks do?\n\n- pv-gpw added `03:1896`: \"A field that is present but fails this repeated validation fails as its writer's bullet above says, on both the error and the operation view, and settles as these missing-field failures do.\"\n- The timing rule a few lines on reads: \"On an install, these checks MUST run before either `OPS-45` marker is written: its rescue marker is \"**false, written before begin rescue (`PRV-15`) is dispatched**\". The install settles `failed` with `disk_effect: \"none\"` and `rescue_exit: \"none\"`\". It follows \"These missing-field failures settle `failed`\".\n- `OPS-23`'s own bound for repeated validation is only \"before the driver is called\".\n\nTwo readings:\n- **Reading A:** \"these checks\" is all of the repeated validation. A present-value failure comes before the markers and settles with `rescue_exit: \"none\"`.\n- **Reading B:** \"these checks\" is the missing-field checks. A present-value check may run after the rescue marker is written `false` and before begin rescue is dispatched.\n\nUnder reading B, \"settles as these missing-field failures do\" promises `rescue_exit: \"none\"`. But `WIR-9a` renders `rescue_exit` from that marker (\"`none` only where no rescue session was opened\"; `unknown` \"where it failed or the operation died before reaching it\"). So two engines can send different `rescue_exit` values for the same rejected install.\n\nOwners: `OPS-23`, `OPS-45`, `WIR-9a`.\n",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "created_at": "2026-10-22T20:58:59.987042293Z",
+    "created_by": "manager",
+    "updated_at": "2026-10-22T22:24:24.171778690Z",
+    "source_repo": "provisiond-spec",
+    "source_repo_path": "/home/user/projects/provisiond-spec",
+    "compaction_level": 0,
+    "original_size": 0,
+    "labels": [
+      "needs-triage"
+    ]
+  },
+  {
+    "id": "pv-xzre",
+    "title": "PRV-47 does not say which kind a create fails with when one validation rejects a caller value and a system-written value together (PRV-47, OPS-11, WIR-9a)",
+    "description": "Found by panel r62c (readers voted 4-0 to file it as a bead), while drafting `pv-gpw` (`docs/research/panels-2026-10/r62/final-form.md`, \"File with the drain PR\", item 1).\n\nOne `PRV-47` validation can reject a caller-supplied value and a value this system wrote in the same create. `PRV-47` gives the caller value `invalid_request` with `retryable: false` and, since `pv-gpw`, the system-written value `internal` with `retryable` from `OPS-11`'s create row (`true`). Nothing says which kind the create fails with when both are rejected together. Both outcomes settle `failed` with no mutation and a full release, so the difference is the kind and `retryable` the caller sees.\n\nOne reader (unvoted) argued that `internal` should win, \"since a caller fix cannot clear a defect\". This bead records the gap; it does not decide it.\n\nOwners: `PRV-47`, `OPS-11`, `WIR-9a`.\n",
+    "status": "open",
+    "priority": 3,
+    "issue_type": "task",
+    "created_at": "2026-10-22T21:01:42.034649727Z",
+    "created_by": "user",
+    "updated_at": "2026-10-22T21:01:42.034649727Z",
+    "source_repo": "provisiond-spec",
+    "source_repo_path": "/home/user/projects/provisiond-spec",
+    "compaction_level": 0,
+    "original_size": 0,
+    "labels": [
+      "needs-triage"
+    ]
+  },
+  {
+    "id": "pv-y1zy",
+    "title": "WIR-9a's field pointer does not say what a rejected combination names: trust's exclusive members, an invalid union discriminator, an array element (WIR-9a, WIR-2, WIR-20)",
+    "description": "> *Filed 2026-10-22 while judging panel B (pv-7j3, pv-p3k, pv-009, pv-gpw, pv-ss4), from a full read of the set at `1bdf453`.*\n\n`WIR-9a`'s new `details.field` row (pv-ss4, applied to create, install, power and delete by the owner's \"Wide: all four ops\") orders *several rejected fields*. It does not say which pointer names a rejection of a combination of fields.\n\n- `WIR-9a` (`13:134`): `field` is \"an RFC 6901 JSON Pointer into the request body\", and \"Where one validation step rejects several fields \u2026, the least escaped pointer, compared by unsigned UTF-16 code units\".\n- `WIR-20` (`13:693`): the rescue-entering install variants \"additionally carry a required `trust` object**, exactly one of three, not two\". The three are `{\"use_provider_keys\": true}`, `{\"expected_host_keys\": [...]}` and `{\"accept_unpinned\": true}`.\n- `API-13` (`04:976`): \"pinned keys and \"accept unpinned\" MUST be mutually exclusive\". `RSC-4` (`06:101`): \"Caller-supplied keys and the first-use-trust opt-in MUST be mutually exclusive\".\n\nTake a `rootfs_via_rescue` install whose `trust` is `{\"expected_host_keys\": [...], \"accept_unpinned\": true}`:\n- one engine names the object, `/trust`;\n- one treats both members as rejected and names the least, `/trust/accept_unpinned`;\n- one names the member it checked second, `/trust/expected_host_keys`.\n\nAll three can cite the row.\n\nThe same holds for any closed discriminated-union body when the discriminator itself is invalid: install's `strategy`, and `WIR-35`'s `resolution`. One engine names the discriminator. Another treats the variant's own fields as unknown under `WIR-2` and names the least of those.\n\nNothing says whether a bad array element is named by the array (`/ssh_public_keys`) or the element (`/ssh_public_keys/1`).\n\nOwners: `WIR-9a`, `WIR-2`, `WIR-20`.\n",
+    "status": "open",
+    "priority": 3,
+    "issue_type": "task",
+    "created_at": "2026-10-22T20:58:59.707980416Z",
+    "created_by": "manager",
+    "updated_at": "2026-10-22T22:24:24.308116895Z",
+    "source_repo": "provisiond-spec",
+    "source_repo_path": "/home/user/projects/provisiond-spec",
+    "compaction_level": 0,
+    "original_size": 0,
+    "labels": [
+      "needs-triage"
+    ]
+  }
+]

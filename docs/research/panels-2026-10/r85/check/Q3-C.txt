@@ -1,0 +1,4 @@
+A field that is present but fails this repeated validation fails as its writer's bullet above
+says, on both the error and the operation view, and settles as these missing-field failures
+do. On an install, this present-value validation MUST finish before either `OPS-45` marker
+is written.

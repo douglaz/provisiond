@@ -1,0 +1,14 @@
+A validation that rejects only caller-supplied values fails `invalid_request`, naming a
+rejected caller-supplied value's field under `WIR-9a`, with `retryable: false` on both the
+error and the operation view (`WIR-9b`). A validation that rejects only values this system
+wrote rather than the caller, such as `PRV-9`'s operation id as a temporary key's
+"provider-side name or tag" or `PRV-32`'s per-order throwaway SSH key, fails `internal`
+(`DOM-17`); `OPS-11`'s create row gives its `retryable`. An internal validation error
+MUST NOT carry `details.field`.
+
+When the same driver-validation step rejects both origins, the create MUST fail `internal`,
+with `retryable: true` on both the error and the operation view. The error MUST NOT carry
+`details.field`; that key names a rejected request-body field for an `invalid_request`, not
+a system-written value. Category selection precedes pointer selection. No additional field
+listing the other rejected values is introduced. Ordinary redaction and `details.accepted`
+requirements still apply.

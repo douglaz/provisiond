@@ -1,0 +1,10 @@
+The driver MUST perform this validation in two stages before any provider mutation for the
+create: first validate all system-written values, then, only if they pass, validate the
+caller-supplied values. A rejected system-written value fails `internal` (`DOM-17`), with
+`retryable` from `OPS-11`'s create row on both the error and the operation view; the error
+MUST NOT carry `details.field`. A rejected caller-supplied value fails `invalid_request`,
+with `retryable: false` on both the error and the operation view (`WIR-9b`), naming a
+rejected caller-supplied field selected under `WIR-9a`. The system-written stage includes
+`PRV-9`'s operation id as a temporary key's "provider-side name or tag" and `PRV-32`'s
+per-order throwaway SSH key where these values are forwarded. No mixed-origin validation
+step is permitted. Ordinary redaction and `details.accepted` requirements still apply.
