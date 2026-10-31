@@ -4329,7 +4329,19 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       full with no setup-fee or first-unit debit, and the resource-offer exclusion freed where the
       create holds one. Repeat these step-7 cases on a standard channel (`correlator: none`) with
       the same assertions.
-      Add a stored create carrying provider-options members `a/b` and `a~b`, both rejected by the driver, and assert `details.field: "/provider_options/a~0b"`, the least escaped pointer in `WIR-9a`'s order; unescaped, `a/b` sorts first. With a fixture
+      Add a stored create carrying provider-options members `a/b` and `a~b`, both rejected by the driver, and assert `details.field: "/provider_options/a~0b"`, the least escaped pointer in `WIR-9a`'s order; unescaped, `a/b` sorts first.
+
+      Add field-selection cases F1–F4 from docs/research/panels-2026-10/r85/q1-fixtures.json,
+      using otherwise valid fixture context and asserting the machine-readable error fields
+      in each fixture's A object: F1 rejects both trust members
+      and names /trust/accept_unpinned; F2 names /strategy without inventing variant-member
+      errors; F3 names /resolution; F4 names /ssh_public_keys/1. Repeat F1 with an independent
+      unknown top-level member aaa and assert /aaa; repeat with trust absent and assert
+      /trust. For array length failure use 65 otherwise valid keys and assert /ssh_public_keys.
+      No request enqueues an operation or mutates the provider. Retain the existing escaped
+      pointer ordering cases. (`WIR-9a`, `WIR-2`, `WIR-20`, `WIR-35`, `API-13`)
+
+      With a fixture
       driver that rejects a value this system wrote, such as the operation id as a temporary key's
       name (`PRV-9`), on an otherwise valid create, assert `internal` and `retryable: true` on both
       the error and the operation view, `failed`, and the same no-mutation and release outcomes. For a stored create carrying a

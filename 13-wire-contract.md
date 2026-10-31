@@ -143,6 +143,23 @@ agent to parse English. Minimum keys:
 | `authentication` | `reason` (`"token"` \| `"unknown_principal"`) |
 | `integrity` | `expected`, `observed` where disclosable (`SEC-16`) |
 
+For this row, determine the rejected-field set before ordering its pointers. A rejected
+value's own member is named, including when that required member is absent. A value of the
+wrong JSON type names that member rather than hypothetical children. When several present
+members violate an exactly-one or mutually-exclusive group, every present member of that
+group is rejected; when a required exactly-one group has no member, the containing object
+is rejected. If a discriminated union's discriminator is absent or invalid, that discriminator
+is rejected, and no variant-member rejection is inferred merely from being unable to select
+a variant. A member belonging to no variant remains an independent unknown-field rejection;
+a member recognized by at least one variant is not unknown solely because the discriminator
+is invalid. Other independent failures in the same validation step remain in the set.
+An invalid array element names its indexed position, with a decimal index and no leading
+zeroes; a failed constraint on the array as a whole names the array. For a rejected member
+within an object element, use that member's pointer. Escape each pointer under RFC 6901 and
+apply the row's existing order to the complete set. Do not add an ancestor pointer solely
+because a selected descendant failed. These rules select fields within the
+invalid_request category; they do not select between error kinds.
+
 *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): added the
 `incomplete_record` conflict reason for missing api-filled admission fields.*
 
@@ -688,6 +705,8 @@ showed only `rootfs_via_rescue` and omitted the raw-disk target device (`RSC-26`
 trust decision (`RSC-3`/`RSC-4`), the layout (`RSC-22`) and the installed keys (`RSC-13`) — so
 three of four strategies were unsendable and the security-critical trust choice had no field.
 
+For `details.field`, see `WIR-9a`.
+
 Common to every variant: `acknowledge_destruction: true` (`API-14`). *`on_failure` ∈ {`exit_rescue`,
 `leave_in_rescue`} was common to every variant until 2026-09-15 (`RSC-18`, withdrawn); a body
 carrying it is `WIR-2`'s unknown field, `invalid_request`.* **The two rescue-entering variants —
@@ -938,6 +957,8 @@ carries this date. *Amended 2026-10-09 (`ADR-0037`, Q14); amended 2026-10-10 (`A
 amended 2026-10-11 (`ADR-0037`, Q21/Q22): gone-write fence and provider-zone conversion.*
 `{"resolution": "not_applied", "operator_ref": "opref-7d41cd"}` settles `failed`. Neither carries an
 `external_id` — the machine is already known, which is the whole difference from a create.
+
+For `details.field`, see `WIR-9a`.
 
 **The union is closed *per operation kind*, and a form outside its kind's set is
 `invalid_request`.** For `create_machine`: `observed`, `absent`, `abandoned`.
