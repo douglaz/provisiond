@@ -1,0 +1,62 @@
+{
+  "Q1_append_anchor": {
+    "path": "10-conformance-checklist.md",
+    "occurrences": 1,
+    "anchor": "*Amended 2026-10-21 (`pv-1wn`, panel r60)"
+  },
+  "Q1_release_anchor": {
+    "path": "04-api-contract.md",
+    "occurrences": 1,
+    "anchor": "kind stays an admission-time rejection of a *caller's* write (`DOM-20`)."
+  },
+  "Q2_admission_anchor": {
+    "path": "04-api-contract.md",
+    "occurrences": 1,
+    "anchor": "**It MUST also contend with admission on the account row itself, and that ordering comes first.**"
+  },
+  "Q2_wire_anchor": {
+    "path": "13-wire-contract.md",
+    "occurrences": 1,
+    "anchor": "| `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `terminated` | `false` | The named account cannot recover |"
+  },
+  "Q2_barrier_anchor": {
+    "path": "10-conformance-checklist.md",
+    "occurrences": 1,
+    "anchor": "**Second barrier**:"
+  },
+  "Q3_entry_anchor": {
+    "path": "03-operation-lifecycle.md",
+    "occurrences": 1,
+    "anchor": "system MUST attempt automatic resolution before asking a human."
+  },
+  "Q3_component_anchor": {
+    "path": "00-overview.md",
+    "occurrences": 1,
+    "anchor": "| `OPS-27`'s resolution sweep |"
+  },
+  "Q3_CNF_anchor": {
+    "path": "10-conformance-checklist.md",
+    "occurrences": 1,
+    "anchor": "**CNF-237**"
+  },
+  "Q4_claim_anchor": {
+    "path": "03-operation-lifecycle.md",
+    "occurrences": 1,
+    "anchor": "1. Read the provider account's stored status"
+  },
+  "Q4_step8_anchor": {
+    "path": "03-operation-lifecycle.md",
+    "occurrences": 1,
+    "anchor": "8. Perform `API-63`'s conditional write"
+  },
+  "Q4_fence_anchor": {
+    "path": "04-api-contract.md",
+    "occurrences": 1,
+    "anchor": "**fences work already in flight**"
+  },
+  "Q4_backstop_anchor": {
+    "path": "04-api-contract.md",
+    "occurrences": 1,
+    "anchor": "**A create that has produced no machine yet passes the re-sweep's test**"
+  }
+}

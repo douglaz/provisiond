@@ -1,0 +1,22 @@
+[
+  {
+    "file": "05-persistence.md",
+    "block": "**STO-55**",
+    "unchanged": true,
+    "sha256": "c1f285d93435bdad027faaeae8bba2ae874a5eb43d7f66075cc34e0f13d6b4ac"
+  },
+  {
+    "file": "05-persistence.md",
+    "block": "**STO-13**",
+    "unchanged": true,
+    "sha256": "7e757d7a785eabdfd5c7985d33b0f9c31c735d5b12db26c6e9f9bdf7d92f5e8e"
+  },
+  {
+    "quote": "Where a store call by a worker, or by a periodic component running in\nthe engine process (`OVR-17`), errors or times out",
+    "unchanged": true
+  },
+  {
+    "quote": "An attempt denied by `STO-55` admission is a store error for this loop and sends no SQL",
+    "unchanged": true
+  }
+]

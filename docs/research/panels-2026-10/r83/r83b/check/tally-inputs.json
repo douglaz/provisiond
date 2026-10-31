@@ -1,0 +1,42 @@
+{
+  "brief.md": {
+    "bytes": 135051,
+    "sha256": "86e6cc2d1e4494f7653e264c6e38594d6cafd0b91d0bdacf241c7dff430767f3"
+  },
+  "notes.md": {
+    "bytes": 3858,
+    "sha256": "4414ac9f08275111ae177f3ee455b01e56eaa2efaf7cbdc4491f7034d01a6df6"
+  },
+  "Q4-A.md": {
+    "bytes": 5347,
+    "sha256": "76f1466e4b8af332d145dc8d1576554b596fa50ea6f9cab0d589a146a63b1aee"
+  },
+  "Q4-B.md": {
+    "bytes": 5370,
+    "sha256": "6770a189b5f2dfc992173a5b51598c00b60f8a5d3bb8776fad40cbecc0257018"
+  },
+  "Q4-C.md": {
+    "bytes": 5367,
+    "sha256": "533842b39db258afb9f9758a5d1de29e9db11e248f59d20d2621c0f7e145e8fc"
+  },
+  "Q4-D.md": {
+    "bytes": 6606,
+    "sha256": "bd57b4e09cfbedfb955fff449748433f12867749525c43f8ee0c9c552e9c4ae7"
+  },
+  "fable.md": {
+    "bytes": 11038,
+    "sha256": "b82daac287143846cbe90d4e74345c5c4278443ea28478d9199fb238901e3d82"
+  },
+  "opus.md": {
+    "bytes": 12491,
+    "sha256": "6805c919605bc598217ee2e3559e271135aef8552cf58af1f1580ce688e298a7"
+  },
+  "astra.md": {
+    "bytes": 10051,
+    "sha256": "7d446180565242e0295b6aa6de9ec80fb5cc73150cdccc1f2fe8b6bd32da45fe"
+  },
+  "sol.md": {
+    "bytes": 9210,
+    "sha256": "f3986ef768c8d1705b3c3dddbace0fedb376fae23f426fa8c1a3469a754ca6eb"
+  }
+}

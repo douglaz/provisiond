@@ -1,0 +1,22 @@
+In API-63, in the admission conditional-write sentence, replace "and fail `conflict` with `details.reason: "state"` where that write affects no row" with:
+
+and fail conflict with details.reason: "state" and retryable: false where that write affects no
+row because the account is no longer healthy. This admission-guard refusal has one retryable
+value regardless of which non-healthy status defeated the write; it needs no later status read.
+A serialization failure is not this refusal. No operation, commitment, receipt or purchase effect
+commits on the refused admission.
+
+In WIR-9a, immediately after the collection-snapshot terminated row in the purchase-tail table, insert:
+
+| conflict / state from API-63's admission conditional write, after a healthy collection snapshot | false | The admission race is a distinct refusal; this value does not depend on a later status read |
+
+In CNF-278, replace the Second barrier sentence and its following explanatory sentence, ending "snapshot isolation.", with:
+
+**Second barrier:** on fresh independent fixtures collect a healthy account snapshot, then
+commit each non-healthy STO-47 status before the admitting transaction opens the commitment.
+Assert HTTP 409 conflict, details.reason: "state", retryable: false in each response, and no
+operation, commitment, receipt or provider request. The create conditional-writes STO-47's row
+guarded on healthy in the transaction that would open the commitment; a mere read there is not
+enough under snapshot isolation. Let a recoverable account become healthy after the refusal
+and assert that change does not rewrite the response. This admission mapping is separate from
+the initial collection-snapshot and worker step-8 mappings.

@@ -1,0 +1,212 @@
+[
+  {
+    "path": "04-api-contract.md",
+    "lo": 617,
+    "hi": 669,
+    "match": true
+  },
+  {
+    "path": "05-persistence.md",
+    "lo": 19,
+    "hi": 81,
+    "match": true
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "lo": 310,
+    "hi": 328,
+    "match": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "lo": 1370,
+    "hi": 1383,
+    "match": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "lo": 2252,
+    "hi": 2275,
+    "match": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "lo": 1405,
+    "hi": 1433,
+    "match": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "lo": 296,
+    "hi": 302,
+    "match": true
+  },
+  {
+    "path": "13-wire-contract.md",
+    "lo": 165,
+    "hi": 188,
+    "match": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "lo": 2936,
+    "hi": 2970,
+    "match": true
+  },
+  {
+    "path": "01-domain-model.md",
+    "lo": 655,
+    "hi": 662,
+    "match": true
+  },
+  {
+    "path": "02-provider-contract.md",
+    "lo": 421,
+    "hi": 457,
+    "match": true
+  },
+  {
+    "path": "02-provider-contract.md",
+    "lo": 1100,
+    "hi": 1152,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 79,
+    "hi": 120,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 505,
+    "hi": 519,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 555,
+    "hi": 566,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 914,
+    "hi": 916,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 1386,
+    "hi": 1438,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 1515,
+    "hi": 1541,
+    "match": true
+  },
+  {
+    "path": "00-overview.md",
+    "lo": 288,
+    "hi": 311,
+    "match": true
+  },
+  {
+    "path": "00-overview.md",
+    "lo": 389,
+    "hi": 397,
+    "match": true
+  },
+  {
+    "path": "00-overview.md",
+    "lo": 443,
+    "hi": 451,
+    "match": true
+  },
+  {
+    "path": "05-persistence.md",
+    "lo": 586,
+    "hi": 589,
+    "match": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "lo": 3402,
+    "hi": 3408,
+    "match": true
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "lo": 4168,
+    "hi": 4180,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 757,
+    "hi": 837,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 240,
+    "hi": 267,
+    "match": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "lo": 617,
+    "hi": 650,
+    "match": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "lo": 728,
+    "hi": 733,
+    "match": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "lo": 744,
+    "hi": 753,
+    "match": true
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "lo": 640,
+    "hi": 654,
+    "match": true
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "lo": 463,
+    "hi": 473,
+    "match": true
+  },
+  {
+    "path": "05-persistence.md",
+    "lo": 519,
+    "hi": 521,
+    "match": true
+  },
+  {
+    "path": "05-persistence.md",
+    "lo": 663,
+    "hi": 673,
+    "match": true
+  },
+  {
+    "path": "13-wire-contract.md",
+    "lo": 126,
+    "hi": 142,
+    "match": true
+  },
+  {
+    "path": "04-api-contract.md",
+    "lo": 1259,
+    "hi": 1273,
+    "match": true
+  }
+]

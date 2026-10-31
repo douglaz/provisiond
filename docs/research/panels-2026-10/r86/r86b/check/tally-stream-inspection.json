@@ -1,0 +1,44 @@
+{
+  "fable": {
+    "lines": 0,
+    "tail": [],
+    "diagnostic_matches": []
+  },
+  "opus": {
+    "lines": 0,
+    "tail": [],
+    "diagnostic_matches": []
+  },
+  "astra": {
+    "lines": 4814,
+    "tail": [
+      "No source, Git, tracker or panel record was edited. No Nix gate, Lean command, build, subagent or background work ran. The final worktree status was clean.",
+      "hook: Stop",
+      "hook: Stop Completed",
+      "tokens used",
+      "96,311"
+    ],
+    "diagnostic_matches": [
+      [
+        1912,
+        "5. A reader answering with a usage-limit line is a missing seat, not a vote. This includes Fable regardless of exit code. Failed, empty, unavailable or non-substantive outputs are not votes. Verify actual output, not exit 0 alone. If grok is down after launch, apply rule 2's three-of-four fallback; prelaunch 402 leaves grok missing and launches the other four under this turn's explicit common instructions. A \"Not signed in\" probe stops launch and is reported; only the owner can sign in."
+      ]
+    ]
+  },
+  "sol": {
+    "lines": 6073,
+    "tail": [
+      "The worktree remains clean. I ran no Nix gate, Lean command, build, subagent or background work.",
+      "hook: Stop",
+      "hook: Stop Completed",
+      "tokens used",
+      "125,810"
+    ],
+    "diagnostic_matches": [
+      [
+        2979,
+        "5. A reader answering with a usage-limit line is a missing seat, not a vote. This includes Fable regardless of exit code. Failed, empty, unavailable or non-substantive outputs are not votes. Verify actual output, not exit 0 alone. If grok is down after launch, apply rule 2's three-of-four fallback; prelaunch 402 leaves grok missing and launches the other four under this turn's explicit common instructions. A \"Not signed in\" probe stops launch and is reported; only the owner can sign in."
+      ]
+    ]
+  }
+}

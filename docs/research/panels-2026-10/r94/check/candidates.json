@@ -1,0 +1,17 @@
+{
+  "Q-QUOTE": {
+    "ops": "OPS-49 says \"the component MUST repeat the **whole\ntransaction** — never the last failed statement, and never the provider call (`OPS-12`)\" and \"A\n  serialization failure is repeated at once.\"; retry a serialization failure as a whole transaction and do not treat it as a tenant-status refusal.",
+    "ldg": "A create past\nthe guard can still be between the acknowledged transaction and its provider call, because\nLDG-69 says \"**the provider call happens after that transaction commits**, never inside it.\"; treat that residue as the potentially dispatched\ncase.",
+    "sha256": "b4764a9675f8cfcb615aa6fec18f29ce6e6a3f952273bda4b703c3128aec094d"
+  },
+  "Q-POINTER": {
+    "ops": "For serialization failures and transaction repetition, see OPS-49.\nA serialization failure is not a tenant-status refusal.",
+    "ldg": "Treat a create past the guard that is between the acknowledged transaction and its provider\ncall as the potentially dispatched case. For provider-call ordering, see LDG-69.",
+    "sha256": "da7659c1965aaaf1153f1e29e49853fff698222a2ba9471815aa8f8572a46e25"
+  },
+  "Q-KEEP": {
+    "ops": "A serialization failure is retried as a whole transaction under OPS-49\nand is not a tenant-status refusal.",
+    "ldg": "A create past\nthe guard can still be between the acknowledged transaction and its provider call, because\nLDG-69 keeps the call outside the transaction; treat that residue as the potentially dispatched\ncase.",
+    "sha256": "bd57b4e09cfbedfb955fff449748433f12867749525c43f8ee0c9c552e9c4ae7"
+  }
+}

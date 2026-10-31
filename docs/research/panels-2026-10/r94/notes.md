@@ -1,0 +1,32 @@
+# Panel O r94 — fixed scope and settlement rules
+
+Fixed before launch. Two wording questions only on pv-kv2’s owner-item19 adopted Q4-D at PR53 H=b85af778fda2a96fb0024a07c69092665303bfbe, against M=a7b6884878bc7e53dc403dd8a4383d85afac3634 (PR57). No other bead, specification edit, tracker write, PR comment/resolution, push, merge, adoption, tally or r94b launch this turn. All external panel folders and pgharness are read only. Main pv-y1zy/PR58/folder and wt-prep-dghi are read only.
+
+Five seats configured: fable, opus, astra, sol, grok. Grok’s single preflight result is recorded in STATE.md before launch. If 402, launch the four other seats and use three-of-four; Fable’s 100% is quota-exempt but a limit line is missing, never a vote. Missing seats do not reduce the required three agreements.
+
+Apply rule1’s generic A/B answer separately to Q1 Q-QUOTE/Q-POINTER/Q-KEEP and Q2 L-BRIEF/L-BOTH/L-NOTE. Compare exact forms, not broad labels with different repairs. Preferences, exact acceptance sets, preservation judgments and requested counterarguments remain distinct. Any extra OPS-11 normalization is a distinct exact alternative, never silently merged into Q-QUOTE votes.
+
+The owner item19 is settled substance, including knowing loss of API-58’s positive warning-publication duty. A/D synthesis, restored public duty, partial D or new policy is outside wording authority. The 2026-10-28 rule applies only after exact settled forms are independently verified to change no behavior, requirement or check strength. An unsettled r94 gets one r94b by a later turn, then remaining disagreement goes to the owner; this launch turn starts no follow-on.
+
+## Outcome rules
+
+1. The panel has five seats: fable, opus, astra, sol and grok. Each returns an explicit final A / B / exact alternative sentence and separately ACCEPT / CANNOT ACCEPT for A and B. Preserve final preference and acceptance separately. An alternative sentence is a distinct complete form; do not merge different alternatives or combine unread repairs. A requested counterargument is not a vote. Verify factual claims against the pinned sources before relaying them.
+2. Owner's exact settling rule: "a question is settled when at least three agree and more agree than disagree, and a tie comes to you. If grok is down, it falls back to three of four". Apply this to the same exact form, with no verified blocking loss under rule 3 and no synthesized tie-break. Record both the explicit final-pick tally and acceptability sets. If more than one form qualifies, preserve the readers' explicit preferences; do not invent a tie-break. The owner's "you" means main relaying to the owner, not the manager. The wording exception permits a later manager to act without asking only after the exact form is settled and verified to have no behavior, requirement or check-strength change.
+3. A blocking loss must identify a checked verdict changed, made unreachable or vacuous (a conformance assertion or Lean theorem), or quote a MUST/SHOULD with file, owner and trace. Disclose any collateral flip. A changed declaration, proof statement, guard hypothesis, normative obligation, fixture or negative-control strength is substantive, not an editorial repair. A merely absent new runtime test is not a contradiction in the unchanged base. Verify the three beyond-wording judgments separately before applying the wording exception; substantive changes remain for the owner.
+4. A tie or no settlement gets ONE further full-panel consensus round: show each reader the others' answers verbatim, name the exact disagreements, give every exact option completely, and ask for a form it can accept. If that round settles by rule 2, use its result; otherwise return the remaining question to the owner. Never more than one consensus round for this question. This launch-only turn does not launch that round.
+5. A reader answering with a usage-limit line is a missing seat, not a vote. This includes Fable regardless of exit code. Failed, empty, unavailable or non-substantive outputs are not votes. Verify actual output, not exit 0 alone. If grok is down after launch, apply rule 2's three-of-four fallback; a prelaunch "Not signed in" stops the launch for the owner to sign in.
+6. A verified brief error that changes the question's premise voids its tally; re-ask it corrected. Other brief errors are reported with the tally, identifying any vote whose reason rests on one.
+7. Do not weaken or delete a disputed rule to clear a review. Preserve what it protects and name any tested/normative verdict lost before proposing a substantive departure. No unread manager synthesis counts as reviewed.
+
+Every tally prompt must say exactly: **apply notes.md rule 6 exactly as written; this prompt adds no void rule**.
+
+
+## Launch and evidence
+
+Each reader has its own clean clone detached at M, with PR53 fetched as origin/pr53 at H. Read spec text there or by git show. No reader runs lake/build/gates. Manager gate clone is check/repo. Initial/final gates use nix develop --command bash tools/check-all.sh unpiped, capped 16G/no swap/OOMPolicycontinue and host admission below two concurrent lake builds.
+
+Launch copied from r82 with paths/unit names/labels changed, and the explicit owner override changing the sol Codex xhigh effort to exactly high. Astra stays high; Claude and grok efforts remain xhigh. Wrappers use stdin brief, npm-global-first PATH, own TMPDIR, 3600s timeout, canonical <seat>.exit files and identical prompt. Every reader unit gets MemoryMax=16G MemorySwapMax=0 OOMPolicy=continue. No wait for panel completion this turn.
+
+User’s stricter quota instruction controls: read all quotas before launch; hold if any non-exempt reading is >80% or unreadable (including Codex for this turn). Fable never holds. Store actual readings under check/, STATE.md records them and unit receipts. This supersedes the common brief’s looser Codex 100% exception here. No account switching or logout.
+
+Prelaunch receipt: Claude session26%, all-models week75%, Fable100% exempt; active Codex gmail30%. All non-exempt readings readable and <=80%. Grok one-word preflight exit1, HTTP402 Payment Required / Grok Build usage balance exhausted: MISSING, no grok reader unit, no retry. Four units launch; at least three agreements remain required. Initial/final unpiped Nix check-all exit0/0 including Lean. Internal-consistency reviewer found only two citation offsets; both verified and fixed, candidates unchanged. Final remote refs still M/H exactly.

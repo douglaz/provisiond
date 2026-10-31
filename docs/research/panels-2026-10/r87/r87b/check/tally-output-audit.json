@@ -1,0 +1,71 @@
+{
+  "fable": {
+    "exit": "0",
+    "bytes": 10870,
+    "sha256": "b2f5755de056f55205c393dee02c67ba8f84696025af0bdc35997ed8613c3ac7",
+    "begin": "**Plain-terms answer.** When the connection authority refuses the database updater a connection, the updater s",
+    "last": "peated deployment invocations and possibly indefinite release delay while capacity stays exhausted, which the pv-oehp decision already accepted for the engine.\n",
+    "error_bytes": 0,
+    "substantive": true,
+    "tracked_status": "",
+    "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "drafts": [],
+    "failure_mentions": [],
+    "transcript_exec_count": 0
+  },
+  "opus": {
+    "exit": "0",
+    "bytes": 11817,
+    "sha256": "51bf1a3e6c6e703a0102d832239989a8abc0af74d73a6f85ceddbe36b4c95578",
+    "begin": "I've confirmed my clone is pinned at 3109b5b and checked the bead and the cited text against it. Writing the v",
+    "last": "al change. If the owner prefers it without the \"as the authority returned it\" wording, that is **O**. The approval to launch the panel authorizes neither form.\n",
+    "error_bytes": 0,
+    "substantive": true,
+    "tracked_status": "",
+    "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "drafts": [],
+    "failure_mentions": [],
+    "transcript_exec_count": 0
+  },
+  "astra": {
+    "exit": "0",
+    "bytes": 12097,
+    "sha256": "182a12f6b5d3c723bbdb7be4dea9ce1852b2ec4f2927dd098c91e0fc1bbbfbda",
+    "begin": "**Final: Q1 O**\n\nI prefer the complete printed O: report the refusal and exit immediately, leaving reinvocatio",
+    "last": "ly, and deployment invokes it again later?** This adds no parameter, identifier, ADR or formal declaration. Panel-launch approval did not authorize this policy.",
+    "error_bytes": 302089,
+    "substantive": true,
+    "tracked_status": "",
+    "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "stdout_matches_answer_except_trailing_newline": true,
+    "stdout_bytes": 12098,
+    "drafts": [],
+    "failure_mentions": [
+      "5. A reader answering with a usage-limit line is a missing seat, not a vote. This includes Fable regardless of exit code. Failed, empty, unavailable or non-substantive outputs are not votes. Verify actual output, not exit 0 alone. If grok is down after launch, apply rule 2's three-of-four fallback; ",
+      "a usage-limit error holds further Codex work. No account switch or logout."
+    ],
+    "transcript_exec_count": 11
+  },
+  "sol": {
+    "exit": "0",
+    "bytes": 11506,
+    "sha256": "c91c504a64cb4a871e67804ee8456bee8477d976ef31181318614e27a217483e",
+    "begin": "**Final: Q1 O**\n\nI prefer exact printed O: report the refusal and stop immediately, leaving deployment to invo",
+    "last": ", approve exact Q1 O\u2019s amendments to STO-55, STO-13 and CNF-57, so a refused updater reports why and stops immediately, leaving deployment to invoke it again?**",
+    "error_bytes": 1372995,
+    "substantive": true,
+    "tracked_status": "",
+    "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+    "stdout_matches_answer_except_trailing_newline": true,
+    "stdout_bytes": 11507,
+    "drafts": [],
+    "failure_mentions": [
+      "5. A reader answering with a usage-limit line is a missing seat, not a vote. This includes Fable regardless of exit code. Failed, empty, unavailable or non-substantive outputs are not votes. Verify actual output, not exit 0 alone. If grok is down after launch, apply rule 2's three-of-four fallback; ",
+      "a usage-limit error holds further Codex work. No account switch or logout.",
+      "21:{\"id\":\"pv-7i1\",\"title\":\"Formal layer: the read-back after a dated cancellation (PRV-13, OPS-48; ADR-0037 Q22) in Fence and the episode table\",\"description\":\"Formal layer: the read-back after a dated cancellation (PRV-13, OPS-48; ADR-0037 Q22) in Fence and the episode table.\\n\\nAuthority: ADR-0025",
+      " exited 2 in 0ms:",
+      "error: unclosed character class"
+    ],
+    "transcript_exec_count": 16
+  }
+}

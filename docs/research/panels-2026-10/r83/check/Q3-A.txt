@@ -1,0 +1,11 @@
+In OPS-27, immediately after its first sentence, "The system MUST attempt automatic resolution before asking a human.", insert:
+
+The engine's resolution sweep covers both create and non-create resolution-pending operations.
+For a non-create, dispatch the evidence path in PRV-29 and PRV-36, with OPS-45's marker limits,
+OPS-3's resolution transitions, STO-3's resolution guard and OPS-31's operator fallback; the
+correlator search and outcome table below apply to create only. Use OVR-19's resolution-read
+cadence. OPS-28 says "Automatic resolution MUST be restricted to searching and MUST NOT mutate."
+
+In OVR-17's component table replace the OPS-27 resolution-sweep row with:
+
+| OPS-27's resolution sweep, including PRV-29's non-create evidence dispatch | engine | Provider evidence reads need the provider credential; resolution writes go through store and money effects through ledger |

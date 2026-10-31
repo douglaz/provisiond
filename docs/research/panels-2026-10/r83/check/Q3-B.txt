@@ -1,0 +1,49 @@
+In OPS-27, immediately after its first sentence, "The system MUST attempt automatic resolution before asking a human.", insert:
+
+The engine's resolution sweep MUST discover retained operations in needs_reconciliation with
+resolution null on entry to that state, on engine startup and on subsequent passes. It MUST
+dispatch non-create operations to PRV-29's authoritative non-mutating evidence path, anchored
+to the operation's provider account and known external_id and, where available, the recorded
+mutation attempt. The correlator search and outcome table below apply to create only. Reads
+MUST be issued within OVR-19's stated resolution-read cadence after the effective visibility
+window ends; a pending or failed evidence read leaves the operation pending and eligible for a
+later pass, subject to the credential authentication stop and provider rate limits. A read
+failure, an elapsed timer or the lack of an action identifier MUST NOT manufacture a resolution.
+
+For every applicable non-create kind in STO-8's resolution row, select only evidence the driver
+declares for that mutation kind, ranked and interpreted under PRV-36. Read the provider's action
+or transaction history when available; a resource read is interpreted only after the effective
+window from the mutating call's reply or deadline expiry. Positive post-mutation evidence and
+negative pre-mutation evidence follow PRV-36. Resource presence alone MUST NOT establish that
+an install or rescue inventory did or did not finish. Where the driver cannot provide truthful
+evidence for that kind, surface the unresolved attempt to OPS-26 and use OPS-31's operator
+fallback; do not hold off the operator on a timer that cannot produce evidence.
+
+The sweep MUST commit applied as succeeded or not_applied as failed only on authoritative
+evidence for that attempt, using STO-3's resolution guard (id, status = needs_reconciliation,
+resolution IS NULL) and STO-19's write-once evidence columns, through store under OPS-50's
+generation check. Record the evidence and the resolving engine identity with the resolution.
+On a lost-reply repeat use OPS-49; a zero-row guard MUST NOT overwrite the winner. Preserve
+OPS-31's refusal of not_applied for a rootfs_via_rescue or raw_disk install with a set write-started
+marker. Apply the existing PRV-45/LDG-38 attachment effects and OPS-48 episode/fence effects
+where applicable; applying a mutation, disappearance and billing stop remain separate facts.
+No evidence pass may reissue the mutation, run install or rescue phases, start a new attempt,
+or clear needs_reconciliation solely because time passed.
+
+In OVR-17's component table replace the OPS-27 resolution-sweep row with:
+
+| OPS-27's resolution sweep, including PRV-29's non-create evidence dispatch | engine | Provider evidence reads need the provider credential; resolution writes go through store and money effects through ledger |
+
+At the end of CNF-237 append:
+
+Run the real engine with a pending delete and, independently, power, reverse DNS, release
+attachment and each applicable install/rescue-inventory strategy for which the driver declares
+authoritative evidence. With no new caller request, assert the resolution sweep issues the
+per-kind evidence read within OVR-19's cadence after the effective window. Inject failed and
+pending reads, authoritative applied and not_applied results, stronger and weaker contradictory
+evidence, an operator winning the resolution guard, and a lost settlement reply. Assert no
+mutating request is repeated, the winning resolution/evidence is not overwritten, and effects
+on meters, attachments, episodes and fences occur only under their owning rules. On a driver
+with no truthful source for that kind, assert the operation remains pending and is surfaced for
+operator resolution. For rescue disk installs with a set write-started marker, assert no
+automatic not_applied; an ordinary machine-presence read is not install-completion evidence.

@@ -1,0 +1,144 @@
+{
+  "source_spans": [
+    {
+      "path": "05-persistence.md",
+      "start": 247,
+      "end": 330,
+      "exact": true,
+      "sha256": "0145631b4b3f69f3512ebd49a11f2c526f80de284722065d1682f787d20bf461"
+    },
+    {
+      "path": "05-persistence.md",
+      "start": 1529,
+      "end": 1610,
+      "exact": true,
+      "sha256": "2e373c0f15b02ddc86defe741290fcf0c1a968dac810a570a5e00582a502c97d"
+    },
+    {
+      "path": "05-persistence.md",
+      "start": 166,
+      "end": 209,
+      "exact": true,
+      "sha256": "3f07f64180fdd92cc1564b319bad3fe833e8f0597aa21c7a0f37e8ede48e9bd3"
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "start": 1925,
+      "end": 1945,
+      "exact": true,
+      "sha256": "58570a241694e67f64ffa42e55a355e38bc812911fae14b4093dc5211b3a490c"
+    },
+    {
+      "path": "10-conformance-checklist.md",
+      "start": 365,
+      "end": 390,
+      "exact": true,
+      "sha256": "678ae006435f88ea8eefceb17e3f9e8d0c6f2857e0e7f48170de73763349f837"
+    },
+    {
+      "path": "10-conformance-checklist.md",
+      "start": 1147,
+      "end": 1182,
+      "exact": true,
+      "sha256": "a1eeb5e59b598ce766b0c341b364fea9033db69839a35b0a1da9d39cab55dcba"
+    },
+    {
+      "path": "00-overview.md",
+      "start": 338,
+      "end": 352,
+      "exact": true,
+      "sha256": "65892b83cdb9450163538fb936aa1bdb70a1e28c722154a0bf5f2f61890aaf87"
+    },
+    {
+      "path": "00-overview.md",
+      "start": 363,
+      "end": 367,
+      "exact": true,
+      "sha256": "a8a46ac2423b6a32a9dc074266d88853becae55787d60f51197dea8cd0d97037"
+    },
+    {
+      "path": "00-overview.md",
+      "start": 416,
+      "end": 437,
+      "exact": true,
+      "sha256": "ab971b426899e753e5378a0ea387cc560ec1b9626f3cc1d31598dad9671e2f97"
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "start": 135,
+      "end": 143,
+      "exact": true
+    }
+  ],
+  "prior_answers": {
+    "fable": {
+      "verbatim": true,
+      "sha256": "16563bab620916c16467b0d1ca25f0c44d261d578e9f62ed9c319573f0145898"
+    },
+    "opus": {
+      "verbatim": true,
+      "sha256": "c04c4611e5559798b98f670f2fc844bfd0188e237fd49eb4682baf4076cf93d3"
+    },
+    "astra": {
+      "verbatim": true,
+      "sha256": "398423a9b0f33cc0b554267780b5d4adbe4c2f202c6239df2d16f2a211b0916c"
+    },
+    "sol": {
+      "verbatim": true,
+      "sha256": "84c2cca9acc6bae80f01d764301e770fcd8294cbeafdd847c9660324b5f5982f"
+    }
+  },
+  "forms": {
+    "A": {
+      "verbatim_in_brief": true,
+      "sha256": "ba5288ba60e1353b2677d4daeb611915d8bddd49be5b89eb9e24a3415d5a17cb",
+      "normative_blocks": 3
+    },
+    "B": {
+      "verbatim_in_brief": true,
+      "sha256": "1b93ab8520d4d2a06b9e133f6521cf3448eff2e52db13b6ab928e68949d8565c",
+      "normative_blocks": 4
+    },
+    "C": {
+      "verbatim_in_brief": true,
+      "sha256": "a4d79893f22b796ad76518e3935b56e44ad1df3c1000dcad5adc610211e2f472",
+      "normative_blocks": 3
+    },
+    "D": {
+      "verbatim_in_brief": true,
+      "sha256": "c7c7cea387f20e6334e2575518b5cc584a643cd901abbb497fc859379ef7fd2b",
+      "normative_blocks": 0
+    },
+    "F": {
+      "verbatim_in_brief": true,
+      "sha256": "284e2a6191b49d2b675c43a863dacf21dd82a2a47a9a8d22fb3d42d5ee9bce52",
+      "normative_blocks": 3
+    },
+    "O": {
+      "verbatim_in_brief": true,
+      "sha256": "b8d613ee20b1d504d783137ed1124bbd307ce97184154a0c084b6abd7415d332",
+      "normative_blocks": 3
+    }
+  },
+  "F_O_other_normative_blocks_identical": true,
+  "bead": {
+    "id": "pv-3zzo",
+    "title": "Migration admission refusal has no defined outcome",
+    "description": "When deployment admission is exhausted before a migrator or waiting migration runner can connect, the migration's refusal behavior is unspecified. The deployment cannot tell from the requirements whether that entry point exits, waits, or retries, what bounds apply, or how it reports that the release cannot advance. This affects release progress and failure handling.\n\nVerified on master bf82bfe93715ca120a08e73fb0cca20e4f47fce8. STO-55 says \"Every physical connection attempt by component pools, reconnects, rollout incarnations, startup-lock holders, migrators and waiting runners MUST receive a distinct durable reservation before dialing from one serialized authority outside the protected store.\" Its refusal cases say \"Startup acquisition refusal exits for supervisor retry; `api` returns `overloaded` before any transaction; worker/periodic acquisition refusal is an `OPS-49` store error\". They do not name migration acquisition refusal separately.\n\nSTO-13 says \"Migrations MUST be forward-only and MUST be applied by the deployable's own `migrate` entry point, run by the deployment **before any component of a release starts and while the previous release's engine and `api` keep running** \u2014 never by `api`, and never by the engine at boot, whose restart window `ADR-0016` priced at seconds and `OVR-18` alarms.\" That places migration before release startup, rather than making it the component startup case. OPS-49 limits its retry rule to \"Where a store call by a worker, or by a periodic component running in the engine process (`OVR-17`), errors or times out\"; its admission clause says \"An attempt denied by `STO-55` admission is a store error for this loop and sends no SQL\".\n\nSource: PR #32 summary, https://github.com/douglaz/provisiond/pull/32#issuecomment-6474225495. Review evidence: pr32-*.json under /var/tmp/rloop-units/provisiond-spec-pv-3jw6-1028T162500/. Owners to consult: STO-55, STO-13, OPS-49. This record leaves the refusal policy undecided.\n",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-10-28T17:55:55.993031674Z",
+    "created_by": "assistant",
+    "updated_at": "2026-10-28T17:55:55.993031674Z",
+    "source_repo": "provisiond-spec",
+    "source_repo_path": "/home/user/projects/provisiond-spec",
+    "compaction_level": 0,
+    "original_size": 0,
+    "labels": [
+      "needs-triage"
+    ]
+  },
+  "formal_STO55_tags": [],
+  "reader_drafts": []
+}

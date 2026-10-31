@@ -1,0 +1,60 @@
+{
+  "at": "2026-10-30T21:44:05.012918+00:00",
+  "outcome": "Q4_UNSETTLED_OWNER_QUESTION_NO_RECOMMENDATION",
+  "preferences": {
+    "fable": "D",
+    "opus": "A",
+    "astra": "D",
+    "sol": "D"
+  },
+  "acceptances": {
+    "A": [
+      2,
+      2
+    ],
+    "B": [
+      1,
+      3
+    ],
+    "C": [
+      2,
+      2
+    ],
+    "D": [
+      3,
+      1
+    ]
+  },
+  "grok": "missing HTTP 402",
+  "void": false,
+  "blocking_loss": "D item 5 removes positive fleet-warning publication duty",
+  "frozen_inputs_unchanged": true,
+  "clones": {
+    "fable": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "opus": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "astra": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "sol": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "check/tally-spec": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    }
+  },
+  "parent_edits": "append-only, exact before-prefix verified",
+  "gate_exits": {
+    "entry": 0,
+    "final": 0
+  },
+  "no_further_round": true
+}

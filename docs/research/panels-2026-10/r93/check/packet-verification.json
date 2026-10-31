@@ -1,0 +1,23 @@
+{
+  "pin": "3d1fca55e64056e5ad6bc9ac3edcc308ecf04073",
+  "head": "fde983c1794e8d4727f22bc87d1d6ee7f407eca5",
+  "archive_external_equal": true,
+  "quote7_exact": true,
+  "quote65_exact": true,
+  "original_form_sha256": "db7f2b55cf4f49fcc22e6b57d6efc72daaa158817faff1cf2ad67981c19f28e3",
+  "forms": {
+    "Q-QUOTE": "24450a09295c11a67f97f463cd06ec05d96cf0dd80e6ae30ca9b0f6c38e8ec04",
+    "Q-POINTER": "f04f6c5f1e5669145a9f84c6f23302c83587a22d1fc85790b0838343e31beed0",
+    "Q-KEEP": "db7f2b55cf4f49fcc22e6b57d6efc72daaa158817faff1cf2ad67981c19f28e3"
+  },
+  "AGENTS.md_pin_equals_head": true,
+  "01-domain-model.md_pin_equals_head": true,
+  "03-operation-lifecycle.md_pin_equals_head": true,
+  "04-api-contract.md_pin_equals_head": true,
+  "finding-reply.md_original_equal": true,
+  "inline-comments.json_original_equal": true,
+  "threads.json_original_equal": true,
+  "stop-result.json_original_equal": true,
+  "single_update": true,
+  "notes_rules_r82_equal": true
+}

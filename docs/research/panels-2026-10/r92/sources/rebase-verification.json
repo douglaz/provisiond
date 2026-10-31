@@ -1,0 +1,22 @@
+{
+  "old": "26743d89663e996aceeb9aed245d185310dc3463",
+  "head": "29dcceebdea761e6ad71feb018d95b0f176f0bf2",
+  "base": "d65dc63e059bdefc8bab2e2e64416acf52f5b904",
+  "rebase_conflicts": false,
+  "tracker_rows_exact": true,
+  "eight_pr_rows_from_pr": [
+    "pv-3zzo",
+    "pv-5pmu",
+    "pv-bxh",
+    "pv-by1w",
+    "pv-e45e",
+    "pv-gvc",
+    "pv-kv2",
+    "pv-y0to"
+  ],
+  "pv_zuu5_row_from_master": true,
+  "all_other_rows_from_master": true,
+  "all_nontracker_patch_blobs_and_modes_unchanged": true,
+  "commit_message_author_unchanged": true,
+  "clean": true
+}

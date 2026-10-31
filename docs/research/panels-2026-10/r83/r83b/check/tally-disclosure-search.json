@@ -1,0 +1,537 @@
+[
+  {
+    "path": "impl-report-01.md",
+    "line": 738,
+    "text": "- enforceability and presentation of the no-refund/B2B terms;"
+  },
+  {
+    "path": "impl-report-01.md",
+    "line": 762,
+    "text": "- legal and customer-facing terms are approved;"
+  },
+  {
+    "path": "CONTEXT.md",
+    "line": 216,
+    "text": "What a provider sends the **operator** alleging that a machine did something its terms forbid."
+  },
+  {
+    "path": "CONTEXT.md",
+    "line": 406,
+    "text": "drifts into the custody words `ADR-0004` \u00a74 bans. The terms still state that a balance is an"
+  },
+  {
+    "path": "11-open-findings.md",
+    "line": 672,
+    "text": "multiple attempts turned out not to be defensible on its own terms.*"
+  },
+  {
+    "path": "11-open-findings.md",
+    "line": 830,
+    "text": "*arrangement*. The terms MUST still state that a balance is an unsecured claim, because saying"
+  },
+  {
+    "path": "11-open-findings.md",
+    "line": 843,
+    "text": "bound is not sellable on prepaid terms. `CNF-166` tests it. *The narrowing that made this a"
+  },
+  {
+    "path": "11-open-findings.md",
+    "line": 854,
+    "text": "terms*; it is a bounded edit, not a structural one. **Recorded so the next reader does not"
+  },
+  {
+    "path": "11-open-findings.md",
+    "line": 874,
+    "text": "buyer. The control is terms clarity: **no refunds, ever, stated unmistakably** (`ADR-0004` \u00a75"
+  },
+  {
+    "path": "11-open-findings.md",
+    "line": 1322,
+    "text": "`PRV-13c` forbids encoding a provider's commercial terms as constants, and its first real test"
+  },
+  {
+    "path": "11-open-findings.md",
+    "line": 1619,
+    "text": "data, everything else explicitly a terms obligation; `RSC-30`'s storage = content-addressed or"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "line": 348,
+    "text": "rather than the offer. It is terms, not secrets, so it survives the purge exactly as the provider"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "line": 360,
+    "text": "operation, under whatever terms were live then, so the order that finally turned up might be the"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "line": 1042,
+    "text": "but the re-derived date. `OPS-41` already re-reads both terms `LDG-33` needs; only the test applied"
+  },
+  {
+    "path": "03-operation-lifecycle.md",
+    "line": 1374,
+    "text": "the scheduled branch that is also the right answer on its own terms: runway bought past an"
+  },
+  {
+    "path": "05-persistence.md",
+    "line": 396,
+    "text": "| `offer_id` | text | nullable; the offer this machine was created from, retained as the **provenance** record of where its terms came from (`DOM-13`, `WIR-30`). Null only for a machine that came from no offer, which no v1 machine is (`ADR-0020`) |"
+  },
+  {
+    "path": "05-persistence.md",
+    "line": 419,
+    "text": "| `state_observed_at` | timestamp | nullable; **when `state` was last established by an authoritative read of the provider** \u2014 a refresh (`DOM-8`), a driver read during an operation, `OPS-32`'s sweep concluding an absence **on that requirement's own terms**, which are stricter than a listing \u2014 presence is authoritative from the first pass, absence only under the conditions `OPS-32` sets out \u2014 or `API-63` confirming the whole provider account terminated. As opposed to `updated_at`, which moves for any write at all. `LDG-74` reads it: the meter stops at this instant, never at the unknown instant the provider acted, because provisiond polls rather than watches (`STO-41`'s distinction). Null where nobody has read the provider since the row was created |"
+  },
+  {
+    "path": "05-persistence.md",
+    "line": 449,
+    "text": "`WIR-30`) \u2014 it can be re-priced, withdrawn, or have its terms changed between create and install \u2014"
+  },
+  {
+    "path": "05-persistence.md",
+    "line": 451,
+    "text": "paid for, or silently answers from terms the customer never bought. Eligibility was decided when"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 64,
+    "text": "key, three terms of `LDG-38`'s arithmetic \u2014 which apportions corrections **and**"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 397,
+    "text": "**The two date terms are not additive.** Where both an effective cancellation date (`DOM-19`) and"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 549,
+    "text": "  during any operation, or `OPS-32`'s sweep concluding it absent **on that requirement's terms** \u2014"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1093,
+    "text": "defect and the fix was not carried across.** It is carried across now, on the same terms:"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1331,
+    "text": "terms it can value). The check MUST evaluate `LDG-17`'s inequality and `LDG-20`'s stress using"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1339,
+    "text": "valued terms is a computed failure and MUST trigger `LDG-20`'s deployment-wide consequences. *Amended 2026-10-04 (`pv-gip.42`,"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1664,
+    "text": "distinction MUST be disclosed to the caller at mint, in those terms. **The disclosure MUST also say"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1677,
+    "text": "credited on its own terms (`LDG-47`); the deposit is not a receivable that closes on first"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1926,
+    "text": "The first version used both words and they mean different things to a customer reading the terms."
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1929,
+    "text": "with it; this destruction and `LDG-65`'s outage wait MUST be stated plainly in the terms and the"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 1937,
+    "text": "through the effective date or MUST NOT sell that machine on prepaid terms"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 2218,
+    "text": "**What is given up, stated plainly:** the original reasoning was sound on its own terms \u2014"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 2226,
+    "text": "**require** the terms to state that a balance is an **unsecured claim** and that funds are used in"
+  },
+  {
+    "path": "12-billing-and-ledger.md",
+    "line": 2265,
+    "text": "  a disclosure it can read beats one in the terms, which is `LDG-19a`'s standard applied to the one"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "line": 826,
+    "text": "`WIR-10`'s operation view and elided on the same terms. `terminal=false`"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "line": 828,
+    "text": "are supported on the same terms**, each accepting a comma-separated set from `WIR-10a`'s enums"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "line": 871,
+    "text": "element the view above and elided on `WIR-25`'s terms; `state` accepts a comma-separated set from"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "line": 1025,
+    "text": "`PRV-13b` forbids selling from on prepaid terms: bounding exposure before taking money \"requires,"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "line": 1067,
+    "text": "it either fails an install on a machine that is running and paid for or answers from terms its"
+  },
+  {
+    "path": "13-wire-contract.md",
+    "line": 1312,
+    "text": "`WIR-25`'s terms."
+  },
+  {
+    "path": "13-wire-contract.md",
+    "line": 1420,
+    "text": "`required_sats` is the check's right-hand side over valued terms, not assurance about omitted"
+  },
+  {
+    "path": "00-overview.md",
+    "line": 234,
+    "text": "**receive or move money** \u2014 which is precisely `SEC-48`'s boundary, stated here in dependency terms:"
+  },
+  {
+    "path": "00-overview.md",
+    "line": 252,
+    "text": "encoding any provider's commercial terms as constants; the launch set exists so that the"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 296,
+    "text": "**PRV-13b** A system that resells a machine on prepaid terms MUST be able to bound its own"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 577,
+    "text": "prepaid terms.** In v1, an offer MUST NOT"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 578,
+    "text": "be sold on prepaid terms if either its descriptor-declared bound or its offer-reported bound is"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 581,
+    "text": "the order before the commitment exists, so for an offer that hides its terms the commitment could"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 599,
+    "text": "**PRV-13c** **A deployment MUST NOT encode any provider's current commercial terms as"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 605,
+    "text": "The driver MUST report an allowance offer's `traffic_bound` from current provider terms in List offers (`PRV-44`). If an allowance offer is re-admitted, its current overage price is read with those terms at re-admission; the immutable descriptor performs no network I/O and carries no overage-price field; `08-provider-notes.md` is evidence, not runtime"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 614,
+    "text": "cost-through-that-date, or not be sold on prepaid terms at all. **That cost is part of"
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 655,
+    "text": "each asserted a different set of terms for the same provider, and two of the three were wrong."
+  },
+  {
+    "path": "02-provider-contract.md",
+    "line": 656,
+    "text": "Assumptions about commercial terms do not survive review, and they do not survive the provider"
+  },
+  {
+    "path": "01-domain-model.md",
+    "line": 311,
+    "text": "provider-neutral terms happens: **neutrality is produced by the act of rewriting, not by a mapping"
+  },
+  {
+    "path": "04-api-contract.md",
+    "line": 485,
+    "text": "entry is that disclosure, and it says in those terms: recovery requires"
+  },
+  {
+    "path": "04-api-contract.md",
+    "line": 732,
+    "text": "suspension is not a promise that the fleet is gone; it is a promise that every machine has been"
+  },
+  {
+    "path": "04-api-contract.md",
+    "line": 733,
+    "text": "accounted for and that nothing further can be bought.** The terms and the operator documentation"
+  },
+  {
+    "path": "executive-summary.md",
+    "line": 113,
+    "text": "any form, no transfer between customers, no fiat refund, title passing on receipt, B2B terms. Each"
+  },
+  {
+    "path": "executive-summary.md",
+    "line": 207,
+    "text": "third is forbidden from declaring `delete_machine` at all. Commercial terms may never be encoded as"
+  },
+  {
+    "path": "executive-summary.md",
+    "line": 209,
+    "text": "specification, a reviewing model and a researching model each asserted a different set of terms for"
+  },
+  {
+    "path": "executive-summary.md",
+    "line": 287,
+    "text": "its disk destroyed*, disclosed in the terms. Deletion and cancellation therefore **bypass** the"
+  },
+  {
+    "path": "executive-summary.md",
+    "line": 345,
+    "text": "4. **Provider facts as load-bearing inputs.** Cancellation terms, billable attachments, rescue"
+  },
+  {
+    "path": "executive-summary.md",
+    "line": 368,
+    "text": "Known open items, in the set's own terms:"
+  },
+  {
+    "path": "08-provider-notes.md",
+    "line": 177,
+    "text": "contract, so a machine carries whatever terms its contract has \u2014 which is why adoption, withdrawn"
+  },
+  {
+    "path": "08-provider-notes.md",
+    "line": 188,
+    "text": "> *terms for the same provider. Two of the three were wrong. This is why `PRV-13c` forbids*"
+  },
+  {
+    "path": "08-provider-notes.md",
+    "line": 189,
+    "text": "> *encoding commercial terms as constants.*"
+  },
+  {
+    "path": "08-provider-notes.md",
+    "line": 193,
+    "text": "**Reselling, abuse and custom images** \u2014 checked against Hetzner's published terms 2026-08-08:"
+  },
+  {
+    "path": "08-provider-notes.md",
+    "line": 198,
+    "text": "- **Anonymous downstream customers: [verify].** The published terms neither require the"
+  },
+  {
+    "path": "07-security-requirements.md",
+    "line": 175,
+    "text": "deployment that resells capacity MUST establish, from the provider's actual terms rather than"
+  },
+  {
+    "path": "07-security-requirements.md",
+    "line": 185,
+    "text": "Two facts usually need separate answers: whether the provider's terms permit reselling at all,"
+  },
+  {
+    "path": "07-security-requirements.md",
+    "line": 191,
+    "text": "acceptable-use policy from the provider's own terms and enforce what it can.** A customer image"
+  },
+  {
+    "path": "07-security-requirements.md",
+    "line": 198,
+    "text": "everything only observable on the running machine is explicitly a terms obligation backed by"
+  },
+  {
+    "path": "07-security-requirements.md",
+    "line": 401,
+    "text": "- **Relay the allegation to that tenant and take back a statement**, in provider-neutral terms."
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 786,
+    "text": "      destroyed \u2014 and the terms and API documentation state both that destruction and the outage"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 1273,
+    "text": "      **USD still unrated, valued terms short** (*amended 2026-10-04, `pv-gip.39`: exercise"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 1293,
+    "text": "      cancelled. Remove a currency's rate until its window yields no rate. Make the valued terms"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 1301,
+    "text": "      Repeat independently with no prior halt: first remove the rate, then make the valued terms"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 1302,
+    "text": "      short, starting a halt during the outage. Cover those terms while the rate remains absent;"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 1514,
+    "text": "      check: required valued terms are 180, so no halt starts. A fresh deposit mint succeeds;"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 1519,
+    "text": "      terms are 220, while float plus stress alone is only 120. Assert a deployment-wide halt:"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 1526,
+    "text": "      alone, MUST NOT start a solvency halt\" and \"A shortfall on the valued terms is a computed"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 2367,
+    "text": "- [ ] **CNF-183** \u2014 No customer-facing surface \u2014 terms, API documentation, error text, marketing \u2014"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 2369,
+    "text": "      **and** the terms do state that a balance is an unsecured claim. Both halves: silence about"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 3256,
+    "text": "      With the provider's price unchanged, change the terms before claim (`OPS-5`):"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 3276,
+    "text": "      `request_summary` snapshot, which passes the old terms and orders in (a) and (b), and an"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 3283,
+    "text": "      `price_moved`; a build comparing price first yields `price_moved` instead. **Control.** A still-sellable offer with unchanged terms"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 4273,
+    "text": "      `traffic_bound` follows current terms rather than a compiled constant or"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 4276,
+    "text": "      terms; no overage-price descriptor field is required. (`DOM-9`, `WIR-30`, `PRV-13b`, `PRV-31`, `PRV-44`,"
+  },
+  {
+    "path": "10-conformance-checklist.md",
+    "line": 4561,
+    "text": "      mark and other protected terms fixed, with no effective cancellation date and enough"
+  },
+  {
+    "path": "docs/adr/0029-during-a-price-outage-a-funding-cancellation-waits-for-the-rate-or-the-bound.md",
+    "line": 171,
+    "text": "disclosure is a notice of the mechanism, not a promise of the number: `LDG-64`'s harm is a trigger"
+  },
+  {
+    "path": "docs/adr/0029-during-a-price-outage-a-funding-cancellation-waits-for-the-rate-or-the-bound.md",
+    "line": 173,
+    "text": "`ADR-0011`, which let the runway date float on condition that \"the terms must say so\", the offer"
+  },
+  {
+    "path": "docs/adr/0029-during-a-price-outage-a-funding-cancellation-waits-for-the-rate-or-the-bound.md",
+    "line": 213,
+    "text": "and the returned rate determines the re-derived runway, not a promise of the same seconds at a"
+  },
+  {
+    "path": "docs/adr/0029-during-a-price-outage-a-funding-cancellation-waits-for-the-rate-or-the-bound.md",
+    "line": 388,
+    "text": "- The computable terms still matter. `LDG-17` requires \"satoshi reserves at least equal to the"
+  },
+  {
+    "path": "docs/adr/0011-fixed-commitment-floating-runway.md",
+    "line": 71,
+    "text": "- **The runway guarantee changes meaning, and the terms must say so.** \"Guaranteed until"
+  },
+  {
+    "path": "docs/adr/0004-the-regulatory-perimeter-is-a-product-constraint.md",
+    "line": 28,
+    "text": "4. **The terms MUST NOT describe balances as \"held\", \"backed\", \"reserved\" or \"segregated\"**, and"
+  },
+  {
+    "path": "docs/adr/0004-the-regulatory-perimeter-is-a-product-constraint.md",
+    "line": 34,
+    "text": "   that cannot be drafted away; Dir. 93/13 can strike expiry and forfeiture terms as unfair. But"
+  },
+  {
+    "path": "docs/adr/0004-the-regulatory-perimeter-is-a-product-constraint.md",
+    "line": 39,
+    "text": "   by a seller who deliberately knows nothing about the buyer. The control is the *terms*: they"
+  },
+  {
+    "path": "docs/adr/0004-the-regulatory-perimeter-is-a-product-constraint.md",
+    "line": 42,
+    "text": "   consumer who buys anyway does so against explicit terms; the residual \u2014 a withdrawal claim on"
+  },
+  {
+    "path": "docs/adr/0004-the-regulatory-perimeter-is-a-product-constraint.md",
+    "line": 47,
+    "text": "   terms clarity alone.*"
+  },
+  {
+    "path": "docs/adr/0039-only-offers-with-no-traffic-overage-are-sold-until-a-counter-is-proven-fresh.md",
+    "line": 30,
+    "text": "   servers) is sellable. An offer that has an allowance is not sold on prepaid terms. That takes in"
+  },
+  {
+    "path": "docs/adr/0039-only-offers-with-no-traffic-overage-are-sold-until-a-counter-is-proven-fresh.md",
+    "line": 32,
+    "text": "   carried over: an offer with no declared bound MUST NOT be sold on prepaid terms."
+  },
+  {
+    "path": "docs/adr/0026-the-exhaustion-mark-is-two-facts-and-neither-one-is-a-derivation-instant.md",
+    "line": 42,
+    "text": "used. `CONTEXT.md` now separates the two terms."
+  },
+  {
+    "path": "docs/adr/0023-a-restore-is-a-recovery-incident-and-durability-is-bought-where-there-is-no-second-truth.md",
+    "line": 238,
+    "text": "- `CONTEXT.md`: **Restore** and **Recovery point** as terms, with \"restart\" listed against the"
+  },
+  {
+    "path": "docs/adr/0037-the-billing-stop-window-is-withdrawn-and-wind-down-is-sized-to-the-gone-write.md",
+    "line": 92,
+    "text": "  - plus the detection, machine-wait and margin terms as before."
+  },
+  {
+    "path": "docs/adr/0037-the-billing-stop-window-is-withdrawn-and-wind-down-is-sized-to-the-gone-write.md",
+    "line": 121,
+    "text": "  and records a missing billable one gone on its own terms: a complete pass and a direct re-read."
+  },
+  {
+    "path": "docs/adr/0003-float-is-denominated-in-satoshis.md",
+    "line": 28,
+    "text": "  BTC *and levered*. At Ledn-like terms (50% initial LTV, call at 70%, liquidation at 80%) a"
+  },
+  {
+    "path": "docs/adr/0003-float-is-denominated-in-satoshis.md",
+    "line": 40,
+    "text": "  must be stated in the terms and in the API documentation, not discovered."
+  },
+  {
+    "path": "docs/adr/0007-margin-is-a-percentage-of-machine-time.md",
+    "line": 39,
+    "text": "  commercial terms as much as to a provider's."
+  },
+  {
+    "path": "docs/adr/0010-v1-ships-three-drivers-across-two-companies.md",
+    "line": 80,
+    "text": "- **`PRV-13c`'s \"do not encode commercial terms as constants\" gets its first real test.** Three"
+  }
+]

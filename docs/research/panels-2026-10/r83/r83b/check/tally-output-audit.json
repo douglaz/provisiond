@@ -1,0 +1,60 @@
+{
+  "fable": {
+    "answer_bytes": 11038,
+    "exit": 0,
+    "final": [
+      "Final Q4: Q4-D; acceptability A ACCEPT, B CANNOT ACCEPT, C ACCEPT, D ACCEPT."
+    ],
+    "stderr_bytes": 0,
+    "drafts": [],
+    "substantive": true
+  },
+  "opus": {
+    "answer_bytes": 12491,
+    "exit": 0,
+    "final": [
+      "Final Q4: Q4-A; acceptability A ACCEPT, B ACCEPT, C ACCEPT, D CANNOT ACCEPT (item 5 drops the pinned requirement that the terms say in fixed words that the fleet may not be gone; collateral weakening not disclosed); the disclosed trace is not a verified rule-3 block; no rule-6 premise error."
+    ],
+    "stderr_bytes": 0,
+    "drafts": [],
+    "substantive": true
+  },
+  "astra": {
+    "answer_bytes": 10051,
+    "exit": 0,
+    "final": [
+      "Final Q4: Q4-D exactly as printed; acceptability A CANNOT ACCEPT, B CANNOT ACCEPT, C CANNOT ACCEPT, D ACCEPT."
+    ],
+    "stderr_bytes": 242347,
+    "drafts": [],
+    "substantive": true,
+    "stdout_equals_answer": true,
+    "stderr_last_lines": [
+      "",
+      "Final Q4: Q4-D exactly as printed; acceptability A CANNOT ACCEPT, B CANNOT ACCEPT, C CANNOT ACCEPT, D ACCEPT.",
+      "hook: Stop",
+      "hook: Stop Completed",
+      "tokens used",
+      "67,225"
+    ]
+  },
+  "sol": {
+    "answer_bytes": 9210,
+    "exit": 0,
+    "final": [
+      "Final Q4: Q4-D exactly as printed; acceptability A CANNOT ACCEPT, B CANNOT ACCEPT, C CANNOT ACCEPT, D ACCEPT."
+    ],
+    "stderr_bytes": 260191,
+    "drafts": [],
+    "substantive": true,
+    "stdout_equals_answer": true,
+    "stderr_last_lines": [
+      "",
+      "Final Q4: Q4-D exactly as printed; acceptability A CANNOT ACCEPT, B CANNOT ACCEPT, C CANNOT ACCEPT, D ACCEPT.",
+      "hook: Stop",
+      "hook: Stop Completed",
+      "tokens used",
+      "80,863"
+    ]
+  }
+}

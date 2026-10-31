@@ -1,0 +1,26 @@
+{
+  "fable": {
+    "bytes": 158,
+    "sha256": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2",
+    "exit": 1,
+    "substantive": false
+  },
+  "opus": {
+    "bytes": 19865,
+    "sha256": "a822e40d948f7084e30af725e9e1e09b5aa34b9a1ee609649f5cfb2dcd0d585d",
+    "exit": 0,
+    "substantive": true
+  },
+  "astra": {
+    "bytes": 18135,
+    "sha256": "71774410bbc0be6de9c25523eca9ae0310302b2d2a31a0c22c68207f1abb8309",
+    "exit": 0,
+    "substantive": true
+  },
+  "sol": {
+    "bytes": 17660,
+    "sha256": "af086abe6a6644deba7e0a6a54783d20d8b916ca61c15d90eccbc4ce91a9e181",
+    "exit": 0,
+    "substantive": true
+  }
+}

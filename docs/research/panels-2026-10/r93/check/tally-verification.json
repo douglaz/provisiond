@@ -1,0 +1,199 @@
+{
+  "pin": "3d1fca55e64056e5ad6bc9ac3edcc308ecf04073",
+  "new_master": "a7b6884878bc7e53dc403dd8a4383d85afac3634",
+  "review_head": "fde983c1794e8d4727f22bc87d1d6ee7f407eca5",
+  "source_file_equality": {
+    "AGENTS.md": {
+      "all_three_equal": true,
+      "sha256": "30539b43f799a043b154ce24dc7d7a5de73313700cdafe5d3e0ddddef7b97ef2"
+    },
+    "00-overview.md": {
+      "all_three_equal": true,
+      "sha256": "c130c5fd3baacd2200f8db7bad197d4d78df8a4925751bacee4ab46c71f38c50"
+    },
+    "01-domain-model.md": {
+      "all_three_equal": true,
+      "sha256": "9fd471843570ebd42601975b1b91f2c51088f60c8e0d2492fb38ff7c9334bcef"
+    },
+    "03-operation-lifecycle.md": {
+      "all_three_equal": true,
+      "sha256": "7be9b785be5b776b27391aa5f8870ce47e805e4ba32dfe1fdcd5586e516ea433"
+    },
+    "04-api-contract.md": {
+      "all_three_equal": true,
+      "sha256": "1485b87c42cc4ff424c9d7456cbac5ef0f8b85872b82db089ecf1816cdf5c3e4"
+    }
+  },
+  "historical_original": {
+    "sha256": "db7f2b55cf4f49fcc22e6b57d6efc72daaa158817faff1cf2ad67981c19f28e3",
+    "lines": 59,
+    "three_copies_equal": true
+  },
+  "tracker_location": {
+    "line": 15,
+    "comment_index": 0,
+    "comment_id": 856,
+    "original_sha256": "7d195674e84fb81618bf685384da5fc593610c8c545993de821e864215a4c08d"
+  },
+  "replacement_locations": [
+    {
+      "archive_line": 12,
+      "agent_line": 37,
+      "before": "A replay returned by API-7 step 5a never reaches\nthis check.",
+      "after": "API-7 step 5a says \"an equal fingerprint under the\n    same `(principal, key)` returns the stored result, a different one fails `conflict`.\"; a replay returned there never reaches this check."
+    },
+    {
+      "archive_line": 14,
+      "agent_line": 39,
+      "before": "API-65's manual release has no driver operation and takes no capability check.",
+      "after": "API-65 says \"On a row whose `cleanup` is `manual` there is no driver call to make: it\nwrites `released_at` and answers `200` with the row, minting no operation,\"; a manual attachment release takes no capability check under this timing rule."
+    }
+  ],
+  "authority": {
+    "agent_line": 6,
+    "old": "**Owner decision:** \u201cApprove A (Recommended)\u201d (`owner-decisions-1030.md`, item 16). Adopted exact form: `docs/research/panels-2026-10/r86/r86b/Q1-A.md`.",
+    "new": "**Owner decision:** \u201cApprove A (Recommended)\u201d (`owner-decisions-1030.md`, item 16). Historical adopted form: `docs/research/panels-2026-10/r86/r86b/Q1-A.md`. Executable form: the Desired behavior / key interfaces block below, with the 2026-10-31 Panel N r93 wording correction."
+  },
+  "prospective_agent_sha256": "25455e9ed612d7832b4ddbd97ab3564fa27e0c9330dab8797204321e481f01df",
+  "appendix": {
+    "sha256": "5c8d78a058c4e4507fdff0f014ecfa1c5e9855b7eac148d80ec41afe70457bac",
+    "original_archive_bytes": 3860,
+    "append_at_line": 60,
+    "heading_line": 61,
+    "prospective_archive_sha256": "4cf03ef8c9a04dd8252c3dacfe2efb4d9eb69cc4232380edd4b422837b868881"
+  },
+  "settled_source_quotations": [
+    {
+      "path": "04-api-contract.md",
+      "line": 209,
+      "bytes": "an equal fingerprint under the\n    same `(principal, key)` returns the stored result, a different one fails `conflict`.",
+      "sha256": "5072d0d273401644f6025503ffe1a0e3909c5509d7dd072e740d86c4d1c05a38",
+      "matches_pin_new_master_and_head": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "line": 1109,
+      "bytes": "On a row whose `cleanup` is `manual` there is no driver call to make: it\nwrites `released_at` and answers `200` with the row, minting no operation,",
+      "sha256": "3620c5630c47ff8d44389b48cf6c4ed9219c32eb82136206077007d028bb8e92",
+      "matches_pin_new_master_and_head": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "line": 243,
+      "bytes": "The tail then depends on what the endpoint does:",
+      "sha256": "266a6d279ae811a2bbddc5387e069920cb8ef4eac5bdb9868e314f2745bd7874",
+      "matches_pin_new_master_and_head": true
+    }
+  ],
+  "AGENTS_29_32": {
+    "sha256": "a80fcc166aea1648948f886a09c1a240631164c61e345e4469f0c55dc6c8758f",
+    "equal_at_pin_new_master_and_head": true,
+    "bytes": "**Quote the sentence.** A claim about what another requirement says carries that requirement's own\nwords. `` `WIR-30` says \"The gate reads the copy the machine took at create\" `` is checkable;\n\"`WIR-30` forbids resolving eligibility that way\" is an assertion, and assertions of that shape were\nfalse repeatedly on 2026-09-03 \u2014 `ddd3df0` and `254fc24` carry the cases and what each one cost.\n"
+  },
+  "pinned_blocks": [
+    {
+      "path": "AGENTS.md",
+      "lines": [
+        29,
+        32
+      ],
+      "byte_match": true
+    },
+    {
+      "path": "AGENTS.md",
+      "lines": [
+        34,
+        38
+      ],
+      "byte_match": true
+    },
+    {
+      "path": "AGENTS.md",
+      "lines": [
+        45,
+        46
+      ],
+      "byte_match": true
+    },
+    {
+      "path": "00-overview.md",
+      "lines": [
+        22,
+        24
+      ],
+      "byte_match": true
+    },
+    {
+      "path": "01-domain-model.md",
+      "lines": [
+        515,
+        541
+      ],
+      "byte_match": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "lines": [
+        207,
+        214
+      ],
+      "byte_match": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "lines": [
+        1102,
+        1115
+      ],
+      "byte_match": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "lines": [
+        2018,
+        2034
+      ],
+      "byte_match": true
+    }
+  ],
+  "retained_current_behavior_quotations": {
+    "all_match_pin_and_new_master": true
+  },
+  "retained_acceptance_and_scope_quotes_match_original": true,
+  "historical_owner_authority_verified_at_head": true,
+  "reader_results": {
+    "opus": {
+      "bytes": 17024,
+      "exit": 0,
+      "sha256": "cb60066d5e2523df35f09500336c09dd2ceb22b0c62be485e5e74fad12454855",
+      "exact_pair_and_appendix_in_answer": true,
+      "both_wording_only": true
+    },
+    "astra": {
+      "bytes": 16856,
+      "exit": 0,
+      "sha256": "3b13a8c05d1042b0cdbcf60b078cf0c264f7a531a4e88e8de687eccf0c3449db",
+      "exact_pair_and_appendix_in_answer": true,
+      "both_wording_only": true
+    },
+    "sol": {
+      "bytes": 14129,
+      "exit": 0,
+      "sha256": "5a7952499b5b066897bbb7cdcc0e220237cc6acc4608c8553ee474db064049e7",
+      "exact_pair_and_appendix_in_answer": true,
+      "both_wording_only": true
+    },
+    "fable": {
+      "bytes": 158,
+      "exit": 1,
+      "missing": true,
+      "sha256": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2"
+    },
+    "grok": {
+      "missing": true,
+      "reason": "402 at launch; no rerun"
+    }
+  },
+  "source_drift_stop": false,
+  "reverse_substitution_restores_all_original_agent_bytes": true
+}

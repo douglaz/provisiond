@@ -1,0 +1,1 @@
+Both reported citation offsets verified against git show at the pin / original evidence and corrected before launch: OPS-49 serialization 1955–1956; original OPS-11 quotation archive46–47 / Agent Brief86–87. Exact quotation payloads and all candidates unchanged. No other internal contradiction reported. Independent prelaunch quote receipts confirm the corrected range.

@@ -1,0 +1,12 @@
+{
+  "head": "29dcceebdea761e6ad71feb018d95b0f176f0bf2",
+  "base": "d65dc63e059bdefc8bab2e2e64416acf52f5b904",
+  "form_sha256": "84b5e77d55ed3d3fcf1d4f0d2ffd8020d5abff978c3d949c991a7c449067902b",
+  "brief_markdown_blocks_equal_adopted_form": true,
+  "sto54_current_quote_unchanged": true,
+  "cnf365_equal_landed_pr52": true,
+  "brief_historic_quotes_retained_at_their_pins": true,
+  "applies_without_undoing_pr52": false,
+  "stop_condition": "Exact whole-item replacement restores the pre-PR52 explicit-nonnumeric-report fixture and removes certified-upper-endpoint persistence/publication/failure assertions. This changes check strength, not merely wording.",
+  "push_permitted": false
+}

@@ -1,0 +1,27 @@
+In API-63, replace the first sentence after "It MUST also contend with admission on the account row itself, and that ordering comes first." with:
+
+The create's admitting path MUST lock STO-47's account row for update, then conditional-write
+that row guarded on status = healthy, in the transaction that opens the commitment. This
+account-row ordering precedes the commitment-opening work. Where the guarded write affects no
+row because the locked status is non-healthy, the admission MUST fail conflict with
+details.reason: "state" and the retryable value in WIR-9a's admission-guard row. The refusal
+MUST retain the locked status used for that decision before releasing the lock; it MUST NOT
+classify using a later unlocked status read or the earlier collection snapshot. A serialization
+failure is not a non-healthy status and MUST NOT be converted into this refusal. No operation,
+commitment, receipt or purchase effect commits on the refused admission.
+
+In WIR-9a, immediately after the collection-snapshot terminated row in the purchase-tail table, insert:
+
+| conflict / state from API-63's admission conditional write, after a healthy collection snapshot | false for a locked refusing status of terminated; true for account_unreachable or credentials_rejected | Use the status retained by the guarded admission decision in API-63, not the collection snapshot or a later read |
+
+In CNF-278, replace the Second barrier sentence and its following explanatory sentence, ending "snapshot isolation.", with:
+
+**Second barrier:** on fresh independent fixtures collect a healthy account snapshot, then
+commit each non-healthy STO-47 status before the admitting transaction opens the commitment.
+Assert HTTP 409 conflict, details.reason: "state", retryable false for terminated and true for
+account_unreachable and credentials_rejected, with no operation, commitment, receipt or provider
+request. The admission locks and conditional-writes the account row in its commitment-opening
+transaction. Hold a recoverable refusal at its locked decision and attempt recovery concurrently;
+recovery cannot alter the status used for that refusal. Recover after lock release and assert
+the already decided response retains true; an independent later request can use the new status.
+A mere snapshot read in the admitting transaction is not a replacement for the conditional write.

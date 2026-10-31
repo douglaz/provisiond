@@ -1,0 +1,155 @@
+{
+  "M": "a7b6884878bc7e53dc403dd8a4383d85afac3634",
+  "H": "b85af778fda2a96fb0024a07c69092665303bfbe",
+  "same_source_files": {
+    "AGENTS.md": "30539b43f799a043b154ce24dc7d7a5de73313700cdafe5d3e0ddddef7b97ef2",
+    "03-operation-lifecycle.md": "7be9b785be5b776b27391aa5f8870ce47e805e4ba32dfe1fdcd5586e516ea433",
+    "04-api-contract.md": "1485b87c42cc4ff424c9d7456cbac5ef0f8b85872b82db089ecf1816cdf5c3e4",
+    "12-billing-and-ledger.md": "e82ed02bd566aa455aaa5e5f4334ddfdfa0a5aa16e5e01e27271d9a5921b3e8c",
+    "05-persistence.md": "1cf78395b06485895bb36e84d74aab5f42d08f3c6a619ba5e61dde92e8f41f74",
+    "11-open-findings.md": "c75e7d7315f60fb136350a7a4ab91dc95d81aa04112ab554980e51e5966078e6"
+  },
+  "quotations": {
+    "whole_transaction": {
+      "exact": true,
+      "bytes": 127,
+      "sha256": "357f3aecab0b2c772fce229e77ee7864cab5a73ab0ba4afa4b9ade0bfd33f5f7",
+      "first_line": 1927
+    },
+    "serialization": {
+      "exact": true,
+      "bytes": 46,
+      "sha256": "747bf42be7fb239f9900da2b9d2498b06c00c97723f88b6a977246b808f14b0f",
+      "first_line": 1955
+    },
+    "LDG_provider": {
+      "exact": true,
+      "bytes": 78,
+      "sha256": "d3536e6671d6ae5cdc194cd3e21168a69bcd4e3693748dde47ba8e7c4291ac8c",
+      "first_line": 494
+    },
+    "OPS43_provider": {
+      "exact": true,
+      "bytes": 66,
+      "sha256": "5a92b5fa3982fcac5f8efa8fdf78e8724e5b97fa6db79cf7b2020e3404a377b1",
+      "first_line": 817
+    },
+    "retained_OPS11": {
+      "exact": false,
+      "difference": "LF after any is one space in source; only that substitution restores exact match",
+      "sha256": "facc84e9cc4eeab84aa7d57dcdc16eae5dbb703f9ee56718abefe8e991f0e22b"
+    }
+  },
+  "candidates": {
+    "Q-QUOTE": {
+      "package_sha256": "b4764a9675f8cfcb615aa6fec18f29ce6e6a3f952273bda4b703c3128aec094d",
+      "brief_sha256": "ecb75b0086f3603347fdbc78e39cd878aad03b608ea96af61bbab435a5e9c896",
+      "note_sha256": "7092834f15abcfaa5e56d31b91bb8d3594ec0f49eba98d0658f07f3e5d369baa",
+      "only_listed_substitutions": true,
+      "item5_and_all_conformance_assertions_byte_identical": true
+    },
+    "Q-POINTER": {
+      "package_sha256": "da7659c1965aaaf1153f1e29e49853fff698222a2ba9471815aa8f8572a46e25",
+      "brief_sha256": "590d7fd9febbbe6c2e6bbf6ad8334d380c4de016f29033ad4aa623800a6d7c7b",
+      "note_sha256": "6cb208af20afac53609d52e162de270a0ffa1608632217f1b1ae4dd089ba7789",
+      "only_listed_substitutions": true,
+      "item5_and_all_conformance_assertions_byte_identical": true
+    },
+    "Q-KEEP": {
+      "package_sha256": "bd57b4e09cfbedfb955fff449748433f12867749525c43f8ee0c9c552e9c4ae7",
+      "brief_sha256": "43250b5bea7ca4b4df595a94ecaaa28d4769aa33c90ac1b94ff5e940b65cb6b5",
+      "note_sha256": "a69c09038c6202d7db039dc8f970060975bb20051c1420b8876e64299fd7e135",
+      "only_listed_substitutions": true,
+      "item5_and_all_conformance_assertions_byte_identical": true
+    },
+    "Q-QUOTE-OPS43": {
+      "package_sha256": "ba7ddd938d8b7f0defe1616f1b0868bdf5361f8291bc3ad056336134ceacdbf4",
+      "brief_sha256": "d14a8a5680f319221789d3e151a4ae9e744cad8eb3c01bcbd4addbf75e830c7c",
+      "note_sha256": "31f743fac08408f2798ffbf4553310144082f89199b91c6f823ea76e7d914c4b",
+      "only_listed_substitutions": true,
+      "item5_and_all_conformance_assertions_byte_identical": true
+    }
+  },
+  "AGENTS_lines_29_32_sha256": "a80fcc166aea1648948f886a09c1a240631164c61e345e4469f0c55dc6c8758f",
+  "originals": {
+    "archive_sha256": "bd57b4e09cfbedfb955fff449748433f12867749525c43f8ee0c9c552e9c4ae7",
+    "brief_sha256": "43250b5bea7ca4b4df595a94ecaaa28d4769aa33c90ac1b94ff5e940b65cb6b5",
+    "jsonl_line": 101,
+    "comment_index": 0,
+    "comment_id": 860
+  },
+  "occurrences": {
+    "archive": [
+      {
+        "claim": "serialization",
+        "start_line": 29,
+        "end_line": 30,
+        "text": "A serialization failure is retried as a whole transaction under OPS-49\nand is not a tenant-status refusal."
+      },
+      {
+        "claim": "provider",
+        "start_line": 41,
+        "end_line": 44,
+        "text": "A create past\nthe guard can still be between the acknowledged transaction and its provider call, because\nLDG-69 keeps the call outside the transaction; treat that residue as the potentially dispatched\ncase."
+      }
+    ],
+    "brief": [
+      {
+        "claim": "serialization",
+        "start_line": 69,
+        "end_line": 70,
+        "text": "A serialization failure is retried as a whole transaction under OPS-49\nand is not a tenant-status refusal."
+      },
+      {
+        "claim": "provider",
+        "start_line": 81,
+        "end_line": 84,
+        "text": "A create past\nthe guard can still be between the acknowledged transaction and its provider call, because\nLDG-69 keeps the call outside the transaction; treat that residue as the potentially dispatched\ncase."
+      }
+    ]
+  },
+  "historical": {
+    "03-operation-lifecycle.md": "3109b5b equals 832a219 byte for byte",
+    "04-api-contract.md": "3109b5b equals 832a219 byte for byte",
+    "10-conformance-checklist.md": "3109b5b equals 832a219 byte for byte"
+  },
+  "packet_source_blocks": [
+    {
+      "path": "AGENTS.md",
+      "from": 29,
+      "to": 32,
+      "exact": true
+    },
+    {
+      "path": "12-billing-and-ledger.md",
+      "from": 463,
+      "to": 494,
+      "exact": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "from": 1925,
+      "to": 1994,
+      "exact": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "from": 757,
+      "to": 835,
+      "exact": true
+    },
+    {
+      "path": "04-api-contract.md",
+      "from": 623,
+      "to": 738,
+      "exact": true
+    },
+    {
+      "path": "03-operation-lifecycle.md",
+      "from": 240,
+      "to": 250,
+      "exact": true
+    }
+  ],
+  "live_refs_unchanged": true
+}
