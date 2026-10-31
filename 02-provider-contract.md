@@ -168,8 +168,20 @@ the driver MUST validate every value it forwards to the provider, including prov
 and MUST reject invalid values without any provider mutation for that create, including a
 per-order key upload or order request. This validation is in the
 driver, after the API's body validation, because the driver knows the provider's accepted values.
-A caller-supplied value this validation rejects fails `invalid_request` naming the rejected value's
-field, with `retryable: false` on both the error and the operation view (`WIR-9b`). A value this system wrote rather than the caller, such as `PRV-9`'s operation id as a temporary key's "provider-side name or tag" or `PRV-32`'s per-order throwaway SSH key, that this validation rejects fails `internal` (`DOM-17`); `OPS-11`'s create row gives its `retryable`. `OPS-11` says
+A validation that rejects only caller-supplied values fails `invalid_request`, naming a
+rejected caller-supplied value's field under `WIR-9a`, with `retryable: false` on both the
+error and the operation view (`WIR-9b`). A validation that rejects only values this system
+wrote rather than the caller, such as `PRV-9`'s operation id as a temporary key's
+"provider-side name or tag" or `PRV-32`'s per-order throwaway SSH key, fails `internal`
+(`DOM-17`); `OPS-11`'s create row gives its `retryable`. An internal validation error
+MUST NOT carry `details.field`.
+
+When the same driver-validation step rejects both origins, the create MUST fail
+`invalid_request`, with `retryable: false` on both the error and the operation view.
+`details.field` MUST be selected under `WIR-9a` from the rejected caller-supplied fields
+only; system-written values do not enter that pointer set. Category selection precedes
+pointer selection. No additional field listing the other rejected values is introduced.
+Ordinary redaction and `details.accepted` requirements still apply. `OPS-11` says
 "Any create failure the worker records before any step-9 request (before any per-order key upload
 or order request) MUST settle `failed`, whatever its kind" and "The commitment is released in full
 under `LDG-32` … with no setup-fee or first-unit debit".

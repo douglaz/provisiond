@@ -4344,7 +4344,23 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       With a fixture
       driver that rejects a value this system wrote, such as the operation id as a temporary key's
       name (`PRV-9`), on an otherwise valid create, assert `internal` and `retryable: true` on both
-      the error and the operation view, `failed`, and the same no-mutation and release outcomes. For a stored create carrying a
+      the error and the operation view, `failed`, and the same no-mutation and release outcomes.
+
+      Add paired stored-create fixtures whose caller provider_options.location is a string
+      accepted at API admission but rejected by the fixture driver's accepted-value rule.
+      The paired fixture additionally makes the driver reject the generated temporary-key
+      provider-side name, with all other generated values valid. The fixture uses a per-order
+      key channel and rejects in step 7 before any mutation. In the caller-only control,
+      assert invalid_request, details.field /provider_options/location, retryable false,
+      and details.accepted false. In the system-only control, assert internal, retryable true,
+      details.accepted false and no details.field. In every case assert error/view agreement,
+      failed, no key upload or order request, commitment released in full with no setup-fee
+      or first-unit debit, and any held resource-offer exclusion freed.
+      In the paired mixed-origin fixture assert invalid_request, retryable false,
+      details.field /provider_options/location, details.accepted false and no additional
+      rejected-values field. (`PRV-47`, `OPS-11`, `WIR-9a`, `WIR-9b`, `PRV-5`)
+
+      For a stored create carrying a
       provider-forwarded value that API boundary validation rejects, assert it fails at
       `OPS-43`'s step 3 instead, with no provider request at all.
       Separately omit the caller-supplied purchase acknowledgement from the stored record:
