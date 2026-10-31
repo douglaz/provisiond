@@ -2348,6 +2348,17 @@ rather than acquiring a default.
       that is not path-shaped: both strategies abort `integrity` with no writes. `RSC-26` says
       "An identifier that does not resolve to exactly one device MUST abort `integrity` before
       any write."
+      **Disk identifier size boundaries.** For each caller identifier field, admit
+      decoded ASCII values of 1023 and 1024 UTF-8 bytes; refuse 1025 with `400`
+      `invalid_request` before enqueue, with no rescue entry or disk write. Refuse a
+      1025-byte value even when trimming leaves one byte. Admit 512 copies of U+00E9
+      (1024 UTF-8 bytes); refuse those copies followed by `a` (1025 bytes). Encode
+      the same decoded ASCII value with literal characters and with JSON `\u0061`
+      escapes: the size outcome is identical. Inject an over-limit caller value
+      into a saved request: repeated validation fails `invalid_request`,
+      `retryable: false`, before a driver call, with `disk_effect: "none"` and
+      `rescue_exit: "none"`. Inventory still returns over-limit serials untruncated.
+      (`API-13`, `OPS-23`)
       (`WIR-10b`, `WIR-20`, `WIR-40`, `RSC-23`, `RSC-26`, `RSC-33`, `RSC-46`, `API-13`)
       *Added 2026-10-22 (`pv-6p8`; panels r61–r61f, `docs/research/panels-2026-10/r61/`): covers
       anonymous inventory members, wire fields, canonical fingerprints and identifier admission
