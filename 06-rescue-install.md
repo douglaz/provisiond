@@ -101,6 +101,8 @@ connection MUST match an accepted provider pin, even when a caller key is suppli
 **RSC-4** Caller-supplied keys and the first-use-trust opt-in MUST be mutually exclusive
 in the request (`API-13`).
 
+For `details.field`, see `WIR-9a`.
+
 **RSC-5** A pinned connection MUST NEVER be silently downgraded to first-use trust — not
 on retry, not on timeout, not when the driver returns an empty key set later.
 `PRV-20` says "Refresh MUST NOT downgrade a session", "The same rule protects fingerprint pins",

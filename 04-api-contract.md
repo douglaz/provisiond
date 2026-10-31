@@ -977,6 +977,8 @@ Validation happens at the boundary *and* again in the worker (`OPS-23`).
 | host-key policy | pinned keys and "accept unpinned" MUST be mutually exclusive |
 | request body size | globally capped (2 MiB is a reasonable default) |
 
+For `details.field`, see `WIR-9a`.
+
 *Amended 2026-10-22 (`pv-6p8`, panels r61–r61f; owner decision 2026-10-22): added admission of
 disk identifiers before enqueue.*
 
