@@ -64,7 +64,13 @@ FOUR RULES, deliberately narrow.
            with a source file and line, even in historical/teaching prose or
            spans outside the word/length limits. Each paragraph is checked
            independently; separately extracted Lean docstrings stay separate.
-           What it cannot see: balanced nested or mispaired straight/curly
+           Attributed raw straight spans that close inside a paired backtick
+           span fail before word/length filtering, with file, line and owner;
+           use curly outer marks (“…”) for a citation containing straight-quoted
+           values. This enforces the existing outer-mark convention.
+           This guard applies only when the opening mark is outside code;
+           a quotation wholly inside code keeps its existing comparison.
+           What it cannot see: other balanced nested or mispaired straight/curly
            marks can still select the wrong span within a paragraph. Two stray
            straight marks, such as inch marks surrounding a real quotation,
            can pair with its marks and hide it, including in a Lean docstring:
@@ -194,7 +200,8 @@ one disappearing Markdown signature cannot pay for another signature's duplicate
 A scan discovering no source .lean files outside .lake fails even with a valid
 index and empty Lean exemption families. Files without docstrings still count.
 
-Exit 0 = clean, 1 = unpaired double marks, an unverifiable quote, a Lean docstring
+Exit 0 = clean, 1 = unpaired double marks, a rejected inline-code quotation end,
+an unverifiable quote, a Lean docstring
 quote found nowhere, an unresolved name, a new finding or stale baseline entry,
 a damaged baseline, an empty Lean source scan, an unterminated Lean block comment
 or a failed extractor case,
@@ -252,6 +259,69 @@ SPLIT = re.compile(r'(?<=[.!?])[*`"”)\]]*(?P<sentence>\s+)|\n\s*[-*]\s+|\n\s*\
 # Pair every span before filtering its length. A short or overlong span's closing
 # mark must never be recycled as the opening mark of the next quotation.
 QUOTE = re.compile(r'“((?:[^”\n]|\n(?!\s*\n))*)”|"((?:[^"\n]|\n(?!\s*\n))*)"')
+
+
+def inline_code_spans(text):
+    """Content bounds of matching backtick runs, confined to one paragraph.
+
+    This is the gate's bounded prose scanner, not a Markdown parser. A run
+    closes only on a run of the same length; a different-length run is content.
+    Unmatched runs are literal. Fenced blocks receive no special treatment.
+    """
+    offset = 0
+    for paragraph in re.split(r'(\n\s*\n)', text):
+        runs = list(re.finditer(r'`+', paragraph))
+        i = 0
+        while i < len(runs):
+            j = next((j for j in range(i + 1, len(runs))
+                      if len(runs[j].group()) == len(runs[i].group())), None)
+            if j is None:
+                i += 1
+            else:
+                yield offset + runs[i].end(), offset + runs[j].start()
+                i = j + 1
+        offset += len(paragraph)
+
+
+def nested_inline_code_errors(docs, first_line=1):
+    """Attributed raw straight spans that close in a paired backtick span.
+
+    Inspect raw pairs before word/length filtering: the first fragment of the
+    defective bare-possessive citation has fewer than four words.
+    """
+    for filename, text in docs.items():
+        lean = filename.endswith('.lean')
+        codes = list(inline_code_spans(text))
+        offset = 0
+        for sent in chunks(text):
+            start = text.index(sent, offset)
+            offset = start + len(sent)
+            historical = HISTORICAL.search(sent)
+            if TEACHING.search(sent) or (lean and historical):
+                continue
+            speech = ATTRIB.search(sent)
+            direct = list(POSSESSIVE.finditer(sent))
+            if not lean:
+                direct += list(COLON.finditer(sent))
+            for match in QUOTE.finditer(sent):
+                if match.group(2) is None:
+                    continue
+                owners = []
+                if speech and match.start() > speech.start():
+                    owners.append(speech.group(1) or speech.group(3))
+                owners += [m.group(1) for m in direct if m.end() == match.start()]
+                if not owners or (not lean and historical
+                                  and historical_quote(sent, match.start(), match.group(2))):
+                    continue
+                closing = start + match.end() - 1
+                opening = start + match.start()
+                if not any(left <= closing < right for left, right in codes):
+                    continue
+                if any(left <= opening < right for left, right in codes):
+                    continue
+                line = text.count('\n', 0, closing) + first_line
+                for owner in dict.fromkeys(owners):
+                    yield filename, line, owner
 
 
 def chunks(text):
@@ -614,7 +684,7 @@ def docstrings(text, with_offsets=False):
             yield (start, body) if with_offsets else body
 
 
-def load_lean_docstrings(mark_errors=None):
+def load_lean_docstrings(mark_errors=None, nested_errors=None):
     """Keep Lean prose separate from load()'s requirement and name sources."""
     docs = {}
     for directory, dirs, files in os.walk(os.path.join(ROOT, 'tools', 'formal')):
@@ -635,6 +705,10 @@ def load_lean_docstrings(mark_errors=None):
                         first_line = text.count('\n', 0, start) + 1
                         mark_errors.extend((filename, line, kind)
                                            for line, kind in unpaired_marks(body, first_line))
+                if nested_errors is not None:
+                    for start, body in blocks:
+                        first_line = text.count('\n', 0, start) + 1
+                        nested_errors.extend(nested_inline_code_errors({filename: body}, first_line))
                 docs[filename] = '\n\n'.join(body for _, body in blocks)
     return docs
 
@@ -901,6 +975,55 @@ def check_quote_content():
         return 1
     print('PASS: quote content: apostrophes, local delimiters, boundaries, edges and elisions; '
           'Markdown/Lean owners and cited pools; EXISTS and signatures unchanged')
+    return 0
+
+
+def check_nested_inline_code():
+    """Nested values, raw short prefixes, input kinds and existing outer marks."""
+    source = '`details.reason: "account_terminated"` where the status is `terminated` and `"state"` for the two recoverable statuses, since presenting an unreachable account as a permanent termination is false, and with `retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both the error and the operation view'
+    reqs = {'API-63': ('source.md', source)}
+    shapes = ["`API-63` says ", "`API-63`'s ", "`API-63`'s rule that ",
+              "`API-63`: "]
+    try:
+        for filename in ['probe.md', 'probe.lean']:
+            for shape in shapes:
+                if filename.endswith('.lean') and shape == shapes[-1]:
+                    continue  # the Markdown-only colon rule is unchanged
+                for ticks in ['`', '``']:
+                    wording = source.replace('`', ticks)
+                    owners = {'API-63': ('source.md', wording)}
+                    for left, right in [('“', '”'), ('"', '"')]:
+                        prose = shape + left + wording + right
+                        if filename.endswith('.lean'):
+                            prose = '\n\n'.join(docstrings('/-- ' + prose + ' -/')).strip()
+                        assert not list(unpaired_marks(prose))
+                        changed = [prose.replace('account_terminated', 'account_terminatd', 1),
+                                   prose.replace('"state"', '"stat"', 1),
+                                   prose.replace('two recoverable', 'three recoverable', 1)]
+                        errors = list(nested_inline_code_errors({filename: prose}))
+                        assert bool(errors) == (left == '"'), (filename, shape, ticks, left, errors)
+                        for wrong in changed:
+                            if left == '"':
+                                assert list(nested_inline_code_errors({filename: wrong})), wrong
+                            else:
+                                assert not list(nested_inline_code_errors({filename: wrong})), wrong
+                                assert find({filename: wrong}, {}, owners)[0], wrong
+                        if left == '“':
+                            assert find({filename: prose}, {}, owners) == ([], [], 1)
+        plain = '`API-63` says "alpha beta gamma delta"'
+        assert find({'probe.md': plain}, {}, {'API-63': ('source.md', 'alpha beta gamma delta')}) == ([], [], 1)
+        wrapped = '`API-63` says `"alpha beta gamma delta"`'
+        assert bool(list(nested_inline_code_errors({'probe.md': wrapped}))) == False
+        for prefix in ['Previously ', 'For example, ']:
+            nested = prefix + shapes[0] + '"' + source + '"'
+            assert not list(nested_inline_code_errors({'probe.md': nested}))
+        assert not list(nested_inline_code_errors({'probe.md': '"' + source + '"'}))
+        short = '`API-63` says "now"'
+        assert not list(nested_inline_code_errors({'probe.md': short}))
+    except AssertionError as exc:
+        print(f'FAIL: nested inline-code citation: {exc}')
+        return 1
+    print('PASS: nested inline-code citations: exact marks, short prefixes and value corruptions')
     return 0
 
 
@@ -1399,7 +1522,7 @@ def main():
     if (check_sentence_boundaries() or check_docstrings() or check_quotations()
             or check_withdrawal_history() or check_markdown_quote_reach()
             or check_possessives() or check_colons()
-            or check_quote_content()):
+            or check_quote_content() or check_nested_inline_code()):
         return 1
     try:
         with open(BASELINE) as source:
@@ -1420,7 +1543,8 @@ def main():
     docs, adrs, reqs = load()
     mark_errors = [(f, line, kind) for f, text in docs.items()
                    for line, kind in unpaired_marks(text)]
-    lean = load_lean_docstrings(mark_errors)
+    nested_errors = []
+    lean = load_lean_docstrings(mark_errors, nested_errors)
     if not lean:
         print("FAIL: no source .lean files discovered under tools/formal (excluding .lake); "
               "restore the Lean sources and check the scan path. A preexisting index "
@@ -1433,6 +1557,12 @@ def main():
             print(f"  {f}:{line}: unpaired {kind} double quotation marks")
     if mark_errors:
         print(f"FAIL: {len(mark_errors)} quotation mark source-line finding(s)")
+        return 1
+    nested_errors += list(nested_inline_code_errors(docs))
+    for filename, line, owner in nested_errors:
+        print(f"FAIL: {filename}:{line}: {owner} straight quotation closes inside inline code; "
+              "use curly outer marks (“…”).")
+    if nested_errors:
         return 1
     bad, unquoted, markdown_compared = find(docs, adrs, reqs)
     lean_bad, _, compared = find(lean, adrs, reqs, corpus=docs)
