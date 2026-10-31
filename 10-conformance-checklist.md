@@ -4345,15 +4345,23 @@ of thirteen until 2026-09-08; it was a second copy of the register, and it had d
       released in full with no setup-fee or first-unit debit, this create's settlement freeing
       that same held resource-offer exclusion (`STO-58`), and no provider request at all,
       including no List offers read.
-      For a valid request, remove the named auction offer after admission and before claim
-      (`OPS-5`), while the create is `queued` and unclaimed. Repeat for an ordinary catalogue
-      offer removed in that same window. Detect absence at `OPS-43`'s step 5, "Check for the
+      For the queued auction-offer removal case, admit a complete, valid resource-offer create
+      on a compatible ordering channel declaring `correlator: per_order_key` and
+      `offer_is_resource: true`. Assert at admission that this create holds the resource-offer
+      exclusion for its provider account, ordering channel and offer id (`PRV-42`, `STO-58`),
+      then remove the named auction offer before worker claim (`OPS-5`), while the create
+      remains `queued` and unclaimed. Separately admit a complete, valid ordinary-catalogue
+      create on its own compatible non-resource ordering channel (`offer_is_resource: false`)
+      and assert this create has no resource-offer exclusion. Remove its named offer after
+      admission and before worker claim, while it remains `queued` and unclaimed. In each
+      case, let the worker claim the create and detect absence at `OPS-43`'s step 5, "Check for the
       named offer's absence from that result", using the step-4 List offers result. In each
       case assert `invalid_request`, `details.reason: "offer_not_sellable"`, `retryable: false`
       on both the error and operation view, `failed`, commitment released in full with no
-      setup-fee or first-unit debit, and the resource-offer exclusion freed where the create holds
-      one. A catalogue create takes no resource-offer exclusion. Assert no per-order key upload
-      and no order request; the List offers read is permitted. The inner error has no
+      setup-fee or first-unit debit. For the auction create, assert its settlement frees that
+      same held resource-offer exclusion for its provider account, ordering channel and offer id
+      (`STO-58`). In each case assert no per-order key upload and no order request; the List
+      offers read is permitted. The inner error has no
       `details.refusals` or `details.not_checked` and no cap or balance result or amount derived
       from the offer's price. Neither check adds a provider lookup to `API-7`'s rich-tail collection.
       (`PRV-47`, `PRV-9`, `PRV-10`, `PRV-42`, `API-7`, `OPS-43`, `OPS-23`, `OPS-5`, `OPS-11`, `DOM-17`, `STO-58`, `LDG-39`,
