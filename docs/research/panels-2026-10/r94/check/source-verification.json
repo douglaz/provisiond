@@ -1,0 +1,14 @@
+{
+  "pin": "a7b6884878bc7e53dc403dd8a4383d85afac3634",
+  "head": "b85af778fda2a96fb0024a07c69092665303bfbe",
+  "source_files_equal_pin_head": {
+    "AGENTS.md": true,
+    "03-operation-lifecycle.md": true,
+    "04-api-contract.md": true,
+    "12-billing-and-ledger.md": true
+  },
+  "original_archive_equal_external": true,
+  "new_quotes_exact": true,
+  "original_archive_sha256": "bd57b4e09cfbedfb955fff449748433f12867749525c43f8ee0c9c552e9c4ae7",
+  "original_agent_sha256": "43250b5bea7ca4b4df595a94ecaaa28d4769aa33c90ac1b94ff5e940b65cb6b5"
+}

@@ -1,0 +1,1 @@
+**Owner decision:** “D: explain exception” (`owner-decisions-1030.md`, item 19). Historical adopted form: `docs/research/panels-2026-10/r83/r83b/Q4-D.md`. Executable form: the Desired behavior / key interfaces and Acceptance criteria blocks below, with the 2026-10-31 Panel O r94 wording correction.

@@ -1,0 +1,1 @@
+**Owner decision:** “D: explain exception” (`owner-decisions-1030.md`, item 19). Adopted exact form: `docs/research/panels-2026-10/r83/r83b/Q4-D.md`.
