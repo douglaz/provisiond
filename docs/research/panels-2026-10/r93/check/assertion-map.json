@@ -1,0 +1,299 @@
+[
+  {
+    "assertion": "Insertion site; mapping rows and error sentence retention",
+    "original_lines": "3",
+    "candidate_lines": "3",
+    "agent_lines": "28",
+    "original_sha256": "6ef2b1332ae8a4d7ef0420b94e4e0d1f113ae7778048c915c55bdfc774376e1c",
+    "target_sha256": "6ef2b1332ae8a4d7ef0420b94e4e0d1f113ae7778048c915c55bdfc774376e1c",
+    "unchanged": true
+  },
+  {
+    "assertion": "Admission scope and caller/operator MUST check before enqueue",
+    "original_lines": "6\u20138",
+    "candidate_lines": "6\u20138",
+    "agent_lines": "31\u201333",
+    "original_sha256": "f860488fa2a58521add3a8577013a509adede9e97edcc09da9808d3cb6223f72",
+    "target_sha256": "f860488fa2a58521add3a8577013a509adede9e97edcc09da9808d3cb6223f72",
+    "unchanged": true
+  },
+  {
+    "assertion": "Admission ordering after API pipeline and local validation",
+    "original_lines": "8\u201310",
+    "candidate_lines": "8\u201310",
+    "agent_lines": "33\u201335",
+    "original_sha256": "f4f928a1879cefb736ce34533384f5866eedb985647b3aef5c01f0dddb29cfe5",
+    "target_sha256": "f4f928a1879cefb736ce34533384f5866eedb985647b3aef5c01f0dddb29cfe5",
+    "unchanged": true
+  },
+  {
+    "assertion": "API descriptor and no provider request",
+    "original_lines": "10\u201311",
+    "candidate_lines": "10\u201311",
+    "agent_lines": "35\u201336",
+    "original_sha256": "6af70adf10d5332fbfc58a42be582057c89f81f2ba21d6e413fd28b26073531b",
+    "target_sha256": "6af70adf10d5332fbfc58a42be582057c89f81f2ba21d6e413fd28b26073531b",
+    "unchanged": true
+  },
+  {
+    "assertion": "Refusal: no enqueue, endpoint-state write or money write",
+    "original_lines": "11\u201312",
+    "candidate_lines": "11\u201312",
+    "agent_lines": "36\u201337",
+    "original_sha256": "1d98f393e099c049c9a594097bf0ca7c014110d201486275382c400da8da5943",
+    "target_sha256": "1d98f393e099c049c9a594097bf0ca7c014110d201486275382c400da8da5943",
+    "unchanged": true
+  },
+  {
+    "assertion": "Replay bypass",
+    "original_lines": "12\u201313",
+    "candidate_lines": "12\u201313",
+    "agent_lines": "37\u201338",
+    "original_sha256": "6b75fca8864dcfe1f2d2f5fc392c5fb341a6e858ba912c9f85273d7526de0406",
+    "target_sha256": "ca4c7165a91f1cc2a415da94da54cc8802272eb04f87555e8a96ed1673fe172f",
+    "unchanged": false
+  },
+  {
+    "assertion": "Operator retry capability and pre-transaction placement",
+    "original_lines": "13\u201314",
+    "candidate_lines": "13\u201314",
+    "agent_lines": "38\u201339",
+    "original_sha256": "83a62e0091f3898c3d064b4ce402310d91a4767f60b3200aa114380a0bd4c8fc",
+    "target_sha256": "83a62e0091f3898c3d064b4ce402310d91a4767f60b3200aa114380a0bd4c8fc",
+    "unchanged": true
+  },
+  {
+    "assertion": "Manual-release no driver operation and no capability check",
+    "original_lines": "14",
+    "candidate_lines": "14\u201315",
+    "agent_lines": "39\u201340",
+    "original_sha256": "6c2ca3e152e4ebb5631baea802d3cfb9b1c3067cca8f19e4cdca4fdf8baacc10",
+    "target_sha256": "627cc18d2857f8b722f7292b800d64b9c9a1c3e546a0e6262a741382ef5c52e7",
+    "unchanged": false
+  },
+  {
+    "assertion": "Suspend parent unchecked at admission; children checked at claim",
+    "original_lines": "15\u201316",
+    "candidate_lines": "16\u201317",
+    "agent_lines": "41\u201342",
+    "original_sha256": "bab75e1122204708cc0ad7ad79a4d38f89f70860cdba380012dad2282db120de",
+    "target_sha256": "bab75e1122204708cc0ad7ad79a4d38f89f70860cdba380012dad2282db120de",
+    "unchanged": true
+  },
+  {
+    "assertion": "Worker MUST recheck; descriptor; HTTP-independent work, retries and delete releases",
+    "original_lines": "18\u201320",
+    "candidate_lines": "19\u201321",
+    "agent_lines": "44\u201346",
+    "original_sha256": "8a5011449a812abae9346d8fbbfbfac13a74b1c9a7bbe452cc5b5952dd68e8ba",
+    "target_sha256": "8a5011449a812abae9346d8fbbfbfac13a74b1c9a7bbe452cc5b5952dd68e8ba",
+    "unchanged": true
+  },
+  {
+    "assertion": "Worker after claim/serialization, before first call and either marker",
+    "original_lines": "21\u201322",
+    "candidate_lines": "22\u201323",
+    "agent_lines": "47\u201348",
+    "original_sha256": "5ed10cca2e2bdc57c7113e5d427fb7ad7b42c936abcc74803db013ef0be7f6c5",
+    "target_sha256": "5ed10cca2e2bdc57c7113e5d427fb7ad7b42c936abcc74803db013ef0be7f6c5",
+    "unchanged": true
+  },
+  {
+    "assertion": "Repeated validation order; capability last",
+    "original_lines": "22\u201325",
+    "candidate_lines": "23\u201326",
+    "agent_lines": "48\u201351",
+    "original_sha256": "6e6ec5997fe70cd1b7754cfa831ffb72933613c22db69544fd57ff0042558cbc",
+    "target_sha256": "6e6ec5997fe70cd1b7754cfa831ffb72933613c22db69544fd57ff0042558cbc",
+    "unchanged": true
+  },
+  {
+    "assertion": "First failure stops later checks",
+    "original_lines": "25",
+    "candidate_lines": "26",
+    "agent_lines": "51",
+    "original_sha256": "d3a6a2d35e8d6dc5aec2285bb1f5ca977e2863c3622d98834f1c66bc037fff57",
+    "target_sha256": "d3a6a2d35e8d6dc5aec2285bb1f5ca977e2863c3622d98834f1c66bc037fff57",
+    "unchanged": true
+  },
+  {
+    "assertion": "Classifier and existing unsupported result",
+    "original_lines": "25\u201326",
+    "candidate_lines": "26\u201327",
+    "agent_lines": "51\u201352",
+    "original_sha256": "4d550f7e0519252d15cd6dbf96f1d5b05fbfa00f2bf0f8243b61fd11b2868a3e",
+    "target_sha256": "4d550f7e0519252d15cd6dbf96f1d5b05fbfa00f2bf0f8243b61fd11b2868a3e",
+    "unchanged": true
+  },
+  {
+    "assertion": "No purchase checks introduced for non-purchases",
+    "original_lines": "26\u201327",
+    "candidate_lines": "27\u201328",
+    "agent_lines": "52\u201353",
+    "original_sha256": "a9d1ee70d4cb7b7b738ef6199f75f7a6693c6016f4503542bfeb7bce19605fe4",
+    "target_sha256": "a9d1ee70d4cb7b7b738ef6199f75f7a6693c6016f4503542bfeb7bce19605fe4",
+    "unchanged": true
+  },
+  {
+    "assertion": "Cancellation restore gate and ordered fence decision first",
+    "original_lines": "29\u201330",
+    "candidate_lines": "30\u201331",
+    "agent_lines": "55\u201356",
+    "original_sha256": "078aed064fb92b50fed0bb999e9d32940f4cf3c9f6e70db9ccb21e518a1cf7ee",
+    "target_sha256": "078aed064fb92b50fed0bb999e9d32940f4cf3c9f6e70db9ccb21e518a1cf7ee",
+    "unchanged": true
+  },
+  {
+    "assertion": "Cancellation no-call success or defer bypass",
+    "original_lines": "30\u201331",
+    "candidate_lines": "31\u201332",
+    "agent_lines": "56\u201357",
+    "original_sha256": "28468c4865e818796fb14cc8eff533bb01d4c15063af16f0f2b99ce6892ee43e",
+    "target_sha256": "28468c4865e818796fb14cc8eff533bb01d4c15063af16f0f2b99ce6892ee43e",
+    "unchanged": true
+  },
+  {
+    "assertion": "Proceeding cancellation MUST check after acknowledged fence, before call/marker",
+    "original_lines": "31\u201333",
+    "candidate_lines": "32\u201334",
+    "agent_lines": "57\u201359",
+    "original_sha256": "3a424348c06778ddfc79f8542eef5a621215fc23cb8975a8eaa48b028bc62f8c",
+    "target_sha256": "3a424348c06778ddfc79f8542eef5a621215fc23cb8975a8eaa48b028bc62f8c",
+    "unchanged": true
+  },
+  {
+    "assertion": "Existing failure disposition; no additional automatic attempt or fence clearing",
+    "original_lines": "33\u201334",
+    "candidate_lines": "34\u201335",
+    "agent_lines": "59\u201360",
+    "original_sha256": "f1a7ab1e9055c49a16f4b6c528ea7afab67d5d51a9a3364e4e2d299afdefaa1e",
+    "target_sha256": "f1a7ab1e9055c49a16f4b6c528ea7afab67d5d51a9a3364e4e2d299afdefaa1e",
+    "unchanged": true
+  },
+  {
+    "assertion": "Internal enqueue has no enqueue-time capability check",
+    "original_lines": "35",
+    "candidate_lines": "36",
+    "agent_lines": "61",
+    "original_sha256": "4becb4d84e7093ee0c3e9b0ed6fd6a2b5830a13f32fb12841da9c806e49372b4",
+    "target_sha256": "4becb4d84e7093ee0c3e9b0ed6fd6a2b5830a13f32fb12841da9c806e49372b4",
+    "unchanged": true
+  },
+  {
+    "assertion": "Operator retry ceiling and system exemption scopes retained",
+    "original_lines": "35\u201336",
+    "candidate_lines": "36\u201337",
+    "agent_lines": "61\u201362",
+    "original_sha256": "02fc53825a1a089bc21a890fe6f159130a0e1d2674fc95b3f72b78a349b0046f",
+    "target_sha256": "02fc53825a1a089bc21a890fe6f159130a0e1d2674fc95b3f72b78a349b0046f",
+    "unchanged": true
+  },
+  {
+    "assertion": "Mapping determines capability",
+    "original_lines": "38",
+    "candidate_lines": "39",
+    "agent_lines": "64",
+    "original_sha256": "f86ce775adb2050878ebc685bbecbc9d42603a564d5adff149fbbb8885f39c5a",
+    "target_sha256": "f86ce775adb2050878ebc685bbecbc9d42603a564d5adff149fbbb8885f39c5a",
+    "unchanged": true
+  },
+  {
+    "assertion": "Rescue install capability order; inventory capability",
+    "original_lines": "38\u201340",
+    "candidate_lines": "39\u201341",
+    "agent_lines": "64\u201366",
+    "original_sha256": "88f1063eeef1483ed2b1685cab9fe86911fe370505ed1b09208f62d1db5d6ca9",
+    "target_sha256": "88f1063eeef1483ed2b1685cab9fe86911fe370505ed1b09208f62d1db5d6ca9",
+    "unchanged": true
+  },
+  {
+    "assertion": "Identical-PTR success remains after capability",
+    "original_lines": "40",
+    "candidate_lines": "41",
+    "agent_lines": "66",
+    "original_sha256": "1f4ad73fa49d564008999291c056f991169cc2b0b8d3dbc8665a5aef74f1e0e7",
+    "target_sha256": "1f4ad73fa49d564008999291c056f991169cc2b0b8d3dbc8665a5aef74f1e0e7",
+    "unchanged": true
+  },
+  {
+    "assertion": "No capability inferred from install eligibility",
+    "original_lines": "40\u201341",
+    "candidate_lines": "41\u201342",
+    "agent_lines": "66\u201367",
+    "original_sha256": "d5552ef5eae1794c9df6ffbb66fb2889cd3e6d917dfc616c0fb4e25bd9d923d9",
+    "target_sha256": "d5552ef5eae1794c9df6ffbb66fb2889cd3e6d917dfc616c0fb4e25bd9d923d9",
+    "unchanged": true
+  },
+  {
+    "assertion": "Refresh, manual release and capability-less-method exclusions",
+    "original_lines": "41\u201342",
+    "candidate_lines": "42\u201343",
+    "agent_lines": "67\u201368",
+    "original_sha256": "2e8fa2e33879b4ea1a74c321fa2466582cd99b8bd26aebcb3b3a554398c29d79",
+    "target_sha256": "2e8fa2e33879b4ea1a74c321fa2466582cd99b8bd26aebcb3b3a554398c29d79",
+    "unchanged": true
+  },
+  {
+    "assertion": "API-7 pointer placement",
+    "original_lines": "45",
+    "candidate_lines": "46",
+    "agent_lines": "71",
+    "original_sha256": "292e57b6fb047ef7fb900fca2013b9f088dd7ad4506dcffd287b447c7d81d2a5",
+    "target_sha256": "292e57b6fb047ef7fb900fca2013b9f088dd7ad4506dcffd287b447c7d81d2a5",
+    "unchanged": true
+  },
+  {
+    "assertion": "API-7 pointer content",
+    "original_lines": "48",
+    "candidate_lines": "49",
+    "agent_lines": "74",
+    "original_sha256": "dbe4105e5ae12eeb288cb1f58c745a4bfb44d5ca5daadce879822feebe37601e",
+    "target_sha256": "dbe4105e5ae12eeb288cb1f58c745a4bfb44d5ca5daadce879822feebe37601e",
+    "unchanged": true
+  },
+  {
+    "assertion": "OPS-23 pointer placement",
+    "original_lines": "51",
+    "candidate_lines": "52",
+    "agent_lines": "77",
+    "original_sha256": "a60759487019122b091e1f3e66e32b6938c6777f629569397d907a351378c008",
+    "target_sha256": "a60759487019122b091e1f3e66e32b6938c6777f629569397d907a351378c008",
+    "unchanged": true
+  },
+  {
+    "assertion": "OPS-23 pointer content, including validation and OPS-40/OPS-41 ordering",
+    "original_lines": "54\u201355",
+    "candidate_lines": "55\u201356",
+    "agent_lines": "80\u201381",
+    "original_sha256": "6a3c13edaf2ef9958724e1c4b3360fa15e67990f3fb8ba88204e3065b74d1238",
+    "target_sha256": "6a3c13edaf2ef9958724e1c4b3360fa15e67990f3fb8ba88204e3065b74d1238",
+    "unchanged": true
+  },
+  {
+    "assertion": "No create-gate movement",
+    "original_lines": "58",
+    "candidate_lines": "59",
+    "agent_lines": "84",
+    "original_sha256": "512d76a0f6a0b85af421a3828a3fabb8a54dde64201a229e8f86de1cf44ba4ab",
+    "target_sha256": "512d76a0f6a0b85af421a3828a3fabb8a54dde64201a229e8f86de1cf44ba4ab",
+    "unchanged": true
+  },
+  {
+    "assertion": "Pre-rescue classifier and marker meanings retained",
+    "original_lines": "58",
+    "candidate_lines": "59",
+    "agent_lines": "84",
+    "original_sha256": "878ba48fae7aa7676a02e431b0948a738e693beaf6d356e705ca81a32cfad58f",
+    "target_sha256": "878ba48fae7aa7676a02e431b0948a738e693beaf6d356e705ca81a32cfad58f",
+    "unchanged": true
+  },
+  {
+    "assertion": "Observable-phase assessment retained",
+    "original_lines": "58",
+    "candidate_lines": "59",
+    "agent_lines": "84",
+    "original_sha256": "c95c04076131af35983b1737fcdbc22c2c922db7c7c2f537ddba8a2183436a25",
+    "target_sha256": "c95c04076131af35983b1737fcdbc22c2c922db7c7c2f537ddba8a2183436a25",
+    "unchanged": true
+  }
+]
