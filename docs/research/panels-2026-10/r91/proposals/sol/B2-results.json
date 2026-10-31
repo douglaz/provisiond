@@ -1,0 +1,20 @@
+[
+  {
+    "name": "valid",
+    "exit": 0,
+    "command": [
+      "python3",
+      "tools/check_citations.py"
+    ],
+    "cwd": "/var/tmp/provisiond-panel-r91/tmp/sol/B2"
+  },
+  {
+    "name": "ci",
+    "exit": 0,
+    "command": [
+      "python3",
+      "-"
+    ],
+    "cwd": "/var/tmp/provisiond-panel-r91/tmp/sol/B2"
+  }
+]

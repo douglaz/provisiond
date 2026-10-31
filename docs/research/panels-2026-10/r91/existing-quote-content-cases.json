@@ -1,0 +1,1724 @@
+[
+  {
+    "name": "trailing omission",
+    "source": "the rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "trailing insertion",
+    "source": "the rows values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows' values remain positive",
+    "quote": "the rows‘ values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows' values remain positive",
+    "quote": "the rows’ values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe omission",
+    "source": "the rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe insertion",
+    "source": "the rows values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows‘ values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows‘ values remain positive",
+    "quote": "the rows‘ values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows‘ values remain positive",
+    "quote": "the rows’ values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe omission",
+    "source": "the rows‘ values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe insertion",
+    "source": "the rows values remain positive",
+    "quote": "the rows‘ values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows’ values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows’ values remain positive",
+    "quote": "the rows‘ values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the rows’ values remain positive",
+    "quote": "the rows’ values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe omission",
+    "source": "the rows’ values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe insertion",
+    "source": "the rows values remain positive",
+    "quote": "the rows’ values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant's balance remains positive",
+    "quote": "the tenant's balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant's balance remains positive",
+    "quote": "the tenant‘s balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant's balance remains positive",
+    "quote": "the tenant’s balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe omission",
+    "source": "the tenant's balance remains positive",
+    "quote": "the tenants balance remains positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe insertion",
+    "source": "the tenants balance remains positive",
+    "quote": "the tenant's balance remains positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant‘s balance remains positive",
+    "quote": "the tenant's balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant‘s balance remains positive",
+    "quote": "the tenant‘s balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant‘s balance remains positive",
+    "quote": "the tenant’s balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe omission",
+    "source": "the tenant‘s balance remains positive",
+    "quote": "the tenants balance remains positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe insertion",
+    "source": "the tenants balance remains positive",
+    "quote": "the tenant‘s balance remains positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant’s balance remains positive",
+    "quote": "the tenant's balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant’s balance remains positive",
+    "quote": "the tenant‘s balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe typography",
+    "source": "the tenant’s balance remains positive",
+    "quote": "the tenant’s balance remains positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe omission",
+    "source": "the tenant’s balance remains positive",
+    "quote": "the tenants balance remains positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "apostrophe insertion",
+    "source": "the tenants balance remains positive",
+    "quote": "the tenant’s balance remains positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "independent possessive omission",
+    "source": "the rows' values and tenants' balances remain positive",
+    "quote": "the rows values and tenants' balances remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "independent possessive insertion",
+    "source": "the rows values and tenants' balances remain positive",
+    "quote": "the rows' values and tenants' balances remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "independent possessive omission",
+    "source": "the rows' values and tenants' balances remain positive",
+    "quote": "the rows' values and tenants balances remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "independent possessive insertion",
+    "source": "the rows' values and tenants balances remain positive",
+    "quote": "the rows' values and tenants' balances remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "nested delimiters",
+    "source": "'Succeeds' means the resource is gone",
+    "quote": "\"Succeeds\" means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "'Succeeds' means the resource is gone",
+    "quote": "\"WRONG\" means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested delimiters",
+    "source": "\"Succeeds\" means the resource is gone",
+    "quote": "'Succeeds' means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "\"Succeeds\" means the resource is gone",
+    "quote": "'WRONG' means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested delimiters",
+    "source": "'rows' means the resource is gone",
+    "quote": "\"rows\" means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "'rows' means the resource is gone",
+    "quote": "\"WRONG\" means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested delimiters",
+    "source": "\"rows\" means the resource is gone",
+    "quote": "'rows' means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "\"rows\" means the resource is gone",
+    "quote": "'WRONG' means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested delimiters",
+    "source": "'the rows' values' means the resource is gone",
+    "quote": "\"the rows' values\" means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "'the rows' values' means the resource is gone",
+    "quote": "\"WRONG\" means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested possessive omission",
+    "source": "'the rows' values' means the resource is gone",
+    "quote": "\"the rows values\" means the resource is gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "nested delimiters",
+    "source": "\"the rows' values\" means the resource is gone",
+    "quote": "'the rows' values' means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "\"the rows' values\" means the resource is gone",
+    "quote": "'WRONG' means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested possessive omission",
+    "source": "\"the rows' values\" means the resource is gone",
+    "quote": "'the rows values' means the resource is gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "nested delimiters",
+    "source": "'the tenant's balance' means the resource is gone",
+    "quote": "\"the tenant's balance\" means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "'the tenant's balance' means the resource is gone",
+    "quote": "\"WRONG\" means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested possessive omission",
+    "source": "'the tenant's balance' means the resource is gone",
+    "quote": "\"the tenants balance\" means the resource is gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "nested delimiters",
+    "source": "\"the tenant's balance\" means the resource is gone",
+    "quote": "'the tenant's balance' means the resource is gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "nested wording",
+    "source": "\"the tenant's balance\" means the resource is gone",
+    "quote": "'WRONG' means the resource is gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "nested possessive omission",
+    "source": "\"the tenant's balance\" means the resource is gone",
+    "quote": "'the tenants balance' means the resource is gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "whitespace reach across boundaries",
+    "source": "unrelated the rows' values remain positive",
+    "quote": "unrelated the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener before",
+    "source": "'unrelated the rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener after",
+    "source": "the rows' values remain positive 'unrelated",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact despite outside opener",
+    "source": "'unrelated the rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "whitespace reach across boundaries",
+    "source": "unrelated. the rows' values remain positive",
+    "quote": "unrelated. the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener before",
+    "source": "'unrelated. the rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener after",
+    "source": "the rows' values remain positive. 'unrelated",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact despite outside opener",
+    "source": "'unrelated. the rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "pairing boundary",
+    "source": "'unrelated. the rows' values remain positive",
+    "quote": "unrelated. the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact structural content",
+    "source": "'unrelated. the rows' values remain positive",
+    "quote": "'unrelated. the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "whitespace reach across boundaries",
+    "source": "unrelated\n\nthe rows' values remain positive",
+    "quote": "unrelated the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener before",
+    "source": "'unrelated\n\nthe rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener after",
+    "source": "the rows' values remain positive\n\n'unrelated",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact despite outside opener",
+    "source": "'unrelated\n\nthe rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "pairing boundary",
+    "source": "'unrelated\n\nthe rows' values remain positive",
+    "quote": "unrelated the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "whitespace reach across boundaries",
+    "source": "unrelated\n- the rows' values remain positive",
+    "quote": "unrelated - the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener before",
+    "source": "'unrelated\n- the rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener after",
+    "source": "the rows' values remain positive\n- 'unrelated",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact despite outside opener",
+    "source": "'unrelated\n- the rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "pairing boundary",
+    "source": "'unrelated\n- the rows' values remain positive",
+    "quote": "unrelated - the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact structural content",
+    "source": "'unrelated\n- the rows' values remain positive",
+    "quote": "'unrelated\n- the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "whitespace reach across boundaries",
+    "source": "unrelated\n* the rows' values remain positive",
+    "quote": "unrelated the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener before",
+    "source": "'unrelated\n* the rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener after",
+    "source": "the rows' values remain positive\n* 'unrelated",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact despite outside opener",
+    "source": "'unrelated\n* the rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "pairing boundary",
+    "source": "'unrelated\n* the rows' values remain positive",
+    "quote": "unrelated the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact structural content",
+    "source": "'unrelated\n* the rows' values remain positive",
+    "quote": "'unrelated\n* the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "whitespace reach across boundaries",
+    "source": "unrelated\n|the rows' values remain positive",
+    "quote": "unrelated |the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener before",
+    "source": "'unrelated\n|the rows' values remain positive",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "outside opener after",
+    "source": "the rows' values remain positive\n|'unrelated",
+    "quote": "the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact despite outside opener",
+    "source": "'unrelated\n|the rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "pairing boundary",
+    "source": "'unrelated\n|the rows' values remain positive",
+    "quote": "unrelated |the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact structural content",
+    "source": "'unrelated\n|the rows' values remain positive",
+    "quote": "'unrelated\n|the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 following possessive",
+    "source": "'Succeeds' means the deposits' addresses are gone",
+    "quote": "\"Succeeds\" means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 same style",
+    "source": "'Succeeds' means the deposits' addresses are gone",
+    "quote": "'Succeeds' means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 enclosed wording",
+    "source": "'Succeeds' means the deposits' addresses are gone",
+    "quote": "\"WRONG\" means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R1 independent omission deposits",
+    "source": "'Succeeds' means the deposits' addresses are gone",
+    "quote": "\"Succeeds\" means the deposits addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion deposits",
+    "source": "\"Succeeds\" means the deposits addresses are gone",
+    "quote": "'Succeeds' means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 following possessive",
+    "source": "\"Succeeds\" means the deposits' addresses are gone",
+    "quote": "'Succeeds' means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 same style",
+    "source": "\"Succeeds\" means the deposits' addresses are gone",
+    "quote": "\"Succeeds\" means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 enclosed wording",
+    "source": "\"Succeeds\" means the deposits' addresses are gone",
+    "quote": "'WRONG' means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R1 independent omission deposits",
+    "source": "\"Succeeds\" means the deposits' addresses are gone",
+    "quote": "'Succeeds' means the deposits addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion deposits",
+    "source": "'Succeeds' means the deposits addresses are gone",
+    "quote": "\"Succeeds\" means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 following possessive",
+    "source": "'the rows' values' determine the tenants' balances",
+    "quote": "\"the rows' values\" determine the tenants' balances",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 same style",
+    "source": "'the rows' values' determine the tenants' balances",
+    "quote": "'the rows' values' determine the tenants' balances",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 enclosed wording",
+    "source": "'the rows' values' determine the tenants' balances",
+    "quote": "\"the rows' WRONG\" determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R1 independent omission rows",
+    "source": "'the rows' values' determine the tenants' balances",
+    "quote": "\"the rows values\" determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion rows",
+    "source": "\"the rows values\" determine the tenants' balances",
+    "quote": "'the rows' values' determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent omission tenants",
+    "source": "'the rows' values' determine the tenants' balances",
+    "quote": "\"the rows' values\" determine the tenants balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion tenants",
+    "source": "\"the rows' values\" determine the tenants balances",
+    "quote": "'the rows' values' determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 following possessive",
+    "source": "\"the rows' values\" determine the tenants' balances",
+    "quote": "'the rows' values' determine the tenants' balances",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 same style",
+    "source": "\"the rows' values\" determine the tenants' balances",
+    "quote": "\"the rows' values\" determine the tenants' balances",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 enclosed wording",
+    "source": "\"the rows' values\" determine the tenants' balances",
+    "quote": "'the rows' WRONG' determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R1 independent omission rows",
+    "source": "\"the rows' values\" determine the tenants' balances",
+    "quote": "'the rows values' determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion rows",
+    "source": "'the rows values' determine the tenants' balances",
+    "quote": "\"the rows' values\" determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent omission tenants",
+    "source": "\"the rows' values\" determine the tenants' balances",
+    "quote": "'the rows' values' determine the tenants balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion tenants",
+    "source": "'the rows' values' determine the tenants balances",
+    "quote": "\"the rows' values\" determine the tenants' balances",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 following possessive",
+    "source": "'Succeeds' and 'Fails' means the deposits' addresses are gone",
+    "quote": "\"Succeeds\" and \"Fails\" means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 same style",
+    "source": "'Succeeds' and 'Fails' means the deposits' addresses are gone",
+    "quote": "'Succeeds' and 'Fails' means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 enclosed wording",
+    "source": "'Succeeds' and 'Fails' means the deposits' addresses are gone",
+    "quote": "\"WRONG\" and \"Fails\" means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R1 independent omission deposits",
+    "source": "'Succeeds' and 'Fails' means the deposits' addresses are gone",
+    "quote": "\"Succeeds\" and \"Fails\" means the deposits addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion deposits",
+    "source": "\"Succeeds\" and \"Fails\" means the deposits addresses are gone",
+    "quote": "'Succeeds' and 'Fails' means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 following possessive",
+    "source": "\"Succeeds\" and \"Fails\" means the deposits' addresses are gone",
+    "quote": "'Succeeds' and 'Fails' means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 same style",
+    "source": "\"Succeeds\" and \"Fails\" means the deposits' addresses are gone",
+    "quote": "\"Succeeds\" and \"Fails\" means the deposits' addresses are gone",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 enclosed wording",
+    "source": "\"Succeeds\" and \"Fails\" means the deposits' addresses are gone",
+    "quote": "'WRONG' and 'Fails' means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R1 independent omission deposits",
+    "source": "\"Succeeds\" and \"Fails\" means the deposits' addresses are gone",
+    "quote": "'Succeeds' and 'Fails' means the deposits addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R1 independent insertion deposits",
+    "source": "'Succeeds' and 'Fails' means the deposits addresses are gone",
+    "quote": "\"Succeeds\" and \"Fails\" means the deposits' addresses are gone",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 nested pairs",
+    "source": "'a \"the rows' values\" clause remains'",
+    "quote": "\"a 'the rows' values' clause remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 same style",
+    "source": "'a \"the rows' values\" clause remains'",
+    "quote": "'a \"the rows' values\" clause remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 enclosed wording",
+    "source": "'a \"the rows' values\" clause remains'",
+    "quote": "\"a 'the rows' WRONG' clause remains\"",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R2 possessive omission",
+    "source": "'a \"the rows' values\" clause remains'",
+    "quote": "\"a 'the rows values' clause remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 possessive insertion",
+    "source": "\"a 'the rows values' clause remains\"",
+    "quote": "'a \"the rows' values\" clause remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 nested pairs",
+    "source": "\"a 'the rows' values' clause remains\"",
+    "quote": "'a \"the rows' values\" clause remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 same style",
+    "source": "\"a 'the rows' values' clause remains\"",
+    "quote": "\"a 'the rows' values' clause remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 enclosed wording",
+    "source": "\"a 'the rows' values' clause remains\"",
+    "quote": "'a \"the rows' WRONG\" clause remains'",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R2 possessive omission",
+    "source": "\"a 'the rows' values' clause remains\"",
+    "quote": "'a \"the rows values\" clause remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R2 possessive insertion",
+    "source": "'a \"the rows values\" clause remains'",
+    "quote": "\"a 'the rows' values' clause remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 exact elision",
+    "source": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 elision wording",
+    "source": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quote … WRONG is false\", and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R3 exact possessive elision",
+    "source": "the price is \"an indicative quotes' … binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quotes' … binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 possessive omission",
+    "source": "the price is \"an indicative quotes' … binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quotes … binding is false\", and the auction channel",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 possessive insertion",
+    "source": "the price is \"an indicative quotes … binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quotes' … binding is false\", and the auction channel",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 exact elision",
+    "source": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 elision wording",
+    "source": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quote ... WRONG is false\", and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R3 exact possessive elision",
+    "source": "the price is \"an indicative quotes' ... binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quotes' ... binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 possessive omission",
+    "source": "the price is \"an indicative quotes' ... binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quotes ... binding is false\", and the auction channel",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R3 possessive insertion",
+    "source": "the price is \"an indicative quotes ... binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quotes' ... binding is false\", and the auction channel",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R4 balanced partial doubles",
+    "source": "\"alpha beta\" and then \"gamma delta\"",
+    "quote": "alpha beta\" and then \"gamma",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R4 partial wording",
+    "source": "\"alpha beta\" and then \"gamma delta\"",
+    "quote": "alpha WRONG\" and then \"gamma",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R4 inserted possessive",
+    "source": "\"alpha beta\" and then \"gamma delta\"",
+    "quote": "alpha beta'\" and then \"gamma",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R4 omitted possessive",
+    "source": "\"alpha beta'\" and then \"gamma delta\"",
+    "quote": "alpha beta\" and then \"gamma",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "the price is 'an indicative quote … binding is false', and the auction channel",
+    "quote": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "the price is 'an indicative quote … binding is false', and the auction channel",
+    "quote": "the price is 'an indicative quote … binding is false', and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "the price is 'an indicative quote … binding is false', and the auction channel",
+    "quote": "the price is \"an indicative quote … binding is WRONG\", and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "quote": "the price is 'an indicative quote … binding is false', and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "the price is \"an indicative quote … binding is false\", and the auction channel",
+    "quote": "the price is 'an indicative quote … binding is WRONG', and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "'a \"the rows' values\" clause … remains'",
+    "quote": "\"a 'the rows' values' clause … remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "'a \"the rows' values\" clause … remains'",
+    "quote": "'a \"the rows' values\" clause … remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "'a \"the rows' values\" clause … remains'",
+    "quote": "\"a 'the rows' WRONG' clause … remains\"",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 possessive omission",
+    "source": "'a \"the rows' values\" clause … remains'",
+    "quote": "\"a 'the rows values' clause … remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 possessive insertion",
+    "source": "\"a 'the rows values' clause … remains\"",
+    "quote": "'a \"the rows' values\" clause … remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "\"a 'the rows' values' clause … remains\"",
+    "quote": "'a \"the rows' values\" clause … remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "\"a 'the rows' values' clause … remains\"",
+    "quote": "\"a 'the rows' values' clause … remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "\"a 'the rows' values' clause … remains\"",
+    "quote": "'a \"the rows' WRONG\" clause … remains'",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 possessive omission",
+    "source": "\"a 'the rows' values' clause … remains\"",
+    "quote": "'a \"the rows values\" clause … remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 possessive insertion",
+    "source": "'a \"the rows values\" clause … remains'",
+    "quote": "\"a 'the rows' values' clause … remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "the price is 'an indicative quote ... binding is false', and the auction channel",
+    "quote": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "the price is 'an indicative quote ... binding is false', and the auction channel",
+    "quote": "the price is 'an indicative quote ... binding is false', and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "the price is 'an indicative quote ... binding is false', and the auction channel",
+    "quote": "the price is \"an indicative quote ... binding is WRONG\", and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "quote": "the price is 'an indicative quote ... binding is false', and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "the price is \"an indicative quote ... binding is false\", and the auction channel",
+    "quote": "the price is 'an indicative quote ... binding is WRONG', and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "'a \"the rows' values\" clause ... remains'",
+    "quote": "\"a 'the rows' values' clause ... remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "'a \"the rows' values\" clause ... remains'",
+    "quote": "'a \"the rows' values\" clause ... remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "'a \"the rows' values\" clause ... remains'",
+    "quote": "\"a 'the rows' WRONG' clause ... remains\"",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 possessive omission",
+    "source": "'a \"the rows' values\" clause ... remains'",
+    "quote": "\"a 'the rows values' clause ... remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 possessive insertion",
+    "source": "\"a 'the rows values' clause ... remains\"",
+    "quote": "'a \"the rows' values\" clause ... remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "\"a 'the rows' values' clause ... remains\"",
+    "quote": "'a \"the rows' values\" clause ... remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "\"a 'the rows' values' clause ... remains\"",
+    "quote": "\"a 'the rows' values' clause ... remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "\"a 'the rows' values' clause ... remains\"",
+    "quote": "'a \"the rows' WRONG\" clause ... remains'",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 possessive omission",
+    "source": "\"a 'the rows' values' clause ... remains\"",
+    "quote": "'a \"the rows values\" clause ... remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 possessive insertion",
+    "source": "'a \"the rows values\" clause ... remains'",
+    "quote": "\"a 'the rows' values' clause ... remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "the price is 'an indicative quote and binding is false', and the auction channel",
+    "quote": "the price is \"an indicative quote and binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "the price is 'an indicative quote and binding is false', and the auction channel",
+    "quote": "the price is 'an indicative quote and binding is false', and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "the price is 'an indicative quote and binding is false', and the auction channel",
+    "quote": "the price is \"an indicative quote and binding is WRONG\", and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "the price is \"an indicative quote and binding is false\", and the auction channel",
+    "quote": "the price is 'an indicative quote and binding is false', and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "the price is \"an indicative quote and binding is false\", and the auction channel",
+    "quote": "the price is \"an indicative quote and binding is false\", and the auction channel",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "the price is \"an indicative quote and binding is false\", and the auction channel",
+    "quote": "the price is 'an indicative quote and binding is WRONG', and the auction channel",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "'a \"the rows' values\" clause and remains'",
+    "quote": "\"a 'the rows' values' clause and remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "'a \"the rows' values\" clause and remains'",
+    "quote": "'a \"the rows' values\" clause and remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "'a \"the rows' values\" clause and remains'",
+    "quote": "\"a 'the rows' WRONG' clause and remains\"",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 possessive omission",
+    "source": "'a \"the rows' values\" clause and remains'",
+    "quote": "\"a 'the rows values' clause and remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 possessive insertion",
+    "source": "\"a 'the rows values' clause and remains\"",
+    "quote": "'a \"the rows' values\" clause and remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 elision pairs",
+    "source": "\"a 'the rows' values' clause and remains\"",
+    "quote": "'a \"the rows' values\" clause and remains'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 same style",
+    "source": "\"a 'the rows' values' clause and remains\"",
+    "quote": "\"a 'the rows' values' clause and remains\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 enclosed wording",
+    "source": "\"a 'the rows' values' clause and remains\"",
+    "quote": "'a \"the rows' WRONG\" clause and remains'",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R5 possessive omission",
+    "source": "\"a 'the rows' values' clause and remains\"",
+    "quote": "'a \"the rows values\" clause and remains'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 possessive insertion",
+    "source": "'a \"the rows values\" clause and remains'",
+    "quote": "\"a 'the rows' values' clause and remains\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 shared edge",
+    "source": "'remain delta \"rows gamma\"' gone now",
+    "quote": "\"remain delta 'rows gamma'\" gone now",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 same style",
+    "source": "'remain delta \"rows gamma\"' gone now",
+    "quote": "'remain delta \"rows gamma\"' gone now",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 enclosed wording",
+    "source": "'remain delta \"rows gamma\"' gone now",
+    "quote": "\"remain delta 'WRONG gamma'\" gone now",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R6 shared edge",
+    "source": "\"remain delta 'rows gamma'\" gone now",
+    "quote": "'remain delta \"rows gamma\"' gone now",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 same style",
+    "source": "\"remain delta 'rows gamma'\" gone now",
+    "quote": "\"remain delta 'rows gamma'\" gone now",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 enclosed wording",
+    "source": "\"remain delta 'rows gamma'\" gone now",
+    "quote": "'remain delta \"WRONG gamma\"' gone now",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R6 shared edge",
+    "source": "'a clause \"the rows' values\"' remains here",
+    "quote": "\"a clause 'the rows' values'\" remains here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 same style",
+    "source": "'a clause \"the rows' values\"' remains here",
+    "quote": "'a clause \"the rows' values\"' remains here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 enclosed wording",
+    "source": "'a clause \"the rows' values\"' remains here",
+    "quote": "\"a clause 'the WRONG' values'\" remains here",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R6 possessive omission",
+    "source": "'a clause \"the rows' values\"' remains here",
+    "quote": "\"a clause 'the rows values'\" remains here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 possessive insertion",
+    "source": "\"a clause 'the rows values'\" remains here",
+    "quote": "'a clause \"the rows' values\"' remains here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 shared edge",
+    "source": "\"a clause 'the rows' values'\" remains here",
+    "quote": "'a clause \"the rows' values\"' remains here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 same style",
+    "source": "\"a clause 'the rows' values'\" remains here",
+    "quote": "\"a clause 'the rows' values'\" remains here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 enclosed wording",
+    "source": "\"a clause 'the rows' values'\" remains here",
+    "quote": "'a clause \"the WRONG' values\"' remains here",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R6 possessive omission",
+    "source": "\"a clause 'the rows' values'\" remains here",
+    "quote": "'a clause \"the rows values\"' remains here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 possessive insertion",
+    "source": "'a clause \"the rows values\"' remains here",
+    "quote": "\"a clause 'the rows' values'\" remains here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 shared edge",
+    "source": "'\"the rows' values\" clause remains' here",
+    "quote": "\"'the rows' values' clause remains\" here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 same style",
+    "source": "'\"the rows' values\" clause remains' here",
+    "quote": "'\"the rows' values\" clause remains' here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 enclosed wording",
+    "source": "'\"the rows' values\" clause remains' here",
+    "quote": "\"'the WRONG' values' clause remains\" here",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R6 possessive omission",
+    "source": "'\"the rows' values\" clause remains' here",
+    "quote": "\"'the rows values' clause remains\" here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 possessive insertion",
+    "source": "\"'the rows values' clause remains\" here",
+    "quote": "'\"the rows' values\" clause remains' here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 shared edge",
+    "source": "\"'the rows' values' clause remains\" here",
+    "quote": "'\"the rows' values\" clause remains' here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 same style",
+    "source": "\"'the rows' values' clause remains\" here",
+    "quote": "\"'the rows' values' clause remains\" here",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 enclosed wording",
+    "source": "\"'the rows' values' clause remains\" here",
+    "quote": "'\"the WRONG' values\" clause remains' here",
+    "accepted": false,
+    "exists_ok": false
+  },
+  {
+    "name": "R6 possessive omission",
+    "source": "\"'the rows' values' clause remains\" here",
+    "quote": "'\"the rows values\" clause remains' here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 possessive insertion",
+    "source": "'\"the rows values\" clause remains' here",
+    "quote": "\"'the rows' values' clause remains\" here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 independent reordered pair fragments",
+    "source": "'alpha first rows' values second omega'",
+    "quote": "\"alpha … second … first rows' values … omega\"",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 reordered possessive omission",
+    "source": "'alpha first rows' values second omega'",
+    "quote": "\"alpha … second … first rows values … omega\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 reordered possessive insertion",
+    "source": "'alpha first rows values second omega'",
+    "quote": "\"alpha … second … first rows' values … omega\"",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 independent reordered pair fragments",
+    "source": "\"alpha first rows' values second omega\"",
+    "quote": "'alpha … second … first rows' values … omega'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 reordered possessive omission",
+    "source": "\"alpha first rows' values second omega\"",
+    "quote": "'alpha … second … first rows values … omega'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R5 reordered possessive insertion",
+    "source": "\"alpha first rows values second omega\"",
+    "quote": "'alpha … second … first rows' values … omega'",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 adjacent stray omission",
+    "source": "\"the rows values\"' remain here",
+    "quote": "\"the rows values\" remain here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 adjacent stray insertion",
+    "source": "\"the rows values\" remain here",
+    "quote": "\"the rows values\"' remain here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 adjacent stray omission",
+    "source": "'\"the rows values\" remain here",
+    "quote": "\"the rows values\" remain here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 adjacent stray insertion",
+    "source": "\"the rows values\" remain here",
+    "quote": "'\"the rows values\" remain here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 adjacent stray omission",
+    "source": "\"the rows values\"'' remain here",
+    "quote": "\"the rows values\" remain here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "R6 adjacent stray insertion",
+    "source": "\"the rows values\" remain here",
+    "quote": "\"the rows values\"'' remain here",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "trailing candidate edge",
+    "source": "watch only the rows' values remain positive",
+    "quote": "watch only the rows",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "exact trailing candidate edge",
+    "source": "watch only the rows' values remain positive",
+    "quote": "watch only the rows'",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "leading candidate edge",
+    "source": "watch only the rows' values remain positive",
+    "quote": "' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "inserted edge apostrophe",
+    "source": "the rows values remain positive",
+    "quote": "'the rows values remain positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "substring reach",
+    "source": "the rows' values remain positive",
+    "quote": "ows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "later valid candidate",
+    "source": "the rows values remain positive; the rows' values remain positive",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "double wrapper prefix",
+    "source": "\"the rows' values remain positive\"",
+    "quote": "the rows' values remain",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "double wrapper suffix",
+    "source": "\"prefix the rows' values remain positive\"",
+    "quote": "the rows' values remain positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "independent elisions",
+    "source": "balances stay positive; watch only the rows' values",
+    "quote": "watch only the rows' ... balances stay positive",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "elision edge omission",
+    "source": "watch only the rows' values; balances stay positive",
+    "quote": "watch only the rows ... balances stay positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "elision insertion",
+    "source": "watch only the rows values; balances stay positive",
+    "quote": "watch only the rows' … balances stay positive",
+    "accepted": false,
+    "exists_ok": true
+  },
+  {
+    "name": "delimiter content length limit",
+    "source": "'rows values remain xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+    "quote": "rows values remain xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "accepted": true,
+    "exists_ok": true
+  },
+  {
+    "name": "delimiter content length limit",
+    "source": "\"rows values remain xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"",
+    "quote": "rows values remain xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "accepted": true,
+    "exists_ok": true
+  }
+]

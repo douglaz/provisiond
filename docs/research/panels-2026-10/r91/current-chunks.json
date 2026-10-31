@@ -1,0 +1,2018 @@
+[
+  {
+    "file": "00-overview.md",
+    "text": "**It is not the row above**: `STO-43` says `STO-14` \"reaches **settled operations** and nothing else\", so closed cases, statement bodies and `machine_addresses` run on ages of their own."
+  },
+  {
+    "file": "00-overview.md",
+    "text": "`OPS-50` says \"the engine MUST log loudly that it was superseded and exit non-zero at once\"; `OPS-15` says \"On that timeout or any store error, including a lost reply on its commit, the engine MUST log loudly and exit non-zero having claimed nothing\"."
+  },
+  {
+    "file": "00-overview.md",
+    "text": "| Stop-record bound | `OPS-21` | finite, positive duration; `OPS-21` says \"The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets.\""
+  },
+  {
+    "file": "00-overview.md",
+    "text": "Classification and resolution remain with `OPS-11`, `PRV-5` and `PRV-36`; `OPS-12`'s\n\"MUST NOT automatically retry an ambiguous mutation under any other name\" still applies."
+  },
+  {
+    "file": "01-domain-model.md",
+    "text": "`API-50` says \"Every `429` MUST identify an exhausted principal allowance as `ceiling_exceeded`\", and `503` was\nchosen over that because an intermediary reads `429` as the caller's doing and `503` as the\nserver's, which is what this is; and it is not `halted`, which `WIR-9a` reserves for the solvency\nand rate gates."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "Other mutations need no correlator:\n`PRV-26` says \"This applies to create and to nothing else.\""
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`OPS-11` says\n\"Any create failure the worker records before any step-9 request (before any per-order key upload\nor order request) MUST settle `failed`, whatever its kind\" and \"The commitment is released in full\nunder `LDG-32` … with no setup-fee or first-unit debit\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`PRV-13c` says \"The required shape is read-and-branch: order, then **read**\nthe provider's per-machine cancellation constraint.\""
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "In this requirement, a traffic bound is declared for an offer exactly when the descriptor's\n`traffic_bound` entry for that offer is non-null, or that entry is explicit `null` and the\noffer reports a non-null `traffic_bound`: `PRV-44` says \"Like `cancellation_bound`, it MAY\nbe reported on the offer instead\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "The criterion is `PRV-29`'s \"bound the time after which its evidence is truthful\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`OPS-39`'s \"pacing MAY delay such a cancellation\nbriefly\" is what this term prices; *briefly* is the install's length, and the reserve must say so."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`PRV-13c`'s \"materially in the future\", defined as *now + one re-derivation period + wind-down*,\n  would swallow every cancellation date inside about thirty days into the ordinary path, deleting\n  the `DOM-19`/`LDG-63` exception branch for exactly the products it was written for;"
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "*Hourly is the sensible default*, which\nmakes `PRV-13c`'s \"materially in the future\" a few hours plus wind-down, and `runway_until` never\nmore than an hour stale."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`LDG-16` says both that \"no single rate observation moves the rate outside the\nrange the window's other observations carry\" and that \"a plausible price carried by half the window\ncan move the rate to itself\" — both consequences of the rate being `LDG-58`'s lower median over its\nwindow, and `LDG-16` owns the promise they keep."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`PRV-13` says \"a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone\" and \"For a future earliest date, cost through that date runs to the end of its provider-local day\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`PRV-13` says \"MUST NOT issue `GET /server/{n}/cancellation` as a pre-read in that cancellation\ndispatch path.\""
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`OPS-27` says \"the first row\nMUST be confirmed by a direct read before it attaches anything\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "For pricing a null column, `LDG-33` says \"or, where `machines.earliest_cancellation_date` is null, through `machines.declared_cancellation_bound`\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "Absorbing the failure MUST NOT suppress `PRV-5`'s \"raise a monitorable alarm naming the\nprovider account and request path\" where its trigger applies."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "Its result MUST be retained through whole-transaction repeats:\n`OPS-49` says \"with the provider's outcome retained in memory\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "On interruption by engine exit or crash (`OPS-15`), the worker's read MUST be discarded with\nthe rest of its outcome; `OPS-49` says \"the outcome in hand is thrown away\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "A settlement with no confirming read — the operator's synchronous `observed` attach\n(`WIR-35`'s \"attaches a discovered resource (`OPS-27`)\") — MUST make no post-order read and\nMUST store the date as null; this is the exception to the committing settlement pass's read."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`OPS-32` says \"The sweep MUST also visit attachments of every machine still retained by\n`STO-18`\" and owns the complete-pass, direct-read and observation transaction."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "Later responses remain subject to `PRV-20`'s\n\"Refresh MUST NOT downgrade a session\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "A Robot throttled end-rescue call raises\n`PRV-5`'s \"every Robot `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the\nprovider account and request path\" alarm."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`DOM-10` maps `install, provider_catalogue` to `install_via_provider_catalogue`, `ADR-0013`\nand `RSC-39`–`RSC-43` specify the feature in full, and the only install-shaped operation in this\ndocument was *Rebuild*, whose capability is `native_rebuild` — so a driver declaring the catalogue\ncapability had nothing to implement and `DOM-15`'s \"declaration and implementation MUST agree\" was\nunsatisfiable in one direction."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "For a request that reaches the provider,\nclassification remains under `OPS-11`: \"On failure, the system MUST classify the error\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`OPS-32`'s\naccount sweep MUST therefore cover every channel too; it is the only thing that would ever find it,\nand `LDG-74` says \"The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence\" — here it bounds the mirror case, a machine nobody is billed for at all."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "The declaration documents capacity; Robot's reported `403 RATE_LIMIT_EXCEEDED` raises\n`PRV-5`'s \"every Robot `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the\nprovider account and request path\" alarm."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "`PRV-5` says \"every Robot\n`403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider account and\nrequest path\"; that alarm may\ninclude the ordering channel."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "Its commitment MUST be released in full under `LDG-39`'s\n\"Deterministic rejection before acceptance\" case; no setup or first-unit charge is\ndebited for an order the provider never accepted."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "If the claim fails, the create MUST use\n`API-7`'s \"ordinary HTTP `409 conflict`/`state` error with `retryable: false`, no\n`details.refusals`, no synthesized pacing or `Retry-After`, and no commitment,\noperation or receipt\" resource-offer guard response."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The engine MUST run as exactly one process under an external\nsupervisor that retries startup subject to `STO-55` admission and never runs two (`STO-55`:\n\"Startup acquisition refusal exits for supervisor retry\")."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"Where the values differ, the transaction MUST roll back\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"MUST read `STO-59`'s row `FOR SHARE` as its first statement\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50`\nsays \"MUST read `STO-59`'s row `FOR SHARE` as its first statement\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"compare it for equality with the value the engine's own startup pass wrote\" and \"Where the values differ, the transaction MUST roll back\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The settle write keeps the ordinary worker guard (`STO-3`; `OPS-6`: \"every write that worker makes to the operation MUST carry `claim_number = mine`\"), with no `about_to_order_at IS NULL` term."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Settlement takes the `LDG-35` primitive, then follows `STO-3`: \"The guarded status write precedes every money write in the transaction and short-circuits the rest\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Where the create holds a resource-offer exclusion, it is freed under `STO-58`: \"Its lifetime follows the winning create's outcome settlement\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A restart in that same window takes the ordinary path (`OPS-15`: \"the engine MUST move every `running` operation to `needs_reconciliation`\"), since the column is set.*"
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-22` says \"Failure of end\nrescue is *always* ambiguous\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Unknown acceptance follows `PRV-5`'s\n\"MUST report `details.accepted: null` with the mutating request's own failure mapped as above\",\nnever an implicit default."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-13c` says \"A failed\npost-order read of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and\nMUST NOT change the create's settlement.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"MUST read `STO-59`'s row `FOR SHARE`\nas its first statement, compare it for equality with the value the engine's own startup pass\nwrote\" and \"Where the values differ, the transaction MUST roll back\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"Except for `OPS-15`'s generation-advance transaction\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "**Liveness:** a `SyncRep` holder (`STO-7`: \"A\nstandby wait has no server-side timeout\"), or share holders that keep turning over, can hold the\nadvance until that exit, which `OVR-18` alarms; the supervisor's restart is the retry."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-49` says \"Where a store call by a worker, or by a periodic component running in the engine\nprocess (`OVR-17`), errors or times out\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"hold that lock until it commits\" and\n\"Where the values differ, the transaction MUST roll back\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OVR-18` says \"its startup exit on\nthe generation advance's timeout (`OPS-15`)\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`STO-54` says \"a process that starts while a restore record is open is continuing that\nincident, not restarting\", so the successor of a process that died inside the procedure takes the\nrestore branch, with the rest of the procedure it inherits."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-5` says a `running` operation \"stays claimed until it settles, defers under `OPS-8`, or the\nstartup pass finds it (`OPS-15`)\", and a dead worker does neither of the first two."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "An error already recorded stays:\n`OPS-16` says the sweeper \"fills in an error only where none exists\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "This is not an `OPS-11` classification: `OPS-45` says\n\"an operation interrupted rather than classified is `OPS-15`'s\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Only if the status write affects a row MUST the same transaction close and release\nthe commitment in full — `LDG-32`'s \"the create fails deterministically\" — under `LDG-39`'s\n\"Deterministic rejection before acceptance\" row, never debited, and free the resource-offer\nexclusion (`STO-58`)."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-47` says \"The lock is not a\nfence\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "At every entry point to the landed-order transaction above, that transaction MUST include\nthe column write with the machine row: `PRV-13c` says \"The landed-order transaction MUST write the date of a successful read the committing pass holds, otherwise null, in `machines.earliest_cancellation_date` with the machine row\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-13c` says \"The system MUST record the date of the committing pass's successful post-order read in `machines.earliest_cancellation_date`\", \"An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it to that column\" and \"After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-13c` says \"once, when the create settles, after `OPS-27`'s confirming read\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`WIR-30` says an offer price is \"an indicative quote\n… `binding` is `false`\", and the auction channel is a live market with other bidders in it, so the\nprovider's own price can move in that window — which on the dedicated product can be long, since\n`OPS-33` records that robot-style orders poll through an `in process` state with no documented\nbound."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The inputs are the descriptor the worker runs with\n(`PRV-44`: \"The descriptor is a typed, immutable value\") and one current driver List offers\nresult taken at claim."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "If the status\n   is not `healthy`, fail `conflict`, with `API-63`'s “`details.reason: \"account_terminated\"`\n   where the status is `terminated` and `\"state\"` for the two recoverable statuses, since\n   presenting an unreachable account as a permanent termination is false, and with\n   `retryable: false` for `\"account_terminated\"` and `retryable: true` for `\"state\"` on both the\n   error and the operation view”."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Make no\n   provider request and release the commitment in full under `LDG-39`'s \"Deterministic rejection\n   before acceptance\" case."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Read the stored channel closure (`PRV-40`: \"the worker MUST read the stored closure for that\n   account and ordering channel when it claims the operation (`OPS-5`), before any provider\n   request, including a per-order key upload\")."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Repeat boundary validation under `OPS-23`: \"Validation that was performed at the API boundary\n   MUST be repeated in the worker before the driver is called\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "This includes `PRV-10`'s\n   \"explicit purchase acknowledgement\", `PRV-8`'s \"at least one SSH public key\", the missing-field\n   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is\n   `PRV-10`'s \"the account is configured to allow ordering\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "In this same transaction, on every ordering channel, including `correlator: none`, the worker\n   MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`\n   guarded on `(id, status = running, claim_number = mine)` (`STO-3`; `OPS-6`:\n   \"every write that worker makes to the operation MUST carry `claim_number = mine`\")."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "This differs\n   from the zero-row `STO-47` check above, of which `API-63` says \"where it affects no row MUST\n   fail the operation deterministically\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The create still settles `failed`\n   under `OPS-11`'s create row: `OPS-11` says \"Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A lost acknowledgement\n   MUST take `OPS-49`'s \"repeat the **whole transaction**\" path, never speculative dispatch."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Here **per-order key upload** means every\n   temporary key registration required for this create (`PRV-9`: \"the driver MUST register and\n   attach them as temporary provider-side resources\")."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The order differs from admission: a create both closed and unsellable\nfails `rate_limited` at claim (`PRV-40`: \"If the channel is closed at that read, the worker MUST\nmake no provider request and settle the existing operation `failed` with `rate_limited`\") but\n`offer_not_sellable` at admission, where `API-7` orders \"`invalid_request`/`offer_not_sellable`\"\nbefore \"`rate_limited` when the offer's account and ordering channel are closed under `PRV-40`\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-42` says \"a missing offer MUST NOT be ordered\"; for an offer absent from that result, the\nworker MUST NOT perform any step-9 provider mutation either, including a per-order key\nupload."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-11` says \"Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The error is `WIR-9`'s inner object under `WIR-10b`; `WIR-9` says \"The inner\n`error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is\nthe object `WIR-10b` embeds in an operation view\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Its details obey `WIR-9a`'s \"no cap or balance result or amount derived from the\nwithheld offer's price\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The commitment is released in full under `LDG-39`'s\n\"Deterministic rejection before acceptance\" case — before provider acceptance — with no setup\nfee or first unit debited: that row says \"**Never debited**; released with the commitment\n(`LDG-32`)\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Where the create holds a resource-offer exclusion, settlement frees it (`STO-58`: \"Its lifetime\nfollows the winning create's outcome settlement\"; `PRV-42`: \"An unresolved create retains the\nclaim until its outcome is known\")."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The deferral is the write `OPS-49` gives a waiting parent — `OPS-49` says it is \"the same\nwrite as `OPS-8`'s defer, though nothing refused it\", in a bullet `OPS-49` marks as `F51`'s."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-8`\nitself covers an index refusal and a short delay — `OPS-8` says a refused claim \"MUST return the\noperation to `queued` with a short delay\" — which is why this paragraph states its own scope and\nduration rather than citing it."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`STO-56` owns incident\nclosure; `STO-54` says \"the freeze lifts at `grace_ends_at`\"; the paused portion does not extend it."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-36` says of this branch \"This is the branch that makes\n`OPS-33`'s early release safe\", so the release was resting on a path that could not deliver."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "For the survived-stop record see `OPS-21`: \"A cancellation of `execute` that the engine survives MUST be recorded before the engine exits\"; for the pre-fence conformance prefix see `CNF-312`."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The gone-write row keys on the **machine's** gone-write and never on the\naccount's status: a machine `OPS-36` attaches under a terminated account has been observed present,\ncarries no gone-write, and its cleanup episode goes `stalled` — `API-63`: \"That is the honest end\nfor it\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A throttle refusing the mutation before\nacceptance is `failed` and stalls the episode;\na later failure of an accepted mutation follows `OPS-11`'s\n\"the operation's mutating request was accepted by the provider\" condition."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`DOM-19` says \"Passing the date\nalone is no evidence of absence.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "On\nthe scheduled branch that is also the right answer on its own terms: runway bought past an\neffective cancellation date buys no customer-metered machine time, since `LDG-38` says\n\"the earlier of its `effective_cancellation_date` and any gone observation\" is the stop."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The machine may remain present after that date; `LDG-74` says \"A machine **still present after\nits date** has its meter stopped and is billing the operator\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A worker-recorded failure also settles a create under `OPS-11`'s create row, reading neither the column nor a marker, even when the column is set (after step 8 is acknowledged or after a lost step-8 reply): `OPS-11` says \"Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The sweep's listing is a read of provider state, and `PRV-36`\nreads \"a read of provider state is not authoritative about a mutation the driver issued until that\nprovider's effective visibility window has elapsed\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Binding absence detection to it would let a machine the provider terminated in its first\nhours go on billing its customer for that whole window, while `LDG-74` says \"The stated interval bounds only the scheduled wait to a pass; a complete pass and successful direct confirmation then establish absence\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`LDG-74` is why the write exists at all: `DOM-8` says\n\"`OPS-32`'s account sweep reads each provider account independently of any caller and MUST\nwrite what it saw (state, and `machines.state_observed_at`, `STO-48`)\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-9` says \"A vanished operation record satisfies only the settlement condition; the sweep MUST still check the provisioning condition against retained `machines` rows.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"MUST read `STO-59`'s row `FOR SHARE` as its first statement\" and \"Where\nthe values differ, the transaction MUST roll back\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A kill or crash records nothing; at the next start, `OPS-15` says \"the engine\nMUST move every `running` operation to `needs_reconciliation`\", subject to its exceptions."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A transaction already sent MAY finish, since `OPS-49` says \"the server decides\nevery statement's fate before the client does\"; the worker MUST NOT repeat it or begin anything\nit precedes, and makes the record."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The sent transaction's fate is the server's: `OPS-49` says \"the server decides every statement's fate before the client does\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "For the retry-loop exit, `OPS-49` says \"A worker cancelled during the retry loop stops retrying and exits\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Its store-error exit also classifies nothing: `OPS-49` says \"on exhaustion the outcome in hand is\nthrown away and `OPS-15` classifies the row as interrupted\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A loss of the connection carrying `OPS-47`'s startup lock is not a later stop: `OPS-47` says\n“treat the loss as a stop of every worker not already recording one”."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says “A\nrefused generation check ends recording without another attempt; an earlier attempt may already\nhave committed with its reply lost.”"
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "This includes the repeats of which `OPS-49` says \"do not consume the bound\"; that bound is the\nStore-retry bound, independent of this one."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "For the lost-reply case see `OPS-49`: \"unless the bound's last\nrepeat committed and its reply was lost\"; a row still `running` goes to restart recovery as\nafter a crash."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-13c` says \"A failed post-order\nread of any kind, `rate_limited` included, MUST NOT enter `OPS-11`'s classifier and MUST NOT\nchange the create's settlement.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-13` says \"If the machine remains present, or this read\nfails for any reason including throttle, authentication, network error or deadline expiry, the\naccepted attempt settles `succeeded` as `cancellation_scheduled` with its effective date.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"the engine MUST log loudly that it was superseded and exit non-zero at once\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"the engine MUST log\nloudly that it was superseded and exit non-zero at once\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-50` says \"A mismatch is not a store error (`OPS-49`) and is never repeated.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "An attempt denied by `STO-55` admission is a store error for this loop and sends no SQL\n(`STO-55`: \"worker/periodic acquisition refusal is an `OPS-49` store error\")."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The claim's returned row is the\n  only way the engine learns what it claimed; a claim repeated after a lost reply strands a\n  `running` row with no worker, which `OPS-15` says \"nothing but a restart can\" do."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-21` says \"A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-21` says \"The record write MUST NOT be cancelled by the cancellation that stopped `execute`.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A stop during a loop inside `execute` is that cancellation, not this exit: `OPS-21` says \"A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "A first stop during an ordinary settle write's loop after `execute` returns is not this exit either: `OPS-21` says \"A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`OPS-47` says of a lost lock connection\n“The loss is not a later stop”: a worker repeating a record when the loss is seen keeps\nrepeating it."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "Except for `OPS-15`'s generation-advance transaction, every write\ntransaction made in the engine process — a claim (`OPS-5`), a worker's writes (`OPS-22`,\n`OPS-43` step 8, `OPS-45`'s markers, `OPS-42`'s machine-row writes), a settle or cut-off record\n(`OPS-21`), an `OPS-8` defer, every component `OVR-17` assigns to the engine, `OPS-27` and\n`OPS-32` included, and the `ledger` components `OVR-17` says \"run in the engine process\" — MUST\nread `STO-59`'s row `FOR SHARE` as its first statement, compare it for equality with the value\nthe engine's own startup pass wrote, and hold that lock until it commits."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "**What it does not cover:** a provider call licensed by a check that committed before `OPS-15`'s\nadvance goes out — step 9 after step 8 (`OPS-43`: \"Step 9 MUST begin only after step 8's\ntransaction is acknowledged\"), an install's destructive phase after one marker, end-rescue,\n`PRV-9`/`PRV-18` temporary-key deletion, `OPS-32` after its read."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "`PRV-41` says “A driver MUST therefore treat an `authentication` failure as terminal for that credential, MUST NOT re-attempt it on a schedule, and MUST surface it for an operator (`OPS-26`).”"
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "On a create they come at `OPS-43`'s\nstep 3, and `OPS-11` says \"Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.\""
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "On a create, the commitment is\nreleased in full under `LDG-39`'s \"Deterministic rejection before acceptance\" case, whose fee\nand first-unit outcome is \"**Never debited**; released with the commitment (`LDG-32`)\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The install settles `failed` with `disk_effect: \"none\"`\nand `rescue_exit: \"none\"` (`WIR-9a`: \"`none` where this operation is established to have written\nnothing to the target disk\" and \"`none` only where no rescue session was opened\")."
+  },
+  {
+    "file": "04-api-contract.md",
+    "text": "The cap and balance checks MUST NOT\nrun without a rate, nor for create against an unhealthy account or unsellable offer:\n`WIR-30` says \"an account whose\n`STO-47` status is not `healthy` `404`s on this route too\"."
+  },
+  {
+    "file": "04-api-contract.md",
+    "text": "**The synchronous endpoints are\nexactly these**, and they are the closed set of exemptions from `API-1`'s \"MUST return\n`202 Accepted` with an operation view\" — the set `OVR-4` names as the closed set of synchronous writes:"
+  },
+  {
+    "file": "04-api-contract.md",
+    "text": "The refresh and reverse-DNS endpoints retain `API-7`'s \"enqueue an operation, then `202`\"."
+  },
+  {
+    "file": "04-api-contract.md",
+    "text": "Together those are `API-62`'s \"MUST surface the affected tenants\", now\nanswered by the call that creates the situation rather than left for the operator to discover."
+  },
+  {
+    "file": "04-api-contract.md",
+    "text": "**A create claimed but not yet dispatched narrows the unreachable case to a dispatched order**:\nin `OPS-43`'s step 8, the correlator transaction (`PRV-26`: \"before the order is\nsent\"), where \"on every ordering channel, including `correlator: none`, the worker MUST set\n`operations.about_to_order_at`\" (`OPS-43`) — the last write before the ordering call — the worker MUST repeat the admission check as a\nconditional write on `STO-47`'s row guarded on `healthy`, and where it affects no row MUST fail the\noperation deterministically — `conflict`, with `details.reason: \"account_terminated\"` where the status is\n`terminated` and `\"state\"` for the two recoverable statuses, since presenting an unreachable\naccount as a permanent termination is false, and with `retryable: false` for `\"account_terminated\"`\nand `retryable: true` for `\"state\"` on both the error and the operation view (`WIR-9b`) — releasing its commitment,\nwith no provider mutation."
+  },
+  {
+    "file": "04-api-contract.md",
+    "text": "Interruption can instead leave the create\nunresolved (`OPS-15`: \"the engine MUST move every `running` operation to `needs_reconciliation`\"),\nexcept for the create exception (`OPS-15`: \"A create found `running` at startup with\n`about_to_order_at` null MUST be settled `failed`, on a restart only.\")."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "The second branch admits the row this same execution's write\n  already produced — the claim term is on both branches, since matching columns do not establish\n  matching execution — so a repeat after a lost reply (`OPS-49`) affects one row and changes\n  nothing; `revision` and `updated_at` advance only on the first branch, which keeps `API-53`'s\n  \"strictly increases on each client-visible modification\" true."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`OPS-50` says \"MUST read\n  `STO-59`'s row `FOR SHARE` as its first statement\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "This includes the create row's worker settlement (`OPS-11`: \"MUST settle `failed`, whatever its kind\"): take the `LDG-35` primitive, make this guarded status write, then release under `LDG-32` (\"A commitment MUST be closed, and its remaining amount released in full\")."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "**The startup pass** (`OPS-15`) moves every `running` operation to its startup state —\n  `needs_reconciliation`, or `failed` for a `refresh` (`ADR-0020`) and, on a restart,\n  for the create exception (`OPS-15`: \"A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.\")"
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`OPS-50` says \"MUST read `STO-59`'s row\n  `FOR SHARE` as its first statement, compare it for equality with the value the engine's own\n  startup pass wrote\" and \"Where the values differ, the transaction MUST roll back\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`OPS-15`\n  says \"every earlier engine's write either committed before it, and is swept here, or is refused\n  after it\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "It is guarded on the first branch alone (`OPS-43`: \"guarded on `(id, status = running,\nclaim_number = mine)`\"), and its `COALESCE` preserves a set value."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "A whole-transaction repeat after\na lost reply changes no column and advances neither `revision` nor `updated_at` (`OPS-43`: \"a\nwhole-transaction repeat after a lost reply affects one row and changes nothing\")."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`OPS-50` says \"compare it for equality with the value the engine's own startup pass wrote\" and \"Where the values differ, the transaction MUST roll back\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`OPS-15` says \"MUST contain only the replacement of `STO-59`'s startup generation\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`OPS-50` says \"compare it for equality with the value the engine's\nown startup pass wrote\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`STO-51` says \"The fence is `STO-59`'s generation (`OPS-50`).\""
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "That\nprocess is a single point of failure for every mechanism that stops a machine billing —\n`LDG-14`'s exhaustion cancellation, `SEC-45`'s one-action suspension and `OPS-32`'s account\nsweep, whose interval `LDG-74` says \"MUST be stated as a customer-billing residual\" — and the\nsupervisor's restart window is the accepted outage, alarmed under `OVR-18`."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "**A deployment MUST NOT run its store on an engine\nthat forbids a second `api` replica**, and the primitives the store provides for that are\n`STO-1`'s engine-checked atomic claim, `STO-51`'s per-machine index and startup lock, `STO-47`'s\nconditional write (`STO-27`), `STO-27`'s \"conditional-write claim on `(provider_account,\nordering_channel, offer_id)`\", and `LDG-35`'s per-tenant serialization."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "It is not `rate_limited`: `API-50` says an\n  obedient caller \"MUST never be throttled by the deployment's caller-throughput pacing\", and a full pool is the replica's condition,\n  not the caller's rate, so the decision is `503` rather than a non-rate `429`."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "Startup acquisition refusal exits for supervisor retry; `api` returns `overloaded` before any\n  transaction; worker/periodic acquisition refusal is an `OPS-49` store error (`OPS-49`: \"An\n  attempt denied by `STO-55` admission is a store error for this loop and sends no SQL\")."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`LDG-38`: \"The seconds are read from `machines.billing_unit_seconds`\", as the install gate reads `install_strategies`; `LDG-38` holds why the seed reads this copy and neither the create's snapshot nor the live offer."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`PRV-13c` says \"The system MUST record the date of the committing pass's successful post-order read in `machines.earliest_cancellation_date`\", \"An accepted cancellation's response (`PRV-13`) that carries the per-machine date MUST supply it to that column\" and \"After the committing pass's failed post-order read, the column MUST remain null until such a response supplies the date\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "**Written by re-derivation (`PRV-13e`), by an extension (`LDG-62`), by `OPS-41`'s no-mutation abort, and by a stalled-episode keep (`API-68`)** — `API-68`: \"write the `LDG-33` re-derived `runway_until` using the transaction's rate and clock\" (*list repaired 2026-10-08, `ADR-0033`*) — extension and abort added 2026-09-05, because the exhaustion sweep routes on this stored value and a transaction that re-derived a future date without writing it left the sweep routing the same machine every pass |"
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "Written in `API-63`'s correlator transaction, which is `OPS-43`'s step 8, after its step-4 List offers read and before the order (`PRV-26`: \"before the order is sent\"; `API-63`: \"the last write before the ordering call\"), and null for every operation kind other than create."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "The `provider_account` write retains `OPS-35`'s \"before any driver call\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`OPS-43`: \"MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "The read's caller publishes the result, outside the driver read: `PRV-50` says “The driver's List offers MUST be read-only under `PRV-12`'s guarantee: \"Get machine MUST be read-only and free of side effects\".”"
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "| `offers` | json | the driver's List offers result (`DOM-9`: \"Prices MUST be carried as strings exactly as the provider returned them.\")"
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "A channel closure is identified by provider account and ordering channel, with the\n  reported closure interval's end retained so admission and worker-at-claim readers\n  (`PRV-40`: \"retain a closure for the reported `interval`\") can calculate the\n  remaining closure."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "- A resource-offer exclusion is identified by provider account, ordering channel and\n  offer id, with the winning create operation's identity and unresolved status retained\n  for the admission guard (`PRV-42`: \"An unresolved create retains the claim until its\n  outcome is known\") and the atomic competing-claim primitive (`STO-27`: \"The primitive\n  MUST reject a competing claim atomically even when both callers read the same older snapshot\")."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "This releases the exclusion when the create row settles a\n  worker-recorded failure (`OPS-11`: \"MUST settle `failed`, whatever its kind\")."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "When only one clock has fired inside the outage, the replay yields that clock's own instant:\nthe newest observation's `observed_at` plus `LDG-59`'s\nstamped staleness bound when only staleness has — `LDG-59`: \"The window's staleness is tested continuously,\nand no pass is needed for it to produce no rate\" — and `LDG-58`'s effective boundary for the\npass that found the window thin when only thinness has, since the newest observation is then still\nfresh and newest plus bound would date the start in the future."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "The account states\nare mutually exclusive: a confirmed termination cannot coexist with a healthy account, and an\noperator MUST NOT shadow an account status the driver itself reports: `API-63` says \"Recording a\nstatus the driver itself reports MUST be refused\"."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`STO-54`: \"Continuations reuse the persisted endpoints and\nevidence unchanged.\""
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "It is null until\nstep (3) of `STO-54`'s procedure is marked, and it MUST be written in the same transaction as that\nmark, as step (3)'s instant plus one re-derivation interval — `STO-54` says \"A marked step does\nnot run again\", so it is written once per incident."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`STO-54` says \"the freeze lifts at `grace_ends_at`\"; keeping this record\nopen does not prolong that freeze."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "The first pass may record\n  nothing about absence: `provider_observations` written in Δ are gone, so `PRV-36`'s effective\n  window has been narrowed by the restore, a narrowing `STO-53` says is \"never an engine write\"."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "For Robot,\n   only accepted provider pins resolve the wait: `PRV-20` says \"An awaiting Robot session\n   cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in\"\n   and \"Robot never falls back to first-use trust, including when caller keys are supplied\"."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "`PRV-20` says \"An awaiting Robot session cannot become eligible for first-use trust\"; the first-use row does not apply to that session."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "`PRV-20` says \"a presented key whose SHA256 fingerprint and algorithm match none of the accepted pins\nMUST be refused before authentication\" and \"The engine MUST pin the matching presented full key for the connection\"."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "`PRV-20` says \"Robot never falls back to first-use trust, including when caller keys are supplied\"."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "`PRV-20` says \"Refresh MUST NOT downgrade a session\", \"The same rule protects fingerprint pins\",\nand \"An awaiting Robot session cannot become eligible for first-use trust\"."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "For Robot, `PRV-20` says \"If eligible pins have not arrived by `RSC-9`'s deadline … connection fails `integrity`\"."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "`WIR-30` says\n\"`install_strategies` is the offer's subset of `DOM-13`'s strategies, and it gates them\"."
+  },
+  {
+    "file": "07-security-requirements.md",
+    "text": "*Settled 2026-08-16 by `LDG-71` and `DOM-27`; disclosure scoped 2026-10-10 by\n`ADR-0038` through `WIR-47`'s \"Selection uses positive evidence, never timestamp order\".*"
+  },
+  {
+    "file": "08-provider-notes.md",
+    "text": "The declaration list belongs to `PRV-44`:\n\"A value the engine reads MUST come from here and never from `08-provider-notes.md`\"."
+  },
+  {
+    "file": "08-provider-notes.md",
+    "text": "`PRV-48`: \"It MUST NOT call `DELETE /v2/droplets?tag_name=` with a correlator tag\"."
+  },
+  {
+    "file": "08-provider-notes.md",
+    "text": "`PRV-13a`/`PRV-44` own the descriptor declaration; `PRV-13a` says \"A DigitalOcean driver MUST NOT set `backups: true` on create\"."
+  },
+  {
+    "file": "08-provider-notes.md",
+    "text": "The procedure belongs to `PRV-36`:\n\"the worst observed request-to-observation latency over at least twenty real mutations\"; the\ndescriptor is `PRV-44` and observations are `STO-53`."
+  },
+  {
+    "file": "08-provider-notes.md",
+    "text": "  | What | Observed | Why it is recorded |\n  |---|---|---|\n  | `in process` → `ready` | **7 min 24 s** and **4 min 03 s** | `OPS-33` says robot-style orders \"poll through an `in process` state with no documented bound\"."
+  },
+  {
+    "file": "08-provider-notes.md",
+    "text": "A machine\n   can already be there: after an engine crash `RSC-19` says \"The route back is to activate rescue\n   again\", and an install dispatched at a machine an earlier operation left in rescue arrives the\n   same way."
+  },
+  {
+    "file": "08-provider-notes.md",
+    "text": "Determines whether that route exists on this provider, or whether the second operation\n   instead fails at activation, leaving `PRV-18`'s \"clean up after itself on partial failure\" to\n   handle what it can; temporary-key deletion follows `PRV-9` (`PRV-15`, `RSC-38`)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "**Seeds in the items below** (2026-10-08, `ADR-0033`): eligibility and seed value belong to\n`LDG-38`: \"A machine's first seed is eligible for an offset only if its first unit was actually\ndebited to the customer\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Every operation found `running` when the engine starts is, subject to the\n      exceptions below, moved to `needs_reconciliation` — never back to `queued`, except a\n      `suspend_tenant` parent, which `OPS-15` says \"MUST be returned to `queued`\" on a restart —\n      and the count is logged."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Kill the engine\n      with an operation of each dispatching kind `running`, restart, and assert each one — **except\n      a `refresh`, which settles `failed`** (`ADR-0020`): assert its row is `failed` with an\n      `internal` error and that `WIR-35`'s resolve refuses it by kind — **and a create whose\n      `about_to_order_at` is null**, which settles `failed` on a restart with full commitment\n      release and resource-offer exclusion freed; for its error, `OPS-15` says \"Where no error is\n      recorded, it MUST carry an `internal` error naming the restart, with `retryable: true` on\n      both the error and the operation view\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "On the create row after step 9 begins and in the last row's \"Otherwise\" branch, `OPS-11` says\n      \"`needs_reconciliation` if the failure is *ambiguous*, otherwise `failed`\"; assert that a\n      pre-send `network` failure (for create, from a step-9 call;\n      on the last row, inside a dispatched call with the write-started marker set) yields\n      `needs_reconciliation` despite `details.accepted: false`;\n      null supplies no extra classifier condition."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "On separate creates, store records missing a caller-supplied field —\n      `acknowledge_purchase` (`WIR-17`: \"`acknowledge_purchase` MUST be literal `true`\") — and\n      an api-filled admission field, using the accepted-price fields in `request_summary`\n      (`OPS-43`: \"the accepted recurring price, its currency and its period\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "[ ] **CNF-99** — One adverse rate observation keeps to `LDG-16`'s bound — `LDG-16` says \"no single\n      rate observation moves the rate outside the range the window's other observations carry\" — and\n      a window that cannot produce a rate halts instead of pricing."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Then, past that deadline, let the\n      worker's `OPS-41` contend run on the third machine, which has no record, and assert the\n      third machine still has no `STO-37` row — `STO-37`: \"Nor does the worker's `OPS-41` contend\n      open one\"; a build whose worker inserts where it finds no row, or upserts, fails here and\n      passes on a machine that already has one."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Verify a distinct durable grant before each physical component dial, including\n      pre-authentication and delayed-handshake attempts, across the consumers in `STO-55`:\n      \"component pools, reconnects, rollout incarnations, startup-lock holders, migrators and\n      waiting runners\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "With one standby on another timeline, assert the\n  procedure promotes neither as a restart and automatic failover promotes neither standby at all,\n  including as a restore, before an operator decides, regardless of whether the numerical reports\n  are equal (`STO-54`: “Only an operator starts a promotion that is a restore”)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`LDG-40` says \"An incomplete cost alone, like a missing rate\n      alone, MUST NOT start a solvency halt\" and \"A shortfall on the valued terms is a computed\n      failure and MUST trigger `LDG-20`'s deployment-wide consequences\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-50` says \"Where the values differ, the transaction MUST roll back, and the engine MUST\n      log loudly that it was superseded and exit non-zero at once\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Repeat with an injected recorded error carrying\n      `retryable: false`, written to the stored row before the restart, since `CNF-30` says \"The\n      startup pass does not overwrite an error already recorded\": assert the error survives\n      unchanged and the operation view carries `retryable: false`."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-11` says \"Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"A stop that arrives while a store transaction inside `execute` is in flight or repeating under `OPS-49`, such as `OPS-43`'s step-8 transaction or an `OPS-45` marker write, is the cancellation being recorded.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"a cancellation of\n      `execute` recorded before step 9 is the exception\"; exercise each cancellation with the\n      engine surviving the stop and a store that works for the record, and assert its record lands before exit."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "The List offers read is\n      permitted (`PRV-50`: \"The driver's List offers MUST be read-only\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-47` says “The loss is not a later stop”."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-49` says \"the component MUST repeat the **whole transaction**\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-11` says \"the system MUST classify the error into `failed` or `needs_reconciliation` using the operation kind and the error kind\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Assert the create before step 9 carries `retryable: true` on error and view, and each\n      `needs_reconciliation` case carries `retryable: false` (`API-51`: \"An operation in\n      `needs_reconciliation` MUST be delivered with `retryable: false`\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"A cancelled `suspend_tenant` parent MUST be returned to `queued` with `available_at` advanced at any point in its fan-out, subject to the same Stop-record bound and exits.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "**Shielding:** `OPS-21` says \"The record write MUST NOT be cancelled by the cancellation that stopped `execute`.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "**Bound:** `OPS-21` says \"The Stop-record bound is measured from the stop, counts every repeat including serialization failures, and never resets.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "**Later stop:** `OPS-21` says \"A later stop, one arriving after the stop being recorded and before that record lands, ends the record as an exit without worker classification at any point: before the record's first transaction, during it, or while `OPS-49` repeats it; the worker MUST NOT repeat a record transaction already sent when that later stop arrives.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"The sent transaction's fate is the server's\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"A stop that arrives after a stop has cancelled `execute`, before that cancellation's record lands, is a later stop under that record's rules, not a stop after `execute` returns.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"Where the row reads `OPS-45`'s markers, the record MUST classify against the markers its own transaction reads, since a marker write whose reply was lost may have committed.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"A stop the engine survives that arrives after `execute` returns and before the worker's settle write lands MUST be recorded by that settle write, under the shielding below, and the Stop-record bound and exits that apply to a recorded cancellation.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"The settle write that records a stop after `execute` returns MUST NOT be cancelled or abandoned by that stop.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"The record of a stop after `execute` returns is the guarded write the worker would have made without the stop, settling the outcome in hand with that outcome's own error, if it has one, and with a failure classified under `OPS-11`; it is not a cut-off `conflict`.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"The Stop-record bound and its expiry exit, the later-stop exit, the Store-retry bound's exhaustion exit, the superseded exit (`OPS-50`), the lost-reply case and the supervisor's wait apply to the record of a stop after `execute` returns as they do to a recorded cancellation; the cut-off classification and its reason do not, nor does the rule against repeating a transaction already sent inside `execute`.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"For a `suspend_tenant` parent that `execute` left waiting on its children, that write is the defer above, which records no error.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "**Absorbed reads:** `OPS-21` says \"A stop the engine survives after a create's settle-time confirming read succeeds, or after a delete's cancellation is accepted with an effective date, and before `execute` returns MUST NOT cancel `execute`.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-21` says \"The worker still makes the read that follows, the stop ends it at once as a failed read unless it has already completed, `execute` returns the outcome that read gives, and the settle write records the stop as it records a stop after `execute` returns.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For create, install and rescue inventory `STO-54` stands in its way — `CNF-295` asserts it;\n      for the goal-state kinds the row *does* re-enter `queued` and re-runs, and `OPS-11`'s\n      \"already in the target state\" rule is what makes that a success rather than a second\n      mutation, so this item's universal holds for the kinds whose repeat is a purchase or a disk\n      write and not for every kind."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Assert the initial upstream\n      Robot throttle raises `PRV-5`'s \"every Robot\n      `403 RATE_LIMIT_EXCEEDED` MUST raise a monitorable alarm naming the provider\n      account and request path\" alarm."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "At claim, assert A's existing\n      operation settles `failed`; its operation-view `error` obeys `WIR-9`'s\n      \"exactly `kind`/`message`/`retryable`/`details` and nothing else\" object shape,\n      with `kind: rate_limited`, `retryable: true`, `details.retry_after_ms` equal\n      to the remaining closure, and no `details.refusals`."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-8` says “A claim (`OPS-5`) that the index refuses\n      because another running operation holds the machine MUST return the operation to `queued`\n      with a short delay”."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-6` says “A claim the per-machine index refuses\n      (`OPS-8`) never left `queued` and does not advance the number”."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Then assert the second is `failed` with `conflict` and\n      `details.reason: \"tenant_suspended\"`: `API-58` says “`queued` but never claimed straight to\n      `failed`, carrying the reason in the operation's `error`: `conflict`, with\n      `details.reason: \"tenant_suspended\"`”."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Assert its `requested_by` is `caller` and its\n      `system_reason` is null: `API-58` says “Its `requested_by` stays `caller` and its\n      `system_reason` stays null”."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Assert no provider request was made for it: `API-58` says “it\n      has touched no provider”."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`WIR-30` says \"The gate reads the copy\n      the machine took at create\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`RSC-26` says\n      \"An identifier that does not resolve to exactly one device MUST abort `integrity` before\n      any write.\""
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-42` says the worker \"releases it before the provider\n      call\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`OPS-45` says \"an operation interrupted rather than classified\n      is `OPS-15`'s, whatever the markers hold\"; `OPS-48`'s resolved-not-applied row is\n      `stalled` with the fence \"**Unchanged**\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`API-58` says the\n      pass \"MUST NOT enqueue\" for an already-open delete episode, and must \"append\n      `tenant_suspended` to that episode's `reasons` set\" and \"name its `current_operation_id`\n      in `cancellations`\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "**Restore scope, inspected rather than rehearsed here:** `OPS-41` says \"A claim made while\n      a restore record is open and its `grace_ends_at` is null or in the future defers, and writes\n      no fence\" and \"The rule applies whichever path enqueued the cancellation — a delete\n      re-run by step (2), an operator's retry\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "The deployment\n      states a re-derivation interval separately from `LDG-68`'s period; `runway_until` on a live\n      machine is never staler than that interval; and `PRV-13c`'s \"materially in the future\" test —\n      *now + one interval + wind-down* — still puts a cancellation date a week out on the\n      **exception** branch."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "**Fourth**: claim a create, commit the termination before its\n      step-8 transaction commits (`about_to_order_at` still null), and assert it fails `account_terminated`\n      with `retryable: false` on both the error and the operation view (`API-63`: “with\n      `retryable: false` for `\"account_terminated\"` and `retryable: true` for `\"state\"` on both the\n      error and the operation view”) and with no provider mutation;\n      the List offers read is permitted;\n      then commit the termination *after* step 8 commits (`about_to_order_at` set) and before the call, and assert the\n      termination treats that attempt as potentially dispatched — neither failed nor released, and\n      resolved through `OPS-36`'s late attach."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "The pre-dispatch kill is the step that separates the required write from\n      one made at the dispatch instead: `OPS-45` states \"false, written before begin rescue … is\n      dispatched\", and an implementation that waits for the dispatch renders that row `none`."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Run this Robot case on a standard-channel (`correlator: none`) descriptor too, settling the create through the operator's attach (`PRV-33`: \"attaching a discovered machine to a tenant MUST be an operator action\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Assert `retryable: true`\n      on both the error and the operation view (`OPS-43`: “telling the caller to re-submit, and\n      `retryable: true` on both the error and the operation view”)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Run cases (a) and (b), the order-of-checks case and the control\n      below, in every variant each names, on a `correlator: per_order_key` ordering channel\n      (`PRV-44`: \"each with `correlator: operation_id | per_order_key | none`\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "A per-order key\n      upload is then on the order path (`PRV-32`: \"`PRV-9` already requires the driver to\n      register a temporary key per order\"), so the no-key-upload assertion can fail."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "- (b) With the descriptor's `traffic_bound` for the named offer explicit `null`\n        (`PRV-44`: \"or explicit `null` where no bound is declared\"), the offer reports\n        `traffic_bound: unlimited` at API acceptance."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Its error obeys `WIR-9`'s \"exactly\n      `kind`/`message`/`retryable`/`details` and nothing else\" inner-object shape, embedded under\n      `WIR-10b`, with no `details.refusals` or `details.not_checked` and no cap or balance result\n      or amount derived from the offer's price."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For `tenant_suspended`, `API-58` says “`queued` but never claimed straight to `failed`,\n      carrying the reason in the operation's `error`: `conflict`, with\n      `details.reason: \"tenant_suspended\"`” (`CNF-202`)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For `price_moved`, `OPS-43` says “fail the operation deterministically — before any provider\n      mutation — where the provider's price has risen past what the reserve covers: `conflict`,\n      `details.reason: \"price_moved\"`, the shortfall in `details`” (`CNF-241`)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For `account_terminated`, `API-63` says “transition every `queued`, never-claimed create naming\n      that account straight to `failed` — `conflict`, `details.reason: \"account_terminated\"` — and\n      close and release its commitment” (`CNF-278`)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For `incomplete_record`, `OPS-23` says “A field the `api` itself writes when it admits the\n      operation fails `conflict`, with `details.reason: \"incomplete_record\"` and `retryable: true` …\n      These missing-field failures settle `failed` under `OPS-11`” (`CNF-34`)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For `cut_off`, `OPS-21` says \"The recorded error is a cut-off `conflict`\" (`CNF-361`,\n      `CNF-362`)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "A delete against an already-deleted\n      resource, where the provider answers 4xx meaning \"already in the target state\", classifies\n      `succeeded` and its commitment closes (`LDG-32`) — **once every billable attachment has\n      release evidence**, since `LDG-32` says \"keep the commitment open while any billable\n      attachment's `released_at` is null\"; with a billable attachment surviving, `CNF-187`\n      governs and the commitment stays open\n      (*qualifier added 2026-09-12, `F50`; until then the two items demanded opposite states, both\n      BLOCKING*)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "After the negative window releases the commitment, assert still no automatic attach (`OPS-33`: \"the search it bounds is an **operator** search, not an automatic one\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Separately re-list the named offer, inside the age, at a higher price sufficient to exceed what the admitted reserve covers, leaving the stored listing unchanged until admission: the create is admitted at the stored price, and the claim fails `conflict` with `details.reason: \"price_moved\"` (`OPS-43`: “After the sale re-test passes, and before any per-order key upload or other provider mutation, the worker MUST re-read the offer's current price from that same List offers result **in the provider's own currency** and compare it with the native price the commitment was sized from — **carried on the operation's `request_summary`, which MUST hold the accepted recurring price, its currency and its period, and the accepted setup fee and prepaid first unit, the unit with its `billing_unit.seconds`** (`LDG-2`, `LDG-67`; *the unit and its seconds added 2026-10-08, `ADR-0033`, because the machine's row copies the seconds for its first seed, `LDG-38`, `05-persistence.md`*; *the fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any provider mutation — where the provider's price has risen past what the reserve covers**: `conflict`, `details.reason: \"price_moved\"`, the shortfall in `details`, telling the caller to re-submit, and `retryable: true` on both the error and the operation view (`WIR-9b`).”)."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`WIR-35` says\n      \"Without the date, `applied` asserts a completed release\"; submit that assertion and\n      exercise the completed-release effects using `CNF-326` and `CNF-293`."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Include an offer whose descriptor `traffic_bound` entry is explicit `null`\n      and whose offer leaves `traffic_bound` absent or `null`: it is withheld (`PRV-13b`: \"An\n      offer with no declared traffic bound MUST NOT be sold\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`API-35`'s \"The minimum MUST be large enough to purchase something\"\n      remains the operator's obligation; startup does not value it."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Do not treat `LDG-31`'s\n      \"The decrement clamps at zero and the excess is the\n      operator's\" as an operator cap on that residual."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`OPS-47`\nsaid, in the wording `ADR-0019` keeps, \"Every engine write to `operations` and `machines` MUST be\nguarded on `epoch = mine`\", and `operations.epoch` was \"stamped by `STO-1`'s claim\" — by the\nclaiming process, from the value it held."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "Both found\nthe same things the brief had missed: `OPS-15` sent an interrupted adopt — and an interrupted\nrefresh — to `needs_reconciliation`, so the union's verbs were reachable by restart and by\n`OPS-21`'s cancellation, uncertainty manufactured by classification rather than by anything the\nprovider did; `LDG-32` named no failed adopt, so an adopt the provider refused froze its\ncommitment with no verb to release it; `PRV-31` said the adopted machine's date \"is read before\nits commitment opens\" while `LDG-11` and `API-7`'s tail opened it at enqueue; and the commitment\ncould not be sized at enqueue at all, because `PRV-13b` needs a rate and a date that an adopted\nmachine, having no offer, could only get from the read."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "Current classification is `OPS-11`'s \"the operation's mutating request was accepted by the\nprovider\" condition; driver evidence is `PRV-5`'s \"every driver error MUST carry\n`details.accepted`\"."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "Rescue kinds are worse: a throttle after activation\n  re-activates, mints a second per-operation key (`RSC-10`), and orphans a session whose cleanup\n  token lives only in memory — `DOM-11`: \"A rescue session carries a live credential. It MUST NOT\n  be persisted\"."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "*(As of 2026-09-12\n  the column is `claim_number`, `OPS-6` says a refused claim \"does not advance the number\",\n  `STO-3` reads it on every worker write, `STO-3` names six guarded writes and the defer is one,\n  and the inventory below for a measured provider-throttle deferral predates all of that —\n  `ADR-0022`, `F51`."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "Two things one reviewer alone found are kept: Robot's documented rate-limit response may be a\n`403` rather than a `429` (unverified against the API, and `08-provider-notes.md` pins no throttle\ncode for any provider), in which case a status-mapped driver never emits `rate_limited` on the one\nprovider the mechanism was written for; and `OPS-26`'s \"nothing automatic will look at it again\"\nwas itself overbroad, since `OPS-48`'s third row lets the exhaustion sweep close a `stalled` episode\nit finds funded."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "Both reviewers confirmed deleting the edge orphans nothing — every other `abandoned` in the set is\nthe resolution row, which stays — and both rejected the brief's claim that \"funding the machine is\nthe other honest exit\": `LDG-62` refuses an extension while the fence is set, so a customer cannot\nfund a fenced machine at all, and `CNF-272`'s \"resume the tenant, fund the machine, retry the\nepisode, and assert the machine survives\" could not be executed as written."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`API-63` records every machine of a terminated account\ngone, and `OPS-39` said, in the wording `ADR-0021` keeps, \"A tombstoned machine keeps any episode\nthat is still open\", so an episode open at the recording sat `stalled` in `OPS-26`'s listing\nforever — the outcome `API-63`'s own text called \"a different failure\", reached for the\npre-existing episodes rather than the new ones."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`ADR-0021` keys the close on the machine's\ngone-write, in any open state, with the guards the reviews named: the close is permanent, so a later\n`OPS-31` resolution of a retained attempt changes the attempt and not the episode; the trigger is\nnever the account's status, so `OPS-36`'s late attach under a terminated account still goes\n`stalled` — `API-63`: \"That is the honest end for it\"; `API-63` fails queued, never-claimed system cancellations as it fails creates; and `DOM-19` and\n`STO-8a`, which held a scheduled machine until its date passed, admit the earlier, evidenced end."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`CNF-193` \"graduates the moment on-chain\n   funding is enabled in production\" (line 209), and `LDG-46` says a funding request \"MUST return\n   *both* a Lightning destination and an on-chain destination\" (`12-billing-and-ledger.md` line\n   1162)."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "The second paragraph of §6.15 — account-level notices, repeat-offence policy, case-ended signals —\nwas already answered: \"Still deliberately absent\" above, and `STO-39`'s \"repeat-offence policy\n(which remains deliberately absent)\"."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`PRV-36`'s \"MUST be widened\nby any observed sample that exceeds it\" was unimplementable by a constant in driver source: the\ngap between the exceeding sample and the redeploy is a window in which a lost create reply resolves\n`absent` and a second machine is bought."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`PRV-34` said test mode meant \"the entire dedicated ordering path — request shape, authorization,\nthe transaction listing, and the correlator round-trip of `PRV-32` — can be exercised against the\n**live** API without a setup fee or a server.\""
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`OPS-13` states the mechanism twice: `request_summary` \"holds a list aligned one-to-one with\n`correlator_value`\", and \"Resolution uses the entry of the attempt **whose correlator matched**\"."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "**Deleted in the same pass**, all three named by both reviewers: the constant sentence \"the machine\nstays allocated and keeps consuming runway while blocked\" from the `warned_consequence` fixture —\ntrue of every case that will ever exist, which is the exact argument that killed\n`billing_continues`; `CNF-228`'s \"the case's `consequence` states the drain\", a conformance item\nthat tested whether English said a thing; and two of the three copies of the `DOM-7` rationale."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "At closure, each vague MUST was given units and a procedure in place:\n\"measured\" = worst observed over ≥20 real deletions, recorded with sample size and date, with a\ndeclared conservative bound until then (`PRV-13b`); \"materially in the future\" = beyond one\nre-derivation period plus wind-down (`PRV-13c`); `SEC-39`'s interval defaults to one hour with\nstated integer ceilings; `SEC-42`'s \"enforce what it can\" = checkable at request time from held\ndata, everything else explicitly a terms obligation; `RSC-30`'s storage = content-addressed or\nversion-pinned; `API-26`'s range = 1–200 default 50 (`WIR-32`)."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "The surviving visibility procedure now belongs to `PRV-36`: \"the worst\nobserved request-to-observation latency over at least twenty real mutations\", with its sample\nsize/date and conservative unmeasured bound."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "It MUST be its own kind and MUST NOT be folded into `usage_debit`, because, in\n`ADR-0033`'s words, it \"is priced once at acceptance for time that has not yet elapsed\", while\n`LDG-38` says \"every increment is priced at a rate that held for the whole of it\" — and the caller\nasking why a machine that lived ten seconds cost a whole unit deserves the row that answers it."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`LDG-5` says \"**Balance is the sum of entries** and\nnothing else\"; `LDG-6` puts a running balance on every entry; `STO-21` permits a cached balance."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`OPS-11` says \"Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind.\""
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`WIR-30` says \"an offer is a live listing that can change or disappear between the two\";\n`08-provider-notes.md` records \"each listing left the feed on purchase\"."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`PRV-13e` says what re-derivation recomputes is \"`runway_until`, not the\ncommitment\", so that pair of writers does not exist.*"
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "**It is a\n  row on `OVR-19`, and the stated cadence MUST be the achieved one** (added 2026-09-12, `F51`): the\n  meter writes at least one transaction per billable subject per interval, since `STO-45` says the\n  total row \"MUST be written in the same transaction as the increment it closes\", a meter that\n  falls behind its stated cadence under-reserves every machine silently, and lag past one interval is\n  alarmed on `OVR-18`'s model."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "So is\n  `cancellation_scheduled`, with metering clipped at `LDG-38`'s \"stop boundary is the earlier of its\n  `effective_cancellation_date` and any gone observation\"; cancellation acceptance alone does\n  not stop the meter."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`PRV-36` says \"A read showing the post-mutation\n  state is evidence at any time\"; mapped absence on the known machine after an accepted\n  cancellation is such evidence, including inside the window (`PRV-13`)."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`WIR-47` says \"Selection uses positive\nevidence, never timestamp order\" and owns the render rule."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`LDG-37` says \"cancellation acceptance alone does not stop the meter\" and `LDG-74` stops at the\nobservation instant —\nand nothing observes the machine at the date except `OPS-32`'s next pass, so the customer paid up to\none sweep interval for a machine whose end the record had held in advance."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "An exit inside the unit has\nits stop boundary at or before the mark, so the increment it would close is discarded — `STO-45`:\n\"An increment `LDG-38` discards moves nothing — no row write, `r` and the mark where they were, no\ndeficiency, no entry\" — and the prepaid debit stands, which is the point of the decision."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "**Where `first_unit` is zero** — whatever made it so: `PRV-44`'s zero `seconds`\nwith a null floor, where \"`first_unit` is the floor alone or nothing\", or a positive `seconds` at a\nzero recurring price with a null floor — **there is no obligation: the create MUST NOT commit,\npark, debit or record anything for the unit**, because `LDG-7` says \"**Every entry moves real money.**\""
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "and `STO-45` says \"a zero-value ledger row is not legal\"."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "| Deterministic rejection before acceptance | **Never debited**; released with the commitment (`LDG-32`); includes the create exception (`OPS-15`: \"A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.\")."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`LDG-31` says a debit exceeding the commitment \"MUST NOT be taken from available balance: that\n  would be the automatic seizure `ADR-0011` exists to forbid\";"
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`OPS-33` says an early release moves the residual risk from the customer to the operator, and a\n  late-appearing machine's cost \"is a cost the operator can see, price and absorb\";"
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "**The window's staleness is tested continuously, and no\n  pass is needed for it to produce no rate**: the instant the newest observation is older than the\n  bound there is no rate, whether or not a pass has run, so a feed that falls silent halts between\n  passes rather than holding its last rate — `LDG-58`'s \"the rate holds until the next such pass\"\n  holds only while this window yields one (*added 2026-09-23, `ADR-0027`*)."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`LDG-74`: \"a machine established gone has nothing left to cancel\"."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "**Where the\nprovider cannot cancel immediately** (`PRV-13`'s scheduled-cancellation shape, `DOM-19`), the\ncustomer meter stops at the earlier boundary that `LDG-74` states as \"the earlier of its\n`effective_cancellation_date` and the observation\"."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "For a still-present machine on `PRV-13c`'s \"exception path\",\nre-derivation MUST top the commitment from available so it covers machine time through the\neffective date at the current rate; the customer meter uses `LDG-38`'s \"stop boundary is the\nearlier of its `effective_cancellation_date` and any gone observation\", while `LDG-74` says\n\"A machine **still present after its date** has its meter stopped and is billing the operator\"."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "One is `LDG-64`'s bound: `LDG-64` says the deployment MUST \"**cancel\nmachines at that bound** if no rate has returned\", and `LDG-65` carries the case."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "Another is a\ncancellation on a suspended tenant: `OPS-41` says \"**The funding re-check does not apply where the\nmachine's tenant IS suspended** at the moment of the re-check\"."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "Purchase-tail entries MUST use these `retryable` values, applying `DOM-17`'s \"whether repeating\nthe same request is safe and sensible\":"
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "`RSC-26` says \"Every disk reported by the rescue environment MUST remain in the inventory and in\nthe fingerprint, including a disk with no identifier.\""
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "`WIR-30` says \"the commitment is priced at accept\ntime\"; its earlier listing quote is indicative."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "If required pins have not arrived by `RSC-9`'s deadline, `RSC-3` says \"Abort with an `integrity` error\"."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "For Robot, `PRV-20` says \"If eligible pins have not arrived by `RSC-9`'s deadline … connection fails `integrity`\" |"
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "| `{\"expected_host_keys\": [\"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIhostkeyxxxxxxxxxxxxxxxxxxxxxxxx\"]}` | `RSC-3` says \"Caller supplied expected host keys and the driver published none\"."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "`RSC-3` says \"Pin exactly those. Strict checking.\""
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "`RSC-3` says \"On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys.\""
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "For Robot, `RSC-3` says \"The actual Robot connection MUST match an accepted provider pin, even when a caller key is supplied.\""
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "| `{\"accept_unpinned\": true}` | First-use trust where available; `PRV-20` says \"An awaiting Robot session cannot become eligible for first-use trust, even with the caller's explicit first-use opt-in\" |"
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "Caller-supplied\nfull keys remain usable: `RSC-3` says \"They MUST overlap. No overlap is an `integrity` failure, and the engine MUST abort before connecting.\""
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "`PRV-20` says \"An awaiting Robot session cannot become eligible for first-use trust\"."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "`PRV-45` says a dated result \"MUST store that date on the attachment row\" and \"MUST NOT write\n`released_at` merely from that result\"."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "The `operator_ref` field is required for a record and follows `WIR-42`'s\n\"`operator_ref` MUST be an opaque reference to a record kept outside this system\"."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "Under `WIR-2`'s \"Unknown fields in a request body MUST be\nrejected\" rule, a withdrawal body whose only rejected field is `operator_ref` returns `invalid_request` with `details.field: \"/operator_ref\"` (`WIR-9a`)."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "The operator column change and an idempotency record\n(fingerprint, status, exact response body) MUST commit in one transaction, following `WIR-24`'s\n\"the commitment change and an idempotency record (fingerprint, status, the exact response body)\nMUST commit in one transaction\"."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "Together they are `API-62`'s \"MUST surface the affected tenants\",\nanswered by the call that creates the situation."
+  },
+  {
+    "file": "CONTEXT.md",
+    "text": "`OPS-41` says \"A worker executing **any**\nexposure-reducing cancellation\"."
+  },
+  {
+    "file": "CONTEXT.md",
+    "text": "`OPS-39` says \"For an exposure-reducing cancellation the key is\nthe action, `delete`, not the `system_reason`\"."
+  },
+  {
+    "file": "CONTEXT.md",
+    "text": "What replaced it is a\nlock taken once at boot, of which `OPS-47` says \"**The lock is not a fence**\", in its own text and\nfor this reason."
+  },
+  {
+    "file": "executive-summary.md",
+    "text": "`SEC-39` states it directly: *\"A per-request\nacknowledgement is not a control when the caller is not human… An autonomous caller sets the flag\nfrom a template on every request; it becomes a constant, and the safety property it was carrying\nquietly disappears while the field is still present and still `true`.\"*"
+  },
+  {
+    "file": "executive-summary.md",
+    "text": "The final\nguard is the window (`LDG-58`): the rate is a median over a window of accepted observations, and\n`LDG-16` says \"no single rate observation moves the rate outside the range the window's other\nobservations carry\" — and of that bound, \"It promises no more than that.\""
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OVR-9`: “`api` MUST NOT depend on `providers` or `rescue` at all, and MUST reach `engine` only\n> through a trait whose signatures mention no credential type. `engine` MUST NOT depend on `api`.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OVR-10a`: “The boundary MUST be enforced by the code's structure — module privacy, a narrow trait,\n> a dedicated type owning the secret — and not merely documented.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OVR-10c`: “Provider credentials MUST be read from the environment exactly once, at startup, by\n> the credential-owning module — and then removed from the process environment.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OPS-1`: “Every mutating request MUST create or return a durable operation record before any\n> provider call is made, and MUST respond `202 Accepted` with that record.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OVR-5`: “The mutation MUST NOT be retried automatically, and no timer may clear the state.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `RSC-2`: “The engine MUST NOT contain provider conditionals. Everything provider-specific lives\n> behind the driver interface.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OPS-46`: “A requeue is admissible only for an exposure-reducing cancellation — a cancel or a\n> delete.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OVR-4`: “Every write operation MUST be asynchronous and durable.”"
+  },
+  {
+    "file": "impl-report-01.md",
+    "text": "> `OPS-11`: “adopt, refresh | Always `failed`. Both are read-only; a failure changed nothing.”"
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "The policy matrices are tables whose cells a requirement decided one at a\ntime, and each has been wrong in the direction that costs the most: a pipeline whose \"steps\ncontained no ceiling check at all, so a builder following the pipeline literally shipped none of\nthis\"; a halt whose previous version \"halted sales and left funding open\"; and the sentence both\nmoney requirements end on, `LDG-20`'s \"The operations that *reduce* exposure MUST never be gated by\nthe check that fires because exposure is too high.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`API-7` says \"A refusal stops here and is not collected by the tail.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`API-7`'s \"Steps 1–5 are common to every authenticated write\", so `Verb` enumerates the\nauthenticated writes and nothing else; `API-58`'s retained reads for a suspended tenant and\n`API-43`'s allowlisted reads are outside it, as are the unauthenticated routes — `API-40` is where\nthe pre-tenant ones are reconciled, and it says \"`API-7`'s ordering applies to authenticated\nendpoints\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`PRV-31` says \"A missing declared cancellation bound in both the descriptor and the offer is an\nunsellable offer\" and \"In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or\nits offer-reported bound is later than the provider's local today.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`API-5`: \"An admin token MAY act for another tenant by sending that header\",\nso an operator principal reaches a customer route naming a tenant; `Request.tenant` is that named\ntenant, which is `API-7`'s \"**whose** tenant steps 2 and 5b read\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "The operator arm does not read the verb: `API-5` says \"the operator token's principal is the\noperator\", a credential the deployment supplies, and nothing makes its authentication depend on\nwhich route it is presented to."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`replayBeforePolicy`: 5b and 5c sit after 5a, which `API-7` states once for both — 5c\n\"sits **after** 5a and 5b for the same reasons those sit where they do\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`): `API-7` says\n\"**gate a create on its ordering capability**\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`listingAgeGuard` (`API-7`, 2026-10-26, `pv-tcs`): `API-7` says\n\"If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "A refusal carries a `DOM-17` kind, since\n`API-24` says \"`kind` MUST come from the closed set in `DOM-17`\" and \"Handlers MUST NOT choose\nstatuses independently.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`API-5` says of that token only that the override header \"MUST be ignored rather than\nhonoured for it\", which leaves a request naming no tenant at all while steps 2 and 5b are the steps\nthat \"test a TENANT\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "Only the\nwait has a clock in it: `OPS-39` says it \"ends at the rate's return or at `LDG-64`'s bound\", and\npast the deadline `OPS-41`'s fifth step lets the cancellation through."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "The\nbound's is enqueued at the deadline, so one claimed before it takes the operator raising the\nmaximum after it was enqueued; past the deadline it is `LDG-65`'s \"A machine that reaches\n`LDG-64`'s bound is cancelled there\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`OPS-39`: the exposure-reducing cancellation is \"never blocked by a caller's ceiling\", and\n`API-7` says why it cannot be — \"that sweep enqueues directly and never traverses this pipeline\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "The strict comparison retains equality\nwith today as sellable; `PRV-31` says \"later than the provider's local today\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "What the model omits: `OPS-15`'s startup pass, except the generation advance\n`superseded_never_commits` models, and `OPS-27`'s resolution writes (made by no\nexecution; `pv-vwe.5`), `API-58`'s fan-out transition (`pv-vwe.6`), `OPS-11`'s classification of a\nprovider outcome into the state the worker writes (`Provisiond.Tables`), what reads\n`available_at`,\nthe error classes `OPS-49` says \"are not store errors and do not consume the bound\" (a\n`StoreOutcome.refused` here is always a store error in that sense;\n`Provisiond.StopRecord` composes serialization repeats for a stop's record), the bound on repeating a\nrefused claim (`engineClaim` claims again from `idle` without counting), and a second engine\nbeyond `OPS-50`'s generation check, which `superseded_never_commits` models."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "Otherwise\n`OPS-47`'s single engine is assumed, as `OPS-6` says the number \"is not a fence against a second\nengine\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "`record` stands for the columns a worker's write\ncarries beside the status, abstracted to one value: `STO-3`'s \"the written columns are not\ndistinct from what is being written\" compares it."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "`STO-56`'s open restore record as a claim reads it: `grace_ends_at`, which `STO-56` says \"is\nnull until step (3) of `STO-54`'s procedure is marked\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "Nor does a claim on a row that is not `queued`: `OPS-6` says the claim \"MUST select the oldest\n`queued` operation\", so a `running` row is never claimed again while it runs."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "Without it, the repeat of the worker's own write is zero rows, which `OPS-22` reads as\n\"something that was not this execution moved the operation\" — the engine exits on its own commit."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "What the store holds\nthen is whatever the tries committed — after a lost reply on the last try the row is written and\nthe money posted once (`exhaustion_after_lost_reply`, in the witnesses), so `OPS-49`'s \"the\noutcome in hand is thrown away and `OPS-15` classifies the row as interrupted\" describes the\ntries that never committed."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "`OPS-50` says \"A mismatch is not a store error (`OPS-49`) and is never repeated.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`OPS-41` says \"`LDG-35`'s per-tenant primitive orders nothing against a\ndeployment-wide event\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`STO-37` says \"The row is the subject's, and the meter\nopens it\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`LDG-64` says \"compute the outage's deadline from history, and\nstore it nowhere\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "The exit's close is not modelled: `LDG-38` says \"The exit closes an open\nsubject outage row at that end\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`PRV-13` says \"Read failure does not turn the accepted\ndated cancellation into `needs_reconciliation` or establish absence\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`pauseFundingGrace` is the further 2026-10-02 amendment:\n`OPS-41` says \"An outage MUST pause that measure, neither spending the remaining grace nor\nresetting what accumulated\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`OPS-41` says\n\"The worker re-derives and applies the predicate above **first**\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`LDG-64` says \"compute the outage's deadline from history, and store it nowhere\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`LDG-16` says of the grace that it \"is no clause of this predicate\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "`STO-37` says \"The row is the\nsubject's, and the meter opens it\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "It is not a pass below the quorum, of which `LDG-59` says \"A pass below the quorum accepts\nno observation and recomputes nothing, and the rate in force holds\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "The machine's record is not opened here: `STO-37` says \"The row\nis the subject's, and the meter opens it\"; `meterOpens` models the live-outage opening."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "That is one fence transaction before the deadline, and so a part of `LDG-65`'s \"Nothing\nis cancelled on a date that passes while there is no rate\" and not the whole of it: that sentence\nis about the outage from end to end, the sweep's half of it is\n`sweep_routes_nothing_without_a_rate`, and no theorem here runs the wait across claims."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "What ends the outage is a rate, and the next loss is the next\noutage's start: `LDG-64`'s \"Each outage has its own start and so its own deadline\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "Re-derivation is excluded from this whole-row frame: what `PRV-13e` says it\n\"recomputes is `runway_until`, not the commitment\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "Also needs `keepGuard`: `API-68`'s \"conditional-write on `(id, state = stalled)`\" prevents\na later keep from replacing a permanent close reason."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`API-58` says \"A funded tenant MUST be\nsuspended, never deleted\", so `reap` refuses an active one."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`charge` is the seconds from that start to the end at the\nevent's rate, so a re-meter overlapping the mark is clipped to it, and `World.charged` keeps each\ninterval an admitted posting priced: `no_second_charged_twice` is the rule on every trace and\n`nothing_left_at_or_before_the_mark` is `LDG-38`'s \"the discard above is the case with nothing left\nafter the mark\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`seed` is `Params.seedOnBillable`, `LDG-38`'s \"Every transition of a subject into\nbillable MUST write that subject's high-water mark at its seed instant\": the mark and nothing\nelse — except a machine's first seed."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`World.mark` is `LDG-38`'s \"greatest `increment end`\nalready closed for it\", advanced with `r` whether or not an entry posts — `LDG-72`'s record, written\n\"without a ledger entry but with any deficiency `STO-45` requires where the increment rounds or\nclamps to nothing\" — and `Params.markDiscards` is its discard."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`World.prepaid` records only the eligible\ninterval; `LDG-47`'s received-versus-requested\namount — `sats` here is the settled value; `LDG-48`'s confirmation depth, folded into the\nsettlement event; `LDG-52`'s rail floor; `LDG-56`'s disclosure; `WIR-42`'s `operator_ref` and its\n`409` on a second tenant, which the model refuses silently; `LDG-66`'s \"provider-native amount\nand currency (`LDG-2`)\" and rate on the deficiency record — `Deficiency` carries the satoshi\nfigure and the absorbed time only; `LDG-31`'s native split is checked separately in\n`Provisiond.Ledger.nativeSplit`, not composed with postings here; `LDG-38`'s 2026-09-04 clause, \"The subject's billability and its\nstop boundary MUST be re-read inside the same `LDG-35` serialization that appends, and the increment\nclipped to them\" — the lifecycle trace below assumes ordered, non-quarantined transitions and given\nstop boundaries, with a rate for every increment."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "Also omitted are a second subject,\nand with it the attachment's seed, `PRV-45`'s write; the transaction the seed shares with the write that records\nthe subject billable — `seed` is the mark's write alone; `LDG-68`'s period boundary\n(`Provisiond.Period`), and with it `LDG-38`'s \"new period's `meter_totals` row starts with\n`r = 0`\", the split of an increment \"at every period boundary and every rate change it crosses\" —\none increment here has one rate and lies in the one open period — and the latest mark taken across\na subject's rows (`LDG-72`), which is one row here; `API-34`'s cap, \"A pending\ntenant's deposit expiry MUST be capped at its remaining signup time-to-live\" — `mint` accepts any\nexpiry; `API-58`'s `suspended` state — `Status` is pending or active; the attribution of a live\ntenant's deposit, which `WIR-42` does not describe and the model refuses; and every provider-side\nfact."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`LDG-6`'s entry, with `LDG-43`'s `deposit_id` and `LDG-5`'s \"naming the entry it corrects\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`API-34`'s \"maximum on-chain finality window\", a deployment parameter."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "A later seed is unchanged by the guard: with a mark, the seed writes the greater of the mark and\nits instant and records no unit — `LDG-38`'s \"any later re-entry into a billable state\" is not\noffset, and \"A seed at or before the subject's latest mark is discarded\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "Then one tenant's entries, and `LDG-70`'s read of them, \"`balance_after` on the greatest `seq` for that\ntenant\", against the sum `Balances.sum` stands for: `drift_identity` says what their difference is\non every trace, and `open_against_read_is_the_serialized_open` is where the read meets the open."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "The operator deficiency `LDG-31`'s clamp writes is `Balances.deficiency`, a running satoshi total\nthe balance never reads: `LDG-66` says it \"is NOT a ledger entry\" and \"MUST NOT alter any tenant\nbalance\", and `deficiency_is_not_a_balance` is that sentence."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "`LDG-31` says \"there is no debit left that pairs with\nnothing\" and \"It MUST NOT be taken from available balance\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "`closeOwnCommitment`: the disabled close clears every open slot; `LDG-32` says\n\"A commitment MUST be closed, and its remaining amount released in full\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "`LDG-28` says\n\"Releasing a commitment returns **the exact satoshi amount still reserved**\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "`clampOwnCommitment`: the disabled debit clamps against the tenant's derived total, spends the\nnamed slot first, and consumes any excess from the other slots in allocation order; `LDG-31`\nsays \"the commitment decrements to zero, the tenant is debited only up to the authority it granted,\nand the remainder is recorded as an **operator deficiency**\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "`LDG-32` says \"A commitment MUST be closed, and its remaining amount released in full\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "Of what every entry carries, `LDG-6`\nsays \"a per-tenant monotonic sequence number\", \"the signed satoshi amount\" and \"the running balance\nafter it\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "`LDG-70`'s read is \"`balance_after` on the greatest `seq` for that tenant\", and `Book.read` is\nthat by theorem, not by the definition's name: the row `latest` finds is an entry of the history,\nand no entry's `seq` exceeds it, whatever position it holds."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "An append takes the next `seq`, `topSeq + 1`: one way to meet `LDG-6`'s \"per-tenant monotonic\nsequence number\", which also permits gaps."
+  },
+  {
+    "file": "tools/formal/Provisiond/Migration.lean",
+    "text": "Under PostgreSQL and `STO-13`, a large-table index build is in a standalone migration and\nnowhere else: `STO-13`'s \"A `CONCURRENTLY` build cannot run inside a transaction, so it is its own\nmigration under `STO-12`'s non-transactional rule\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Period.lean",
+    "text": "An increment carries\nits start, its close and its rate; `split` walks the boundaries in list order and cuts it at each\none strictly inside what is left of it, and each piece is an increment of its own at the same rate,\n`LDG-38`'s \"every increment is priced at a rate that held for the whole of it\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Period.lean",
+    "text": "Omitted, and where: the civil calendar — the boundaries are a given, and the model does not\nestablish which instant is `00:00:00Z` on the first of a month, nor anything about leap seconds;\nevery theorem here holds of any list of boundaries in order, weekly ones included, so \"the calendar\nmonth in UTC\" is `LDG-68`'s Markdown and nothing in this module; the two ends of the list — the\nboundaries are finitely many, so `key` puts the instants before the earliest in a period 0 that\nbegins at no boundary, unlike `LDG-68`'s \"A period begins at `00:00:00Z` on the first day of a\nmonth\", and the instants from the latest in a period that never ends, unlike its \"ends at the same\ninstant of the next\"; an increment's start, which is a given of the increment here — `LDG-38`\nfixes it, \"An increment MUST start at the subject's latest high-water mark\", and\n`Provisiond.Funding` models that start and the seed behind it for one open period, so the split\nhere cuts an increment whose start is already the rule's; that mark where it sits in an earlier\nperiod's row — `LDG-72`: \"The mark is the greatest `increment end` among that subject's rows\" —\nwhich neither module models, `Provisiond.Funding` having one row and this one no mark; `LDG-38`'s\ndeficiency-absorbed windows split at the boundary — a piece's\nseconds are all billable, and \"Where an absorbed window straddles a period boundary each period\nsubtracts its own part and no more\" is not modelled; `LDG-31`'s clamp (`Provisiond.Ledger`) and the\nledger entry, which `Provisiond.Funding` composes with the recurrence for one open period; `LDG-8`'s\nkey, which `posted` shows only as the close instant beside each debit of a period; `LDG-68`'s\n\"which entries a correction may name\", since no correction exists here; and anything about\n`Provisiond.Funding`'s key, mark or clamp, which this module does not import and about which it\nproves nothing."
+  },
+  {
+    "file": "tools/formal/Provisiond/Period.lean",
+    "text": "`false` is the\n  per-subject anniversary, `LDG-68`'s \"deriving it from the machine's create instant\": each\n  subject's boundaries are the deployment's, each offset by its create instant."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rate.lean",
+    "text": "And half a window carries itself:\n`LDG-16` says \"a plausible price carried by half the window can move the rate to itself\", and\n\"It promises no more than that.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Rate.lean",
+    "text": "The same history\nwith a fourth row observed at `100` — `STO-49`'s \"a pass that reads early and commits late\" —\nwhich the pass at `20` does not see: at `40` that pass's window is stale, and the late row keeps\nits rate no more alive than its absence does."
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "text": "`OPS-32`'s absence is three conjuncts, each a `Params` guard: \"Only a pass that enumerated the\naccount completely may record an absence\" (`completePassOnly`), \"it may record an absence only\nabout a machine past `PRV-36`'s effective visibility window\" (`pastWindowOnly`), and \"A missing\nmachine MUST be re-read directly before its absence is recorded\" (`rereadBeforeAbsence`);\n`absence_requires_three` is the theorem, with `successfulConfirmationOnly` enabled for\n`OPS-32`'s \"a failed direct absence confirmation cannot record absence\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "text": "`Windows` carries the inputs for `PRV-36`'s visibility window and the separate `OPS-33`\nnegative window — and `Params.absenceWindow` names which one the\nsweep reads, because `OPS-32` says \"It is `PRV-36`'s window and NOT `OPS-33`'s negative window,\nand the two must not be conflated\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Reconcile.lean",
+    "text": "What the\nmodel omits: `OPS-27`'s search-authoritative absent row and its matched-and-gone read, both an\nabsence about an operation with no machine record (the sweep here records absence about a machine\nrecord only) and its unresolved row, the escalation to an operator; `OPS-36`'s routing of a late\nattach through exhaustion (`Provisiond.Fence`) and `OPS-32`'s \"A machine with no create of its own\nhas no window at all\" — the model's negative window runs from the one create's dispatch and\nits visibility window from that call's wait end; `PRV-36`'s\n\"`OPS-27`'s resolution MUST NOT take its first read before the window has elapsed\" — a `found`\nread is evidence at any time and the model takes it at any time; `OPS-32`'s \"what it observed\n*present* it may still record\", `STO-48`'s observation instant on a listed machine; the\ngone-write's episode close and fence clear (`Provisiond.Fence`'s `gone`); `STO-54`'s two-pass rule\nafter a restore (`Provisiond.Restore`); the imported-image and key sweeps; the unrecorded-machine\nreport; `OPS-36`'s funding of the cancel, \"bounded by the wind-down floor\" — the model opens\nnothing, including `LDG-40`'s 2026-10-04 no-rate attach branch and its deficiency records;\nand the provider's `rate_limited` answer to a read — a read the engine issues while\nthrottled is recorded as issued, not answered."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "DNS: a `Hop` carries the addresses a name already resolved to, so `RSC-44`'s \"Connect to the\naddress that was validated, pinning it for the connection, or re-validate at connect time\" is the\nresolver's correspondence and not a theorem here — the model cannot express two answers to one\nlookup because it never performs one."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "Storage is\noutside: `RSC-30`'s immutability is not modelled, and no event of this module puts a copy back, so\n`RSC-42`'s \"A fresh copy arrives only by the caller sending a fresh install\" is unmodellable here\nrather than proved."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "An address as the fetch sees it: a class, or `RSC-44`'s \"IPv4-mapped or IPv4-compatible IPv6\naddress wrapping any of those\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "Wrapping launders nothing, at any depth: `RSC-44`'s \"or an IPv4-mapped or IPv4-compatible IPv6\naddress wrapping any of those\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "One hop of a fetch: the name its URL carries, that URL's scheme, and every address the name\nresolved to — `RSC-44`'s \"both families, every A and AAAA record\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "`redirectCap` is `RSC-44`'s \"cap the redirect count\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "`refused` carries nothing: `RSC-44` says the refusal MUST \"never report why\nin a way that describes the target\", and a constructor with no field is that sentence as a type —\nthere is no resolved address, status or size to leak because the value cannot hold one."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "The address check runs on every hop unconditionally — that is `RSC-44`'s\n\"again after every redirect\" — while the allowlist and the scheme run on a later hop only under\ntheir guards, so that removing a guard reproduces exactly the behaviour its bullet refuses."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "A chain one hop longer than the cap allows is refused however good its hops are: `RSC-44`'s\n\"cap the redirect count\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "What arrives on the wire: `RSC-40`'s \"It counts the bytes and hashes them\", and the bytes\nthemselves."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "`RSC-40`: \"**A maximum image size MUST be declared per offer and enforced against the\nstream**, aborting the transfer when exceeded\", and `RSC-39`'s \"verify its `sha256` **as it\nstreams**\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "`reacquired` is `RSC-41`'s \"On re-acquiring the\nmachine\", which happens after the yielded import and is the moment `OPS-23`'s re-validation is\nabout."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "The operator's copy goes, and\nthe provider is asked to delete its own — a call `RSC-42` says \"may fail or be lost\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "`maxWait` is `RSC-41`'s \"A maximum import wait MUST be stated, past which the\noperation aborts and the imported image is deleted\" — the abort is a settle into `failed`, and the\ndeletion is `RSC-42`'s purge doing its own job rather than a second rule."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "The import moves to the rebuild only with the machine re-acquired and re-validated since:\n`RSC-41`'s \"On re-acquiring the machine the operation MUST re-validate before the rebuild\n(`OPS-23`)\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "`PRV-20` says \"An awaiting Robot session\ncannot become eligible for first-use trust, even with the caller's explicit first-use opt-in\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "`RSC-3` says \"On overlap, the engine MUST pin exactly the caller keys whose algorithm and SHA256 digest match a driver pin, MUST offer SSH only their host-key algorithms (for an RSA key, `rsa-sha2-512,rsa-sha2-256`), and MUST refuse before authentication a presented key that matches a driver pin but is not one of the caller's keys.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "`awaitingProviderPins` enforces `PRV-20`'s \"An awaiting Robot session cannot become\neligible for first-use trust, even with the caller's explicit first-use opt-in\": with the guard\nenabled, a provider-required session with no accepted pins aborts; without it the ordinary table\ndecides."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "`PRV-20` says \"a presented key whose SHA256\nfingerprint and algorithm match none of the accepted pins MUST be refused before authentication\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "The identifier is an `Option` and two devices may carry the\nsame one, because `RSC-26` says \"duplicate or empty serials are real on consumer and virtualised\ndisks\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "Every refusal is one value: `RSC-26` says \"abort with `integrity` —\nbefore writing a single byte\" of all of them."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "`Claim.workerGuard`'s first branch — `STO-3`'s \"(id, status = running, claim_number = mine)\" —\nas a marker write takes it; `OPS-45` says such a write \"is guarded like any other worker write\n(`STO-3`)\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "The other\ndirection is not a theorem, and `OPS-45` says so rather than leaving it out: \"`false` is the\nconservative value as much as the open-session one: a process that dies between that write and the\ndispatch leaves `false` over a machine that was never rebooted into rescue\", which is\n`false_over_a_machine_never_in_rescue`."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rescue.lean",
+    "text": "`PRV-9` says \"A vanished operation record satisfies only the settlement condition; the sweep\nMUST still check the provisioning condition against retained `machines` rows.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Restore.lean",
+    "text": "Only `OPS-43`'s \"Step 9 MUST begin only after step 8's transaction is acknowledged.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Restore.lean",
+    "text": "The freeze's end is not modelled: `STO-54`\nsays \"the freeze lifts at `grace_ends_at`\", and that instant is step (3)'s plus one interval,\nwhich a model where time does not advance never reaches, so a freeze that lifted there would\nnever lift and every theorem over `permits` would hold of frozen components only; the model lifts\nthe freeze at step (3)'s mark instead, one interval early, and `frozen_until_step_three` is the\nhalf it keeps."
+  },
+  {
+    "file": "tools/formal/Provisiond/Restore.lean",
+    "text": "On a restore: the claim after step (2), a request after step (3), an absence on a second\ncomplete pass after the window, a frozen component once step (3) is marked — where `STO-54`\nsays the freeze lifts \"at `grace_ends_at`\", one interval later, which this clockless model does not\nreach (the module docstring says why) — \"except the exception, whose own later condition stands\non top: it stays off until the operator has confirmed or cancelled every waiting parent\", read as\na second condition beside step (3), not a substitute for it."
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-21` says \"The Stop-record bound is measured from the stop, counts every repeat including\nserialization failures, and never resets.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-21` says \"The record write MUST NOT be cancelled by the cancellation that stopped `execute`.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "A lost lock connection is the originating stop or no event: `OPS-21` says it “is not a later stop”."
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-49` says \"A serialization failure is repeated at once\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-21` says \"It records no error.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "A lost reply still repeats; where the defer affects no row, `OPS-8` says the meaning is\n\"already deferred, or already claimed again\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-21` says \"The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and\nthe engine MUST NOT wait for it past that bound.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-21` says\n\"whichever ends first ends the record\" about the independent bounds."
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-50` says \"A refused generation check ends recording without another attempt; an earlier\nattempt may already have committed with its reply lost.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-21` says \"A cancellation of `execute` that the engine survives MUST be recorded before\n the engine exits, for every operation kind\"; the bounded abandonment conditions still apply."
+  },
+  {
+    "file": "tools/formal/Provisiond/StopRecord.lean",
+    "text": "`OPS-49` says \"unless the bound's last\nrepeat committed and its reply was lost\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "text": "Not modelled: `OPS-11`'s `suspend_tenant` parent (its children settle, it does not; the function\nsays so with `none`; `Provisiond.StopRecord` composes its guarded defer on a stop), the goal-state\nanswer on an install's rescue exit (the driver reads that as a clean exit — `OPS-45`'s second\nmarker — and the install's own outcome stands), `STO-19`'s write-once resolution columns, and\nwhich provider codes mean \"already in the target state\", which\n`OPS-11` says \"is a provider fact, so the mapping belongs in the driver\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "text": " The upstream status recorded on a `provider` error: `OPS-11`'s \"5xx, or no upstream status was\nrecorded at all\" against \"a 4xx\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "text": "`beforeStep9` records the worker's position: `OPS-11` says \"before any step-9 request\n(before any per-order key upload or order request)\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "text": "`ADR-0035`: an accepted failure in the create row or last row is never `failed`; `OPS-11` says\n\"A later `rate_limited`, `not_found`, `authentication`, or provider 4xx error MUST NOT\nclassify that accepted mutation `failed`\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Tables.lean",
+    "text": "`STO-8a` says\n\"'Succeeds' means the resource is gone\"; an accepted date alone is not that evidence."
+  },
+  {
+    "file": "tools/formal/Provisiond/Types.lean",
+    "text": "`refused` is a\nstore error in `OPS-49`'s sense — a `statement_timeout` or `lock_timeout` the store rolled back\nand reported, which consumes the bound; the constraint violations and serialization failures\n`OPS-49` says \"are not store errors and do not consume the bound\" are not values of this type."
+  },
+  {
+    "file": "tools/formal/Provisiond/Types.lean",
+    "text": "Acknowledged without committed is not a value of this type: `OPS-49` says \"the only\nlost reply is a dead transport\", after the server decided."
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "text": "What the model omits: the parse and the transport, above; `API-10`'s `(principal, key)` scoping — `onKeyReuse` is handed the request\nstored under the same pair; `API-38`'s digest persisted past the purge, which is `preimage`\ncomputed at submission and compared later; `WIR-11`'s machine view beyond the two columns\n`SEC-8`'s lookup needs; `WIR-3`'s \"empty-body digest\" — every `Request` here carries a body, so a\nrequest without one is not a value of the type; `DOM-6`'s \"floor, not a ceiling\"; and timing,\nheaders and every observable beyond the response value."
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "text": " Distinct keys make a member its key's: `WIR-1a`'s \"A body MUST reject a duplicate object\nmember\" is what makes canonical order a function of the member set."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "What it\ntraps: the sweep joins the open episode and enqueues nothing, and the abort's date write is\nderived at the re-check's own clock, `OPS-41`'s \"write that re-derived `runway_until` to the\nmachine row\" — a hundred seconds of runway from `100`, so `200`, where a date derived from the\nenqueue would be `150`."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`API-68`'s \"admissible only in `stalled`\": the losing keep is wholly inert."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "Without the write the transaction's read is taken at its word, which `OPS-41`\nsays \"would let the worker delete a funded fleet on stale evidence\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "The mark stands, `api` keeps serving — the listener is not\nclosed a second time on a customer already served — and a repeated step (3), at a later instant,\nleaves the generation where the first one put it, and the grace where the first one wrote it:\n`STO-54`'s \"the grace is written once per incident — `STO-56`'s `grace_ends_at`, in step (3)'s\nmark transaction\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "This early lift is a model limitation: `STO-54` says\n\"the freeze lifts at `grace_ends_at`\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`LDG-31`'s \"the commitment decrements to zero\": the tenant is debited 30, 70 is the\noperator's, and `available` is what it was."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "Without it both debits compute from the row the transaction read, the top-up's 17, and write\n`balance_after` 7, then 10: the latest is 10 while the sum is 0, and a create of 10 is authorized\nagainst a balance the sum does not fund — `LDG-9`'s `available`, taken from the sum, is −10, where\n`LDG-10` says \"`available` MUST NOT go negative\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`LDG-70`'s read is \"`balance_after` on the greatest `seq` for that tenant\", not an earlier row:\nafter a top-up of 17 and a debit of 10 the greatest row says 7 and so does the sum, while the\nearlier row says 17 — and a create of 10 authorized against it is one the sum does not fund,\n`LDG-9`'s `available` from the sum at −3."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "Keyed on the observation event instead — `LDG-8`'s \"generated by the receiving code\" — and with\nno `payments` row to refuse the reference, \"a redelivered payment notification credits twice\nunder two different keys\": the replay mints 60,000."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "Keyed on the deposit instead — `STO-31`'s \"never from the deposit, which may legitimately\nproduce two credits\" — the second rail's payment is suppressed as a replay, and the customer's\nsecond 60,000 is stranded — `LDG-55`: \"which is `LDG-43`'s forbidden outcome reached through an\noptimisation\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "Its one entry carries the\nkey `usageKey` derives for the increment closing at 7, and the mark at 9 stands ahead of it:\n`LDG-72`'s \"a mark ahead of every entry is ordinary\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "Carrying the credit across instead, the 3/5 period 0 left pays for period 1's 2/5, which posts\n0: `LDG-38`'s \"1 then 0 carrying `r`\", on the composed model."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "A caller-only key is also refused: `RSC-3` says \"The actual Robot connection\nMUST match an accepted provider pin, even when a caller key is supplied.\""
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "The same conservatism on the second marker, which `OPS-45` states beside the first: \"`false` is\nthe conservative value as much as the open-session one: a process that dies between that write and\nthe dispatch leaves `false` over a machine that was never rebooted into rescue\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`SEC-39`'s \"stated override path for a genuine incident\", which `API-7` 5c makes the only\nexemption that reaches this pipeline: the create standing at its limit is admitted while the\noverride is in force, and refused the moment it is not."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`PRV-31` says \"The bound is declared in the descriptor's `cancellation_bound` (`PRV-44`),\nor reported on the offer.\""
+  },
+  {
+    "file": "01-domain-model.md",
+    "text": "The offers endpoint previously documented itself as having no\n  capability, which contradicted `OVR-2`'s rule that capability is discoverable rather than\n  inferred — a caller had no way to know whether an empty offer list meant \"nothing for sale\"\n  or \"cannot enumerate\"."
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "*Amended 2026-10-08 (`ADR-0035`): after acceptance this\nis an instance of `OPS-11`'s \"the operation's mutating request was accepted by the provider\",\nwith `details.accepted` from `PRV-5`.*"
+  },
+  {
+    "file": "02-provider-contract.md",
+    "text": "**The setup fee is committed at cost and debited at successful\nsettlement after acceptance** (amended 2026-10-08, `ADR-0035`; `LDG-39`: \"an accepted but unresolved\ncreate MUST take the `needs_reconciliation` pending-obligation row\"), because `ADR-0006` passes it\nthrough unmarked — the operator does not\nprofit from a fee it did not earn — and it is also a term that is entirely lost once the order\nlands (the prepaid first unit, below, is another; *reworded 2026-10-08, `ADR-0033`*), so\nit MUST be **fully committed before the order is placed**."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): the restart settlement is outside this classification; see `OPS-15`: \"A create found `running` at startup with `about_to_order_at` null MUST be settled `failed`, on a restart only.\"*"
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "*Amended 2026-10-09 and 2026-10-10 (`ADR-0036`): `PRV-40` says to \"refuse subsequent\ncreates on that account and channel before any provider call\" and, for a queued\ncreate closed at worker claim, to \"settle the existing operation `failed`\"."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "**The wind-down floor is tested against available balance with the setup fee — and the prepaid\nfirst unit, of which `LDG-39` says \"Where a row names the fee it names the unit as well\" — taken\nout of the question** (amended 2026-09-02; the unit added 2026-10-08, `ADR-0033`)."
+  },
+  {
+    "file": "03-operation-lifecycle.md",
+    "text": "The argument for it read\n`LDG-33`'s \"exhaustion begins when `usable_sats` reaches zero\" as the sweep's predicate; in context\nthat sentence is an argument for subtracting `protected_sats` before dividing, against a withdrawn\nform that divided the whole commitment."
+  },
+  {
+    "file": "04-api-contract.md",
+    "text": "*Amended 2026-10-08 (`ADR-0035`):* throttle classification follows `OPS-11`'s\n\"the operation's mutating request was accepted by the provider\" condition, and episode effects\nfollow `OPS-48`: a pre-acceptance refusal can stall; post-acceptance ambiguity is `uncertain`,\nwhere this retry verb is inadmissible."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "**`LDG-35`'s \"MUST state which\" is discharged in `ADR-0015`**: per-tenant advisory locks held for\nthe transaction, acquired in ascending tenant-identifier order where one transaction spans two\ntenants."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "`LDG-69` says \"A deployment MUST hold `LDG-35`'s\nprimitive for the duration of one database transaction and no longer\", which is this rule for\nthe tenant primitive alone; it holds for every transaction."
+  },
+  {
+    "file": "05-persistence.md",
+    "text": "Without it `API-17b`'s \"explicit assignment\" had no home and `WIR-29`\nreturned an empty list to every customer forever."
+  },
+  {
+    "file": "06-rescue-install.md",
+    "text": "*Naming itself a narrowing did not make it one: `OPS-8`\nsaid \"for its duration\" without qualification, so the two requirements were a straight\ncontradiction and the winner was whichever a builder read second.*"
+  },
+  {
+    "file": "07-security-requirements.md",
+    "text": "**The third moment is every redirect hop, and `RSC-44` states it** —\n\"re-check `SEC-19`'s host allowlist on every hop, against the redirect target's own name\" — *the\nmoment this pair missed until 2026-09-04."
+  },
+  {
+    "file": "07-security-requirements.md",
+    "text": "A queued create against an `account_unreachable`\nor `credentials_rejected` account still fails when claimed (`OPS-43`'s step 1; `API-63`: \"releasing its commitment\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "It read \"two tenants cannot both hold a record\n      for the same external machine\"; `CNF-107` reads \"two tenants cannot both hold the same\n      `(provider_account, external_id)`, enforced by the store, not by application code\" — the same\n      control, tested twice and counted twice in the BLOCKING total."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Repeat the caller-field case on an install, using `API-14`'s \"explicit destructive\n      acknowledgement\"."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For an `api` row: assert the delete's terminal transaction\n      enqueued a `release_attachment` carrying the delete's own `requested_by` and `system_reason`;\n      settle it `failed`, then call `POST .../attachments/{id}/actions/release` as an operator and\n      assert a `202` with a fresh `release_attachment` operation, `requested_by: operator`, whose\n      completed-release success with no effective date writes `released_at`, after which\n      `STO-18` no longer forbids the tombstone and\n      `LDG-74`'s \"the row is tombstoned when `STO-18` allows\" is what performs it."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "`LDG-31`'s \"that machine's commitment\"\n      rests on this and it was stated only as a storage constraint."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "Separately construct `CNF-300`'s unresolved failed-rescue-exit row with `disk_effect` `none` and\n      `rescue_exit` `unknown` without a prior restore, then back it up and actually restore it\n      (`CNF-300`: \"`disk_effect: \"none\"` (it aborted before writing) and `rescue_exit:\n      \"unknown\"`\")."
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "*Amended 2026-10-02:\n      \"never read each other\" was too broad; the mark is `LDG-72`'s \"the greatest `increment end`\n      among that subject's rows\".*"
+  },
+  {
+    "file": "10-conformance-checklist.md",
+    "text": "For create and every kind in\n      `OPS-11`'s last row, accept the mutation, then inject each of `rate_limited`, `not_found`,\n      `authentication`, and a provider 4xx on a read other than the accepted dated cancellation\n      read-back and post-order read (`PRV-13`, `PRV-13c`; `OPS-11`'s exception paragraph);\n      for create, fail `OPS-27`'s \"direct read\" or\n      \"search the correlator across every ordering channel\"."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "The rest were\nmechanical and were closed on 2026-09-08 without an ADR: `PRV-42`'s per-channel declaration now\nlives in `PRV-44`'s `ordering_channels[].offer_is_resource`; `PRV-36`'s headline, `OPS-32`,\n`LDG-74`, `PRV-42`, `CNF-277` and `CNF-237` read \"effective\" where they read \"declared\";\n`release_attachment` is in `WIR-10b`'s result shapes, `OPS-45`'s scope and marker table and the\nstore's `resolution` set, and `API-65`/`WIR-52` give it the operator route `PRV-45` presupposed;\nand `LDG-34` names the writers it actually serializes."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`OPS-45`: \"a record is no longer re-run (`ADR-0017`)\"; the\n  markers are write-once; `STO-3` names four guarded writes and running→queued is not one;\n  `CNF-288`'s tail says of create, install, power and reverse DNS that \"none of those kinds has a\n  second attempt by any path\", and `CNF-31a` and `CNF-201` assert `failed` where a deferral would\n  intervene; `API-58` and\n  `API-63` speak of work \"queued, never claimed\", which a deferred operation is not."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "The second is corrected alongside, with `CNF-271`'s \"no timer ever moves a\n`stalled` episode\" narrowed to an unfunded machine."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "*The change inventory the reviews\nproduced:* `OPS-3`'s diagram edge, `OPS-5`, `OPS-6`, `OPS-8`, `OPS-11` (the install row's\n`rate_limited` entry and refresh's \"Always `failed`\"), `OPS-12`'s \"no backoff loop\", `OPS-45`'s\n\"no longer re-run\", `OPS-48`'s table (a non-settling row), `STO-3`, `05-persistence.md` (`attempts`,\n`available_at`, `write_started_at`), `PRV-5`, `PRV-11`, `PRV-13b`, `PRV-40` (requests, not\nadmissions, spend the budget), `PRV-44` (a cancellation limit beside `order_budget`), `OVR-19`,\n`DOM-20`, `API-51`, `API-53`, `API-58`/`API-63`'s \"never claimed\", `SEC-39`'s per-entry ceiling\nunder a re-run, `DEF-17`, `ADR-0014`, the glossary's Operation/Attempt/Retry, and `CNF-27`,\n`CNF-31a`/`b`, `CNF-32`, `CNF-201`, `CNF-220`, `CNF-271`, `CNF-283`, `CNF-288`."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "`PRV-13a`'s \"MUST expose cleanup\" named no method, so\n`machine_attachments` was a fully specified table nothing populated."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "- *`OVR-4` versus `API-48`*: `OVR-4` said \"Every write operation MUST be asynchronous\" with no\n  carve-out; `API-48` owned the exception list, said \"exactly\" three entries, and was amended eight\n  times below itself to fourteen."
+  },
+  {
+    "file": "11-open-findings.md",
+    "text": "The conflict resolved on a capability fact: for iPXE (and the now-\nwithdrawn ISO mode) this system never touches the bytes, so `SEC-16`'s \"every custom image\" was\ndemanding an attestation nothing could check."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "The sentence above used to include that cadence in the list of\nthings the undefined phrase was carrying, and defining the phrase as a calendar month therefore set\nre-derivation to **monthly** — under which `runway_until` is up to a month stale, the rule `LDG-16`\nthen carried, \"persist across more than one derivation\" (withdrawn 2026-09-21), becomes two months,\nand `PRV-13c`'s \"materially in the future\" swallows every cancellation date under about thirty\ndays."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "This is the invariant\n`LDG-31`'s \"that machine's commitment\" rests on, and until now it was stated\nonly as a storage constraint (`05-persistence.md`)."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "Where\nthat stored date passes after the seed and before the next re-derivation, `LDG-16`'s sweep routes\non it under `LDG-16`'s predicate — \"MUST route a machine where its stored `runway_until` has passed\nand its currency has a rate (`LDG-59`) and it is not recorded gone\" — and `OPS-41`'s re-check\nre-derives with the mark: where the re-derived date is in the future — `OPS-41`'s test, \"puts\n**`runway_until` strictly in the future**\" — it aborts and writes the corrected date, `OPS-41`'s\n\"write that re-derived `runway_until` to the machine row\", and otherwise it proceeds, on a date\nthat is now correct; that re-check is the existing mechanism and it is enough, and no writer is\nadded for the case (*stated 2026-10-08, `ADR-0033`*)."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "The debit timing belongs to `LDG-39`: \"only when the order is known to\nhave landed and the create settles\" (amended 2026-10-08, `ADR-0035`); `ADR-0033` introduced\nthe prepaid unit."
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "*Withdrawn 2026-09-25 (`ADR-0028`), from the wording above: \"each respects `LDG-16`'s destruction\ndeadline like every other exposure-reducing cancellation, since `LDG-16` says one \"MUST NOT make its\nprovider call while its machine's `destroy_not_before` is in the future\"\" — that sentence of\n`LDG-16` is withdrawn with the deadline, and so is the deadline the 2026-09-23 note below names.*"
+  },
+  {
+    "file": "12-billing-and-ledger.md",
+    "text": "`PRV-31`'s \"worst-case cancellation bound\" limits this exposure\nonly where the machine's read date lies within that declared bound; cost beyond it after a\nprovider deviation is operator-borne."
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "*Amended 2026-10-04 (`pv-gip.28`, T1):* the settings-change lever is the\nmaximum tolerated outage: `OVR-19` says \"The maximum tolerated rate outage is read at the value\nin force when `LDG-64`'s deadline is computed, for an outage already open too.\""
+  },
+  {
+    "file": "13-wire-contract.md",
+    "text": "**WIR-32** **AMENDED** `API-26`'s \"sane range\" — applied to **every** cursor-paginated endpoint,\nmachines and operations alike: `limit` clamped to **1–200, default 50**."
+  },
+  {
+    "file": "AGENTS.md",
+    "text": "`` `WIR-30` says \"The gate reads the copy the machine took at create\" `` is checkable;\n\"`WIR-30` forbids resolving eligibility that way\" is an assertion, and assertions of that shape were\nfalse repeatedly on 2026-09-03 — `ddd3df0` and `254fc24` carry the cases and what each one cost."
+  },
+  {
+    "file": "CONTEXT.md",
+    "text": "The\ncolumn this replaced was `attempts`, \"incremented on claim\", which read as a count of the thing the\nglossary calls an **attempt** while `OPS-2` says \"the operation is one attempt\" — a create deferred\nonce read `2` on a kind `CNF-288` says has \"no second attempt by any path\"."
+  },
+  {
+    "file": "README.md",
+    "text": "The single-writer engine's single point of failure is an outage of every mechanism that stops a machine billing, and `LDG-35`'s \"MUST state which\" had been met by accident for as long as it stood |"
+  },
+  {
+    "file": "tools/formal/Provisiond/AccountStatus.lean",
+    "text": "`false` is the rule `SEC-46` read until 2026-08-13,\n  \"When a provider account is lost, the affected tenants' **commitments MUST be closed and their\n  reserved satoshis returned to available balance**\", which released on every loss:\n  `account_unreachable`, `credentials_rejected` and `terminated`."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "`LDG-20`'s \"halt top-ups first\" orders two responses in time; this is a matrix, so what it\ncarries is that minting is refused and crediting is not."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "An empty row is a verb this set states no ceiling for, which is not the same as a verb that may\nnever have one: `SEC-39` states its two lists \"at minimum\", so a deployment may count more than\nthis table names."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "The system's own cancellations, `OPS-39`'s \"Exposure-reducing system cancellations\": the\nactions a worker claims and decides by `OPS-41`'s order."
+  },
+  {
+    "file": "tools/formal/Provisiond/Admission.lean",
+    "text": "The\nsystem's own cancellations are `OPS-39`'s \"Exposure-reducing system cancellations\", each of\nthem, and the exhaustion sweep is what enqueues the first."
+  },
+  {
+    "file": "tools/formal/Provisiond/Claim.lean",
+    "text": "`available_at` appears exactly as a written column; nothing\nhere reads it, and `OPS-8`'s \"short delay\" is represented by `none`, not a scheduled instant."
+  },
+  {
+    "file": "tools/formal/Provisiond/Fence.lean",
+    "text": "The abort also does what `OPS-41`\nsays of the funded case under `abortWritesDate` — the date write — so the sweep does not route\nthe same machine on the next pass; the lost-race abort settles \"as `OPS-41` requires\" (`OPS-42`)\nand is read here as the same terminal transaction, writing the date the re-check derived where it\nderived one."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "`API-34` reaps a pending tenant, and \"a tenant MUST NOT be deleted while any deposit\nof its own remains inside that window\" — the deposit expiry plus the on-chain finality window —\nwhich is `Params.reapWaitsForWindow`; \"of its own\" is read as a deposit that resolves to the\ntenant (`Deposit.creditedTenant`), so that an attributed deposit's later payment is covered too,\nand `API-42`'s \"in flight\" as inside that window."
+  },
+  {
+    "file": "tools/formal/Provisiond/Funding.lean",
+    "text": "The entry's key is `usageKey`,\n`LDG-8`'s \"`(subject, billing period, kind, increment end)`\", and `Params.usageKeyFrom` keeps the\nwithdrawn posting index as its other value."
+  },
+  {
+    "file": "tools/formal/Provisiond/Ledger.lean",
+    "text": "Of `LDG-70`: any storage — no\nSQL, and not the `(tenant_id, seq desc)` index the read is served from; an entry's kind, id and\ncauses — an `Entry` is its sequence number, amount and `balance_after`; one state for the entries\nand the commitments — `Book` and `Balances` are separate, joined only by the hypothesis that\n`Balances.sum` is the entries' sum; of the uses `LDG-70` names, \"every create, every extend and\nevery metered posting\" and `GET /v1/balance`, all but the create's open; a refused append —\n`Book.step` takes any amount, and `LDG-10`'s floors are proved of `Balances`; a second tenant, and\nwith it `LDG-35`'s \"ascending tenant-identifier order\"; and the audit path's failure mode —\n`drift_identity` is the difference the audit would find, and that \"a mismatch MUST fail closed\" is\nnot modelled."
+  },
+  {
+    "file": "tools/formal/Provisiond/Rehost.lean",
+    "text": "`privateNet` is\n`RSC-44`'s \"private\"; the name avoids Lean's `private`."
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "text": "A `Json` value is what `WIR-1a`'s parser produced — a duplicate\nmember was already refused, a number is already an integer, whitespace is already gone — so\n`API-12`'s \"whitespace\" clause is the parse and not a theorem here; that a request's bytes parse to\nthe `Json` the model canonicalizes, that the request target is `WIR-5a`'s origin-form string, and\nthat `Response.notFound` is rendered as `WIR-9`'s `404` envelope are the parser's and the\ntransport's correspondence, which no theorem here takes as a hypothesis: it is outside the model,\nand the omissions below list it."
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "text": "`API-12`'s \"canonical serialization\", as the value `WIR-3`'s JCS serializes: every object's\nmembers sorted by key, recursively."
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "text": " Canonicalizing a canonical value changes nothing: `API-12`'s \"spurious conflicts\" cannot come\nfrom the stored side having been canonicalized once and the incoming side twice."
+  },
+  {
+    "file": "tools/formal/Provisiond/Wire.lean",
+    "text": "`DOM-6`'s \"redaction marker\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`OPS-42`'s \"Extension first\": the worker's read sees the grown commitment, aborts, makes no\nprovider call, settles `succeeded` closing the episode `funded`, and the customer has what it\npaid for."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`OPS-42`'s \"Fence first\", on the paid-machine trace under `current`: the read and the write are\none transaction, the extension after it is refused — no commitment, no balance moved — and the\nunfunded machine is destroyed."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "`RSC-3`'s \"They MUST overlap\" row refuses a presented key in neither set and admits\none in the overlap."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "The exit that failed — `PRV-22`'s \"*always* ambiguous\"."
+  },
+  {
+    "file": "tools/formal/Provisiond/Witnesses.lean",
+    "text": "Without it both release, which is the rule `SEC-46` read until 2026-08-13: \"When a\nprovider account is lost, the affected tenants' **commitments MUST be closed and their reserved\nsatoshis returned to available balance** (`LDG-32`)\"."
+  }
+]

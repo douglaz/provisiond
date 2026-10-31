@@ -1,0 +1,35 @@
+{
+  "A": {
+    "lost_existing_comparisons": [],
+    "added_comparisons": [
+      [
+        "10-conformance-checklist.md",
+        "CNF-300",
+        "`disk_effect: \"none\"` (it aborted before writing) and `rescue_exit:\n      \"unknown\"`",
+        true
+      ]
+    ]
+  },
+  "B": {
+    "lost_existing_comparisons": [],
+    "added_comparisons": [
+      [
+        "10-conformance-checklist.md",
+        "CNF-300",
+        "`disk_effect: \"none\"` (it aborted before writing) and `rescue_exit:\n      \"unknown\"`",
+        true
+      ]
+    ]
+  },
+  "C": {
+    "lost_existing_comparisons": [],
+    "added_comparisons": [
+      [
+        "10-conformance-checklist.md",
+        "CNF-300",
+        "`disk_effect: \"none\"` (it aborted before writing) and `rescue_exit:\n      \"unknown\"`",
+        true
+      ]
+    ]
+  }
+}

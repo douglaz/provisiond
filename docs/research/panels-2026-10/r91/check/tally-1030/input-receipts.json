@@ -1,0 +1,68 @@
+{
+  "pinned_head": "aeb7ff65369238212903d6b60b8ae1622f5c93d8",
+  "readers": {
+    "fable": {
+      "exit": 0,
+      "bytes": 12545,
+      "sha256": "565428ebbdb54591d658bb3ba0cb275b5f4e5cbcaedfeb6eb4b0a35bec8fb3a5",
+      "substantive": true,
+      ".err": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "opus": {
+      "exit": 0,
+      "bytes": 12249,
+      "sha256": "49a42363baeb042c25b459e83f2870ccea746d7d969f7260a082165ebd5edfcd",
+      "substantive": true,
+      ".err": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "astra": {
+      "exit": 0,
+      "bytes": 8279,
+      "sha256": "58cdfcbebec9c71e0399439663fedffbbca5a51f4528a080c4ece61c1646081c",
+      "substantive": true,
+      ".out": {
+        "bytes": 8280,
+        "sha256": "404b2a048afdf9f5810f7d2c7252e49a2da8d21c3781fa08d623018fbf2a3892"
+      },
+      ".err": {
+        "bytes": 476539,
+        "sha256": "799ecd9e8fbc080243a8edd29c27770c926b85974d01ce4115e1609eeadc3311"
+      }
+    },
+    "sol": {
+      "exit": 0,
+      "bytes": 7574,
+      "sha256": "bfdca0f9f1496bc91fe4c408f8c04cc24a80a2da6bb08b1f9b78283a950880a3",
+      "substantive": true,
+      ".out": {
+        "bytes": 7575,
+        "sha256": "a34d36d895af4c8ec4e35156de213591486cb32f3c689813aca99f07c3a9bfed"
+      },
+      ".err": {
+        "bytes": 684439,
+        "sha256": "e825cebde1e2463625d9a61412f6b6bc81a954e953968ef16fd0d4a858a69805"
+      }
+    }
+  },
+  "grok": {
+    "state": "missing",
+    "reason": "402 at launch; supplied main recheck 21:35Z; no retry"
+  },
+  "quota": {
+    "claude_session_percent": 74,
+    "claude_session_reset": "2026-10-30T23:00:00Z",
+    "claude_week_percent": 69,
+    "claude_week_reset": "2026-11-05T15:00:00Z",
+    "fable_percent": 98,
+    "fable_exempt": true,
+    "codex_active_week_percent": 5,
+    "hold": false
+  },
+  "scope": "tally only, no adoption; writes confined to r91; no br"
+}

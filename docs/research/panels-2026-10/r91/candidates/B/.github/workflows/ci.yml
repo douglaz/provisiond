@@ -1,0 +1,2069 @@
+name: gates
+
+# The reference implementation this set was extracted from shipped with a CI job
+# that ran a test suite containing zero tests, and a green check next to it
+# (DEF-16). A green check that asserts nothing is worse than no check, so this
+# workflow runs gates that can actually fail, and 10-conformance-checklist.md
+# opens by saying to treat any unchecked box as that same green check.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gates:
+    name: specification gates (shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The formal layer (ADR-0025) needs Lean; flake.nix is the one place the
+      # toolchain is pinned, so CI enters the same shell a developer does.
+      - uses: cachix/install-nix-action@v31
+
+      # The ROWS loop runs everywhere. Whole-step allocations below spread the
+      # standalone Lean builds across shards 1-3; shard 0 pays for the full gate
+      # and publication regressions. Citation regression loops are spread too.
+      # These are cost estimates, not measured timings for this matrix (pv-98i).
+      - name: Run all gates
+        if: matrix.shard == 0
+        run: nix develop --command bash tools/check-all.sh
+
+      - name: Exercise complete inline JSON selection and validation
+        if: matrix.shard == 0
+        run: nix develop --command python3 tools/test_check_fixtures.py
+
+      - name: Prove the fixture gate checks the live inline inventory
+        if: matrix.shard == 0
+        run: |
+          nix develop --command python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          path = Path('13-wire-contract.md')
+          original = path.read_bytes()
+          before = b'{"identifier": null, "path": "/dev/sda", "wwn": null, "serial": null,'
+          after = b'{"identifier": "/dev/sda", "path": "/dev/sda", "wwn": null, "serial": null,'
+          section_start = original.index(b'**WIR-10b**')
+          section = original[section_start:].split(b'**WIR-11**', 1)[0]
+          assert original.count(before) == section.count(before) == 1 and after not in original
+          line = original[:section_start + section.index(b'`{"inventory":')].count(b'\n') + 1
+
+          def gate():
+              result = subprocess.run([sys.executable, 'tools/check_fixtures.py'],
+                                      capture_output=True, text=True)
+              print(result.stdout, end='')
+              print(f'fixture gate exit: {result.returncode}')
+              assert not result.stderr, result.stderr
+              return result
+
+          assert gate().returncode == 0
+          try:
+              mutated = original.replace(before, after, 1)
+              assert mutated != original and mutated.count(after) == 1 and before not in mutated
+              path.write_bytes(mutated)
+              assert path.read_bytes() == mutated
+              result = gate()
+              assert result.returncode == 1, result.returncode
+              diagnostic = (f'FAIL 13-wire-contract.md:{line} (inline JSON WIR-10b): '
+                            '$.inventory.devices[1].identifier: identity choice (RSC-46): '
+                            "expected None, got '/dev/sda'")
+              failures = [s for s in result.stdout.splitlines() if s.startswith('FAIL ')]
+              assert failures == [diagnostic], result.stdout
+              assert 'WIR-10b mandatory inline inventory selected: 1' in result.stdout
+              print('PASS: live WIR-10b anonymous identifier mutation: named identity-choice failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+              print('PASS: original wire source bytes restored')
+          assert gate().returncode == 0
+          PY
+
+      # Every shard needs a successful build AND the published index/regions
+      # before controls copy or read tools/formal/.lake.
+      - name: Build the formal layer the controls copy
+        if: matrix.shard != 0
+        run: nix develop --command bash tools/check_formal.sh
+
+      - name: Prove formal publication survives overlap and failures
+        if: matrix.shard == 0
+        run: nix develop --command python3 tools/test_formal_publication.py
+
+      - name: Prove direct formal writes fail the publication interleaving regression
+        if: matrix.shard == 0
+        run: python3 tools/test_formal_publication.py --negative-control
+
+      # Proving the gates can fail is the point of CNF-3 ("The test suite fails
+      # when a test is deliberately broken -- verified once, by hand, so that
+      # 'tests passed' means something"). This does it on every run, against a
+      # scratch copy, so the green check above is evidence rather than decoration.
+      - name: Prove the identifier gate can fail
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n**API-9999** A citation to `DOM-9999`, which does not exist.\n' >> 00-overview.md
+          if python3 tools/check_ids.py; then
+            echo "::error::identifier gate passed a document with a dangling citation"
+            exit 1
+          fi
+          echo "identifier gate correctly rejected a dangling citation"
+
+      - name: Prove never-master identifiers cannot return to live specs
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n**PRV-46** A reused identifier.\n' >> 02-provider-contract.md
+          if python3 tools/check_ids.py > ids.log 2>&1; then
+            echo "::error::identifier gate accepted a reused never-master id"
+            exit 1
+          fi
+          grep -q "UNMERGED ID REUSED: \['PRV-46'\]" ids.log
+          sed -i '/^\*\*PRV-46\*\* A reused identifier\.$/d' 02-provider-contract.md
+          printf '\nA live reference to `CNF-336`.\n' >> 00-overview.md
+          if python3 tools/check_ids.py > ids.log 2>&1; then
+            echo "::error::identifier gate accepted a live citation to a never-master id"
+            exit 1
+          fi
+          grep -q "UNMERGED ID LIVE CITED: \['CNF-336'\]" ids.log
+
+      # The same gate refuses a conformance item that carries a launch tier; the
+      # tiers were withdrawn on 2026-09-12 (F50) and every item gates. The control
+      # re-tags one existing item rather than appending a `CNF-9999` line: 9999 is
+      # an outlier id and would be refused for that reason whether or not the tier
+      # check existed, which is a control that cannot fail for the reason it tests.
+      - name: Prove the identifier gate refuses a tiered conformance item
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/^- \[ \] \*\*CNF-1\*\* — /- [ ] **CNF-1** **BLOCKING** — /' \
+            10-conformance-checklist.md
+          if python3 tools/check_ids.py; then
+            echo "::error::identifier gate passed a conformance item carrying a tier"
+            exit 1
+          fi
+          echo "identifier gate correctly rejected a tiered conformance item"
+
+      # The obligation gate has a real historical positive -- the 2026-09-02 fence
+      # bug, where OPS-42 stated LDG-62's half of a contention that LDG-62 never
+      # mentioned -- but `--selftest` reads that commit from history, and a shallow
+      # CI checkout does not have it. So prove it synthetically here, and keep
+      # `--selftest` for local runs in a full clone.
+      - name: Prove the obligation gate can fail
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n**OVR-9998** The store `DOM-1` MUST record `a_column_dom1_never_mentions`.\n' \
+            >> 00-overview.md
+          if python3 tools/check_obligations.py; then
+            echo "::error::obligation gate passed a duty its target never mentions"
+            exit 1
+          fi
+          echo "obligation gate correctly rejected an orphaned obligation"
+
+      # The citation gate's known-positive is the WIR-1 miscitation that lived in
+      # 13-wire-contract.md until 2026-09-03; `--selftest` reads it from history
+      # and a shallow CI checkout does not have it. Prove it synthetically here.
+      - name: Prove the citation gate can fail
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n`OVR-1` says "a phrase OVR-1 has never contained anywhere".\n' \
+            >> 00-overview.md
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a quote its target does not contain"
+            exit 1
+          fi
+          grep -q 'attributes to OVR-1 a phrase OVR-1 does not contain' citations.log
+          echo "citation gate correctly rejected an unverifiable quoted attribution"
+
+      - name: Prove the citation gate rejects nested inline-code value corruptions
+        if: matrix.shard == 0
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          import subprocess
+          from tempfile import TemporaryDirectory
+
+          # Exercise the actual CLI in an isolated full copy, retaining the built index.
+          with TemporaryDirectory(prefix='nested-citation-') as directory:
+              root = Path(directory) / 'repo'
+              shutil.copytree('.', root, ignore=shutil.ignore_patterns('.git', '__pycache__'))
+              path = root / '03-operation-lifecycle.md'
+              original = path.read_text()
+              prefix = "with `API-63`'s “"
+              assert original.count(prefix) == 1
+              start = original.index(prefix) + len(prefix) - 1
+              end = original.index('”', start) + 1
+              quoted = original[start + 1:end - 1]
+              assert '"account_terminated"' in quoted and '"state"' in quoted
+              assert 'two recoverable' in quoted
+
+              def run(text, expected, diagnostic=None):
+                  path.write_text(text)
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], cwd=root,
+                                          capture_output=True, text=True)
+                  assert result.returncode == expected, (expected, result.returncode, result.stdout, result.stderr)
+                  if diagnostic:
+                      assert diagnostic in result.stdout, result.stdout
+
+              run(original, 0)
+              straight = original[:start] + '"' + quoted + '"' + original[end:]
+              run(straight, 0)
+              for before, after in [('account_terminated', 'account_terminatd'),
+                                    ('"state"', '"stat"'), ('two recoverable', 'three recoverable')]:
+                  changed = quoted.replace(before, after, 1)
+                  assert changed != quoted
+                  # The cited owner and every other source stay unchanged.
+                  curly_wrong = original[:start] + '“' + changed + '”' + original[end:]
+                  straight_wrong = original[:start] + '"' + changed + '"' + original[end:]
+                  run(curly_wrong, 1, 'attributes to API-63 a phrase API-63 does not contain')
+                  run(straight_wrong, 1, 'attributes to API-63 a phrase API-63 does not contain')
+              run(original, 0)
+          print('PASS: live nested citation: valid source, three corruptions and restoration')
+          PY
+
+      # Exercise the unchanged live site as well as the one-word plant: a skip
+      # must not pass for a successful comparison. The control copies the index
+      # from the full gate above and mutates only its own scratch document.
+      - name: Prove the citation gate compares the live withdrawal quotation
+        if: matrix.shard == 0
+        run: python3 tools/test_withdrawal_citations.py
+
+      - name: Prove the citation gate compares the complete live stop-record quotation
+        if: matrix.shard == 0
+        run: python3 tools/test_stop_record_citations.py
+
+      - name: Prove the citation gate compares the live Claim quotation under both checks
+        if: matrix.shard == 0
+        run: python3 tools/test_claim_citations.py
+
+      # The formal layer's controls (ADR-0025). Each breaks the specific thing its
+      # check guards, and each asserts the failure came from that check and not
+      # from a syntax error or a missing toolchain -- a red build for the wrong
+      # reason is not evidence the gate works. The first is the predicate swap the
+      # Python arithmetic gate carried until 2026-09-13: its first draft derived
+      # both sides of the comparison from one variable and was a tautology that
+      # could never fail, which is why a control exists for this at all.
+      - name: Prove the Lean build rejects the withdrawn OPS-41 predicate
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          # Since 2026-10-08 (ADR-0033) the predicate reads LDG-33's derivation from now and the
+          # mark, so the signature stays and only the body is swapped for the withdrawn form.
+          sed -i \
+            -e 's/^def abortDate (p : Params) (now : Nat) (mark : Option Nat) (reserved prot rate : Nat) : Bool :=$/def abortDate (_p : Params) (_now : Nat) (_mark : Option Nat) (reserved prot _rate : Nat) : Bool :=/' \
+            -e 's/^  runwayUntil p now mark reserved prot rate > now$/  usableSats reserved prot > 0/' \
+            Provisiond/Runway.lean
+          grep -q '^def abortDate (_p : Params) (_now : Nat) (_mark : Option Nat) (reserved prot _rate : Nat) : Bool :=$' Provisiond/Runway.lean
+          grep -q '^  usableSats reserved prot > 0$' Provisiond/Runway.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the withdrawn predicate in abortDate"
+            exit 1
+          fi
+          # Lean names the line, not the theorem: the unsolved goal is in Runway.lean, in
+          # abortDate_never_on_routed, and nothing else in that file reads abortDate's body
+          # (not_routed_inside_the_unit reads routed alone; the witnesses are downstream).
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Runway.lean:.*unsolved goals' build.log
+          echo "lake build correctly failed on abortDate_never_on_routed"
+
+      - name: Prove the axiom gate rejects a sorry the build accepts
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^    grind$/    sorry/' Provisiond/Meter.lean
+          grep -q '^    sorry$' Provisiond/Meter.lean
+          nix develop --command lake build
+          if nix develop --command lake exe gate > index.jsonl 2> gate.err; then
+            echo "::error::axiom gate passed a proof that uses sorry"
+            exit 1
+          fi
+          grep -q 'sorryAx' gate.err
+          echo "axiom gate correctly rejected sorryAx while lake build stayed green"
+
+      - name: Prove the axiom gate rejects native_decide outside Provisiond.Explore
+        if: matrix.shard == 3
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          cat >> Provisiond/Witnesses.lean <<'EOF'
+
+          namespace Provisiond.Explore
+          theorem allowed_here : Provisiond.Meter.postedDebit (2/5) 0 = 1 := by native_decide
+          end Provisiond.Explore
+          namespace Provisiond.Witnesses
+          theorem not_allowed_here : Provisiond.Meter.postedDebit (2/5) 0 = 1 := by native_decide
+          end Provisiond.Witnesses
+          EOF
+          nix develop --command lake build
+          if nix develop --command lake exe gate > index.jsonl 2> gate.err; then
+            echo "::error::axiom gate passed native_decide outside Provisiond.Explore"
+            exit 1
+          fi
+          grep -q 'not_allowed_here uses native_decide' gate.err
+          # Every refusal line must be about not_allowed_here (its minted axiom carries the
+          # same name); a line about Explore.allowed_here would mean the exemption is broken.
+          if grep 'uses native_decide' gate.err | grep -v not_allowed_here | grep -q .; then
+            echo "::error::axiom gate refused native_decide inside Provisiond.Explore"
+            exit 1
+          fi
+          echo "axiom gate correctly refused native_decide outside Explore and allowed it inside"
+
+      - name: Prove the formal gate rejects a module the build never reads
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i '/^import Provisiond.Witnesses$/d' tools/formal/Provisiond.lean
+          if nix develop --command bash tools/check_formal.sh > formal.log 2>&1; then
+            echo "::error::formal gate passed with Witnesses.lean unimported"
+            exit 1
+          fi
+          grep -q 'does not import Provisiond.Witnesses' formal.log
+          echo "formal gate correctly rejected the orphaned module"
+
+      - name: Prove the formal gate rejects a conformance identifier in the formal layer
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i '0,/^\/-! /s//\/-! CNF-1 is a conformance item and has no business here.\n/' \
+            tools/formal/Provisiond/Wire.lean
+          if nix develop --command bash tools/check_formal.sh > formal.log 2>&1; then
+            echo "::error::formal gate passed with a CNF identifier in Wire.lean"
+            exit 1
+          fi
+          grep -q 'a conformance identifier appears in the formal layer' formal.log
+          grep -q 'Wire.lean' formal.log
+          echo "formal gate correctly rejected the conformance identifier"
+
+      # The claim model's guard terms are parameters (ADR-0025): dropping ADR-0022's
+      # claim term is a one-token change to `Provisiond.Claim.current`, and the
+      # stale-defer witness must go red on exactly that. Claim.lean's own theorems
+      # take the term as a hypothesis, so the module stays green and Witnesses.lean
+      # is built; the red must come from the refused witness and nowhere else.
+      - name: Prove the Lean build rejects the claim guard without its claim term
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^def current : Guards := { claimTerm := true, repeatBranch := true }$/def current : Guards := { claimTerm := false, repeatBranch := true }/' \
+            Provisiond/Claim.lean
+          grep -q 'claimTerm := false, repeatBranch := true' Provisiond/Claim.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the claim term removed from the guard"
+            exit 1
+          fi
+          # One red, and it is `decide` refuting the refused witness's own proposition:
+          # a second error line would mean the mutation broke something other than
+          # the property it targets.
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A1 'proved that the proposition' build.log | grep -q 'staleDeferTrace current ='
+          echo "lake build correctly failed on stale_defer_refused"
+
+      # The closed tables (pv-vwe.2): a kind added to DOM-17 without a row is a red
+      # build, because every match over ErrorKind carries no wildcard and the
+      # enumeration's completeness theorem is by `cases`. The red must be Tables.lean's
+      # own: a missing case, not a syntax error elsewhere.
+      - name: Prove the Lean build rejects an error kind without a classification row
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^  | insufficientBalance | notActivated | halted | gone | suspended | ceilingExceeded | overloaded$/&\n  | unclassifiedKind/' \
+            Provisiond/Tables.lean
+          grep -q '^  | unclassifiedKind$' Provisiond/Tables.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with an error kind no table row classifies"
+            exit 1
+          fi
+          grep -q 'error: Provisiond/Tables.lean:.*[Mm]issing cases' build.log
+          if grep '^error: Provisiond/' build.log | grep -v 'Provisiond/Tables.lean' | grep -q .; then
+            echo "::error::the mutation broke something outside Tables.lean"
+            exit 1
+          fi
+          echo "lake build correctly failed on the wildcard-free matches over ErrorKind"
+
+      # OPS-11's goal-state row is a parameter (ADR-0025): dropping it is a one-token
+      # change to `Provisiond.Tables.currentRules`, and the already-deleted witness must
+      # go red on exactly that, with Tables.lean's own theorems staying green.
+      - name: Prove the Lean build rejects the classification without its goal-state row
+        if: matrix.shard == 3
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          sed -i 's/^def currentRules : Rules := { goalStateRow := true, markerRule := true, acceptanceRule := true, preStep9Rule := true }$/def currentRules : Rules := { goalStateRow := false, markerRule := true, acceptanceRule := true, preStep9Rule := true }/' \
+            Provisiond/Tables.lean
+          grep -q 'goalStateRow := false, markerRule := true, acceptanceRule := true, preStep9Rule := true' Provisiond/Tables.lean
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build passed with the goal-state row removed from the classification"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A6 'proved that the proposition' build.log | grep -q 'deleteMachine'
+          echo "lake build correctly failed on already_deleted_witness"
+
+      - name: Prove the Lean build rejects a finished exit from an empty event list
+        if: matrix.shard == 3
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/StopRecord.lean')
+          source = path.read_text()
+          old = '  | [] => { unfinished := true }'
+          assert source.count(old) == 1
+          path.write_text(source.replace(old, '  | [] => { unfinished := false }'))
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::an empty event list passed as a finished exit"
+            exit 1
+          fi
+          cat build.log
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/StopRecord.lean:.*unsolved goals' build.log
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path('Provisiond/StopRecord.lean').read_text().splitlines()
+          start = next(i + 1 for i, line in enumerate(lines)
+                       if line.startswith('theorem finished_unrecorded_exit '))
+          end = next(i + 1 for i in range(start, len(lines)) if not lines[i].strip())
+          errors = [line for line in Path('build.log').read_text().splitlines()
+                    if line.startswith('error: Provisiond/')]
+          assert len(errors) == 1, errors
+          assert 'error: Provisiond/StopRecord.lean:' in errors[0], errors
+          location = int(errors[0].split(':')[2])
+          assert start <= location <= end, (start, end, errors)
+          print(f'PASS: only finished_unrecorded_exit is red (lines {start}-{end})')
+          PY
+          echo "lake build correctly rejected a finished exit from an empty event list"
+
+      # ADR-0035: disable one amendment guard at a time. Require a refuted
+      # witness, never a syntax error. One in-repository copy serves the rows.
+      - name: Prove accepted failures and in-progress orders survive only with their guards
+        if: matrix.shard == 0
+        run: |
+          python3 - <<'PYCONTROL'
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import tempfile
+
+          root = Path.cwd()
+          with tempfile.TemporaryDirectory(prefix='.acceptance-control-', dir=root) as directory:
+              copy = Path(directory)
+              files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+              for name in filter(None, files):
+                  source = root / name
+                  target = copy / name
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(source, target)
+              shutil.copytree(root / 'tools/formal/.lake', copy / 'tools/formal/.lake')
+              formal = copy / 'tools/formal'
+              for module, old, new, witness in [
+                  ('Tables', 'acceptanceRule := true', 'acceptanceRule := false',
+                   'accepted_read_failure_witness'),
+                  ('Reconcile', 'negativeOnly       := true', 'negativeOnly       := false',
+                   'in_progress_order_witness'),
+                  ('Tables', 'preStep9Rule := true', 'preStep9Rule := false',
+                   'before_step9_failure_witness'),
+                  ('StopRecord', 'recordOnStop := true', 'recordOnStop := false',
+                   'stop_recorded_witness'),
+                  ('StopRecord', 'shieldRecord := true', 'shieldRecord := false',
+                   'stop_shielded_witness'),
+                  ('StopRecord', 'boundRecord := true', 'boundRecord := false',
+                   'stop_bounded_witness'),
+              ]:
+                  path = formal / f'Provisiond/{module}.lean'
+                  original = path.read_bytes()
+                  assert original.count(old.encode()) == 1
+                  try:
+                      path.write_bytes(original.replace(old.encode(), new.encode()))
+                      result = subprocess.run(['nix', 'develop', '--command', 'bash', '-c',
+                                               'cd "$1" && lake build', 'acceptance-control', str(formal)],
+                                              cwd=root, capture_output=True, text=True)
+                      output = result.stdout + result.stderr
+                      print(output)
+                      assert result.returncode != 0
+                      lines = (formal / 'Provisiond/Witnesses.lean').read_text().splitlines()
+                      start = next(i + 1 for i, line in enumerate(lines)
+                                   if line.startswith(f'theorem {witness} :'))
+                      end = next(i + 1 for i in range(start, len(lines)) if not lines[i].strip())
+                      errors = [line for line in output.splitlines()
+                                if line.startswith('error: Provisiond/')]
+                      assert len(errors) == 1, errors
+                      assert 'error: Provisiond/Witnesses.lean:' in errors[0], errors
+                      location = int(errors[0].split(':')[2])
+                      assert start <= location <= end, errors
+                      assert 'proved that the proposition' in errors[0], errors
+                      print(f'PASS: removing only {module} guard refutes {witness}', flush=True)
+                  finally:
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              subprocess.run(['nix', 'develop', '--command', 'bash', '-c',
+                              'cd "$1" && lake build', 'acceptance-control', str(formal)],
+                             cwd=root, check=True)
+          PYCONTROL
+
+      # The migration-plan type (STO-12): a CONCURRENTLY build inside a transactional
+      # migration is not a value of the type. The control writes one, in the Explore
+      # namespace so nothing tagged is touched, and requires the type to refuse it.
+      - name: Prove the migration type refuses a CONCURRENTLY build inside a transaction
+        if: matrix.shard == 3
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          cat >> Provisiond/Witnesses.lean <<'EOF2'
+
+          namespace Provisiond.Explore
+          def concurrent_inside_a_transaction :
+              Provisiond.Migration.Migration Provisiond.Migration.postgres true :=
+            .transactional [.createIndex true true] (by decide)
+          end Provisiond.Explore
+          EOF2
+          if nix develop --command lake build > build.log 2>&1; then
+            echo "::error::lake build accepted a CONCURRENTLY build inside a transactional migration"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A6 'proved that the proposition' build.log | grep -q 'postgres'
+          echo "the migration type correctly refused the transactional CONCURRENTLY build"
+
+      # The cancellation fence (pv-vwe.4, completed by pv-vwe.10; pv-gip.2 for the two rules
+      # of 2026-09-23 and 2026-09-25; pv-gip.25 for ADR-0029's of 2026-10-02): every guard
+      # the fence composes is a field of `Provisiond.Fence.current`, one per line, and the
+      # rows below carry each one's amendment date rather than this header restating which
+      # guards they are. Each row below flips one field and requires exactly one red:
+      # `decide` refuting the witness that field's amendment exists for, identified by a
+      # token of its proposition. Fence.lean's own theorems take each guard as a hypothesis
+      # and stay green, and every witness asserts only what its own parameter decides, so no
+      # neighbouring witness fails for want of the flipped one. The rows:
+      #   datedAcceptanceSchedules (PRV-13, 2026-10-11, ADR-0037 Q22): the failed read
+      #     falsely records gone while physically present -- dated_failure_guarded;
+      #   datedReadBack (PRV-13, 2026-10-11, ADR-0037 Q22): skipping mapped absence
+      #     leaves the episode scheduled -- dated_absence_guarded;
+      #   recheckInsideFence (2026-09-02): the extension commits in the gap, the paid machine
+      #     is deleted -- fence_first_witness on paidMachineTrace;
+      #   fenceHolds (2026-09-08): the retry's write affects no row -- retry_executes_witness;
+      #   fenceOnOpenEpisode (2026-09-09): a fence set under a closed episode clears never --
+      #     gone_write_witness on goneRaceTrace, which pins goneOrClosedFirst off, since OPS-41's
+      #     first step now settles that race before the write is reached;
+      #   abortPredicate (2026-09-04): usable_sats > 0 aborts a routed machine forever --
+      #     withdrawn_predicate_loops_in_lifecycle;
+      #   abortWritesDate (2026-09-05): the abort leaves the stored date in the past --
+      #     abort_without_date_write_reroutes on staleDateWorld;
+      #   extendWritesDate (2026-09-05): the extension leaves it there --
+      #     successful_extension_witness on [.extend 100];
+      #   suspensionKey (2026-09-05): a resumed tenant's paid machine is destroyed --
+      #     suspension_keyed_on_current_state_witness on resumedTenantTrace;
+      #   outageWrite (OPS-41, 2026-09-05; at the bound since 2026-10-02, ADR-0029): the fence
+      #     transaction's read of no rate is taken at its word, restoration commits before the
+      #     conditional write would have lost to it, and the funded machine is destroyed --
+      #     conditional_write_at_the_bound_witness on restoredRateTrace;
+      #   ownIdClause (2026-09-02): "IS NULL alone" refuses the retry -- retry_executes_witness;
+      #   rateIsWindowMedian (LDG-58, 2026-09-23, ADR-0027): one pass's observation is the rate,
+      #     and the poisoned newest pass destroys the pinned machine --
+      #     window_median_witness on poisonedPassTrace;
+      #   graceAtClaim (OPS-41, 2026-09-25, ADR-0028): the grace is read on the provider call
+      #     instead of at the claim, the re-run delete fences first, the extension is refused for
+      #     the whole grace and the machine is destroyed after it --
+      #     grace_at_claim_witness on graceTrace;
+      #   retryGuard (2026-09-09): a plain retry write reopens a closed episode --
+      #     retry_guard_witness;
+      #   goneOrClosedFirst (OPS-41, 2026-10-02, ADR-0029): the order begins at the suspension
+      #     read, and the attempt of a machine recorded gone mid-outage defers instead of
+      #     settling -- gone_settles_first_witness on goneMidOutageTrace;
+      #   noRateWaits (OPS-41, 2026-10-02, ADR-0029): "Where there is no rate, the cancellation
+      #     proceeds", and in a fresh outage the live machine is fenced on a date that passed with
+      #     no rate -- fresh_outage_waits_witness on freshOutageTrace;
+      #   absentRecordProceeds (OPS-41, 2026-10-02, ADR-0029): no record and no rate reads as the
+      #     machine's own meter stopped, and past the deadline the machine the meter opened no
+      #     record for settles as no mutation and is kept -- deadline_passed_cancels_witness on
+      #     unrecordedBoundTrace;
+      #   boundReachesAll (LDG-64, 2026-10-02, ADR-0029): the bound's cancellation is enqueued only
+      #     for a machine carrying a record, and one with none never meets the bound --
+      #     bound_reaches_every_machine_witness on boundCancellerTrace;
+      #   sweepNeedsRate (LDG-16, 2026-10-02, ADR-0029): the sweep routes on the stored date alone
+      #     and opens an episode on a date that passed mid-outage --
+      #     routed_on_date_and_rate_witness on pastDateNoRateWorld;
+      #   extendNeedsRate (LDG-40, 2026-10-02, ADR-0029): the extension grows the commitment at no
+      #     rate and takes the balance -- extension_halts_without_a_rate_witness on
+      #     haltedExtensionTrace.
+      # The restore (pv-vwe.11, ADR-0023), Restore.current, the same shape:
+      #   quarantineOnRestore (OPS-15, 2026-09-12): the executed create is claimed again --
+      #     executed_create_quarantined on [.lock, .startupPass, .claim ⟨0⟩];
+      #   exceptionFrozen (OPS-15, 2026-09-12): the parent is queued and claimed unconfirmed --
+      #     parent_waits_witness, on the claim after confirmParents;
+      #   bumpOnRestore (STO-54, 2026-09-12): the revoked generation 0 is served --
+      #     resurrected_token_refused on [.., .request 0, .completeProcedure stepThreeAt, ..];
+      #   twoPassAbsence (STO-54, 2026-09-12): the first complete pass records the absence --
+      #     absence_on_second_pass_only on the two sweeps before the window;
+      #   recordDecidesBoot (STO-54, 2026-09-20): the successor of a crash inside the procedure
+      #     comes up as an ordinary restart and serves at once --
+      #     crash_inside_procedure_continues_it on [.lock, .crash, .lock, .startupPass]; what that
+      #     successor's pass then does to the executed create is the quarantine's row above, which
+      #     is why this witness asserts the mode and the serve and not the row.
+      #   createExceptionOnRestart (OPS-15, 2026-10-17, ADR-0042): the restored backup's null
+      #     column must not fail a create whose order the provider holds --
+      #     create_reconciled_on_restore on [.lock, .startupPass].
+      #   passEveryStartup (OPS-15, 2026-10-23, pv-n98): a power claimed after step (2)
+      #     stays running on the successor -- successor_sweeps_power on postStepTwoPower.
+      # Reconciliation knowledge (pv-vwe.5), Reconcile.current, the same shape:
+      #   completePassOnly (OPS-32, 2026-09-02): the interrupted pass rereads into the throttle,
+      #     the 2026-08-31 "yield to rate_limited" sentence, since PRV-36 leaves this guard no
+      #     live meter to stop (Reconcile.lean's docstring) --
+      #     interrupted_pass_witness, w.retriedIntoThrottle = false;
+      #   pastWindowOnly (OPS-32, 2026-09-04): a reread inside the listing lag stops a live meter --
+      #     inside_window_records_nothing on [.advance 7, ..];
+      #   rereadBeforeAbsence (OPS-32, 2026-09-04): the listing alone stops a live meter --
+      #     unlisted_live_machine_reread on [.advance 2000, .sweep true false .found];
+      #   absenceWindow (OPS-32, 2026-09-04): the gone machine bills until the negative window --
+      #     absence_on_visibility_window on [.advance 20, ..];
+      #   visibilityFromWaitEnd (PRV-36, ADR-0037 Q13): a late accepted create is
+      #     falsely recorded absent when the visibility window starts at dispatch --
+      #     late_acceptance_waits_from_reply on lateAcceptedWorld;
+      #   readConfirmsMatch (OPS-27, 2026-09-05): the match attaches a gone machine --
+      #     match_is_not_observation, w.orderLanded = some mach.
+      # Funding and the tenant lifecycle (pv-vwe.6; pv-vwe.15 for LDG-70's read; pv-vwe.16 for
+      # LDG-8's usage key and LDG-38's high-water mark; pv-vwe.30 for LDG-38's start rule and
+      # seed), Ledger.current and Funding.current:
+      #   clampAtAuthority (LDG-31's clamp paragraph): the excess is taken from available
+      #     balance, the seizure -- clamp_witness on seizureBalances;
+      #   allCommitmentsAuthorize (LDG-9, rule undated): only the first open slot counts,
+      #     so a third open overcommits -- aggregate_authorization_witness on twoCommitmentTrace;
+      #   closeOwnCommitment (LDG-32/LDG-28, release rule undated): closing A releases B too --
+      #     own_close_witness on twoCommitmentTrace;
+      #   clampOwnCommitment (LDG-31, clamp paragraph undated): A's overrun consumes B --
+      #     own_clamp_witness on twoCommitmentTrace;
+      #   serializedAuthorization (LDG-35, the primitive of ADR-0015, 2026-09-06): two opens
+      #     commit against one read -- serialized_authorization_witness on skewTrace;
+      #   appendReadsLatest (LDG-70, the rule undated): an append computes balance_after from
+      #     the row an earlier transaction read, the latest balance_after leaves the sum, and a
+      #     create the sum does not fund is authorized --
+      #     append_reads_latest_witness on staleDebitTrace;
+      #   keyFrom := .observation (LDG-8): with the payments row pinned off, the replayed
+      #     settlement credits twice -- replay_credits_once_by_key on replayTrace;
+      #   keyFrom := .deposit (STO-31): the second rail's payment is suppressed --
+      #     second_rail_credited on bothRailsTrace;
+      #   paymentRecordUnique (STO-46, 2026-09-02): with the key pinned to the observation, the
+      #     replay and the post-attribution re-scan credit again --
+      #     replay_refused_by_record, keyFrom := KeySource.observation;
+      #   correctionPrefix (WIR-42, 2026-09-05): the correction collides with the source
+      #     tenant's topup and nothing moves -- attribution_witness on attributionTrace;
+      #   reapWaitsForWindow (API-34): a tenant with a deposit inside its window is reaped and
+      #     the payment lands unattributed -- reap_waits_for_window_witness on reapTrace;
+      #   usageKeyFrom := .postingIndex (LDG-8, the withdrawn posting index): with the discard
+      #     and the start rule pinned off, the replayed increment derives the next index and
+      #     posts again -- increment_replay_refused_by_key on incrementReplayTrace;
+      #   markDiscards (LDG-38): with the start rule pinned off, the replay of an increment that
+      #     rounded to nothing, and a re-meter ending below the mark, each post under a key
+      #     nothing held -- mark_discards_what_the_key_admits on remeterTrace;
+      #   startsAtMark (LDG-38, 2026-10-02): the increment starts where its observation says, and
+      #     a re-meter re-observing 0 to 10 after an increment closed at 7 is priced whole,
+      #     seconds 0 to 7 a second time -- remeter_clipped_to_the_mark on overlapTrace;
+      #   seedOnBillable (LDG-38, 2026-10-02): the subject recorded billable before the period
+      #     opened has no mark at its first tick, the increment starts at the period's start and
+      #     the seconds before it are never charged -- seed_starts_the_first_increment on
+      #     seedTrace.
+      # Wire canonicalization and redaction (pv-vwe.3), Wire.current:
+      #   endpointInPreimage (WIR-3, "Method and target are part of the fingerprint"): the delete
+      #     on machine B replays the delete on A -- endpoint_in_fingerprint_witness on deleteOnA;
+      #   closedSummary (STO-50, 2026-09-06): the live row's payload sits in the summary that
+      #     outlives the purge -- closed_summary_witness on secretRow.
+      # Rescue and install (pv-vwe.7), Rescue.current:
+      #   awaitingProviderPins (PRV-20, 2026-10-12, ADR-0041): the awaiting Robot session
+      #     reaches accept-new with explicit opt-in -- robot_awaiting_pins_witness on
+      #     Trust.sessionDecision Rescue.current true;
+      #   overlapCallerPins (RSC-3, 2026-10-14, ADR-0041 Q33): an overlapping session admits
+      #     a driver-pinned key outside the caller's keys -- overlap_caller_pins_witness on overlapDriverKeys;
+      #   coalesceWrite (OPS-45, 2026-09-12, ADR-0022): the null-guarded repeat after a lost reply
+      #     affects no row, reads as overtaken, and the phase never runs --
+      #     coalesced_repeat_moves_nothing on rawInstall lostReplyThenRepeat;
+      #   markerBeforePhase (OPS-45, reworded 2026-09-15): the marker written after the phase is
+      #     unset over a disk a dying process wrote, and the projection says untouched --
+      #     phase_refused_before_the_marker on rawInstall phaseWithoutMarker;
+      #   secondMarkerBeforeSession (OPS-45, 2026-09-16): a crash mid-session leaves null and
+      #     OPS-15's pass cannot render rescue_exit: "unknown" (RSC-19) --
+      #     crash_renders_rescue_exit_unknown on rescueSession crashedSession;
+      #   partialCleanupMovesNothing (OPS-45, PRV-18): the driver's cleanup report closes a
+      #     session the engine never opened, and the machine reads clean --
+      #     partial_cleanup_moves_nothing on rescueInstall partialActivation;
+      #   persistAtActivation := true (RSC-19, the design its 2026-09-15 paragraph refuses): a
+      #     clean successful install has a root credential on disk for the whole session --
+      #     clean_exit_leaves_no_key on rescueSession cleanSession.
+      # The catalogue re-host (pv-vwe.13), Rehost.current:
+      #   allowlistRequired (SEC-19, 2026-09-02): the empty allowlist goes back to meaning "any
+      #     host", the fail-open default that amendment refuses --
+      #     empty_allowlist_admits_nothing on emptyAllowlist;
+      #   allowlistPerHop (RSC-44, 2026-09-04): the allowlisted name's 302 to a name nobody
+      #     allowed is fetched, because the list was checked once against a URL the attacker
+      #     abandoned -- attacker_redirect_refused on attackerRedirect;
+      #   schemePerHop (RSC-44): the redirect downgrades https to http on a deployment that never
+      #     enabled it -- scheme_downgrade_refused on schemeDowngrade.
+      # The admission and halt matrices (pv-vwe.9), Admission.current:
+      #   listenerSplit (WIR-34): the operator route answers `authentication`, which is the one
+      #     answer that requirement names and refuses -- the_operator_route_is_not_customer_observable
+      #     on customerHitsAnOperatorRoute;
+      #   operatorSkipsTenantSteps (API-7, 2026-09-04): the attribution to a `pending` tenant, the
+      #     ordinary case, fails not_activated and the orphaned balance has no route back --
+      #     the_operator_attributes_to_a_pending_tenant on pendingAttribution;
+      #   stepTwoReadsSuspension (API-7, the withdrawn "reject unless the tenant is active"; this
+      #     row turns it back ON): step 2 refuses for suspension, which makes 5b unreachable --
+      #     the_suspended_tenant_is_refused_at_five_b on suspendedInstall;
+      #   maintenanceCarveOut (API-7 step 2): the owner of a suspended tenant cannot replace a
+      #     stolen credential -- the_suspended_tenant_can_still_revoke on suspendedRevoke;
+      #   statementWhileSuspended (API-7 5b, 2026-08-16): the escalation for silence guarantees the
+      #     silence -- the_statement_survives_the_suspension on suspendedStatement;
+      #   ceilingStep (API-7 5c, 2026-09-02): no ceiling is enforced at all and the create at its
+      #     limit proceeds -- the_ceiling_refuses_the_create_at_its_limit on createAtCeiling;
+      #   replayBeforePolicy (API-7, 5b and 5c after 5a): the replay spends a slot it already spent
+      #     and is refused instead of returning its stored result -- a_replay_is_never_charged on
+      #     replayUnderBudget;
+      #   haltMintsOnly (LDG-20, 2026-08-31): the halt refuses an arrived payment, LDG-43's
+      #     forbidden outcome -- the_halt_refuses_the_mint_and_credits_the_arrival on haltedMint;
+      #   cancelUnsettledInvoices (LDG-20, 2026-08-31): the float keeps growing during a declared
+      #     insolvency -- the_halt_closes_the_unsettled_invoice_and_nothing_else on
+      #     unsettledUnexpiredInvoice;
+      #   exposureExemptUnderHalt (LDG-20): the halt reaches the delete, the release, the retry and
+      #     the sweep's own cancellation -- nothing_that_reduces_exposure_is_halted on
+      #     exposureReducingUnderHalt;
+      #   sweepRoutesNothingWithoutRate (LDG-40, 2026-10-02, ADR-0029; the field was
+      #     sweepContinuesWithoutRate while the row said so): the sweep's row is the withdrawn
+      #     "MUST continue", and it routes machines whose stored date passed during the outage --
+      #     the_rate_matrix_halts_the_purchase_and_nothing_else on exposureReducingWithoutRate.
+      #   solvencyUsesValuedTerms (LDG-40, 2026-10-03, ADR-0029): the withdrawn
+      #     "MUST fail closed" row turns a missing rate into a solvency failure --
+      #     the_rate_matrix_halts_the_purchase_and_nothing_else, only its solvency conjunct,
+      #     on Action.solvencyCheck. Valuation itself is outside this model.
+      # Create composition controls:
+      #   orderingCapabilityGuard: undeclared_ordering_is_unsupported_before_the_tail
+      #     on undeclaredOrderingCreate;
+      #   listingAgeGuard (2026-10-26, pv-tcs): stale_listing_refused_with_age_guard
+      #     on staleListingCreate. Its off position restores the identical snapshot's old result.
+      # Exit closure (pv-vwe.34), Funding.current.exitPosts:
+      #   LDG-38, 2026-10-03: exit without posting loses a sub-interval life and the tails
+      #   around re-entry -- exit_closes_each_tail on exitCases Funding.current. Other
+      #   Funding guards are pinned so each row still refutes exactly one witness.
+      # The prepaid first billing unit (pv-ucs.1, ADR-0033), Funding.current.prepaidFirstUnit:
+      #   LDG-38, 2026-10-08: the machine's first seed is written at its instant instead of the
+      #   unit's end, and the tick inside the unit charges seconds the customer prepaid --
+      #   first_unit_is_prepaid on unitTrace. Other Funding guards are pinned, and the lifecycle
+      #   witness pins this one, so the row refutes exactly one witness.
+      # The runway derivation's start (pv-ucs.1, ADR-0033), Runway.current.startAtMark:
+      #   LDG-33, 2026-10-08: the derivation counts from now inside the prepaid unit and the
+      #   stored date is one unit early -- runway_counts_from_the_unit_end on insideTheUnitDate.
+      # Customer-debit eligibility (pv-ucs.1, ADR-0033): offsetRequiresDebit refuses the unpaid
+      # late-attach funding abort; removal refutes unpaid_late_attach_cannot_abort alone.
+      # The billing period (pv-vwe.17), Period.current:
+      #   resetAtBoundary (LDG-38, 2026-09-05): the credit is carried across the boundary, and
+      #     the new period's first 2/5 posts 0 against what the old one left --
+      #     boundary_resets_the_credit on twoPeriodTrace;
+      #   splitAtBoundary (LDG-38, 2026-09-05; LDG-68): the increment straddling the boundary is
+      #     filed whole under its closing month, and the old period's piece never posts there --
+      #     straddle_split_at_the_boundary on straddleTrace;
+      #   deploymentWide (LDG-68): each subject's boundaries are its create instant's
+      #     anniversary, and the subject created mid-period files the straddling increment whole
+      #     under a period of its own -- late_subject_shares_the_boundary on lateSubjectTrace.
+      # The provider account status (pv-vwe.19), AccountStatus.current:
+      #   retainUnlessTerminated (SEC-46, 2026-08-13): an unreachable account, or one whose
+      #     credentials are rejected, releases its tenants' commitments, handing the customer
+      #     their satoshis back while the machines still bill --
+      #     retained_until_terminated_witness on credentialsRejected and accountUnreachable.
+      # Paused restore grace (pv-gip.29), Fence.current.pauseFundingGrace:
+      #   OPS-41, ADR-0029 (2026-10-02): the entire wall-clock grace is dark; without
+      #   accumulated rate time the return's first claim destroys the machine --
+      #   paused_funding_grace_witness on pausedGraceReturn. Other guards are pinned.
+      # Paused placement (pv-gip.35), Fence.current.pausedGraceInFence:
+      #   OPS-41, ADR-0029 (2026-10-03): reinstate ad6e2d9's claim-time check;
+      #   a qualifying return before the fence destroys with zero accumulated grace --
+      #   paused_grace_placement_witness on pausedGraceRace. Other guards are pinned.
+      # Funding order (pv-gip.29 review residue), Fence.current.rederiveFirst:
+      #   OPS-41, ADR-0029 (2026-10-03): paused deferral before re-derivation strands
+      #   the price-cut-funded machine with its commitment unchanged --
+      #   funded_during_paused_grace_witness. Other guards are pinned.
+      # Q13 (2026-10-04): Rate.acceptanceBoundary dates the verdict at acceptance;
+      # disabling it backdates delayedAcceptanceTrace to the observation, pricing an outage.
+      # The loop reads its rows from stdin, so the build runs with stdin closed and the step
+      # counts the rows it passed: a child that swallowed the rest of the list would otherwise
+      # exit green having tested one. `set -uo` without `-e`: each row records its own verdict.
+      # The number it expects comes from the list itself, never from a literal: a literal was
+      # wrong the first time the list moved (pv-vwe.20 added four rows and retired one, leaving
+      # a count of 49 that no green run could satisfy), which is AGENTS.md's "cite the list; let
+      # it hold the number" in a script.
+      # Q11/Q12 (2026-10-04): retryDeletes restores retry-driven revival; keepWritesDate
+      # omits the synchronous keep date write; keepGuard admits keep after retry wins.
+      # Q14 (2026-10-05): retryNeedsFence prevents an interrupted, never-fenced retry
+      # from deleting after an admitted extension; interruptedRetry isolates this guard.
+      # The automatic sweep-close row and its obsolete suspension-exemption witness
+      # were deleted with that policy.
+      # ADR-0034 (2026-10-08/10): ProviderTraffic's cache, PTR evidence and
+      # sweep freshness guards, and Admission's reverse-DNS ceiling, have isolated witnesses.
+      - name: Prove the Lean build rejects each listed guard's removal, one witness each
+        env:
+          SHARD: ${{ matrix.shard }}
+          JOB_INDEX: ${{ strategy.job-index }}
+          JOB_TOTAL: ${{ strategy.job-total }}
+        run: |
+          set -uo pipefail
+          fail=0
+          rows=$(cat <<'ROWS'
+          Fence|datedAcceptanceSchedules|true|false|datedCancellationTrace false ReadBack.failed
+          Fence|datedReadBack|true|false|datedCancellationTrace true ReadBack.mappedNotFound
+          Fence|recheckInsideFence|true|false|fenceWorld paidMachineTrace
+          Fence|fenceHolds|.episodeId|.attemptId|fenceWorld retryTrace
+          Fence|fenceOnOpenEpisode|true|false|goneRaceTrace
+          Fence|abortPredicate|.date|.sats|AbortPredicate.sats
+          Fence|abortWritesDate|true|false|staleDateWorld abortTrace
+          Fence|extendWritesDate|true|false|Event.extend 100
+          Fence|suspensionKey|.currentState|.episodeReasons|resumedTenantTrace
+          Fence|outageWrite|true|false|restoredRateTrace
+          Fence|ownIdClause|true|false|fenceWorld retryTrace
+          Fence|rateIsWindowMedian|true|false|poisonedPassTrace
+          Rate|acceptanceBoundary|true|false|delayedAcceptanceTrace
+          Fence|graceAtClaim|true|false|graceTrace
+          Fence|pauseFundingGrace|true|false|pausedGraceReturn
+          Fence|pausedGraceInFence|true|false|pausedGraceRace
+          Fence|rederiveFirst|true|false|fundingOrderGuards Fence.current
+          Fence|retryDeletes|true|false|priceFundedStall ++ tail
+          Fence|retryNeedsFence|true|false|fenceWorld interruptedRetry;
+          Fence|keepWritesDate|true|false|operatorGuards Fence.current
+          Fence|keepGuard|true|false|keepEligibilityGuards Fence.current
+          Fence|retryGuard|true|false|goneAfterStallTrace ++
+          Fence|goneOrClosedFirst|true|false|goneMidOutageTrace
+          Fence|noRateWaits|true|false|freshOutageTrace
+          Fence|absentRecordProceeds|true|false|unrecordedBoundTrace
+          Fence|boundReachesAll|true|false|boundCancellerTrace
+          Fence|sweepNeedsRate|true|false|pastDateNoRateWorld
+          Fence|extendNeedsRate|true|false|haltedExtensionTrace
+          Restore|quarantineOnRestore|true|false|Event.startupPass, Event.claim { n := 0 }
+          Restore|exceptionFrozen|true|false|Event.confirmParents, Event.claim { n := 1 }
+          Restore|bumpOnRestore|true|false|Event.request 0, Event.completeProcedure
+          Restore|twoPassAbsence|true|false|Event.sweep true false, Event.windowElapses
+          Restore|recordDecidesBoot|true|false|Event.crash, Event.lock
+          Restore|createExceptionOnRestart|true|false|bootRestore aboutToOrderRestore
+          Restore|passEveryStartup|true|false|postStepTwoPower
+          Reconcile|completePassOnly|true|false|w.retriedIntoThrottle = false
+          Reconcile|pastWindowOnly|true|false|Event.advance 7, Event.sweep true false Answer.notFound
+          Reconcile|rereadBeforeAbsence|true|false|Event.advance 2000, Event.sweep true false Answer.found
+          Reconcile|absenceWindow|.visibility|.negative|Event.advance 20, Event.sweep true false Answer.notFound
+          Reconcile|visibilityFromWaitEnd|true|false|lateAcceptedWorld
+          Reconcile|visibilityUsesObserved|true|false|run p observedWindowWorld
+          Reconcile|successfulConfirmationOnly|true|false|Event.sweep true false Answer.failed
+          Reconcile|readConfirmsMatch|true|false|w.orderLanded = some mach
+          Ledger|clampAtAuthority|true|false|seizureBalances
+          Ledger|allCommitmentsAuthorize|true|false|aggregateGuards Ledger.current
+          Ledger|closeOwnCommitment|true|false|ownCloseGuards Ledger.current
+          Ledger|clampOwnCommitment|true|false|ownClampGuards Ledger.current
+          Ledger|serializedAuthorization|true|false|skewTrace
+          Ledger|appendReadsLatest|true|false|staleDebitTrace
+          Funding|keyFrom|.payment|.observation|replayTrace
+          Funding|keyFrom|.payment|.deposit|bothRailsTrace
+          Funding|paymentRecordUnique|true|false|KeySource.observation
+          Funding|correctionPrefix|true|false|attributionTrace
+          Funding|reapWaitsForWindow|true|false|reapTrace
+          Funding|usageKeyFrom|.incrementEnd|.postingIndex|incrementReplayTrace
+          Funding|markDiscards|true|false|remeterTrace
+          Funding|startsAtMark|true|false|overlapTrace
+          Funding|seedOnBillable|true|false|seedTrace
+          Funding|exitPosts|true|false|exitCases Funding.current
+          Funding|closeBeforeRelease|true|false|releaseOrderTail Funding.current
+          Funding|prepaidFirstUnit|true|false|unitTrace
+          Funding|offsetRequiresDebit|true|false|unpaidLateSeed Funding.current
+          Runway|startAtMark|true|false|insideTheUnitDate
+          Wire|endpointInPreimage|true|false|deleteOnA
+          Wire|closedSummary|true|false|secretRow
+          Rescue|awaitingProviderPins|true|false|Trust.sessionDecision Rescue.current true
+          Rescue|overlapCallerPins|true|false|overlapDriverKeys
+          Rescue|coalesceWrite|true|false|rawInstall lostReplyThenRepeat
+          Rescue|markerBeforePhase|true|false|rawInstall phaseWithoutMarker
+          Rescue|secondMarkerBeforeSession|true|false|Rescue.current rescueSession crashedSession
+          Rescue|partialCleanupMovesNothing|true|false|Rescue.current rescueInstall partialActivation
+          Rescue|persistAtActivation|false|true|Rescue.current rescueSession cleanSession
+          Rescue|temporaryKeyEligibility|true|false|Rescue.current rescueSession crashedSession
+          Rehost|allowlistRequired|true|false|emptyAllowlist
+          Rehost|allowlistPerHop|true|false|attackerRedirect
+          Rehost|schemePerHop|true|false|schemeDowngrade
+          Admission|listenerSplit|true|false|customerHitsAnOperatorRoute
+          Admission|operatorSkipsTenantSteps|true|false|pendingAttribution
+          Admission|stepTwoReadsSuspension|false|true|suspendedInstall
+          Admission|maintenanceCarveOut|true|false|suspendedRevoke
+          Admission|statementWhileSuspended|true|false|suspendedStatement
+          Admission|ceilingStep|true|false|createAtCeiling
+          Admission|replayBeforePolicy|true|false|replayUnderBudget
+          Admission|haltMintsOnly|true|false|haltedMint
+          Admission|cancelUnsettledInvoices|true|false|unsettledUnexpiredInvoice
+          Admission|exposureExemptUnderHalt|true|false|exposureReducingUnderHalt
+          Admission|sweepRoutesNothingWithoutRate|true|false|exposureReducingWithoutRate
+          Admission|solvencyUsesValuedTerms|true|false|Action.solvencyCheck
+          Admission|completeCheckToLift|true|false|incompletePassingTrace
+          Admission|richTailCollection|true|false|fencedHaltedNoRate
+          Admission|offerSaleGuard|true|false|offerNotSellable
+          Admission|cancellationDeclarationGuard|true|false|declarationSaleGuards Admission.current
+          Admission|cancellationFutureGuard|true|false|futureSaleGuards Admission.current
+          Admission|channelClosureGuard|true|false|channelClosed
+          Admission|reverseDnsCeiling|true|false|reverseDnsAdmission
+          Admission|orderingCapabilityGuard|true|false|undeclaredOrderingCreate
+          Admission|listingAgeGuard|true|false|staleListingCreate
+          ProviderTraffic|reuseFresh|true|false|freshClaim
+          ProviderTraffic|checkAtClaim|true|false|queuedRefreshes
+          ProviderTraffic|preserveAge|true|false|ageClaim
+          ProviderTraffic|successfulOnly|true|false|failedRefreshes
+          ProviderTraffic|reverseDnsNoop|true|false|establishedPtrNoop
+          ProviderTraffic|establishedOnly|true|false|uncertainPtrNoop
+          ProviderTraffic|sweepWritesPresent|true|false|sweepRefresh
+          ProviderTraffic|windowAtLeastTwoSweeps|true|false|shortWindowValidation
+          Ledger|nativeCostSplit|true|false|nativeClampTrace
+          Period|resetAtBoundary|true|false|twoPeriodTrace
+          Period|splitAtBoundary|true|false|straddleTrace
+          Period|deploymentWide|true|false|lateSubjectTrace
+          AccountStatus|retainUnlessTerminated|true|false|credentialsRejected
+          ProviderTraffic|invalidatePtr|true|false|ptrAfterDifferingDispatch
+          ROWS
+          )
+          # No matrix condition on this step: a bad shard must reach the guard.
+          # Validate the assignments we will execute, retaining source occurrence
+          # identity even when two rows have the same file/field or full text.
+          selected=$(ROWS="$rows" python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          def require(condition, message):
+              if not condition:
+                  sys.exit(f"::error::row partition: {message}")
+
+          def integer(name):
+              value = os.environ.get(name, "")
+              require(re.fullmatch(r"[0-9]+", value), f"invalid {name}: {value!r}")
+              return int(value)
+
+          shard, job_index, total = (integer(name) for name in ("SHARD", "JOB_INDEX", "JOB_TOTAL"))
+          require(total == 4, f"expected four matrix jobs, got {total}")
+          require(0 <= shard < total and 0 <= job_index < total, "matrix context out of range")
+          # GitHub's job-index is zero-based; job-total is a count. This equality
+          # rejects a matrix that duplicates a residue or omits/reorders a shard.
+          require(shard == job_index, f"shard {shard} differs from job-index {job_index}")
+          source = os.environ["ROWS"].splitlines()
+          require(all(len(row.split("|")) == 5 for row in source), "malformed source row")
+          assignments = [
+              [(index, row) for index, row in enumerate(source) if index % total == residue]
+              for residue in range(total)
+          ]
+          indices = [index for assigned in assignments for index, _ in assigned]
+          require(sorted(indices) == list(range(len(source))),
+                  "assignments contain missing, duplicate or extra source indices")
+          require(all(assignments), "every shard must have at least one row")
+          for residue, assigned in enumerate(assignments):
+              require(all(source[index] == row for index, row in assigned), "source row changed")
+              print(f"shard {residue}: {len(assigned)} rows; source indices "
+                    + ",".join(str(index) for index, _ in assigned), file=sys.stderr)
+          # Execution consumes this guarded assignment, without selecting again.
+          print("\n".join(row for _, row in assignments[shard]))
+          PY
+          ) || exit 1
+          expected=$(printf '%s\n' "$selected" | grep -c '|')
+          passed=0
+          while IFS='|' read -r file field from to token; do
+            tmp="$(mktemp -d)"
+            cp -r . "$tmp/repo"
+            pushd "$tmp/repo/tools/formal" > /dev/null
+            # One field per line; the last closes the brace instead of taking a comma.
+            sed -i "s/^    ${field} *:= ${from}\(,\| }\)\$/    ${field} := ${to}\1/" "Provisiond/${file}.lean"
+            if ! grep -q "^    ${field} := ${to}\(,\| }\)\$" "Provisiond/${file}.lean"; then
+              echo "::error::${field}: the mutation did not apply"; fail=1
+            elif nix develop --command lake build < /dev/null > build.log 2>&1; then
+              echo "::error::lake build passed with ${field} := ${to}"; fail=1
+            elif [ "$(grep -c '^error: Provisiond/' build.log)" -ne 1 ]; then
+              echo "::error::${field}: more than one red"; grep '^error: Provisiond/' build.log; fail=1
+            elif ! grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log; then
+              echo "::error::${field}: the red is not a refuted witness"; grep '^error' build.log; fail=1
+            elif ! grep -A8 'proved that the proposition' build.log | grep -q "$token"; then
+              echo "::error::${field}: the red witness is not the targeted one ($token)"
+              grep -A8 'proved that the proposition' build.log; fail=1
+            else
+              echo "lake build correctly failed on ${field} := ${to}, on the witness naming $token"
+              passed=$((passed + 1))
+            fi
+            popd > /dev/null
+            rm -rf "$tmp"
+          done <<<"$selected"
+          if [ "$passed" -ne "$expected" ]; then
+            echo "::error::expected $expected listed guard controls to pass, got $passed"; fail=1
+          fi
+          exit "$fail"
+
+      # M-I (pv-8mt4) is a two-guard negative engine. Repair each global guard
+      # separately; the original passEveryStartup row above still owns its one red.
+      # Fixture controls touch only the bad engine, leaving the matrix and blocked
+      # original-model cell intact. A failed evaluation is not a finite refutation.
+      - name: Prove independent successor-sweep harm needs both disabled guards
+        if: matrix.shard == 2
+        run: |
+          nix develop --command python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import shutil
+          import subprocess
+          import tempfile
+
+          root = Path.cwd() / 'tools/formal'
+          module = 'Provisiond/RestoreIndependent.lean'
+          original = (root / module).read_text()
+          repairs = [
+              ('badRequirePass', 'bad_model_later_work',
+               '(badEngine.store.ops { n := 5 }).status = Claim.Status.running ∧ '
+               '(badEngine.store.ops { n := 5 }).applied = true'),
+              ('badPassEveryStartup', 'bad_model_stranded_rows',
+               '(badEngine.store.ops { n := 4 }).status = Claim.Status.running ∧ '
+               '(badEngine.store.ops { n := 4 }).applied = true ∧ '
+               '(badEngine.store.ops { n := 3 }).status = Claim.Status.running'),
+          ]
+          assert all(original.count(f'def {field} : Bool := false') == 1
+                     for field, _, _ in repairs), 'expected clean false/false input'
+          for field, witness, outcome in repairs:
+              # A fresh copy for each repair, always from the same false/false source.
+              with tempfile.TemporaryDirectory(prefix='successor-repair-') as directory:
+                  formal = Path(directory) / 'formal'
+                  shutil.copytree(root, formal)
+                  before = f'def {field} : Bool := false'
+                  after = f'def {field} : Bool := true'
+                  assert original.count(before) == 1 and after not in original
+                  mutated = original.replace(before, after, 1)
+                  assert mutated != original and mutated.count(after) == 1
+                  (formal / module).write_text(mutated)
+                  assert (formal / module).read_text() == mutated
+                  declaration = re.search(
+                      rf'^theorem {witness} :\n.*? := by decide$', mutated, re.M | re.S)
+                  assert declaration is not None, witness
+                  first = mutated[:declaration.start()].count('\n') + 1
+                  last = mutated[:declaration.end()].count('\n') + 1
+                  result = subprocess.run(['lake', 'build'], cwd=formal,
+                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                          text=True)
+                  log = result.stdout
+                  print(log, end='')
+                  print(f'{field}=true only: lake build exit {result.returncode}; '
+                        f'expected {witness}: {outcome}', flush=True)
+                  assert result.returncode == 1, 'expected a Lean proof failure'
+                  errors = re.findall(r'^error: (.*)$', log, re.M)
+                  located = [e for e in errors if e.startswith('Provisiond/')]
+                  assert len(located) == 1, errors
+                  error = re.fullmatch(
+                      rf'{re.escape(module)}:(\d+):\d+: Tactic `decide` proved that the proposition',
+                      located[0])
+                  assert error and first <= int(error[1]) <= last, located
+                  assert all(e == located[0] or e == 'Lean exited with code 1'
+                             or e == 'build failed' for e in errors), errors
+                  diagnostic = log.split('proved that the proposition', 1)[1].split('is false', 1)
+                  assert len(diagnostic) == 2, log
+                  assert ' '.join(diagnostic[0].split()) == outcome, diagnostic[0]
+                  assert 'did not reduce' not in log, log
+                  print(f'PASS: repairing only {field} finitely refutes {witness}', flush=True)
+          PY
+
+      # Q28 (ADR-0037): the old one-sweep minimum is a specific regression, even
+      # though a control that removes validation altogether is also red.
+      - name: Prove the Lean build rejects the old one-sweep freshness minimum
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/ProviderTraffic.lean')
+          source = path.read_text()
+          old = '2 * sweepInterval ≤ window'
+          assert source.count(old) == 1
+          path.write_text(source.replace(old, 'sweepInterval ≤ window'))
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::the old one-sweep minimum passed"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A3 'proved that the proposition' build.log | grep -q 'validFreshness freshnessBoundGuards 20 20 = false'
+          echo "lake build correctly refuted the old one-sweep minimum"
+
+      # RSC-3's single-source rows require the presented key to be in the sole pin set.
+      # Weakening only the two single-source arms must refute that witness.
+      - name: Prove the Lean build rejects single-source host-key mismatch permission
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/Rescue.lean')
+          source = path.read_text()
+          fixed = '  | .pinCaller => caller.contains presented\n  | .pinDriver => driver.contains presented'
+          broken = '  | .pinCaller => !providerPinsRequired || caller.contains presented\n  | .pinDriver => !providerPinsRequired || driver.contains presented'
+          assert source.count(fixed) == 1 and broken not in source
+          path.write_text(source.replace(fixed, broken))
+          assert path.read_text().count(broken) == 1
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::the former single-source host-key permission passed"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented Rescue.current false [{ n := 1 }] [] false { n := 2 } = false'
+          echo "lake build correctly refuted the single-source presented-key witness"
+
+      # Restore the former non-provider permission in the enabled overlap branch: a key
+      # in neither set must refute overlap_presented_key_witness; Robot's intersection stays enforced.
+      - name: Prove the Lean build rejects overlap host-key mismatch permission
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo/tools/formal"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Provisiond/Rescue.lean')
+          source = path.read_text()
+          fixed = '      if p.overlapCallerPins then caller.contains presented && driver.contains presented'
+          broken = '      if p.overlapCallerPins then !providerPinsRequired || (caller.contains presented && driver.contains presented)'
+          assert source.count(fixed) == 1 and broken not in source
+          path.write_text(source.replace(fixed, broken))
+          assert path.read_text().count(broken) == 1
+          PY
+          if nix develop --command lake build < /dev/null > build.log 2>&1; then
+            echo "::error::the former overlap host-key permission passed"
+            exit 1
+          fi
+          test "$(grep -c '^error: Provisiond/' build.log)" -eq 1
+          grep -q 'error: Provisiond/Witnesses.lean:.*decide. proved that the proposition' build.log
+          grep -A8 'proved that the proposition' build.log | grep -Fq 'Trust.permitsPresented Rescue.current false [{ n := 1 }] [{ n := 1 }] false { n := 2 } = false'
+          echo "lake build correctly refuted the overlap presented-key witness"
+
+      # The rendering gate (pv-vwe.8, ADR-0025): a hand edit inside a marked region is
+      # red for that region, and the same edit one line outside it is not. The scratch
+      # copy carries tools/formal/.lake from this shard's formal preparation above, which is
+      # what the gate reads; a missing index would be exit 2, not the red we assert.
+      - name: Prove the rendering gate rejects a hand edit inside a rendered region
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          src="$PWD"
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/^| machine deleted at that increment end, commitment closed | 71,900 | 0 | 71,900 |$/| machine deleted at that increment end, commitment closed | 71,900 | 0 | 71,901 |/' \
+            12-billing-and-ledger.md
+          grep -q '| 0 | 71,901 |' 12-billing-and-ledger.md
+          if python3 tools/check_regions.py > regions.log 2>&1; then
+            echo "::error::rendering gate passed a hand-edited worked table"
+            exit 1
+          fi
+          grep -q 'Provisiond.Render.ldg31Table drifted' regions.log
+          test "$(grep -c ' drifted\| declaration says' regions.log)" -eq 1
+          cd "$src" && rm -rf "$tmp/repo" && cp -r . "$tmp/repo" && cd "$tmp/repo"
+          printf '\n\n**LDG-9999** is a sentence outside every marked region.\n' >> 12-billing-and-ledger.md
+          python3 tools/check_regions.py
+          echo "rendering gate correctly rejected the edit inside the region and passed the one outside"
+
+      # A `match` region is diffed on its outcome tokens: flipping one row's fence verdict
+      # is red for that row and column, while the prose beside it is free.
+      - name: Prove the rendering gate rejects a flipped outcome in a diffed table
+        if: matrix.shard == 0
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/^| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | \*\*Cleared\*\*, same transaction/| Resolved `abandoned` — nobody established what happened | `closed`, `close_reason: abandoned`, in the resolution transaction | **Unchanged**, same transaction/' \
+            03-operation-lifecycle.md
+          grep -q 'in the resolution transaction | \*\*Unchanged\*\*, same transaction' 03-operation-lifecycle.md
+          if python3 tools/check_regions.py > regions.log 2>&1; then
+            echo "::error::rendering gate passed a table row whose fence verdict contradicts its declaration"
+            exit 1
+          fi
+          grep -q 'Provisiond.Render.ops48Table: row 9, column 3' regions.log
+          test "$(grep -c ' drifted\| declaration says' regions.log)" -eq 1
+          echo "rendering gate correctly rejected the flipped fence verdict"
+
+      # The name resolver: a declaration renamed under a document that cites it is a
+      # dangling citation, and the citations gate is where it goes red.
+      - name: Prove the citation gate rejects a declaration name the index does not carry
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/`Provisiond.Witnesses.period_reset_witness`/`Provisiond.Witnesses.period_reset_witnes`/' \
+            11-open-findings.md
+          grep -q 'period_reset_witnes`' 11-open-findings.md
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a Provisiond.* name the index does not carry"
+            exit 1
+          fi
+          grep -q 'cites `Provisiond.Witnesses.period_reset_witnes`, which the index does not carry' citations.log
+          echo "citation gate correctly rejected the dangling declaration name"
+
+      # QUOTED also reads Lean docstrings. Carry the index from this shard's formal preparation
+      # and assert the named quote failure, not merely a nonzero exit. Since
+      # 2026-10-02 EXISTS fires on this mutation too, with its own line; the step
+      # asserts QUOTED's line and that line's count, which that addition leaves alone.
+      - name: Prove the citation gate rejects a misquote in a Lean docstring
+        if: matrix.shard == 1
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          # One word and its closing quote, so a docstring reflow cannot split the pattern
+          # across lines. The file quotes that sentence more than once, so the mutation takes
+          # the first site alone and the step asserts one site moved and one finding came back:
+          # two findings from one misquote, or one from two, would say nothing of either.
+          sed -i '0,/nowhere"/s//somewhere"/' \
+            tools/formal/Provisiond/Fence.lean
+          test "$(grep -c 'somewhere"' tools/formal/Provisiond/Fence.lean)" -eq 1
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a Lean docstring quote its target does not contain"
+            exit 1
+          fi
+          grep -q 'tools/formal/Provisiond/Fence.lean attributes to LDG-64 a phrase LDG-64 does not contain:' citations.log
+          grep -q 'deadline from history, and store it somewhere"' citations.log
+          test "$(grep -c 'Fence.lean attributes to LDG-64 a phrase' citations.log)" -eq 1
+          echo "citation gate correctly rejected the Lean docstring misquote"
+
+      # Exercise the standalone entry path with the normal baseline and the index
+      # from this shard's formal preparation. Exit 1 alone also accepts the old Python traceback.
+      - name: Prove the citation gate names unterminated Lean block comments
+        if: matrix.shard == 1
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          assert c.read_index(), 'control needs the preexisting formal index'
+          inputs = {p: p.read_bytes() for p in (Path(c.BASELINE), Path(c.INDEX))}
+          path = Path('tools/formal/Provisiond/Req.lean')
+          original = path.read_bytes()
+
+          def gate(code):
+              result = subprocess.run(['python3', 'tools/check_citations.py'],
+                                      capture_output=True, text=True)
+              output = result.stdout + result.stderr
+              print(output)
+              assert result.returncode == code, (result.returncode, code, output)
+              return output
+
+          gate(0)
+          for label, unfinished, closing in [
+              ('doc comment', b'/-- never closed', b' -/'),
+              ('module comment', b'/-! never closed', b' -/'),
+              ('ordinary comment', b'/- never closed', b' -/'),
+              ('nested doc comment', b'/-- outer /- unfinished inner', b' -/ -/'),
+              ('nested ordinary comment', b'/- outer /- unfinished inner', b' -/ -/'),
+          ]:
+              try:
+                  path.write_bytes(original + b'\n' + unfinished + closing + b'\n')
+                  gate(0)
+                  path.write_bytes(original + b'\n' + unfinished + b'\n')
+                  output = gate(1)
+                  diagnostic = f'FAIL: {path}: unterminated Lean block comment'
+                  assert [line for line in output.splitlines() if line.startswith('FAIL:')] == [diagnostic], output
+                  assert 'Traceback' not in output, output
+                  path.write_bytes(original + b'\n' + unfinished + closing + b'\n')
+                  gate(0)
+                  print(f'PASS: {label}: valid -> named extraction failure without traceback -> valid')
+              finally:
+                  path.write_bytes(original)
+                  assert path.read_bytes() == original
+          for source, contents in inputs.items():
+              assert source.read_bytes() == contents, source
+          gate(0)
+          PY
+
+      # EXISTS (pv-vwe.25, 2026-10-02): a Lean docstring quote in a chunk with no
+      # attribution is outside QUOTED's reach, and this is the rule that sees it
+      # corrupted. The chunk mutated here opens `API-11`: "..." -- a colon, no speech
+      # verb -- so the step also asserts QUOTED stayed silent: a red from the wrong
+      # rule would not be evidence of this one.
+      - name: Prove the citation gate rejects a Lean docstring quote found nowhere
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          sed -i 's/with a byte-equivalent request MUST return/with a byte-identical request MUST return/' \
+            tools/formal/Provisiond/Wire.lean
+          test "$(grep -c 'byte-identical request MUST return' tools/formal/Provisiond/Wire.lean)" -eq 1
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a Lean docstring quote found in no document or ADR"
+            exit 1
+          fi
+          grep -q 'tools/formal/Provisiond/Wire.lean quotes a phrase found in no document or ADR:' citations.log
+          grep -q '"re-sending the same key with a byte-identical request must return the existing operation"' citations.log
+          test "$(grep -c 'quotes a phrase found in no document' citations.log)" -eq 1
+          if grep -q 'attributes to' citations.log; then
+            echo "::error::the red came from QUOTED, which has no attribution to fire on here"
+            exit 1
+          fi
+          echo "citation gate correctly rejected the Lean docstring quote found nowhere"
+
+      # The pool (pv-vwe.25, 2026-10-02): a phrase an ADR holds verbatim vouches for an
+      # attribution to a requirement only when the chunk cites that ADR. ADR-0016's
+      # sentence is nowhere in OVR-1, and the chunk below cites no ADR and no document;
+      # until this rule the concatenated ADRs satisfied it and the gate passed (shown at
+      # c5e31be). The step asserts the phrase is in the ADR, so a red cannot come from a
+      # phrase that never existed anywhere.
+      - name: Prove the citation gate rejects an attribution only the ADR pool satisfied
+        if: matrix.shard == 2
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r . "$tmp/repo"
+          cd "$tmp/repo"
+          printf '\n`OVR-1` says "The promise was in prose and absent from the predicate".\n' \
+            >> 00-overview.md
+          grep -q '^`OVR-1` says "The promise was in prose and absent from the predicate".$' 00-overview.md
+          grep -q 'The promise was in prose and absent from the predicate' docs/adr/0016-*.md
+          if python3 tools/check_citations.py > citations.log 2>&1; then
+            echo "::error::citation gate passed a quote found only in an ADR the sentence does not cite"
+            exit 1
+          fi
+          grep -q '00-overview.md attributes to OVR-1 a phrase OVR-1 does not contain:' citations.log
+          grep -q '"the promise was in prose and absent from the predicate"' citations.log
+          echo "citation gate correctly rejected the attribution the ADR pool used to satisfy"
+
+      # Pair before splitting/filtering: both the real spaced-elision site and a
+      # short span preceding an explicit attribution must expose the corruption.
+      - name: Prove the citation gate rejects a spaced elision after a short quote
+        if: matrix.shard == 2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          path = Path('tools/formal/Provisiond/Fence.lean')
+          original = path.read_bytes()
+          marker = b'`suspensionKey`: `OPS-41`, 2026-09-05,'
+          phrase = b"keyed on the tenant's current state ..."
+          assert original.count(marker) == original.count(phrase) == 1
+          for label, exact in [
+              ('spaced elision', original),
+              ('short span', original.replace(marker, b'`suspensionKey`: "now"; `OPS-41` says')),
+          ]:
+              try:
+                  path.write_bytes(exact)
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  wrong = exact.replace(phrase, b"keyed on the tenant's current posture ...")
+                  assert wrong != exact and wrong.count(b'current posture ...') == 1
+                  path.write_bytes(wrong)
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, (label, result.returncode, result.stderr)
+                  assert 'tools/formal/Provisiond/Fence.lean quotes a phrase found in no document or ADR:' in result.stdout
+                  assert '"keyed on the tenant\'s current posture ... and not on the episode\'s reasons set"' in result.stdout
+                  if label == 'short span':
+                      assert 'tools/formal/Provisiond/Fence.lean attributes to OPS-41 a phrase OPS-41 does not contain:' in result.stdout
+                  path.write_bytes(exact)
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  print(f'PASS: {label}: exact -> named failure -> exact')
+              finally:
+                  path.write_bytes(original)
+                  assert path.read_bytes() == original
+          PY
+
+      # QUOTED preserves word-internal apostrophes while accepting nested delimiters.
+      - name: Prove the citation gate rejects bare possessive, apostrophe and nested misquotes
+        if: matrix.shard == 3
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          # CNF-216's dated note remains HISTORICAL; exercise its quote in a
+          # current direct attribution without changing the historical policy.
+          path = Path('00-overview.md')
+          original = path.read_bytes()
+          exact = original + b'\n`LDG-72`\'s "the greatest `increment end` among that subject\'s rows".\n'
+          try:
+              path.write_bytes(exact)
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+              for before, after, quote in [
+                  (b'the greatest `increment end`', b'the smallest `increment end`',
+                   "the smallest increment end among that subject's rows"),
+                  (b"that subject's rows", b'that subjects rows',
+                   'the greatest increment end among that subjects rows'),
+              ]:
+                  assert exact.count(before) == 1
+                  wrong = exact.replace(before, after)
+                  assert wrong != exact and wrong.count(after) == 1
+                  path.write_bytes(wrong)
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, (quote, result.returncode, result.stderr)
+                  diagnostic = '00-overview.md attributes to LDG-72 a phrase LDG-72 does not contain:'
+                  assert result.stdout.count(diagnostic) == 1, result.stdout
+                  assert f'"{quote}"' in result.stdout
+                  assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+                  path.write_bytes(exact)
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  print(f'PASS: LDG-72: {quote}: exact -> named failure -> exact')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+
+          # The exact nested quote must pass before corrupting its words.
+          subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          rows = [
+              ('tools/formal/Provisiond/Tables.lean', 'STO-8a',
+               b"'Succeeds' means the resource is gone", b"'Succeeds' means the resource is present",
+               "'succeeds' means the resource is present"),
+          ]
+          for filename, owner, before, after, diagnostic_quote in rows:
+              path = Path(filename)
+              original = path.read_bytes()
+              try:
+                  assert original.count(before) == 1, filename
+                  mutated = original.replace(before, after)
+                  assert mutated != original and mutated.count(after) == 1
+                  path.write_bytes(mutated)
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, (filename, result.returncode, result.stderr)
+                  assert f'{filename} attributes to {owner} a phrase {owner} does not contain:' in result.stdout
+                  assert f'"{diagnostic_quote}"' in result.stdout
+                  print(f'PASS: {filename}:{owner}: applied mutation and named failure')
+              finally:
+                  path.write_bytes(original)
+                  assert path.read_bytes() == original
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          # Probe both comparison directions and norm()'s straight/curly typography.
+          # EXISTS intentionally retains its separate, apostrophe-insensitive behavior.
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          def attributed(source, quote):
+              return c.find({'probe.md': f'`OPS-41` says “{quote}”.'}, {},
+                            {'OPS-41': ('source.md', source)})
+
+          plain = 'the tenants balance remains positive'
+          for mark in ["'", '’', '‘']:
+              wording = f'the tenant{mark}s balance remains positive'
+              for source, quote in [(wording, plain), (plain, wording)]:
+                  expected = ([('probe.md', 'OPS-41', c.norm(quote))], [], 1)
+                  assert attributed(source, quote) == expected, (source, quote)
+                  assert c.exists({'probe.lean': f'“{quote}”'}, [source]) == ([], 1)
+              for other in ["'", '’', '‘']:
+                  assert attributed(wording, wording.replace(mark, other)) == ([], [], 1)
+          single = "'Succeeds' means the resource is gone"
+          double = '"Succeeds" means the resource is gone'
+          for source, quote in [(single, double), (double, single)]:
+              assert attributed(source, quote) == ([], [], 1)
+              wrong = quote.replace('gone', 'present')
+              assert attributed(source, wrong) == ([('probe.md', 'OPS-41', c.norm(wrong))], [], 1)
+          print('PASS: straight/curly apostrophes and nested delimiters in both directions; EXISTS unchanged')
+          PY
+
+      # pv-s4g: colon owners, including curly marks and blockquote continuations.
+      - name: Prove the citation gate rejects colon-form misquotes
+        if: matrix.shard == 3
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import subprocess
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          cases = [
+              ('03-operation-lifecycle.md', 'PRV-40', '"', '"',
+               'the worker MUST read the stored closure for that\n'
+               '   account and ordering channel when it claims the operation (`OPS-5`), before any provider\n'
+               '   request, including a per-order key upload', 'stored', 'invented'),
+              ('impl-report-01.md', 'OVR-5', '“', '”',
+               'The mutation MUST NOT be retried automatically, and no timer may clear the state.',
+               'retried', 'repeated'),
+              ('impl-report-01.md', 'OVR-9', '“', '”',
+               '`api` MUST NOT depend on `providers` or `rescue` at all, and MUST reach `engine` only\n'
+               '> through a trait whose signatures mention no credential type. `engine` MUST NOT depend on `api`.',
+               '> through', '> beyond'),
+          ]
+          for filename, owner, opening, closing, quote, before, after in cases:
+              path = Path(filename)
+              original = path.read_text()
+              exact = f'`{owner}`: {opening}{quote}{closing}'
+              assert original.count(exact) == 1, (filename, exact)
+              assert quote.count(before) == 1, (owner, before)
+              corrupted = quote.replace(before, after)
+              try:
+                  subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+                  path.write_text(original.replace(exact, f'`{owner}`: {opening}{corrupted}{closing}'))
+                  result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                  print(result.stdout)
+                  assert result.returncode == 1, ('planted run must exit 1', filename, owner, result.returncode, result.stderr)
+                  diagnostic = f'{filename} attributes to {owner} a phrase {owner} does not contain:'
+                  assert result.stdout.count(diagnostic) == 1, result.stdout
+                  assert f'"{c.norm(corrupted)}"' in result.stdout, result.stdout
+                  assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+              finally:
+                  path.write_text(original)
+                  assert path.read_text() == original
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+              print(f'PASS: colon form: {owner}: exact -> named failure -> restored exact')
+          PYTHON
+
+      # pv-muf: a trailing possessive is content, including at candidate edges.
+      # The built-in matrix covers both input kinds and every permitted pool.
+      - name: Prove the citation gate preserves trailing possessives and detects a bypass
+        if: matrix.shard == 3
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          def gate():
+              result = subprocess.run(['python3', 'tools/check_citations.py'],
+                                      capture_output=True, text=True)
+              print(result.stdout)
+              assert 'Traceback' not in result.stderr, result.stderr
+              return result
+
+          path = Path('00-overview.md')
+          original = path.read_bytes()
+          quote = "A deployment MUST watch only unexpired deposits' addresses"
+          fixture = f'\n\n`LDG-57` says “{quote}”.\n'.encode()
+          exact = original + fixture
+          try:
+              path.write_bytes(exact)
+              assert gate().returncode == 0
+              corrupt = fixture.replace(b"deposits'", b'deposits')
+              assert corrupt != fixture
+              path.write_bytes(original + corrupt)
+              result = gate()
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              diagnostic = '00-overview.md attributes to LDG-57 a phrase LDG-57 does not contain:'
+              assert result.stdout.count(diagnostic) == 1, result.stdout
+              assert '"a deployment must watch only unexpired deposits addresses"' in result.stdout
+              assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+              path.write_bytes(exact)
+              assert gate().returncode == 0
+              print('PASS: LDG-57 trailing possessive: exact -> named QUOTED failure -> exact')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+
+          path = Path('tools/check_citations.py')
+          original = path.read_bytes()
+          before = b'if span_content(source, start, end, source_roles) == content:'
+          after = b'if True:  # temporary CI bypass of local content comparison'
+          assert original.count(before) == 1 and after not in original
+          try:
+              path.write_bytes(original.replace(before, after))
+              result = gate()
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert result.stdout.count('FAIL: quote content: trailing omission:') == 1
+              assert '([], [], 1)' in result.stdout  # corrupt quotation was reaccepted
+              print('PASS: bypassed content comparison: named trailing omission regression failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+          assert gate().returncode == 0
+          PY
+
+      - name: Prove the citation gate preserves equivalent nested delimiters
+        if: matrix.shard == 3
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          path = Path('tools/check_citations.py')
+          original = path.read_bytes()
+          before = b'for opening, closing in pairs[other_side]:'
+          after = b'for opening, closing in []:  # temporary CI loss of corresponding pairs'
+          assert original.count(before) == 1 and after not in original
+          try:
+              path.write_bytes(original.replace(before, after))
+              result = subprocess.run(['python3', 'tools/check_citations.py'],
+                                      capture_output=True, text=True)
+              print(result.stdout)
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert 'Traceback' not in result.stderr, result.stderr
+              assert result.stdout.count('FAIL: quote content: R1 following possessive:') == 1
+              assert "[('probe.md', 'OPS-41'," in result.stdout
+              print('PASS: lost corresponding pairs: named R1 equivalence regression failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+          assert subprocess.run(['python3', 'tools/check_citations.py']).returncode == 0
+          PY
+
+      # The committed baseline is input, never a bootstrap output. Exercise main()
+      # with temporary baselines; every call must leave their bytes unchanged.
+      - name: Prove the citation gate refuses damaged baselines, stale exemptions and an empty Lean scan
+        if: matrix.shard == 0
+        run: |
+          python3 - <<'PY'
+          from contextlib import redirect_stdout
+          from copy import deepcopy
+          from io import StringIO
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+          import json
+          import os
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          committed_path = Path(c.BASELINE)
+          committed_bytes = committed_path.read_bytes()
+          committed = json.loads(committed_bytes)
+          families = ('unquoted_attributions', 'quoted_attributions', 'quoted_existence',
+                      'markdown_quoted_attributions')
+          with TemporaryDirectory(prefix='citation-controls-') as directory:
+              baseline_path = Path(directory) / 'baseline.json'
+
+              def save(baseline):
+                  baseline_path.write_text(json.dumps(baseline))
+
+              def gate(code, *diagnostics):
+                  before = baseline_path.read_bytes()
+                  output = StringIO()
+                  with patch.object(c, 'BASELINE', str(baseline_path)), redirect_stdout(output):
+                      result = c.main()
+                  text = output.getvalue()
+                  print(text)
+                  assert baseline_path.read_bytes() == before, 'checker rewrote baseline'
+                  assert result == code, (result, code, text)
+                  for diagnostic in diagnostics:
+                      assert diagnostic in text, (diagnostic, text)
+                  return text
+
+              def add(baseline, family, signature):
+                  entries = baseline[family]
+                  if isinstance(entries, list):
+                      entries.append(signature)
+                  else:
+                      entries[signature] = 'Temporary CI fixture only.'
+
+              save(committed)
+              gate(0)  # Live historical exemptions and empty families remain valid.
+              for family in families:
+                  damaged = deepcopy(committed)
+                  del damaged[family]
+                  save(damaged)
+                  gate(1, f'missing exemption-family key {family!r}',
+                       'restore this key and its committed exemptions from version control',
+                       'Baseline left unchanged')
+                  print(f'PASS: missing {family}: named refusal, repair and unchanged bytes')
+
+                  signature = 'probe.md:OVR-1:nonexistent exemption signature'
+                  stale = deepcopy(committed)
+                  add(stale, family, signature)
+                  save(stale)
+                  gate(1, f'stale baseline entry in {family}: {signature!r}',
+                       f'remove this entry from {baseline_path}')
+                  save(committed)
+                  gate(0)
+                  print(f'PASS: stale {family}: exact entry refused; cleanup passes')
+
+              # New findings must remain visible alongside stale signatures, and
+              # an exemption is live only while its own finding remains present.
+              root = Path('00-overview.md')
+              lean = Path('tools/formal/Provisiond/Fence.lean')
+              saved = {p: p.read_bytes() for p in (root, lean)}
+              markdown_quote = 'citation probe phrase without a source'
+              lean_quote = 'lean citation probe phrase without a source'
+              fixtures = {
+                  'unquoted_attributions': f'{root}:OVR-1',
+                  'quoted_attributions': f'{lean}:OVR-1:{lean_quote}',
+                  'quoted_existence': f'{lean}:{lean_quote}',
+                  'markdown_quoted_attributions': f'{root}:OVR-1:{markdown_quote}',
+              }
+              try:
+                  root.write_bytes(saved[root] + (
+                      '\n\n`OVR-1` says the citation probe operates without evidence.\n\n'
+                      f'`OVR-1` says "{markdown_quote}".\n').encode())
+                  lean.write_bytes(saved[lean] + (
+                      f'\n\n/-! `OVR-1` says "{lean_quote}". -/\n').encode())
+                  stale = deepcopy(committed)
+                  for family in families:
+                      add(stale, family, 'probe.md:OVR-1:nonexistent exemption signature')
+                  save(stale)
+                  output = gate(1,
+                      f'{root} attributes to OVR-1 a phrase OVR-1 does not contain:',
+                      f'"{markdown_quote}"',
+                      f'{lean} attributes to OVR-1 a phrase OVR-1 does not contain:',
+                      f'"{lean_quote}"',
+                      f'{lean} quotes a phrase found in no document or ADR:',
+                      f'{root} reports what OVR-1 says without quoting it:')
+                  for family in families:
+                      assert f'stale baseline entry in {family}:' in output
+                  live = deepcopy(committed)
+                  for family, signature in fixtures.items():
+                      add(live, family, signature)
+                  save(live)
+                  gate(0)
+              finally:
+                  for path, original in saved.items():
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              output = gate(1)
+              for family, signature in fixtures.items():
+                  assert f'stale baseline entry in {family}: {signature!r}' in output
+              save(committed)
+              gate(0)
+              print('PASS: combined new/stale findings; live exemptions; removed findings; cleanup')
+
+              # Retain the real, valid index. Redirect only source discovery to a
+              # tree whose only .lean file is under .lake; pruning must exclude it.
+              assert c.read_index(), 'control needs the preexisting formal index'
+              index_bytes = Path(c.INDEX).read_bytes()
+              scan = Path(directory) / 'formal'
+              (scan / '.lake').mkdir(parents=True)
+              (scan / '.lake' / 'Ignored.lean').write_text('/-! ignored -/')
+              walk = os.walk
+              with patch.object(c.os, 'walk', side_effect=lambda _: walk(scan)):
+                  gate(1, 'no source .lean files discovered under tools/formal (excluding .lake)',
+                       'A preexisting index does not replace the source scan')
+                  (scan / 'Plain.lean').write_text('-- no docstrings\n')
+                  assert list(c.load_lean_docstrings().values()) == ['']
+                  gate(0)
+              assert Path(c.INDEX).read_bytes() == index_bytes
+              print('PASS: .lake-only discovery refused; source without docstrings accepted; index unchanged')
+          assert committed_path.read_bytes() == committed_bytes
+          PY
+
+      # Derive standing cases from the baseline; temporary fixtures keep these
+      # controls effective when cleanup leaves one entry or none.
+      - name: Prove the citation gate rejects duplicates and altered exempted Markdown wording
+        if: matrix.shard == 1
+        run: |
+          python3 - <<'PY'
+          from collections import Counter
+          from contextlib import contextmanager
+          from pathlib import Path
+          import json
+          import subprocess
+          import sys
+          sys.path.insert(0, 'tools')
+          import check_citations as c
+
+          baseline_path = Path(c.BASELINE)
+
+          @contextmanager
+          def restored():
+              # These controls only mutate existing root prose and the temporary baseline.
+              saved = {p: p.read_bytes() for p in [*Path('.').glob('*.md'), baseline_path]}
+              try:
+                  yield
+              finally:
+                  for path, original in saved.items():
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+
+
+          def gate():
+              result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+              print(result.stdout)
+              return result
+
+
+          def clean():
+              result = gate()
+              assert result.returncode == 0, (result.returncode, result.stderr)
+
+
+          def inventory():
+              docs, adrs, reqs = c.load()
+              findings, _, compared = c.find(docs, adrs, reqs)
+              # A usable real case has an isolated chunk we can remove without also
+              # removing another finding. Never assume another entry shares its file.
+              slots = {}
+              for filename, text in docs.items():
+                  wanted = {q for f, _, q in findings if f == filename}
+                  if not wanted:
+                      continue
+                  for chunk in c.chunks(text):
+                      if not wanted.intersection(c.norm(q) for _, q in c.quotations(chunk)):
+                          continue
+                      bad, _, count = c.find({filename: chunk}, adrs, reqs)
+                      if len(bad) == 1 and text.count(chunk) == 1:
+                          slots.setdefault(bad[0], (chunk, count))
+              return Counter(findings), compared, slots
+
+
+          def save_baseline(baseline):
+              baseline_path.write_text(json.dumps(baseline))
+
+
+          def fixture(baseline, owner, quote):
+              filename = '00-overview.md'
+              path = Path(filename)
+              path.write_bytes(path.read_bytes() + f'\n\n`{owner}`\'s "{quote}".\n'.encode())
+              finding = (filename, owner, quote)
+              baseline['markdown_quoted_attributions'][':'.join(finding)] = 'Temporary CI fixture only.'
+              save_baseline(baseline)
+              return finding
+
+
+          # Exercise cleanup in CI itself, not only on the day the last entry disappears.
+          for scenario in ['standing', 'empty', 'one']:
+              with restored():
+                  baseline = json.loads(baseline_path.read_text())
+                  entries = baseline['markdown_quoted_attributions']
+                  standing, _, slots = inventory()
+                  usable = [row for row in standing if ':'.join(row) in entries and row in slots]
+                  if scenario != 'standing':
+                      keep = usable[:1] if scenario == 'one' else []
+                      docs, adrs, reqs = c.load()
+                      for filename, text in docs.items():
+                          wanted = {q for f, _, q in standing if f == filename}
+                          if not wanted:
+                              continue
+                          for chunk in c.chunks(docs[filename]):
+                              if not wanted.intersection(c.norm(q) for _, q in c.quotations(chunk)):
+                                  continue
+                              bad, _, _ = c.find({filename: chunk}, adrs, reqs)
+                              if bad and bad != keep:
+                                  assert text.count(chunk) == 1
+                                  text = text.replace(chunk, '\n\n', 1)
+                          Path(filename).write_text(text)
+                      baseline['markdown_quoted_attributions'] = {
+                          ':'.join(row): entries[':'.join(row)] for row in keep
+                      }
+                      save_baseline(baseline)
+                      clean()
+                  standing, _, slots = inventory()
+                  usable = [row for row in standing
+                            if ':'.join(row) in baseline['markdown_quoted_attributions'] and row in slots]
+                  if not usable:
+                      usable = [fixture(baseline, 'OPS-29', 'citation fixture wording without any source')]
+                      print(f'FIXTURE: {scenario}: missing usable baseline entry')
+                  # An unrelated allowance must exist even with one usable real entry.
+                  # It may be in a different file; no next(...) same-file assumption.
+                  standing, _, slots = inventory()
+                  if len([row for row in standing if row in slots]) < 2:
+                      fixture(baseline, 'OPS-28', 'unrelated fixture wording without any source')
+                      print(f'FIXTURE: {scenario}: missing unrelated finding')
+                  clean()
+                  standing, compared, slots = inventory()
+                  for finding in usable:
+                      filename, owner, quote = finding
+                      other = next(row for row in standing if row != finding and row in slots)
+                      chunk, _ = slots[finding]
+                      wording = next(q for _, q in c.quotations(chunk) if c.norm(q) == quote)
+                      altered = c.norm(wording + ' citationprobe')
+                      fresh = 'a newly invented quotation without a source'
+                      for label in ['duplicate', 'duplicate with unrelated finding removed', 'altered', 'new']:
+                          with restored():
+                              path = Path(filename)
+                              original = path.read_text()
+                              removed = Counter()
+                              added = finding
+                              if label == 'altered':
+                                  replacement = chunk.replace(wording, wording + ' citationprobe', 1)
+                                  assert replacement != chunk and original.count(chunk) == 1
+                                  path.write_text(original.replace(chunk, replacement, 1))
+                                  removed = Counter([finding])
+                                  added = (filename, owner, altered)
+                              else:
+                                  added = (filename, owner, fresh) if label == 'new' else finding
+                                  suffix = f'\n\n`{owner}`\'s "{added[2]}".\n'
+                                  path.write_text(original + suffix)
+                                  assert path.read_text().endswith(suffix)
+                                  if label == 'duplicate with unrelated finding removed':
+                                      other_path = Path(other[0])
+                                      other_chunk, _ = slots[other]
+                                      text = other_path.read_text()
+                                      assert text.count(other_chunk) == 1
+                                      other_path.write_text(text.replace(other_chunk, '\n\n', 1))
+                                      removed = Counter([other])
+                              bad, count, _ = inventory()
+                              assert bad == standing + Counter([added]) - removed, (label, bad)
+                              if label in ['duplicate', 'new']:
+                                  assert count == compared + 1, (count, compared)
+                              result = gate()
+                              assert result.returncode == 1, (scenario, label, result.returncode, result.stderr)
+                              diagnostic = f'{filename} attributes to {owner} a phrase {owner} does not contain:'
+                              assert result.stdout.count(diagnostic) == 1, result.stdout
+                              assert f'"{added[2]}"' in result.stdout, result.stdout
+                              assert 'FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s)' in result.stdout
+                              # Removal also makes its exemption stale. Require both
+                              # failures: staleness must not stand in for the duplicate
+                              # or altered quote this row independently guards.
+                              for row in removed:
+                                  signature = ':'.join(row)
+                                  assert f'stale baseline entry in markdown_quoted_attributions: {signature!r}' in result.stdout
+                              print(f'PASS: {scenario}: {owner}: {label}: {count} comparisons, {sum(bad.values())} raw findings; exit 1 with named quote')
+                          clean()
+              clean()
+          PY
+
+      # Unpaired marks fail before attribution, historical skips or reach limits.
+      - name: Prove the citation gate rejects unpaired quotation marks at source lines
+        if: matrix.shard == 2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          # The line assertion uses the actual inserted source, including all code before
+          # a Lean block. It must never be an offset in concatenated extracted prose.
+          for filename in ['00-overview.md', 'tools/formal/Provisiond/Tables.lean']:
+              path = Path(filename)
+              original = path.read_bytes()
+              lean = filename.endswith('.lean')
+              for label, paragraph, kind in [
+                  ('later stray', '`OPS-29` says "A correlator match MUST be exact."\nA second line.\nA 3.5" drive.', 'straight'),
+                  ('multiline quote then stray', '`OPS-29` says "A correlator match\nMUST be exact."\nA 3.5" drive.', 'straight'),
+                  ('stray speech', '- A 3.5" drive is mentioned here.\n- `OPS-29` says "a correlator match must be approximate"', 'straight'),
+                  ('stray possessive', '- A 3.5" drive is mentioned here.\n- `OPS-29`\'s "a correlator match must be approximate"', 'straight'),
+                  ('curly opening', '“unclosed', 'curly'),
+                  ('curly closing', 'unopened”', 'curly'),
+                  ('curly reversed', '”reversed“', 'curly'),
+                  ('historical', 'Previously "unclosed', 'straight'),
+                  ('teaching', 'For example “unclosed', 'curly'),
+                  ('overlong', '"' + 'x' * 401, 'straight'),
+                  ('paragraph boundary', '"first\n\nsecond"', 'straight'),
+                  ('curly paragraph boundary', '“first\n\nsecond”', 'curly'),
+              ]:
+                  try:
+                      prefix = '\n\n/--\n' if lean else '\n\n'
+                      suffix = '\n-/\n' if lean else '\n'
+                      inserted = original + (prefix + paragraph + suffix).encode()
+                      line = (original + prefix.encode()).count(b'\n') + 1
+                      path.write_bytes(inserted)
+                      assert path.read_bytes() == inserted
+                      result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                      print(result.stdout)
+                      assert result.returncode == 1, (label, result.returncode, result.stderr)
+                      lines = [line + offset for offset, text in enumerate(paragraph.splitlines())
+                               if ('"' in text if kind == 'straight' else any(mark in text for mark in '“”'))]
+                      # Check locations before wording: the old diagnostic must fail
+                      # for omitting the later stray line, even though it exits 1.
+                      for source_line in lines:
+                          assert f'{filename}:{source_line}:' in result.stdout, (label, source_line, result.stdout)
+                      for source_line in lines:
+                          diagnostic = ('candidate line for odd set of straight double quotation marks'
+                                        if kind == 'straight' else 'unpaired curly double quotation marks')
+                          assert f'{filename}:{source_line}: {diagnostic}' in result.stdout, (label, source_line, result.stdout)
+                      assert f'FAIL: {len(lines)} quotation mark source-line finding(s)' in result.stdout
+                      assert 'attributes to' not in result.stdout and 'quotes a phrase found' not in result.stdout
+                      print(f'PASS: {filename}: {label}: source lines {lines}, mark guard exit 1')
+                  finally:
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              if lean:
+                  # Two docstrings must not supply closing marks for one another even
+                  # without a blank line between the source blocks.
+                  try:
+                      prefix = b'\n/-- '
+                      line = (original + prefix).count(b'\n') + 1
+                      path.write_bytes(original + prefix + b'"first -/\n/-- second" -/\n')
+                      result = subprocess.run(['python3', 'tools/check_citations.py'], capture_output=True, text=True)
+                      print(result.stdout)
+                      assert result.returncode == 1, (result.returncode, result.stderr)
+                      for source_line in [line, line + 1]:
+                          assert f'{filename}:{source_line}: candidate line for odd set of straight double quotation marks' in result.stdout
+                      assert 'FAIL: 2 quotation mark source-line finding(s)' in result.stdout
+                  finally:
+                      path.write_bytes(original)
+                      assert path.read_bytes() == original
+              subprocess.run(['python3', 'tools/check_citations.py'], check=True)
+          PY
+
+      # Reverting closer handling must fail the boundary fixtures, rather than
+      # silently dropping quotes or depending on the corpus retaining a misquote.
+      - name: Prove the citation gate rejects loss of closing-markup boundaries
+        if: matrix.shard == 3
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          path = Path('tools/check_citations.py')
+          original = path.read_bytes()
+          before = r'(?<=[.!?])[*`"”)\]]*(?P<sentence>\s+)'.encode()
+          after = r'(?<=[.!?])(?P<sentence>\s+)'.encode()
+          assert original.count(before) == 1 and after not in original
+          subprocess.run(['python3', str(path)], check=True)
+          try:
+              mutated = original.replace(before, after)
+              assert mutated != original and mutated.count(after) == 1
+              path.write_bytes(mutated)
+              result = subprocess.run(['python3', str(path)], capture_output=True, text=True)
+              print(result.stdout)
+              assert result.returncode == 1, (result.returncode, result.stderr)
+              assert result.stdout.count('FAIL: sentence boundaries: closing markup:') == 1
+              assert 'The engine *runs.* Another sentence.' in result.stdout
+              assert 'Traceback' not in result.stderr
+              print('PASS: removed closing-markup boundaries: named regression failure')
+          finally:
+              path.write_bytes(original)
+              assert path.read_bytes() == original
+          subprocess.run(['python3', str(path)], check=True)
+          PY
