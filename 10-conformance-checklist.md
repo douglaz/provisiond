@@ -3151,8 +3151,8 @@ rather than acquiring a default.
 
       Separately construct `CNF-300`'s unresolved failed-rescue-exit row with `disk_effect` `none` and
       `rescue_exit` `unknown` without a prior restore, then back it up and actually restore it
-      (`CNF-300`: "`disk_effect: "none"` (it aborted before writing) and `rescue_exit:
-      "unknown"`"). It
+      (`CNF-300`: “`disk_effect: "none"` (it aborted before writing) and `rescue_exit:
+      "unknown"`”). It
       remains `needs_reconciliation`, acquires `true` provenance before startup, and now renders
       `unknown`/`unknown`. This is a declared conservative change on a row already awaiting
       resolution. For settled rows with established `false` provenance, an actual restore does not
