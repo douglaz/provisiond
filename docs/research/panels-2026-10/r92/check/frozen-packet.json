@@ -1,0 +1,20 @@
+{
+  "brief.md": {
+    "bytes": 65302,
+    "sha256": "64cd7fd87c6d002a4f9b57e42c770bb2c68db742da13275984e4db7821893151"
+  },
+  "notes.md": {
+    "bytes": 7773,
+    "sha256": "16b393825fd687adb8c0b67581e6960d2ad117a89ba2c052071be7e019341ce4"
+  },
+  "candidates/R-BOTH.md": {
+    "bytes": 7527,
+    "sha256": "a2ea1e089e35ab92aeae5301ce5aa865904e833601361e3d6a8bf186a58e5061"
+  },
+  "candidates/HOLD.md": {
+    "bytes": 5476,
+    "sha256": "a4ba9c6149864e73ccf00bfd339fa30a18a507c340ff05046f98b99e8f55471a"
+  },
+  "historical_sources_total_bytes": 261641,
+  "grok_packet_below_1MB": true
+}

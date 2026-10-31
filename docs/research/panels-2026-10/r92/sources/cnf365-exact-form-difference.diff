@@ -1,0 +1,52 @@
+--- landed-PR52-CNF365
++++ adopted-C-UNKNOWN-exact-CNF365
+@@ -19,16 +19,8 @@
+   primary, restart both standbys, and assert the procedure promotes the one holding that write, then repeat with the standbys' roles swapped.
+   Promote a lagging standby as an operator restore with verified prefix/clock evidence and
+   assert the incident stores certified bounds. Repeat with an idle restarted standby that has
+-  replayed no transaction record and no retained fallback proof, leaving the lower history endpoint
+-  unknown, but supply valid retained event-clock and stopping/fencing evidence certifying an
+-  upper endpoint under `STO-54`. Assert that the incident persists `lost_window_starts_at` as
+-  null and `loss_end_at` as that certified upper endpoint, with a non-null incident-keyed
+-  `history_evidence_ref` identifying the retained evidence and the unknown-lower-endpoint
+-  reason (`STO-54`, `STO-56`). For this fixture, assert that the operator report publishes
+-  the certified upper endpoint and its clock/provenance assumptions, identifies the lower
+-  endpoint as unknown and states that no finite duration is established (`STO-54`).
+-  A report omitting the certified upper endpoint or inventing a finite loss duration fails
+-  this case. Follow with the existing restore procedure. Repeat with no
++  replayed no transaction record and no retained fallback proof: assert unknown history bound
++  and an explicit nonnumeric report, followed by the existing restore procedure. Repeat with no
+   verified event-clock bound and assert an unknown upper bound. Do not use a restart time or a
+   backup name to fill an unknown history bound.
+   For these operator-restore arms, supply certified evidence for each asserted known
+@@ -41,5 +33,30 @@
+   Repeat with equal numerical reports on different timelines and with an unavailable report; neither case may use the equal-position path. With unequal reports on the same history, the greater end may use the restart path only with all other conditions satisfied; selecting the behind standby requires an operator's restore. Repeat equal reports after the primary committed without either named standby, and separately after a waiting backend was cancelled or terminated, each made known to the deployment's procedure: equality permits neither promotion as a restart. Automatic failover does not perform these restores; an operator's restore follows the stopped-components procedure and commits its record with acknowledgement before component startup.
+ 
+   Repeat equal reports with an open restore record. Assert continuation of that same incident. A marked step does not repeat; with step (3) unmarked, its credential-generation bump still occurs when that step is completed, and with step (3) already marked it is not repeated. Equality neither closes the record nor waives any outstanding incident obligation.
++
++  **Unknown restart eligibility.** Construct two fixtures with identical surviving standby
++  reports on the same actual old-primary history and no open incident. In the first, establish
++  complete trustworthy negative evidence of no waiting-backend cancellation or termination;
++  satisfy every other restart condition. Promote each equal standby in a separate run and
++  assert restart classification, no restore record and no restore credential-generation bump,
++  preserving the ordinary startup-generation advance. In the second, arrange a waiting-backend
++  termination independently observed by the test, then lose the primary and its logs and hide
++  the event evidence from the promotion procedure; the surviving reports are the same as in
++  the first fixture. Assert unknown eligibility, operator notice and no automatic promotion.
++  Do not give the procedure the test's hidden oracle or label its unknown state as a known
++  violation. In a separate known-event case supply valid event evidence and assert the existing
++  restore classification, including when the termination was caused by primary shutdown.
++
++  Repeat unknown eligibility with no event in fact but lost or incomplete coverage, mismatched
++  database/incarnation/ancestry evidence, an unauthenticated clean assertion and conflicting
++  records. Missing logs or an assertion without continuous coverage cannot pass. Retain a known
++  termination and separately an unknown interval across later catch-up, equal reports and an
++  incarnation change on which the next restart depends; neither is silently reset. In each
++  unknown fixture assert no restore begins automatically; let an operator explicitly authorize
++  one and assert the stopped-components procedure and an acknowledged incident record before
++  startup. This is not a fast-shutdown read/action reproduction. Finally authorize a restore
++  with no certified loss-report endpoints and assert null endpoints and an explicit unknown
++  report, followed by the existing procedure without a wait for reporting evidence. (`STO-54`)
++
+   (`STO-5`, `STO-7`,
+   `STO-54`, `OPS-15`) *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*

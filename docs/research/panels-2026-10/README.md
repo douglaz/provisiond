@@ -217,3 +217,15 @@ The owner records supersede the historical owner-pending status. These records p
 the reviewed forms, reader answers and verified dissent. Specification links name the frozen
 review base; raw logs, clones and omitted machine-local receipts remain under `/var/tmp`.
 The requirement owners hold the rules.
+
+## Panel M wording reconciliation, 2026-10-30
+
+| Round | Question | Settlement sources |
+|---|---|---|
+| [r92](r92/brief.md) | pv-by1w CNF-365 landing after pv-zuu5 | [Tally](r92/tally.md), [assertion audit](r92/check/tally-claim-audit.md), exact [settled CNF-365](r92/settled-CNF-365.md) and [checksum](r92/settled-CNF-365.md.sha256) |
+
+The tally records the authority under the owner's 2026-10-28 wording rule. The earlier
+[r88 owner decision](r88/owner-decisions.md) and its STO-54 block stay as adopted.
+Reader answers and reviewed candidates remain historical records. Specification links
+name the frozen review base; raw logs, launchers, machine receipts and the full tracker
+diff remain under `/var/tmp`. The requirement owners hold the rules.

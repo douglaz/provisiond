@@ -1,0 +1,12 @@
+{
+  "pin": "d65dc63e059bdefc8bab2e2e64416acf52f5b904",
+  "settled_sha256": "a2ea1e089e35ab92aeae5301ce5aa865904e833601361e3d6a8bf186a58e5061",
+  "exact_R_BOTH": true,
+  "exact_adopted_STO54": true,
+  "changed_paths": [
+    "05-persistence.md",
+    "10-conformance-checklist.md"
+  ],
+  "tracker_unchanged": true,
+  "scope": "disposable panel gate clone only; no adoption"
+}

@@ -1,0 +1,62 @@
+{
+  "pin": "d65dc63e059bdefc8bab2e2e64416acf52f5b904",
+  "historical_pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "form_sha256": "84b5e77d55ed3d3fcf1d4f0d2ffd8020d5abff978c3d949c991a7c449067902b",
+  "R_BOTH_sha256": "a2ea1e089e35ab92aeae5301ce5aa865904e833601361e3d6a8bf186a58e5061",
+  "base_to_adopted_only_insertion": [
+    [
+      "insert",
+      35,
+      35,
+      35,
+      60
+    ]
+  ],
+  "inserted_block_byte_identical": true,
+  "R_BOTH_minus_insertion_equals_pin": true,
+  "STO54_landing_site_unchanged": true,
+  "entire_05_persistence_unchanged_since_r88_pin": true,
+  "pre52_checklist_equals_r88_pin": true,
+  "landed_diff_copy_equals_git_diff": true,
+  "formal_scope_comments_verified_with_whitespace_normalization": true,
+  "row_checks": {
+    "pv-zuu5": "full row equals git show pin:.beads/issues.jsonl",
+    "pv-by1w": "full row equals git show pin:.beads/issues.jsonl"
+  },
+  "seats": {
+    "fable": {
+      "bytes": 158,
+      "exit": "1",
+      "sha256": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2",
+      "err_bytes_inspected": 0,
+      "err_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "missing_seat": true
+    },
+    "opus": {
+      "bytes": 13731,
+      "exit": "0",
+      "sha256": "e36cfbfa7b16c6ed8123e61a64ed09bc5efe398481da8bd801a0062486f3ea96",
+      "err_bytes_inspected": 0,
+      "err_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "substantive_answer": true
+    },
+    "astra": {
+      "bytes": 14970,
+      "exit": "0",
+      "sha256": "f5426740c7494f3c06b9f853b5ae0d4d42100d62362fabe654b73187580edb28",
+      "out_equals_answer_after_terminal_whitespace": true,
+      "err_bytes_inspected": 531228,
+      "err_sha256": "a7916e321d5b7481fb078bbc4bc0e0d5f8cdefc18ea910446155f14ff09c1911",
+      "substantive_answer": true
+    },
+    "sol": {
+      "bytes": 14545,
+      "exit": "0",
+      "sha256": "f1e40b8ee6d3f92f21f4c941f7dce09c4937842aa24c079f272389ef1f4c77ee",
+      "out_equals_answer_after_terminal_whitespace": true,
+      "err_bytes_inspected": 804903,
+      "err_sha256": "fdb78c3f51decfdf07209a17832944bea71c781f5e0bd2e59a4720ce9c50871a",
+      "substantive_answer": true
+    }
+  }
+}

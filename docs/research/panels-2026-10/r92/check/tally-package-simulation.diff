@@ -1,0 +1,90 @@
+diff --git a/05-persistence.md b/05-persistence.md
+index 1d8a79f..917e3ed 100644
+--- a/05-persistence.md
++++ b/05-persistence.md
+@@ -1668,6 +1668,49 @@ unsettled re-runs a fan-out the operator may have reversed. So:
+   promotion that is a restore: an automatic failover promotes only as a restart, and otherwise leaves the store
+   without a primary until both standbys report or an operator decides.
+ 
++  **Unknown restart eligibility.** For a contemplated promotion, evaluate the restart-promotion
++  conditions above for the affected source-primary incarnation/history through the old
++  primary's fencing boundary. A condition is established only by evidence valid for that
++  database, incarnation and actual WAL ancestry, or by a trusted deployment invariant whose
++  uninterrupted coverage establishes the fact. Equal numerical ends alone establish neither
++  actual common history nor the absence of a waiting-backend cancellation or termination.
++  Classify a known disqualifying condition under the existing restore rule even if another
++  fact is unknown. Otherwise restart eligibility is unknown if at least one applicable
++  restart condition cannot be established. It is established only when every applicable
++  condition is established and none is disqualifying. Continuing an already open restore
++  incident remains continuation, not a new restart decision.
++
++  In particular, evidence that no waiting backend was cancelled or terminated MUST cover the
++  affected incarnation/history, including shutdown-induced termination and inherited conditions
++  and uncertainty on which the contemplated restart depends, through fencing. A trustworthy
++  negative assertion requires an authenticated source and complete event coverage, or an
++  independently enforced no-event invariant with established coverage and non-bypass. Its
++  database/incarnation/ancestry binding and its coverage MUST be verifiable without the lost
++  primary or its logs. A missing record, sampled absence, an alarm, unverified operator belief,
++  or successful later catch-up is not negative evidence. Conflicting, incomplete, lost or
++  invalid evidence leaves that condition unknown unless a disqualifying fact is already known.
++  This paragraph specifies no new evidence service or runtime replication-configuration or
++  topology-drift controller; existing trusted deployment duties remain in force. A deployment
++  unable to supply the negative evidence may use the operator boundary below.
++
++  Automatic failover MUST NOT promote while restart eligibility is unknown and MUST report the
++  unresolved condition to the operator. It MUST leave the store without a primary and MUST NOT
++  perform a restore. The operator may wait for sufficient valid evidence to establish a restart,
++  or authorize a restore under the procedure below; operator belief alone cannot reclassify
++  unknown as established. A promotion with unknown restart eligibility MUST be treated as a
++  restore when authorized, with the existing incident and startup prerequisites. A known
++  violation remains a violation; this rule neither permits it nor turns it into uncertainty.
++  A known historical waiting-backend cancellation or termination remains a restore condition,
++  including a shutdown-induced termination permitted by the shutdown exception. Time, new
++  incarnation identifiers, equal reports or later catch-up do not expire that condition or
++  resolve an uncovered historical interval. A later decision MUST retain unresolved inherited
++  facts on which it depends rather than treating a new incarnation as clean by default.
++
++  Established eligibility preserves the equal-report restart path above when its other
++  conditions hold. Unknown possible-loss reporting endpoints on an operator-authorized restore
++  are separate: they use the reporting rules below and do not delay that restore's incident
++  creation, procedure or startup once its existing prerequisites are satisfied.
++
+   **Formal checking interpretation (2026-10-29, `pv-26ju`).**
+   `Provisiond.WalHistory.maximal_preserves_acknowledged` proves preservation for an arbitrary
+   acknowledged commit under `SynchronousCommit`, truthful durable-prefix reports on one actual
+diff --git a/10-conformance-checklist.md b/10-conformance-checklist.md
+index 01b4908..b4516b2 100644
+--- a/10-conformance-checklist.md
++++ b/10-conformance-checklist.md
+@@ -1224,6 +1224,31 @@ takes the machines *and* the float" partly false.
+   Repeat with equal numerical reports on different timelines and with an unavailable report; neither case may use the equal-position path. With unequal reports on the same history, the greater end may use the restart path only with all other conditions satisfied; selecting the behind standby requires an operator's restore. Repeat equal reports after the primary committed without either named standby, and separately after a waiting backend was cancelled or terminated, each made known to the deployment's procedure: equality permits neither promotion as a restart. Automatic failover does not perform these restores; an operator's restore follows the stopped-components procedure and commits its record with acknowledgement before component startup.
+ 
+   Repeat equal reports with an open restore record. Assert continuation of that same incident. A marked step does not repeat; with step (3) unmarked, its credential-generation bump still occurs when that step is completed, and with step (3) already marked it is not repeated. Equality neither closes the record nor waives any outstanding incident obligation.
++
++  **Unknown restart eligibility.** Construct two fixtures with identical surviving standby
++  reports on the same actual old-primary history and no open incident. In the first, establish
++  complete trustworthy negative evidence of no waiting-backend cancellation or termination;
++  satisfy every other restart condition. Promote each equal standby in a separate run and
++  assert restart classification, no restore record and no restore credential-generation bump,
++  preserving the ordinary startup-generation advance. In the second, arrange a waiting-backend
++  termination independently observed by the test, then lose the primary and its logs and hide
++  the event evidence from the promotion procedure; the surviving reports are the same as in
++  the first fixture. Assert unknown eligibility, operator notice and no automatic promotion.
++  Do not give the procedure the test's hidden oracle or label its unknown state as a known
++  violation. In a separate known-event case supply valid event evidence and assert the existing
++  restore classification, including when the termination was caused by primary shutdown.
++
++  Repeat unknown eligibility with no event in fact but lost or incomplete coverage, mismatched
++  database/incarnation/ancestry evidence, an unauthenticated clean assertion and conflicting
++  records. Missing logs or an assertion without continuous coverage cannot pass. Retain a known
++  termination and separately an unknown interval across later catch-up, equal reports and an
++  incarnation change on which the next restart depends; neither is silently reset. In each
++  unknown fixture assert no restore begins automatically; let an operator explicitly authorize
++  one and assert the stopped-components procedure and an acknowledged incident record before
++  startup. This is not a fast-shutdown read/action reproduction. Finally authorize a restore
++  with no certified loss-report endpoints and assert null endpoints and an explicit unknown
++  report, followed by the existing procedure without a wait for reporting evidence. (`STO-54`)
++
+   (`STO-5`, `STO-7`,
+   `STO-54`, `OPS-15`) *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*
+ 

@@ -1,0 +1,24 @@
+{
+  "pin": "d65dc63e059bdefc8bab2e2e64416acf52f5b904",
+  "pr53_head": "26743d89663e996aceeb9aed245d185310dc3463",
+  "zuu5_diff_paths": [
+    ".beads/issues.jsonl",
+    "10-conformance-checklist.md"
+  ],
+  "tracker_only_changed_id": [
+    "pv-zuu5"
+  ],
+  "tracker_only_changed_fields": [
+    "close_reason",
+    "closed_at",
+    "status",
+    "updated_at"
+  ],
+  "owner_boundary_unchanged": true,
+  "adopted_blocks_exact_in_committed_PR53_brief": true,
+  "rebased_CNF_equals_pin": true,
+  "R_BOTH_reverse_exact_to_pin": true,
+  "R_BOTH_addition_exact_C_UNKNOWN": true,
+  "no_substantive_owner_policy_conflict_established": true,
+  "source_manifest_files": 26
+}
