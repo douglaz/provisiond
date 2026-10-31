@@ -178,3 +178,15 @@ The owner record supersedes the historical owner-pending status. These records p
 the reviewed forms, reader answers and verified dissent. Specification links name the frozen
 review base; raw logs, clones and omitted machine-local receipts remain under `/var/tmp`.
 The requirement owners hold the rules.
+
+## Panel J paid-create decision, 2026-10-30
+
+| Rounds | Question | Decision sources |
+|---|---|---|
+| [r89](r89/brief.md), [r89b](r89/r89b/brief.md) | pv-9ecf | [Owner decisions](r89/owner-decisions.md), [original tally](r89/tally.md), [consensus tally](r89/r89b/tally.md), exact [C′](r89/r89b/form-Cprime.md), [landing-site comparison](r89/landing-drift.json) |
+
+The owner record supersedes the historical owner-pending status. These records preserve
+the complete reviewed forms, packets, reader answers, original dissent, consensus and
+durable verification records. Specification links name the frozen review base; raw logs,
+clones, launchers and machine-local receipts remain under `/var/tmp`.
+The requirement owners hold the rules.

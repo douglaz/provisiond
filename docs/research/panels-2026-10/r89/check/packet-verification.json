@@ -1,0 +1,141 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "forms": {
+    "A": {
+      "sites": [
+        "DOM-16",
+        "PRV-10",
+        "API-15",
+        "configuration row",
+        "Create matrix row",
+        "DEF-17 historical scope paragraph",
+        "WIR-17 field rules opening",
+        "CNF-18",
+        "CNF-19",
+        "CNF-34",
+        "CNF-55",
+        "CNF-182 Robot test-mode case",
+        "CNF-342 acknowledgement paragraph",
+        "CNF-364 setup and retained list-offers assertions",
+        "CNF-344 channel declaration is no capability grant"
+      ],
+      "definition_owned_by_DOM16": true,
+      "explicit_hourly_cases": false,
+      "undefined_scope_removed": true,
+      "consumer_quotes_preserved": true,
+      "sha256": "92c69b288a18a707a7fe2ec5264b5e4e7429648b35b8997b894b916a271f365e"
+    },
+    "B": {
+      "sites": [
+        "DOM-16",
+        "PRV-10",
+        "API-15",
+        "configuration row",
+        "Create matrix row",
+        "DEF-17 historical scope paragraph",
+        "WIR-17 field rules opening",
+        "CNF-18",
+        "CNF-19",
+        "CNF-34",
+        "CNF-55",
+        "CNF-182 Robot test-mode case",
+        "CNF-342 acknowledgement paragraph",
+        "CNF-364 setup and retained list-offers assertions",
+        "CNF-344 channel declaration is no capability grant"
+      ],
+      "definition_owned_by_DOM16": false,
+      "explicit_hourly_cases": false,
+      "undefined_scope_removed": true,
+      "consumer_quotes_preserved": true,
+      "sha256": "a68c9498b5b69113bf8e19ac52d42f66b87a7125b653467b44615d3e091571b7"
+    },
+    "C": {
+      "sites": [
+        "DOM-16",
+        "PRV-10",
+        "API-15",
+        "configuration row",
+        "Create matrix row",
+        "DEF-17 historical scope paragraph",
+        "WIR-17 field rules opening",
+        "CNF-18",
+        "CNF-19",
+        "CNF-34",
+        "CNF-55",
+        "CNF-182 Robot test-mode case",
+        "CNF-342 acknowledgement paragraph",
+        "CNF-364 setup and retained list-offers assertions",
+        "CNF-344 channel declaration is no capability grant"
+      ],
+      "definition_owned_by_DOM16": true,
+      "explicit_hourly_cases": true,
+      "undefined_scope_removed": true,
+      "consumer_quotes_preserved": true,
+      "sha256": "d9e4fa677ed4482c3dac478fcf8cfd4d1257e7ddce175449080aca8a8826a989"
+    },
+    "D": {
+      "sites": [
+        "DOM-16",
+        "PRV-10",
+        "API-15",
+        "configuration row",
+        "Create matrix row",
+        "DEF-17 historical scope paragraph",
+        "WIR-17 field rules opening",
+        "CNF-18",
+        "CNF-19",
+        "CNF-34",
+        "CNF-55",
+        "CNF-182 Robot test-mode case",
+        "CNF-342 acknowledgement paragraph",
+        "CNF-364 setup and retained list-offers assertions",
+        "CNF-344 channel declaration is no capability grant"
+      ],
+      "definition_owned_by_DOM16": false,
+      "explicit_hourly_cases": true,
+      "undefined_scope_removed": true,
+      "consumer_quotes_preserved": true,
+      "sha256": "d3a32b5eca3b64533cad169122a6120ed520c2486b9658314999b98874e10a92"
+    }
+  },
+  "clones": {
+    "fable": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "opus": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "astra": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "sol": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    },
+    "consistency": {
+      "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "clean": true
+    }
+  },
+  "wrappers": {
+    "run-codex.sh": "r82 path substitution only",
+    "run-claude-stdin.sh": "r82 path substitution only"
+  },
+  "packet_bytes": 93253,
+  "baseline_gate_before": 0,
+  "brief_sha256": "059d2a567605d46a3201915774eee87371c229ef9140f4054ee8e8e9b588b051",
+  "notes_sha256": "e329b577cd1a86248e6cef409f9142fcc7c5ee12d09c331054d816aefba9f0a7",
+  "baseline_gate_final": 0,
+  "consistency_pass": "one exact minimal repair applied, no remaining internal contradiction reported",
+  "launched_seats": [
+    "fable",
+    "opus",
+    "astra",
+    "sol"
+  ],
+  "grok": "missing: sole probe 402; three-of-four fallback",
+  "launched_utc": "2026-10-30T21:07:36.454319+00:00"
+}

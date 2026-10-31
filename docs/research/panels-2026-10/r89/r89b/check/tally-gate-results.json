@@ -1,0 +1,14 @@
+{
+  "before": {
+    "exit": 0,
+    "formal_pass": true,
+    "all_gates_pass": true,
+    "other_lake_builds_at_admission": 1
+  },
+  "final": {
+    "exit": 0,
+    "formal_pass": true,
+    "all_gates_pass": true,
+    "other_lake_builds_at_admission": 1
+  }
+}

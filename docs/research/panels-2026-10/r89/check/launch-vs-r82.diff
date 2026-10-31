@@ -1,0 +1,19 @@
+--- /var/tmp/provisiond-panel-r82/launch.sh	2026-10-28 23:09:57.879468903 +0000
++++ /var/tmp/provisiond-panel-r89/launch.sh	2026-10-30 21:02:37.093088096 +0000
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env bash
+ set -euo pipefail
+-P=/var/tmp/provisiond-panel-r82
++P=/var/tmp/provisiond-panel-r89
+ export PATH="$HOME/.npm-global/bin:$PATH"
+ export TMPDIR=$P/tmp
+ for seat in fable opus astra sol; do
+@@ -10,7 +10,7 @@
+     astra) argv=(/bin/sh "$P/run-codex.sh" astra gpt-6-astra high) ;;
+     sol) argv=(/bin/sh "$P/run-codex.sh" sol gpt-6.1-sol xhigh) ;;
+   esac
+-  case "$seat" in fable|opus) unit="panel-r82-$seat-stdin" ;; *) unit="panel-r82-$seat" ;; esac
++  unit="panel-r89-$seat"
+   systemd-run --user --unit "$unit" -p MemoryMax=16G -p MemorySwapMax=0 -p OOMPolicy=continue --setenv="PATH=$PATH" --setenv="TMPDIR=$TMPDIR" --working-directory="$P/$seat" "${argv[@]}"
+   systemctl --user show "$unit" -p Id -p ActiveState -p SubState -p MainPID -p MemoryMax -p MemorySwapMax -p OOMPolicy -p Environment -p ExecStart > "$P/check/$seat-systemctl-show.txt"
+ done

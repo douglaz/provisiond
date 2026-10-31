@@ -1,0 +1,942 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "packet_bytes": 176666,
+  "packet_sha256": "49b6485d6b1f76a30961db7832dd5bc33fccfcf81b56fff301348904107f5353",
+  "evidence": [
+    {
+      "label": "Configuration catalogue",
+      "path": "00-overview.md",
+      "start": 403,
+      "end": 416,
+      "matches_pin": true
+    },
+    {
+      "label": "Capability owners",
+      "path": "01-domain-model.md",
+      "start": 515,
+      "end": 538,
+      "matches_pin": true
+    },
+    {
+      "label": "Capability/opt-in scope owners",
+      "path": "01-domain-model.md",
+      "start": 564,
+      "end": 573,
+      "matches_pin": true
+    },
+    {
+      "label": "Provider opt-in owner",
+      "path": "02-provider-contract.md",
+      "start": 159,
+      "end": 164,
+      "matches_pin": true
+    },
+    {
+      "label": "API acknowledgement owner",
+      "path": "04-api-contract.md",
+      "start": 983,
+      "end": 992,
+      "matches_pin": true
+    },
+    {
+      "label": "API gate position",
+      "path": "04-api-contract.md",
+      "start": 203,
+      "end": 213,
+      "matches_pin": true
+    },
+    {
+      "label": "API ordering gate",
+      "path": "04-api-contract.md",
+      "start": 241,
+      "end": 241,
+      "matches_pin": true
+    },
+    {
+      "label": "Claim gates",
+      "path": "03-operation-lifecycle.md",
+      "start": 774,
+      "end": 800,
+      "matches_pin": true
+    },
+    {
+      "label": "Wire field owner",
+      "path": "13-wire-contract.md",
+      "start": 665,
+      "end": 668,
+      "matches_pin": true
+    },
+    {
+      "label": "Illustrative matrix",
+      "path": "08-provider-notes.md",
+      "start": 24,
+      "end": 32,
+      "matches_pin": true
+    },
+    {
+      "label": "Historical defect wording",
+      "path": "09-known-defects.md",
+      "start": 161,
+      "end": 169,
+      "matches_pin": true
+    },
+    {
+      "label": "Existing conformance capability cases",
+      "path": "10-conformance-checklist.md",
+      "start": 124,
+      "end": 154,
+      "matches_pin": true
+    },
+    {
+      "label": "Existing worker validation case",
+      "path": "10-conformance-checklist.md",
+      "start": 256,
+      "end": 279,
+      "matches_pin": true
+    },
+    {
+      "label": "Existing acknowledgement case",
+      "path": "10-conformance-checklist.md",
+      "start": 340,
+      "end": 359,
+      "matches_pin": true
+    },
+    {
+      "label": "Robot test mode",
+      "path": "10-conformance-checklist.md",
+      "start": 2371,
+      "end": 2376,
+      "matches_pin": true
+    },
+    {
+      "label": "Worker acknowledgement paragraph",
+      "path": "10-conformance-checklist.md",
+      "start": 4311,
+      "end": 4320,
+      "matches_pin": true
+    },
+    {
+      "label": "Channel declarations",
+      "path": "10-conformance-checklist.md",
+      "start": 4358,
+      "end": 4363,
+      "matches_pin": true
+    },
+    {
+      "label": "Launch and sale scope",
+      "path": "docs/adr/0010-v1-ships-three-drivers-across-two-companies.md",
+      "start": 62,
+      "end": 66,
+      "matches_pin": true
+    },
+    {
+      "label": "Zero-price conformance cases",
+      "path": "10-conformance-checklist.md",
+      "start": 822,
+      "end": 845,
+      "matches_pin": true
+    },
+    {
+      "label": "Zero-unit owner",
+      "path": "12-billing-and-ledger.md",
+      "start": 1240,
+      "end": 1246,
+      "matches_pin": true
+    },
+    {
+      "label": "Offer price representation",
+      "path": "01-domain-model.md",
+      "start": 165,
+      "end": 173,
+      "matches_pin": true
+    },
+    {
+      "label": "Billable-action umbrella",
+      "path": "00-overview.md",
+      "start": 46,
+      "end": 47,
+      "matches_pin": true
+    },
+    {
+      "label": "Create body and literal acknowledgement",
+      "path": "13-wire-contract.md",
+      "start": 637,
+      "end": 678,
+      "matches_pin": true
+    },
+    {
+      "label": "Body validation and replay",
+      "path": "04-api-contract.md",
+      "start": 206,
+      "end": 211,
+      "matches_pin": true
+    },
+    {
+      "label": "Offer snapshot order",
+      "path": "04-api-contract.md",
+      "start": 261,
+      "end": 264,
+      "matches_pin": true
+    },
+    {
+      "label": "Worker validation owner",
+      "path": "03-operation-lifecycle.md",
+      "start": 2018,
+      "end": 2045,
+      "matches_pin": true
+    }
+  ],
+  "forms": {
+    "A": {
+      "bytes": 13099,
+      "sha256": "92c69b288a18a707a7fe2ec5264b5e4e7429648b35b8997b894b916a271f365e",
+      "blocks": [
+        {
+          "action": "Replace",
+          "label": "DOM-16",
+          "path": "01-domain-model.md",
+          "start": 570,
+          "end": 571,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "PRV-10",
+          "path": "02-provider-contract.md",
+          "start": 159,
+          "end": 162,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "API-15",
+          "path": "04-api-contract.md",
+          "start": 987,
+          "end": 992,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "configuration row",
+          "path": "00-overview.md",
+          "start": 412,
+          "end": 412,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "Create matrix row",
+          "path": "08-provider-notes.md",
+          "start": 31,
+          "end": 31,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "DEF-17 historical scope paragraph",
+          "path": "09-known-defects.md",
+          "start": 163,
+          "end": 165,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "WIR-17 field rules opening",
+          "path": "13-wire-contract.md",
+          "start": 665,
+          "end": 666,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-18",
+          "path": "10-conformance-checklist.md",
+          "start": 124,
+          "end": 135,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-19",
+          "path": "10-conformance-checklist.md",
+          "start": 137,
+          "end": 139,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-34",
+          "path": "10-conformance-checklist.md",
+          "start": 256,
+          "end": 279,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-55",
+          "path": "10-conformance-checklist.md",
+          "start": 340,
+          "end": 359,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-182 Robot test-mode case",
+          "path": "10-conformance-checklist.md",
+          "start": 2371,
+          "end": 2376,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-342 acknowledgement paragraph",
+          "path": "10-conformance-checklist.md",
+          "start": 4311,
+          "end": 4320,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-364 setup and retained list-offers assertions",
+          "path": "10-conformance-checklist.md",
+          "start": 140,
+          "end": 154,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-344 channel declaration is no capability grant",
+          "path": "10-conformance-checklist.md",
+          "start": 4358,
+          "end": 4363,
+          "same_as_pin": true
+        }
+      ]
+    },
+    "B": {
+      "bytes": 14636,
+      "sha256": "a68c9498b5b69113bf8e19ac52d42f66b87a7125b653467b44615d3e091571b7",
+      "blocks": [
+        {
+          "action": "Replace",
+          "label": "DOM-16",
+          "path": "01-domain-model.md",
+          "start": 570,
+          "end": 571,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "PRV-10",
+          "path": "02-provider-contract.md",
+          "start": 159,
+          "end": 162,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "API-15",
+          "path": "04-api-contract.md",
+          "start": 987,
+          "end": 992,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "configuration row",
+          "path": "00-overview.md",
+          "start": 412,
+          "end": 412,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "Create matrix row",
+          "path": "08-provider-notes.md",
+          "start": 31,
+          "end": 31,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "DEF-17 historical scope paragraph",
+          "path": "09-known-defects.md",
+          "start": 163,
+          "end": 165,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "WIR-17 field rules opening",
+          "path": "13-wire-contract.md",
+          "start": 665,
+          "end": 666,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-18",
+          "path": "10-conformance-checklist.md",
+          "start": 124,
+          "end": 135,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-19",
+          "path": "10-conformance-checklist.md",
+          "start": 137,
+          "end": 139,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-34",
+          "path": "10-conformance-checklist.md",
+          "start": 256,
+          "end": 279,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-55",
+          "path": "10-conformance-checklist.md",
+          "start": 340,
+          "end": 359,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-182 Robot test-mode case",
+          "path": "10-conformance-checklist.md",
+          "start": 2371,
+          "end": 2376,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-342 acknowledgement paragraph",
+          "path": "10-conformance-checklist.md",
+          "start": 4311,
+          "end": 4320,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-364 setup and retained list-offers assertions",
+          "path": "10-conformance-checklist.md",
+          "start": 140,
+          "end": 154,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-344 channel declaration is no capability grant",
+          "path": "10-conformance-checklist.md",
+          "start": 4358,
+          "end": 4363,
+          "same_as_pin": true
+        }
+      ]
+    },
+    "C": {
+      "bytes": 15908,
+      "sha256": "d9e4fa677ed4482c3dac478fcf8cfd4d1257e7ddce175449080aca8a8826a989",
+      "blocks": [
+        {
+          "action": "Replace",
+          "label": "DOM-16",
+          "path": "01-domain-model.md",
+          "start": 570,
+          "end": 571,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "PRV-10",
+          "path": "02-provider-contract.md",
+          "start": 159,
+          "end": 162,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "API-15",
+          "path": "04-api-contract.md",
+          "start": 987,
+          "end": 992,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "configuration row",
+          "path": "00-overview.md",
+          "start": 412,
+          "end": 412,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "Create matrix row",
+          "path": "08-provider-notes.md",
+          "start": 31,
+          "end": 31,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "DEF-17 historical scope paragraph",
+          "path": "09-known-defects.md",
+          "start": 163,
+          "end": 165,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "WIR-17 field rules opening",
+          "path": "13-wire-contract.md",
+          "start": 665,
+          "end": 666,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-18",
+          "path": "10-conformance-checklist.md",
+          "start": 124,
+          "end": 135,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-19",
+          "path": "10-conformance-checklist.md",
+          "start": 137,
+          "end": 139,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-34",
+          "path": "10-conformance-checklist.md",
+          "start": 256,
+          "end": 279,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-55",
+          "path": "10-conformance-checklist.md",
+          "start": 340,
+          "end": 359,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-182 Robot test-mode case",
+          "path": "10-conformance-checklist.md",
+          "start": 2371,
+          "end": 2376,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-342 acknowledgement paragraph",
+          "path": "10-conformance-checklist.md",
+          "start": 4311,
+          "end": 4320,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-364 setup and retained list-offers assertions",
+          "path": "10-conformance-checklist.md",
+          "start": 140,
+          "end": 154,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-344 channel declaration is no capability grant",
+          "path": "10-conformance-checklist.md",
+          "start": 4358,
+          "end": 4363,
+          "same_as_pin": true
+        }
+      ]
+    },
+    "Cprime": {
+      "bytes": 16085,
+      "sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32",
+      "blocks": [
+        {
+          "action": "Replace",
+          "label": "DOM-16",
+          "path": "01-domain-model.md",
+          "start": 570,
+          "end": 571,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "PRV-10",
+          "path": "02-provider-contract.md",
+          "start": 159,
+          "end": 162,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "API-15",
+          "path": "04-api-contract.md",
+          "start": 987,
+          "end": 992,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "configuration row",
+          "path": "00-overview.md",
+          "start": 412,
+          "end": 412,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "Create matrix row",
+          "path": "08-provider-notes.md",
+          "start": 31,
+          "end": 31,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "DEF-17 historical scope paragraph",
+          "path": "09-known-defects.md",
+          "start": 163,
+          "end": 165,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "WIR-17 field rules opening",
+          "path": "13-wire-contract.md",
+          "start": 665,
+          "end": 666,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-18",
+          "path": "10-conformance-checklist.md",
+          "start": 124,
+          "end": 135,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-19",
+          "path": "10-conformance-checklist.md",
+          "start": 137,
+          "end": 139,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-34",
+          "path": "10-conformance-checklist.md",
+          "start": 256,
+          "end": 279,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-55",
+          "path": "10-conformance-checklist.md",
+          "start": 340,
+          "end": 359,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-182 Robot test-mode case",
+          "path": "10-conformance-checklist.md",
+          "start": 2371,
+          "end": 2376,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-342 acknowledgement paragraph",
+          "path": "10-conformance-checklist.md",
+          "start": 4311,
+          "end": 4320,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-364 setup and retained list-offers assertions",
+          "path": "10-conformance-checklist.md",
+          "start": 140,
+          "end": 154,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-344 channel declaration is no capability grant",
+          "path": "10-conformance-checklist.md",
+          "start": 4358,
+          "end": 4363,
+          "same_as_pin": true
+        }
+      ]
+    },
+    "D": {
+      "bytes": 17445,
+      "sha256": "d3a32b5eca3b64533cad169122a6120ed520c2486b9658314999b98874e10a92",
+      "blocks": [
+        {
+          "action": "Replace",
+          "label": "DOM-16",
+          "path": "01-domain-model.md",
+          "start": 570,
+          "end": 571,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "PRV-10",
+          "path": "02-provider-contract.md",
+          "start": 159,
+          "end": 162,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "API-15",
+          "path": "04-api-contract.md",
+          "start": 987,
+          "end": 992,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "configuration row",
+          "path": "00-overview.md",
+          "start": 412,
+          "end": 412,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "Create matrix row",
+          "path": "08-provider-notes.md",
+          "start": 31,
+          "end": 31,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "DEF-17 historical scope paragraph",
+          "path": "09-known-defects.md",
+          "start": 163,
+          "end": 165,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "WIR-17 field rules opening",
+          "path": "13-wire-contract.md",
+          "start": 665,
+          "end": 666,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-18",
+          "path": "10-conformance-checklist.md",
+          "start": 124,
+          "end": 135,
+          "same_as_pin": true
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-19",
+          "path": "10-conformance-checklist.md",
+          "start": 137,
+          "end": 139,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-34",
+          "path": "10-conformance-checklist.md",
+          "start": 256,
+          "end": 279,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-55",
+          "path": "10-conformance-checklist.md",
+          "start": 340,
+          "end": 359,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-182 Robot test-mode case",
+          "path": "10-conformance-checklist.md",
+          "start": 2371,
+          "end": 2376,
+          "same_as_pin": true
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-342 acknowledgement paragraph",
+          "path": "10-conformance-checklist.md",
+          "start": 4311,
+          "end": 4320,
+          "same_as_pin": false
+        },
+        {
+          "action": "Replace",
+          "label": "CNF-364 setup and retained list-offers assertions",
+          "path": "10-conformance-checklist.md",
+          "start": 140,
+          "end": 154,
+          "same_as_pin": false
+        },
+        {
+          "action": "Retain verbatim",
+          "label": "CNF-344 channel declaration is no capability grant",
+          "path": "10-conformance-checklist.md",
+          "start": 4358,
+          "end": 4363,
+          "same_as_pin": true
+        }
+      ]
+    }
+  },
+  "Cprime_changes_from_C": [
+    "WIR-17 field rules opening",
+    "CNF-34",
+    "CNF-342 acknowledgement paragraph"
+  ],
+  "historical_answers": {
+    "fable": {
+      "bytes": 8934,
+      "sha256": "0a1f5b166ee411ced6b23488eacb5800c8de31bca67bab10fcccc600685ddeab",
+      "copy_exact": true,
+      "embedded_verbatim": true
+    },
+    "opus": {
+      "bytes": 27564,
+      "sha256": "e10b1f6dd002d0ea2bebf393b1dbd8a37466a7a39af2928ba03953f9dba5a8e0",
+      "copy_exact": true,
+      "embedded_verbatim": true
+    },
+    "astra": {
+      "bytes": 9844,
+      "sha256": "140280a75bc281e09463b23b6414f5547b5d97b74db2392310a3aeee2ce1c7e1",
+      "copy_exact": true,
+      "embedded_verbatim": true
+    },
+    "sol": {
+      "bytes": 8818,
+      "sha256": "ce82c204a095e18191300d916dca166f73a3d0f630050b95f2893c454ef2e741",
+      "copy_exact": true,
+      "embedded_verbatim": true
+    }
+  },
+  "answers": {
+    "fable": {
+      "bytes": 9067,
+      "sha256": "a33cc309bea002e8ae7ddd26983d1def6d61e03f99bc8dba73d665f3d3fd13bc",
+      "exit": 0,
+      "final": "C\u2032",
+      "unqualified_accept": [
+        "C\u2032"
+      ],
+      "cannot_accept_as_printed": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "stderr_bytes": 0
+    },
+    "opus": {
+      "bytes": 12112,
+      "sha256": "b1ce5cc990b41982ca787eefcb54e672d9c7cb1541a8228debc5fac9a87db227",
+      "exit": 0,
+      "final": "C\u2032",
+      "unqualified_accept": [
+        "C\u2032"
+      ],
+      "cannot_accept_as_printed": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "stderr_bytes": 0
+    },
+    "astra": {
+      "bytes": 10687,
+      "sha256": "1a10f47c039414e9b2da2f7b4989874d600d01341b16f35d488cde1965585be0",
+      "exit": 0,
+      "final": "C\u2032",
+      "unqualified_accept": [
+        "C\u2032"
+      ],
+      "cannot_accept_as_printed": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "stderr_bytes": 269997
+    },
+    "sol": {
+      "bytes": 10550,
+      "sha256": "c289a2fffafb889c00149480cdc161f2d608042680551ca851b2462676255afb",
+      "exit": 0,
+      "final": "C\u2032",
+      "unqualified_accept": [
+        "C\u2032"
+      ],
+      "cannot_accept_as_printed": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "stderr_bytes": 368108
+    }
+  },
+  "clones": {
+    "fable": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status_porcelain": ""
+    },
+    "opus": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status_porcelain": ""
+    },
+    "astra": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status_porcelain": ""
+    },
+    "sol": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status_porcelain": ""
+    },
+    "consistency": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "status_porcelain": ""
+    }
+  },
+  "drafts": [],
+  "grok": "missing: 402; no probe repeated"
+}

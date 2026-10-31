@@ -1,0 +1,230 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "answers": {
+    "fable": {
+      "fable.md": {
+        "bytes": 8934,
+        "sha256": "0a1f5b166ee411ced6b23488eacb5800c8de31bca67bab10fcccc600685ddeab"
+      },
+      "fable.err": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "opus": {
+      "opus.md": {
+        "bytes": 27564,
+        "sha256": "e10b1f6dd002d0ea2bebf393b1dbd8a37466a7a39af2928ba03953f9dba5a8e0"
+      },
+      "opus.err": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "astra": {
+      "astra.md": {
+        "bytes": 9844,
+        "sha256": "140280a75bc281e09463b23b6414f5547b5d97b74db2392310a3aeee2ce1c7e1"
+      },
+      "astra.err": {
+        "bytes": 297745,
+        "sha256": "963866ff9e94eb52bb239866ce3faa16f9c16fc24ef054feadf2fbcd917f919d"
+      },
+      "astra.out": {
+        "bytes": 9845,
+        "sha256": "211a71b6bb9198a0315f58c29001a60cc0d87b984bdb972f28d799d7d0b8d39b"
+      }
+    },
+    "sol": {
+      "sol.md": {
+        "bytes": 8818,
+        "sha256": "ce82c204a095e18191300d916dca166f73a3d0f630050b95f2893c454ef2e741"
+      },
+      "sol.err": {
+        "bytes": 520506,
+        "sha256": "1df24a5da2878373ba2b3bdadfa97456a507cd3dc720bc39530a2f6281f57b16"
+      },
+      "sol.out": {
+        "bytes": 8819,
+        "sha256": "c0fb3dcfdd53c4fcb3d8a14af2addafe58fd8d0ce9090803988fa99c88829296"
+      }
+    }
+  },
+  "clones": {
+    "fable": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_and_untracked_status": ""
+    },
+    "opus": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_and_untracked_status": ""
+    },
+    "astra": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_and_untracked_status": ""
+    },
+    "sol": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_and_untracked_status": ""
+    },
+    "consistency": {
+      "head": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+      "tracked_and_untracked_status": ""
+    }
+  },
+  "source_excerpts": [
+    {
+      "title": "Configuration catalogue",
+      "path": "00-overview.md",
+      "start": 403,
+      "end": 416,
+      "exact": true
+    },
+    {
+      "title": "Capability owners",
+      "path": "01-domain-model.md",
+      "start": 515,
+      "end": 538,
+      "exact": true
+    },
+    {
+      "title": "Capability/opt-in scope owners",
+      "path": "01-domain-model.md",
+      "start": 564,
+      "end": 573,
+      "exact": true
+    },
+    {
+      "title": "Provider opt-in owner",
+      "path": "02-provider-contract.md",
+      "start": 159,
+      "end": 164,
+      "exact": true
+    },
+    {
+      "title": "API acknowledgement owner",
+      "path": "04-api-contract.md",
+      "start": 983,
+      "end": 992,
+      "exact": true
+    },
+    {
+      "title": "API gate position",
+      "path": "04-api-contract.md",
+      "start": 203,
+      "end": 213,
+      "exact": true
+    },
+    {
+      "title": "API ordering gate",
+      "path": "04-api-contract.md",
+      "start": 241,
+      "end": 241,
+      "exact": true
+    },
+    {
+      "title": "Claim gates",
+      "path": "03-operation-lifecycle.md",
+      "start": 774,
+      "end": 800,
+      "exact": true
+    },
+    {
+      "title": "Wire field owner",
+      "path": "13-wire-contract.md",
+      "start": 665,
+      "end": 668,
+      "exact": true
+    },
+    {
+      "title": "Illustrative matrix",
+      "path": "08-provider-notes.md",
+      "start": 24,
+      "end": 32,
+      "exact": true
+    },
+    {
+      "title": "Historical defect wording",
+      "path": "09-known-defects.md",
+      "start": 161,
+      "end": 169,
+      "exact": true
+    },
+    {
+      "title": "Existing conformance capability cases",
+      "path": "10-conformance-checklist.md",
+      "start": 124,
+      "end": 154,
+      "exact": true
+    },
+    {
+      "title": "Existing worker validation case",
+      "path": "10-conformance-checklist.md",
+      "start": 256,
+      "end": 279,
+      "exact": true
+    },
+    {
+      "title": "Existing acknowledgement case",
+      "path": "10-conformance-checklist.md",
+      "start": 340,
+      "end": 359,
+      "exact": true
+    },
+    {
+      "title": "Robot test mode",
+      "path": "10-conformance-checklist.md",
+      "start": 2371,
+      "end": 2376,
+      "exact": true
+    },
+    {
+      "title": "Worker acknowledgement paragraph",
+      "path": "10-conformance-checklist.md",
+      "start": 4311,
+      "end": 4320,
+      "exact": true
+    },
+    {
+      "title": "Channel declarations",
+      "path": "10-conformance-checklist.md",
+      "start": 4358,
+      "end": 4363,
+      "exact": true
+    },
+    {
+      "title": "Launch and sale scope",
+      "path": "docs/adr/0010-v1-ships-three-drivers-across-two-companies.md",
+      "start": 62,
+      "end": 66,
+      "exact": true
+    }
+  ],
+  "forms": {
+    "A": {
+      "sha256": "92c69b288a18a707a7fe2ec5264b5e4e7429648b35b8997b894b916a271f365e",
+      "blocks": 15
+    },
+    "B": {
+      "sha256": "a68c9498b5b69113bf8e19ac52d42f66b87a7125b653467b44615d3e091571b7",
+      "blocks": 15
+    },
+    "C": {
+      "sha256": "d9e4fa677ed4482c3dac478fcf8cfd4d1257e7ddce175449080aca8a8826a989",
+      "blocks": 15
+    },
+    "D": {
+      "sha256": "d3a32b5eca3b64533cad169122a6120ed520c2486b9658314999b98874e10a92",
+      "blocks": 15
+    }
+  },
+  "Cprime": {
+    "sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32",
+    "changed_sites_from_C": [
+      "WIR-17 field rules opening",
+      "CNF-34",
+      "CNF-342 acknowledgement paragraph"
+    ],
+    "complete": true
+  }
+}

@@ -1,0 +1,49 @@
+00-overview.md:412:| `allow_orders`, per ordering account | `DOM-16` | boolean | yes |
+01-domain-model.md:566:(`10-conformance-checklist.md`). An ordering capability withheld under `DOM-16` is excepted from that agreement (`PRV-4`).
+01-domain-model.md:570:**DOM-16** Ordering capabilities (`provision_virtual`, `provision_bare_metal`) for providers that bill per order MUST be conditional on an explicit per-account `allow_orders` configuration flag: the descriptor (`PRV-44`) of an account whose flag is false does not declare them, so that a misconfigured deployment cannot spend money. This is in addition to, not instead of, the per-request purchase acknowledgement
+01-domain-model.md:571:(`API-15`).
+02-provider-contract.md:29:govern them. An ordering capability that `DOM-16` withholds from an account whose `allow_orders` is false is not declared for that account, and a driver that implements it breaches neither this requirement's second clause nor `DOM-15`.
+02-provider-contract.md:159:**PRV-10** For a provider that bills on order, create MUST reject the request unless the
+02-provider-contract.md:160:request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
+02-provider-contract.md:161:`acknowledge_purchase`), *and* the account
+02-provider-contract.md:162:is configured to allow ordering. Both, not either. The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`): `API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim.
+02-provider-contract.md:1046:sets `test=false` exactly once, at the point `API-15`'s acknowledgement and `PRV-10`'s
+02-provider-contract.md:1047:`allow_orders` both hold. **A driver whose test flag defaults to "real purchase" turns every
+03-operation-lifecycle.md:789:   MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
+03-operation-lifecycle.md:790:   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
+03-operation-lifecycle.md:792:   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
+04-api-contract.md:241:5d. **gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail.
+04-api-contract.md:987:**API-15** A create request against an order-billed provider MUST carry an explicit
+04-api-contract.md:988:purchase acknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract
+04-api-contract.md:989:owns — in addition to the account being configured to allow ordering (`PRV-10`). *"In its provider
+04-api-contract.md:1018:money in it. `allow_orders` and a per-request purchase acknowledgement prevent *accidents*, not
+07-security-requirements.md:162:index. They restated `API-14` and `API-15`/`PRV-10` word for word and added no security obligation —
+07-security-requirements.md:165:acknowledgements themselves are unchanged and are `API-14`'s and `API-15`'s; what they are worth
+08-provider-notes.md:507:`i_want_to_spend_money_to_purchase_a_server`. `API-15`'s explicit purchase acknowledgement is not
+08-provider-notes.md:515:spending money. `API-15` remains well-founded; it just has a different author than claimed.
+10-conformance-checklist.md:133:      explicitly rather than being absent. An ordering capability withheld under `DOM-16` is outside the implemented-implies-declared rows for that account; `CNF-19` and `CNF-55` cover its gate. (`DOM-15`, `DOM-10`, `PRV-4`, `PRV-44`)
+10-conformance-checklist.md:258:      `acknowledge_purchase` (`WIR-17`: "`acknowledge_purchase` MUST be literal `true`") — and
+10-conformance-checklist.md:261:      `details.field: "/acknowledge_purchase"` and `retryable: false`; for the api-filled
+10-conformance-checklist.md:341:      per-request purchase acknowledgement and the account-level opt-in. On an account whose
+10-conformance-checklist.md:342:      `allow_orders` is false, assert `GET /v1/providers` lists it without its ordering
+10-conformance-checklist.md:343:      capability, and that a create carrying `acknowledge_purchase: true` is refused at `API-7`'s
+10-conformance-checklist.md:349:      `allow_orders` true, and assert this create's exclusion for its provider account, ordering
+10-conformance-checklist.md:356:      no List offers read. (`API-15`, `PRV-10`, `DOM-10`, `DOM-16`, `API-7`, `OPS-43`, `WIR-9a`,
+10-conformance-checklist.md:2372:      purchase requires an explicit spend intent that is set exactly once, where `API-15`'s
+10-conformance-checklist.md:2373:      acknowledgement and `PRV-10`'s `allow_orders` both hold. Asserted by placing an order with
+10-conformance-checklist.md:2376:      bought server.** (`PRV-34`, `API-15`, `PRV-10`)
+10-conformance-checklist.md:4311:      Separately omit the caller-supplied purchase acknowledgement from the stored record:
+10-conformance-checklist.md:4317:      `details.field: "/acknowledge_purchase"`, `retryable: false` on the error and operation view, `failed`, commitment
+10-conformance-checklist.md:4332:      (`PRV-47`, `PRV-9`, `PRV-10`, `PRV-42`, `API-7`, `OPS-43`, `OPS-23`, `OPS-5`, `OPS-11`, `DOM-17`, `STO-58`, `LDG-39`,
+11-open-findings.md:923:- **This document had misattributed `API-15`'s design.** A note claimed Hetzner's own order
+11-open-findings.md:925:  that the provider independently arrived at explicit purchase acknowledgement. That identifier is
+11-open-findings.md:1503:`allow_orders` plus an acknowledgement prevents accidents, not unauthorized spending — which
+11-open-findings.md:1635:and purchase acknowledgement fields. `CNF-21` tests "byte-equivalent body" against a contract
+13-wire-contract.md:134:| `invalid_request` naming a field (`WIR-2`, `OPS-23`, `PRV-47`) | `field`: an RFC 6901 JSON Pointer into the request body (`"/acknowledge_purchase"`, `"/provider_options/location"`), also where the named field is absent. Where one validation step rejects several fields (an `API-7` step, `OPS-23`'s repeated check of caller-supplied fields, or `PRV-47`'s validation), the least escaped pointer, compared by unsigned UTF-16 code units, the order RFC 8785 (`WIR-3`) sorts member names in |
+13-wire-contract.md:655:  "acknowledge_purchase": true,
+13-wire-contract.md:665:`ssh_public_keys` MUST be non-empty (`PRV-8`, `API-13`). `acknowledge_purchase` MUST be literal
+13-wire-contract.md:666:`true` (`API-15`, `PRV-10`). `image` (nullable, a catalog identifier), `user_data` (nullable,
+13-wire-contract.md:1018:"capabilities": ["provision_bare_metal", "delete_machine", "power_control", "rescue_ssh", "install_rootfs_via_rescue", "install_raw_disk_via_rescue", "list_offers"]}]}` (`OVR-2`, `DOM-16`,
+13-wire-contract.md:1023:**AMENDED 2026-09-02 — the fixture declared `allow_orders: true` on an account that could not
+README.md:244:| `SEC-26` | "Orders MUST carry a per-request purchase acknowledgement *and* an account-level opt-in" | Same, for `API-15` and `PRV-10` |
+impl-report-01.md:410:- a requeue fixture retaining a now-forbidden duplicate-purchase acknowledgement;

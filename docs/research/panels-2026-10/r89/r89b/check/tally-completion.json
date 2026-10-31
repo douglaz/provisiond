@@ -1,0 +1,13 @@
+{
+  "result": "PASS",
+  "gate_actual_exits": {
+    "before": 0,
+    "final": 0
+  },
+  "report_lines": 11,
+  "packet_and_notes_unchanged": true,
+  "owner_form_exact": true,
+  "owner_approval_pending": true,
+  "new_review_rounds": 0,
+  "tracker_commands": 0
+}

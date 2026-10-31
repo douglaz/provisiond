@@ -1,0 +1,7 @@
+{
+  "pin": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "gate_clone_status": "",
+  "recorded_utc": "2026-10-30T21:04:15.357144+00:00",
+  "main_checkout_actions": "read remote URL only; no main source reads or writes",
+  "other_panel_actions": "read r82 launcher, wrappers, brief shape and notes only; no writes or unit actions"
+}
