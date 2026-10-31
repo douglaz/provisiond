@@ -2263,9 +2263,12 @@ rather than acquiring a default.
       opens **no commitment at all**, carries the **whole** wind-down as an operator deficiency
       rather than a shortfall against a partial one, still executes the cancel, and never drives
       available negative. (`OPS-36`, `LDG-10`, `LDG-66`)
-- [ ] **CNF-200** — A rootfs install naming a drive by unstable device path is rejected; the layout
-      carries stable identifiers checked against the inventory fingerprint, exactly as raw-disk
-      does. (`RSC-26`, `RSC-22`, `WIR-20`)
+- [ ] **CNF-200** — On an otherwise-admissible rootfs install, submit `/dev/sda` as
+      `layout.drives[0].identifier` against an inventory in which no WWN or serial normalizes
+      to that string. Assert admission with `202`, followed by `integrity` at inventory
+      resolution in rescue and no disk writes. With a unique stable identifier instead,
+      assert the generated installer configuration uses the path resolved from that
+      identifier against the matching inventory fingerprint. (`API-13`, `RSC-26`, `RSC-22`, `WIR-20`)
 - [ ] **CNF-201** — A rescue-inventory run carries a trust policy and is capability-gated on
       `rescue_ssh`; a failure whose rescue exit **also** failed classifies like an install, not like
       a refresh — the machine can be left in rescue — while one whose exit succeeded is `failed`,
@@ -2344,10 +2347,12 @@ rather than acquiring a default.
       either strategy aborts `integrity` with no write. (12) Two identical anonymous devices
       both appear, and dropping one changes the fingerprint. (13) Padded echoes and serials
       with whitespace inside them resolve through both strategies; the generated installer
-      configuration carries only resolved paths. (14) Use a well-formed unmatched identifier
-      that is not path-shaped: both strategies abort `integrity` with no writes. `RSC-26` says
-      "An identifier that does not resolve to exactly one device MUST abort `integrity` before
-      any write."
+      configuration carries only resolved paths. (14) Use a well-formed unmatched identifier, separately `not-a-disk` and `/dev/sda`,
+      against an inventory in which neither matches any WWN or serial: both strategies
+      admit the request with `202`, then abort `integrity` at inventory resolution in
+      rescue with no disk writes. Separately give exactly one disk the serial `/dev/sda`,
+      with no conflicting WWN; echoing it resolves that disk under both strategies and
+      the generated installer configuration uses only its resolved path. (`RSC-26`)
       **Disk identifier size boundaries.** For each caller identifier field, admit
       decoded ASCII values of 1023 and 1024 UTF-8 bytes; refuse 1025 with `400`
       `invalid_request` before enqueue, with no rescue entry or disk write. Refuse a
