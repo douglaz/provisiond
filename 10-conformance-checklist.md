@@ -2364,6 +2364,25 @@ rather than acquiring a default.
       `retryable: false`, before a driver call, with `disk_effect: "none"` and
       `rescue_exit: "none"`. Inventory still returns over-limit serials untruncated.
       (`API-13`, `OPS-23`)
+      **Whitespace boundaries.** Apply `RSC-46`'s exact trimming set to the caller
+      fields and to both inventory WWN and serial. For each of U+0009, U+000A,
+      U+000B, U+000C, U+000D and U+0020, independently surround `0XAb` with that
+      character: the as-read wire value is `0XAb`, the normalized hash value is
+      `ab`, and both its wire echo and `ab` resolve the unique disk under both
+      install strategies. A caller value consisting only of that character is
+      refused `invalid_request` before enqueue; an inventory value consisting
+      only of it is absent and shown `null`. U+0008, U+000E, U+001F, U+007F and
+      U+00A0 at the edges are retained on the wire and in normalized values;
+      their presence prevents stripping a later `0x` that is not leading.
+      Interior occurrences of every tested character are preserved. Separately
+      test serial-only and WWN-only one-disk reports, `size_bytes: 1024`:
+      independently construct the normalized one-element device list, whose
+      element is exactly `{wwn, serial, size_bytes}`, and the RFC 8785 canonical
+      bytes of that list, including its enclosing array brackets. Compute
+      SHA-256 over those list bytes and assert that `inventory_fingerprint`
+      equals the digest encoded as 64 lowercase hex characters. The reference
+      must not call the engine's trim, normalization, serialization or
+      fingerprint helpers. (`RSC-46`, `API-13`)
       (`WIR-10b`, `WIR-20`, `WIR-40`, `RSC-23`, `RSC-26`, `RSC-33`, `RSC-46`, `API-13`)
       *Added 2026-10-22 (`pv-6p8`; panels r61–r61f, `docs/research/panels-2026-10/r61/`): covers
       anonymous inventory members, wire fields, canonical fingerprints and identifier admission

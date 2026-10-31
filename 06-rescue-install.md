@@ -311,7 +311,11 @@ say why, four documents away from the name that caused the confusion. `CONTEXT.m
 *The same word also means the CORS `OPTIONS` request in `WIR-4a` — it was ambiguous inside a single
 document before it was ambiguous about danger.*
 
-**RSC-46** **Identifier normalization and the fingerprint's canonical form.** Before comparison,
+**RSC-46** **Identifier normalization and the fingerprint's canonical form.** Here ASCII whitespace means exactly U+0009, U+000A, U+000B, U+000C, U+000D and U+0020;
+trimming removes only a maximal prefix and suffix of those code points, never interior
+characters or any other code point. This definition applies to normalization and to
+trimming the as-read wire values in this requirement.
+Before comparison,
 an identifier — a caller's `target.identifier`, a `layout.drives[].identifier`, or a value read
 from the inventory — is normalized in this order: trim ASCII whitespace, ASCII-lowercase, then
 strip exactly one leading `0x`. A value that is empty after normalization is absent and matches
