@@ -1449,11 +1449,15 @@ had already re-assigned its tenants off a failing account — the responsible th
 named none of the tenants it was in the act of stranding.*
 
 **It MUST also contend with admission on the account row itself, and that ordering comes first.**
-The create's admitting path MUST **conditional-write** `STO-47`'s row, guarded on
-`status = healthy`, **in the transaction that opens the commitment**, and fail `conflict` with
-`details.reason: "state"` where that write affects no row — so a create admitted after a
-termination is impossible rather than merely unlikely, because the two contend on one row and one
-provably loses, which is `OPS-42`'s shape. *A draft of 2026-09-04 had the create **read** the row
+The create's admitting path MUST lock STO-47's account row for update, then conditional-write
+that row guarded on status = healthy, in the transaction that opens the commitment. This
+account-row ordering precedes the commitment-opening work. Where the guarded write affects no
+row because the locked status is non-healthy, the admission MUST fail conflict with
+details.reason: "state" and the retryable value in WIR-9a's admission-guard row. The refusal
+MUST retain the locked status used for that decision before releasing the lock; it MUST NOT
+classify using a later unlocked status read or the earlier collection snapshot. A serialization
+failure is not a non-healthy status and MUST NOT be converted into this refusal. No operation,
+commitment, receipt or purchase effect commits on the refused admission. *A draft of 2026-09-04 had the create **read** the row
 in that transaction and called it the same shape; it was not. Under the snapshot isolation a server
 engine (`STO-6`) ordinarily gives, a read contends with nothing, and the create committed against an
 account terminated behind it. The row now exists from configuration so there is always one to
