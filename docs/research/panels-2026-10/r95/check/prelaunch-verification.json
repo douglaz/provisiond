@@ -1,0 +1,29 @@
+{
+  "fable": {
+    "pin": "6a3b6014f1f8b36fc21b902e507e74d8c5264e99",
+    "review": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "fetched": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "clean": ""
+  },
+  "opus": {
+    "pin": "6a3b6014f1f8b36fc21b902e507e74d8c5264e99",
+    "review": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "fetched": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "clean": ""
+  },
+  "astra": {
+    "pin": "6a3b6014f1f8b36fc21b902e507e74d8c5264e99",
+    "review": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "fetched": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "clean": ""
+  },
+  "sol": {
+    "pin": "6a3b6014f1f8b36fc21b902e507e74d8c5264e99",
+    "review": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "fetched": "96a72898c7ace67790aec0bab3727eee858e2245",
+    "clean": ""
+  },
+  "changed_substrings": 7,
+  "quote_payloads_exact": true,
+  "script_changes": "r94-to-r95 paths and names only; codex high already inherited"
+}

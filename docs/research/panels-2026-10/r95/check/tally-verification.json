@@ -1,0 +1,491 @@
+{
+  "pin": "6a3b6014f1f8b36fc21b902e507e74d8c5264e99",
+  "head": "96a72898c7ace67790aec0bab3727eee858e2245",
+  "live_refs": [
+    "6a3b6014f1f8b36fc21b902e507e74d8c5264e99",
+    "96a72898c7ace67790aec0bab3727eee858e2245"
+  ],
+  "tracker": {
+    "physical_line": 101,
+    "comment_id": 860,
+    "status": "closed",
+    "brief_sha256": "d14a8a5680f319221789d3e151a4ae9e744cad8eb3c01bcbd4addbf75e830c7c"
+  },
+  "archive": {
+    "existing_bytes": 7688,
+    "existing_lines": 125,
+    "existing_sha256": "b1a08789423da142a4bb0d2d87cdb92fe813c7460f80e545101bc74c20171682",
+    "historical_bytes": 6606,
+    "historical_sha256": "bd57b4e09cfbedfb955fff449748433f12867749525c43f8ee0c9c552e9c4ae7",
+    "note_bytes": 6123,
+    "note_sha256": "0b07135f64edafa09a0a3fd96e25828bbc618bff4eea4c00b2355d1b6a67bd85",
+    "prospective_sha256": "f56ca45aa4a6986e61505cfdb24add6e7769a6718d55dbdfa3e1b9c6d0ba4656"
+  },
+  "blocks": [
+    {
+      "block": 1,
+      "file": "03-operation-lifecycle.md",
+      "H_lines": [
+        786,
+        792
+      ],
+      "prospective_lines": [
+        786,
+        792
+      ],
+      "brief_H_lines": [
+        46,
+        52
+      ],
+      "brief_prospective_lines": [
+        46,
+        52
+      ],
+      "payload_before_sha256": "428936d4cd344df1f91d853fc2a75e52fb94ed6e5b8215c605cdb41de93b9bc7",
+      "payload_after_sha256": "6960bb52e754de744dd1d5371958ada2f7d3d7ac235fe4ea2f4fc278faacc401"
+    },
+    {
+      "block": 2,
+      "file": "03-operation-lifecycle.md",
+      "H_lines": [
+        813,
+        827
+      ],
+      "prospective_lines": [
+        813,
+        827
+      ],
+      "brief_H_lines": [
+        58,
+        72
+      ],
+      "brief_prospective_lines": [
+        58,
+        72
+      ],
+      "payload_before_sha256": "7f32cd860dc37fc31e86b6147c69bd0c5799efda716f7dfe0cc6e1e7ecbf5c01",
+      "payload_after_sha256": "c3b588c7c012444c6501f584857edb84c479add2257e8079d822067faa2b8e41"
+    },
+    {
+      "block": 3,
+      "file": "04-api-contract.md",
+      "H_lines": [
+        623,
+        633
+      ],
+      "prospective_lines": [
+        623,
+        644
+      ],
+      "brief_H_lines": [
+        78,
+        88
+      ],
+      "brief_prospective_lines": [
+        78,
+        99
+      ],
+      "payload_before_sha256": "1deb42b54b617586b24585b6074b415f0b9d2074e82f811a78df0aa623bbe439",
+      "payload_after_sha256": "aa335db7d216e39425afaeb9c68eaf74f25645c8d7d814fa444102a369608a71"
+    },
+    {
+      "block": 4,
+      "file": "04-api-contract.md",
+      "H_lines": [
+        669,
+        671
+      ],
+      "prospective_lines": [
+        680,
+        694
+      ],
+      "brief_H_lines": [
+        94,
+        96
+      ],
+      "brief_prospective_lines": [
+        105,
+        119
+      ],
+      "payload_before_sha256": "e67e385f495d09488c6b0feecf914f06b7722e606373e6f43c4af9724fbd669c",
+      "payload_after_sha256": "f6b888e3b998c17013be70247fac506c86da41ab5c49f46db2a4ac5d4c5ae777"
+    },
+    {
+      "block": 5,
+      "file": "04-api-contract.md",
+      "H_lines": [
+        742,
+        747
+      ],
+      "prospective_lines": [
+        765,
+        770
+      ],
+      "brief_H_lines": [
+        102,
+        107
+      ],
+      "brief_prospective_lines": [
+        125,
+        130
+      ],
+      "payload_before_sha256": "52b24bbf53a4d69c95d967da7c6e2501ba3cb69bdb7ec9cbda41580eb26a722e",
+      "payload_after_sha256": "52b24bbf53a4d69c95d967da7c6e2501ba3cb69bdb7ec9cbda41580eb26a722e"
+    },
+    {
+      "block": 6,
+      "file": "10-conformance-checklist.md",
+      "H_lines": [
+        2300,
+        2324
+      ],
+      "prospective_lines": [
+        2300,
+        2324
+      ],
+      "brief_H_lines": [
+        116,
+        140
+      ],
+      "brief_prospective_lines": [
+        139,
+        163
+      ],
+      "payload_before_sha256": "7282079fa1aad90940cbf9238742bd7acabd89d45a9daa72cdc841441c60abd8",
+      "payload_after_sha256": "7282079fa1aad90940cbf9238742bd7acabd89d45a9daa72cdc841441c60abd8"
+    }
+  ],
+  "panel_O_substitutions_unchanged": true,
+  "nested_OPS6": {
+    "OPS11_payload_exact": true,
+    "direct_OPS6_payload_exact": false,
+    "difference": "OPS-11 has space after carry; OPS-6 home has LF. Retained source, no normalization."
+  },
+  "quote_payloads": [
+    {
+      "name": "classification",
+      "source": "03-operation-lifecycle.md",
+      "lines": [
+        249,
+        249
+      ],
+      "bytes": 155,
+      "sha256": "945258edab9d64b0940a32b81bd9eeace795b737513bc5a34547cf5703b4a776",
+      "package_occurrences": 4
+    },
+    {
+      "name": "money",
+      "source": "03-operation-lifecycle.md",
+      "lines": [
+        249,
+        249
+      ],
+      "bytes": 240,
+      "sha256": "1cae2caa109f06de57f0a41903ff9c3c5abaefa6c4245a0eb023677e08427067",
+      "package_occurrences": 2
+    },
+    {
+      "name": "worker-guard",
+      "source": "03-operation-lifecycle.md",
+      "lines": [
+        249,
+        249
+      ],
+      "bytes": 193,
+      "sha256": "64844b34704c4e97d547320d4fbac7b1b54e00a1e69684af6d39bc8148e8081b",
+      "package_occurrences": 1
+    },
+    {
+      "name": "attach",
+      "source": "03-operation-lifecycle.md",
+      "lines": [
+        642,
+        654
+      ],
+      "bytes": 1237,
+      "sha256": "0dbebd944405c2b69f9b95af035135c1a3abadeda16455462823daea0d026812",
+      "package_occurrences": 2
+    },
+    {
+      "name": "admission-flag",
+      "source": "04-api-contract.md",
+      "lines": [
+        618,
+        618
+      ],
+      "bytes": 91,
+      "sha256": "298948fc2c51895d9928540c3fa3f4b7489b98a2dea0e53fd3c4fff42d77f6fc",
+      "package_occurrences": 1
+    },
+    {
+      "name": "whole-transaction",
+      "source": "03-operation-lifecycle.md",
+      "lines": [
+        1927,
+        1928
+      ],
+      "bytes": 127,
+      "sha256": "357f3aecab0b2c772fce229e77ee7864cab5a73ab0ba4afa4b9ade0bfd33f5f7",
+      "package_occurrences": 1
+    },
+    {
+      "name": "immediate-serialization",
+      "source": "03-operation-lifecycle.md",
+      "lines": [
+        1955,
+        1956
+      ],
+      "bytes": 46,
+      "sha256": "747bf42be7fb239f9900da2b9d2498b06c00c97723f88b6a977246b808f14b0f",
+      "package_occurrences": 1
+    },
+    {
+      "name": "acknowledgement",
+      "source": "03-operation-lifecycle.md",
+      "lines": [
+        817,
+        817
+      ],
+      "bytes": 66,
+      "sha256": "5a92b5fa3982fcac5f8efa8fdf78e8724e5b97fa6db79cf7b2020e3404a377b1",
+      "package_occurrences": 1
+    }
+  ],
+  "inherited_OPS11_reflow_repaired": true,
+  "mapping": [
+    {
+      "replacement": 1,
+      "file": "03-operation-lifecycle.md",
+      "old_lines": [
+        789,
+        790
+      ],
+      "new_lines": [
+        789,
+        790
+      ]
+    },
+    {
+      "replacement": 6,
+      "file": "03-operation-lifecycle.md",
+      "old_lines": [
+        814,
+        816
+      ],
+      "new_lines": [
+        814,
+        816
+      ]
+    },
+    {
+      "replacement": 2,
+      "file": "03-operation-lifecycle.md",
+      "old_lines": [
+        818,
+        819
+      ],
+      "new_lines": [
+        818,
+        819
+      ]
+    },
+    {
+      "replacement": 3,
+      "file": "03-operation-lifecycle.md",
+      "old_lines": [
+        823,
+        824
+      ],
+      "new_lines": [
+        823,
+        824
+      ]
+    },
+    {
+      "replacement": 4,
+      "file": "04-api-contract.md",
+      "old_lines": [
+        625,
+        625
+      ],
+      "new_lines": [
+        625,
+        637
+      ]
+    },
+    {
+      "replacement": 7,
+      "file": "04-api-contract.md",
+      "old_lines": [
+        632,
+        633
+      ],
+      "new_lines": [
+        644,
+        644
+      ]
+    },
+    {
+      "replacement": 5,
+      "file": "04-api-contract.md",
+      "old_lines": [
+        670,
+        671
+      ],
+      "new_lines": [
+        681,
+        694
+      ]
+    },
+    {
+      "replacement": 8,
+      "file": "comment860",
+      "old_lines": [
+        6,
+        6
+      ],
+      "new_lines": [
+        6,
+        6
+      ]
+    },
+    {
+      "replacement": 1,
+      "file": "comment860",
+      "old_lines": [
+        49,
+        50
+      ],
+      "new_lines": [
+        49,
+        50
+      ]
+    },
+    {
+      "replacement": 6,
+      "file": "comment860",
+      "old_lines": [
+        59,
+        61
+      ],
+      "new_lines": [
+        59,
+        61
+      ]
+    },
+    {
+      "replacement": 2,
+      "file": "comment860",
+      "old_lines": [
+        63,
+        64
+      ],
+      "new_lines": [
+        63,
+        64
+      ]
+    },
+    {
+      "replacement": 3,
+      "file": "comment860",
+      "old_lines": [
+        68,
+        69
+      ],
+      "new_lines": [
+        68,
+        69
+      ]
+    },
+    {
+      "replacement": 4,
+      "file": "comment860",
+      "old_lines": [
+        80,
+        80
+      ],
+      "new_lines": [
+        80,
+        92
+      ]
+    },
+    {
+      "replacement": 7,
+      "file": "comment860",
+      "old_lines": [
+        87,
+        88
+      ],
+      "new_lines": [
+        99,
+        99
+      ]
+    },
+    {
+      "replacement": 5,
+      "file": "comment860",
+      "old_lines": [
+        95,
+        96
+      ],
+      "new_lines": [
+        106,
+        119
+      ]
+    }
+  ],
+  "files": {
+    "prospective-03-operation-lifecycle.md": {
+      "bytes": 181342,
+      "sha256": "59e21163e543cfd380cf1ec59f6c0874cd1cff715dd64d831b057fc0e327f5eb"
+    },
+    "prospective-04-api-contract.md": {
+      "bytes": 122868,
+      "sha256": "de4b5d8e5efb229166e3d920867d5e439020e740483334e2a4c147f430bcf9ec"
+    },
+    "prospective-10-conformance-checklist.md": {
+      "bytes": 425451,
+      "sha256": "cf20d196aa710c0c0c8b60b3553934d6fe623cb87e77e61800be59ed254a77f3"
+    },
+    "prospective-agent-brief.md": {
+      "bytes": 14918,
+      "sha256": "d68e73fc0b88724c2136d2eaaf9849a1ae0389ad3a9ba1567b259c567472da52"
+    },
+    "prospective-archive.md": {
+      "bytes": 13811,
+      "sha256": "f56ca45aa4a6986e61505cfdb24add6e7769a6718d55dbdfa3e1b9c6d0ba4656"
+    }
+  },
+  "candidate_sha256": "81c6937e4d0f5fbf112bd68e8d2da908adb94cdf3c2fa626af38fcb1d52b648b",
+  "reader_outputs": {
+    "fable": {
+      "exit": 1,
+      "bytes": 158,
+      "sha256": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2",
+      "substantive": false
+    },
+    "opus": {
+      "exit": 0,
+      "bytes": 15126,
+      "sha256": "3efda85e3d3b021069ab4cac54b515931e9c68a81c5178fddc1c7427760a5690",
+      "substantive": true
+    },
+    "astra": {
+      "exit": 0,
+      "bytes": 21881,
+      "sha256": "998d868600f15a37f991ae8557c8aa8790c760fc52790b3691d188407ea13f25",
+      "substantive": true
+    },
+    "sol": {
+      "exit": 0,
+      "bytes": 22210,
+      "sha256": "bf9d21833e13a5994082d1f4c16e9b77f5584148b228500be961af19bd1b1cdd",
+      "substantive": true
+    }
+  },
+  "historical_quote_differences": [
+    "Owner item3 excerpt is reflowed; not claimed byte-exact and retained unchanged.",
+    "Historical item5 insertion locator omits LF between **A and suspension; retained unchanged.",
+    "OPS-11 nested OPS-6 quotation has space after carry where OPS-6 home has LF; exact OPS-11 source preserved."
+  ]
+}
