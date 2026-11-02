@@ -1,0 +1,3 @@
+Where the tenant is suspended, fail this existing
+   create with conflict, details.reason: "tenant_suspended", and retryable: false on both the error
+   and operation view.

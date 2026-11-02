@@ -1,0 +1,1 @@
+Contradiction-only gpt-6.1-sol exactly-high preflight exited0: NO INTERNAL CONTRADICTIONS FOUND. No candidate or rule correction. After this read, only clarified that packet artifact paths resolve under r96 and notes.md is absolute; no option, question, premise or settlement rule changed.

@@ -1,0 +1,13 @@
+--- docs/research/panels-2026-10/r83/check/settled-Q1-B.txt@f8a30457eb84b3077e7580732bef665b3763aae1
++++ prospective-run-package.txt
+@@ -29,7 +29,9 @@
+ Race a real claim against the administrative write in both orders. Administrative failure first
+ prevents the claim. Claim first prevents the administrative failure, preserves the returned
+ claim number, and leaves settlement to that worker. A claimed create first picked up while the
+-tenant is suspended follows OPS-43's tenant-status refusal, not a purchase; it is not required
++tenant is suspended follows OPS-43's tenant-status refusal, not a purchase (OPS-43 says “Where the tenant is suspended, fail this existing
++   create with conflict, details.reason: "tenant_suspended", and retryable: false on both the error
++   and operation view.”); it is not required
+ to succeed merely because its claim defeated the administrative write. Preserve the existing
+ held-power scenario above as the scheduling case; do not replace it with a normally eligible
+ create.

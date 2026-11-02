@@ -265,3 +265,15 @@ The tally records the authority under the owner's 2026-10-28 wording rule. The e
 Reader answers and reviewed candidates remain historical records. Specification links
 name the frozen review base; raw logs, launchers, machine receipts and the full tracker
 diff remain under `/var/tmp`. The requirement owners hold the rules.
+
+## Panel Q wording reconciliation, 2026-11-02
+
+| Round | Question | Settlement sources |
+|---|---|---|
+| [r96](r96/brief.md) | pv-gvc quotation and historical-record wording | [Tally](r96/tally.md), [assertion audit](r96/check/tally-evidence.md), exact [settled wording](r96/settled-pv-gvc.md) and [checksum](r96/settled-pv-gvc.md.sha256) |
+
+The tally records the authority under the owner's 2026-10-28 wording rule. The earlier
+[r83 owner decision](r83/owner-decisions.md) and the original Q1-B prefix stay as adopted.
+Reader answers and reviewed candidates remain historical records. Specification links
+name the frozen review base; raw logs, launchers, machine receipts and the full tracker
+diff remain under `/var/tmp`. The requirement owners hold the rules.

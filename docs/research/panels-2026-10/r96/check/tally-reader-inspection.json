@@ -1,0 +1,34 @@
+{
+  "fable": {
+    "exit": 1,
+    "bytes": 158,
+    "answer_sha256": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2",
+    "stderr_bytes": 0,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_equals_answer_stripped": null
+  },
+  "opus": {
+    "exit": 0,
+    "bytes": 18757,
+    "answer_sha256": "c5b5e74ffbd64fed452e1e3a43d2fcb24960125bdf2a3fa9c97d6ebbbff6320a",
+    "stderr_bytes": 0,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_equals_answer_stripped": null
+  },
+  "astra": {
+    "exit": 0,
+    "bytes": 13177,
+    "answer_sha256": "45b00ce2ca417d5aab8a0045552fdeab6a435816cb899d31cfb6676466796796",
+    "stderr_bytes": 741728,
+    "stderr_sha256": "18b93d767ab38a1395a9cb33e05ea053f3943caa3004dab42c8d73294221f2d4",
+    "stdout_equals_answer_stripped": true
+  },
+  "sol": {
+    "exit": 0,
+    "bytes": 14613,
+    "answer_sha256": "25a295b83c769defd3fe592644fd8e59779b412af0c50762eb75ac65de5d8b3a",
+    "stderr_bytes": 1608965,
+    "stderr_sha256": "6feaa3de3372e8f19a9b8106fe998fe097d46e547ad3a213361d7f19603a73fa",
+    "stdout_equals_answer_stripped": true
+  }
+}
