@@ -3049,10 +3049,15 @@ rather than acquiring a default.
       **Barrier case, and it is the one a lock alone fails**: hold a meter tick
       that has already read the machine as billable, commit the termination, then release the tick —
       it must post nothing, because `LDG-38` re-reads billability inside the serialization rather
-      than trusting what it read before. **Second barrier**: admit a create that passes the health
-      check, commit the termination before its commitment opens, and assert the create is refused —
-      the create **conditional-writes** `STO-47`'s row guarded on `healthy` in the transaction that opens
-      the commitment, and a mere read there is not enough under snapshot isolation. **Third**: leave
+      than trusting what it read before. **Second barrier:** on fresh independent fixtures collect a healthy account snapshot, then
+      commit each non-healthy STO-47 status before the admitting transaction opens the commitment.
+      Assert HTTP 409 conflict, details.reason: "state", retryable false for terminated and true for
+      account_unreachable and credentials_rejected, with no operation, commitment, receipt or provider
+      request. The admission locks and conditional-writes the account row in its commitment-opening
+      transaction. Hold a recoverable refusal at its locked decision and attempt recovery concurrently;
+      recovery cannot alter the status used for that refusal. Recover after lock release and assert
+      the already decided response retains true; an independent later request can use the new status.
+      A mere snapshot read in the admitting transaction is not a replacement for the conditional write. **Third**: leave
       a create `queued` and unclaimed naming the account, commit the termination, and assert it is
       `failed` with `details.reason: "account_terminated"` and its commitment released — a worker
       that claims it afterwards dispatches against revoked credentials and freezes the customer's

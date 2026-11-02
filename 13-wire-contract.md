@@ -188,6 +188,7 @@ the same request is safe and sensible":
 | `halted` / `solvency` or `rate_unavailable` | `true` | The same purchase can succeed when the gate clears |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `account_unreachable` or `credentials_rejected` | `true` | The named account can recover |
 | `conflict` / `state` on a create account whose collection-snapshot `STO-47` status is `terminated` | `false` | The named account cannot recover |
+| conflict / state from API-63's admission conditional write, after a healthy collection snapshot | false for a locked refusing status of terminated; true for account_unreachable or credentials_rejected | Use the status retained by the guarded admission decision in API-63, not the collection snapshot or a later read |
 | `invalid_request` / `offer_not_sellable` on create | `false` | The offer cannot be bought on the same request |
 | `rate_limited` / closed ordering channel on create | `true` | The same create can be evaluated after the reported interval clears |
 | `conflict` / `cancellation_committed` | `false` | Repeating does not revoke a committed cancellation (`API-68` is a separate decision) |
