@@ -782,6 +782,15 @@ The worker MUST order the following steps as listed:
    error and the operation view”. Make no
    provider request and release the commitment in full under `LDG-39`'s "Deterministic rejection
    before acceptance" case.
+
+   Next read this operation's tenant status. Where the tenant is suspended, fail this existing
+   create with conflict, details.reason: "tenant_suspended", and retryable: false on both the error
+   and operation view. This read precedes channel closure and boundary validation. Make no provider
+   request, including List offers or a per-order key upload. Settle failed with full commitment
+   release and no setup-fee or first-unit debit under OPS-11's pre-step-9 create rule. Preserve
+   requested_by and system_reason as originally recorded; do not emit the admission-only kind
+   suspended. This is a plain read; the dispatch guard below closes the race after it.
+
 2. Read the stored channel closure (`PRV-40`: "the worker MUST read the stored closure for that
    account and ordering channel when it claims the operation (`OPS-5`), before any provider
    request, including a per-order key upload").
@@ -801,6 +810,21 @@ The worker MUST order the following steps as listed:
 8. Perform `API-63`'s conditional write on `STO-47`'s row, in the correlator transaction:
    "the worker MUST repeat the admission check as a conditional write on `STO-47`'s row guarded
    on `healthy`". It remains "the last write before the ordering call" (`API-63`).
+   In this same transaction the worker MUST conditional-write the operation's tenants row guarded
+   on its status not being suspended. This write and API-58's admission-time suspension flag write
+   MUST contend on that same row; a plain read or a lock confined to the earlier claim-time check
+   is not a substitute. Where the tenant guard affects no row because suspension won, roll back
+   the step-8 transaction and record conflict, details.reason: "tenant_suspended", retryable: false
+   on both error and operation view, then settle failed under OPS-11's pre-step-9 rule with full
+   release and no setup-fee or first-unit debit. No step-9 key upload or order may begin. A first
+   failed transaction commits neither about_to_order_at nor a correlator. A whole-transaction
+   repeat after a lost acknowledgement rechecks this guard too: if suspension now defeats it,
+   keep any previously committed about_to_order_at and correlator unchanged and settle the
+   worker's recorded failure under the same pre-step-9 rule; do not add a null-column term to
+   the settlement guard. OPS-49 says "the component MUST repeat the **whole
+   transaction** — never the last failed statement, and never the provider call (`OPS-12`)" and "A
+     serialization failure is repeated at once."; retry a serialization failure as a whole transaction and do not treat it as a tenant-status refusal. The operation-row claim guard and acknowledgement-before-
+   step-9 rules remain required.
    In this same transaction, on every ordering channel, including `correlator: none`, the worker
    MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`
    guarded on `(id, status = running, claim_number = mine)` (`STO-3`; `OPS-6`:

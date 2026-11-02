@@ -620,9 +620,17 @@ so no further **tenant-authorized** write succeeds —
 the maintenance actions of `API-7` step 2 remain reachable, because a suspended owner must still be
 able to revoke a stolen credential (`API-56`, `CNF-209`), and an operator may retry a stalled
 episode (`API-64`), which skips step 5b like every operator verb (`API-7`) — then (2)
-**fences work already in flight** — a create claimed before the suspension landed MUST be allowed
-to settle rather than abandoned mid-order, and its machine is then cancelled by the same sweep,
-because abandoning an in-flight order is how a machine ends up bought, unrecorded and unbilled —
+**fences work already in flight** — a create that passed OPS-43's tenant dispatch guard before
+the suspension landed is potentially dispatched and MUST be allowed to settle rather than
+abandoned mid-order; its machine follows OPS-27's suspended-attach cancellation. A claim by
+itself does not authorize purchase: a create that first reads the tenant suspended fails under
+OPS-43, and suspension winning the step-8 tenant guard also prevents purchase. A create past
+the guard can still be between the acknowledged transaction and its provider call, because
+OPS-43 says "Step 9 MUST begin only after step 8's transaction is acknowledged."; treat that residue as the potentially dispatched
+case. Never fail or release such an uncertain order through the never-claimed administrative
+write. This does not override a deterministic failure the worker actually records before step 9:
+OPS-11 says "Any create failure the worker records before any step-9 request (before any
+per-order key upload or order request) MUST settle `failed`, whatever its kind." —
 then (3) enqueues a system cancellation per machine (`OPS-39`) — then (4) **transitions the tenant's own work — `requested_by: caller`, never a system
 cancellation — that is already
 `queued` but never claimed straight to `failed`, carrying the reason in the operation's `error`:
@@ -658,6 +666,9 @@ unresolved children are their own records, resolved by their own evidence or the
 verb (`OPS-27`, `OPS-31`), and read through `GET /v1/operations` like any other operation. Holding
 the parent open until they resolve would fence `WIR-41`'s resume off indefinitely and leave every
 suspended tenant with a record that never closes.
+For the claimed create's tenant-status read, refusal and dispatch race guard, see OPS-43.
+Orders already potentially dispatched retain OPS-27's attach and suspended-tenant cancellation
+path, including later evidence-based attachment after the suspension parent has settled.
 **A create that has produced no machine yet passes the re-sweep's test**, so settlement here is not
 the last guard: where such a create later attaches a machine to a still-suspended tenant, `OPS-27`'s
 one-transaction rule enqueues the cancellation in the attach transaction itself, under the same
@@ -728,10 +739,12 @@ machine keeps consuming its commitment, so `LDG-13`'s exhaustion path reaches it
 schedule whether or not anyone looks" — which `OPS-48` forbids: the episode stays open, the sweep
 enqueues nothing against an open episode, and the operator listing and retry are the only
 recovery. `CNF-272` carried the same false clause and was corrected the day before; this copy was
-not.* **A
-suspension is not a promise that the fleet is gone; it is a promise that every machine has been
-accounted for and that nothing further can be bought.** The terms and the operator documentation
-MUST say so in those words, because "suspended" reads as "stopped" and on this one branch it is not.
+not.* **A suspension is not a promise that the fleet is gone. It stops new purchase authorization
+at OPS-43's tenant dispatch guard and accounts for every machine, including machines produced
+by orders already potentially dispatched.** The terms and operator documentation MUST explain
+that an order authorized for dispatch before suspension may still reach the provider and
+complete afterwards, and that its resulting machine is subject to cancellation. They MUST NOT
+promise that suspension recalls such an order or that cancellation has already succeeded.
 
 **AMENDED 2026-08-31 — the flag lands at admission, not in the worker.** The withdrawn wording
 said "the suspension flag and the full fan-out MUST commit together", which on a `202`-returning
