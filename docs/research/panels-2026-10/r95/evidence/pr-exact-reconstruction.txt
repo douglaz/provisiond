@@ -1,0 +1,6 @@
+03-operation-lifecycle.md: literal blocks and all surrounding bytes verified
+04-api-contract.md: literal blocks and all surrounding bytes verified
+10-conformance-checklist.md: literal blocks and all surrounding bytes verified
+Six blocks match comment 860 and the task byte for byte, allowing only Markdown container indentation.
+CNF-202 inserted immediately before its existing amendment; amendment and citations unchanged.
+No new identifier, amendment, fixture, gate or formal declaration.

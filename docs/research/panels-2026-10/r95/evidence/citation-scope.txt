@@ -1,0 +1,22 @@
+  UNQUOTED "`X` says/states/reads ..." with no quote at all is unverifiable by
+           construction. Ratcheted against `citation-baseline.json` rather than
+           failed outright, because such sentences already exist and a gate that
+           fails a clean tree is a gate someone deletes. New ones are refused;
+           the standing ones come down as their requirements are next edited.
+           The count lives in that file and nowhere else -- a number written
+           into prose is wrong the first time either end moves, which this set
+           has now learned in `ADR-0003`, `ADR-0011` and `F16`.
+           HISTORICAL and TEACHING retain their whole-chunk suppression here,
+           including history inside a paired quotation.
+
+Summary verbs are deliberately OUT OF SCOPE. "`OPS-12` forbids automatic retry"
+is a correct, useful paraphrase, and most attributions in the set are of that
+shape. Demanding a quote there would fire on legitimate prose, which is how a
+checklist item ends up unsatisfiable by every conforming implementation
+(`CNF-224`).
+
+WHAT THIS DOES NOT CATCH, stated plainly because a gate's limits are part of its
+contract: a wrong SUMMARY. "`WIR-30` forbids the server resolving eligibility
+that way" reverses `WIR-30`'s meaning, uses a summary verb, and carries no
+quote -- no lexical signal separates it from a correct summary. That one was the
+worst defect of 2026-09-03 and it stays a review problem. Lean docstrings participate

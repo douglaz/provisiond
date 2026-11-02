@@ -1,0 +1,37 @@
+[
+  [
+    "03-operation-lifecycle.md",
+    789,
+    "Settle failed with full commitment\nrelease and no setup-fee or first-unit debit under OPS-11's pre-step-9 create rule."
+  ],
+  [
+    "03-operation-lifecycle.md",
+    818,
+    "on both error and operation view, then settle failed under OPS-11's pre-step-9 rule with full\nrelease and no setup-fee or first-unit debit."
+  ],
+  [
+    "03-operation-lifecycle.md",
+    823,
+    "worker's recorded failure under the same pre-step-9 rule; do not add a null-column term to\nthe settlement guard."
+  ],
+  [
+    "03-operation-lifecycle.md",
+    814,
+    "This write and API-58's admission-time suspension flag write\nMUST contend on that same row; a plain read or a lock confined to the earlier claim-time check\nis not a substitute."
+  ],
+  [
+    "04-api-contract.md",
+    625,
+    "abandoned mid-order; its machine follows OPS-27's suspended-attach cancellation."
+  ],
+  [
+    "04-api-contract.md",
+    670,
+    "Orders already potentially dispatched retain OPS-27's attach and suspended-tenant cancellation\npath, including later evidence-based attachment after the suspension parent has settled."
+  ],
+  [
+    "04-api-contract.md",
+    632,
+    "OPS-11 says \"Any create failure the worker records before any step-9 request (before any\nper-order key upload or order request) MUST settle `failed`, whatever its kind.\""
+  ]
+]

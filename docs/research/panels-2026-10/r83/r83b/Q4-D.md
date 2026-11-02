@@ -123,3 +123,85 @@ case.
 Source pin: `a7b6884878bc7e53dc403dd8a4383d85afac3634`.
 Review head: `b85af778fda2a96fb0024a07c69092665303bfbe`.
 Panel record: `../../r94/notes.md`.
+
+## Wording correction — 2026-11-02 (Panel P r95)
+
+The text above, including Panel O’s 2026-10-31 appendix, is retained as the historical record.
+The pv-kv2 specification and executable Agent Brief use the following additional replacements
+under the owner’s 2026-10-28 wording rule; all other text is retained.
+
+Replacement 1, for the matching executable passage (including Panel O’s substitution where applicable):
+
+```text
+Settle failed with full commitment
+release and no setup-fee or first-unit debit under OPS-11's pre-step-9 create rule; OPS-11 says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." and “The commitment is released in full under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full") and `LDG-39` ("**Never debited**; released with the commitment (`LDG-32`)"), with no setup-fee or first-unit debit.”.
+```
+
+Replacement 2, for the matching executable passage (including Panel O’s substitution where applicable):
+
+```text
+on both error and operation view, then settle failed under OPS-11's pre-step-9 rule with full
+release and no setup-fee or first-unit debit; OPS-11 says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." and “The commitment is released in full under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full") and `LDG-39` ("**Never debited**; released with the commitment (`LDG-32`)"), with no setup-fee or first-unit debit.”.
+```
+
+Replacement 3, for the matching executable passage (including Panel O’s substitution where applicable):
+
+```text
+worker's recorded failure under the same pre-step-9 rule; do not add a null-column term to
+the settlement guard; OPS-11 says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." and “The settle write keeps the ordinary worker guard (`STO-3`; `OPS-6`: "every write that worker makes to the operation MUST carry `claim_number = mine`"), with no `about_to_order_at IS NULL` term.”.
+```
+
+Replacement 4, for the matching executable passage (including Panel O’s substitution where applicable):
+
+```text
+abandoned mid-order; its machine follows OPS-27's suspended-attach cancellation; OPS-27 says "**Where the machine's tenant is suspended at the moment of the attach, that same transaction also
+enqueues a system cancellation** — `requested_by: system`, `system_reason: tenant_suspended`, under
+the machine's `delete` episode, opening it or adding the reason to an episode this same transaction
+opened (`OPS-39`, `OPS-48`) — the identical mechanism `API-58` step (3) uses on the fan-out and the
+identical attach-then-route shape as `OPS-36`. This applies at **all three** entry points. It is needed
+because `API-58`'s re-sweep stops once a pass finds no un-cancelled machine, and a create that has
+not yet produced a machine passes that test: the parent settles `succeeded` — counting a
+`needs_reconciliation` child as complete — and no later pass will ever look again. Without it, a
+create resolving *observed* after that settlement attaches a funded, billing machine to a suspended
+tenant and runs its whole runway, which is precisely the outcome `SEC-45`'s one-action suspension
+must not depend on a human noticing. `OPS-36`'s attach-then-cancel does not cover it: that branch fires only
+where `OPS-33` had already released the commitment, and here the commitment is still open and
+becomes the machine's running commitment.".
+```
+
+Replacement 5, for the matching executable passage (including Panel O’s substitution where applicable):
+
+```text
+Orders already potentially dispatched retain OPS-27's attach and suspended-tenant cancellation
+path, including later evidence-based attachment after the suspension parent has settled; OPS-27 says "**Where the machine's tenant is suspended at the moment of the attach, that same transaction also
+enqueues a system cancellation** — `requested_by: system`, `system_reason: tenant_suspended`, under
+the machine's `delete` episode, opening it or adding the reason to an episode this same transaction
+opened (`OPS-39`, `OPS-48`) — the identical mechanism `API-58` step (3) uses on the fan-out and the
+identical attach-then-route shape as `OPS-36`. This applies at **all three** entry points. It is needed
+because `API-58`'s re-sweep stops once a pass finds no un-cancelled machine, and a create that has
+not yet produced a machine passes that test: the parent settles `succeeded` — counting a
+`needs_reconciliation` child as complete — and no later pass will ever look again. Without it, a
+create resolving *observed* after that settlement attaches a funded, billing machine to a suspended
+tenant and runs its whole runway, which is precisely the outcome `SEC-45`'s one-action suspension
+must not depend on a human noticing. `OPS-36`'s attach-then-cancel does not cover it: that branch fires only
+where `OPS-33` had already released the commitment, and here the commitment is still open and
+becomes the machine's running commitment.".
+```
+
+Replacement 6, for the matching executable passage (including Panel O’s substitution where applicable):
+
+```text
+This write and API-58's admission-time suspension flag write
+MUST contend on that same row; a plain read or a lock confined to the earlier claim-time check
+is not a substitute; API-58 says "marks the tenant `suspended` **in the admission transaction, before the `202` is returned**".
+```
+
+Replacement 7, for the matching executable passage (including Panel O’s substitution where applicable):
+
+```text
+OPS-11 says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
+```
+
+Source pin: `6a3b6014f1f8b36fc21b902e507e74d8c5264e99`.
+Review head: `96a72898c7ace67790aec0bab3727eee858e2245`.
+Panel record: `../../r95/notes.md`.
