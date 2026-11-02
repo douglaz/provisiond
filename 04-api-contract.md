@@ -649,6 +649,13 @@ cancellation — that is already
 has touched no provider, so cancelling it needs no operation, and it does **not** carry the error
 kind `suspended`, which `OPS-11` classifies as admission-only and forbids a worker to emit: that
 kind stays an admission-time rejection of a *caller's* write (`DOM-20`).
+
+Where step (4) fails a create deterministically, the same guarded transaction MUST close its
+commitment and release the remaining amount in full; see LDG-32, "the create fails deterministically".
+It MUST make no setup-fee or first-unit debit. The administrative status write MUST precede the
+release and short-circuit it when it affects no row, after the transaction's generation check
+and the tenant's LDG-35 primitive.
+
 **Its `requested_by` stays `caller` and its `system_reason` stays null**, because `WIR-10` permits
 a non-null `system_reason` only on `requested_by: system`, and re-labelling the request `system`
 to make room for one would attribute the caller's own create to the system and destroy the record

@@ -1,0 +1,117 @@
+{
+  "pin": "f8a30457eb84b3077e7580732bef665b3763aae1",
+  "refs": {
+    "origin/master": "f8a30457eb84b3077e7580732bef665b3763aae1",
+    "pv-gvc": "f8a30457eb84b3077e7580732bef665b3763aae1"
+  },
+  "tracker_row": 94,
+  "tracker_sha256": "2b8d73ca5651bca2892f38a5247bfae15e7e6fc5091b7c353a99da46140c0347",
+  "frozen_sha256": "37db59efb65699f15e8fbbab0ddeba007f20ec4002f7020b01f1b820518564c8",
+  "source_homes": {
+    "OPS-43": {
+      "path": "03-operation-lifecycle.md",
+      "sha256": "c4fc24e374f0f1f7b15ca54106ee33b29e779628283f571e273948e4a9858aec",
+      "start_line": 757
+    },
+    "OPS-11": {
+      "path": "03-operation-lifecycle.md",
+      "sha256": "9b2a22338c7df334df23e05904bba824cf4f57d4445be5829b13f48888fe4d0a",
+      "start_line": 240
+    },
+    "OPS-39": {
+      "path": "03-operation-lifecycle.md",
+      "sha256": "45258ba03cd22152c5cb86d62e5780b50fc6694b6d4fbcd365ee59b473882ab3",
+      "start_line": 942
+    },
+    "API-58": {
+      "path": "04-api-contract.md",
+      "sha256": "56000c05031b85d4602fa74c2c2356305fef690e03e8a56af830b64a3c7a147a",
+      "start_line": 617
+    },
+    "API-64": {
+      "path": "04-api-contract.md",
+      "sha256": "74492115daf255b082fe48274d082eb5b90098082944a301fda1acb73045da27",
+      "start_line": 1088
+    },
+    "DOM-20": {
+      "path": "01-domain-model.md",
+      "sha256": "b60a8f4cef52ec174dc70f558cfdb9a439ac72328667b68e8531ab90c79429d6",
+      "start_line": 607
+    },
+    "WIR-9a": {
+      "path": "13-wire-contract.md",
+      "sha256": "c83577327b3b71d6a05dcb266690262e3d015268294b4d604e01730d26060801",
+      "start_line": 126
+    },
+    "WIR-10": {
+      "path": "13-wire-contract.md",
+      "sha256": "09576a77de7f301fd5dc1092b0d53db71fdb8b09150abdf0458717a9a5e25098",
+      "start_line": 262
+    },
+    "WIR-10a": {
+      "path": "13-wire-contract.md",
+      "sha256": "ae953a2a7fab6fde9350f75e7a287925329f30d686491ad86d7e2e25ebd8b372",
+      "start_line": 288
+    },
+    "WIR-10b": {
+      "path": "13-wire-contract.md",
+      "sha256": "96047cb3be4138a64f3fc12ae089d90736a1c3310e6bf8da7c4b158f439ce8af",
+      "start_line": 304
+    },
+    "LDG-32": {
+      "path": "12-billing-and-ledger.md",
+      "sha256": "e68725ee40943f1b9c63aadaab484b429cbcd574ed7cdf8c26b702f65ef2e515",
+      "start_line": 310
+    },
+    "LDG-35": {
+      "path": "12-billing-and-ledger.md",
+      "sha256": "9a678bf96740bd3c3aa4281ee8839c5c4fcfa18fcfa318f9297fe5c1d53051cb",
+      "start_line": 431
+    },
+    "CNF-202": {
+      "path": "10-conformance-checklist.md",
+      "sha256": "bdfce3cd1ae2ff6f11fdad87a1e25f5496df14720472a6a0d37303c87dfbd960",
+      "start_line": 2278
+    },
+    "STO-3": {
+      "path": "05-persistence.md",
+      "sha256": "454a491e0c317a6464e2e5cacf22e6d25f31a0fad7aef48e5994aafb31f7207e",
+      "start_line": 19
+    }
+  },
+  "OPS43_quote_bytes": 172,
+  "OPS43_quote_sha256": "239566222f807e93b379fc3e3af012b581c54c29b1cbef97b4174657c012abf5",
+  "target_counts": {
+    "comment853": 1,
+    "frozen": 1,
+    "archive_at_pin": 1
+  },
+  "target_lines": {
+    "comment853": [
+      57,
+      59
+    ],
+    "package_and_archive": [
+      31,
+      33
+    ]
+  },
+  "only_comment_substitutions": [
+    "authority line 6",
+    "target lines 57-59"
+  ],
+  "archive_original_prefix_bytes": 2644,
+  "archive_original_prefix_lines": 35,
+  "note_bytes": 1295,
+  "new_source_quote_exact": true,
+  "container_indent_only_roundtrip": true,
+  "inherited_nonexact_displays": [
+    "insertion locator: source LF between that and kind",
+    "owner rejection excerpt: source LF and four spaces after A:"
+  ],
+  "artifacts": {
+    "prospective-agent-brief.md": "afd0b829083d304e3b819788455b097c9bb02a8fc33542bdd4f151ff17586023",
+    "prospective-archive.md": "f72d58f480c00535197ba5b48cd9db7a2764772bb7627abdee739802ad6f4a6d",
+    "prospective-run-package.txt": "21c7d08b5944f9b54a8c3fb1e6e5ad5eaceab33cd4953b1a241b30d78cd0a5bd"
+  }
+}

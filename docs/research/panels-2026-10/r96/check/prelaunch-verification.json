@@ -1,0 +1,32 @@
+{
+  "Q-QUOTE": {
+    "only_target_package_substitution": true,
+    "comment_package_equals_executable": true,
+    "historical_archive_prefix_unchanged": true,
+    "unchanged_LDG32_quotes_exact": true,
+    "replacement_sha256": "8087d28d528655ccb197459e2c61f975798f3e09bc311117ca64635886536a16",
+    "package_sha256": "21c7d08b5944f9b54a8c3fb1e6e5ad5eaceab33cd4953b1a241b30d78cd0a5bd",
+    "comment_sha256": "afd0b829083d304e3b819788455b097c9bb02a8fc33542bdd4f151ff17586023",
+    "note_sha256": "b765ac16a4f770d6836cc8619417598d3bcd8a7ebb94dcfb13929cda0c66a5d1"
+  },
+  "Q-POINTER": {
+    "only_target_package_substitution": true,
+    "comment_package_equals_executable": true,
+    "historical_archive_prefix_unchanged": true,
+    "unchanged_LDG32_quotes_exact": true,
+    "replacement_sha256": "e928356be6f89de90f92bff6363c60e57a5493a5a602f054fb97585b2dc2bd9e",
+    "package_sha256": "231569c51c2330d5174a2ada4adfe4febe43819db250eba8309dfe3bb6862b0e",
+    "comment_sha256": "a7560efec7fbe70e3b50a0e6ae310120e63c9ac629f0b125dff0117bd14d6cf8",
+    "note_sha256": "dac664fdf390953a6abdb70e823cb2a00fcacaf2dea435630b85d877a2b87d55"
+  },
+  "Q-KEEP": {
+    "only_target_package_substitution": true,
+    "comment_package_equals_executable": true,
+    "historical_archive_prefix_unchanged": true,
+    "unchanged_LDG32_quotes_exact": true,
+    "replacement_sha256": "3527b17ba51379e0b129e029a86eabca9be4b801df77d3e02f59de9665290563",
+    "package_sha256": "37db59efb65699f15e8fbbab0ddeba007f20ec4002f7020b01f1b820518564c8",
+    "comment_sha256": "71016711b712a30763ddba4c35fc57674862b4676a607ef48150c7dcb62c7eeb",
+    "note_sha256": "157cf7edfea47e895084c2345136133aa9fefcb0f51d95d90a2b02ebe6100e32"
+  }
+}

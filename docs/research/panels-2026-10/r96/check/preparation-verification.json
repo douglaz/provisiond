@@ -1,0 +1,102 @@
+{
+  "pin": "f8a30457eb84b3077e7580732bef665b3763aae1",
+  "frozen_matches_external_r83": true,
+  "desired_acceptance_equal_frozen": true,
+  "comment_matches_next10": true,
+  "target_occurrences": {
+    "comment853": 1,
+    "frozen": 1
+  },
+  "quote_exact_substring": true,
+  "quote_location": {
+    "path": "03-operation-lifecycle.md",
+    "start_line": 786
+  },
+  "PR65_changed_OPS43": true,
+  "source_receipts": {
+    "OPS-43": {
+      "path": "03-operation-lifecycle.md",
+      "line": 757,
+      "last_line": 937,
+      "sha256": "c4fc24e374f0f1f7b15ca54106ee33b29e779628283f571e273948e4a9858aec"
+    },
+    "OPS-11": {
+      "path": "03-operation-lifecycle.md",
+      "line": 240,
+      "last_line": 327,
+      "sha256": "9b2a22338c7df334df23e05904bba824cf4f57d4445be5829b13f48888fe4d0a"
+    },
+    "OPS-39": {
+      "path": "03-operation-lifecycle.md",
+      "line": 942,
+      "last_line": 993,
+      "sha256": "45258ba03cd22152c5cb86d62e5780b50fc6694b6d4fbcd365ee59b473882ab3"
+    },
+    "API-58": {
+      "path": "04-api-contract.md",
+      "line": 617,
+      "last_line": 792,
+      "sha256": "56000c05031b85d4602fa74c2c2356305fef690e03e8a56af830b64a3c7a147a"
+    },
+    "API-64": {
+      "path": "04-api-contract.md",
+      "line": 1088,
+      "last_line": 1113,
+      "sha256": "74492115daf255b082fe48274d082eb5b90098082944a301fda1acb73045da27"
+    },
+    "DOM-20": {
+      "path": "01-domain-model.md",
+      "line": 607,
+      "last_line": 654,
+      "sha256": "b60a8f4cef52ec174dc70f558cfdb9a439ac72328667b68e8531ab90c79429d6"
+    },
+    "WIR-9a": {
+      "path": "13-wire-contract.md",
+      "line": 126,
+      "last_line": 244,
+      "sha256": "c83577327b3b71d6a05dcb266690262e3d015268294b4d604e01730d26060801"
+    },
+    "WIR-10": {
+      "path": "13-wire-contract.md",
+      "line": 262,
+      "last_line": 287,
+      "sha256": "09576a77de7f301fd5dc1092b0d53db71fdb8b09150abdf0458717a9a5e25098"
+    },
+    "WIR-10a": {
+      "path": "13-wire-contract.md",
+      "line": 288,
+      "last_line": 303,
+      "sha256": "ae953a2a7fab6fde9350f75e7a287925329f30d686491ad86d7e2e25ebd8b372"
+    },
+    "WIR-10b": {
+      "path": "13-wire-contract.md",
+      "line": 304,
+      "last_line": 348,
+      "sha256": "96047cb3be4138a64f3fc12ae089d90736a1c3310e6bf8da7c4b158f439ce8af"
+    },
+    "LDG-32": {
+      "path": "12-billing-and-ledger.md",
+      "line": 310,
+      "last_line": 345,
+      "sha256": "e68725ee40943f1b9c63aadaab484b429cbcd574ed7cdf8c26b702f65ef2e515"
+    },
+    "LDG-35": {
+      "path": "12-billing-and-ledger.md",
+      "line": 431,
+      "last_line": 462,
+      "sha256": "9a678bf96740bd3c3aa4281ee8839c5c4fcfa18fcfa318f9297fe5c1d53051cb"
+    },
+    "CNF-202": {
+      "path": "10-conformance-checklist.md",
+      "line": 2278,
+      "last_line": 2328,
+      "sha256": "bdfce3cd1ae2ff6f11fdad87a1e25f5496df14720472a6a0d37303c87dfbd960"
+    },
+    "STO-3": {
+      "path": "05-persistence.md",
+      "line": 19,
+      "last_line": 86,
+      "sha256": "454a491e0c317a6464e2e5cacf22e6d25f31a0fad7aef48e5994aafb31f7207e"
+    }
+  }
+}

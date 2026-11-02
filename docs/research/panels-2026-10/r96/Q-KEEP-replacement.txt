@@ -1,0 +1,3 @@
+A claimed create first picked up while the
+tenant is suspended follows OPS-43's tenant-status refusal, not a purchase; it is not required
+to succeed merely because its claim defeated the administrative write.
