@@ -553,7 +553,13 @@ tenant's own concurrent creates can look identical, and attaching the wrong mach
 customer another's physical server.
 
 **OPS-27** **AMENDED 2026-09-08 (`ADR-0017`) — one correlator, searched on every channel.** The
-system MUST attempt automatic resolution before asking a human. Resolution searches the provider
+system MUST attempt automatic resolution before asking a human.
+The engine's resolution sweep covers both create and non-create resolution-pending operations.
+For a non-create, dispatch the evidence path in PRV-29 and PRV-36, with OPS-45's marker limits,
+OPS-3's resolution transitions, STO-3's resolution guard and OPS-31's operator fallback; the
+correlator search and outcome table below apply to create only. Use OVR-19's resolution-read
+cadence. OPS-28 says "Automatic resolution MUST be restricted to searching and MUST NOT mutate."
+Resolution searches the provider
 for the operation's correlator (`PRV-26`, `PRV-27`) on **every ordering channel the driver
 reaches** (`PRV-38`), takes the union of what those searches return, and reaches one of the four
 outcomes below:

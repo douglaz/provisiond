@@ -292,7 +292,7 @@ count in it now.*
 | The solvency check (`LDG-17`, `LDG-20`) | `ledger` | Reads balances and held satoshis. **The two rail balances it needs are pushed in by `api`'s funding side** (`SEC-48`'s scoped read); `ledger` MUST NOT call `api` to fetch them, which `OVR-9` forbids and which would make the money module depend on the surface |
 | The exhaustion sweep (`LDG-13`, `LDG-14`) | `engine` | It reads the machine's `runway_until` (`05-persistence.md`), and through `ledger` its commitment and whether its currency has a rate (`LDG-16`), then **enqueues** a cancellation, which is `engine`'s primitive (`OVR-9`) |
 | `LDG-64`'s outage-bound canceller | `engine` | Same shape: a balance-adjacent condition — `LDG-64`'s computed deadline, read through `ledger` — whose effect is an enqueued provider mutation with `system_reason: rate_outage_bound` (`OPS-39`) |
-| `OPS-27`'s resolution sweep | `engine` | It searches providers by correlator, so it needs a provider credential, and its terminal transaction writes money through `ledger` (`OPS-27`) |
+| OPS-27's resolution sweep, including PRV-29's non-create evidence dispatch | engine | Provider evidence reads need the provider credential; resolution writes go through store and money effects through ledger |
 | `OPS-32`'s account sweep | `engine` | Lists resources at a provider, so it needs a provider credential |
 | Offer-listing refresh (`OPS-51`) | `engine`, running in the engine process | See `OPS-50`. |
 | `OPS-15`'s startup pass and the worker pool | `engine` | Already implied by the table; stated so the list is complete |
