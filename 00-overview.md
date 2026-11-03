@@ -409,7 +409,7 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | Rescue timeouts | `RSC-35` | durations | yes |
 | Address canonical form | `STO-41` | normalisation rule | yes |
 | Retention windows | `STO-14`, `STO-43` | durations | yes |
-| `allow_orders`, per ordering account | `DOM-16` | boolean | yes |
+| `allow_orders`, per provider account with an ordering capability that permits a paid create (`DOM-16`) | `DOM-16` | boolean | yes |
 | Negative-resolution window, per provider | `OPS-33` | duration | yes |
 | Tenant-to-account assignment policy | `API-57`, `SEC-43` | policy over assignable accounts | yes |
 | Startup-lock wait bound | `OPS-47`, `OPS-15` | finite duration expressible exactly as a positive whole number of milliseconds accepted by both `OPS-15` timeout settings, minimum 1 ms; also the generation advance's `statement_timeout` and `lock_timeout` (`OPS-15`) | yes |

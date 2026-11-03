@@ -139,11 +139,14 @@ not optional hardening — they are the only structural defence there is.
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
 - [ ] **CNF-364** — **The claim-time List offers read is gated on `list_offers`.** Admit a
       complete resource-offer (`offer_is_resource`) create on an account that declares
-      `list_offers` and the ordering capability. Assert this create's exclusion for its provider
+      `list_offers` and the ordering capability, with `allow_orders: true` and the request
+      carrying `acknowledge_purchase: true`. Assert this create's exclusion for its provider
       account, ordering channel and offer id is held at admission (`PRV-42`, `STO-58`).
       While it is still queued and unclaimed, restart with a descriptor for that account that
       removes only `list_offers`, keeping the ordering capability declared and the driver's
-      List offers code path answering, so the test proves the gate exists, as `CNF-19` does. Assert the worker
+      List offers code path answering, so the test proves the gate exists, as `CNF-19` does (`CNF-19` says “Create is refused when the provider has not declared the matching
+      provision capability — with the driver's internal ordering flag set to permissive,
+      so the test proves the outer gate exists.”). Assert the worker
       refuses the create at `OPS-43`'s step 4: `unsupported` with `details.provider_account`
       naming the account and `details.capability: "list_offers"`, `retryable: false` on both the
       error and the operation view, no `details.refusals` or `details.not_checked`, `failed`, the
@@ -352,7 +355,7 @@ not optional hardening — they are the only structural defence there is.
 
 - [ ] **CNF-54** — Install without the destructive acknowledgement is rejected; delete
       without it is rejected. (`API-14`)
-- [ ] **CNF-55** — Create against an order-billed provider is rejected without both the
+- [ ] **CNF-55** — A paid create (`DOM-16`) is rejected without both the
       per-request purchase acknowledgement and the account-level opt-in. On an account whose
       `allow_orders` is false, assert `GET /v1/providers` lists it without its ordering
       capability, and that a create carrying `acknowledge_purchase: true` is refused at `API-7`'s
@@ -370,6 +373,38 @@ not optional hardening — they are the only structural defence there is.
       that same held resource-offer exclusion (`STO-58`), and no provider request, including
       no List offers read. (`API-15`, `PRV-10`, `DOM-10`, `DOM-16`, `API-7`, `OPS-43`, `WIR-9a`,
       `WIR-9b`, `LDG-39`)
+
+      **Hourly cloud cases.** Each admission case uses a fresh idempotency key. Use an
+      otherwise valid, sellable hourly cloud catalogue offer
+      with a positive recurring provider price and no setup fee, on a healthy assigned provider
+      account implementing `provision_virtual`. Keep all unrelated sale, price, balance and
+      admission conditions satisfied in the fixture. The driver is internally permissive and
+      would start hourly billing if its create method were called; count its create calls and
+      simulated billing starts. This fixture supplies the sale evidence needed for the test;
+      it does not authorize sale of a live offer withheld under `PRV-13b` or `PRV-31`.
+      With `allow_orders: false` and `acknowledge_purchase: true`, assert the provider listing
+      omits `provision_virtual` and a fresh-key create fails at `API-7`'s step 5d with HTTP `501`,
+      `unsupported`, `details.provider_account` naming that account,
+      `details.capability: "provision_virtual"`, and `retryable: false`. Assert no operation,
+      commitment or provider request, zero driver create calls and zero simulated billing starts.
+      With `allow_orders: true`, separately omit `acknowledge_purchase` and set it to `false`.
+      Each request fails HTTP `400`, `invalid_request`, `details.field: "/acknowledge_purchase"`,
+      `retryable: false`, without an operation, commitment or provider request, and with zero
+      driver create calls and zero simulated billing starts. A fresh-key control with both
+      `allow_orders: true` and `acknowledge_purchase: true` reaches the fixture driver's create
+      exactly once and records exactly one simulated hourly billing start.
+      Separately admit this hourly catalogue create while both are true; while queued and
+      unclaimed, restart with only `allow_orders` changed to false. Assert rejection at
+      `OPS-43`'s step 3 with `unsupported`, the same account and capability details and
+      `retryable: false` on both the error and operation view, `failed`, commitment released in
+      full with no setup-fee or first-unit debit, no provider request including no List offers
+      read, zero driver create calls and zero simulated billing starts. This catalogue offer
+      holds no resource-offer exclusion. On a separate admitted hourly create with
+      `allow_orders: true`, remove only its stored `acknowledge_purchase` before claim. Assert
+      `OPS-43`'s step-3 `invalid_request`, `details.field: "/acknowledge_purchase"`,
+      `retryable: false` on the error and view, `failed`, full commitment release with no
+      setup-fee or first-unit debit, no provider request including no List offers read, zero
+      driver create calls and zero simulated billing starts. (`WIR-17`, `OPS-23`, `OPS-11`)
 
       *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 

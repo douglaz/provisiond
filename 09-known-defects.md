@@ -160,9 +160,8 @@ interrupted operation is found by `OPS-15`'s startup pass (`ADR-0016`).
 
 ### DEF-17 — Requeue re-ran non-idempotent purchases with no additional gate
 
-Requeue re-executed the original request verbatim. For a create against an order-billed
-provider that is a second purchase, gated by nothing beyond the same tenant token that
-placed the first one.
+Requeue re-executed the original request verbatim. For a paid create (`DOM-16`), that is a
+second purchase, gated by nothing beyond the same tenant token that placed the first one.
 
 **Prohibition** — a create gets exactly one attempt and nothing re-places the order (`ADR-0014`);
 requeue itself no longer exists (`ADR-0017`), and the surviving operator recovery, `API-64`'s retry
