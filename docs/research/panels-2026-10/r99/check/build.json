@@ -1,0 +1,67 @@
+{
+  "pin": "efb40cc55ff04be693473914afd42ef68008fa15",
+  "questions": {
+    "Q1": {
+      "span": "01-domain-model.md:575",
+      "sources": [
+        {
+          "file": "02-provider-contract.md",
+          "lines": "873",
+          "segment": "After the ordinary authorization, capability and `API-16` validation"
+        },
+        {
+          "file": "02-provider-contract.md",
+          "lines": "875",
+          "segment": "An identical established value MUST settle `succeeded`"
+        }
+      ]
+    },
+    "Q2": {
+      "span": "01-domain-model.md:547-548",
+      "sources": [
+        {
+          "file": "04-api-contract.md",
+          "lines": "1116-1117",
+          "segment": "the state change, the enqueue and the idempotency record commit together"
+        }
+      ]
+    },
+    "Q3": {
+      "span": "01-domain-model.md:560-561",
+      "sources": [
+        {
+          "file": "03-operation-lifecycle.md",
+          "lines": "240-241",
+          "segment": "the system MUST classify the error into `failed` or `needs_reconciliation`"
+        }
+      ]
+    },
+    "Q4": {
+      "span": "01-domain-model.md:565-566",
+      "sources": [
+        {
+          "file": "03-operation-lifecycle.md",
+          "lines": "1003-1004",
+          "segment": "the worker MUST make no provider call, settle the operation `succeeded`"
+        },
+        {
+          "file": "03-operation-lifecycle.md",
+          "lines": "1025",
+          "segment": "the claim MUST defer"
+        }
+      ]
+    },
+    "Q5": {
+      "span": "01-domain-model.md:577",
+      "sources": [
+        {
+          "file": "02-provider-contract.md",
+          "lines": "27-28",
+          "segment": "The three methods with no entry there — *describe capabilities*, *get machine* and *refresh rescue session*"
+        }
+      ]
+    }
+  },
+  "comment_856_block_equal_to_landed": true,
+  "comment_856_status": "closed"
+}

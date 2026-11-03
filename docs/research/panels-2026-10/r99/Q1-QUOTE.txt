@@ -1,0 +1,1 @@
+`PRV-25` says "After the ordinary authorization, capability and `API-16` validation" and "An identical established value MUST settle `succeeded`"; that identical-PTR success remains after its capability check.

@@ -1,0 +1,7 @@
+# r99 state — 2026-11-03T05:13:36Z
+Question: PR #69 (pv-5pmu, head efb40cc) adds DOM-10 sentences that assert what another requirement says without its words (AGENTS.md:29-32, :45-46); codex P1 4450997798 flagged 01:575. Sweep lists five: Q1 01:575 (PRV-25), Q2 01:547-548 (API-64), Q3 01:560-561 (OPS-11), Q4 01:565-566 (OPS-41), Q5 01:577 (PRV-4); each QUOTE / KEEP / ALT. Q-REC (conditional on any non-KEEP): R-NOTE / R-BRIEF / R-ARCHIVE / ALT. No recommendation.
+Pin efb40cc55ff04be693473914afd42ef68008fa15; brief sha256 424f9626b5080078c4a68aaa801b7d69a13739cac3c0b2a0576ecfa23c74d98f; notes sha256 14c98e411963fb6d60f4bb0d96fd6a9d70508b2abf353041c2ac6385a4b2b736; form hashes in forms.sha256.
+Units launched (16G, no swap, OOMPolicy=continue, stdin null, TMPDIR under tmp/): panel-r99-fable, panel-r99-opus, panel-r99-astra, panel-r99-sol. fable answered the Fable limit line at launch (exit 1): missing seat. Grok: preflight 402, missing seat, not launched. Substantive seats: opus, astra, sol (settling needs all three on the same exact form).
+Quota at launch (read 05:01Z): week 74%, Fable 100% (exempt), no session line, Codex proton 54% (gmail 8%).
+Main checkout, branch pv-5pmu, PR #69, tracker, beads untouched; nothing committed or posted; no Run launched; no consensus round launched.
+Wait: timeout 3600 bash -c 'until [ -s /var/tmp/provisiond-panel-r99/opus.exit ] && [ -s /var/tmp/provisiond-panel-r99/astra.exit ] && [ -s /var/tmp/provisiond-panel-r99/sol.exit ] && [ -s /var/tmp/provisiond-panel-r99/fable.exit ]; do sleep 30; done'; echo $?

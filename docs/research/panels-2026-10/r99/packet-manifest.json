@@ -1,0 +1,91 @@
+{
+  "prepared_at": "2026-11-03T05:13:36.763621+00:00",
+  "status": "FROZEN",
+  "pin": "efb40cc55ff04be693473914afd42ef68008fa15",
+  "base": "b5f71e78a1f195acfa4ac28f090d38e9a35568f0",
+  "open": [
+    "Q1 PRV-25 sentence (01:575, flagged)",
+    "Q2 API-64 transaction (01:547-548)",
+    "Q3 OPS-11 classification (01:560-561)",
+    "Q4 OPS-41 no-call success/defer (01:565-566)",
+    "Q5 PRV-4 methods (01:577)",
+    "Q-REC record (conditional)"
+  ],
+  "brief_bytes": 35043,
+  "brief_sha256": "424f9626b5080078c4a68aaa801b7d69a13739cac3c0b2a0576ecfa23c74d98f",
+  "notes_sha256": "14c98e411963fb6d60f4bb0d96fd6a9d70508b2abf353041c2ac6385a4b2b736",
+  "forms": {
+    "Q1-KEEP.txt": "8d131e40a08e6617adbd454b99f9afe973564ab15d456f562ffbe8a6e1c5bc80",
+    "Q1-OLD.txt": "e339d2da45ec1e737a219aa0e4486188ffd47cf3a78e85d712935e0b73be9645",
+    "Q1-QUOTE.txt": "4c0cbffbf91643afc682f63211c82ae400928e101dd9b4d48aa8e11a49d5419e",
+    "Q2-KEEP.txt": "e3d78fbf0b44b7cd667f0a418c3b5b15b03c4cf067aa5ab9d033a1d8ed4f82f8",
+    "Q2-OLD.txt": "12190045a02e094e0c26f8556f7c008eb09bddd7533710f3f10a7d1c634d9ac6",
+    "Q2-QUOTE.txt": "2b46b8b8d673696e3a4668f96be33fe3e2da919431613e22188cb35793b4adc6",
+    "Q3-KEEP.txt": "d8a232a628594f4bd1f261fcf2b3cf8fb7477ec0369e4a9598c06a66d9525f0c",
+    "Q3-OLD.txt": "cd8ff6fa74350e7edb89f869b4080b46bcb1fce28f22e20d750810848e32db37",
+    "Q3-QUOTE.txt": "7119ff65a407c649f8ccbd413d31ecb16b5f9eefde3f4321f8a49e569b8739e6",
+    "Q4-KEEP.txt": "230d598ccbb5634c9846500e948d8c0cbd737728308f421c035e3789e744f4c3",
+    "Q4-OLD.txt": "8f673c0a119baeb0677a6ecff4cc4947e29f8c11d5af415835953682d7ad89b7",
+    "Q4-QUOTE.txt": "06392de56a1eb54ff3e45e435f0c81f86d3053f5a92d1cb04328276dbeaee10d",
+    "Q5-KEEP.txt": "49a3adf34de880cb20d3b47eeee30f58f7b7aeb5958a8e667feeb6ce71fb3f27",
+    "Q5-OLD.txt": "9600d5d0ba7b7a0c833a76310fbe5da1d7a86e291192a2e9c5fda475e57e51a9",
+    "Q5-QUOTE.txt": "eb1d82e154dc6945c61f7b7878ae0238ee288732d06e5bc4e6889a5fc3c3482b",
+    "R-ARCHIVE.txt": "15d0281707c66b533cf46a38e4b71a4ca5d4ba9bac28dd9b54c98335290df635",
+    "R-BRIEF.txt": "33e383dd7d1bddc691fa89d8685a4f3f539084106db10914752201c8fd13ad40",
+    "R-NOTE-append.md": "02dcd93d7347976e0934b235e3c428a26796a287bfff91d2a37ab003ca58d298",
+    "R-NOTE.txt": "6e6a167b06d2df2d3a1d45dd0a0ee8d2c2ff005a8e5bbd3ffa3a6e446e3b413b",
+    "check/base-DOM10-block.md": "7a7d4ebccc1e4ed829fa021fe992885f7e9b0c89e39f09f3344533c5ad7656ac",
+    "check/prospective-01-domain-model-allquote.md": "bb570d865b740a7b93647d3e5504658ed25a05e794767868fdf90169fa3c5cc4",
+    "check/prospective-DOM10-allquote.md": "f0ca1bc138a8bb7b89cda72e44e646342d7c88f2b976c8f55eb9309d4838c81d",
+    "check/prospective-Q1-A.md": "c07c97c97f97e86d680da572d911a6fa968537e168179396b15ac322ec6abf7a",
+    "check/prospective-comment-856-allquote.md": "c980b39008dc57c3f010a0dd9f28a03200a6d782a55785b61080ff9e913c505a",
+    "evidence/pv-5pmu-comment-856.md": "25455e9ed612d7832b4ddbd97ab3564fa27e0c9330dab8797204321e481f01df"
+  },
+  "check": {
+    "build.py": "28968ee99835a6963a6b037d24e08e8c6cb065a6cfffbf17873f700367bcd926",
+    "build_brief.py": "1dd511b6ef011a2a70f070d609e3d6f70cc613e53efbaee7d9becd7b2f80286d",
+    "trial.py": "b4abffe1914cae9d147e0043479a233affc7dd3e2ea6244a3852092577efbcd2",
+    "trial.json": "17e9c3d48ee3c4c6d8d4a40e6fbbebdb673b2aef965b56e255a7f385330e1405",
+    "build.json": "61b5fa64f55d806eb46d1263b065d6ebb36c62e801290fbc418111dc45ba281e",
+    "sweep-diff.txt": "79419018676feb71b5e6d89729b56867e0688f86fa2e3788dd6b5cdf4d250f6f"
+  },
+  "prompts": {
+    "astra.md": {
+      "bytes": 35905,
+      "sha256": "e5d88514c182970ec67d0f8e579d4ef5db5eb3ed0b4430348c7e7d79b120125d"
+    },
+    "fable.md": {
+      "bytes": 35905,
+      "sha256": "31a574e9e400976e4f05980ba65267646a09a4b6e7612ac1b9e87bcb01bae1e7"
+    },
+    "opus.md": {
+      "bytes": 35902,
+      "sha256": "066d4f2272a5eee91dc38073a9392f3733a0758cb4501649a3001ba57215d2e9"
+    },
+    "sol.md": {
+      "bytes": 35899,
+      "sha256": "29a03586eef4fc122be7f262bc95d438f1632417a795661f3669ea233688ad55"
+    }
+  },
+  "quota": {
+    "read_at": "2026-11-03T05:01:23Z",
+    "Current week (all models)": 74,
+    "Current week (Fable), exempt": 100,
+    "Current session": null,
+    "Codex active": "proton 54%",
+    "Codex gmail": "8%"
+  },
+  "seats": {
+    "fable": "claude-fable-5-1 xhigh: launched, answered with the Fable limit line (exit 1) -> missing seat",
+    "opus": "claude-opus-5-5 xhigh: running",
+    "astra": "gpt-6-astra high: running",
+    "sol": "gpt-6.1-sol high: running",
+    "grok": "preflight 402 -> missing seat, not launched"
+  },
+  "units": [
+    "panel-r99-fable",
+    "panel-r99-opus",
+    "panel-r99-astra",
+    "panel-r99-sol"
+  ]
+}

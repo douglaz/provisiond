@@ -1,0 +1,13 @@
+diff --git a/01-domain-model.md b/01-domain-model.md
+index 76a761a..fee2fc9 100644
+--- a/01-domain-model.md
++++ b/01-domain-model.md
+@@ -572,7 +572,7 @@ retry ceiling and OPS-39's system-ceiling exemption retain their existing scope.
+ 
+ The capability is the operation's entry in the mapping table. A rescue-based install checks
+ its strategy capability first and rescue_ssh second, before beginning rescue; an inventory
+-checks rescue_ssh. PRV-25's identical-PTR success remains after its capability check. No
++checks rescue_ssh. `PRV-25` says "After the ordinary authorization, capability and `API-16` validation" and "An identical established value MUST settle `succeeded`"; that identical-PTR success remains after its capability check. No
+ capability is inferred from an install-eligibility list, and this timing rule adds no gate
+ to refresh, a manual attachment release, or the capability-less methods named by PRV-4.
+ 

@@ -1,0 +1,1 @@
+KEEP: no byte changes. The 01-domain-model.md:577 span stays exactly as landed at efb40cc55ff04be693473914afd42ef68008fa15. No thread exists for it; nothing is posted.
