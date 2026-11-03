@@ -1,0 +1,56 @@
+[
+  {
+    "site": "DOM-16",
+    "form_line": 10,
+    "comment_line": 64,
+    "text": "**DOM-16** A **paid create** is a create that starts new provider billing to the\noperator, whether an upfront charge or hourly or other recurring machine rental; neither a\nsetup fee nor immediate payment is required. For each provider account, an ordering capability\n(`provision_virtual` or `provision_bare_metal`) that permits a paid create MUST be conditional\non an explicit per-account `allow_orders` configuration flag: the descriptor (`PRV-44`) of an\naccount whose flag is false does not declare that capability, so that a misconfigured deployment\ncannot start that billing. This is in addition to the per-request purchase acknowledgement\n(`API-15`).\n"
+  },
+  {
+    "site": "PRV-10",
+    "form_line": 23,
+    "comment_line": 77,
+    "text": "**PRV-10** For a paid create (`DOM-16`), create MUST reject the request unless the\nrequest carries an explicit purchase acknowledgement (`WIR-17`'s top-level\n`acknowledge_purchase`), *and* the account is configured to allow ordering. Both, not either.\nThe configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`):\n`API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim.\n"
+  },
+  {
+    "site": "API-15",
+    "form_line": 33,
+    "comment_line": 87,
+    "text": "**API-15** A paid create request (`DOM-16`) MUST carry an explicit purchase\nacknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract\nowns — in addition to the account being configured to allow ordering (`PRV-10`). *\"In its provider\noptions\" until 2026-09-05, while `WIR-17` placed it at the top level; the wire contract wins, and a\nspending authorization nested inside a driver-private object is one a strict server could not tell\nfrom any other option.*\n"
+  },
+  {
+    "site": "configuration row",
+    "form_line": 44,
+    "comment_line": 98,
+    "text": "| `allow_orders`, per provider account with an ordering capability that permits a paid create (`DOM-16`) | `DOM-16` | boolean | yes |\n"
+  },
+  {
+    "site": "Create matrix row",
+    "form_line": 50,
+    "comment_line": 104,
+    "text": "| Create | see `DOM-16` | see `DOM-16` | see `DOM-16` |\n"
+  },
+  {
+    "site": "DEF-17 historical scope paragraph",
+    "form_line": 56,
+    "comment_line": 110,
+    "text": "Requeue re-executed the original request verbatim. For a paid create (`DOM-16`), that is a\nsecond purchase, gated by nothing beyond the same tenant token that placed the first one.\n"
+  },
+  {
+    "site": "CNF-55",
+    "form_line": 124,
+    "comment_line": 178,
+    "text": "- [ ] **CNF-55** — A paid create (`DOM-16`) is rejected without both the\n      per-request purchase acknowledgement and the account-level opt-in. On an account whose\n      `allow_orders` is false, assert `GET /v1/providers` lists it without its ordering\n      capability, and that a create carrying `acknowledge_purchase: true` is refused at `API-7`'s\n      step 5d: HTTP `501`, `unsupported`, `details.provider_account` and `details.capability`\n      naming the account and that capability, `retryable: false`, and, with a balance too low for\n      the create, no `details.refusals` or `details.not_checked` and no operation or commitment.\n      A same-key, same-body replay of a create admitted before the flag was turned off returns its\n      stored result. Admit a complete resource-offer (`offer_is_resource`) create with\n      `allow_orders` true, and assert this create's exclusion for its provider account, ordering\n      channel and offer id is held at admission (`PRV-42`, `STO-58`). While it is still queued\n      and unclaimed, restart with only that flag changed to false, and assert the worker\n      refuses it at `OPS-43`'s step 3 with the same kind, `details`\n      and `retryable: false` on both the error and the operation view, `failed`, the commitment\n      released in full with no setup-fee or first-unit debit, this create's settlement freeing\n      that same held resource-offer exclusion (`STO-58`), and no provider request, including\n      no List offers read. (`API-15`, `PRV-10`, `DOM-10`, `DOM-16`, `API-7`, `OPS-43`, `WIR-9a`,\n      `WIR-9b`, `LDG-39`)"
+  },
+  {
+    "site": "CNF-55",
+    "form_line": 143,
+    "comment_line": 197,
+    "text": "      **Hourly cloud cases.** Each admission case uses a fresh idempotency key. Use an\n      otherwise valid, sellable hourly cloud catalogue offer\n      with a positive recurring provider price and no setup fee, on a healthy assigned provider\n      account implementing `provision_virtual`. Keep all unrelated sale, price, balance and\n      admission conditions satisfied in the fixture. The driver is internally permissive and\n      would start hourly billing if its create method were called; count its create calls and\n      simulated billing starts. This fixture supplies the sale evidence needed for the test;\n      it does not authorize sale of a live offer withheld under `PRV-13b` or `PRV-31`.\n      With `allow_orders: false` and `acknowledge_purchase: true`, assert the provider listing\n      omits `provision_virtual` and a fresh-key create fails at `API-7`'s step 5d with HTTP `501`,\n      `unsupported`, `details.provider_account` naming that account,\n      `details.capability: \"provision_virtual\"`, and `retryable: false`. Assert no operation,\n      commitment or provider request, zero driver create calls and zero simulated billing starts.\n      With `allow_orders: true`, separately omit `acknowledge_purchase` and set it to `false`.\n      Each request fails HTTP `400`, `invalid_request`, `details.field: \"/acknowledge_purchase\"`,\n      `retryable: false`, without an operation, commitment or provider request, and with zero\n      driver create calls and zero simulated billing starts. A fresh-key control with both\n      `allow_orders: true` and `acknowledge_purchase: true` reaches the fixture driver's create\n      exactly once and records exactly one simulated hourly billing start.\n      Separately admit this hourly catalogue create while both are true; while queued and\n      unclaimed, restart with only `allow_orders` changed to false. Assert rejection at\n      `OPS-43`'s step 3 with `unsupported`, the same account and capability details and\n      `retryable: false` on both the error and operation view, `failed`, commitment released in\n      full with no setup-fee or first-unit debit, no provider request including no List offers\n      read, zero driver create calls and zero simulated billing starts. This catalogue offer\n      holds no resource-offer exclusion. On a separate admitted hourly create with\n      `allow_orders: true`, remove only its stored `acknowledge_purchase` before claim. Assert\n      `OPS-43`'s step-3 `invalid_request`, `details.field: \"/acknowledge_purchase\"`,\n      `retryable: false` on the error and view, `failed`, full commitment release with no\n      setup-fee or first-unit debit, no provider request including no List offers read, zero\n      driver create calls and zero simulated billing starts. (`WIR-17`, `OPS-23`, `OPS-11`)"
+  },
+  {
+    "site": "CNF-364 setup and retained list-offers assertions",
+    "form_line": 207,
+    "comment_line": 261,
+    "text": "- [ ] **CNF-364** — **The claim-time List offers read is gated on `list_offers`.** Admit a\n      complete resource-offer (`offer_is_resource`) create on an account that declares\n      `list_offers` and the ordering capability, with `allow_orders: true` and the request\n      carrying `acknowledge_purchase: true`. Assert this create's exclusion for its provider\n      account, ordering channel and offer id is held at admission (`PRV-42`, `STO-58`).\n      While it is still queued and unclaimed, restart with a descriptor for that account that\n      removes only `list_offers`, keeping the ordering capability declared and the driver's\n      List offers code path answering, so the test proves the gate exists, as `CNF-19` does. Assert the worker\n      refuses the create at `OPS-43`'s step 4: `unsupported` with `details.provider_account`\n      naming the account and `details.capability: \"list_offers\"`, `retryable: false` on both the\n      error and the operation view, no `details.refusals` or `details.not_checked`, `failed`, the\n      commitment released in full with no setup-fee or first-unit debit, this create's settlement\n      freeing that same held resource-offer exclusion (`STO-58`), and no List offers read,\n      per-order key upload or order request. (`DOM-10`, `OPS-43`, `OPS-11`, `LDG-39`, `WIR-9a`,\n      `WIR-9b`)\n      *Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*\n"
+  }
+]

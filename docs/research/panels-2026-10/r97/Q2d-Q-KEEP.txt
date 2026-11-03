@@ -1,0 +1,3 @@
+**PRV-10** For a paid create (`DOM-16`), create MUST reject the request unless the
+request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
+`acknowledge_purchase`), *and* the account is configured to allow ordering.

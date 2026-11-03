@@ -1,0 +1,55 @@
+{
+  "time": "2026-11-03T00:32:30.840807+00:00",
+  "refs": [
+    "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "2e2cd94637112f20538eb26b141672fedf0ba455"
+  ],
+  "gates": {
+    "before": 0,
+    "final": 0
+  },
+  "own_repo_head": "2e2cd94637112f20538eb26b141672fedf0ba455",
+  "own_repo_tracked_diff": "",
+  "final_tally_sha256": "a16a01361b3c6234163745e01808ef422bead9c653ab30a3d15d5c429f40f513",
+  "question_sha256": "12ab166dfe3197b686f7c04e029230369b476ad21962d1d78626b278a9575779",
+  "option_packages": {
+    "keep-note": {
+      "file": "option-keep-note.md",
+      "sha256": "51422fb0b6fc0abe4a34283478ca0d7ed56a9459012ee7e50fb1770f88d10817",
+      "comment_sha256": "d66f194e02de90fbc09d5148cfb694aeeac1c6758450d0d90830420ac4f05fa0",
+      "form_sha256": "56f7b5c345965108a504293b2e8efde3dcfecb47cecfee26f0470da33001a3a6",
+      "archive_sha256": "ebf5de10cdebba5297239ac528d6c81c61f86e5e15e7baff97f9cb5c4ae0928d"
+    },
+    "keep-brief": {
+      "file": "option-keep-brief.md",
+      "sha256": "737bc476ab51ff86cbf3e59be040b755469c8a2bf758feacfb2dba649b14455d",
+      "comment_sha256": "d66f194e02de90fbc09d5148cfb694aeeac1c6758450d0d90830420ac4f05fa0",
+      "form_sha256": "56f7b5c345965108a504293b2e8efde3dcfecb47cecfee26f0470da33001a3a6",
+      "archive_sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32"
+    },
+    "pointer-note": {
+      "file": "option-pointer-note.md",
+      "sha256": "9e29052bd31cf8a607a967fd971b70181d1f4b1274b998fb46c002416a81c276",
+      "comment_sha256": "0aa180115ac0f706860c216f60160f1068a1fcdcc7e64b5207c33daf02e54bbc",
+      "form_sha256": "c782dbfa7ec9db145f34705c699bf63d4cf544dac38f8bec1ca65243dc795a55",
+      "archive_sha256": "ebf5de10cdebba5297239ac528d6c81c61f86e5e15e7baff97f9cb5c4ae0928d"
+    },
+    "pointer-brief": {
+      "file": "option-pointer-brief.md",
+      "sha256": "6f11fbaf5bebbf5a75f516caaa5581ae5839b624d3a1e3da497a46c6751a2fe7",
+      "comment_sha256": "0aa180115ac0f706860c216f60160f1068a1fcdcc7e64b5207c33daf02e54bbc",
+      "form_sha256": "c782dbfa7ec9db145f34705c699bf63d4cf544dac38f8bec1ca65243dc795a55",
+      "archive_sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32"
+    }
+  },
+  "root_settled_issued": false,
+  "adoption": false,
+  "next": "owner questions, then apply turn and Run",
+  "quotas": {
+    "claude_week": 85,
+    "session": "absent",
+    "fable": 100,
+    "fable_exempt": true,
+    "codex_proton": 45
+  }
+}

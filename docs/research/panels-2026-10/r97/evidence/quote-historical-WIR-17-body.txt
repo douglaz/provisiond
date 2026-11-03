@@ -1,0 +1,14 @@
+{
+  "provider_account": "hetzner-cloud-1",
+  "offer": "standard:cx32",
+  "region": "fsn1",
+  "hostname": "worker-1",
+  "image": null,
+  "ssh_public_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexamplekeyxxxxxxxxxxxxxxxxxxxxxxxx"],
+  "user_data": null,
+  "labels": {"team": "batch"},
+  "runway_seconds": 2592000,
+  "max_commitment_sats": 90000,
+  "acknowledge_purchase": true,
+  "provider_options": {}
+}

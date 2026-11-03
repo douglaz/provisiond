@@ -1,0 +1,16 @@
+Until 2026-09-05, `API-15` said “purchase acknowledgement in its provider options, in addition to the account being
+configured to allow ordering (`PRV-10`).” (revision `7116e90b9932211c08f2e712690cc176b56edea6`); at that same revision, `WIR-17` said “`acknowledge_purchase` MUST be literal
+`true` (`API-15`, `PRV-10`).” and placed the acknowledgement at the top level in this create body: “{
+  "provider_account": "hetzner-cloud-1",
+  "offer": "standard:cx32",
+  "region": "fsn1",
+  "hostname": "worker-1",
+  "image": null,
+  "ssh_public_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexamplekeyxxxxxxxxxxxxxxxxxxxxxxxx"],
+  "user_data": null,
+  "labels": {"team": "batch"},
+  "runway_seconds": 2592000,
+  "max_commitment_sats": 90000,
+  "acknowledge_purchase": true,
+  "provider_options": {}
+}”. The wire contract wins, and a spending authorization nested inside a driver-private object is one a strict server could not tell from any other option.

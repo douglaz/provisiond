@@ -1,0 +1,3 @@
+While it is still queued and unclaimed, restart with a descriptor for that account that
+      removes only `list_offers`, keeping the ordering capability declared and the driver's
+      List offers code path answering, so the test proves the gate exists; comparison owner: `CNF-19`.

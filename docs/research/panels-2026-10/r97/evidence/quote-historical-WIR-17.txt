@@ -1,0 +1,2 @@
+`acknowledge_purchase` MUST be literal
+`true` (`API-15`, `PRV-10`).

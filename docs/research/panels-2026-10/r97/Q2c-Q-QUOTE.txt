@@ -1,0 +1,5 @@
+While it is still queued and unclaimed, restart with a descriptor for that account that
+      removes only `list_offers`, keeping the ordering capability declared and the driver's
+      List offers code path answering, so the test proves the gate exists, as `CNF-19` does (`CNF-19` says “Create is refused when the provider has not declared the matching
+      provision capability — with the driver's internal ordering flag set to permissive,
+      so the test proves the outer gate exists.”).

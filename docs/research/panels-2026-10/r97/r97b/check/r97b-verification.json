@@ -1,0 +1,220 @@
+{
+  "verified_at": "2026-11-03T00:27:56.669213+00:00",
+  "refs": [
+    "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "2e2cd94637112f20538eb26b141672fedf0ba455"
+  ],
+  "pin": "2e2cd94637112f20538eb26b141672fedf0ba455",
+  "answers": {
+    "fable": {
+      "exit": 1,
+      "bytes": 158,
+      "sha256": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2",
+      "classification": "missing: Fable limit"
+    },
+    "opus": {
+      "exit": 0,
+      "bytes": 7944,
+      "sha256": "aadf144838f02a8353fb5c16183675671c470fed50880a34e11b86d4294d1b93",
+      "classification": "substantive"
+    },
+    "astra": {
+      "exit": 0,
+      "bytes": 7616,
+      "sha256": "579b30af6d7d45995b0682ae343ea42e2beb25de1e676ed962cb490682be3651",
+      "classification": "substantive"
+    },
+    "sol": {
+      "exit": 0,
+      "bytes": 6903,
+      "sha256": "2e2ce182fd21772cc31d1493fc97ef4b17427d41947a335f1ee7b5c59aa04ffa",
+      "classification": "substantive"
+    }
+  },
+  "diagnostics": {
+    "astra.err": {
+      "bytes": 538766,
+      "sha256": "b656b9d35f16f2858fd3e994ed00d54474808322020c8c0a99918f6e9b2a3a15",
+      "final_stdout_matches": null
+    },
+    "astra.out": {
+      "bytes": 7617,
+      "sha256": "7b23b9d1f1631049b623c817ae93ef56f9fcfc0363940efc8fbd64f5eca7c93f",
+      "final_stdout_matches": true
+    },
+    "fable.err": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "final_stdout_matches": null
+    },
+    "opus.err": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "final_stdout_matches": null
+    },
+    "sol.err": {
+      "bytes": 296575,
+      "sha256": "d2271e2bef3544f33d46b4a3c33e10ec36aa4f647f9a37176737c940e2a1b8ba",
+      "final_stdout_matches": null
+    },
+    "sol.out": {
+      "bytes": 6904,
+      "sha256": "395f901d7cf51f10cb6978963e80511ac41ffb7f8480f92ca267d372a1351a21",
+      "final_stdout_matches": true
+    }
+  },
+  "grok": "missing: HTTP402",
+  "final_picks": {
+    "Q2d": {
+      "opus": "KEEP",
+      "astra": "KEEP",
+      "sol": "POINTER"
+    },
+    "Q2e": {
+      "opus": "KEEP",
+      "astra": "KEEP",
+      "sol": "POINTER"
+    },
+    "Q4": {
+      "opus": "NOTE",
+      "astra": "NOTE",
+      "sol": "BRIEF"
+    }
+  },
+  "acceptability": {
+    "Q2d/e KEEP": [
+      "opus",
+      "astra",
+      "sol"
+    ],
+    "Q2d/e POINTER": [
+      "opus",
+      "astra",
+      "sol"
+    ],
+    "Q2d/e QUOTE": [
+      "astra",
+      "sol"
+    ],
+    "Q4 NOTE": [
+      "opus",
+      "astra",
+      "sol"
+    ],
+    "Q4 BRIEF": [
+      "opus",
+      "astra",
+      "sol"
+    ]
+  },
+  "settled": false,
+  "voids": [],
+  "wording_only": [
+    "KEEP",
+    "POINTER",
+    "NOTE",
+    "BRIEF"
+  ],
+  "false_reader_claim": {
+    "reader": "opus",
+    "claim": "Every gate reads only root *.md and docs/adr/*.md",
+    "correction": "Formal and citation gates also read Lean; research archives remain outside the gates.",
+    "premise_changing": false
+  },
+  "source_locations": {
+    "physical_jsonl_row": 29,
+    "authority": 16,
+    "heading": 53,
+    "directive": 59,
+    "historical_placement": [
+      296,
+      298
+    ],
+    "targets": {
+      "a": {
+        "decoded_comment": [
+          80
+        ],
+        "form_line": 26,
+        "old": "The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`):\n`API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim."
+      },
+      "b": {
+        "decoded_comment": [
+          41,
+          89
+        ],
+        "form_line": 35,
+        "old": "\"In its provider\noptions\" until 2026-09-05, while `WIR-17` placed it at the top level; the wire contract wins, and a\nspending authorization nested inside a driver-private object is one a strict server could not tell\nfrom any other option."
+      },
+      "c": {
+        "decoded_comment": [
+          266
+        ],
+        "form_line": 212,
+        "old": "While it is still queued and unclaimed, restart with a descriptor for that account that\n      removes only `list_offers`, keeping the ordering capability declared and the driver's\n      List offers code path answering, so the test proves the gate exists, as `CNF-19` does."
+      },
+      "d": {
+        "decoded_comment": [
+          77
+        ],
+        "form_line": 23,
+        "old": "**PRV-10** For a paid create (`DOM-16`), create MUST reject the request unless the\nrequest carries an explicit purchase acknowledgement (`WIR-17`'s top-level\n`acknowledge_purchase`), *and* the account is configured to allow ordering."
+      },
+      "e": {
+        "decoded_comment": [
+          87
+        ],
+        "form_line": 33,
+        "old": "**API-15** A paid create request (`DOM-16`) MUST carry an explicit purchase\nacknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract\nowns — in addition to the account being configured to allow ordering (`PRV-10`)."
+      }
+    }
+  },
+  "option_packages": {
+    "keep-note": {
+      "file": "option-keep-note.md",
+      "sha256": "51422fb0b6fc0abe4a34283478ca0d7ed56a9459012ee7e50fb1770f88d10817",
+      "comment_sha256": "d66f194e02de90fbc09d5148cfb694aeeac1c6758450d0d90830420ac4f05fa0",
+      "form_sha256": "56f7b5c345965108a504293b2e8efde3dcfecb47cecfee26f0470da33001a3a6",
+      "archive_sha256": "ebf5de10cdebba5297239ac528d6c81c61f86e5e15e7baff97f9cb5c4ae0928d"
+    },
+    "keep-brief": {
+      "file": "option-keep-brief.md",
+      "sha256": "737bc476ab51ff86cbf3e59be040b755469c8a2bf758feacfb2dba649b14455d",
+      "comment_sha256": "d66f194e02de90fbc09d5148cfb694aeeac1c6758450d0d90830420ac4f05fa0",
+      "form_sha256": "56f7b5c345965108a504293b2e8efde3dcfecb47cecfee26f0470da33001a3a6",
+      "archive_sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32"
+    },
+    "pointer-note": {
+      "file": "option-pointer-note.md",
+      "sha256": "9e29052bd31cf8a607a967fd971b70181d1f4b1274b998fb46c002416a81c276",
+      "comment_sha256": "0aa180115ac0f706860c216f60160f1068a1fcdcc7e64b5207c33daf02e54bbc",
+      "form_sha256": "c782dbfa7ec9db145f34705c699bf63d4cf544dac38f8bec1ca65243dc795a55",
+      "archive_sha256": "ebf5de10cdebba5297239ac528d6c81c61f86e5e15e7baff97f9cb5c4ae0928d"
+    },
+    "pointer-brief": {
+      "file": "option-pointer-brief.md",
+      "sha256": "6f11fbaf5bebbf5a75f516caaa5581ae5839b624d3a1e3da497a46c6751a2fe7",
+      "comment_sha256": "0aa180115ac0f706860c216f60160f1068a1fcdcc7e64b5207c33daf02e54bbc",
+      "form_sha256": "c782dbfa7ec9db145f34705c699bf63d4cf544dac38f8bec1ca65243dc795a55",
+      "archive_sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32"
+    }
+  },
+  "note": {
+    "bytes": 695,
+    "sha256": "40480a93445c3699dce04eac8687193d037dec03ed46fdaa49f9773a983d55d2",
+    "original_prefix_exact": true,
+    "new_archive_sha256": "ebf5de10cdebba5297239ac528d6c81c61f86e5e15e7baff97f9cb5c4ae0928d",
+    "historical_equality_would_fail": true,
+    "date": "2026-11-02 unchanged",
+    "link": "r97/notes.md, rules rather than selections"
+  },
+  "quota": {
+    "claude_week": 85,
+    "session": "absent; no hold",
+    "fable": 100,
+    "fable_exempt": true,
+    "codex_active": "proton",
+    "codex_week": 45,
+    "over95_nonexempt": false
+  }
+}

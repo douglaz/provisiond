@@ -1,0 +1,103 @@
+{
+  "finished_at": "2026-11-03T00:06:09.020024+00:00",
+  "refs": [
+    "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "2e2cd94637112f20538eb26b141672fedf0ba455"
+  ],
+  "gates": {
+    "before": {
+      "exit": 0,
+      "log_sha256": "ed6e92f32f7391127aca9a66ea6a69b210a8a4e86a636ce507e2a80f420b8cc7",
+      "unit": "panel-r97-tally-gate-before",
+      "launch_properties": {
+        "MemoryMax": "16G",
+        "MemorySwapMax": 0,
+        "OOMPolicy": "continue",
+        "StandardInput": "null"
+      },
+      "command": "/bin/bash /var/tmp/provisiond-panel-r97/check/run-gate.sh tally-before",
+      "unpiped_gate": "nix develop --command bash tools/check-all.sh",
+      "host_admission_log": "Formal admission: 1 host lake builds; one Run build at a time.",
+      "property_evidence": "Explicit systemd-run launch arguments; no live receipt retained before completion/unload"
+    },
+    "final": {
+      "exit": 0,
+      "log_sha256": "90bea96a110ebb88470ad614da38856fd37cab495c6d773a0f957874576147b7",
+      "unit": "panel-r97-tally-gate-final",
+      "launch_properties": {
+        "MemoryMax": "16G",
+        "MemorySwapMax": 0,
+        "OOMPolicy": "continue",
+        "StandardInput": "null"
+      },
+      "command": "/bin/bash /var/tmp/provisiond-panel-r97/check/run-gate.sh tally-final",
+      "unpiped_gate": "nix develop --command bash tools/check-all.sh",
+      "host_admission_log": "Formal admission: 0 host lake builds; one Run build at a time.",
+      "observed_live_properties": {
+        "MemoryMax": 17179869184,
+        "MemorySwapMax": 0,
+        "OOMPolicy": "continue",
+        "StandardInput": "null"
+      }
+    }
+  },
+  "quota": {
+    "Claude_all_models": 84,
+    "Claude_reset": "2026-11-03 approximately20:00UTC",
+    "Fable": 100,
+    "Fable_exempt": true,
+    "Current_session": "absent: no open window, not a hold",
+    "Codex_active_proton_week": 44,
+    "nonexempt_over95": false,
+    "Codex100": false
+  },
+  "artifacts": {
+    "tally.md": {
+      "bytes": 12069,
+      "sha256": "a9fd7cd56ea8032afb63804c52cea7c1f236a4cd1bfe8c1d963b89547a2d99f6"
+    },
+    "check/tally-evidence.md": {
+      "bytes": 21999,
+      "sha256": "a546d33b485859cbd0d706d55f7170a62c80d591ffbc42f42da214d441474539"
+    },
+    "check/tally-verification.json": {
+      "bytes": 7741,
+      "sha256": "cb720acc81d6026febbccce5f7ff5fdae9cde560c24372b729229187470d49bc"
+    },
+    "check/tally-settled-components.md": {
+      "bytes": 5703,
+      "sha256": "925e471fc31a18fbc938f33194a15d7a924245a33bb6584b211ed8e2bab38f6d"
+    },
+    "r97b/brief.md": {
+      "bytes": 122741,
+      "sha256": "861b9e5ef2a116c3a7b48fca5b775b6a8fb949e6637190d7ef46ff87ff0519d4"
+    },
+    "r97b/notes.md": {
+      "bytes": 3890,
+      "sha256": "9b321a607a1f246e39805b95d0b88b106c3824584e360b44772c389ae12729bf"
+    },
+    "r97b/packet-manifest.json": {
+      "bytes": 1560,
+      "sha256": "23285f11f4fdea672579be23ad618ff19c8343b8c26e9773a0c3bc3461868a8e"
+    }
+  },
+  "settled": [
+    "Q1 R-MASTER",
+    "Q2a/b/c Q-QUOTE",
+    "Q3 S-OUT"
+  ],
+  "open": [
+    "Q2d",
+    "Q2e",
+    "Q4"
+  ],
+  "consensus_round": "r97b prepared, not launched",
+  "next": "Later turn launches r97b only; no apply or Run yet",
+  "owner_question": null,
+  "tracker_branch_spec_changes": false,
+  "only_new_units": [
+    "panel-r97-tally-gate-before",
+    "panel-r97-tally-gate-final"
+  ],
+  "other_units_touched": false
+}

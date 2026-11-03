@@ -28,7 +28,7 @@ table is not read by anything.
 | Capability | Cloud VPS | Dedicated (robot-style) | Dedicated (cherry-style) |
 |---|:--:|:--:|:--:|
 | List offers | yes | yes | yes |
-| Create | yes | opt-in ordering | opt-in ordering |
+| Create | see `DOM-16` | see `DOM-16` | see `DOM-16` |
 | ~~Adopt~~ | — | — | — |
 | Delete | yes | yes (usually immediate) | yes |
 | Power control | yes | yes | yes |

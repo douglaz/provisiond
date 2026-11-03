@@ -567,7 +567,13 @@ defect. Declaration and implementation MUST agree; the conformance checklist tes
 
 *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 
-**DOM-16** Ordering capabilities (`provision_virtual`, `provision_bare_metal`) for providers that bill per order MUST be conditional on an explicit per-account `allow_orders` configuration flag: the descriptor (`PRV-44`) of an account whose flag is false does not declare them, so that a misconfigured deployment cannot spend money. This is in addition to, not instead of, the per-request purchase acknowledgement
+**DOM-16** A **paid create** is a create that starts new provider billing to the
+operator, whether an upfront charge or hourly or other recurring machine rental; neither a
+setup fee nor immediate payment is required. For each provider account, an ordering capability
+(`provision_virtual` or `provision_bare_metal`) that permits a paid create MUST be conditional
+on an explicit per-account `allow_orders` configuration flag: the descriptor (`PRV-44`) of an
+account whose flag is false does not declare that capability, so that a misconfigured deployment
+cannot start that billing. This is in addition to the per-request purchase acknowledgement
 (`API-15`).
 
 *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*

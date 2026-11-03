@@ -1,0 +1,1 @@
+Do not start the pv-9ecf Run. Ask the owner whether retaining CNF-34 means leaving the complete current master text, including PR #60’s install-marker fixture, or restoring the 3109b5b text printed in C′ and removing that fixture. Preserve both historical adoption records until the owner answers.

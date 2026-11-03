@@ -1,0 +1,1 @@
+Restore CNF-34 to the exact complete 3109b5b bytes printed in C′, removing PR #60’s install-marker fixture. Leave every other retained block at its unchanged 3109b5b/current-master bytes. Claimed authority for restoration must be identified by the reader; this candidate supplies no new owner authorization.

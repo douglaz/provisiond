@@ -1,0 +1,3 @@
+Create is refused when the provider has not declared the matching
+      provision capability — with the driver's internal ordering flag set to permissive,
+      so the test proves the outer gate exists.

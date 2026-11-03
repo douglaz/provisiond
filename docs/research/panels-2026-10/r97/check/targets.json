@@ -1,0 +1,58 @@
+[
+  {
+    "id": "a",
+    "site": "PRV-10 configuration-half sentence",
+    "old": "The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`):\n`API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim.",
+    "quote": "The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`); `DOM-10` says “Every operation with a capability MUST be gated on it before the\ndriver is called, **including create**”. At admission, step 5d is the gate: `API-7` says “**gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail”. At claim, step 3 is the gate: `OPS-43` says “Repeat boundary validation under `OPS-23`: \"Validation that was performed at the API boundary\n   MUST be repeated in the worker before the driver is called\". This includes `PRV-10`'s\n   \"explicit purchase acknowledgement\", `PRV-8`'s \"at least one SSH public key\", the missing-field\n   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is\n   `PRV-10`'s \"the account is configured to allow ordering\". The checks on caller-supplied fields\n   run first, then the checks on fields the `api` wrote at admission, then the capability gate”.",
+    "pointer": "The configuration half gates the create's ordering capability (`DOM-16`) at admission and again at claim; owners: `DOM-10`, `API-7` step 5d and `OPS-43` step 3.",
+    "form_line": 26,
+    "comment_lines": [
+      80
+    ]
+  },
+  {
+    "id": "b",
+    "site": "API-15 historical italic sentence",
+    "old": "\"In its provider\noptions\" until 2026-09-05, while `WIR-17` placed it at the top level; the wire contract wins, and a\nspending authorization nested inside a driver-private object is one a strict server could not tell\nfrom any other option.",
+    "quote": "Until 2026-09-05, `API-15` said “purchase acknowledgement in its provider options, in addition to the account being\nconfigured to allow ordering (`PRV-10`).” (revision `7116e90b9932211c08f2e712690cc176b56edea6`); at that same revision, `WIR-17` said “`acknowledge_purchase` MUST be literal\n`true` (`API-15`, `PRV-10`).” and placed the acknowledgement at the top level in this create body: “{\n  \"provider_account\": \"hetzner-cloud-1\",\n  \"offer\": \"standard:cx32\",\n  \"region\": \"fsn1\",\n  \"hostname\": \"worker-1\",\n  \"image\": null,\n  \"ssh_public_keys\": [\"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexamplekeyxxxxxxxxxxxxxxxxxxxxxxxx\"],\n  \"user_data\": null,\n  \"labels\": {\"team\": \"batch\"},\n  \"runway_seconds\": 2592000,\n  \"max_commitment_sats\": 90000,\n  \"acknowledge_purchase\": true,\n  \"provider_options\": {}\n}”. The wire contract wins, and a spending authorization nested inside a driver-private object is one a strict server could not tell from any other option.",
+    "pointer": "\"In its provider\noptions\" until 2026-09-05; historical wire-location owner: `WIR-17` at revision `7116e90b9932211c08f2e712690cc176b56edea6`. The wire contract wins, and a spending authorization nested inside a driver-private object is one a strict server could not tell from any other option.",
+    "form_line": 35,
+    "comment_lines": [
+      41,
+      89
+    ]
+  },
+  {
+    "id": "c",
+    "site": "CNF-364 comparison sentence",
+    "old": "While it is still queued and unclaimed, restart with a descriptor for that account that\n      removes only `list_offers`, keeping the ordering capability declared and the driver's\n      List offers code path answering, so the test proves the gate exists, as `CNF-19` does.",
+    "quote": "While it is still queued and unclaimed, restart with a descriptor for that account that\n      removes only `list_offers`, keeping the ordering capability declared and the driver's\n      List offers code path answering, so the test proves the gate exists, as `CNF-19` does (`CNF-19` says “Create is refused when the provider has not declared the matching\n      provision capability — with the driver's internal ordering flag set to permissive,\n      so the test proves the outer gate exists.”).",
+    "pointer": "While it is still queued and unclaimed, restart with a descriptor for that account that\n      removes only `list_offers`, keeping the ordering capability declared and the driver's\n      List offers code path answering, so the test proves the gate exists; comparison owner: `CNF-19`.",
+    "form_line": 212,
+    "comment_lines": [
+      266
+    ]
+  },
+  {
+    "id": "d",
+    "site": "PRV-10 first sentence (ownership-pointer boundary)",
+    "old": "**PRV-10** For a paid create (`DOM-16`), create MUST reject the request unless the\nrequest carries an explicit purchase acknowledgement (`WIR-17`'s top-level\n`acknowledge_purchase`), *and* the account is configured to allow ordering.",
+    "quote": "**PRV-10** For a paid create (`DOM-16`), create MUST reject the request unless the\nrequest carries an explicit purchase acknowledgement (`WIR-17`'s top-level\n`acknowledge_purchase`), *and* the account is configured to allow ordering (`WIR-17` says “`acknowledge_purchase` MUST be literal\n`true` (`API-15`, `PRV-10`).”).",
+    "pointer": "**PRV-10** For a paid create (`DOM-16`), create MUST reject the request unless the\nrequest carries an explicit purchase acknowledgement (top-level\n`acknowledge_purchase`; wire owner: `WIR-17`), *and* the account is configured to allow ordering.",
+    "form_line": 23,
+    "comment_lines": [
+      77
+    ]
+  },
+  {
+    "id": "e",
+    "site": "API-15 first sentence (ownership-pointer boundary)",
+    "old": "**API-15** A paid create request (`DOM-16`) MUST carry an explicit purchase\nacknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract\nowns — in addition to the account being configured to allow ordering (`PRV-10`).",
+    "quote": "**API-15** A paid create request (`DOM-16`) MUST carry an explicit purchase\nacknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract\nowns — in addition to the account being configured to allow ordering (`PRV-10`) (`WIR-17` says “`acknowledge_purchase` MUST be literal\n`true` (`API-15`, `PRV-10`).”).",
+    "pointer": "**API-15** A paid create request (`DOM-16`) MUST carry an explicit purchase\nacknowledgement — top-level `acknowledge_purchase`; wire owner: `WIR-17` — in addition to the account being configured to allow ordering (`PRV-10`).",
+    "form_line": 33,
+    "comment_lines": [
+      87
+    ]
+  }
+]

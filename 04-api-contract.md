@@ -1029,12 +1029,24 @@ disk identifiers before enqueue.*
 delete request MUST carry one. Absent or false MUST fail `400`. This is per request, and
 is not satisfied by authentication, by idempotency, or by having sent one previously.
 
-**API-15** A create request against an order-billed provider MUST carry an explicit
-purchase acknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract
-owns — in addition to the account being configured to allow ordering (`PRV-10`). *"In its provider
-options" until 2026-09-05, while `WIR-17` placed it at the top level; the wire contract wins, and a
-spending authorization nested inside a driver-private object is one a strict server could not tell
-from any other option.*
+**API-15** A paid create request (`DOM-16`) MUST carry an explicit purchase
+acknowledgement — `WIR-17`'s top-level `acknowledge_purchase`, which the wire contract
+owns — in addition to the account being configured to allow ordering (`PRV-10`). *Until 2026-09-05, `API-15` said “purchase acknowledgement in its provider options, in addition to the account being
+configured to allow ordering (`PRV-10`).” (revision `7116e90b9932211c08f2e712690cc176b56edea6`); at that same revision, `WIR-17` said “`acknowledge_purchase` MUST be literal
+`true` (`API-15`, `PRV-10`).” and placed the acknowledgement at the top level in this create body: “{
+  "provider_account": "hetzner-cloud-1",
+  "offer": "standard:cx32",
+  "region": "fsn1",
+  "hostname": "worker-1",
+  "image": null,
+  "ssh_public_keys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexamplekeyxxxxxxxxxxxxxxxxxxxxxxxx"],
+  "user_data": null,
+  "labels": {"team": "batch"},
+  "runway_seconds": 2592000,
+  "max_commitment_sats": 90000,
+  "acknowledge_purchase": true,
+  "provider_options": {}
+}”. The wire contract wins, and a spending authorization nested inside a driver-private object is one a strict server could not tell from any other option.*
 
 **API-16** A reverse-DNS request MUST be rejected unless the supplied address is present
 in the machine's recorded address list, and the hostname MUST be 1–253 characters with no

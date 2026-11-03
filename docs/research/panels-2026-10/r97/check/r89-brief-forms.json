@@ -1,0 +1,22 @@
+[
+  {
+    "form": "A",
+    "embedded_exact": true,
+    "sha256": "92c69b288a18a707a7fe2ec5264b5e4e7429648b35b8997b894b916a271f365e"
+  },
+  {
+    "form": "B",
+    "embedded_exact": true,
+    "sha256": "a68c9498b5b69113bf8e19ac52d42f66b87a7125b653467b44615d3e091571b7"
+  },
+  {
+    "form": "C",
+    "embedded_exact": true,
+    "sha256": "d9e4fa677ed4482c3dac478fcf8cfd4d1257e7ddce175449080aca8a8826a989"
+  },
+  {
+    "form": "D",
+    "embedded_exact": true,
+    "sha256": "d3a32b5eca3b64533cad169122a6120ed520c2486b9658314999b98874e10a92"
+  }
+]

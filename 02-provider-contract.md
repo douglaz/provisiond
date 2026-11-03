@@ -156,10 +156,16 @@ key; it is distinct from the persisted recovery private key (`RSC-19`).
 
 **Every temporary key resource a driver registers — for a create or for rescue — MUST carry the operation id as its provider-side name or tag**, so the sweep can find one left by a crash or failed cleanup. A provider that rejects duplicate fingerprints blocks the caller's next same-key create on that account while any registration survives, until the sweep deletes it. The refusal precedes acceptance and sends no order. Cloud and Robot document this refusal (`08-provider-notes.md`); Robot reproduced it on 2026-10-12 (`docs/research/panels-2026-10/r45/live-session2.txt`), while Cloud has not been reproduced live. See `DEF-6`.
 
-**PRV-10** For a provider that bills on order, create MUST reject the request unless the
+**PRV-10** For a paid create (`DOM-16`), create MUST reject the request unless the
 request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
-`acknowledge_purchase`), *and* the account
-is configured to allow ordering. Both, not either. The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`): `API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim.
+`acknowledge_purchase`), *and* the account is configured to allow ordering. Both, not either.
+The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`); `DOM-10` says “Every operation with a capability MUST be gated on it before the
+driver is called, **including create**”. At admission, step 5d is the gate: `API-7` says “**gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail”. At claim, step 3 is the gate: `OPS-43` says “Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
+   MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
+   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
+   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
+   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
+   run first, then the checks on fields the `api` wrote at admission, then the capability gate”.
 
 *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 

@@ -1,0 +1,5 @@
+Both field phrasings preserve the rule; readers split over clearer ownership. **Keep both approved field phrases, or make their ownership explicit?** **Keep the approved phrases (Recommended)** (Opus, Astra); **Make field ownership explicit** (Sol).
+Both archive choices preserve meaning; readers split over a local warning. **Add the dated archive note, or change the brief only?** **Add dated archive note (Recommended)** (Opus, Astra); **Change the brief only** (Sol).
+Opus: KEEP/KEEP—each states its own rule and points to the field’s home; NOTE—warn beside the old form, following precedent. Verified false: his claim that every gate reads only root Markdown/ADRs; gates also read Lean, but exclude research archives.
+Astra: KEEP/KEEP—ownership already clear; NOTE—qualify execution beside approval, accepting the changed hash and historical equality result.
+Sol: POINTER/POINTER—explicit ownership is clearer; BRIEF—preserve both archive hashes. All accept both alternatives; Fable limit and Grok 402 are missing. IDs: pv-9ecf, items 4 and 24, /var/tmp/provisiond-panel-r97/r97b/.
