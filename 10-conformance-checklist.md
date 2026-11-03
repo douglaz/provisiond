@@ -137,6 +137,23 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-19** — Create is refused when the provider has not declared the matching
       provision capability — with the driver's internal ordering flag set to permissive,
       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
+      Use one account whose stored listing contains both a virtual offer and a bare_metal offer.
+      With only provision_virtual declared, assert that a create of the bare_metal offer refuses
+      at API-7 step 5d naming provision_bare_metal, and that the virtual offer passes that gate;
+      reverse the declared provisioning capability and assert the converse. When the named offer
+      is absent, assert no guessed ordering-capability refusal: run the normal collected tail,
+      with an unhealthy-account refusal ahead of offer_not_sellable when both apply, no cap or
+      balance check, and no admission provider call. Repeat with no stored listing. For a present
+      named offer, assert a capability refusal before tail collection whatever listing age; with
+      its capability declared, the stored listing older than the stated offer-listing age, and no
+      collected refusal, assert the existing stale-listing refusal.
+      Admit with a fresh named offer, then remove the matching ordering capability before claim:
+      assert the CNF-55 pre-List-offers refusal using the retained machine_kind. Separately omit
+      or corrupt that api-written field and assert OPS-23's incomplete_record result, before any
+      provider request. With valid retained kind and capabilities, return a live offer of the
+      opposite kind at OPS-43 step 4; assert step 5's kind-mismatch refusal, no price comparison or
+      provider mutation, full commitment release and release of any resource-offer exclusion.
+      With the live offer absent, assert the existing absent-offer refusal after the list read.
 - [ ] **CNF-364** — **The claim-time List offers read is gated on `list_offers`.** Admit a
       complete resource-offer (`offer_is_resource`) create on an account that declares
       `list_offers` and the ordering capability, with `allow_orders: true` and the request
@@ -356,7 +373,9 @@ not optional hardening — they are the only structural defence there is.
 - [ ] **CNF-54** — Install without the destructive acknowledgement is rejected; delete
       without it is rejected. (`API-14`)
 - [ ] **CNF-55** — A paid create (`DOM-16`) is rejected without both the
-      per-request purchase acknowledgement and the account-level opt-in. On an account whose
+      per-request purchase acknowledgement and the account-level opt-in. For the ordering-capability refusals below, the stored listing contains the named offer
+      with its explicit kind; run the admission refusal on both a fresh and an old listing.
+      The admitted create's request_summary retains that kind as machine_kind. On an account whose
       `allow_orders` is false, assert `GET /v1/providers` lists it without its ordering
       capability, and that a create carrying `acknowledge_purchase: true` is refused at `API-7`'s
       step 5d: HTTP `501`, `unsupported`, `details.provider_account` and `details.capability`

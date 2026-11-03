@@ -1,0 +1,68 @@
+{
+  "base": "2cb8e1189310ae096e598bac798df3437be59500",
+  "index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9",
+  "index_build_commit": "514b4a4ac92c73798c2a9ab3369970008c952f26",
+  "wrongword": {
+    "Q1": "but",
+    "Q2": "named",
+    "Q3": "offer",
+    "Q4": "retain",
+    "Q5": "retain",
+    "Q6": "is",
+    "Q7": "refuses"
+  },
+  "trials": {
+    "T-SETTLED": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_build": 37,
+      "edits": [
+        "form Q1-ALT",
+        "form Q2-QUOTE",
+        "form Q3-QUOTE",
+        "form Q4-KEEP",
+        "form Q6-QUOTE",
+        "API-7 5d",
+        "API-7 tail opening",
+        "OPS-43 step 3",
+        "OPS-43 step 5",
+        "OPS-23 insert",
+        "05 request_summary",
+        "STO-50",
+        "CNF-55",
+        "CNF-19",
+        "L19",
+        "L317",
+        "L1181",
+        "L1205",
+        "PRV-10 F-QUOTE.txt"
+      ],
+      "diff_sha256": "63fcfd1cef2644c609fc81b2348af1a5a313d6c2060c846c5f1d2570429f40d9"
+    },
+    "N-SETTLED": {
+      "exit": 1,
+      "formal_inputs_equal_to_index_build": 37,
+      "edits": [
+        "form Q1-ALT-WRONGWORD",
+        "form Q2-QUOTE-WRONGWORD",
+        "form Q3-QUOTE-WRONGWORD",
+        "form Q4-KEEP",
+        "form Q6-QUOTE-WRONGWORD",
+        "API-7 5d",
+        "API-7 tail opening",
+        "OPS-43 step 3",
+        "OPS-43 step 5",
+        "OPS-23 insert",
+        "05 request_summary",
+        "STO-50",
+        "CNF-55",
+        "CNF-19",
+        "L19",
+        "L317",
+        "L1181",
+        "L1205",
+        "PRV-10 F-QUOTE.txt"
+      ],
+      "diff_sha256": "d165602df75773f521f046f1f56128fb2f023cd6d7634d597420ebb33d4c67a9"
+    }
+  }
+}

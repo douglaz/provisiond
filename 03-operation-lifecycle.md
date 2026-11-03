@@ -796,13 +796,24 @@ The worker MUST order the following steps as listed:
    request, including a per-order key upload").
 3. Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
    MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
-   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
-   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
-   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
-   run first, then the checks on fields the `api` wrote at admission, then the capability gate.
+   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", and the
+   missing-field checks in `OPS-23`. Validate `request_summary`'s `machine_kind` as `virtual`
+   or `bare_metal`. The `api` writes `machine_kind` at admission; for missing or invalid
+   fields, see `OPS-23`. Check caller-supplied fields first, then api-written admission
+   fields, then gate on `DOM-10`'s matching ordering capability selected by that persisted
+   `machine_kind`, using the descriptor the worker runs with. No current offer read supplies
+   this gate.
 4. Gate on `list_offers` under `DOM-10`, then obtain the current driver List offers result.
-5. Check for the named offer's absence from that result, applying the create-tail verdict quoted
-   above; if present, re-test the named offer for sale on that result and the running descriptor.
+5. Check for the named offer's absence from that result, applying the create-tail verdict
+   quoted above. If present but its kind differs from request_summary's machine_kind,
+   settle failed with invalid_request, details.reason: "offer_not_sellable" and
+   retryable: false on both the error and the operation view, before any provider mutation;
+   do not substitute the current kind or its capability. Otherwise re-test the named offer
+   for sale on that result and the running descriptor. An absent offer or kind mismatch
+   gets no price comparison, per-order key upload or order request; the same existing
+   pre-step-9 settlement releases the commitment and any resource-offer exclusion; `OPS-11`
+   says "The commitment is released in full under `LDG-32`" and "Where the create holds a
+   resource-offer exclusion, it is freed under `STO-58`".
 6. Compare its price using that same List offers result, as below. An unsellable offer gets no
    price comparison.
 7. Run `PRV-47`'s driver validation: "the driver MUST validate every value it forwards to the
@@ -2077,6 +2088,12 @@ The worker's claim-time absence check and sale re-test at `OPS-43`'s step 5, "Ch
 offer's absence from that result", are exceptions to this requirement's "before the driver is
 called": they run on the result of `OPS-43`'s step 4, "Obtain the current driver List offers
 result", after that read.
+
+The offer-kind consistency check at OPS-43 step 5 uses the same exception: it runs on
+step 4's current List offers result, after that read and before any provider mutation;
+`OPS-43` says "If present but its kind differs from request_summary's machine_kind, settle
+failed with invalid_request" and "before any provider mutation", and its step 4 says "obtain
+the current driver List offers result".
 
 For non-create capability-check placement and its order relative to this validation,
 OPS-40 and OPS-41, see DOM-10.

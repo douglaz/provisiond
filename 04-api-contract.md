@@ -238,7 +238,16 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     **`API-64`'s retry is not exempt**: it counts against `SEC-39`'s operator retry ceiling, and
     the operator is a program (`SEC-39`), so a loop retrying a deterministic rejection is exactly
     what the ceiling is for (`ADR-0017`).
-5d. **gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail.
+5d. For create, open the existing LDG-35 admission transaction and read the provider account's
+    stored offer listing in the same read-only snapshot the rich purchase tail will use,
+    regardless of listing age; no stored listing means an empty offers set. If the named
+    offer is present, take its kind and gate on DOM-10's matching ordering capability using
+    the descriptor api runs with. A capability refusal stops here and is not collected by
+    the tail. If the offer is absent, run no ordering-capability check and infer no kind from
+    the provider account, capability set, offer-id spelling or caller input; continue to the
+    ordinary tail's absent-offer verdict. No provider call or admission write is made here.
+    On admission, retain the named offer's kind as machine_kind in the create's
+    request_summary offer snapshot in the same transaction as the operation and commitment.
 
 For the non-create tails, capability-check placement and precedence belong to DOM-10.
 
@@ -261,9 +270,13 @@ The tail then depends on what the endpoint does:
 | **attribute** | operator-only (`WIR-42`); synchronous, `200`; posts ledger entries, so it **takes `LDG-35`'s serialization for both tenants, in ascending tenant-identifier order**, and the primitive must not require a live `tenants` row — the source tenant is normally already reaped |
 | **record billing** (*added 2026-10-04, `pv-gip.39`*) | operator-only (`API-66`, `WIR-53`); synchronous `200`; local row and receipt commit together; no provider mutation, commitment or spending gate |
 
-**Rich purchase tails (create and extend-runway only; amended 2026-10-04, `ADR-0030`).** After steps 1–5d, the tail MUST
-collect every applicable refusal once, from one read-only snapshot inside the existing `LDG-35`
-transaction, without an extra lock, ceiling slot, write or provider call. On create, the offers the check reads are the provider account's stored offer listing (`05-persistence.md`, `offer_listings`), read in that snapshot, and the tail prices the commitment and takes the offer snapshot from it. On create, the tail reads the stored listing regardless of age, or an empty offers set if no listing is stored. If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing. Every offer-derived input used to size the commitment or populate `request_summary` comes from the named offer in that same stored listing, including recurring price, currency, period, setup fee, `install_strategies`, and any offer-reported billing unit or cancellation bound. Descriptor-declared inputs come from the descriptor the `api` runs with. See `PRV-44`, `PRV-13b` and `05-persistence.md`. `details.refusals`
+**Rich purchase tails (create and extend-runway only; amended 2026-10-04, ADR-0030).**
+After steps 1–5d, the tail MUST collect every applicable refusal once, from one read-only
+snapshot inside the existing LDG-35 transaction, without an extra lock, ceiling slot, write
+or provider call. For create this is the same transaction and snapshot opened at step 5d;
+the tail uses the same stored offer listing and named-offer lookup and prices the commitment
+and takes the offer snapshot from them. For extend-runway the transaction and snapshot
+are opened for the tail as before. If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing. Every offer-derived input used to size the commitment or populate `request_summary` comes from the named offer in that same stored listing, including recurring price, currency, period, setup fee, `install_strategies`, and any offer-reported billing unit or cancellation bound. Descriptor-declared inputs come from the descriptor the `api` runs with. See `PRV-44`, `PRV-13b` and `05-persistence.md`. `details.refusals`
 (`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
 against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
 then, on create only, `invalid_request`/`offer_not_sellable` when the named offer is

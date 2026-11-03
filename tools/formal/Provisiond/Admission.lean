@@ -16,7 +16,7 @@ The pipeline (`API-7`, `WIR-34`, `API-55`, `API-56`): principal, tenant state,
 listener and verb decide one outcome and whether the request consumed a ceiling slot.
 The create-only step 5d is modelled in `createPurchaseTail`, outside `admit`, which stops at
 5c; `createAdmission` composes it with collection and the listing-age decision.
-`API-7` says "A refusal stops here and is not collected by the tail." The ceilings
+`API-7` says "A capability refusal stops here and is not collected by the tail." The ceilings
 (`SEC-39`): which budget each verb counts against, and the two properties that make a ceiling a
 control rather than a field. The matrices (`LDG-20`, `LDG-40`, `LDG-59`, `LDG-64`, `LDG-65`): what
 a solvency failure and a rate outage do to each action, over an action space that includes the
@@ -314,9 +314,12 @@ reported bound remains sellable, retaining the rule before Q25. The enabled rule
 "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
 its offer-reported bound is later than the provider's local today."
 
-`orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`): `API-7` says
-"**gate a create on its ordering capability**". Off, a create without that declaration reaches
-the purchase tail.
+`orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`; step 5d reworded 2026-10-30,
+`pv-e45e`): step 5d gates a create on the ordering capability selected by the named offer's kind
+in the stored listing, and takes no gate for an offer absent from it; `API-7` says "If the named
+offer is present, take its kind and gate on DOM-10's matching ordering capability" and "If the
+offer is absent, run no ordering-capability check". Off, a create without that declaration
+reaches the purchase tail.
 
 `listingAgeGuard` (`API-7`, 2026-10-26, `pv-tcs`): `API-7` says
 "If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing."
@@ -1178,8 +1181,10 @@ structure CreateTailResult where
   deriving DecidableEq, Repr
 
 /-- Step 5d composed before the create's tail (`API-7`, `DOM-10`). The supplied Boolean answers
-whether the account declares the create's ordering capability. Machine-kind selection and
-descriptor construction are outside this model. Only creates enter this function; the shared
+whether the account declares the ordering capability selected by the named offer's kind in the
+stored listing; for an offer absent from that listing step 5d takes no gate and the Boolean is
+supplied `true` (`API-7` says "If the offer is absent, run no ordering-capability check").
+Offer-kind selection and descriptor construction are outside this model. Only creates enter this function; the shared
 steps 1–5c and extend-runway's tail are separate. -/
 @[req "API-7"]
 def createPurchaseTail (g : Guards) (orderingDeclared : Bool) (account : AccountStatus.Status)
@@ -1202,8 +1207,8 @@ theorem undeclared_ordering_stops_before_tail (g : Guards)
 
 /-! ## Composed create admission
 
-`API-7`: "On create, the tail reads the stored listing regardless of age, or an empty offers set
-if no listing is stored." The supplied sale verdict includes the named offer's absence, including
+`API-7`'s step 5d reads the stored listing "regardless of listing age; no stored listing means an
+empty offers set". The supplied sale verdict includes the named offer's absence, including
 an empty offers set. There is no separate no-row refusal or presence policy here. -/
 
 /-- Age and limit are coherent durations in the same units from the admitting snapshot.

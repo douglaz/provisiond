@@ -1,0 +1,1 @@
+Exactly as R-RUN, and in addition the Run appends exactly R-NOTE-append.md to docs/research/panels-2026-10/r86/r86b/Q2-A-cited.md, all original bytes remaining an exact prefix. Comment 857 is not edited. No branch or tracker edit occurs in this panel turn.

@@ -160,12 +160,24 @@ key; it is distinct from the persisted recovery private key (`RSC-19`).
 request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
 `acknowledge_purchase`), *and* the account is configured to allow ordering. Both, not either.
 The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`); `DOM-10` says “Every operation with a capability MUST be gated on it before the
-driver is called, **including create**”. At admission, step 5d is the gate: `API-7` says “**gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail”. At claim, step 3 is the gate: `OPS-43` says “Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
+driver is called, **including create**”. At admission, step 5d is the gate: `API-7` says “For create, open the existing LDG-35 admission transaction and read the provider account's
+    stored offer listing in the same read-only snapshot the rich purchase tail will use,
+    regardless of listing age; no stored listing means an empty offers set. If the named
+    offer is present, take its kind and gate on DOM-10's matching ordering capability using
+    the descriptor api runs with. A capability refusal stops here and is not collected by
+    the tail. If the offer is absent, run no ordering-capability check and infer no kind from
+    the provider account, capability set, offer-id spelling or caller input; continue to the
+    ordinary tail's absent-offer verdict. No provider call or admission write is made here.
+    On admission, retain the named offer's kind as machine_kind in the create's
+    request_summary offer snapshot in the same transaction as the operation and commitment”. At claim, step 3 is the gate: `OPS-43` says “Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
    MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
-   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
-   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
-   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
-   run first, then the checks on fields the `api` wrote at admission, then the capability gate”.
+   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", and the
+   missing-field checks in `OPS-23`. Validate `request_summary`'s `machine_kind` as `virtual`
+   or `bare_metal`. The `api` writes `machine_kind` at admission; for missing or invalid
+   fields, see `OPS-23`. Check caller-supplied fields first, then api-written admission
+   fields, then gate on `DOM-10`'s matching ordering capability selected by that persisted
+   `machine_kind`, using the descriptor the worker runs with. No current offer read supplies
+   this gate”.
 
 *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
 

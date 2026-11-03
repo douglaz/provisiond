@@ -1,0 +1,226 @@
+diff --git a/02-provider-contract.md b/02-provider-contract.md
+index a3895de..2326900 100644
+--- a/02-provider-contract.md
++++ b/02-provider-contract.md
+@@ -160,12 +160,24 @@ key; it is distinct from the persisted recovery private key (`RSC-19`).
+ request carries an explicit purchase acknowledgement (`WIR-17`'s top-level
+ `acknowledge_purchase`), *and* the account is configured to allow ordering. Both, not either.
+ The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`); `DOM-10` says “Every operation with a capability MUST be gated on it before the
+-driver is called, **including create**”. At admission, step 5d is the gate: `API-7` says “**gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail”. At claim, step 3 is the gate: `OPS-43` says “Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
++driver is called, **including create**”. At admission, step 5d is the gate: `API-7` says “For create, open the existing LDG-35 admission transaction and read the provider account's
++    stored offer listing in the same read-only snapshot the rich purchase tail will use,
++    regardless of listing age; no stored listing means an empty offers set. If the named
++    offer is present, take its kind and gate on DOM-10's matching ordering capability using
++    the descriptor api runs with. A capability refusal stops here and is not collected by
++    the tail. If the offer is absent, run no ordering-capability check and infer no kind from
++    the provider account, capability set, offer-id spelling or caller input; continue to the
++    ordinary tail's absent-offer verdict. No provider call or admission write is made here.
++    On admission, retain the named offer's kind as machine_kind in the create's
++    request_summary offer snapshot in the same transaction as the operation and commitment”. At claim, step 3 is the gate: `OPS-43` says “Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
+    MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
+-   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
+-   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
+-   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
+-   run first, then the checks on fields the `api` wrote at admission, then the capability gate”.
++   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", and the
++   missing-field checks in `OPS-23`. Validate `request_summary`'s `machine_kind` as `virtual`
++   or `bare_metal`. The `api` writes `machine_kind` at admission; for missing or invalid
++   fields, see `OPS-23`. Check caller-supplied fields first, then api-written admission
++   fields, then gate on `DOM-10`'s matching ordering capability selected by that persisted
++   `machine_kind`, using the descriptor the worker runs with. No current offer read supplies
++   this gate”.
+ 
+ *Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+ 
+diff --git a/03-operation-lifecycle.md b/03-operation-lifecycle.md
+index 48184a7..7f5840d 100644
+--- a/03-operation-lifecycle.md
++++ b/03-operation-lifecycle.md
+@@ -796,13 +796,22 @@ The worker MUST order the following steps as listed:
+    request, including a per-order key upload").
+ 3. Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
+    MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
+-   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
+-   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
+-   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
+-   run first, then the checks on fields the `api` wrote at admission, then the capability gate.
++   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", and the
++   missing-field checks in `OPS-23`. Validate `request_summary`'s `machine_kind` as `virtual`
++   or `bare_metal`. The `api` writes `machine_kind` at admission; for missing or invalid
++   fields, see `OPS-23`. Check caller-supplied fields first, then api-written admission
++   fields, then gate on `DOM-10`'s matching ordering capability selected by that persisted
++   `machine_kind`, using the descriptor the worker runs with. No current offer read supplies
++   this gate.
+ 4. Gate on `list_offers` under `DOM-10`, then obtain the current driver List offers result.
+-5. Check for the named offer's absence from that result, applying the create-tail verdict quoted
+-   above; if present, re-test the named offer for sale on that result and the running descriptor.
++5. Check for the named offer's absence from that result, applying the create-tail verdict
++   quoted above. If present but its kind differs from request_summary's machine_kind,
++   settle failed with invalid_request, details.reason: "offer_not_sellable" and
++   retryable: false on both the error and the operation view, before any provider mutation;
++   do not substitute the current kind or its capability. Otherwise re-test the named offer
++   for sale on that result and the running descriptor. An absent offer or kind mismatch
++   gets no price comparison, per-order key upload or order request; the same existing
++   pre-step-9 settlement releases the commitment and any resource-offer exclusion.
+ 6. Compare its price using that same List offers result, as below. An unsellable offer gets no
+    price comparison.
+ 7. Run `PRV-47`'s driver validation: "the driver MUST validate every value it forwards to the
+@@ -2078,6 +2087,9 @@ offer's absence from that result", are exceptions to this requirement's "before
+ called": they run on the result of `OPS-43`'s step 4, "Obtain the current driver List offers
+ result", after that read.
+ 
++The offer-kind consistency check at OPS-43 step 5 uses the same exception: it runs on
++step 4's current List offers result, after that read and before any provider mutation.
++
+ For non-create capability-check placement and its order relative to this validation,
+ OPS-40 and OPS-41, see DOM-10.
+ 
+diff --git a/04-api-contract.md b/04-api-contract.md
+index 9ed6d16..5541d8e 100644
+--- a/04-api-contract.md
++++ b/04-api-contract.md
+@@ -238,7 +238,16 @@ the five classes.** Steps 1–5 are common to every authenticated write:
+     **`API-64`'s retry is not exempt**: it counts against `SEC-39`'s operator retry ceiling, and
+     the operator is a program (`SEC-39`), so a loop retrying a deterministic rejection is exactly
+     what the ceiling is for (`ADR-0017`).
+-5d. **gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail.
++5d. For create, open the existing LDG-35 admission transaction and read the provider account's
++    stored offer listing in the same read-only snapshot the rich purchase tail will use,
++    regardless of listing age; no stored listing means an empty offers set. If the named
++    offer is present, take its kind and gate on DOM-10's matching ordering capability using
++    the descriptor api runs with. A capability refusal stops here and is not collected by
++    the tail. If the offer is absent, run no ordering-capability check and infer no kind from
++    the provider account, capability set, offer-id spelling or caller input; continue to the
++    ordinary tail's absent-offer verdict. No provider call or admission write is made here.
++    On admission, retain the named offer's kind as machine_kind in the create's
++    request_summary offer snapshot in the same transaction as the operation and commitment.
+ 
+ For the non-create tails, capability-check placement and precedence belong to DOM-10.
+ 
+@@ -261,9 +270,13 @@ The tail then depends on what the endpoint does:
+ | **attribute** | operator-only (`WIR-42`); synchronous, `200`; posts ledger entries, so it **takes `LDG-35`'s serialization for both tenants, in ascending tenant-identifier order**, and the primitive must not require a live `tenants` row — the source tenant is normally already reaped |
+ | **record billing** (*added 2026-10-04, `pv-gip.39`*) | operator-only (`API-66`, `WIR-53`); synchronous `200`; local row and receipt commit together; no provider mutation, commitment or spending gate |
+ 
+-**Rich purchase tails (create and extend-runway only; amended 2026-10-04, `ADR-0030`).** After steps 1–5d, the tail MUST
+-collect every applicable refusal once, from one read-only snapshot inside the existing `LDG-35`
+-transaction, without an extra lock, ceiling slot, write or provider call. On create, the offers the check reads are the provider account's stored offer listing (`05-persistence.md`, `offer_listings`), read in that snapshot, and the tail prices the commitment and takes the offer snapshot from it. On create, the tail reads the stored listing regardless of age, or an empty offers set if no listing is stored. If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing. Every offer-derived input used to size the commitment or populate `request_summary` comes from the named offer in that same stored listing, including recurring price, currency, period, setup fee, `install_strategies`, and any offer-reported billing unit or cancellation bound. Descriptor-declared inputs come from the descriptor the `api` runs with. See `PRV-44`, `PRV-13b` and `05-persistence.md`. `details.refusals`
++**Rich purchase tails (create and extend-runway only; amended 2026-10-04, ADR-0030).**
++After steps 1–5d, the tail MUST collect every applicable refusal once, from one read-only
++snapshot inside the existing LDG-35 transaction, without an extra lock, ceiling slot, write
++or provider call. For create this is the same transaction and snapshot opened at step 5d;
++the tail uses the same stored offer listing and named-offer lookup and prices the commitment
++and takes the offer snapshot from them. For extend-runway the transaction and snapshot
++are opened for the tail as before. If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing. Every offer-derived input used to size the commitment or populate `request_summary` comes from the named offer in that same stored listing, including recurring price, currency, period, setup fee, `install_strategies`, and any offer-reported billing unit or cancellation bound. Descriptor-declared inputs come from the descriptor the `api` runs with. See `PRV-44`, `PRV-13b` and `05-persistence.md`. `details.refusals`
+ (`WIR-9a`) MUST be ordered: the request's own resource refusal (`conflict`/`state` for create
+ against a provider account not `healthy`, or `conflict`/`cancellation_committed` for extension);
+ then, on create only, `invalid_request`/`offer_not_sellable` when the named offer is
+diff --git a/05-persistence.md b/05-persistence.md
+index 1d8a79f..4ddbdee 100644
+--- a/05-persistence.md
++++ b/05-persistence.md
+@@ -520,7 +520,7 @@ from every inventory query that filters out deleted rows. *Amended 2026-10-11 (`
+ | `correlator_kind`, `correlator_value` | text, text | nullable; what the create wrote into the provider (`PRV-26`) — `operation_uuid` where a free field exists, `ssh_key_fingerprint` on Robot (`PRV-32`). **A single value, not a list** (`ADR-0014`): a create has one attempt and one correlator. Written in `API-63`'s correlator transaction, which is `OPS-43`'s step 8, after its step-4 List offers read and before the order (`PRV-26`: "before the order is sent"; `API-63`: "the last write before the ordering call"), and null for every operation kind other than create. The `provider_account` write retains `OPS-35`'s "before any driver call". *Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): aligned correlator timing with the correlator transaction, after List offers and before the order.* *`F36` and `ADR-0014` record what the withdrawn per-attempt list cost* |
+ | `about_to_order_at` | timestamp | nullable; create only, null on every other kind. Written once in `OPS-43`'s step 8, `API-63`'s correlator transaction, on every ordering channel including `correlator: none`; the only other writer is `STO-13`'s one-time migration backfill. **Never cleared; survives the request-data purge** on entry to a settled state or `needs_reconciliation`. It is a column outside `request`, not a correlator or one of `OPS-45`'s markers; nothing copies it to a machine or renders it on the wire. `OPS-43`: "MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`". *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): added the all-channel column; `ADR-0042`.* |
+ | `request` | json | caller payload — **live operations only**, purged on entry to any settled state **and to `needs_reconciliation`** (`ADR-0005`, `OPS-3`) |
+-| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**, and — *added 2026-10-16, `pv-tsb`* — the **declared cancellation bound**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted — the create's record of the unit's duration, from which `machines.billing_unit_seconds` takes the copy the machine's first seed reads, at create or at attach (`LDG-67`, `LDG-39`, `LDG-38`; `ADR-0033`, 2026-10-08). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. The declared cancellation bound MUST be resolved to a provider-local date at API acceptance, in the create's admitting transaction, taking the later of the descriptor's `cancellation_bound` and the offer-reported bound where both exist: `PRV-31`'s sale refusal tests "if either its descriptor-declared bound or its offer-reported bound is later than the provider's local today". The snapshot uses `PRV-13`'s representation: "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone". *Amended 2026-10-16 (`ADR-0037`, `pv-tsb`).* *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
++| `request_summary` | json | what survives the purge: what was attempted, plus provider-side identifiers, plus, for a create, **one record and not a list** (`ADR-0014`): the correlator, the **offer snapshot** (`offer_id`, `machine_kind` (`virtual` or `bare_metal`, copied from the named offer at admission under API-7), the offer's `install_strategies` as accepted, and — *added 2026-09-05, because `OPS-43`'s claim-time price check reads them and a worker restarted before claim had nothing to compare* — the accepted **recurring price, its currency and its period**, and — *added 2026-10-16, `pv-tsb`* — the **declared cancellation bound**) and the **at-cost setup fee** and, beside it since 2026-10-08, the **prepaid first billing unit** (`ADR-0033`) — each as native minor units, currency, and the satoshi amount authorized at the create, and the unit also with its `billing_unit.seconds` as the offer declared it when the create was accepted — the create's record of the unit's duration, from which `machines.billing_unit_seconds` takes the copy the machine's first seed reads, at create or at attach (`LDG-67`, `LDG-39`, `LDG-38`; `ADR-0033`, 2026-10-08). Resolution reads that snapshot as the copy the attached machine takes (`OPS-13`) and those two amounts as what `LDG-39` settles — each debited against a still-open commitment, or absorbed as an operator deficiency of its own where `OPS-33` has released it. The declared cancellation bound MUST be resolved to a provider-local date at API acceptance, in the create's admitting transaction, taking the later of the descriptor's `cancellation_bound` and the offer-reported bound where both exist: `PRV-31`'s sale refusal tests "if either its descriptor-declared bound or its offer-reported bound is later than the provider's local today". The snapshot uses `PRV-13`'s representation: "a day-only value MUST be stored as the UTC instant at the start of that day in the provider's date zone". *Amended 2026-10-16 (`ADR-0037`, `pv-tsb`).* *`F36` and `ADR-0014` record why this is one record rather than a per-attempt list* |
+ | `correlation_id` | text | not null; present in the record and in every log line for this request (`API-28`) |
+ | `result` | json | nullable, redacted |
+ | `error` | json | nullable, redacted |
+@@ -570,6 +570,7 @@ purge exists. The contents are:
+   `request_summary` row above, and since 2026-10-08 the prepaid first unit beside the fee
+   (`ADR-0033`). The offer snapshot also includes the declared cancellation bound, as specified
+   on the `request_summary` row. *Amended 2026-10-16 (`ADR-0037`, `pv-tsb`).*
++  The enumerated offer snapshot includes machine_kind as defined on the request_summary row.
+ - **For the kinds `OPS-45` governs** (*it names six; this said "five" until 2026-09-16*) — the two markers, `write_started_at` and `rescue_exited_cleanly`,
+   copied from their columns as that row already requires.
+ 
+diff --git a/10-conformance-checklist.md b/10-conformance-checklist.md
+index 11098e4..e0367f2 100644
+--- a/10-conformance-checklist.md
++++ b/10-conformance-checklist.md
+@@ -137,6 +137,23 @@ not optional hardening — they are the only structural defence there is.
+ - [ ] **CNF-19** — Create is refused when the provider has not declared the matching
+       provision capability — with the driver's internal ordering flag set to permissive,
+       so the test proves the outer gate exists. (`DOM-10`, `DEF-10`)
++      Use one account whose stored listing contains both a virtual offer and a bare_metal offer.
++      With only provision_virtual declared, assert that a create of the bare_metal offer refuses
++      at API-7 step 5d naming provision_bare_metal, and that the virtual offer passes that gate;
++      reverse the declared provisioning capability and assert the converse. When the named offer
++      is absent, assert no guessed ordering-capability refusal: run the normal collected tail,
++      with an unhealthy-account refusal ahead of offer_not_sellable when both apply, no cap or
++      balance check, and no admission provider call. Repeat with no stored listing. For a present
++      named offer, assert a capability refusal before tail collection whatever listing age; with
++      its capability declared, the stored listing older than the stated offer-listing age, and no
++      collected refusal, assert the existing stale-listing refusal.
++      Admit with a fresh named offer, then remove the matching ordering capability before claim:
++      assert the CNF-55 pre-List-offers refusal using the retained machine_kind. Separately omit
++      or corrupt that api-written field and assert OPS-23's incomplete_record result, before any
++      provider request. With valid retained kind and capabilities, return a live offer of the
++      opposite kind at OPS-43 step 4; assert step 5's kind-mismatch refusal, no price comparison or
++      provider mutation, full commitment release and release of any resource-offer exclusion.
++      With the live offer absent, assert the existing absent-offer refusal after the list read.
+ - [ ] **CNF-364** — **The claim-time List offers read is gated on `list_offers`.** Admit a
+       complete resource-offer (`offer_is_resource`) create on an account that declares
+       `list_offers` and the ordering capability, with `allow_orders: true` and the request
+@@ -356,7 +373,9 @@ not optional hardening — they are the only structural defence there is.
+ - [ ] **CNF-54** — Install without the destructive acknowledgement is rejected; delete
+       without it is rejected. (`API-14`)
+ - [ ] **CNF-55** — A paid create (`DOM-16`) is rejected without both the
+-      per-request purchase acknowledgement and the account-level opt-in. On an account whose
++      per-request purchase acknowledgement and the account-level opt-in. For the ordering-capability refusals below, the stored listing contains the named offer
++      with its explicit kind; run the admission refusal on both a fresh and an old listing.
++      The admitted create's request_summary retains that kind as machine_kind. On an account whose
+       `allow_orders` is false, assert `GET /v1/providers` lists it without its ordering
+       capability, and that a create carrying `acknowledge_purchase: true` is refused at `API-7`'s
+       step 5d: HTTP `501`, `unsupported`, `details.provider_account` and `details.capability`
+diff --git a/tools/formal/Provisiond/Admission.lean b/tools/formal/Provisiond/Admission.lean
+index ac0fdf0..39f9089 100644
+--- a/tools/formal/Provisiond/Admission.lean
++++ b/tools/formal/Provisiond/Admission.lean
+@@ -16,7 +16,7 @@ The pipeline (`API-7`, `WIR-34`, `API-55`, `API-56`): principal, tenant state,
+ listener and verb decide one outcome and whether the request consumed a ceiling slot.
+ The create-only step 5d is modelled in `createPurchaseTail`, outside `admit`, which stops at
+ 5c; `createAdmission` composes it with collection and the listing-age decision.
+-`API-7` says "A refusal stops here and is not collected by the tail." The ceilings
++`API-7` says "A capability refusal stops here and is not collected by the tail." The ceilings
+ (`SEC-39`): which budget each verb counts against, and the two properties that make a ceiling a
+ control rather than a field. The matrices (`LDG-20`, `LDG-40`, `LDG-59`, `LDG-64`, `LDG-65`): what
+ a solvency failure and a rate outage do to each action, over an action space that includes the
+@@ -314,9 +314,10 @@ reported bound remains sellable, retaining the rule before Q25. The enabled rule
+ "In v1, an offer MUST NOT be sold on prepaid terms if either its descriptor-declared bound or
+ its offer-reported bound is later than the provider's local today."
+ 
+-`orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`): `API-7` says
+-"**gate a create on its ordering capability**". Off, a create without that declaration reaches
+-the purchase tail.
++`orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`; step 5d reworded 2026-10-30,
++`pv-e45e`): step 5d gates a create on the ordering capability selected by the named offer's kind
++in the stored listing, and takes no gate for an offer absent from it. Off, a create without that
++declaration reaches the purchase tail.
+ 
+ `listingAgeGuard` (`API-7`, 2026-10-26, `pv-tcs`): `API-7` says
+ "If the tail has collected no refusal and the stored listing has a `read_at` older than the stated offer-listing age (`OVR-19`) at the admitting transaction, the create MUST be refused `provider` (`01-domain-model.md`'s error taxonomy) with `retryable: true` before any admission write, committing nothing."
+@@ -1178,8 +1179,9 @@ structure CreateTailResult where
+   deriving DecidableEq, Repr
+ 
+ /-- Step 5d composed before the create's tail (`API-7`, `DOM-10`). The supplied Boolean answers
+-whether the account declares the create's ordering capability. Machine-kind selection and
+-descriptor construction are outside this model. Only creates enter this function; the shared
++whether the account declares the ordering capability selected by the named offer's kind in the
++stored listing; for an offer absent from that listing step 5d takes no gate and the Boolean is
++supplied `true`. Offer-kind selection and descriptor construction are outside this model. Only creates enter this function; the shared
+ steps 1–5c and extend-runway's tail are separate. -/
+ @[req "API-7"]
+ def createPurchaseTail (g : Guards) (orderingDeclared : Bool) (account : AccountStatus.Status)
+@@ -1202,8 +1204,8 @@ theorem undeclared_ordering_stops_before_tail (g : Guards)
+ 
+ /-! ## Composed create admission
+ 
+-`API-7`: "On create, the tail reads the stored listing regardless of age, or an empty offers set
+-if no listing is stored." The supplied sale verdict includes the named offer's absence, including
++`API-7`'s step 5d reads the stored listing "regardless of listing age; no stored listing means an
++empty offers set". The supplied sale verdict includes the named offer's absence, including
+ an empty offers set. There is no separate no-row refusal or presence policy here. -/
+ 
+ /-- Age and limit are coherent durations in the same units from the admitting snapshot.

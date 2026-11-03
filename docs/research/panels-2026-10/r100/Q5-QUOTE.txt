@@ -1,0 +1,6 @@
+   or `bare_metal`. The `api` writes `machine_kind` at admission (`API-7` says "On admission,
+   retain the named offer's kind as machine_kind in the create's request_summary offer
+   snapshot"); for missing or invalid fields, see `OPS-23`. Check caller-supplied fields
+   first, then api-written admission fields, then gate on `DOM-10`'s matching ordering
+   capability selected by that persisted `machine_kind`, using the descriptor the worker runs
+   with. No current offer read supplies this gate.

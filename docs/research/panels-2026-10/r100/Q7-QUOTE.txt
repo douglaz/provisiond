@@ -1,0 +1,2 @@
+assert the CNF-55 pre-List-offers refusal using the retained machine_kind (`CNF-55` says
+"the worker refuses it at `OPS-43`'s step 3").

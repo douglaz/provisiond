@@ -1,0 +1,1 @@
+ASIS: no byte changes. The Run writes Q2-A-cited.md:69-70 (comment 857:95-96) exactly as adopted, including its line break, into the one-line 05-persistence.md:523 table row.
