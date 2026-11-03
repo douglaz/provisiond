@@ -1,0 +1,22 @@
+diff --git a/01-domain-model.md b/01-domain-model.md
+index 76a761a..c5b5c5f 100644
+--- a/01-domain-model.md
++++ b/01-domain-model.md
+@@ -562,7 +562,7 @@ refusal is classified by OPS-11 and carries DOM-10's existing unsupported result
+ paragraph introduces no commitment, rate or solvency check for a non-purchase.
+ 
+ For an exposure-reducing cancellation, OPS-41's restore claim gate and ordered fence-
+-transaction decision run before this capability check. A no-call success or defer returned
++transaction decision run before this capability check. `OPS-41` says "the worker MUST make no provider call, settle the operation `succeeded`", "the claim MUST defer" and "The short deferrals in steps 3 and 4 are not settlements"; a no-call success or defer returned
+ by that decision takes no capability check. A decision that proceeds to cancellation MUST
+ pass the capability check after the fence transaction is acknowledged and before any
+ driver call or write-started marker. Capability failure follows the existing failed-attempt
+@@ -572,7 +572,7 @@ retry ceiling and OPS-39's system-ceiling exemption retain their existing scope.
+ 
+ The capability is the operation's entry in the mapping table. A rescue-based install checks
+ its strategy capability first and rescue_ssh second, before beginning rescue; an inventory
+-checks rescue_ssh. PRV-25's identical-PTR success remains after its capability check. No
++checks rescue_ssh. `PRV-25` says "After the ordinary authorization, capability and `API-16` validation" and "An identical established value MUST settle `succeeded`"; that identical-PTR success remains after its capability check. No
+ capability is inferred from an install-eligibility list, and this timing rule adds no gate
+ to refresh, a manual attachment release, or the capability-less methods named by PRV-4.
+ 

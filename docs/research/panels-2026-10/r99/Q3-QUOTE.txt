@@ -1,0 +1,2 @@
+A capability
+refusal is classified by OPS-11 and carries DOM-10's existing unsupported result; `OPS-11` says "the system MUST classify the error into `failed` or `needs_reconciliation`".

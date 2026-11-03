@@ -1,0 +1,49 @@
+{
+  "panel": "r99b",
+  "round": "one consensus round on r99 Q2, Q4 and Q-REC (notes rule 4); no r99c",
+  "status": "FROZEN",
+  "pin": "efb40cc55ff04be693473914afd42ef68008fa15",
+  "brief.md": "1188d2241f798ee085b6ba4eb7bb0b8a32240de53d6f01a6b0d232ab93cb3002",
+  "notes.md": "30c6f52d7c56be481a2f2f530551bcb470006f4b12cdb7162d23acf659d33e64",
+  "prompts": {
+    "fable": "7ccceb42d669cb36812264eff72cdf87a1da89ae60b9789a78e013a35eee0ff7",
+    "opus": "875873e21875b63c6de2fc880bc6c59ff38a2c3009648e1aaa55717c0d87123b",
+    "astra": "8e70dcbac50dc7c29ab0c715f03e9f1578d6670dd98ae133058d8312a51e85fe",
+    "sol": "97b94fb7797383842fb3667853a73c714bfe19ba6a126c3d0b81bf08434dda7d"
+  },
+  "forms": {
+    "Q4-ALT.txt": "c12991b321e6e9abc74e67dfebba3f16554ee8048ff09a0ca0895933614fa318",
+    "R-NOTE-ALT-append.md": "445f69c220bfcdefd455fb6447c2c5e93b76d16274a9c051e21b0423358b02ea",
+    "R-NOTE-ALT.txt": "23c4c1f832289f9eb76dc09a8ecad61a8c8c1b3908d5a4d3f6cc94ff202ba720"
+  },
+  "r99_inputs": {
+    "brief.md": "424f9626b5080078c4a68aaa801b7d69a13739cac3c0b2a0576ecfa23c74d98f",
+    "notes.md": "14c98e411963fb6d60f4bb0d96fd6a9d70508b2abf353041c2ac6385a4b2b736",
+    "tally.md": "1abd09c7891c25eed186748f261eeed9183da17772b0dcf9e9cfc82f7cd45e37",
+    "fable.md": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2",
+    "opus.md": "7d7d3214a0d48995124e4b45e480afdcfc6fe87ca10babad31cc715905b90580",
+    "astra.md": "d54305769176f6a27c2106285b28d5a9ba1631cf3935238347c3154d435c4216",
+    "sol.md": "5eab9d5cd64f0248f51664b32605059518d4cbe8a5b7b41d86fb317d2036f386"
+  },
+  "check": {
+    "build.py": "93b1d77c49f3c5452203f3e43d65c89457e4fe31e10266551195568d7be706a9",
+    "labels.json": "562e766ee65fdcb5e26cf0db4e99405458afc69ebfa101d8234a5d8154c56577",
+    "trial-alt.py": "42125002655f033d075fa0a03cc699601c6fcb365d9a0439d5aec85e6176b4ba",
+    "trial-alt.json": "bbf639cbae196d3535285b71a5ebdb03ed6c00caf7174fa96d00d149ceb63363"
+  },
+  "quota": {
+    "time": "2026-11-03T05:27:00Z",
+    "claude_all_models_week": "75%",
+    "claude_fable_week": "100% (recorded only; Fable never blocks)",
+    "claude_session_line": "absent (not over)",
+    "codex_active_proton_week": "54%"
+  },
+  "grok": "missing seat: preflight 402 \"Grok Build usage balance exhausted\" (r99b/check/grok-preflight.*)",
+  "units": [
+    "panel-r99b-fable",
+    "panel-r99b-opus",
+    "panel-r99b-astra",
+    "panel-r99b-sol"
+  ],
+  "launched": "2026-11-03T05:40Z, launch.exit 0; fable exit 1 with the limit line (missing seat)"
+}

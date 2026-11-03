@@ -1,0 +1,13 @@
+diff --git a/01-domain-model.md b/01-domain-model.md
+index 76a761a..c0bb6e9 100644
+--- a/01-domain-model.md
++++ b/01-domain-model.md
+@@ -558,7 +558,7 @@ driver call and before either OPS-45 marker is written. Repeated validation chec
+ supplied fields first, api-written admission fields second, then the other applicable
+ local validation, including machine install eligibility and OPS-40's signed-URL check;
+ the capability check follows. The first failing check stops subsequent checks. A capability
+-refusal is classified by OPS-11 and carries DOM-10's existing unsupported result. This
++refusal is classified by OPS-11 and carries DOM-10's existing unsupported result; `OPS-11` says "the system MUST classify the error into `failed` or `needs_reconciliation`". This
+ paragraph introduces no commitment, rate or solvency check for a non-purchase.
+ 
+ For an exposure-reducing cancellation, OPS-41's restore claim gate and ordered fence-

@@ -1,0 +1,1 @@
+KEEP: no byte changes. 01-domain-model.md:575 stays exactly as landed at efb40cc55ff04be693473914afd42ef68008fa15. Main answers review thread PRRT_kwDOT30eC86y-3YB (codex P1 4450997798) with the panel's evidence and resolves it.

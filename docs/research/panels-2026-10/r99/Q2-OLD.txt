@@ -1,0 +1,2 @@
+An API-64 operator retry checks delete_machine before its state-change/enqueue
+transaction;

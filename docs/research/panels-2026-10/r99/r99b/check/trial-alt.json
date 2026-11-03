@@ -1,0 +1,37 @@
+{
+  "pin": "efb40cc55ff04be693473914afd42ef68008fa15",
+  "index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9",
+  "trials": {
+    "A-Q4ALT": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "69968375a1c110f178df5b63080bbe39afa1c67998d256d11db182f475b8d6eb",
+      "summary": [
+        "Markdown quoted attributions: 365 compared; 6, none new against baseline 6",
+        "Lean docstring quotes: 1050; 144 compared under QUOTED; EXISTS finds 0 absent, none new against baseline 0",
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "A-ALL": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "d37a7f7717e26e7f6c1394faf3a7b34dba090251ee732ea9bd5b4468608e17f8",
+      "summary": [
+        "Markdown quoted attributions: 366 compared; 6, none new against baseline 6",
+        "Lean docstring quotes: 1050; 144 compared under QUOTED; EXISTS finds 0 absent, none new against baseline 0",
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "N-Q4ALT": {
+      "exit": 1,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "717cbba19c6e545aa93520f44ad8a75b6d4152a1266db950d715c0f66bc8e967",
+      "summary": [
+        "01-domain-model.md attributes to OPS-41 a phrase OPS-41 does not contain:",
+        "FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting.",
+        "unquoted attributions: 22, none new against baseline 22"
+      ],
+      "expected_owner_named": true
+    }
+  }
+}

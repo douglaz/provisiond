@@ -1,0 +1,126 @@
+{
+  "pin": "efb40cc55ff04be693473914afd42ef68008fa15",
+  "index_sha256": "7d378b871bcc783cc91b0aa5d29a6ffd10d3a5c1a588fbb7283bf04a7989fcd9",
+  "index_source": "/var/tmp/rloop-units/provisiond-spec-pv-5pmu-1103T0348/citation-trial/tools/formal/.lake/index.jsonl",
+  "trials": {
+    "T0": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "T1": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "4931197889618083fcc6f43e98e508d6b53316532e648cff0a623a9b1b210ade",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "T2": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "dc8a666cae19b665d78a214ee8778778e7bb4f24f86a28d4ea97741ff7ec5c4c",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "T-Q1": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "12452c93f34abc2a50c77dac56f03adb8ff2fabc34cb8fb788bd17bff19a8b4d",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "T-Q2": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "9a7eb737f2505177a789e6a86445afe0ba6edb1939dcea2e8f12c91c341b2721",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "T-Q3": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "bd6d72a1e6dd1f43d46c8b513be4260d54f1f6105a6d007dba5179654d75f391",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "T-Q4": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "28dafbc86a21f6d54d6a9fed377412d0e99329b902f2fe5970271a5606a311b7",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "T-Q5": {
+      "exit": 0,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "95c0164795c5b0794c05cdffebf50f03f88db9d3c95cc2ebc87231d06167b2bd",
+      "summary": [
+        "unquoted attributions: 22, none new against baseline 22"
+      ]
+    },
+    "N-Q1": {
+      "exit": 1,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "cc3de3f586ab81c33659c5e37cd0102b706b6f4eb0ec8feac7bcc5dab00c0ca6",
+      "summary": [
+        "01-domain-model.md attributes to PRV-25 a phrase PRV-25 does not contain:",
+        "FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting.",
+        "unquoted attributions: 22, none new against baseline 22"
+      ],
+      "expected_owner_named": true
+    },
+    "N-Q2": {
+      "exit": 1,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "a200386738b56c33bce900be24bf49aa8ede1a4445ba01de55c0bfb28f43ab9f",
+      "summary": [
+        "01-domain-model.md attributes to API-64 a phrase API-64 does not contain:",
+        "FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting.",
+        "unquoted attributions: 22, none new against baseline 22"
+      ],
+      "expected_owner_named": true
+    },
+    "N-Q3": {
+      "exit": 1,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "6c460b5b01d84a4d4ae146e251f0ca5b130d8aaaa35f0144d7ca9f8a8da7d728",
+      "summary": [
+        "01-domain-model.md attributes to OPS-11 a phrase OPS-11 does not contain:",
+        "FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting.",
+        "unquoted attributions: 22, none new against baseline 22"
+      ],
+      "expected_owner_named": true
+    },
+    "N-Q4": {
+      "exit": 1,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "f64950606a4468f018575dba22f0b981663bdabe96109433d3e40bfb57b38285",
+      "summary": [
+        "01-domain-model.md attributes to OPS-41 a phrase OPS-41 does not contain:",
+        "FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting.",
+        "unquoted attributions: 22, none new against baseline 22"
+      ],
+      "expected_owner_named": true
+    },
+    "N-Q5": {
+      "exit": 1,
+      "formal_inputs_equal_to_index_source": 33,
+      "diff_sha256": "5fe6206d934120fbbe5223b5574f06f78afc50bdd9fbb04cfb7f2a90010e8566",
+      "summary": [
+        "01-domain-model.md attributes to PRV-4 a phrase PRV-4 does not contain:",
+        "FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting.",
+        "unquoted attributions: 22, none new against baseline 22"
+      ],
+      "expected_owner_named": true
+    }
+  }
+}

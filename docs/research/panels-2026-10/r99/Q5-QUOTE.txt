@@ -1,0 +1,1 @@
+or the capability-less methods named by PRV-4; `PRV-4` says "The three methods with no entry there — *describe capabilities*, *get machine* and *refresh rescue session*".

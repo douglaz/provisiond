@@ -1,0 +1,2 @@
+`OPS-41` says "the worker MUST make no provider call, settle the operation `succeeded`" and "the claim MUST defer"; a no-call success or defer returned
+by that decision takes no capability check.
