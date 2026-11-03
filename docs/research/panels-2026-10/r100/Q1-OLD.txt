@@ -1,0 +1,2 @@
+The offer-kind consistency check at OPS-43 step 5 uses the same exception: it runs on
+step 4's current List offers result, after that read and before any provider mutation.

@@ -1,0 +1,1 @@
+the **offer snapshot** (`offer_id`, `machine_kind` (`virtual` or `bare_metal`, copied from the named offer at admission under API-7), the offer's `install_strategies` as accepted,

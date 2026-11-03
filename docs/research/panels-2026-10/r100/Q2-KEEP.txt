@@ -1,0 +1,1 @@
+KEEP: no byte changes. The Q2-A-cited.md:131-134 span (comment 857:160-163) stays exactly as adopted; the Run writes it as Q2-A-cited.md has it, at pin 2cb8e1189310ae096e598bac798df3437be59500.

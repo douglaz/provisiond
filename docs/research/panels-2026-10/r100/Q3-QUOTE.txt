@@ -1,0 +1,4 @@
+whether the account declares the ordering capability selected by the named offer's kind in the
+stored listing; for an offer absent from that listing step 5d takes no gate and the Boolean is
+supplied `true` (`API-7` says "If the offer is absent, run no ordering-capability check").
+Offer-kind selection and descriptor construction are outside this model.

@@ -1,0 +1,5 @@
+The offer-kind consistency check at OPS-43 step 5 uses the same exception: it runs on
+step 4's current List offers result, after that read and before any provider mutation.
+`OPS-43` says "If present but its kind differs from request_summary's machine_kind, settle
+failed with invalid_request" and "before any provider mutation", and its step 4 says "obtain
+the current driver List offers result".

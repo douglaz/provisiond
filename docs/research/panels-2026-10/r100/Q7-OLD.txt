@@ -1,0 +1,1 @@
+assert the CNF-55 pre-List-offers refusal using the retained machine_kind.

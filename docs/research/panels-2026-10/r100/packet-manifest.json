@@ -1,0 +1,118 @@
+{
+  "prepared_at": "2026-11-03T16:28:21Z",
+  "status": "FROZEN",
+  "pin": "2cb8e1189310ae096e598bac798df3437be59500",
+  "open": [
+    "Q1",
+    "Q2",
+    "Q3",
+    "Q4",
+    "Q5",
+    "Q6",
+    "Q7",
+    "Q-ROUTE"
+  ],
+  "brief_bytes": 70149,
+  "brief_sha256": "9ae53cd973ac7575f2673906e5b6ca23e4245c74dfec1cdfaef567e7e4962e33",
+  "notes_sha256": "6add3e8790dbcb33d2e18b9a581e741fcfaa6465f01eadd2b706645de89f8e73",
+  "forms": {
+    "Q1-KEEP.txt": "937155571f5b6cf8613b55b42b1de46c55ab75476847c7fdcd060a6c2afa9754",
+    "Q1-OLD.txt": "91b89db887aa220e7afbd11a2eff527a2441d0860109b7cfd59394777d5615c2",
+    "Q1-QUOTE.txt": "03732e8fe458a0e015d2c630d243ea1737777ec2077e5a8641d91a641def2cfc",
+    "Q2-KEEP.txt": "0fb3218d2699ebc984bfd721440623b7d0c1d629dccd3258ddf87f8be0bf6fef",
+    "Q2-OLD.txt": "4524048925d049ea5220035ce9d259fa3681fe2ae0a72c0547eefa11a2a65ce8",
+    "Q2-QUOTE.txt": "d82170607ffaccca68bf057c8f6f3117caa7fcc02d65599ad19f9e02502c83f6",
+    "Q3-KEEP.txt": "8a0028848c42bfe50e49b3df26f451f1d4b587f2303f909b91b22cb55bf2dc81",
+    "Q3-OLD.txt": "4bd4350a8282428dd293b49b1e51306bd5ca23bc0c034d77b3ee7c7d9e916912",
+    "Q3-QUOTE.txt": "83bc80552410d2e6292c1a0d1cf702e82d635878ce0858b089e43ee68cf8fc09",
+    "Q4-ASIS.txt": "ad7fc89a36d9ba7f526e58da86b5b89bdccdfefe22a5196149e856ba798e827a",
+    "Q4-KEEP.txt": "5db74cb1fc638bf9250e7c8f2b733aaec85b88f905d22c9f9375aa091e4b1c94",
+    "Q4-OLD.txt": "434ff18ea37383aff8146cdda770b5d1040115541249ab9ce9e80b316b13252d",
+    "Q4-QUOTE.txt": "4695e74ec303f96672dd49acb804136a56853582e7a84e78b6864ea31d0e9925",
+    "Q5-KEEP.txt": "a873afce596157e55a6d03068aad8904c855002cbe720e32e3139368fa05f27e",
+    "Q5-OLD.txt": "eccfa79b55784a9cfa092ba606ea67776db58a91bc7cdb73d1ff5d8571d6551b",
+    "Q5-QUOTE.txt": "bf20ab03e6fd3291b167a391f672d0375fa3a91917d50ed88ece1fffbaf24f21",
+    "Q6-KEEP.txt": "8459058682b9e8a1fc6736e93bc0c1bc816ac44716398838f6cecc57d777b9a9",
+    "Q6-OLD.txt": "32874589b5372b0b0f2799e46aa243ad4ba3ef2a5db1ea61c12d6a1c5f55d95c",
+    "Q6-QUOTE.txt": "ad77bbdd4095faa1336db546c6058f1ef58ee3239607af89299974aa0b4bf9d5",
+    "Q7-KEEP.txt": "d59a4fadf509e0272ffa120048fdba452c4609f886513e973b7ef55156c981db",
+    "Q7-OLD.txt": "e8c33b627550be3699e9de7b95f7390ed04c7174ed55caffc9ef77312c2db5dd",
+    "Q7-QUOTE.txt": "1d9bef585097566af304dc2fd3e4d644a4a5492ba730374432ce34ff21c220fb",
+    "R-NOTE-append.md": "40db5de25fb651fc30575c9850d4397f78d0b76213df023e372f572238b58af9",
+    "R-NOTE.txt": "d50de4177d3aa9c689d1bc4e6f1ff7cd6fbb08831ae8fd5702484ce3efff43a7",
+    "R-RUN.txt": "606973ea02527fc50d1ae9be52e073d69ff74c2009c455cd61a925e06c31a0dd",
+    "check/F-QUOTE-Q5.txt": "c818daa69e4d98197407c29f467c835edb5d795048d066d0004ae943c1dd6776",
+    "check/F-QUOTE.txt": "2393f71eef02a593e37ca93d6dc4bd441bfc928a0bbeff4e9939e43a34bf2323",
+    "check/prospective-Q2-A-cited-allquote.md": "6e58fd5afcdd6ccbeb47287e2fb9b5accc0446ae02b91619dc8aad6fdcc2c436",
+    "check/prospective-Q2-A-cited-with-note.md": "0e665520d8d83469799d5afc62ad735f506b26e23d9b61b66696e9a88ea7a7c1",
+    "evidence/Q2-A-cited.md": "d611bbae87294a0fc0087c567fa82aa1404cd0c5a54abe394b5327488ec51ea2",
+    "evidence/pv-e45e-comment-857.md": "9fa9dba3f79b051bc5f09a8d3f6a5a8bf6a08ca308db0ec0ebd812fd8f5823e1"
+  },
+  "check": {
+    "sweep.txt": "86475310c6b6ad7f3f3417b273567719bc85c9dbfa3d3f78d97d4749704df8b5",
+    "build.py": "4251e886ca7fb450e9ea777ec3d3e2a3bf37180d6a52c5559a7135e20313219b",
+    "build_brief.py": "1f224770ea2e6705b82153723f8a2ec0e6c21343104d3df304d535964a2ca4ab",
+    "trial.py": "ab62754eb072447b2830d165d7dbcc827edc757036b60f8a3dc67b1f635fa609",
+    "trial.json": "2a0535c59b7a3986d460c287ac327a8279be0f5a0b268c95ea8ebf73dda61b4a",
+    "trial_exits": {
+      "T0": 0,
+      "T-ASIS": 0,
+      "T-KEEP": 0,
+      "T-Q1": 0,
+      "T-Q2": 0,
+      "T-Q3": 0,
+      "T-Q4": 0,
+      "T-Q5": 0,
+      "T-Q6": 0,
+      "T-Q7": 0,
+      "T-ALL": 0,
+      "N-Q1": 1,
+      "N-Q2": 1,
+      "N-Q3": 1,
+      "N-Q4": 1,
+      "N-Q5": 1,
+      "N-Q6": 1,
+      "N-Q7": 1
+    },
+    "T_ASIS_reproduces_dr_e45e_T2": true
+  },
+  "prompts": {
+    "fable": {
+      "bytes": 71017,
+      "sha256": "925ef25bc96b97386f3cdd8196bc7f607600f45689f67a3185eebaa42440ba26"
+    },
+    "opus": {
+      "bytes": 71014,
+      "sha256": "5ae7c9d6d9ae5d6a81d341067de546e85f035fae0950b9962d4412dce8e13c1c"
+    },
+    "astra": {
+      "bytes": 71017,
+      "sha256": "30a1cb2f1ac642c709c174c7cc9e18f153c7d9b224bfd12b10070c16e2106b42"
+    },
+    "sol": {
+      "bytes": 71011,
+      "sha256": "bae2b2d2a917ec49f894ff062360b7423c4cb746f4722caf995def26c8a635c2"
+    }
+  },
+  "quota": {
+    "read_at": "2026-11-03T16:28:08Z",
+    "claude_week_all": "95% (exactly 95 does not hold)",
+    "claude_session": "no line (does not hold)",
+    "fable": "100% (exempt)",
+    "codex_active": "proton 62%",
+    "codex_other": "gmail 13%"
+  },
+  "seats": {
+    "fable": "missing: limit line, exit 1",
+    "opus": "claude-opus-5-5 xhigh",
+    "astra": "gpt-6-astra reasoning high",
+    "sol": "gpt-6.1-sol reasoning high",
+    "grok": "missing: 402 Payment Required (balance exhausted)"
+  },
+  "units": [
+    "panel-r100-fable",
+    "panel-r100-opus",
+    "panel-r100-astra",
+    "panel-r100-sol"
+  ]
+}

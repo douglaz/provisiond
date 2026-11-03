@@ -1,0 +1,120 @@
+{
+ "pin": "2cb8e1189310ae096e598bac798df3437be59500",
+ "questions": {
+  "Q1": {
+   "site": "OPS-23 insert after 03:2079",
+   "Q2-A-cited.md": "62-63",
+   "comment857": "88-89",
+   "sources": [
+    {
+     "owner": "OPS-43 5",
+     "file": "Q2-A-cited.md (adopted new OPS-43 step 5, :49-56)",
+     "lines": "50-51",
+     "segment": "If present but its kind differs from request_summary's machine_kind, settle failed with invalid_request"
+    },
+    {
+     "owner": "OPS-43 5",
+     "file": "Q2-A-cited.md (adopted new OPS-43 step 5, :49-56)",
+     "lines": "52",
+     "segment": "before any provider mutation"
+    },
+    {
+     "owner": "OPS-43 4",
+     "file": "03-operation-lifecycle.md",
+     "lines": "803",
+     "segment": "obtain the current driver List offers result"
+    }
+   ]
+  },
+  "Q2": {
+   "site": "Admission.lean:317-319 docstring",
+   "Q2-A-cited.md": "131-134",
+   "comment857": "160-163",
+   "sources": [
+    {
+     "owner": "API-7 5d",
+     "file": "Q2-A-cited.md (adopted new API-7 step 5d, :6-15)",
+     "lines": "8-9",
+     "segment": "If the named offer is present, take its kind and gate on DOM-10's matching ordering capability"
+    },
+    {
+     "owner": "API-7 5d",
+     "file": "Q2-A-cited.md (adopted new API-7 step 5d, :6-15)",
+     "lines": "11",
+     "segment": "If the offer is absent, run no ordering-capability check"
+    }
+   ]
+  },
+  "Q3": {
+   "site": "Admission.lean:1181-1182 docstring",
+   "Q2-A-cited.md": "144-146",
+   "comment857": "173-175",
+   "sources": [
+    {
+     "owner": "API-7 5d",
+     "file": "Q2-A-cited.md (adopted new API-7 step 5d, :6-15)",
+     "lines": "11",
+     "segment": "If the offer is absent, run no ordering-capability check"
+    }
+   ]
+  },
+  "Q4": {
+   "site": "05-persistence.md:523 operations.request_summary row (one table line)",
+   "Q2-A-cited.md": "69-70",
+   "comment857": "95-96",
+   "sources": [
+    {
+     "owner": "API-7 5d",
+     "file": "Q2-A-cited.md (adopted new API-7 step 5d, :6-15)",
+     "lines": "14-15",
+     "segment": "On admission, retain the named offer's kind as machine_kind in the create's request_summary offer snapshot"
+    }
+   ]
+  },
+  "Q5": {
+   "site": "OPS-43 step 3, 03:797-802 replaced",
+   "Q2-A-cited.md": "39-43",
+   "comment857": "65-69",
+   "sources": [
+    {
+     "owner": "API-7 5d",
+     "file": "Q2-A-cited.md (adopted new API-7 step 5d, :6-15)",
+     "lines": "14-15",
+     "segment": "On admission, retain the named offer's kind as machine_kind in the create's request_summary offer snapshot"
+    }
+   ]
+  },
+  "Q6": {
+   "site": "OPS-43 step 5, last clause",
+   "Q2-A-cited.md": "55-56",
+   "comment857": "81-82",
+   "sources": [
+    {
+     "owner": "OPS-11",
+     "file": "03-operation-lifecycle.md",
+     "lines": "249",
+     "segment": "The commitment is released in full under `LDG-32`"
+    },
+    {
+     "owner": "OPS-11",
+     "file": "03-operation-lifecycle.md",
+     "lines": "249",
+     "segment": "Where the create holds a resource-offer exclusion, it is freed under `STO-58`"
+    }
+   ]
+  },
+  "Q7": {
+   "site": "CNF-19 appended block, its eleventh line",
+   "Q2-A-cited.md": "101",
+   "comment857": "130",
+   "sources": [
+    {
+     "owner": "CNF-55",
+     "file": "10-conformance-checklist.md",
+     "lines": "369-370",
+     "segment": "the worker refuses it at `OPS-43`'s step 3"
+    }
+   ]
+  }
+ }
+}

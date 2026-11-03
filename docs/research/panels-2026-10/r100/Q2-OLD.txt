@@ -1,0 +1,4 @@
+`orderingCapabilityGuard` (`API-7`, 2026-10-22, `pv-p3k`; step 5d reworded 2026-10-30,
+`pv-e45e`): step 5d gates a create on the ordering capability selected by the named offer's kind
+in the stored listing, and takes no gate for an offer absent from it. Off, a create without that
+declaration reaches the purchase tail.

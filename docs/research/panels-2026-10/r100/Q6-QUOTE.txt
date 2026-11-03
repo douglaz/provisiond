@@ -1,0 +1,4 @@
+the same existing
+   pre-step-9 settlement releases the commitment and any resource-offer exclusion; `OPS-11`
+   says "The commitment is released in full under `LDG-32`" and "Where the create holds a
+   resource-offer exclusion, it is freed under `STO-58`".

@@ -1,0 +1,48 @@
+PASS: sentence boundaries: closing markup and structural boundaries
+PASS: sentence boundaries: closing markup before list delimiters: chunks, protection and comparisons
+PASS: sentence boundaries: consecutive empty list items: chunks, owners, counts and corruption
+PASS: sentence boundaries: empty list items before paragraph: chunks, owners, counts and corruption
+PASS: sentence boundaries: LDG-59 ownership: exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: distinct sentence owners: exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: inverted attribution: exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: bare possessive owners: exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '"now. yes"; ': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '"now. yes"; ': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '"now. yes"; ': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '""; ': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '""; ': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '""; ': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '"x.** xxxxxx': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '"x.** xxxxxx': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: sentence boundaries: paired span '"x.** xxxxxx': exact owners and counts; named QUOTED/EXISTS corruption
+PASS: module docstring: following docstrings intact; both misquotes detected
+PASS: character literal: following docstrings intact; both misquotes detected
+PASS: raw string: following docstrings intact; both misquotes detected
+PASS: string with closer: following docstrings intact; both misquotes detected
+PASS: non-doc comment with odd quote: following docstrings intact; both misquotes detected
+PASS: docstring with odd quote: following docstrings intact; both misquotes detected
+PASS: nested comment: following docstrings intact; both misquotes detected
+PASS: commented-out opener: following docstrings intact; both misquotes detected
+PASS: cited root document: vouches for a Lean docstring quote; uncited fails
+PASS: two sentences: exact quote passes; corruption reaches QUOTED and EXISTS
+PASS: spaced elision: exact quote passes; corruption reaches QUOTED and EXISTS
+PASS: short span first: exact quote passes; corruption reaches QUOTED and EXISTS
+PASS: empty span first: exact quote passes; corruption reaches QUOTED and EXISTS
+PASS: overlong span first: exact quote passes; corruption reaches QUOTED and EXISTS
+PASS: curly marks: exact quote passes; corruption reaches QUOTED and EXISTS
+PASS: four short words: exact quote passes; corruption reaches QUOTED and EXISTS
+PASS: withdrawal history: live Markdown/Lean owners and comparisons; corruption detected; historical/teaching skips and owner-free EXISTS retained
+PASS: Markdown quote reach: independent history and length comparisons, full-content corruptions, candidate-local history, retained exclusions and Lean reach
+PASS: bare possessives: direct owner, adjacent owners, short spans, exact and corrupt quotes
+PASS: colon forms: exact and corrupt quotes, direct owners, short spans, blockquote continuation, pools and Markdown-only reach
+PASS: quote content: apostrophes, local delimiters, boundaries, edges and elisions; Markdown/Lean owners and cited pools; EXISTS and signatures unchanged
+PASS: nested inline-code citations: exact marks, short prefixes and value corruptions
+  05-persistence.md attributes to API-7 a phrase API-7 does not contain:
+      "on admission, wrongword the named offer's kind as machine_kind in the create's request_summary offer snapshot"
+
+FAIL: 1 unverifiable quoted attribution(s) and 0 Lean docstring quote(s) found nowhere. Quote the requirement's own words, or cite it without quoting.
+Provisiond.* names resolved: 61
+unquoted attributions: 22, none new against baseline 22
