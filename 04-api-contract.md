@@ -240,6 +240,8 @@ the five classes.** Steps 1–5 are common to every authenticated write:
     what the ceiling is for (`ADR-0017`).
 5d. **gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail.
 
+For the non-create tails, capability-check placement and precedence belong to DOM-10.
+
 The tail then depends on what the endpoint does:
 
 | Class | Tail |

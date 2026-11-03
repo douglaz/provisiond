@@ -2078,6 +2078,9 @@ offer's absence from that result", are exceptions to this requirement's "before 
 called": they run on the result of `OPS-43`'s step 4, "Obtain the current driver List offers
 result", after that read.
 
+For non-create capability-check placement and its order relative to this validation,
+OPS-40 and OPS-41, see DOM-10.
+
 *Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added the
 pointer to `OPS-43`'s claim-time sale re-test and its timing exception.*
 
