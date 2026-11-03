@@ -1,0 +1,2 @@
+Every operation with a capability MUST be gated on it before the
+driver is called, **including create**

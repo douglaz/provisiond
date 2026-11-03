@@ -1,0 +1,2 @@
+The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`):
+`API-7`'s step 5d at admission and `OPS-43`'s step 3 at claim.

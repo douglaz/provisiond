@@ -1,0 +1,100 @@
+{
+  "pin": "2e2cd94637112f20538eb26b141672fedf0ba455",
+  "original": "3109b5b44eae17e288cf52aaa976993bd8c5626c",
+  "historical_wire_revision": "7116e90b9932211c08f2e712690cc176b56edea6",
+  "form_sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32",
+  "embedded_form_exact": true,
+  "retention_sites": [
+    {
+      "title": "WIR-17 field rules opening",
+      "changed": false,
+      "line": 683
+    },
+    {
+      "title": "CNF-18",
+      "changed": false,
+      "line": 124
+    },
+    {
+      "title": "CNF-19",
+      "changed": false,
+      "line": 137
+    },
+    {
+      "title": "CNF-34",
+      "changed": true,
+      "line": 256
+    },
+    {
+      "title": "CNF-182 Robot test-mode case",
+      "changed": false,
+      "line": 2484
+    },
+    {
+      "title": "CNF-342 acknowledgement paragraph",
+      "changed": false,
+      "line": 4476
+    },
+    {
+      "title": "CNF-344 channel declaration is no capability grant",
+      "changed": false,
+      "line": 4531
+    }
+  ],
+  "replacement_anchors": [
+    {
+      "title": "DOM-16",
+      "occurrences": 1
+    },
+    {
+      "title": "PRV-10",
+      "occurrences": 1
+    },
+    {
+      "title": "API-15",
+      "occurrences": 1
+    },
+    {
+      "title": "configuration row",
+      "occurrences": 1
+    },
+    {
+      "title": "Create matrix row",
+      "occurrences": 1
+    },
+    {
+      "title": "DEF-17 historical scope paragraph",
+      "occurrences": 1
+    },
+    {
+      "title": "CNF-55",
+      "occurrences": 1
+    },
+    {
+      "title": "CNF-364 setup and retained list-offers assertions",
+      "occurrences": 1
+    }
+  ],
+  "r89_source_ranges_byte_equal": [
+    "Configuration catalogue",
+    "Capability owners",
+    "Capability/opt-in scope owners",
+    "Provider opt-in owner",
+    "API acknowledgement owner",
+    "API gate position",
+    "API ordering gate",
+    "Claim gates",
+    "Wire field owner",
+    "Illustrative matrix",
+    "Historical defect wording",
+    "Existing conformance capability cases",
+    "Existing worker validation case",
+    "Existing acknowledgement case",
+    "Robot test mode",
+    "Worker acknowledgement paragraph",
+    "Channel declarations",
+    "Launch and sale scope"
+  ],
+  "quote_receipts": "quote-bytes.json",
+  "targets": "targets.json"
+}

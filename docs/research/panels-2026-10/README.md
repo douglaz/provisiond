@@ -277,3 +277,15 @@ The tally records the authority under the owner's 2026-10-28 wording rule. The e
 Reader answers and reviewed candidates remain historical records. Specification links
 name the frozen review base; raw logs, launchers, machine receipts and the full tracker
 diff remain under `/var/tmp`. The requirement owners hold the rules.
+
+## Panel R wording reconciliation, 2026-11-03
+
+| Round | Question | Settlement sources |
+|---|---|---|
+| [r97](r97/brief.md) | pv-9ecf quotation, current-source retention and historical-record wording | [Tally](r97/tally.md), [consensus round](r97/r97b/tally.md), [owner decision](r97/owner-decisions.md), exact [settled wording](r97/settled-pv-9ecf.md) and [checksum](r97/settled-pv-9ecf.md.sha256) |
+
+The tallies and owner decision record the authority under the owner's 2026-10-28 wording rule.
+The earlier [r89 owner decision](r89/owner-decisions.md) and the original C′ prefix stay as adopted.
+Reader answers and reviewed candidates remain historical records. Specification links
+name the frozen review base; raw logs, launchers, machine receipts and the full tracker
+diff remain under `/var/tmp`. The requirement owners hold the rules.

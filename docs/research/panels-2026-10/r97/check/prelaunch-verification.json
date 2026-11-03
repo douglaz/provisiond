@@ -1,0 +1,52 @@
+{
+  "pin": "2e2cd94637112f20538eb26b141672fedf0ba455",
+  "form_sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32",
+  "all_quote_bytes_exact": true,
+  "retentions_and_hourly_block_preserved_in_examples": true,
+  "archive_original_exact_prefix": true,
+  "launch_shape": "r96 path and unit substitutions only; codex already exactly high",
+  "gates": [
+    0,
+    0
+  ],
+  "packet_bytes": 57529,
+  "reader_clones": "clean at M",
+  "candidate_targets": [
+    [
+      "a",
+      26,
+      [
+        80
+      ]
+    ],
+    [
+      "b",
+      35,
+      [
+        41,
+        89
+      ]
+    ],
+    [
+      "c",
+      212,
+      [
+        266
+      ]
+    ],
+    [
+      "d",
+      23,
+      [
+        77
+      ]
+    ],
+    [
+      "e",
+      33,
+      [
+        87
+      ]
+    ]
+  ]
+}

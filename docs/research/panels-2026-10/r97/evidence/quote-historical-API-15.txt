@@ -1,0 +1,2 @@
+purchase acknowledgement in its provider options, in addition to the account being
+configured to allow ordering (`PRV-10`).

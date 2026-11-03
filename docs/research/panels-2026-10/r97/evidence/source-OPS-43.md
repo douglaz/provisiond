@@ -1,0 +1,181 @@
+**OPS-43** **The provider's price MUST be re-checked at claim, and the order refused where the
+commitment no longer covers it.** A create is priced and its commitment sized when the API accepts
+it; the purchase happens later, in a worker. `WIR-30` says an offer price is "an indicative quote
+… `binding` is `false`", and the auction channel is a live market with other bidders in it, so the
+provider's own price can move in that window — which on the dedicated product can be long, since
+`OPS-33` records that robot-style orders poll through an `in process` state with no documented
+bound.
+
+**Sale re-test at claim.** At claim (`OPS-5`), before any provider mutation, the worker MUST
+re-test the create's named offer for sale under `PRV-13b` and `PRV-31`, applying `API-7`'s
+create-tail verdict: "`invalid_request`/`offer_not_sellable` when the named offer is
+not sellable under `PRV-13b` or `PRV-31`, or absent from the offers the check reads".
+The inputs are the descriptor the worker runs with
+(`PRV-44`: "The descriptor is a typed, immutable value") and one current driver List offers
+result taken at claim. Date bounds MUST resolve against provider-local today at the time of
+the check.
+
+The worker MUST order the following steps as listed:
+
+1. Read the provider account's stored status (`STO-47`). This is a plain read, not a
+   conditional-write guard; the guard remains the conditional write at step 8. If the status
+   is not `healthy`, fail `conflict`, with `API-63`'s “`details.reason: "account_terminated"`
+   where the status is `terminated` and `"state"` for the two recoverable statuses, since
+   presenting an unreachable account as a permanent termination is false, and with
+   `retryable: false` for `"account_terminated"` and `retryable: true` for `"state"` on both the
+   error and the operation view”. Make no
+   provider request and release the commitment in full under `LDG-39`'s "Deterministic rejection
+   before acceptance" case.
+
+   Next read this operation's tenant status. Where the tenant is suspended, fail this existing
+   create with conflict, details.reason: "tenant_suspended", and retryable: false on both the error
+   and operation view. This read precedes channel closure and boundary validation. Make no provider
+   request, including List offers or a per-order key upload. Settle failed with full commitment
+   release and no setup-fee or first-unit debit under OPS-11's pre-step-9 create rule; OPS-11 says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." and “The commitment is released in full under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full") and `LDG-39` ("**Never debited**; released with the commitment (`LDG-32`)"), with no setup-fee or first-unit debit.”. Preserve
+   requested_by and system_reason as originally recorded; do not emit the admission-only kind
+   suspended. This is a plain read; the dispatch guard below closes the race after it.
+
+2. Read the stored channel closure (`PRV-40`: "the worker MUST read the stored closure for that
+   account and ordering channel when it claims the operation (`OPS-5`), before any provider
+   request, including a per-order key upload").
+3. Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
+   MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
+   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
+   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
+   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
+   run first, then the checks on fields the `api` wrote at admission, then the capability gate.
+4. Gate on `list_offers` under `DOM-10`, then obtain the current driver List offers result.
+5. Check for the named offer's absence from that result, applying the create-tail verdict quoted
+   above; if present, re-test the named offer for sale on that result and the running descriptor.
+6. Compare its price using that same List offers result, as below. An unsellable offer gets no
+   price comparison.
+7. Run `PRV-47`'s driver validation: "the driver MUST validate every value it forwards to the
+   provider, including provider options". For the rejection's error, see `PRV-47`.
+8. Perform `API-63`'s conditional write on `STO-47`'s row, in the correlator transaction:
+   "the worker MUST repeat the admission check as a conditional write on `STO-47`'s row guarded
+   on `healthy`". It remains "the last write before the ordering call" (`API-63`).
+   In this same transaction the worker MUST conditional-write the operation's tenants row guarded
+   on its status not being suspended. This write and API-58's admission-time suspension flag write
+   MUST contend on that same row; a plain read or a lock confined to the earlier claim-time check
+   is not a substitute; API-58 says "marks the tenant `suspended` **in the admission transaction, before the `202` is returned**". Where the tenant guard affects no row because suspension won, roll back
+   the step-8 transaction and record conflict, details.reason: "tenant_suspended", retryable: false
+   on both error and operation view, then settle failed under OPS-11's pre-step-9 rule with full
+   release and no setup-fee or first-unit debit; OPS-11 says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." and “The commitment is released in full under `LDG-32` ("A commitment MUST be closed, and its remaining amount released in full") and `LDG-39` ("**Never debited**; released with the commitment (`LDG-32`)"), with no setup-fee or first-unit debit.”. No step-9 key upload or order may begin. A first
+   failed transaction commits neither about_to_order_at nor a correlator. A whole-transaction
+   repeat after a lost acknowledgement rechecks this guard too: if suspension now defeats it,
+   keep any previously committed about_to_order_at and correlator unchanged and settle the
+   worker's recorded failure under the same pre-step-9 rule; do not add a null-column term to
+   the settlement guard; OPS-11 says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." and “The settle write keeps the ordinary worker guard (`STO-3`; `OPS-6`: "every write that worker makes to the operation MUST carry `claim_number = mine`"), with no `about_to_order_at IS NULL` term.”. OPS-49 says "the component MUST repeat the **whole
+   transaction** — never the last failed statement, and never the provider call (`OPS-12`)" and "A
+     serialization failure is repeated at once."; retry a serialization failure as a whole transaction and do not treat it as a tenant-status refusal. The operation-row claim guard and acknowledgement-before-
+   step-9 rules remain required.
+   In this same transaction, on every ordering channel, including `correlator: none`, the worker
+   MUST set `operations.about_to_order_at` to `COALESCE(about_to_order_at, <transaction time>)`
+   guarded on `(id, status = running, claim_number = mine)` (`STO-3`; `OPS-6`:
+   "every write that worker makes to the operation MUST carry `claim_number = mine`").
+   The write MUST NOT be guarded on the column being null: a whole-transaction repeat after a
+   lost reply affects one row and changes nothing. If this operation-row write affects zero rows,
+   something else moved the operation: step 9 MUST NOT run and the worker MUST exit. This differs
+   from the zero-row `STO-47` check above, of which `API-63` says "where it affects no row MUST
+   fail the operation deterministically". A first attempt that fails that check commits no
+   `about_to_order_at`. If an earlier step-8 transaction committed but its reply was lost, and an
+   account-status write makes the account non-`healthy` before the whole-transaction repeat,
+   the repeat can fail that check with the column already set. The create still settles `failed`
+   under `OPS-11`'s create row: `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind."
+   Step 9 MUST begin only after step 8's transaction is acknowledged. A lost acknowledgement
+   MUST take `OPS-49`'s "repeat the **whole transaction**" path, never speculative dispatch.
+9. Perform the per-order key upload, then the order. Here **per-order key upload** means every
+   temporary key registration required for this create (`PRV-9`: "the driver MUST register and
+   attach them as temporary provider-side resources").
+
+*Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): made step 8 write the column under the worker guard and await acknowledgement before step 9.*
+
+*Amended 2026-10-21 (`pv-p1y`): pointed step 7's rejection at `PRV-47`.*
+
+*Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): extended step 1's quote of `API-63`
+to its `retryable` values.*
+
+The first failing check stops subsequent checks; its owning classification governs disposition.
+Claim-time refusals are not collected: the error carries neither `details.refusals` nor
+`details.not_checked`. The order differs from admission: a create both closed and unsellable
+fails `rate_limited` at claim (`PRV-40`: "If the channel is closed at that read, the worker MUST
+make no provider request and settle the existing operation `failed` with `rate_limited`") but
+`offer_not_sellable` at admission, where `API-7` orders "`invalid_request`/`offer_not_sellable`"
+before "`rate_limited` when the offer's account and ordering channel are closed under `PRV-40`".
+
+The sale re-test and price comparison apply to the named offer as that result lists it. At
+claim (`OPS-5`), `PRV-42`'s dispatch check ("the driver MUST confirm that the named offer is
+still listed before sending the order request") reads that same step-4 List offers result.
+`PRV-42` says "a missing offer MUST NOT be ordered"; for an offer absent from that result, the
+worker MUST NOT perform any step-9 provider mutation either, including a per-order key
+upload.
+
+If the offer is absent from that result or the re-test finds it unsellable, the worker MUST fail
+the operation deterministically before any provider mutation, with `invalid_request`,
+`details.reason: "offer_not_sellable"` and `retryable: false` on both the error and the operation
+view. The operation settles `failed` under the create row. `OPS-11` says "Any create failure the worker records before any step-9 request (before any per-order key upload or order request) MUST settle `failed`, whatever its kind." The error is `WIR-9`'s inner object under `WIR-10b`; `WIR-9` says "The inner
+`error` object is exactly `kind`/`message`/`retryable`/`details` and nothing else, because it is
+the object `WIR-10b` embeds in an operation view". It carries neither `details.refusals` nor
+`details.not_checked`; `WIR-9a` introduces those keys "**On create and extend-runway tail
+refusals**". Its details obey `WIR-9a`'s "no cap or balance result or amount derived from the
+withheld offer's price". The commitment is released in full under `LDG-39`'s
+"Deterministic rejection before acceptance" case — before provider acceptance — with no setup
+fee or first unit debited: that row says "**Never debited**; released with the commitment
+(`LDG-32`)". `LDG-32` requires "A commitment MUST be closed, and its remaining amount released
+in full" on, among its terminal outcomes, "the create fails deterministically".
+Where the create holds a resource-offer exclusion, settlement frees it (`STO-58`: "Its lifetime
+follows the winning create's outcome settlement"; `PRV-42`: "An unresolved create retains the
+claim until its outcome is known").
+
+*Amended 2026-10-18 (`pv-qga`; panel r57, `docs/research/panels-2026-10/r57/`; `ADR-0043`): pointed settlement at the create row and accounted for a lost step-8 reply followed by an account-status write before the repeat; that refusal can leave the column set.*
+
+After the sale re-test passes, and before any per-order key upload or other provider mutation,
+the worker MUST re-read the offer's current price from that same List offers result **in the
+provider's own currency** and compare it with the native price the commitment was sized from — **carried on the
+operation's `request_summary`, which MUST hold the accepted recurring price, its
+currency and its period, and the accepted setup fee and prepaid first unit, the unit with its
+`billing_unit.seconds`** (`LDG-2`, `LDG-67`; *the unit and its seconds added 2026-10-08,
+`ADR-0033`, because the machine's row copies the seconds for its first seed, `LDG-38`,
+`05-persistence.md`*; *the
+fields are named so a worker restarted before claim can perform this comparison at all*; *named 2026-09-05 — a first form cited a native figure on the commitment
+row, which carries only `reserved_sats`*) — and **fail the operation deterministically — before any
+provider
+mutation — where the provider's price has risen past what the reserve covers**: `conflict`,
+`details.reason: "price_moved"`, the shortfall in `details`, telling the caller to re-submit,
+and `retryable: true` on both the error and the operation view (`WIR-9b`). **A
+movement in the satoshi rate alone MUST NOT refuse** — that is `ADR-0011`'s business, and it moves
+the runway date rather than the order. *Corrected 2026-09-05. The withdrawn test was "recompute
+`PRV-13b`'s reserve at the current rate … where the open commitment no longer covers it", and the
+reserve carries the satoshi rate, so any downtick between accept and claim refused; the caller
+resubmitted at the new rate, the next downtick refused again, and under a falling market creates
+failed persistently on a product that had no shortage of provider capacity. It also named no error
+kind, and `OPS-11` makes `insufficient_balance` admission-only, so a worker had nothing legal to
+emit.* Same shape and same point in the lifecycle as `OPS-40`'s
+signed-URL gate: it fails before anything is bought, so nothing ambiguous is created and no
+reconciliation is needed.
+
+**Nothing is grown.** This is a refusal, not a top-up, so `ADR-0011` is untouched — a commitment
+still increases only by `LDG-62` and `LDG-63`'s scheduled-cancellation branch.
+
+*The asymmetry that exposed it: the second order the set once admitted (`ADR-0014`, `ADR-0017`) was
+re-priced because it "happens later — possibly much later". An original create has the same latency
+and had no such rule, so the operator absorbed the difference silently and learned about it from an
+invoice.*
+
+*Amended 2026-10-16 (`pv-hsm`; panel r54, `docs/research/panels-2026-10/r54/`): added the
+claim-time sale re-test, its inputs and the five-step claim order; tied `PRV-42`'s dispatch
+check at claim to the step-2 result and barred any step-5 provider mutation for an offer absent
+from it; specified the re-test's deterministic failure and pointed at `LDG-39` for the
+commitment release.*
+
+*Amended 2026-10-17 (`pv-14b`; panel r55, `docs/research/panels-2026-10/r55/`): completed the
+claim order and its precedence, placed validation and account checks, and extended the offer
+failure outcome to absence with resource-offer exclusion settlement.*
+
+*Amended 2026-10-21 (`pv-xer`; owner decision of 2026-10-21): gave `price_moved` `retryable: true`
+on the error and the operation view.*
+
+*Amended 2026-10-22 (`pv-p3k`; panel r62, `docs/research/panels-2026-10/r62/`; owner decision 2026-10-22): applied the reviewed ordering-capability change.*
+
+*Amended 2026-10-22 (`pv-009`; panel r62, `docs/research/panels-2026-10/r62/`): applied the reviewed claim-time capability gate and refusal checks.*
+

@@ -1,0 +1,92 @@
+[
+  {
+    "name": "DOM-10",
+    "path": "01-domain-model.md",
+    "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "start": 515,
+    "bytes": 103,
+    "sha256": "df658512a6f6d6ecdb7dce306a85a4bb2f5844a529910a74e048535b381fe79c",
+    "payload": "Every operation with a capability MUST be gated on it before the\ndriver is called, **including create**"
+  },
+  {
+    "name": "API-7",
+    "path": "04-api-contract.md",
+    "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "start": 241,
+    "bytes": 136,
+    "sha256": "5afc78f57105c9842175b77ac0d370f0be059408c81fadbb601df60438fccfb1",
+    "payload": "**gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail."
+  },
+  {
+    "name": "OPS-43",
+    "path": "03-operation-lifecycle.md",
+    "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "start": 797,
+    "bytes": 572,
+    "sha256": "35408350ec4950a2f18bd1fdb08f4d58dfae8958a9c4f58b6c6c7549bc6adfd4",
+    "payload": "Repeat boundary validation under `OPS-23`: \"Validation that was performed at the API boundary\n   MUST be repeated in the worker before the driver is called\". This includes `PRV-10`'s\n   \"explicit purchase acknowledgement\", `PRV-8`'s \"at least one SSH public key\", the missing-field\n   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is\n   `PRV-10`'s \"the account is configured to allow ordering\". The checks on caller-supplied fields\n   run first, then the checks on fields the `api` wrote at admission, then the capability gate."
+  },
+  {
+    "name": "CNF-19",
+    "path": "10-conformance-checklist.md",
+    "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "start": 137,
+    "bytes": 204,
+    "sha256": "ddc2e127d3399ad76b1876897fbc3f318a3ab442eafada09f8a1a7d6c7c3940c",
+    "payload": "Create is refused when the provider has not declared the matching\n      provision capability — with the driver's internal ordering flag set to permissive,\n      so the test proves the outer gate exists."
+  },
+  {
+    "name": "WIR-17",
+    "path": "13-wire-contract.md",
+    "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "start": 683,
+    "bytes": 67,
+    "sha256": "ab0256762b712c773fc7905504f581c480a2b0dec6ab5fe9648698f8c239aea7",
+    "payload": "`acknowledge_purchase` MUST be literal\n`true` (`API-15`, `PRV-10`)."
+  },
+  {
+    "name": "historical-WIR-17",
+    "path": "13-wire-contract.md",
+    "ref": "7116e90b9932211c08f2e712690cc176b56edea6",
+    "start": 506,
+    "bytes": 67,
+    "sha256": "ab0256762b712c773fc7905504f581c480a2b0dec6ab5fe9648698f8c239aea7",
+    "payload": "`acknowledge_purchase` MUST be literal\n`true` (`API-15`, `PRV-10`)."
+  },
+  {
+    "name": "historical-WIR-17-body",
+    "path": "13-wire-contract.md",
+    "ref": "7116e90b9932211c08f2e712690cc176b56edea6",
+    "start": 490,
+    "bytes": 403,
+    "sha256": "03e9cd3ae27f2f3b56be7ef1a340c8ffa44958ec449929e578c6d13bd0048615",
+    "payload": "{\n  \"provider_account\": \"hetzner-cloud-1\",\n  \"offer\": \"standard:cx32\",\n  \"region\": \"fsn1\",\n  \"hostname\": \"worker-1\",\n  \"image\": null,\n  \"ssh_public_keys\": [\"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexamplekeyxxxxxxxxxxxxxxxxxxxxxxxx\"],\n  \"user_data\": null,\n  \"labels\": {\"team\": \"batch\"},\n  \"runway_seconds\": 2592000,\n  \"max_commitment_sats\": 90000,\n  \"acknowledge_purchase\": true,\n  \"provider_options\": {}\n}"
+  },
+  {
+    "name": "historical-API-15",
+    "path": "04-api-contract.md",
+    "ref": "7116e90b9932211c08f2e712690cc176b56edea6",
+    "start": 919,
+    "bytes": 123,
+    "sha256": "00f4544f8eb97c64911c6d991f73d60bd4e5431197d93d487138fd70e7e428be",
+    "payload": "purchase acknowledgement in its provider options, in addition to the account being\nconfigured to allow ordering (`PRV-10`)."
+  },
+  {
+    "name": "selected-Q2a-API-7",
+    "path": "04-api-contract.md",
+    "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "payload": "**gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail",
+    "bytes": 135,
+    "sha256": "78a7f7e3a99b55ecf09a5eaa7d58c483fea57c7a255d8bd11fd95eee0cb7b07b",
+    "start": 241
+  },
+  {
+    "name": "selected-Q2a-OPS-43",
+    "path": "03-operation-lifecycle.md",
+    "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "payload": "Repeat boundary validation under `OPS-23`: \"Validation that was performed at the API boundary\n   MUST be repeated in the worker before the driver is called\". This includes `PRV-10`'s\n   \"explicit purchase acknowledgement\", `PRV-8`'s \"at least one SSH public key\", the missing-field\n   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is\n   `PRV-10`'s \"the account is configured to allow ordering\". The checks on caller-supplied fields\n   run first, then the checks on fields the `api` wrote at admission, then the capability gate",
+    "bytes": 571,
+    "sha256": "c518dcfe6e4479cc99d69ad86b39c51137aece2b4c9fbef78a78ba85d8d92838",
+    "start": 797
+  }
+]

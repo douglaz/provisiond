@@ -1,0 +1,2 @@
+**API-15** A paid create request (`DOM-16`) MUST carry an explicit purchase
+acknowledgement — top-level `acknowledge_purchase`; wire owner: `WIR-17` — in addition to the account being configured to allow ordering (`PRV-10`).

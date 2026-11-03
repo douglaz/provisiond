@@ -1,0 +1,231 @@
+{
+  "pin": "2e2cd94637112f20538eb26b141672fedf0ba455",
+  "refs": [
+    "2e2cd94637112f20538eb26b141672fedf0ba455",
+    "2e2cd94637112f20538eb26b141672fedf0ba455"
+  ],
+  "physical_jsonl_row": 29,
+  "comment": 861,
+  "form_sha256": "be350270318a2752992a9cb199a2a56879249be99f36e7af430bcfe8a1d47a32",
+  "archive_forms_exact": [
+    "docs/research/panels-2026-10/r89/check/tally/form-Cprime.md",
+    "docs/research/panels-2026-10/r89/r89b/form-Cprime.md"
+  ],
+  "comment_embeds_form": true,
+  "retentions": [
+    {
+      "title": "WIR-17 field rules opening",
+      "current_line": 683,
+      "old_sha256": "764c3d92a933bd3158ab47abcfb2ab95517097d557745f92e0869f8da22bee5a",
+      "current_sha256": "764c3d92a933bd3158ab47abcfb2ab95517097d557745f92e0869f8da22bee5a",
+      "identical": true
+    },
+    {
+      "title": "CNF-18",
+      "current_line": 124,
+      "old_sha256": "af7223afa2588cb00d9a49c1214bca692f1dc70dd77e5d1ede0d20ec1616817d",
+      "current_sha256": "af7223afa2588cb00d9a49c1214bca692f1dc70dd77e5d1ede0d20ec1616817d",
+      "identical": true
+    },
+    {
+      "title": "CNF-19",
+      "current_line": 137,
+      "old_sha256": "3c86ebc111f6559f15571fa45f7faf3d34e184c6c3129836d65fffe0f6f8b5d2",
+      "current_sha256": "3c86ebc111f6559f15571fa45f7faf3d34e184c6c3129836d65fffe0f6f8b5d2",
+      "identical": true
+    },
+    {
+      "title": "CNF-34",
+      "current_line": 256,
+      "old_sha256": "949b508903f94585fafdd79a4affb36f617d54ba379f584b52da5d60d0c152dc",
+      "current_sha256": "d495bb8e659dcb044dde50d5c6048bdd64e6e76ffbd875f3e0f3062ef5958948",
+      "identical": false
+    },
+    {
+      "title": "CNF-182 Robot test-mode case",
+      "current_line": 2484,
+      "old_sha256": "4a6401097f345d966b135934cbe005694269e5a61f714c994472cfc77982c992",
+      "current_sha256": "4a6401097f345d966b135934cbe005694269e5a61f714c994472cfc77982c992",
+      "identical": true
+    },
+    {
+      "title": "CNF-342 acknowledgement paragraph",
+      "current_line": 4476,
+      "old_sha256": "2ca2a9f8dc894deb9b6a0e52f510bd26631d02a1190721f4f32d6a28975c8e67",
+      "current_sha256": "2ca2a9f8dc894deb9b6a0e52f510bd26631d02a1190721f4f32d6a28975c8e67",
+      "identical": true
+    },
+    {
+      "title": "CNF-344 channel declaration is no capability grant",
+      "current_line": 4531,
+      "old_sha256": "976eded4f52ec1ee05a5c6f59ae3020264605c902484489e3cf97a00603485d4",
+      "current_sha256": "976eded4f52ec1ee05a5c6f59ae3020264605c902484489e3cf97a00603485d4",
+      "identical": true
+    }
+  ],
+  "CNF34_change": "PR60 15-line insertion only; exact current bytes saved",
+  "CNF34_current_sha256": "d495bb8e659dcb044dde50d5c6048bdd64e6e76ffbd875f3e0f3062ef5958948",
+  "quotes": [
+    {
+      "name": "DOM-10",
+      "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+      "path": "01-domain-model.md",
+      "line": 515,
+      "bytes": 103,
+      "sha256": "df658512a6f6d6ecdb7dce306a85a4bb2f5844a529910a74e048535b381fe79c"
+    },
+    {
+      "name": "API-7",
+      "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+      "path": "04-api-contract.md",
+      "line": 241,
+      "bytes": 136,
+      "sha256": "5afc78f57105c9842175b77ac0d370f0be059408c81fadbb601df60438fccfb1"
+    },
+    {
+      "name": "OPS-43",
+      "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+      "path": "03-operation-lifecycle.md",
+      "line": 797,
+      "bytes": 572,
+      "sha256": "35408350ec4950a2f18bd1fdb08f4d58dfae8958a9c4f58b6c6c7549bc6adfd4"
+    },
+    {
+      "name": "CNF-19",
+      "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+      "path": "10-conformance-checklist.md",
+      "line": 137,
+      "bytes": 204,
+      "sha256": "ddc2e127d3399ad76b1876897fbc3f318a3ab442eafada09f8a1a7d6c7c3940c"
+    },
+    {
+      "name": "WIR-17",
+      "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+      "path": "13-wire-contract.md",
+      "line": 683,
+      "bytes": 67,
+      "sha256": "ab0256762b712c773fc7905504f581c480a2b0dec6ab5fe9648698f8c239aea7"
+    },
+    {
+      "name": "historical-WIR-17",
+      "ref": "7116e90b9932211c08f2e712690cc176b56edea6",
+      "path": "13-wire-contract.md",
+      "line": 506,
+      "bytes": 67,
+      "sha256": "ab0256762b712c773fc7905504f581c480a2b0dec6ab5fe9648698f8c239aea7"
+    },
+    {
+      "name": "historical-WIR-17-body",
+      "ref": "7116e90b9932211c08f2e712690cc176b56edea6",
+      "path": "13-wire-contract.md",
+      "line": 490,
+      "bytes": 403,
+      "sha256": "03e9cd3ae27f2f3b56be7ef1a340c8ffa44958ec449929e578c6d13bd0048615"
+    },
+    {
+      "name": "historical-API-15",
+      "ref": "7116e90b9932211c08f2e712690cc176b56edea6",
+      "path": "04-api-contract.md",
+      "line": 919,
+      "bytes": 123,
+      "sha256": "00f4544f8eb97c64911c6d991f73d60bd4e5431197d93d487138fd70e7e428be"
+    },
+    {
+      "name": "selected-Q2a-API-7",
+      "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+      "path": "04-api-contract.md",
+      "line": 241,
+      "bytes": 135,
+      "sha256": "78a7f7e3a99b55ecf09a5eaa7d58c483fea57c7a255d8bd11fd95eee0cb7b07b"
+    },
+    {
+      "name": "selected-Q2a-OPS-43",
+      "ref": "2e2cd94637112f20538eb26b141672fedf0ba455",
+      "path": "03-operation-lifecycle.md",
+      "line": 797,
+      "bytes": 571,
+      "sha256": "c518dcfe6e4479cc99d69ad86b39c51137aece2b4c9fbef78a78ba85d8d92838"
+    }
+  ],
+  "historical_parent": "7116e90b9932211c08f2e712690cc176b56edea6",
+  "historical_body_top_level": true,
+  "answers": {
+    "fable": {
+      "exit": 1,
+      "bytes": 158,
+      "sha256": "110e330380332e09b572961521cd1df4335bf01f1478a5d1aff2485166a20ea2",
+      "classification": "missing: Fable limit"
+    },
+    "opus": {
+      "exit": 0,
+      "bytes": 17325,
+      "sha256": "89824af033a1b6b38eeddac4f38e37fbafe8e0d6bdc515200ed41674ad88c6f0",
+      "classification": "substantive"
+    },
+    "astra": {
+      "exit": 0,
+      "bytes": 24973,
+      "sha256": "f7314624ca7e6382a1f87fde24e3c1f5e12626d8b97b833775379a055320d742",
+      "classification": "substantive"
+    },
+    "sol": {
+      "exit": 0,
+      "bytes": 19550,
+      "sha256": "58b2d52de3e772ad0a39564dd55179430fdb7b645ee62cfabe9c9c070101a04f",
+      "classification": "substantive"
+    }
+  },
+  "diagnostics": {
+    "sol.err": {
+      "bytes": 1939476,
+      "sha256": "f1bf41d250240bfaed23259ead7d3c444ed4f7094fd57a6ee555cd108b4090c7",
+      "usage_limit_strings": 0,
+      "timeout_strings": 0
+    },
+    "opus.err": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "usage_limit_strings": 0,
+      "timeout_strings": 0
+    },
+    "fable.err": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "usage_limit_strings": 0,
+      "timeout_strings": 0
+    },
+    "astra.err": {
+      "bytes": 798482,
+      "sha256": "20ab1c79e0d72da7392e15d3015f65cb1ff7e28fb0895c29cb2f6e4e1dfd3ad1",
+      "usage_limit_strings": 0,
+      "timeout_strings": 0
+    },
+    "sol.out": {
+      "bytes": 19551,
+      "sha256": "08265ceda0e5be7f0d2f30360abc0c93bfae20f1ae0b862170464bf113ea73b5",
+      "usage_limit_strings": 0,
+      "timeout_strings": 0
+    },
+    "astra.out": {
+      "bytes": 24974,
+      "sha256": "805892146113daa22631cdbf631a6ebfc0ff8d8c5927be59e64fb248beb1a592",
+      "usage_limit_strings": 0,
+      "timeout_strings": 0
+    }
+  },
+  "grok": "missing: HTTP402",
+  "settled_preferences": [
+    "Q1 R-MASTER",
+    "Q2a Q-QUOTE",
+    "Q2b Q-QUOTE",
+    "Q2c Q-QUOTE",
+    "Q3 S-OUT"
+  ],
+  "unsettled_preferences": [
+    "Q2d KEEP 2 / POINTER 1",
+    "Q2e KEEP 2 / POINTER 1",
+    "Q4 NOTE 2 / BRIEF 1"
+  ],
+  "rules": "No synthesized tie-break; all three accept each split alternative; preserve preferences and seek one consensus round",
+  "voids": []
+}

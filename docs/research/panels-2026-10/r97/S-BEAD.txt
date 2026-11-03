@@ -1,0 +1,1 @@
+Leave both CNF-18 sentences unchanged in pv-9ecf. Propose a needs-triage bead only after identifying a behavior, requirement or check-strength gap and its trace; wording alone does not qualify under feedback_no_cosmetic_beads.md. This panel turn does not create a bead.

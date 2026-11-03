@@ -1,0 +1,7 @@
+The configuration half is `DOM-10`'s gate on the create's ordering capability (`DOM-16`); `DOM-10` says “Every operation with a capability MUST be gated on it before the
+driver is called, **including create**”. At admission, step 5d is the gate: `API-7` says “**gate a create on its ordering capability** under `DOM-10` (`PRV-10`, `DOM-16`). A refusal stops here and is not collected by the tail”. At claim, step 3 is the gate: `OPS-43` says “Repeat boundary validation under `OPS-23`: "Validation that was performed at the API boundary
+   MUST be repeated in the worker before the driver is called". This includes `PRV-10`'s
+   "explicit purchase acknowledgement", `PRV-8`'s "at least one SSH public key", the missing-field
+   checks defined in `OPS-23`, and `DOM-10`'s gate on the create's ordering capability, which is
+   `PRV-10`'s "the account is configured to allow ordering". The checks on caller-supplied fields
+   run first, then the checks on fields the `api` wrote at admission, then the capability gate”.

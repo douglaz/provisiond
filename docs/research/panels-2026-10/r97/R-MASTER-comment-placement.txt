@@ -1,0 +1,7 @@
+**Historical approval record — original wording at 3109b5b:**
+
+`docs/research/panels-2026-10/r89/r89b/owner-questions.md:28`:
+
+> The wire rule remains the pin's unconditional **"`acknowledge_purchase` MUST be literal `true` (`API-15`, `PRV-10`)"** ([WIR-17](consistency/13-wire-contract.md#L665)). CNF-34's **"On separate creates"** and CNF-342's **"complete, valid resource-offer"** acknowledgement fixture also remain byte-identical to the pin. C′ keeps existing acknowledgement coverage on a modeled create that starts no provider billing, rather than silently exempting it. Paid-create coverage and the broader wire rule are compatible: the new API-15 says paid requests **"MUST carry"** acknowledgement, not that only paid requests must carry it. This broader wire/narrower provider layering already existed at the pin.
+
+**Current execution guidance — Panel R r97:** CNF-34 and CNF-342’s acknowledgement paragraph are not edited by pv-9ecf: retain their complete master text at `2e2cd94637112f20538eb26b141672fedf0ba455`, including PR #60’s install-marker fixture in CNF-34. C′’s retained create coverage remains **"On separate creates"** in CNF-34 and **"complete, valid resource-offer"** in CNF-342.

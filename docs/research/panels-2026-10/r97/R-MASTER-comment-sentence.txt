@@ -1,0 +1,1 @@
+CNF-34 and CNF-342’s acknowledgement paragraph are not edited by pv-9ecf: retain their complete master text at `2e2cd94637112f20538eb26b141672fedf0ba455`, including PR #60’s install-marker fixture in CNF-34. C′’s retained create coverage remains **"On separate creates"** in CNF-34 and **"complete, valid resource-offer"** in CNF-342.

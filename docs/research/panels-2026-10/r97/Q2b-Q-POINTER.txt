@@ -1,0 +1,2 @@
+"In its provider
+options" until 2026-09-05; historical wire-location owner: `WIR-17` at revision `7116e90b9932211c08f2e712690cc176b56edea6`. The wire contract wins, and a spending authorization nested inside a driver-private object is one a strict server could not tell from any other option.

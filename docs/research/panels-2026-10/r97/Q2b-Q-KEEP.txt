@@ -1,0 +1,4 @@
+"In its provider
+options" until 2026-09-05, while `WIR-17` placed it at the top level; the wire contract wins, and a
+spending authorization nested inside a driver-private object is one a strict server could not tell
+from any other option.
