@@ -571,7 +571,7 @@ jobs:
           namespace Provisiond.Explore
           def concurrent_inside_a_transaction :
               Provisiond.Migration.Migration Provisiond.Migration.postgres true :=
-            .transactional [.createIndex true true] (by decide)
+            .transactional [.createIndex true] (by decide)
           end Provisiond.Explore
           EOF2
           if nix develop --command lake build > build.log 2>&1; then

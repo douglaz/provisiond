@@ -255,6 +255,9 @@ generation (`OPS-50`); provider calls the first already licensed still go out" (
 epoch that first claimed this was comparing a value against itself (`ADR-0019`).
 `ADR-0019` says "The value compared is the process's own."
 
+The initial deployment profile and its accepted availability costs are owned by
+`05-persistence.md` and `ADR-0048`.
+
 ## 5. The money model is the security model
 
 This is the part a reader most easily misreads, and `12-billing-and-ledger.md` opens by naming it:

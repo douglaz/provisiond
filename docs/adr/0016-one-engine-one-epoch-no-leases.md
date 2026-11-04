@@ -1,5 +1,8 @@
 # The engine is one supervised process, fenced by an epoch, and the leases go
 
+**Amended by `ADR-0048` (2026-11-04)**: the initial profile runs one `api` copy while keeping
+"`api` stays freely replicable". Startup-generation protection remains under `ADR-0047`.
+
 **Status:** accepted (2026-09-07). Amends `ADR-0015`'s consequence "the deployable becomes
 replicable": `api` is replicable, `engine` is not.
 

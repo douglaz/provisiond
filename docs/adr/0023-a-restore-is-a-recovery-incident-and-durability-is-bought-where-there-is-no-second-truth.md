@@ -1,5 +1,8 @@
 # A restore is a recovery incident, not a restart, and durability is bought only where there is no second truth
 
+**Amended by `ADR-0048` (2026-11-04)**: every promotion enters recovery under the revised
+profile; the recovery procedure, its selective freezes, grace and unrepaired-loss limits remain.
+
 **Status:** accepted (2026-09-12; proposed 2026-09-10, amendments landed 2026-09-12). Amended
 2026-09-20 with the record that decides which boot a process is, under *The decision*. The restore
 procedure is `STO-54`. Answers

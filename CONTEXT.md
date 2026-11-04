@@ -185,14 +185,12 @@ carry this fact in its state.
 _Avoid_: rollback, preserved (say `disk_effect: none`), data loss (which is a consequence, not the fact)
 
 **Restore**:
-Bringing the store back from a backup, landing at some instant before the failure, or a promotion
-`STO-54` classes as one. A recovery
-incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no acknowledged commit and the startup pass settles what was in flight at startup; a restore may lose an interval, and the
-engine brought up on it naïvely performs destructive actions on state the restore rewrote.
-The **restore record** is the row that makes the incident recognizable to a process rather than to
-an operator: open from before either component starts until the operator closes it, carrying the
-restore instant and which of the procedure's steps have completed (`STO-56`, `STO-54` owns what it
-means). *Added 2026-09-20.*
+Bringing the store back from backup or replacing its authoritative history. Every promotion also
+enters a recovery incident, including an expected lossless promotion; a process or in-place primary
+restart on unchanged intact history is distinct. An open incident is continued after a process
+crash on that history; a new promotion or history replacement supersedes it. See `STO-54`, `STO-56`
+and `ADR-0048`. A standby rebuild on the intact current primary is maintenance; see `STO-7`.
+The **restore record** is the persisted incident row (`STO-56`).
 _Avoid_: restart, recovery (bare — the rescue recovery directory and the recovery credential
 already own that word), rollback (that is a transaction)
 

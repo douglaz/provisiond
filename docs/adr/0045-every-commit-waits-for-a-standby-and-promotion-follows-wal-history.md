@@ -1,5 +1,9 @@
 # Every commit waits for a standby, and promotion follows WAL history
 
+**Amended by `ADR-0048` (2026-11-04)**: one designated synchronous standby, ordinary pool
+budgets and accepted saturation outages replace the former topology and external grants; every
+promotion enters recovery. Connection/read checks and sent-COMMIT uncertainty remain.
+
 **Status:** accepted (2026-10-23; `pv-s4m`). The requirement edits precede this record.
 Decision record: [panel r63](../research/panels-2026-10/r63/), especially
 [the chosen form](../research/panels-2026-10/r63/r63h/forms-chosen.md).
