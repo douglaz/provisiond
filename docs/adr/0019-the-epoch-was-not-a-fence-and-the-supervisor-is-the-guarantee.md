@@ -1,7 +1,7 @@
 # The epoch was not a fence, the supervisor is the guarantee, and the engine checks at boot that it is alone
 
 **Amended by `ADR-0048` (2026-11-04)**: initial deployment scope runs one `api` copy;
-none of this decision is withdrawn, and `api` remains freely replicable.
+`ADR-0048` withdraws none of this decision, and `api` remains freely replicable.
 
 **Status:** accepted (2026-09-08). Amends `ADR-0016`, which is otherwise untouched: the engine is
 still one supervised process, `api` is still replicable, and the leases stay deleted.

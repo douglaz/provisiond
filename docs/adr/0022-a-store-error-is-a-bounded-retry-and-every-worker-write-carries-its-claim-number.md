@@ -98,6 +98,9 @@ write of the first commits once the second's startup pass has committed a new `S
 generation (`OPS-50`)". `OPS-50` says "Where the values differ, the transaction MUST roll
 back".* The startup pass and the resolution writes do not carry it, on `OPS-3`'s scoping
   argument — they are made by no execution.
+  *2026-11-04: `ADR-0048` makes every release offline; `STO-13` no longer ships a contract step a
+  release later and keeps it as the rollback bound: "admissible up to and not past a contract
+  step".*
 - **The defer write is `STO-3`'s fifth guarded write**, on `(id, status = running, claim_number =
   mine)`, and its zero-row meaning is "already deferred or already re-claimed; move on" — not
   `OPS-22`'s exit.

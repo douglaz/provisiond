@@ -1,8 +1,9 @@
 # Migrations run before the release, under their own lock, and only a contract step or a shared-predicate change needs an outage
 
 **Amended by `ADR-0048` (2026-11-04)**: every release is offline, binaries declare supported
-schemas, and ordinary transactional index builds are permitted; runner serialization and
-conservative backfills remain.
+schemas, and ordinary transactional index builds are permitted. Compatibility with a running
+previous release is withdrawn; runner serialization, forward-only migrations and rollback up
+to a contract step remain.
 
 **Status:** accepted (2026-09-12; amendments landed the same day). The rules are `STO-12` and
 `STO-13`. Answers
