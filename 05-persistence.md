@@ -1723,7 +1723,8 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   restore when authorized, with the existing incident and startup prerequisites. A known
   violation remains a violation; this rule neither permits it nor turns it into uncertainty.
   A known historical waiting-backend cancellation or termination remains a restore condition,
-  including a shutdown-induced termination permitted by the shutdown exception. Time, new
+  including a shutdown-induced termination permitted by the shutdown exception (`STO-7` says
+  "other than by shutting the primary down"). Time, new
   incarnation identifiers, equal reports or later catch-up do not expire that condition or
   resolve an uncovered historical interval. A later decision MUST retain unresolved inherited
   facts on which it depends rather than treating a new incarnation as clean by default.
