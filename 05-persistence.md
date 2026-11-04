@@ -1690,6 +1690,50 @@ unsettled re-runs a fan-out the operator may have reversed. So:
   promotion that is a restore: an automatic failover promotes only as a restart, and otherwise leaves the store
   without a primary until both standbys report or an operator decides.
 
+  **Unknown restart eligibility.** For a contemplated promotion, evaluate the restart-promotion
+  conditions above for the affected source-primary incarnation/history through the old
+  primary's fencing boundary. A condition is established only by evidence valid for that
+  database, incarnation and actual WAL ancestry, or by a trusted deployment invariant whose
+  uninterrupted coverage establishes the fact. Equal numerical ends alone establish neither
+  actual common history nor the absence of a waiting-backend cancellation or termination.
+  Classify a known disqualifying condition under the existing restore rule even if another
+  fact is unknown. Otherwise restart eligibility is unknown if at least one applicable
+  restart condition cannot be established. It is established only when every applicable
+  condition is established and none is disqualifying. Continuing an already open restore
+  incident remains continuation, not a new restart decision.
+
+  In particular, evidence that no waiting backend was cancelled or terminated MUST cover the
+  affected incarnation/history, including shutdown-induced termination and inherited conditions
+  and uncertainty on which the contemplated restart depends, through fencing. A trustworthy
+  negative assertion requires an authenticated source and complete event coverage, or an
+  independently enforced no-event invariant with established coverage and non-bypass. Its
+  database/incarnation/ancestry binding and its coverage MUST be verifiable without the lost
+  primary or its logs. A missing record, sampled absence, an alarm, unverified operator belief,
+  or successful later catch-up is not negative evidence. Conflicting, incomplete, lost or
+  invalid evidence leaves that condition unknown unless a disqualifying fact is already known.
+  This paragraph specifies no new evidence service or runtime replication-configuration or
+  topology-drift controller; existing trusted deployment duties remain in force. A deployment
+  unable to supply the negative evidence may use the operator boundary below.
+
+  Automatic failover MUST NOT promote while restart eligibility is unknown and MUST report the
+  unresolved condition to the operator. It MUST leave the store without a primary and MUST NOT
+  perform a restore. The operator may wait for sufficient valid evidence to establish a restart,
+  or authorize a restore under the procedure below; operator belief alone cannot reclassify
+  unknown as established. A promotion with unknown restart eligibility MUST be treated as a
+  restore when authorized, with the existing incident and startup prerequisites. A known
+  violation remains a violation; this rule neither permits it nor turns it into uncertainty.
+  A known historical waiting-backend cancellation or termination remains a restore condition,
+  including a shutdown-induced termination permitted by the shutdown exception (`STO-7` says
+  "other than by shutting the primary down"). Time, new
+  incarnation identifiers, equal reports or later catch-up do not expire that condition or
+  resolve an uncovered historical interval. A later decision MUST retain unresolved inherited
+  facts on which it depends rather than treating a new incarnation as clean by default.
+
+  Established eligibility preserves the equal-report restart path above when its other
+  conditions hold. Unknown possible-loss reporting endpoints on an operator-authorized restore
+  are separate: they use the reporting rules below and do not delay that restore's incident
+  creation, procedure or startup once its existing prerequisites are satisfied.
+
   **Formal checking interpretation (2026-10-29, `pv-26ju`).**
   `Provisiond.WalHistory.maximal_preserves_acknowledged` proves preservation for an arbitrary
   acknowledged commit under `SynchronousCommit`, truthful durable-prefix reports on one actual
