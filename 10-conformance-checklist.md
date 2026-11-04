@@ -463,9 +463,9 @@ not optional hardening — they are the only structural defence there is.
       verified capacity release uses a fresh reservation and resumes through `STO-12`'s version
       history. No completed migration is applied again and the release starts only after the
       required migrations complete successfully. Separately, give both runners confirmed admitted
-      connections and contend on the migration key: assert the second waits on the key under
-      `STO-12` rather than taking the admission-refusal exit. Keep the existing concurrent-index
-      and stop-everything cases. (`STO-55`, `STO-12`, `STO-13`, `STO-7`)
+      connections and contend on the migration key: assert the second waits on `STO-12`'s key
+      rather than taking the admission-refusal exit. Keep the existing concurrent-index and
+      stop-everything cases. (`STO-55`, `STO-12`, `STO-13`, `STO-7`)
       **Then the concurrent index step** (added 2026-09-12): kill the runner mid-build of a
       `CONCURRENTLY` index on `operations` and assert the version is unrecorded and the index is
       `INVALID`; re-run and assert the invalid index is dropped, rebuilt valid, and the version
