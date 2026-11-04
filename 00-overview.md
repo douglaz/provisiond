@@ -435,7 +435,7 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | Engine worker count | `STO-55` | integer | yes |
 | `api` request concurrency per replica, read and write | `STO-55` | integers | yes |
 | Pool checkout bound | `STO-55` | duration | yes |
-| Connection budget against `max_connections` | `STO-55` | human — phase-appropriate ordinary budget for the fixed deployment | no; the engine checks its own share |
+| Connection budget against `max_connections` | `STO-55` | human — phase-appropriate ordinary budget for the fixed deployment; ordinary database/OS resource sizing | no; the engine checks its own share |
 | Connection-exhaustion alarm threshold | `STO-55` | duration | no — outside the process |
 | Primary shutdown during saturation recovery | `STO-55`, `STO-7` | human | no |
 | Metering cadence | `LDG-37` | duration | yes |

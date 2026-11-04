@@ -197,7 +197,7 @@ PostgreSQL acknowledges these commits only once the designated standby has flush
 storage. The deployment MUST NOT let the primary acknowledge a provisiond state-changing transaction,
 a migration or a recovery-incident transaction without the designated standby: no component, migrator or
 operator data-mutation session lowers `synchronous_commit`, and the primary never serves with
-`synchronous_standby_names` empty. The required standby's unavailability is alarmed under `OVR-18`;
+`synchronous_standby_names` empty. `OVR-18` alarms "the designated standby being unavailable";
 while it is unavailable, state-changing commits wait.
 
 While provisiond components and migrators are stopped, a dedicated maintenance backup session MAY
@@ -319,7 +319,8 @@ concurrency** (`OVR-19`); the pools are sized from them.
 - **The ordinary budget fits, and the engine checks its share.** The deployment MUST state a
   phase-appropriate ordinary connection budget against `max_connections` less reserved slots,
   including the engine pool, the fixed deployment's API pools, the startup-lock connection,
-  migrators and waiting runners when present, and operator headroom (`OVR-19`). At startup the
+  migrators and waiting runners when present, and operator headroom (`OVR-19`). The deployment MUST
+  size ordinary database/OS resources in its deployment procedure (`OVR-19`). At startup the
   engine MUST read `max_connections` and refuse to run if its own pool plus lock connection does
   not fit. Read/write separation reserves local checkouts; it guarantees no read availability
   during deployment-wide exhaustion.
@@ -355,8 +356,8 @@ apply.
 2. Quiesce application work, preserving uncertainty about in-flight commits and provider calls.
 3. Restore the standby if that permits existing replication waits to complete.
 4. If recovery still requires primary shutdown, use as `STO-7`'s `SyncRep` rule permits.
-5. Restart on unchanged intact primary history only after connection and read checks pass; promotion
-   or history replacement follows `STO-54`.
+5. Restart on unchanged intact primary history only after connection and read checks pass; for
+   promotion or history replacement, see `STO-54`.
 
 No spare observer SQL connection or fixed recovery duration is guaranteed. A previously licensed
 external call can still complete and requires reconciliation.
@@ -1734,6 +1735,10 @@ engine and `api` process, and MUST start neither component until the transaction
   stopping/fencing requirements are satisfied. Its timestamp's exact SQL definition is new; it
   is not claimed as a fact already proved by the formal model.
 
+  Unknown possible-loss reporting endpoints on a promotion or restore are separate: they use the
+  reporting rules below and do not delay that restore's incident creation, procedure or startup
+  once its existing prerequisites are satisfied.
+
   The report separates that event from the history that survived. Persist a nullable
   conservative lower bound b, a nullable upper bound f, and their incident-keyed evidence
   references when the incident is inserted. A non-null b MUST certify that every source-history
@@ -1764,8 +1769,7 @@ engine and `api` process, and MUST start neither component until the transaction
   known. Include b because the lower certificate guarantees commits acknowledged strictly before
   b. Otherwise publish each known bound, identify every unknown endpoint and state that no
   finite duration is established; identify clock/provenance assumptions for known bounds.
-  Unknown possible-loss reporting endpoints on a promotion or restore do not delay incident creation,
-  the procedure or startup once its prerequisites are satisfied. Missing reporting evidence does not hold incident creation, the existing restore procedure or
+  Missing reporting evidence does not hold incident creation, the existing restore procedure or
   component startup once its existing prerequisites are satisfied. Continuations reuse the
   persisted endpoints and evidence unchanged. Backup restores use the same contract.
 
@@ -1829,8 +1833,8 @@ engine and `api` process, and MUST start neither component until the transaction
   `false` on other kinds, preserving any already non-null value. No pre-column marker history is
   sufficient to initialize `false`. This deliberately conceals legacy facts, including settled
   retained errors; it does not claim those facts were rolled back. See `STO-13` for release order.
-- **The procedure survives its own interruption, because the incident outlives the process.** A
-  new promotion or authoritative-history replacement follows supersession in `STO-56`; the
+- **The procedure survives its own interruption, because the incident outlives the process.** For
+  supersession on a new promotion or authoritative-history replacement, see `STO-56`; the
   continuation below is a process successor on the same authoritative history. The
   restore commits `STO-56`'s **restore record** — the restore instant, and which of the three steps
   have completed — before either component is started, and **a process that starts while a restore

@@ -1184,7 +1184,9 @@ takes the machines *and* the float" partly false.
       Exercise promotion through the same incident path; see `CNF-365`.
 
 - [ ] **CNF-296** — **Every write waits for the standby** (*amended 2026-10-23, `ADR-0045`; was "The two synchronous writes hang
-  alone"*). Keep the read pool unexhausted throughout the successful-read assertions.
+  alone"*). Before stalling the standby, establish a read session that has passed the
+  new-connection flush-position check; keep it open and use that same uninterrupted session for
+  the successful-read assertions below. Keep the read pool unexhausted throughout those assertions.
   Stall the sole designated standby. Assert an engine write and an `api` write each wait in `SyncRep`, a read still
   succeeds, and `OVR-18`'s alarm fires. Exercise a contending engine write and assert `OPS-49`'s bounded retry and
   exit. First fill one `api` replica's write-checkout budget with waiting commits. Cancel every `api` request whose write
@@ -1246,12 +1248,14 @@ takes the machines *and* the float" partly false.
   *Added 2026-11-04 (`ADR-0048`).*
 
 - [ ] **CNF-365** — **Promotion is a recovery incident** (`ADR-0048`). With both components
-  running and no open incident, let a create commit step 8 and order, and claim a second create.
+  running and no open incident, let a create commit step 8 and order, claim a second create,
+  and leave a third create `queued` and unclaimed.
   Perform an operator-initiated promotion expected to preserve every acknowledged commit. Assert
   that every engine and `api` process connected to the old primary has stopped before any component
-  connects to the promoted store, and that the old primary serves no component. Assert both rows
+  connects to the promoted store, and that the old primary serves no component. Assert all three rows
   survive, a new recovery incident is acknowledged before either component starts, and startup
-  takes the incident path: queued irreversible work is quarantined, the restored running create
+  takes the incident path: queued irreversible work is quarantined, including the third create
+  moving from `queued` to `needs_reconciliation`, the restored running create
   does not take the restart-only null-column exception, and step (3) bumps credentials. Preserve
   the engine's startup-generation advance. Assert no deployment failover manager automatically
   promotes, even for this lossless case.
@@ -1317,6 +1321,7 @@ takes the machines *and* the float" partly false.
   predecessor step mark satisfies a new step. (`STO-56`, `STO-54`)
 
   (`STO-5`, `STO-7`, `STO-54`, `STO-56`, `OPS-15`)
+  *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*
   *Amended 2026-11-04 (`ADR-0048`): promotion enters recovery; retained connection checks and
   operator loss-reporting arms; added bootstrap, continuation and supersession fixtures.*
 

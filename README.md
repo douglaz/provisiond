@@ -307,8 +307,7 @@ rather than replicated away (`OVR-18`). That the process is one is, in `OPS-47`'
 deployment obligation" (`ADR-0019`); `OPS-50` refuses a superseded engine's writes ("the
 transaction MUST roll back", `ADR-0047`).
 
-The supported initial deployment profile is in `05-persistence.md` (`ADR-0048`); it runs one
-`api` copy while preserving the replica safety requirements.
+For the supported initial deployment profile, see `05-persistence.md` (`ADR-0048`).
 
 ## Status
 

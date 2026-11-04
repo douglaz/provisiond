@@ -135,8 +135,8 @@ back to `queued`.
 **OPS-47** **AMENDED 2026-09-08 (`ADR-0019`) — the supervisor is the guarantee, and the engine
 checks at boot that it is alone.** The engine MUST run as exactly one process under an external
 supervisor that retries startup under the deployment restart policy and never runs two.
-Repeated database-related startup failures MUST follow that policy, with reconnect/restart limits,
-backoff and operator intervention; see `STO-55`. **That is a deployment obligation** (`OVR-19`).
+For reconnect/restart limits, backoff and operator intervention during repeated database-related
+startup failures, see `STO-55`. **That is a deployment obligation** (`OVR-19`).
 Where two engines run, no write of the first commits once the second's startup pass has
 committed a new `STO-59` generation (`OPS-50`); provider calls the first already licensed still
 go out. `OPS-50` says "Where the values differ, the transaction MUST roll back". A supervisor guarantees it never *starts* two; it cannot guarantee the first is dead, so
@@ -1774,7 +1774,8 @@ the only road, but a negative search releases its commitment under the bounded w
 
 ```
 startup:                                          # STO-13, OPS-47, OPS-15
-    if not supported_schema(schema_version()):    # STO-13: outside the declared range -> exit
+    # STO-13: "A schema outside that declared range MUST cause non-zero exit."
+    if not supported_schema(schema_version()):
         exit_nonzero()
     incident = open_restore_record()              # STO-56: an open record means this process
                                                   #   continues that incident, whatever ended
