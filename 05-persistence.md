@@ -316,6 +316,22 @@ concurrency** (`OVR-19`); the pools are sized from them.
   may be cancelled or terminated to make room; primary shutdown remains `STO-7`'s exception,
   "other than by shutting the primary down".
 
+  **Migration admission refusal.** If `STO-55` admission refuses a physical connection attempt
+  by the `migrate` entry point, including initial acquisition, acquisition by a runner scheduled
+  alongside another runner, or reconnect, `migrate` MUST report the refusal and exit non-zero
+  at once; it MUST NOT wait or retry admission internally. A later invocation is a deployment
+  retry; see `STO-12` for version inspection, serialization and resumability. The denied attempt
+  MUST send no dial and no SQL. It MUST NOT record a migration as completed because of that
+  refusal, and the refusal does not undo previously recorded completed migrations.
+  The diagnostic MUST identify `migrate`, the release being attempted, whether this was initial
+  acquisition or reconnect, and the admission-refusal reason as the authority returned it,
+  without credentials.
+  This rule governs refusal before a physical connection is admitted, not a SQL advisory-lock
+  or DDL lock wait after connection. It introduces no deadline for a sent COMMIT or standby
+  wait; see `STO-7`. The grant-retention and release rules above still apply on process exit or
+  transport loss; neither is evidence that an old backend ended. Refusal does not require
+  stopping the previous release or terminating any individual backend to make room.
+
   The capacity argument is the mapping of every physical component attempt to a distinct
   unreleased grant: residual backends, unknown attempts and failed-unused attempts stay charged
   until the release evidence above proves absence. Together with the actually bounded A and the
@@ -1573,6 +1589,11 @@ migration MUST be safe against a running instance of the previous release of bot
   still queues every later statement on that table behind it while held. A `CONCURRENTLY` build
   cannot run inside a transaction, so it is its own migration under `STO-12`'s non-transactional
   rule, not a statement inside a transactional one.
+
+For physical connection-admission refusal by the `migrate` entry point and deployment retry,
+see `STO-55`. The deployment MUST NOT start any component of the new release until the
+required migrations have completed successfully. The stop-everything and backfill exceptions
+below retain their existing order.
 
 A removal, rename, tightening or `VALIDATE` is a **contract step** and ships no earlier than the
 release after the one that stopped depending on the thing removed. Every component MUST read the

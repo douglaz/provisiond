@@ -442,6 +442,30 @@ not optional hardening — they are the only structural defence there is.
       requires and assert it exits non-zero before its listener opens or, for the engine, before
       the startup lock; and, for a release not declared stop-everything, run an N−1 `api`
       extension against an N engine cancellation and a settlement replay across the pair.
+      **Migration physical-admission refusal.** Run independent fixtures for (a) the first
+      `migrate` connection; (b) a second runner scheduled while an admitted runner holds `STO-12`'s
+      migration key, with the second runner denied its own physical connection before it can
+      request that key; and (c) a runner that has recorded one completed migration, then loses its
+      transport and is denied admission for a replacement connection before its next migration.
+      Use a release allowed to migrate with the previous release running. Retain adequate admitted
+      read/write sessions for the previous-release service assertions independently of the denied
+      migration attempt. Exhaust component admission capacity C (`STO-55`) with charged reservations,
+      without cancelling or terminating an individual `SyncRep` backend. In each fixture identify
+      the denied physical attempt and assert it makes no dial and sends no SQL; no new-release
+      component starts before the required migrations complete successfully, and that refusal
+      records no migration completion. Previously recorded
+      completed versions remain unchanged. The previous release's engine and `api` keep serving
+      through their admitted sessions; assert an engine write and an `api` write succeed with the
+      required standby available. Retain all uncertain/residual charges through refusal and any
+      runner exit. Release capacity only with `STO-55`'s existing fencing and backend-absence evidence.
+      Assert the refused runner emits the `STO-55` migration diagnostic and exits non-zero at
+      once, without an internal admission wait/retry. A separately invoked deployment retry after
+      verified capacity release uses a fresh reservation and resumes through `STO-12`'s version
+      history. No completed migration is applied again and the release starts only after the
+      required migrations complete successfully. Separately, give both runners confirmed admitted
+      connections and contend on the migration key: assert the second waits on the key under
+      `STO-12` rather than taking the admission-refusal exit. Keep the existing concurrent-index
+      and stop-everything cases. (`STO-55`, `STO-12`, `STO-13`, `STO-7`)
       **Then the concurrent index step** (added 2026-09-12): kill the runner mid-build of a
       `CONCURRENTLY` index on `operations` and assert the version is unrecorded and the index is
       `INVALID`; re-run and assert the invalid index is dropped, rebuilt valid, and the version
