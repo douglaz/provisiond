@@ -93,7 +93,7 @@ since `STO-35` was written.*
 **STO-5** The store MUST survive process restart with no loss of queued or running
 operations. *A restore from backup is not a restart and is not covered by this sentence: it loses
 an interval, and `STO-54` is what governs bringing the engine up on it (`ADR-0023`).*
-*For promotion classification, see `STO-54` (`ADR-0045`).*
+*For promotion and replacement of authoritative history, see `STO-54` (`ADR-0048`).*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): added the promotion-classification pointer.*
 
 **STO-51** **AMENDED 2026-09-08 (`ADR-0019`) — the epoch row is deleted; a startup lock replaces
@@ -159,6 +159,13 @@ exists precisely because a primitive was once left off this list.*
 
 *Amended 2026-10-24 (`pv-buc`; panel r66e, `docs/research/panels-2026-10/r66/r66e/`; owner decisions “Yes, R (Recommended)” and “Adopt; one combined Run”; `ADR-0047`): added the startup-generation primitive pointer.*
 
+The supported initial deployment runs one engine, one `api` instance, one PostgreSQL primary and
+one designated synchronous physical standby in separate failure domains (`ADR-0048`). Additional
+`api` replicas and overlapping releases are outside this initial profile; the replica safety
+requirements remain in force. `STO-6` keeps "`api` MAY run as any number of replicas against the
+shared store." and "the primitives the store provides for that are `STO-1`'s engine-checked atomic
+claim, `STO-51`'s per-machine index and startup lock, `STO-47`'s conditional write (`STO-27`)".
+
 **STO-7** Connection-scoped settings MUST be applied to *every* pooled connection, not once at
 migration time. Applying them inside a migration affects only the connection that ran the
 migration, and whether the system behaves correctly then depends on the driver's defaults. See
@@ -178,19 +185,39 @@ an aborted transaction.
 
 **A sent COMMIT is never abandoned** (*added 2026-10-23, `ADR-0045`*): short of its process exiting, a deadline or a cancellation of the request or worker that sent it MUST NOT release its connection before the reply arrives or the transport is found dead. Cancellation alone does not release that write checkout. Dead database transports and process exits can leave waiting backends outside the pool's accounting. A request that finds the write checkouts taken is refused at checkout (`STO-55`).
 
-**Every commit waits for the standby** (*amended 2026-10-23, `ADR-0045`; until then "`synchronous_commit` is `local`
-on every connection and `on` inside exactly two transactions"*): `synchronous_commit` is `on` on every connection and
-`synchronous_standby_names` is `ANY 1` over the two standbys `OVR-19` names, so PostgreSQL acknowledges a commit
-only once one of them has flushed it to durable storage. The deployment MUST NOT let the primary commit without one
-of them: no connection lowers `synchronous_commit`, and the primary never serves with `synchronous_standby_names`
-empty. `OVR-18` alarms either standby being unavailable, and while both are, every write waits.
+**State-changing commits wait for the designated standby** (*amended 2026-11-04, `ADR-0048`*):
+`synchronous_commit` is `on` for provisiond state-changing work, migrations and recovery-incident
+transactions. One deployment-selected, authenticated physical standby is designated on the primary's
+actual WAL history. An illustrative configuration is:
 
-The operator MUST keep this synchronous replication configuration in force while the primary serves component work. Provisiond relies on that duty; no additional runtime replication-configuration drift check is required. If `synchronous_standby_names` is emptied after a connection has passed its new-connection check, a later commit on that connection can be acknowledged locally without either named standby having flushed it. That is a deployment misconfiguration, and the earlier connection check does not detect the change.
+```conf
+synchronous_commit = on
+synchronous_standby_names = 'FIRST 1 (provisiond_sync)'
+```
+
+PostgreSQL acknowledges these commits only once the designated standby has flushed them to durable
+storage. The deployment MUST NOT let the primary acknowledge a provisiond state-changing transaction,
+a migration or a recovery-incident transaction without the designated standby: no component, migrator or
+operator data-mutation session lowers `synchronous_commit`, and the primary never serves with
+`synchronous_standby_names` empty. `OVR-18` alarms "the designated standby being unavailable";
+while it is unavailable, state-changing commits wait.
+
+While provisiond components and migrators are stopped, a dedicated maintenance backup session MAY
+use the commit mode required by the documented physical backup procedure solely for physical
+backup/bootstrap operations. It MUST NOT write provisiond tables, apply schema migrations, alter
+financial or authorization state, or establish an incident. It MUST NOT enter a component pool and
+MUST be closed before component recovery begins. This exception does not permit clearing the
+synchronous-standby configuration or weakening any provisiond state-changing transaction.
+
+The operator MUST keep this synchronous replication configuration in force while the primary serves component work. Provisiond relies on that duty; no additional runtime replication-configuration drift check is required. If `synchronous_standby_names` is emptied after a connection has passed its new-connection check, a later commit on that connection can be acknowledged locally without the designated standby having flushed it. That is a deployment misconfiguration, and the earlier connection check does not detect the change.
 
 **A component checks each new connection before using it** (*added 2026-10-23, `ADR-0045`*): it MUST NOT use a
-  new store connection until one of the standbys `OVR-19` names has flushed the primary's WAL up to the flush
-  position the primary reports on that connection, which it learns by reading the standbys' reported positions,
-  never by committing a write. A check that errors, cannot see a standby's position, or has not passed is a failed
+  new store connection until the designated standby has flushed the primary's WAL up to the flush
+  position the primary reports on that connection, which it learns by querying the flush position of
+  the walsender whose `application_name` is the designated name, never by committing a write. The
+  check MUST fail closed if no such walsender or more than one exists. The name MUST identify the
+  intended authenticated standby on the primary's actual WAL history; a reused name or equal
+  numerical position is not evidence of the correct history. A check that errors, cannot see a standby's position, or has not passed is a failed
   connection attempt: the connection is closed unused, and nothing falls back to an unchecked one. Every
   connection after a restart of the primary is new, whether the restart was in place or after a crash, so it is
   checked: a commit that was waiting for a standby when the primary stopped is "marked fully committed once the
@@ -198,6 +225,8 @@ The operator MUST keep this synchronous replication configuration in force while
 Before exposing a deposit destination read from the store, repeat the read-only flush-position check with a
   target sampled after that read, on the same uninterrupted PostgreSQL session. On session failure discard the
   result and repeat the whole read.
+
+**No pooler in transaction mode fronts the pools** (*amended 2026-10-23, `ADR-0045`; until then one "MAY front the pools only on two conditions"*): behind one, a crash of the primary ends its backends but not the component's connection to the pooler, so the new-connection check would never run. The flush-position checks require an uninterrupted PostgreSQL session. The operator MUST maintain this exclusion while components use this path, including after routing changes. No additional runtime topology-drift check is required.
 
 No component sends PostgreSQL a cancel request on a store connection: a store call whose client-side deadline
 expires closes its connection, except a sent COMMIT, which no deadline releases, and the transaction's fate is the server's (`OPS-49`).
@@ -230,9 +259,10 @@ position comparisons. The corresponding refusal and positive case are
 This historical write-barrier witness introduces no write check into the current rule.
 
 For acknowledged commits, `SynchronousCommit` separately relates acknowledgement to an actual
-record and an endpoint reached by a named standby; durable-prefix semantics then establish
-membership. `Provisiond.WalHistory.local_ack_admitted_without_sync` retains the documented
-configuration-drift case above, even with maximal equal reports. No runtime configuration check
+record and an endpoint reached by the designated standby; durable-prefix semantics then establish
+membership (`Provisiond.WalHistory.acknowledged_in_designated_prefix`).
+`Provisiond.WalHistory.local_ack_admitted_without_sync` retains the documented
+configuration-drift case above, against the designated replica. No runtime configuration check
 is added.
 
 The module documents its premises and limits. It proves neither PostgreSQL implementation or
@@ -242,14 +272,27 @@ audit remains `pv-v4gp`. It supplies no implementation conformance or new fixtur
 No rendered region is added; see `ADR-0025` for authority. For promotion properties and witnesses,
 see `STO-54`.
 
+**Standby maintenance and bootstrap.** Rebuilding the standby while the intact current primary
+remains authoritative creates no incident by itself. The deployment MUST quiesce application and
+migration work, prevent old and replacement standbys from both being mistaken for the designated
+peer, build from the intact primary, verify the correct history and catch-up through the primary's
+sampled flushed prefix, and reestablish the designated synchronous relationship before work resumes.
+The deployment MUST document and rehearse a pinned PostgreSQL physical backup method, including its
+version and WAL-transfer mode, that works without an existing acknowledgement partner and without
+first committing an application or incident row. Prefer a replication-protocol `pg_basebackup`
+workflow. Its backup connection MUST use an application name distinct from the designated standby;
+any generated connection configuration MUST deliberately set the final standby role before startup.
+The maintenance session MUST close before component recovery, and the completed designated physical
+standby MUST be running before any migration or incident commit can be acknowledged. Source
+inspection or a configuration example alone is not a successful bootstrap drill.
+
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; owner question F (a quick shutdown while both standbys are down) “Check again (Recommended)”; the lost-reply sentences of `STO-7` and `OPS-49` “Amend both (Recommended)”; `ADR-0045`): adopted synchronous commits, retained sent COMMIT connections, excluded standby waits from deadlines, added connection and deposit-read checks, and made a commit returned with the replication warning the second lost reply.*
 
 **STO-55** **ADDED 2026-09-12 (`F51`) — each pool is sized by construction, and a component holds
 at most one transaction at a time.** The engine's pool holds one connection per worker plus one
 per periodic component that runs in the engine process (`OVR-17`); each `api` replica's pool holds
 one per admitted request plus one per periodic component on its rows; `OPS-47`'s lock connection
-is outside both. Pool sizing reserves consumer checkouts within a running process; opening or
-replacing a database connection also requires deployment admission. **The rule that makes the
+is outside both. Pool sizing reserves consumer checkouts within a running process. **The rule that makes the
 arithmetic true:** a worker, sweep or watcher MUST NOT hold two transactions at once and MUST NOT hold a transaction
 open across a provider, rail or rescue-host call — a sweep selects a bounded batch by key, commits,
 and writes per row in its own transaction, and a cursor held on one connection while writing on
@@ -275,70 +318,60 @@ concurrency** (`OVR-19`); the pools are sized from them.
   not the caller's rate, so the decision is `503` rather than a non-rate `429`. Read and write
   checkouts are budgeted separately, on the same reasoning `API-50` applies to rate limits, so a
   poller cannot crowd out an extension.
-- **The sum fits outside a stall, and the engine checks its share.** The deployment states that the engine pool,
-  every replica's pool at the rollout's maximum overlap, the lock connection, the migrator and its
-  waiting runners, and an operator reserve together fit inside `max_connections` less the server's
-  reserved slots — a human row on `OVR-19`, since only the deployment sees the whole — and the
-  engine reads `max_connections` at startup and refuses to run where its own pool plus the lock
-  connection does not fit.
+- **The ordinary budget fits, and the engine checks its share.** The deployment MUST state a
+  phase-appropriate ordinary connection budget against `max_connections` less reserved slots,
+  including the engine pool, the fixed deployment's API pools, the startup-lock connection,
+  migrators and waiting runners when present, and operator headroom (`OVR-19`). The deployment MUST
+  size ordinary database/OS resources in its deployment procedure (`OVR-19`). At startup the
+  engine MUST read `max_connections` and refuse to run if its own pool plus lock connection does
+  not fit. Read/write separation reserves local checkouts; it guarantees no read availability
+  during deployment-wide exhaustion.
 
-  Every physical connection attempt by component pools, reconnects, rollout incarnations,
-  startup-lock holders, migrators and waiting runners MUST receive a distinct durable reservation
-  before dialing from one serialized authority outside the protected store. This includes
-  pre-authentication and delayed-handshake attempts. Ingress MUST prohibit bypass and redial under
-  one reservation. Bind grants to component/attempt identity and database boot identity, and to
-  backend PID and `backend_start` when known. Unknown bindings remain charged. Timeout, transport
-  loss, process exit and rollout completion never release a grant.
+Pool and connection budgets cover the supported fixed deployment. They MUST include every
+application pool, the engine's startup-lock connection, migration activity and operator headroom
+appropriate to the deployment phase.
 
-  Unreleased grants MUST fit component capacity C. Bounded observer/operator/other-client
-  allowances A include their residual and uncertain attempts. C+A MUST fit usable capacity after
-  server reservations, with background/server resource pools budgeted separately. Keep separate
-  read/write checkout budgets. The deployment MUST state C, the allowances A, the resource
-  ceilings, and the authority and reconstruction procedures (`OVR-19`), and MUST actually bound A
-  and budget the separate background/server resources. A declared allowance alone does not ensure
-  a fresh observer can connect when that allowance or resources are consumed; PostgreSQL reserve
-  roles alone are no proof of observer access. The enforcement construction is the deployment's.
+Residual PostgreSQL backends and uncertain connection attempts can outlive an application process.
+The sum of current pool limits is therefore not a guaranteed upper bound on server occupancy across
+process lifetimes.
 
-  Release requires fencing every delayed arrival/retry and fresh privileged direct-primary
-  evidence, read in a fresh transaction, that the bound backend ended. Leaving `SyncRep` is
-  insufficient. Unidentified attempts remain charged until fenced server-incarnation termination
-  proves absence. Observer failure denies growth and retains charges.
+The deployment MUST limit reconnect and supervisor restart attempts, use backoff, alarm sustained
+database unavailability or connection exhaustion, and provide an operator recovery procedure. These
+controls do not require a durable external connection-admission authority.
 
-  Accounting loss closes ingress. Recovery requires fenced conservative reconstruction or
-  stopped components and verified primary shutdown before a fresh account; either path fences all
-  old grants and delayed attempts. Existing admitted sessions may continue. Exhaustion alarms,
-  refuses growth and delays replacements.
+Connection exhaustion MAY prevent application progress and fresh observer access. Recovery MAY
+require stopping application components and shutting down the primary as `STO-7`'s `SyncRep` rule
+permits. `STO-7` keeps "The deployment MUST NOT cancel or terminate a primary backend while it
+waits for a standby (wait event `SyncRep`), other than by shutting the primary down." No guarantee
+of continued service or bounded outage duration follows from pool sizing.
 
-  Startup acquisition refusal exits for supervisor retry; `api` returns `overloaded` before any
-  transaction; worker/periodic acquisition refusal is an `OPS-49` store error (`OPS-49`: "An
-  attempt denied by `STO-55` admission is a store error for this loop and sends no SQL").
-  Stop-record refusals consume existing bounds and send no SQL. No individual `SyncRep` backend
-  may be cancelled or terminated to make room; primary shutdown remains `STO-7`'s exception,
-  "other than by shutting the primary down".
+A request that fails to obtain a checkout within the configured bound MUST start no request
+transaction, create no new refusal receipt, and initiate no provider mutation for that request. The
+existing overload and idempotent-resend rules apply. `API-11` keeps "Re-sending the same key with
+a byte-equivalent request MUST return the existing operation.".
 
-  **Migration admission refusal.** If `STO-55` admission refuses a physical connection attempt
-  by the `migrate` entry point, including initial acquisition, acquisition by a runner scheduled
-  alongside another runner, or reconnect, `migrate` MUST report the refusal and exit non-zero
-  at once; it MUST NOT wait or retry admission internally. A later invocation is a deployment
-  retry; see `STO-12` for version inspection, serialization and resumability. The denied attempt
-  MUST send no dial and no SQL. It MUST NOT record a migration as completed because of that
-  refusal, and the refusal does not undo previously recorded completed migrations.
-  The diagnostic MUST identify `migrate`, the release being attempted, whether this was initial
-  acquisition or reconnect, and the admission-refusal reason as the authority returned it,
-  without credentials.
-  This rule governs refusal before a physical connection is admitted, not a SQL advisory-lock
-  or DDL lock wait after connection. It introduces no deadline for a sent COMMIT or standby
-  wait; see `STO-7`. The grant-retention and release rules above still apply on process exit or
-  transport loss; neither is evidence that an old backend ended. Refusal does not require
-  stopping the previous release or terminating any individual backend to make room.
+Pool checkout failure, connection failure and failed connection checks MUST NOT be interpreted as
+proof that a previously sent COMMIT rolled back or that a previously dispatched provider mutation
+did not execute. Existing commit-uncertainty, stop-record and reconciliation rules continue to
+apply. `STO-7` keeps "a deadline or a cancellation of the request or worker that sent it MUST NOT
+release its connection before the reply arrives or the transport is found dead"; `OPS-21` keeps
+"The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST
+NOT wait for it past that bound."; `OPS-15` keeps "Subject to the exceptions below, at startup,
+before any claim, the engine MUST move every `running` operation to `needs_reconciliation`".
 
-  The capacity argument is the mapping of every physical component attempt to a distinct
-  unreleased grant: residual backends, unknown attempts and failed-unused attempts stay charged
-  until the release evidence above proves absence. Together with the actually bounded A and the
-  separate resource budgets, the C+A inequality covers occupancy outside live pools. The costs
-  are reserves, durable admission infrastructure, indefinite replacement/startup delay and
-  possible primary shutdown for unreconstructable accounting.
-- **No pooler in transaction mode fronts the pools** (*amended 2026-10-23, `ADR-0045`; until then one "MAY front the pools only on two conditions"*): behind one, a crash of the primary ends its backends but not the component's connection to the pooler, so `STO-7`'s new-connection check would never run. The operator MUST maintain this exclusion while components use this path, including after routing changes. No additional runtime topology-drift check is required.
+**Saturation recovery on unchanged history.** The deployment's procedure MUST follow this order:
+
+1. Stop replacement application processes and connection growth through deployment controls.
+2. Quiesce application work, preserving uncertainty about in-flight commits and provider calls.
+3. Restore the standby if that permits existing replication waits to complete.
+4. If recovery still requires primary shutdown, use as `STO-7`'s `SyncRep` rule permits; `STO-7`
+   keeps "other than by shutting the primary down".
+5. Restart on unchanged intact primary history only after connection and read checks pass; for
+   promotion or history replacement, see `STO-54`.
+
+No spare observer SQL connection or fixed recovery duration is guaranteed. A previously licensed
+external call can still complete and requires reconciliation.
+
 
 *Why no ADR: pool sizes and admission bounds are configuration, so the hard-to-reverse test fails,
 and two independent readers said so; `LDG-65` is the set's precedent for recording a reversible
@@ -543,7 +576,7 @@ from every inventory query that filters out deleted rows. *Amended 2026-10-11 (`
 | `resolution` | enum | nullable; `observed` \| `absent` \| `abandoned` for a create, and `applied` \| `not_applied` \| `abandoned` for a kind that acts on an existing machine — install, rescue inventory, power, reverse DNS, delete, release attachment (`OPS-27`, `OPS-31`, `OPS-45`, `WIR-35`). The first pair name a resource that may or may not have been created; the second pair name a mutation that may or may not have taken effect, which is a different question and had no verb until 2026-09-02. **The store MUST reject a value outside the set its operation's kind admits**, which is `WIR-35`'s rule enforced where `API-24` cannot reach |
 | `write_started_at` | timestamp | nullable; `OPS-45`'s first marker — when a phase began that could have altered the machine, written **before** that phase runs. Null means the mutation provably did not begin — but **non-null does NOT mean `not_applied` is unrecordable**, and reading it that way is the defect corrected on 2026-09-04: only on a `rootfs_via_rescue` or `raw_disk` install does this column mean the destructive phase was allowed to begin — the old contents no longer represented as preserved, `OPS-45` — and only there does it refuse the verb (`WIR-35`, `OPS-45`). On every other kind it records a dispatch. **Write-once, and nothing clears it** (`OPS-45`): a marker is a fact about this one operation. Null on every kind `OPS-45` does not reach — a create has no machine to alter and is resolved by correlator instead (`OPS-27`). *Amended 2026-10-23 (`pv-9j6`; panel r64b; owner decision “Yes, settle failed (Recommended)”; `ADR-0046`): deleted the duplicate classification claim in favor of `OPS-11`.* |
 | `rescue_exited_cleanly` | boolean | nullable; `OPS-45`'s second marker — true when the driver's end-rescue call returned success, null only where no rescue session was opened, false where the exit failed or the operation died before reaching it; written `false` before `PRV-15` is dispatched and `true` on the end-rescue success (`OPS-45`, which owns the rule). **A null `write_started_at` alone does not make a failure deterministic**: entering rescue reboots the machine into another operating system and `PRV-22` makes a failed exit always ambiguous, so an untouched disk on a machine possibly still sitting in rescue is not "nothing happened". Both are copied into `request_summary` so an operator reading a resolved record still has them after the payload purge (`ADR-0005`); **these columns are authoritative and the copy is a convenience** |
-| `restore_markers_untrusted` | boolean | target non-null after `STO-13`'s staged migration; retained with the operation after payload purge; provenance owned by `STO-54`; wire rendering owned by `WIR-9a` |
+| `restore_markers_untrusted` | boolean | non-null after `STO-54`'s provenance upgrade; see `STO-13` for release order; retained with the operation after payload purge; provenance owned by `STO-54`; wire rendering owned by `WIR-9a` |
 | `privileged_seconds`, `bytes_transferred`, `storage_seconds` | integer, integer, integer | nullable; `LDG-25`'s metering of a privileged operation — rescue occupancy or import-to-switchover, and for a catalogue install the bytes transferred and the storage-seconds of the re-hosted copy (`RSC-39`, `RSC-42`). Free in v1 and counted from the first release, because a price cannot be introduced later for something that was never counted. Metering facts, not caller payload: they survive `ADR-0005`'s purge. *Added 2026-09-05; the MUST had no column* |
 | `resolved_at`, `resolved_by`, `resolution_evidence` | timestamp, text, json | nullable; how a `needs_reconciliation` record was closed |
 | `commitment_id` | UUID | nullable; the commitment opened in the same transaction as the enqueue (`LDG-11`). *Renamed from `hold_id` 2026-08-12* |
@@ -552,7 +585,7 @@ from every inventory query that filters out deleted rows. *Amended 2026-10-11 (`
 | `requested_by` | enum | `caller` \| `system` \| `operator` (`OPS-39`) |
 | `system_reason` | text | nullable; set when `requested_by = system` — `exhausted`, `late_attach_cleanup`, `tenant_suspended` (`API-58`'s per-machine cancellations, never the caller's own queued work that the same fan-out fails: that keeps `requested_by = caller`, a null `system_reason`, and carries the reason in `error`), `rate_outage_bound` (`LDG-64`) |
 | `episode_id` | UUID | nullable; foreign key to `episodes` (`STO-52`). Set on every attempt an episode enqueues (`OPS-48`), in the same transaction as the enqueue; null on every other operation. Replaces `system_trigger_id` (2026-09-08, `ADR-0017`): the episode is a row, so the operation carries a reference rather than a copy |
-| `claim_number` | integer | not null, default 0 for never claimed; incremented and returned by `STO-1`'s claim, carried by every worker write (`OPS-6`, `STO-3`). Identifies a claim and counts nothing. *Was `attempts`, "incremented on claim", until 2026-09-12 (`ADR-0022`); the change ships as add-and-backfill in one release and drop in the next, under `ADR-0024`'s rule that a rename is a contract step* |
+| `claim_number` | integer | not null, default 0 for never claimed; incremented and returned by `STO-1`'s claim, carried by every worker write (`OPS-6`, `STO-3`). Identifies a claim and counts nothing. *Was `attempts`, "incremented on claim", until 2026-09-12 (`ADR-0022`)* |
 | `available_at` | timestamp | earliest claim time; supports deferral |
 | `yielded_at` | timestamp | nullable; non-null while a `running` operation has yielded the machine (`OPS-8`) — `RSC-41`'s import phase is expressed here. Cleared by the conditional re-acquire, which `STO-51`'s index refuses while another `running` operation holds the machine |
 | `created_at`, `updated_at` | timestamp | |
@@ -1472,7 +1505,7 @@ not mention them — the failure class this document's own scope note exists to 
 `grace_ends_at`, nullable (*added 2026-09-25, `ADR-0028`*), `lost_window_starts_at`, nullable,
 `loss_end_at`, nullable, `history_evidence_ref`, non-null, and `closed_at`, nullable, and
 `supersedes_incident_id`, nullable, a foreign key to the retained predecessor record. One row per
-restore (`STO-54`), written into the restored or promoted store before either component is started and closed
+promotion or history replacement (`STO-54`), written into the restored or promoted store before either component is started and closed
 by the operator under the rules below; at most one row may have `closed_at` null, a partial unique index over
 the table.
 Both components read the open row before anything else they do: it is what says a starting process
@@ -1480,7 +1513,7 @@ is continuing an incident rather than restarting, and `steps_completed` is what 
 resume, so neither fact depends on an operator being at the console when a process dies. *Added
 2026-09-20 (`ADR-0023`).*
 
-**Actual-restore supersession.** On an actual store restore whose restored store contains an open
+**Promotion/history-replacement supersession.** On a promotion or authoritative-history replacement whose store contains an open
 incident R, the transaction establishing the new record MUST close R by supersession and insert a
 distinct record naming R in `supersedes_incident_id`, with the new restore instant,
 `steps_completed` = 0, `grace_ends_at` = `null` and `closed_at` = `null`. R is retained. For
@@ -1488,10 +1521,10 @@ provenance initialization and the start boundary, see `STO-54`. Supersession is 
 to the ordinary close conditions below: it replaces the predecessor's outstanding recovery
 obligations with the new incident's full procedure and close conditions, and no predecessor step
 mark satisfies a new step. No component starts between closing R and establishing the new record.
-Where the restored store has no open incident, the new record has `supersedes_incident_id` `null`. A
-process crash without an actual store restore creates and supersedes no incident.
+Where the promoted or restored store has no open incident, the new record has `supersedes_incident_id` `null`. A
+process crash on the same authoritative history creates and supersedes no incident.
 
-The operator MUST select and retain one new incident id per actual restore before attempting
+The operator MUST select and retain one new incident id per promotion or authoritative-history replacement before attempting
 establishment, and reuse that id on a lost-reply retry. If establishment with that id finds no
 committed record with that id, it MUST insert the incident with restore_instant defined by STO-54
 for the newly begun transaction inserting it; an instant selected for an earlier attempt that
@@ -1500,7 +1533,7 @@ record exists MUST affect that record as a guarded no-op, not create or supersed
 record, preserving its step marks and original restore instant. A mismatch in the committed
 id's restore instant or predecessor MUST be refused with both components stopped. The initial
 establishment or its matching no-op repeat MUST be acknowledged before either component starts.
-A new actual store restore uses a distinct id even when the predecessor incident is still open.
+A new promotion or authoritative-history replacement uses a distinct id even when the predecessor incident is still open.
 
 `restore_instant` is non-null; its event-time definition and the meanings of
 `lost_window_starts_at`=b and `loss_end_at`=f belong to `STO-54`. The incident-keyed
@@ -1508,6 +1541,8 @@ A new actual store restore uses a distinct id even when the predecessor incident
 even when both bounds are unknown. The endpoints and reference MUST be written with the row;
 continuations MUST NOT recompute them. `STO-54`: "Continuations reuse the persisted endpoints and
 evidence unchanged."
+
+For replacement-standby, optional migration and incident-establishment ordering, see `STO-54`.
 
 **`grace_ends_at` is the unpaused end of the restore grace, one stored instant for the whole
 incident** (*added 2026-09-25, `ADR-0028`; amended 2026-10-02, `ADR-0029`*). It is null until
@@ -1555,10 +1590,7 @@ lock is not this lock: it is held on a connection outside the pool, an advisory 
 with requests for its own key, and a runner asking for that key would block the engine's own boot.*
 
 **A statement PostgreSQL refuses inside a transaction block is its own migration, run outside one,
-and it MUST be resumable.** *Added 2026-09-12: `STO-13` requires the index builds on the large
-tables to be `CONCURRENTLY`, and `CREATE INDEX CONCURRENTLY` cannot run in a transaction block —
-so the one-transaction rule above and that obligation contradicted each other for the exact
-migrations that take longest, and both landed the same day under `ADR-0024`.* Such a migration
+and it MUST be resumable.** Such a migration
 contains that one statement and nothing else; the runner holds a **session-scoped** advisory lock on
 the same key across the build and the recording of completion, so runners still cannot interleave;
 the statement is written so that a repeat after a crash is a no-op (`IF NOT EXISTS`); and before
@@ -1566,66 +1598,63 @@ running it the runner MUST drop any index of that name left `INVALID` by an earl
 since `IF NOT EXISTS` would otherwise skip the rebuild and record a version whose index does not
 work. Completion is recorded only after the build succeeds, so the recorded version still never runs
 ahead of the DDL — a crash between the two leaves a valid index and an unrecorded version, and the
-repeat records it. Such a migration is never a contract step and never in the stop-everything class
-(`STO-13`): an index is an addition.
+repeat records it. A migration that uses `CONCURRENTLY` retains this invalid-index and crash-resume
+path even during an offline release; ordinary offline index builds may be transactional.
 
-**STO-13** **AMENDED 2026-09-12 (`ADR-0024`) — both halves, each where it is cheap, and the class
-neither half makes safe.** Migrations MUST be forward-only and MUST be applied by the deployable's
-own `migrate` entry point, run by the deployment **before any component of a release starts and
-while the previous release's engine and `api` keep running** — never by `api`, and never by the
-engine at boot, whose restart window `ADR-0016` priced at seconds and `OVR-18` alarms. Every
-migration MUST be safe against a running instance of the previous release of both components:
+**STO-13** **AMENDED 2026-11-04 (`ADR-0048`) — every release is offline.** Migrations MUST
+be forward-only and MUST be applied by the deployable's own `migrate` entry point, never by `api`
+or by the engine at boot. The deployment MUST stop all previous-release components, prevent their
+restart, and establish that their old sessions cannot continue writing before migration begins.
+The deployment MUST NOT start a new-release component until every required migration has completed successfully.
 
-- it MUST NOT drop, rename or narrow a column, table or type;
-- it MUST NOT add a `NOT NULL` column a previous-release writer does not populate — such a column
-  is nullable in the release that adds it and tightened after a backfill in a later one;
-- it MUST NOT add a constraint a previous-release write can violate;
-- it MUST NOT write a value of an enumerated column the previous release does not recognize —
-  `STO-10` makes that "a hard error, not a silent default" on every old reader — so **the release
-  that adds a value does not write it, and the release after may**;
-- DDL that takes `ACCESS EXCLUSIVE` MUST run under a stated `lock_timeout` and retry count
-  (`OVR-19`), and index builds on `operations`, `ledger_entries` and `machines` MUST be
-  `CONCURRENTLY`, so that the time `api` queues behind a migration is bounded, except while that DDL's commit waits for a standby (`STO-7`) — the table lock
-  still queues every later statement on that table behind it while held. A `CONCURRENTLY` build
-  cannot run inside a transaction, so it is its own migration under `STO-12`'s non-transactional
-  rule, not a statement inside a transactional one.
+DDL that takes `ACCESS EXCLUSIVE` MUST run under a stated `lock_timeout` and retry count
+(`OVR-19`). This bounds waiting for locks held by operator or leftover sessions the stop step did
+not end, so a stuck release fails instead of hanging. This introduces no timeout for a sent
+COMMIT's standby wait. Ordinary offline index builds are permitted; if a migration uses
+`CONCURRENTLY`, see `STO-12`: "A statement PostgreSQL refuses inside a transaction block is its
+own migration, run outside one".
 
-For physical connection-admission refusal by the `migrate` entry point and deployment retry,
-see `STO-55`. The deployment MUST NOT start any component of the new release until the
-required migrations have completed successfully. The stop-everything and backfill exceptions
-below retain their existing order.
+**Migration connection failure.** If PostgreSQL refuses a connection attempt by the `migrate`
+entry point, or the attempt fails, including initial acquisition, acquisition by a runner
+started alongside another runner, or reconnect, `migrate` MUST report the failure and exit
+non-zero at once; it MUST NOT wait or retry the connection internally. A later invocation is a
+deployment retry; see `STO-12` for version inspection, serialization and resumability. `migrate`
+MUST NOT record a migration as completed because of that failure, and the failure does not undo
+previously recorded completed migrations.
+The diagnostic MUST identify `migrate`, the release being attempted, whether this was initial
+acquisition or reconnect, and the failure reason as PostgreSQL or the connection layer returned
+it, for example SQLSTATE `53300` "sorry, too many clients already", without credentials.
+This rule governs a refused or failed connection attempt, not a SQL advisory-lock or DDL lock
+wait after connection. It introduces no deadline for a sent COMMIT or standby wait; see `STO-7`.
 
-A removal, rename, tightening or `VALIDATE` is a **contract step** and ships no earlier than the
-release after the one that stopped depending on the thing removed. Every component MUST read the
-recorded schema version before it does anything else — `api` before its listener opens, the
-engine before `STO-51`'s startup lock and so before `OPS-15`'s pass — and exit non-zero where it
-is *older* than the version it requires, and MUST serve a *newer* one — a component refusing a
-newer schema would refuse the normal state of every roll. **Rollback is the previous binary against the current schema**,
+Every binary MUST declare its supported schema version or range and read the recorded schema
+version before serving or claiming: `api` before its listener opens, the engine before the startup
+lock. A schema outside that declared range MUST cause non-zero exit. The supported range MUST
+preserve the current semantic guards. A rollback may use an older binary only if it supports the
+current schema and preserves those guards. A removal, rename, tightening or `VALIDATE` is a
+**contract step**. **Rollback is the previous binary against the current schema**,
 admissible up to and not past a contract step; past one there is no down-migration, and recovery
-is `STO-54`'s restore. **A change to a predicate or derivation both components evaluate on shared
-rows is made safe by none of the above** — `LDG-33`, `STO-3`'s guards, `OPS-42`/`LDG-62`'s fence
-guard, `STO-47`'s conditional write, `SEC-39`'s counter key, `LDG-35`'s serialization key, and
-every idempotency-key and `payment_ref` derivation — and such a release MUST stop every component
-of the previous release before the first component of the new one starts, and MUST say so in its
-migration. *The witness: an `api` at N−1 sizes an extension by the old `LDG-33` and writes a
-future date; an engine at N re-derives by the new one, gets a past date, sets the fence and
-`LDG-14` destroys the disk, with the row valid under both formulas and `OPS-23` unable to see it.*
+is `STO-54`'s restore.
 
-*Until 2026-09-12 this read "MUST be safe to run concurrently with a running instance of the
-previous version, or startup MUST take an exclusive lock", and nobody chose a half.*
+A release that changes a predicate or derivation both components evaluate on shared rows MUST
+declare its stop-everything order in its migration. This includes `LDG-33`, `STO-3`'s guards,
+`OPS-42`/`LDG-62`'s fence guard, `STO-47`'s conditional write, `SEC-39`'s counter key, `LDG-35`'s
+serialization key, and every idempotency-key and `payment_ref` derivation. The supported-schema
+check MUST exclude binaries with incompatible shared-row semantics. *The witness: an `api` at N−1
+sizes an extension by the old `LDG-33` and writes a future date; an engine at N re-derives by the
+new one, gets a past date, sets the fence and `LDG-14` destroys the disk, with the row valid under
+both formulas and `OPS-23` unable to see it.*
 
-**The `about_to_order_at` backfill is an exception to the concurrent-migration rule above**, which
-runs a migration "while the previous release's engine and `api` keep running". Before enabling
-`OPS-15`'s create exception or `API-63`'s dispatch test on the column, the migration MUST stop every
-previous-release component, then fill `operations.about_to_order_at` with the migration instant
-for every existing `running` create, preserving any value already set, and only then permit the
-first new-release component to start. Those legacy running rows MUST NOT be read as
-"null, so never dispatched". Backfilled values mean potentially dispatched, not a
-measured dispatch time. A binary that claims without writing this column MUST NOT run against the
-store after the backfill, and a previous-release component MUST NOT restart after it;
-rollback past this release is inadmissible. This is a shared-predicate
-contract step, and the migration MUST declare that order (`ADR-0024`: "Stop everything, migrate,
-start everything. The degenerate case, and the right one for the shared-predicate class.").
+**The `about_to_order_at` backfill preserves unknown dispatch history.** Before enabling `OPS-15`'s
+create exception or `API-63`'s dispatch test on the column, the migration MUST stop every
+previous-release component, then fill `operations.about_to_order_at` with the migration instant for
+every existing `running` create, preserving any value already set, and only then permit the first
+new-release component to start. Those legacy running rows MUST NOT be read as "null, so never
+dispatched". Backfilled values mean potentially dispatched, not a measured dispatch time. A binary
+that claims without writing this column MUST NOT run against the store after the backfill, and a
+previous-release component MUST NOT restart after it; rollback past this release is inadmissible.
+The migration MUST declare its stop-everything order and record that rollback past this release is
+inadmissible.
 
 *Amended 2026-10-17 (`pv-k4l`; panels r56 and r56b, `docs/research/panels-2026-10/r56/` and `docs/research/panels-2026-10/r56/r56b/`): specified the conservative one-time backfill and its stop-everything order; `ADR-0042`.*
 *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S2′ “A: stop on time (Recommended)”; `ADR-0045`): excepted standby waits from the migration queue bound.*
@@ -1665,104 +1694,65 @@ revoked in Δ is live again (`API-56`), a `queued` create that already ordered i
 (on a restart `OPS-15` inspects `running` rows only), and a `suspend_tenant` parent restored
 unsettled re-runs a fan-out the operator may have reversed. So:
 
-- **Durability posture.** The deployment runs synchronous streaming replication to two standbys (`STO-7`) and continuous
+- **Durability posture.** The deployment runs synchronous streaming replication to one designated standby (`STO-7`) and continuous
   WAL archiving, and states a **recovery point** — the greatest age of a committed write not yet in
   a separate failure domain — as a human row on `OVR-19`, with its alarm threshold a
   startup-validated value alarmed on `OVR-18`'s model. The number is not the safety argument: a
   create dispatches in one second, a deposit mints in one, an extension lands in one. The
   procedure's order below is.
-- **Promoting the standby that holds every acknowledged commit is a restart** (*added 2026-10-23, `ADR-0045`*).
-  After every engine and `api` process connected to the old primary has stopped, both standbys `OVR-19` names
-  report the end of the WAL each has flushed on the old primary's timeline, and a standby whose reported end is at least as far ahead as the other's is promoted (either may be chosen when they are equal): every acknowledged commit was
-  flushed by one of them, and both hold a prefix of one WAL sequence, so every standby at the maximal reported end holds them all and its promotion
-  loses none. The
-  engine comes up on it under `STO-5`'s restart rule, unless a restore record (`STO-56`) is open there, in which case a process that starts is
-  continuing that incident (below). Before any component connects to the promoted store, the deployment MUST stop
-  every engine and `api` process that was connected to the old primary, and the old primary MUST NOT serve a
-  component again: it may hold commits the standby lacks ("Some transactions may not show as committed on the
-  standby, even though they show as committed on the primary"), so it rejoins only as a standby of the promoted
-  store. `OVR-19` then names the other standby and the rejoining old
-  primary, and writes continue once the other standby streams from the promoted store. Any other promotion —
-  without both standbys' report, with a report on another timeline, or of a standby whose reported end is behind the other's, of a standby `STO-7` does not name, or after the primary committed without one of them, served a component before it had caught
-  up, or had a waiting backend cancelled or terminated (`STO-7`) — is a restore: the procedure below runs on it, and
-  `STO-56`'s record is committed into the promoted store before either component is started.
-  Only an operator starts a
-  promotion that is a restore: an automatic failover promotes only as a restart, and otherwise leaves the store
-  without a primary until both standbys report or an operator decides.
 
-  **Unknown restart eligibility.** For a contemplated promotion, evaluate the restart-promotion
-  conditions above for the affected source-primary incarnation/history through the old
-  primary's fencing boundary. A condition is established only by evidence valid for that
-  database, incarnation and actual WAL ancestry, or by a trusted deployment invariant whose
-  uninterrupted coverage establishes the fact. Equal numerical ends alone establish neither
-  actual common history nor the absence of a waiting-backend cancellation or termination.
-  Classify a known disqualifying condition under the existing restore rule even if another
-  fact is unknown. Otherwise restart eligibility is unknown if at least one applicable
-  restart condition cannot be established. It is established only when every applicable
-  condition is established and none is disqualifying. Continuing an already open restore
-  incident remains continuation, not a new restart decision.
+Promotion MUST be operator initiated. Before a standby is promoted or a replacement authoritative
+history is served, the deployment MUST stop every engine and API process using the old primary and
+prevent the old primary from serving component work again.
 
-  In particular, evidence that no waiting backend was cancelled or terminated MUST cover the
-  affected incarnation/history, including shutdown-induced termination and inherited conditions
-  and uncertainty on which the contemplated restart depends, through fencing. A trustworthy
-  negative assertion requires an authenticated source and complete event coverage, or an
-  independently enforced no-event invariant with established coverage and non-bypass. Its
-  database/incarnation/ancestry binding and its coverage MUST be verifiable without the lost
-  primary or its logs. A missing record, sampled absence, an alarm, unverified operator belief,
-  or successful later catch-up is not negative evidence. Conflicting, incomplete, lost or
-  invalid evidence leaves that condition unknown unless a disqualifying fact is already known.
-  This paragraph specifies no new evidence service or runtime replication-configuration or
-  topology-drift controller; existing trusted deployment duties remain in force. A deployment
-  unable to supply the negative evidence may use the operator boundary below.
+Every promotion or replacement of authoritative history MUST enter the recovery-incident procedure,
+including a promotion expected to preserve every acknowledged commit. No promotion is classified as
+an ordinary restart.
 
-  Automatic failover MUST NOT promote while restart eligibility is unknown and MUST report the
-  unresolved condition to the operator. It MUST leave the store without a primary and MUST NOT
-  perform a restore. The operator may wait for sufficient valid evidence to establish a restart,
-  or authorize a restore under the procedure below; operator belief alone cannot reclassify
-  unknown as established. A promotion with unknown restart eligibility MUST be treated as a
-  restore when authorized, with the existing incident and startup prerequisites. A known
-  violation remains a violation; this rule neither permits it nor turns it into uncertainty.
-  A known historical waiting-backend cancellation or termination remains a restore condition,
-  including a shutdown-induced termination permitted by the shutdown exception (`STO-7` says
-  "other than by shutting the primary down"). Time, new
-  incarnation identifiers, equal reports or later catch-up do not expire that condition or
-  resolve an uncovered historical interval. A later decision MUST retain unresolved inherited
-  facts on which it depends rather than treating a new incarnation as clean by default.
+The promoted or restored primary MUST have the required synchronous standby before the transaction
+establishing the incident is acknowledged. Neither application component may start before that
+transaction is acknowledged.
 
-  Established eligibility preserves the equal-report restart path above when its other
-  conditions hold. Unknown possible-loss reporting endpoints on an operator-authorized restore
-  are separate: they use the reporting rules below and do not delay that restore's incident
-  creation, procedure or startup once its existing prerequisites are satisfied.
+A process successor that finds an open incident MUST continue it using the persisted step marks. A
+new promotion or restoration is a new event and follows the incident supersession rule. `STO-56`
+keeps "On a promotion or authoritative-history replacement whose store contains an open incident
+R, the transaction establishing the new record MUST close R by supersession".
 
-  **Formal checking interpretation (2026-10-29, `pv-26ju`).**
-  `Provisiond.WalHistory.maximal_preserves_acknowledged` proves preservation for an arbitrary
-  acknowledged commit under `SynchronousCommit`, truthful durable-prefix reports on one actual
-  history, and `MaximalReport`. Report snapshots assume the old component processes have stopped
-  and the reported WAL remains durable. The hypothesis is actual common history, not equality
-  of labels or positions. `Provisiond.WalHistory.equal_reports_allow_either` admits either named
-  standby when reports tie, and `Provisiond.WalHistory.equal_maximal_protected` supplies a
-  successful tied promotion witness. `Provisiond.WalHistory.divergent_equal_reports_admitted`
-  retains equal truthful reports on different histories with an absent acknowledged commit;
-  the refusal under common-prefix semantics is `Provisiond.WalHistory.divergent_promotion_refused`.
-  `Provisiond.WalHistory.he_admitted_without_maximal` retains
-  H-e: s1 durably holds an acknowledged commit, s2 holds only an earlier prefix of that same
-  history, and promoting s2 leaves the commit absent. The failed premise is maximal selection,
-  separately from H-d's history mismatch. `Provisiond.WalHistory.he_refused_with_maximal` and
-  `Provisiond.WalHistory.he_maximal_protected` retain the refusal and protected choice. This
-  witness is possible loss on an operator-authorized restore, not a ban on that restore or a
-  reclassification as a restart. The model does not establish the deployment duties or the
-  restore procedure, and does not connect WAL membership to the existing engine-step restore
-  model. For the module's limits and transitional Markdown authority, see `STO-7`.
+In-place process and primary restarts on unchanged intact authoritative history remain ordinary
+restarts when no incident is open, subject to the existing startup and connection safeguards.
+`STO-7` keeps "checks each new connection before using it"; `STO-59` keeps "Every startup advance
+MUST choose a random UUID distinct from the values chosen by earlier startup advances, including
+choices whose effects a restore removed.".
+
+**Formal checking interpretation (2026-11-04, `ADR-0048`).**
+`Provisiond.RecoveryEntry.classify` carries the event-entry policy independently of recovered loss.
+Its witnesses cover a promotion with no acknowledged loss, continuation on the same history, an
+ordinary restart with a closed incident, and supersession on a new promotion or history replacement.
+It does not prove physical fencing, replication configuration, backup bootstrap or provider
+reconciliation. `Provisiond.Restore` still takes classification as input and permits zero loss;
+`Provisiond.RestoreIndependent` retains successor/startup-pass checks. For durable-prefix and
+read-barrier assumptions and limits, see `STO-7`.
 
 - **The procedure, in this order.** *Before the restore begins,* the deployment MUST stop every
 engine and `api` process, and MUST start neither component until the transaction that commits
 `STO-56`'s record (below) has been acknowledged (*added 2026-10-24, `ADR-0047`*).
 
-  For backup restore and restore-class promotion, restore_instant is transaction_timestamp() of
+  Before acknowledging the incident-establishment transaction, the deployment MUST establish a
+  replacement synchronous standby on the promoted or restored authoritative history and verify its
+  identity and catch-up. If it cannot, the deployment remains unavailable. The `migrate` entry point MAY run against the
+  restored or promoted store after the replacement standby is established and before the incident record commits;
+  it is not a component for this rule, and no component starts before that commit.
+  The former primary MUST rejoin only after becoming a valid standby of the new authority.
+
+  For backup restore and promotion, restore_instant is transaction_timestamp() of
   the newly begun transaction inserting this incident. This is the event time of incident
   creation, not the time of the recovered history. The transaction begins after the existing
   stopping/fencing requirements are satisfied. Its timestamp's exact SQL definition is new; it
   is not claimed as a fact already proved by the formal model.
+
+  Unknown possible-loss reporting endpoints on a promotion or restore are separate: they use the
+  reporting rules below and do not delay that restore's incident creation, procedure or startup
+  once its existing prerequisites are satisfied.
 
   The report separates that event from the history that survived. Persist a nullable
   conservative lower bound b, a nullable upper bound f, and their incident-keyed evidence
@@ -1836,31 +1826,33 @@ engine and `api` process, and MUST start neither component until the transaction
 - **Marker provenance.** An operation of any kind other than install or rescue inventory MUST be
   inserted with `restore_markers_untrusted` = `false`; this column has no marker-rendering effect
   for those kinds. A new install or rescue-inventory operation MUST be inserted with
-  `restore_markers_untrusted` = `false` in its admission transaction. On each actual store restore,
+  `restore_markers_untrusted` = `false` in its admission transaction. On each promotion or authoritative-history replacement,
   before either component starts, the acknowledged transaction that establishes the restore record
   MUST set this column `true` on every surviving install or rescue-inventory row whose status is
   `queued`, `running` or `needs_reconciliation`. The marker columns themselves are preserved. A
   successor continuing an existing incident after a process crash MUST NOT repeat this
   initialization. Once `true` the column MUST NOT be cleared on that operation, including at
-  incident closure or payload purge. Another actual restore applies the initialization again. An
+  incident closure or payload purge. Another promotion or authoritative-history replacement applies the initialization again. An
   open incident inherited from the restored store is superseded under `STO-56`; an ordinary process
-  successor never supersedes it. The column is operation metadata and is not added to
+  successor never supersedes it. `STO-56` keeps "the transaction establishing the new record MUST
+  close R by supersession" and "A process crash on the same authoritative history creates and
+  supersedes no incident." The column is operation metadata and is not added to
   `request_summary`'s closed enumeration.
 
   The restore quarantine and each startup pass preserve `restore_markers_untrusted`. In particular a
   row newly admitted after step (3), interrupted by a process crash, and moved by its successor
-  retains `false` unless a later actual store restore invalidated it. Whether the incident is still
+  retains `false` unless a later promotion or authoritative-history replacement invalidated it. Whether the incident is still
   open does not itself invalidate markers of newly admitted work.
 
-  **Provenance upgrade.** The release that adds the column leaves it nullable; see `STO-13`. For an
-  install or rescue-inventory row, a `null` column MUST be treated as untrusted for rendering. The
-  backfill MUST set a still-null column `true` on every existing install or rescue-inventory row,
-  including a settled row, and `false` on other kinds; it MUST NOT overwrite a non-null value. After
-  previous-release writers are retired and the remaining nulls are backfilled, a later release
-  tightens the column to non-null. No pre-column marker history is treated as sufficient to
-  initialize `false`. This deliberately conceals legacy facts, including settled retained errors; it
-  does not claim those facts were rolled back.
-- **The procedure survives its own interruption, because the incident outlives the process.** The
+  **Provenance upgrade.** One transactional offline migration MUST add the column, conservatively
+  backfill it, and tighten it to non-null before any component starts. The backfill MUST set the
+  column `true` on every existing install or rescue-inventory row, including settled rows, and
+  `false` on other kinds, preserving any already non-null value. No pre-column marker history is
+  sufficient to initialize `false`. This deliberately conceals legacy facts, including settled
+  retained errors; it does not claim those facts were rolled back. See `STO-13` for release order.
+- **The procedure survives its own interruption, because the incident outlives the process.** For
+  supersession on a new promotion or authoritative-history replacement, see `STO-56`; the
+  continuation below is a process successor on the same authoritative history. The
   restore commits `STO-56`'s **restore record** — the restore instant, and which of the three steps
   have completed — before either component is started, and **a process that starts while a restore
   record is open is continuing that incident, not restarting**, whatever ended its predecessor. It

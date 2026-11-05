@@ -185,14 +185,17 @@ carry this fact in its state.
 _Avoid_: rollback, preserved (say `disk_effect: none`), data loss (which is a consequence, not the fact)
 
 **Restore**:
-Bringing the store back from a backup, landing at some instant before the failure, or a promotion
-`STO-54` classes as one. A recovery
-incident with a stated procedure (`ADR-0023`), never a **restart**: a restart loses no acknowledged commit and the startup pass settles what was in flight at startup; a restore may lose an interval, and the
-engine brought up on it naïvely performs destructive actions on state the restore rewrote.
-The **restore record** is the row that makes the incident recognizable to a process rather than to
-an operator: open from before either component starts until the operator closes it, carrying the
-restore instant and which of the procedure's steps have completed (`STO-56`, `STO-54` owns what it
-means). *Added 2026-09-20.*
+Bringing the store back from backup or replacing its authoritative history. `STO-54` keeps "Every
+promotion or replacement of authoritative history MUST enter the recovery-incident procedure,
+including a promotion expected to preserve every acknowledged commit." and "In-place process and
+primary restarts on unchanged intact authoritative history remain ordinary restarts when no
+incident is open" and "A process successor that finds an open incident MUST continue it using the
+persisted step marks."; `STO-56` keeps "On a promotion or authoritative-history replacement whose
+store contains an open incident R, the transaction establishing the new record MUST close R by
+supersession" and "A process crash on the same authoritative history creates and supersedes no
+incident."; `STO-7` keeps "Rebuilding the standby while the intact current primary remains
+authoritative creates no incident by itself." See `STO-54`, `STO-56` and `ADR-0048`.
+The **restore record** is the persisted incident row (`STO-56`).
 _Avoid_: restart, recovery (bare — the rescue recovery directory and the recovery credential
 already own that word), rollback (that is a transaction)
 

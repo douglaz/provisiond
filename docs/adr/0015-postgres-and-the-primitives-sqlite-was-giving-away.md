@@ -1,5 +1,12 @@
 # PostgreSQL is the store, and it makes explicit three primitives SQLite was giving away
 
+**Amended by `ADR-0048` (2026-11-04)**: the initial deployment profile and accepted database
+availability costs change; PostgreSQL, transaction primitives and replica safety remain.
+`STO-6` keeps "one PostgreSQL primary" and "per-tenant advisory locks held for the transaction"
+and "`api` MAY run as any number of replicas against the shared store." and "the primitives the
+store provides for that are `STO-1`'s engine-checked atomic claim, `STO-51`'s per-machine index
+and startup lock, `STO-47`'s conditional write (`STO-27`)".
+
 **Status:** accepted (2026-09-06). **Amended by `ADR-0016` (2026-09-07)**: the consequence "the
 deployable becomes replicable" holds for `api` only. `engine` is one supervised process fenced by
 an epoch, the leases and the machine lock are deleted, and the restart window is the accepted

@@ -369,7 +369,11 @@ yet — the migration type is on `ADR-0025`'s inventory, the restore model after
 
 **F51. CLOSED 2026-09-12 — §6.15's four production-operability gaps are decided and their rules
 have landed: `OPS-49` and the claim number (`ADR-0022`), `STO-54` (`ADR-0023`), `STO-12`/`STO-13`
-(`ADR-0024`) and `STO-55`, each in its own commit; amended by `ADR-0045`.**
+(`ADR-0024`) and `STO-55`, each in its own commit; amended by `ADR-0045` and `ADR-0048`.**
+Current owners: `STO-7`, `STO-12`, `STO-13`, `STO-54` and `STO-55`. The account below records the
+2026-09-12 landing, including its former durability, online-release and pooler choices; consult
+those owners and `ADR-0048` for the current deployment profile.
+
 `ADR-0015` listed "backup and point-in-time recovery, connection pool sizing, migrations against a
 live database, and the failure mode where the store is reachable but slow" as surface the set did
 not specify, and `impl-report-01.md` §6.15 repeated it. Taken up 2026-09-10 to 2026-09-12 in one

@@ -430,43 +430,33 @@ not optional hardening — they are the only structural defence there is.
 ## Persistence
 
 - [ ] **CNF-56** — Connection-scoped settings are asserted on a freshly checked-out pooled
-      connection, not on the one that ran migrations. (`STO-7`, `DEF-12`)
-- [ ] **CNF-57** — Migrations are version-tracked and re-running them is a no-op. **Then the
-      release drill** (added 2026-09-12, `ADR-0024`): with release N−1's engine and `api` running,
-      retain adequate admitted reservations and live independent read sessions for the
-      successful-service assertions (`STO-55`);
-      apply release N's migrations through the `migrate` entry point and assert no `api` write is
-      refused and no engine write exits; start two runners at once and assert one waits on
-      `STO-12`'s key while the engine's startup lock is untouched; start N−1 binaries against the N
-      schema and assert they serve, then start a binary against a schema older than the version it
-      requires and assert it exits non-zero before its listener opens or, for the engine, before
-      the startup lock; and, for a release not declared stop-everything, run an N−1 `api`
-      extension against an N engine cancellation and a settlement replay across the pair.
-      **Migration physical-admission refusal.** Run independent fixtures for (a) the first
-      `migrate` connection; (b) a second runner scheduled while an admitted runner holds `STO-12`'s
-      migration key, with the second runner denied its own physical connection before it can
-      request that key; and (c) a runner that has recorded one completed migration, then loses its
-      transport and is denied admission for a replacement connection before its next migration.
-      Use a release allowed to migrate with the previous release running. Retain adequate admitted
-      read/write sessions for the previous-release service assertions independently of the denied
-      migration attempt. Exhaust component admission capacity C (`STO-55`) with charged reservations,
-      without cancelling or terminating an individual `SyncRep` backend. In each fixture identify
-      the denied physical attempt and assert it makes no dial and sends no SQL; no new-release
-      component starts before the required migrations complete successfully, and that refusal
-      records no migration completion. Previously recorded
-      completed versions remain unchanged. The previous release's engine and `api` keep serving
-      through their admitted sessions; assert an engine write and an `api` write succeed with the
-      required standby available. Retain all uncertain/residual charges through refusal and any
-      runner exit. Release capacity only with `STO-55`'s existing fencing and backend-absence evidence.
-      Assert the refused runner emits the `STO-55` migration diagnostic and exits non-zero at
-      once, without an internal admission wait/retry. A separately invoked deployment retry after
-      verified capacity release uses a fresh reservation and resumes through `STO-12`'s version
-      history. No completed migration is applied again and the release starts only after the
-      required migrations complete successfully. Separately, give both runners confirmed admitted
-      connections and contend on the migration key: assert the second waits on `STO-12`'s key
-      rather than taking the admission-refusal exit. Keep the existing concurrent-index and
-      stop-everything cases. (`STO-55`, `STO-12`, `STO-13`, `STO-7`)
-      **Then the concurrent index step** (added 2026-09-12): kill the runner mid-build of a
+      connection, not on the one that ran migrations. Assert the designated synchronous standby
+      configuration, and fail the new-connection check with zero or multiple walsenders bearing
+      the designated `application_name`. With the designated standby stalled, let a caught-up
+      non-designated `pg_basebackup` walsender report a later flush position; assert the connection
+      is closed unused, with no fallback. (`STO-7`, `DEF-12`)
+- [ ] **CNF-57** — Migrations are version-tracked and re-running them is a no-op. **Then the offline release drill:** stop all previous-release components and prevent their
+      restart; establish that their old sessions cannot continue writing. Apply the required
+      migrations through `migrate`, and assert no new-release component starts before they complete
+      successfully. Start two connected migration runners at once and assert one waits on `STO-12`'s
+      migration key; assert `migrate` does not take `STO-51`'s startup lock. Start each binary
+      against schemas inside and outside its declared supported range: supported schemas serve;
+      unsupported schemas cause non-zero exit before the listener opens or, for the engine, before
+      the startup lock. Assert a shared-predicate migration declares its stop-everything order.
+      Separately, have PostgreSQL refuse a migration connection (for example with every non-reserved
+      connection slot taken, SQLSTATE `53300`) in independent fixtures for (a) the first `migrate`
+      connection; (b) a second runner started while a connected runner holds `STO-12`'s migration
+      key, refused its own connection before it can request that key; and (c) a runner that has
+      recorded one completed migration, then loses its connection and is refused a replacement
+      before its next migration. In each, assert that `migrate` exits non-zero at once, without an
+      internal wait or retry; that its diagnostic names `migrate`, the release being attempted, and
+      initial acquisition in (a) and (b) or reconnect in (c), and carries PostgreSQL's refusal
+      reason unchanged; that neither the diagnostic nor `migrate`'s log output contains the
+      fixture's connection credentials; that the refusal records no migration completion and
+      previously recorded completions are unchanged; and that no new-release component starts. A
+      later deployment invocation resumes from recorded completion history without reapplying
+      completed migrations. (`STO-12`, `STO-13`)
+      **For a migration that uses `CONCURRENTLY`, the concurrent index step** (added 2026-09-12): kill the runner mid-build of a
       `CONCURRENTLY` index on `operations` and assert the version is unrecorded and the index is
       `INVALID`; re-run and assert the invalid index is dropped, rebuilt valid, and the version
       recorded once — and assert the runner refuses a migration that places that statement inside
@@ -1191,17 +1181,19 @@ takes the machines *and* the float" partly false.
       (`STO-54`, `STO-56`, `STO-49`, `OPS-15`, `OPS-41`, `LDG-16`,
       `LDG-64`, `API-56`, `OPS-27`, `OPS-32`)
       *Amended 2026-10-23 (`pv-n98`; panel r63, r63c’s Form F′, `docs/research/panels-2026-10/r63/`; owner decision Q2 “Clean up every startup (Recommended)”): extended the successor rehearsal to newly claimed work and a confirmed parent.*
+      Exercise promotion through the same incident path; see `CNF-365`.
+
 - [ ] **CNF-296** — **Every write waits for the standby** (*amended 2026-10-23, `ADR-0045`; was "The two synchronous writes hang
-  alone"*). Retain adequate admitted reservations and live independent read sessions for the
-  successful-service assertions (`STO-55`). Stall both named standbys. Assert an engine write and an `api` write each wait in `SyncRep`, a read still
+  alone"*). Before stalling the standby, establish a read session that has passed the
+  new-connection flush-position check; keep it open and use that same uninterrupted session for
+  the successful-read assertions below. Keep the read pool unexhausted throughout those assertions.
+  Stall the sole designated standby. Assert an engine write and an `api` write each wait in `SyncRep`, a read still
   succeeds, and `OVR-18`'s alarm fires. Exercise a contending engine write and assert `OPS-49`'s bounded retry and
   exit. First fill one `api` replica's write-checkout budget with waiting commits. Cancel every `api` request whose write
-  waits, its client disconnecting, and assert that, throughout this step, the primary holds no more of that replica's backends than its
-  pool, a further write request is refused `overloaded`, and a read still succeeds.
-  While each sent COMMIT remains unresolved and its transport remains live, assert its original connection and write checkout remain retained. Release both and
+  waits, its client disconnecting, and assert that, while that process lives, the primary holds no more of its write backends than its write pool, a further write request is refused `overloaded`, and a read still succeeds.
+  While each sent COMMIT remains unresolved and its transport remains live, assert its original connection and write checkout remain retained. Restore the standby and
   assert the caller's re-sent funding request returns the same deposit (`API-45`) and the rail's replayed settlement
-  credits once (`STO-31`). Then stall one only and assert an engine write and an `api` write each
-  succeed. Then assert `synchronous_commit` reads `on` on a freshly checked-out connection
+  credits once (`STO-31`). Then assert `synchronous_commit` reads `on` on a freshly checked-out connection
   (`CNF-56`'s method). (`STO-7`, `STO-54`, `OVR-18`) *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S2′ “A: stop on time (Recommended)”; S3 “B: check each new connection (Recommended)”; `ADR-0045`): replaced the two-write stall drill with the synchronous-write, checkout-retention and connection-setting drill.*
   *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 - [ ] **CNF-297** — **The derivation index never goes backwards** (added 2026-09-12,
@@ -1225,74 +1217,75 @@ takes the machines *and* the float" partly false.
       write checkouts and assert the next write, under a key never sent before, is refused
       `overloaded`, 503, with `retry_after_ms`, that `STO-35` holds no receipt for that key, that
       the same key re-sent after capacity returns succeeds as a first send, and that a read still
-      succeeds under the separate read budget; then repeat with a key whose first send committed
+      succeeds under the separate, unexhausted read budget while the store remains available; then repeat with a key whose first send committed
       before its reply was lost, and assert the re-send after the refusal returns the existing
       operation (`API-11`). Then let the meter fall behind its cadence by more
       than one interval and assert the alarm fires. (`STO-55`, `DOM-17`, `API-50`, `LDG-37`)
 
-      Retain adequate admitted reservations and live independent read sessions for the
-      successful-service assertions. Separately exhaust deployment admission and assert
-      `overloaded` before any transaction, with no SQL sent and no extra dial (`STO-55`).
-
       *Amended 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; `ADR-0045`): removed the synchronous-cap stall drill.*
       *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 
-- [ ] **CNF-372** — **Residual backends remain covered by durable admission.** Precheck the
-      engine and multiple `api` pools; freeze standbys, send disjoint writes and identify waiting
-      PIDs. Stop the engine through its recording bound, lose `api` database transports, and
-      overlap a rollout. Preserve one admitted read session if asserting read success. Verify
-      old PIDs survive outside live pools.
+- [ ] **CNF-373** — **Saturation is an outage with bounded retry and manual recovery.** Stall
+  the designated standby and fill the configured write checkouts; assert no false successful
+  commit. Refuse a new request at its checkout bound, before its business transaction and provider
+  dispatch, with no new idempotency receipt. Exit a client process while its PostgreSQL backend
+  remains waiting, then reconnect or start replacements and identify the old backend outside
+  current live pool counts. Keep new-connection checks enabled; hold their replies or disconnect
+  detection to expose uncertain replacement attempts. Assert the deployment's bounded reconnect
+  and supervisor restart policy stops uncontrolled growth, backs off and raises the configured
+  sustained-unavailability/connection-exhaustion alarm.
 
-      Keep replacement checks enabled; hold check replies/disconnect detection so replacement
-      backends remain while attempts fail unused. Accumulate verified residuals and unreleased
-      grants to exhaustion; assert no extra dial, alarm, bounded refusal and reserved observer
-      access. Verify a distinct durable grant before each physical component dial, including
-      pre-authentication and delayed-handshake attempts, across the consumers in `STO-55`:
-      "component pools, reconnects, rollout incarnations, startup-lock holders, migrators and
-      waiting runners". Check component/attempt and database boot bindings, then PID and
-      `backend_start` when known; retain unknown and failed-unused charges. Verify the deployed
-      C+A and separate resource budgets against `STO-55`.
+  Exhaust connection capacity, including fresh observer access, and accept lack of progress and
+  inability to open an observer connection as outage outcomes. Do not assert a global external-ticket
+  occupancy bound or infer rollback or provider non-execution from a checkout/check/connection
+  failure. Instrument recovery and assert no individual `SyncRep` backend is cancelled or
+  terminated except through the primary-shutdown exception. Exercise the documented saturation
+  recovery procedure on unchanged primary history and restore service without invented successful
+  financial or operation transitions; include a possibly dispatched purchase whose provider
+  accepted before its reply was lost and whose process then crashed, and require reconciliation
+  without a duplicate purchase. If recovery promotes or replaces history, exercise incident entry
+  through `CNF-365`. (`STO-55`, `STO-7`, `OPS-47`, `OPS-49`, `OPS-21`, `OVR-18`, `OVR-19`)
+  *Added 2026-11-04 (`ADR-0048`).*
 
-      Exercise delayed handshakes, PID reuse and competing issuers: assert no bypass or redial
-      under one reservation, no duplicate issuance from the serialized authority, and no release
-      on timeout, transport loss, process exit or rollout completion. Exercise observer failure:
-      assert denied growth and retained charges. Exercise lost accounting: assert closed
-      ingress, retained charges and continued use permitted for existing admitted sessions;
-      recover by fenced conservative reconstruction, and separately by stopped components and
-      verified primary shutdown before a fresh account, fencing all old grants and delayed
-      attempts on either path. For unidentified attempts, require fenced server-incarnation
-      termination before release.
+- [ ] **CNF-365** — **Promotion is a recovery incident** (`ADR-0048`). With both components
+  running and no open incident, let a create commit step 8 and order, claim a second create,
+  and leave a third create `queued` and unclaimed.
+  Perform an operator-initiated promotion expected to preserve every acknowledged commit. Assert
+  that every engine and `api` process connected to the old primary has stopped before any component
+  connects to the promoted store, and that the old primary serves no component. Assert all three rows
+  survive, a new recovery incident is acknowledged before either component starts, and startup
+  takes the incident path: queued irreversible work is quarantined, including the third create
+  moving from `queued` to `needs_reconciliation`, the restored running create
+  does not take the restart-only null-column exception, and step (3) bumps credentials. Preserve
+  the engine's startup-generation advance. Assert no deployment failover manager automatically
+  promotes, even for this lossless case.
 
-      Exercise startup refusal and supervisor retry, `api` refusal before any transaction, and
-      worker/periodic refusal through the store-error loop; assert no SQL on denied attempts,
-      bounded stop-record refusal and replacement delay until verified capacity release.
-      Restore progress, fence attempts and prove backend termination with fresh privileged
-      direct-primary evidence read in a fresh transaction before release and restart. Never
-      release merely because `wait_event` changed. Assert no individual waiting `SyncRep`
-      backend is cancelled or terminated to make room. Reserved observer access must be
-      demonstrated under the deployed allowances and resource budgets (`STO-55`).
-      (`STO-55`, `STO-7`, `OPS-47`, `OPS-49`, `OPS-21`, `OVR-18`, `OVR-19`)
-      *Added 2026-10-28 (`pv-oehp`; `ADR-0045`; owner decision 2, `docs/research/panels-2026-10/r74/owner-decisions.md`, “B4* as reviewed (Recommended)”).*
-
-- [ ] **CNF-365** — **Promotion after the primary is lost** (`ADR-0045`). With both components
-  running, let one create
-  commit step 8 and order, and claim a second. Kill the primary and promote a named standby whose reported end is at least as far ahead as the other's, with no open restore record and every other restart-promotion condition satisfied, by the deployment's procedure, with a standby streaming from the promoted store. Assert that every engine and `api` process connected
-  to the old primary has stopped before any component connects to the promoted store, and that the old primary
-  serves no component; that both rows are on the promoted store; that no restore record is written; and that the
-  successor's startup pass takes `OPS-15`'s restart branch. Then, with both standbys stalled while a write waits,
+  With the sole designated standby stalled while a write waits,
   crash the primary, restart it in place, then separately crash one backend while a write
-  waits, and each time assert no component uses a connection before a standby has flushed at or past the flush
+  waits, and each time assert no component uses a connection before the designated standby has flushed at or past the flush
   position it reported. For both components: With healthy replication, withhold position-query results through the connection-attempt
   deadline. Assert closure without use or fallback, no check-issued writes, and no check-created `SyncRep` backend.
   Inspect the deployed topology for transaction-mode pooling.
-  With one standby unreachable, assert the
-  procedure promotes neither as a restart
-  and none until an operator decides, while that standby's report stays unavailable.
-  With one standby on another timeline, assert the
-  procedure promotes neither as a restart and automatic failover promotes neither standby at all,
-  including as a restore, before an operator decides, regardless of whether the numerical reports
-  are equal (`STO-54`: “Only an operator starts a promotion that is a restore”). Stop one standby, make an acknowledged write, stop the other, lose the
-  primary, restart both standbys, and assert the procedure promotes the one holding that write, then repeat with the standbys' roles swapped.
+
+  Exercise the deposit destination read separately from the new-connection check. Read a
+  destination committed after the initial connection check's target, then stall the designated
+  standby below that commit. Assert no destination is exposed until the post-read target is
+  reached. A stale pre-read target must not pass. Break the session after the read or while its
+  check is pending and assert the result is discarded and the whole read/check repeats on a new
+  uninterrupted session; assert no check-issued write.
+
+  Promote the sole surviving standby with both components stopped and no replacement standby.
+  Attempt incident establishment and assert no acknowledgement and no component startup. Build
+  the replacement standby from the promoted history, verify its designated identity and catch-up,
+  apply any necessary offline migration, then assert the incident is acknowledged and components
+  enter the recovery procedure. Repeat for backup/history replacement. Rehearse the deployment's
+  pinned physical backup method with no existing acknowledgement partner: assert it does not need
+  a prior application/incident commit, the backup stream has a distinct name and cannot satisfy
+  the designated-standby check, and any maintenance commit-mode exception writes no provisiond
+  tables, migration, financial/authorization state or incident. Assert the maintenance session
+  never enters a component pool and closes before recovery, and no migration or incident commit
+  is acknowledged before the designated standby is running.
+
   Promote a lagging standby as an operator restore with verified prefix/clock evidence and
   assert the incident stores certified bounds. Repeat with an idle restarted standby that has
   replayed no transaction record and no retained fallback proof, leaving the lower history endpoint
@@ -1312,38 +1305,25 @@ takes the machines *and* the float" partly false.
   non-null incident-keyed `history_evidence_ref`
   identifying evidence or unknown-endpoint reasons (`STO-54`, `STO-56`).
 
-  Repeat with both named standbys reporting the same flushed end on the old primary's timeline, no open restore record and every other restart-promotion condition satisfied, once promoting each standby. Assert restart classification, no restore record and no tenant credential-generation bump from the restore procedure. Preserve the engine's ordinary startup-generation advance.
+  With a recovery incident open, crash and restart each component against the same authoritative
+  store, with no promotion or restore between; run this once with step (3) unmarked and once with it
+  marked. Assert continuation of that same incident: no new incident record and no supersession. A
+  marked step does not repeat; with step (3) unmarked, its credential-generation bump still occurs
+  when that step is completed, and with step (3) already marked it is not repeated. The restart
+  neither closes the record nor waives any outstanding incident obligation. (`STO-54`, `STO-56`)
 
-  Repeat with equal numerical reports on different timelines and with an unavailable report; neither case may use the equal-position path. With unequal reports on the same history, the greater end may use the restart path only with all other conditions satisfied; selecting the behind standby requires an operator's restore. Repeat equal reports after the primary committed without either named standby, and separately after a waiting backend was cancelled or terminated, each made known to the deployment's procedure: equality permits neither promotion as a restart. Automatic failover does not perform these restores; an operator's restore follows the stopped-components procedure and commits its record with acknowledgement before component startup.
+  With a recovery incident R open and its step (3) marked, stop both components and promote a
+  standby by the deployment's procedure. Assert that the transaction establishing the new incident
+  closes R by supersession and inserts a distinct record naming R in `supersedes_incident_id`, with
+  `steps_completed` = 0, `grace_ends_at` null and `closed_at` null; that R is retained; and that
+  neither component starts before that transaction is acknowledged. Assert that the new incident's
+  step (3) runs, including its credential-generation bump, although R's step (3) is marked:
+  `STO-56` keeps "no predecessor step mark satisfies a new step". (`STO-56`, `STO-54`)
 
-  Repeat equal reports with an open restore record. Assert continuation of that same incident. A marked step does not repeat; with step (3) unmarked, its credential-generation bump still occurs when that step is completed, and with step (3) already marked it is not repeated. Equality neither closes the record nor waives any outstanding incident obligation.
-
-  **Unknown restart eligibility.** Construct two fixtures with identical surviving standby
-  reports on the same actual old-primary history and no open incident. In the first, establish
-  complete trustworthy negative evidence of no waiting-backend cancellation or termination;
-  satisfy every other restart condition. Promote each equal standby in a separate run and
-  assert restart classification, no restore record and no restore credential-generation bump,
-  preserving the ordinary startup-generation advance. In the second, arrange a waiting-backend
-  termination independently observed by the test, then lose the primary and its logs and hide
-  the event evidence from the promotion procedure; the surviving reports are the same as in
-  the first fixture. Assert unknown eligibility, operator notice and no automatic promotion.
-  Do not give the procedure the test's hidden oracle or label its unknown state as a known
-  violation. In a separate known-event case supply valid event evidence and assert the existing
-  restore classification, including when the termination was caused by primary shutdown.
-
-  Repeat unknown eligibility with no event in fact but lost or incomplete coverage, mismatched
-  database/incarnation/ancestry evidence, an unauthenticated clean assertion and conflicting
-  records. Missing logs or an assertion without continuous coverage cannot pass. Retain a known
-  termination and separately an unknown interval across later catch-up, equal reports and an
-  incarnation change on which the next restart depends; neither is silently reset. In each
-  unknown fixture assert no restore begins automatically; let an operator explicitly authorize
-  one and assert the stopped-components procedure and an acknowledged incident record before
-  startup. This is not a fast-shutdown read/action reproduction. Finally authorize a restore
-  with no certified loss-report endpoints and assert null endpoints and an explicit unknown
-  report, followed by the existing procedure without a wait for reporting evidence. (`STO-54`)
-
-  (`STO-5`, `STO-7`,
-  `STO-54`, `OPS-15`) *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*
+  (`STO-5`, `STO-7`, `STO-54`, `STO-56`, `OPS-15`)
+  *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*
+  *Amended 2026-11-04 (`ADR-0048`): promotion enters recovery; retained connection checks and
+  operator loss-reporting arms; added bootstrap, continuation and supersession fixtures.*
 
 ## The rate
 
@@ -1737,9 +1717,9 @@ rather than acquiring a default.
       `OPS-50` says "Where the values differ, the transaction MUST roll back, and the engine MUST
       log loudly that it was superseded and exit non-zero at once". Then start a second engine against the same store while the first holds
       the lock, and assert it does no work and exits non-zero after the stated bound (`OPS-47`,
-      `OVR-19`); with sufficient `STO-55` admission available, release the first and assert the
-      second then starts; repeat with exhausted admission and assert delayed startup until
-      verified capacity release. Then, with one non-yielded
+      `OVR-19`); with a working store, release the first and assert the
+      second then starts; repeat with ordinary connection unavailability and assert startup
+      fails and retries follow the deployment policy until connectivity recovers. Then, with one non-yielded
       `running` operation on a machine, attempt a second claim against the same machine directly
       at the store and assert `STO-51`'s index refuses it **and that the refused operation's
       `claim_number` did not advance** (`OPS-6`, added 2026-09-12). *The withdrawn middle half asserted a
@@ -1908,10 +1888,8 @@ rather than acquiring a default.
 
 - [ ] **CNF-362** — **A stop the engine survives from a worker's `execute` until its settle write lands gets a bounded record.**
       `OPS-21` says "The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST NOT wait for it past that bound."
-      Retain admitted recording capacity for every successful-recording assertion. Separately
-      refuse recording admission throughout the bound cases: assert no SQL and no extra dial,
-      consumption of the existing Stop-record and Store-retry bounds, and the existing
-      exhaustion exits with no bound reset (`STO-55`, `OPS-49`).
+      Separately make the store unavailable throughout the bound cases: assert consumption of the existing Stop-record and Store-retry
+      bounds and the existing exits with no bound reset (`OPS-49`).
       For each operation kind, stop the engine while its worker is in `execute`, outside the
       absorbed-read cases below, with a working store. Assert the cut-off `conflict`'s classification against the kind's row (`OPS-11`),
       with `details.reason: "cut_off"` on every record write of a cancellation of `execute` but the parent's defer: a create before step 9, and an
@@ -3319,8 +3297,12 @@ rather than acquiring a default.
       remains `needs_reconciliation`, acquires `true` provenance before startup, and now renders
       `unknown`/`unknown`. This is a declared conservative change on a row already awaiting
       resolution. For settled rows with established `false` provenance, an actual restore does not
-      alone change their flag. During upgrade a `null` flag renders conservatively; backfill changes
-      only nulls, never a freshly admitted `false` row or an already-true row. Assert that a settled
+      alone change their flag. Stop previous writers and apply one transactional offline migration
+      that adds, backfills and tightens the provenance column to non-null before startup. Assert
+      existing install/rescue-inventory rows, including settled rows, receive `true`, other kinds
+      receive `false`, and already non-null values remain unchanged. After migration, assert a
+      freshly admitted `false` row retains ordinary rendering and is not changed by a repeated
+      backfill. Assert that a settled
       pre-column install can therefore lose its former ordinary wire facts under the declared
       upgrade policy, and that other operation kinds gain no marker wire keys.
 

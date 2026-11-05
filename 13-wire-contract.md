@@ -235,7 +235,7 @@ the operation id and the directory is the operator's (`RSC-20`).
 
 **Restore marker provenance is durable (`STO-54`).** On an install or rescue-inventory operation's
 error, `disk_effect` (install) and `rescue_exit` (both kinds) are rendered `unknown` where
-`restore_markers_untrusted` is `true` or transitionally `null`, whatever the marker columns hold.
+`restore_markers_untrusted` is `true`, whatever the marker columns hold.
 Where it is `false`, the ordinary marker rendering above applies. An `unknown` `rescue_exit` retains
 the address-and-port requirements above; those fields are not replaced with `unknown`. Neither
 incident closure nor an ordinary restart with no open restore record changes the provenance used for

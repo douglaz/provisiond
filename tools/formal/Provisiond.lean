@@ -24,3 +24,4 @@ import Provisiond.StopRecord
 import Provisiond.Witnesses
 import Provisiond.RestoreIndependent
 import Provisiond.WalHistory
+import Provisiond.RecoveryEntry

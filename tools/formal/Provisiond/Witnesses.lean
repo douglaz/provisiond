@@ -3211,19 +3211,27 @@ exactly that statement. -/
 @[req "STO-12"]
 theorem concurrent_build_has_a_home :
     (Migration.standalone (refuses := postgres) (standaloneRule := true)
-      (.createIndex true true) rfl rfl).holds (.createIndex true true) := rfl
+      (.createIndex true) rfl rfl).holds (.createIndex true) := rfl
 
 open Provisiond.Migration in
 /-- The same build inside a transactional migration is not a value of the type: the proof field
 `ok` would have to say PostgreSQL admits it, and `postgres` says it does not. -/
 @[req "STO-12"]
 theorem concurrent_build_not_transactional :
-    ¬ ∃ ok : ∀ s ∈ [Statement.createIndex true true], postgres s = false,
-      (Migration.transactional (standaloneRule := true) [.createIndex true true] ok).holds
-        (.createIndex true true) := by
+    ¬ ∃ ok : ∀ s ∈ [Statement.createIndex true], postgres s = false,
+      (Migration.transactional (standaloneRule := true) [.createIndex true] ok).holds
+        (.createIndex true) := by
   rintro ⟨ok, _⟩
-  have h := ok (.createIndex true true) (List.mem_singleton.mpr rfl)
+  have h := ok (.createIndex true) (List.mem_singleton.mpr rfl)
   simp [postgres] at h
+
+open Provisiond.Migration in
+/-- An ordinary offline index build has a transactional home under the assumed platform rule. -/
+@[req "STO-13"]
+theorem ordinary_index_is_transactional :
+    (Migration.transactional (refuses := postgres) (standaloneRule := true)
+      [.createIndex false] (by decide)).holds (.createIndex false) :=
+  List.mem_singleton.mpr rfl
 
 /-! ## Wire canonicalization and redaction
 

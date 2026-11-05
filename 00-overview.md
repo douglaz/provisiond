@@ -14,6 +14,9 @@ rescue inventory, install, reverse-DNS, delete — while treating provider-speci
 first-class rather than as an exception. Rescue mode in particular is a workflow the
 control plane orchestrates, not an opaque flag it forwards.
 
+The supported initial deployment profile is recorded in `05-persistence.md` (`ADR-0048`).
+Deployment procedures and their values are registered under `OVR-19`.
+
 ## Design goals
 
 **OVR-1** The system MUST expose a uniform machine lifecycle across providers without
@@ -339,7 +342,7 @@ unassigned job here silently narrows a control two conformance items depend on.*
 mechanism runs (`LDG-14`, `OPS-32`, `SEC-45`'s fan-out), and the restart window is the accepted
 outage (`ADR-0016`); the supervisor's restart guarantee and the alarm threshold are deployment
 parameters (`OVR-19`). **Two more conditions are alarmed on the same model** (added 2026-09-12,
-`ADR-0023`): the recovery point exceeding its threshold, and either named standby being
+`ADR-0023`): the recovery point exceeding its threshold, and the designated standby being
 unavailable (`STO-7`). **Two exits are alarmed on the same model** (added 2026-10-24,
 `ADR-0047`): an engine's superseded exit (`OPS-50`), and its startup exit on the generation
 advance's timeout (`OPS-15`). `OPS-50` says "the engine MUST log loudly that it was superseded and exit non-zero at once"; `OPS-15` says "On that timeout or any store error, including a lost reply on its commit, the engine MUST log loudly and exit non-zero having claimed nothing". *Amended 2026-10-23 (`pv-s4m`; panel r63,
@@ -347,7 +350,7 @@ advance's timeout (`OPS-15`). `OPS-50` says "the engine MUST log loudly that it 
 synchronous replication”; S1 “Three servers (Recommended)”; `ADR-0045`): alarmed either named
 standby being unavailable.*
 
-Admission exhaustion and accounting loss MUST be alarmed (`STO-55`).
+Sustained database unavailability and connection exhaustion MUST be alarmed (`STO-55`).
 *Amended 2026-10-28 (`pv-oehp`; `ADR-0045`; `STO-55`).*
 
 **OVR-11** The host running the service MUST have an SSH client, an SSH key generator,
@@ -420,22 +423,24 @@ refresh freshness has a two-sweep minimum. Amended 2026-10-18 (`pv-tst`; panels 
 | Recovery-point alarm threshold | `STO-54` | duration | yes |
 | Restore source/event clock-error evidence | `STO-54` | human — certificates and provenance for any asserted clock-error bounds; no unvalidated finite error assumed | no |
 | Restore endpoint capture, validation and retention procedure | `STO-54` | human — possible-loss reporting procedure | no |
-| Synchronous standby names | `STO-7`, `STO-54` | two identifiers | yes |
+| Designated synchronous standby identity/configuration | `STO-7`, `STO-54` | one identifier and configuration | yes |
 | Pooled-connection keepalives | `STO-7` | durations | yes |
 | Derivation-index gap on restore | `STO-54` | integer | yes |
+| Promotion and fencing procedure | `STO-54` | human | no |
 | Migration `lock_timeout` and retry count | `STO-13` | duration, integer | no — the migrator's, read at `migrate` |
+| Offline release procedure | `STO-13` | human | no |
 | Store timeouts: `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout` | `STO-7`, `STO-55` | durations | yes |
+| Physical backup method | `STO-7` | human | no |
+| Standby rebuild procedure | `STO-7` | human | no |
 | Engine worker count | `STO-55` | integer | yes |
 | `api` request concurrency per replica, read and write | `STO-55` | integers | yes |
 | Pool checkout bound | `STO-55` | duration | yes |
-| Connection budget against `max_connections` | `STO-55` | human — the sum across every process at maximum rollout overlap | no; the engine checks its own share |
-| Component admission capacity C | `STO-55` | integer; capacity contract at `STO-55` | no — deployment authority |
-| Observer/operator/other-client allowances A | `STO-55` | bounded occupancy allowances; deployment obligations at `STO-55` | no — deployment |
-| Admission resource ceilings | `STO-55` | human — server reservations and separate background/server resource budgets; `STO-55` | no — deployment |
-| Admission authority and reconstruction procedures | `STO-55` | human; `STO-55` | no — deployment |
+| Connection budget against `max_connections` | `STO-55` | human — phase-appropriate ordinary budget for the fixed deployment; ordinary database/OS resource sizing | no; the engine checks its own share |
+| Connection-exhaustion alarm threshold | `STO-55` | duration | no — outside the process |
+| Primary shutdown during saturation recovery | `STO-55`, `STO-7` | human | no |
 | Metering cadence | `LDG-37` | duration | yes |
 | Engine liveness alarm threshold | `OVR-18` | duration | no — outside the process |
-| Supervisor restart guarantee | `OVR-18` | statement | no — outside the process |
+| Supervisor restart guarantee, with reconnect and restart limits, backoff and operator intervention during recurrent database failure | `OVR-18`, `STO-55` | statement | no — outside the process |
 | Reconciliation rota | `OPS-26` | human | no |
 | Recovery directory | `RSC-20` | absolute path | yes |
 | Recovery-key inventory procedure | `RSC-21` | human | no |
