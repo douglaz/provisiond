@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v4
 
@@ -31,20 +31,111 @@ jobs:
       # toolchain is pinned, so CI enters the same shell a developer does.
       - uses: cachix/install-nix-action@v31
 
-      # The ROWS loop runs everywhere. Whole-step allocations below spread the
-      # standalone Lean builds across shards 1-3; shard 0 pays for the full gate
-      # and publication regressions. Citation regression loops are spread too.
-      # These are cost estimates, not measured timings for this matrix (pv-98i).
+      # Hash the checked-out commit, including paths and modes, never local .lake
+      # output. A changed workflow also invalidates its row and step allocation.
+      - name: Compute proof cache keys
+        id: proof_inputs
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import subprocess
+
+          members = ['tools/formal', 'flake.nix', 'flake.lock',
+                     '.github/workflows/ci.yml', 'tools/check_formal.sh']
+          tree = subprocess.check_output(['git', 'ls-tree', '-rz', 'HEAD', '--', *members])
+          entries = [entry for entry in tree.split(b'\0') if entry]
+          entries = [entry for entry in entries
+                     if b'.lake' not in entry.split(b'\t', 1)[1].split(b'/')]
+          paths = {entry.split(b'\t', 1)[1].decode() for entry in entries}
+          assert set(members[1:]) <= paths, 'missing named proof input'
+          assert any(path.startswith('tools/formal/') for path in paths), 'empty formal inputs'
+          inputs = hashlib.sha256(b'\0'.join(entries) + b'\0').hexdigest()
+          marker = f"proofs-pass-{os.environ['SHARD']}-{inputs}"
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'inputs={inputs}\nmarker={marker}\n')
+          print(f'Proof Inputs: {inputs}; marker key: {marker}')
+          PY
+
+      # Build artifacts may use a prefix; a proof verdict never may. Push and
+      # dispatch do no restore or lookup and always prepare a fresh formal layer.
+      # Some transfer failures are warnings: only a restored key is usable.
+      - name: Restore the formal build cache
+        id: build_cache
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: tools/formal/.lake
+          key: ${{ runner.os }}-lake-${{ steps.proof_inputs.outputs.inputs }}
+          restore-keys: |
+            ${{ runner.os }}-lake-
+
+      - name: Discard an unusable formal build cache restore
+        if: >-
+          github.event_name == 'pull_request' &&
+          (steps.build_cache.outcome != 'success' || steps.build_cache.outputs.cache-matched-key == '')
+        run: rm -rf tools/formal/.lake
+
+      - name: Look up the exact proof pass marker
+        id: proof_marker
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/proofs-pass-${{ matrix.shard }}
+          key: ${{ steps.proof_inputs.outputs.marker }}
+          lookup-only: true
+
+      - name: Resolve the proof cache verdict
+        id: proof_cache
+        env:
+          EXACT_PASS: ${{ github.event_name == 'pull_request' && steps.proof_marker.outcome == 'success' && steps.proof_marker.outputs.cache-hit == 'true' && steps.build_cache.outcome == 'success' && steps.build_cache.outputs.cache-matched-key != '' }}
+          MARKER_KEY: ${{ steps.proof_inputs.outputs.marker }}
+        run: |
+          echo "skip=$EXACT_PASS" >> "$GITHUB_OUTPUT"
+          if [ "$EXACT_PASS" = true ]; then
+            echo "Matched exact proof pass marker: $MARKER_KEY"
+          else
+            echo "No reusable proof verdict; running this shard's heavy proofs"
+          fi
+
+      # Shard 0 owns all gates; shard 1 owns accepted failures. Whole controls
+      # are cost-packed across shards 2-7, with claim-term and citation-duplicates
+      # controls apart. Guard rows run across all eight shards. Fixed weights use
+      # mean module row times from guard logs; whole-step loads use median step
+      # timings. This allocation extrapolates those historical measurements;
+      # it is an estimate, not a measurement of this matrix.
       - name: Run all gates
+        id: all_gates
         if: matrix.shard == 0
         run: nix develop --command bash tools/check-all.sh
 
+      # Every shard needs a successful build AND the published index/regions
+      # before controls copy or read tools/formal/.lake.
+      - name: Build the formal layer the controls copy
+        id: formal_build
+        if: matrix.shard != 0
+        run: nix develop --command bash tools/check_formal.sh
+
+      # Save pristine build output before any controls mutate their scratch
+      # copies. This is a build artifact, never a recorded proof pass.
+      - name: Save the formal build cache
+        if: steps.all_gates.outcome == 'success' || steps.formal_build.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: tools/formal/.lake
+          key: ${{ runner.os }}-lake-${{ steps.proof_inputs.outputs.inputs }}
+
       - name: Exercise complete inline JSON selection and validation
-        if: matrix.shard == 0
+        if: matrix.shard == 3
         run: nix develop --command python3 tools/test_check_fixtures.py
 
       - name: Prove the fixture gate checks the live inline inventory
-        if: matrix.shard == 0
+        if: matrix.shard == 5
         run: |
           nix develop --command python3 - <<'PY'
           from pathlib import Path
@@ -90,18 +181,12 @@ jobs:
           assert gate().returncode == 0
           PY
 
-      # Every shard needs a successful build AND the published index/regions
-      # before controls copy or read tools/formal/.lake.
-      - name: Build the formal layer the controls copy
-        if: matrix.shard != 0
-        run: nix develop --command bash tools/check_formal.sh
-
       - name: Prove formal publication survives overlap and failures
-        if: matrix.shard == 0
+        if: matrix.shard == 6
         run: nix develop --command python3 tools/test_formal_publication.py
 
       - name: Prove direct formal writes fail the publication interleaving regression
-        if: matrix.shard == 0
+        if: matrix.shard == 7
         run: python3 tools/test_formal_publication.py --negative-control
 
       # Proving the gates can fail is the point of CNF-3 ("The test suite fails
@@ -109,7 +194,7 @@ jobs:
       # 'tests passed' means something"). This does it on every run, against a
       # scratch copy, so the green check above is evidence rather than decoration.
       - name: Prove the identifier gate can fail
-        if: matrix.shard == 0
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -123,7 +208,7 @@ jobs:
           echo "identifier gate correctly rejected a dangling citation"
 
       - name: Prove never-master identifiers cannot return to live specs
-        if: matrix.shard == 0
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -149,7 +234,7 @@ jobs:
       # an outlier id and would be refused for that reason whether or not the tier
       # check existed, which is a control that cannot fail for the reason it tests.
       - name: Prove the identifier gate refuses a tiered conformance item
-        if: matrix.shard == 0
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -169,7 +254,7 @@ jobs:
       # CI checkout does not have it. So prove it synthetically here, and keep
       # `--selftest` for local runs in a full clone.
       - name: Prove the obligation gate can fail
-        if: matrix.shard == 0
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -187,7 +272,7 @@ jobs:
       # 13-wire-contract.md until 2026-09-03; `--selftest` reads it from history
       # and a shallow CI checkout does not have it. Prove it synthetically here.
       - name: Prove the citation gate can fail
-        if: matrix.shard == 0
+        if: matrix.shard == 4
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -203,7 +288,7 @@ jobs:
           echo "citation gate correctly rejected an unverifiable quoted attribution"
 
       - name: Prove the citation gate rejects nested inline-code value corruptions
-        if: matrix.shard == 0
+        if: matrix.shard == 7
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -251,17 +336,17 @@ jobs:
 
       # Exercise the unchanged live site as well as the one-word plant: a skip
       # must not pass for a successful comparison. The control copies the index
-      # from the full gate above and mutates only its own scratch document.
+      # from this shard's formal preparation and mutates only its scratch document.
       - name: Prove the citation gate compares the live withdrawal quotation
-        if: matrix.shard == 0
+        if: matrix.shard == 7
         run: python3 tools/test_withdrawal_citations.py
 
       - name: Prove the citation gate compares the complete live stop-record quotation
-        if: matrix.shard == 0
+        if: matrix.shard == 5
         run: python3 tools/test_stop_record_citations.py
 
       - name: Prove the citation gate compares the live Claim quotation under both checks
-        if: matrix.shard == 0
+        if: matrix.shard == 5
         run: python3 tools/test_claim_citations.py
 
       # The formal layer's controls (ADR-0025). Each breaks the specific thing its
@@ -272,7 +357,7 @@ jobs:
       # both sides of the comparison from one variable and was a tautology that
       # could never fail, which is why a control exists for this at all.
       - name: Prove the Lean build rejects the withdrawn OPS-41 predicate
-        if: matrix.shard == 1
+        if: matrix.shard == 5
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -298,7 +383,7 @@ jobs:
           echo "lake build correctly failed on abortDate_never_on_routed"
 
       - name: Prove the axiom gate rejects a sorry the build accepts
-        if: matrix.shard == 2
+        if: matrix.shard == 7
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -315,7 +400,7 @@ jobs:
           echo "axiom gate correctly rejected sorryAx while lake build stayed green"
 
       - name: Prove the axiom gate rejects native_decide outside Provisiond.Explore
-        if: matrix.shard == 3
+        if: matrix.shard == 7
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -345,7 +430,7 @@ jobs:
           echo "axiom gate correctly refused native_decide outside Explore and allowed it inside"
 
       - name: Prove the formal gate rejects a module the build never reads
-        if: matrix.shard == 1
+        if: matrix.shard == 7
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -360,7 +445,7 @@ jobs:
           echo "formal gate correctly rejected the orphaned module"
 
       - name: Prove the formal gate rejects a conformance identifier in the formal layer
-        if: matrix.shard == 2
+        if: matrix.shard == 5
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -382,7 +467,7 @@ jobs:
       # take the term as a hypothesis, so the module stays green and Witnesses.lean
       # is built; the red must come from the refused witness and nowhere else.
       - name: Prove the Lean build rejects the claim guard without its claim term
-        if: matrix.shard == 1
+        if: matrix.shard == 5
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -408,7 +493,7 @@ jobs:
       # enumeration's completeness theorem is by `cases`. The red must be Tables.lean's
       # own: a missing case, not a syntax error elsewhere.
       - name: Prove the Lean build rejects an error kind without a classification row
-        if: matrix.shard == 2
+        if: matrix.shard == 7
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -432,7 +517,7 @@ jobs:
       # change to `Provisiond.Tables.currentRules`, and the already-deleted witness must
       # go red on exactly that, with Tables.lean's own theorems staying green.
       - name: Prove the Lean build rejects the classification without its goal-state row
-        if: matrix.shard == 3
+        if: matrix.shard == 4
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -451,7 +536,7 @@ jobs:
           echo "lake build correctly failed on already_deleted_witness"
 
       - name: Prove the Lean build rejects a finished exit from an empty event list
-        if: matrix.shard == 3
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -492,7 +577,8 @@ jobs:
       # ADR-0035: disable one amendment guard at a time. Require a refuted
       # witness, never a syntax error. One in-repository copy serves the rows.
       - name: Prove accepted failures and in-progress orders survive only with their guards
-        if: matrix.shard == 0
+        id: accepted_proofs
+        if: matrix.shard == 1 && steps.proof_cache.outputs.skip != 'true'
         run: |
           python3 - <<'PYCONTROL'
           from pathlib import Path
@@ -560,7 +646,7 @@ jobs:
       # migration is not a value of the type. The control writes one, in the Explore
       # namespace so nothing tagged is touched, and requires the type to refuse it.
       - name: Prove the migration type refuses a CONCURRENTLY build inside a transaction
-        if: matrix.shard == 3
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -853,7 +939,10 @@ jobs:
       # ADR-0034 (2026-10-08/10): ProviderTraffic's cache, PTR evidence and
       # sweep freshness guards, and Admission's reverse-DNS ceiling, have isolated witnesses.
       - name: Prove the Lean build rejects each listed guard's removal, one witness each
+        id: guard_proofs
         env:
+          SKIP_HEAVY: ${{ steps.proof_cache.outputs.skip }}
+          MARKER_KEY: ${{ steps.proof_inputs.outputs.marker }}
           SHARD: ${{ matrix.shard }}
           JOB_INDEX: ${{ strategy.job-index }}
           JOB_TOTAL: ${{ strategy.job-total }}
@@ -974,7 +1063,8 @@ jobs:
           ProviderTraffic|invalidatePtr|true|false|ptrAfterDifferingDispatch
           ROWS
           )
-          # No matrix condition on this step: a bad shard must reach the guard.
+          # Assignment validation runs on every shard on every run, including a
+          # marker hit; only the mutation loop is skipped on a hit.
           # Validate the assignments we will execute, retaining source occurrence
           # identity even when two rows have the same file/field or full text.
           selected=$(ROWS="$rows" python3 - <<'PY'
@@ -992,17 +1082,41 @@ jobs:
               return int(value)
 
           shard, job_index, total = (integer(name) for name in ("SHARD", "JOB_INDEX", "JOB_TOTAL"))
-          require(total == 4, f"expected four matrix jobs, got {total}")
+          require(total == 8, f"expected eight matrix jobs, got {total}")
           require(0 <= shard < total and 0 <= job_index < total, "matrix context out of range")
           # GitHub's job-index is zero-based; job-total is a count. This equality
           # rejects a matrix that duplicates a residue or omits/reorders a shard.
           require(shard == job_index, f"shard {shard} differs from job-index {job_index}")
           source = os.environ["ROWS"].splitlines()
           require(all(len(row.split("|")) == 5 for row in source), "malformed source row")
-          assignments = [
-              [(index, row) for index, row in enumerate(source) if index % total == residue]
-              for residue in range(total)
-          ]
+          # Integer seconds: mean module costs from timed guard-row logs.
+          # Changing AccountStatus also rebuilds Admission. Whole-step costs include
+          # exactly one preparation per shard (all-gates supplies shard 0's).
+          weights = {
+              'Fence': 23, 'Rate': 21, 'Restore': 14, 'Reconcile': 11,
+              'Ledger': 17, 'Funding': 15, 'Runway': 27, 'Wire': 13,
+              'Rescue': 17, 'Rehost': 10, 'ProviderTraffic': 10, 'Period': 16,
+              'Admission': 216, 'AccountStatus': 216,
+          }
+          loads = [438, 1627, 814, 720, 712, 712, 712, 712]
+          assignments = [[] for _ in range(total)]
+          admission = [index for index, row in enumerate(source)
+                       if row.split("|", 1)[0] in ("Admission", "AccountStatus")]
+          # Balance this expensive family first: counts differ by at most one.
+          # Give extra rows to the shards without accepted-failures/all-gates.
+          base, extra = divmod(len(admission), total)
+          quotas = [base + (residue >= total - extra) for residue in range(total)]
+          for index in admission:
+              residue = min((k for k in range(total) if quotas[k]),
+                            key=lambda k: (loads[k], k))
+              assignments[residue].append((index, source[index]))
+              loads[residue] += weights[source[index].split("|", 1)[0]]
+              quotas[residue] -= 1
+          for index in sorted((i for i in range(len(source)) if i not in admission),
+                              key=lambda i: (-weights[source[i].split("|", 1)[0]], i)):
+              residue = min(range(total), key=lambda k: (loads[k], k))
+              assignments[residue].append((index, source[index]))
+              loads[residue] += weights[source[index].split("|", 1)[0]]
           indices = [index for assigned in assignments for index, _ in assigned]
           require(sorted(indices) == list(range(len(source))),
                   "assignments contain missing, duplicate or extra source indices")
@@ -1015,6 +1129,10 @@ jobs:
           print("\n".join(row for _, row in assignments[shard]))
           PY
           ) || exit 1
+          if [ "$SKIP_HEAVY" = true ]; then
+            echo "Skipping guard mutations for exact proof pass marker: $MARKER_KEY"
+            exit 0
+          fi
           expected=$(printf '%s\n' "$selected" | grep -c '|')
           passed=0
           while IFS='|' read -r file field from to token; do
@@ -1051,7 +1169,7 @@ jobs:
       # Fixture controls touch only the bad engine, leaving the matrix and blocked
       # original-model cell intact. A failed evaluation is not a finite refutation.
       - name: Prove independent successor-sweep harm needs both disabled guards
-        if: matrix.shard == 2
+        if: matrix.shard == 6
         run: |
           nix develop --command python3 - <<'PY'
           from pathlib import Path
@@ -1118,7 +1236,7 @@ jobs:
       # Q28 (ADR-0037): the old one-sweep minimum is a specific regression, even
       # though a control that removes validation altogether is also red.
       - name: Prove the Lean build rejects the old one-sweep freshness minimum
-        if: matrix.shard == 1
+        if: matrix.shard == 7
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1144,7 +1262,7 @@ jobs:
       # RSC-3's single-source rows require the presented key to be in the sole pin set.
       # Weakening only the two single-source arms must refute that witness.
       - name: Prove the Lean build rejects single-source host-key mismatch permission
-        if: matrix.shard == 2
+        if: matrix.shard == 5
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1172,7 +1290,7 @@ jobs:
       # Restore the former non-provider permission in the enabled overlap branch: a key
       # in neither set must refute overlap_presented_key_witness; Robot's intersection stays enforced.
       - name: Prove the Lean build rejects overlap host-key mismatch permission
-        if: matrix.shard == 2
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1202,7 +1320,7 @@ jobs:
       # copy carries tools/formal/.lake from this shard's formal preparation above, which is
       # what the gate reads; a missing index would be exit 2, not the red we assert.
       - name: Prove the rendering gate rejects a hand edit inside a rendered region
-        if: matrix.shard == 0
+        if: matrix.shard == 4
         run: |
           set -euo pipefail
           src="$PWD"
@@ -1226,7 +1344,7 @@ jobs:
       # A `match` region is diffed on its outcome tokens: flipping one row's fence verdict
       # is red for that row and column, while the prose beside it is free.
       - name: Prove the rendering gate rejects a flipped outcome in a diffed table
-        if: matrix.shard == 0
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1246,7 +1364,7 @@ jobs:
       # The name resolver: a declaration renamed under a document that cites it is a
       # dangling citation, and the citations gate is where it goes red.
       - name: Prove the citation gate rejects a declaration name the index does not carry
-        if: matrix.shard == 1
+        if: matrix.shard == 4
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1267,7 +1385,7 @@ jobs:
       # 2026-10-02 EXISTS fires on this mutation too, with its own line; the step
       # asserts QUOTED's line and that line's count, which that addition leaves alone.
       - name: Prove the citation gate rejects a misquote in a Lean docstring
-        if: matrix.shard == 1
+        if: matrix.shard == 7
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1292,7 +1410,7 @@ jobs:
       # Exercise the standalone entry path with the normal baseline and the index
       # from this shard's formal preparation. Exit 1 alone also accepts the old Python traceback.
       - name: Prove the citation gate names unterminated Lean block comments
-        if: matrix.shard == 1
+        if: matrix.shard == 6
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1347,7 +1465,7 @@ jobs:
       # verb -- so the step also asserts QUOTED stayed silent: a red from the wrong
       # rule would not be evidence of this one.
       - name: Prove the citation gate rejects a Lean docstring quote found nowhere
-        if: matrix.shard == 2
+        if: matrix.shard == 6
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1376,7 +1494,7 @@ jobs:
       # c5e31be). The step asserts the phrase is in the ADR, so a red cannot come from a
       # phrase that never existed anywhere.
       - name: Prove the citation gate rejects an attribution only the ADR pool satisfied
-        if: matrix.shard == 2
+        if: matrix.shard == 4
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
@@ -1397,7 +1515,7 @@ jobs:
       # Pair before splitting/filtering: both the real spaced-elision site and a
       # short span preceding an explicit attribution must expose the corruption.
       - name: Prove the citation gate rejects a spaced elision after a short quote
-        if: matrix.shard == 2
+        if: matrix.shard == 6
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1435,7 +1553,7 @@ jobs:
 
       # QUOTED preserves word-internal apostrophes while accepting nested delimiters.
       - name: Prove the citation gate rejects bare possessive, apostrophe and nested misquotes
-        if: matrix.shard == 3
+        if: matrix.shard == 6
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1528,7 +1646,7 @@ jobs:
 
       # pv-s4g: colon owners, including curly marks and blockquote continuations.
       - name: Prove the citation gate rejects colon-form misquotes
-        if: matrix.shard == 3
+        if: matrix.shard == 7
         run: |
           python3 - <<'PYTHON'
           from pathlib import Path
@@ -1577,7 +1695,7 @@ jobs:
       # pv-muf: a trailing possessive is content, including at candidate edges.
       # The built-in matrix covers both input kinds and every permitted pool.
       - name: Prove the citation gate preserves trailing possessives and detects a bypass
-        if: matrix.shard == 3
+        if: matrix.shard == 7
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1633,7 +1751,7 @@ jobs:
           PY
 
       - name: Prove the citation gate preserves equivalent nested delimiters
-        if: matrix.shard == 3
+        if: matrix.shard == 5
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -1663,7 +1781,7 @@ jobs:
       # The committed baseline is input, never a bootstrap output. Exercise main()
       # with temporary baselines; every call must leave their bytes unchanged.
       - name: Prove the citation gate refuses damaged baselines, stale exemptions and an empty Lean scan
-        if: matrix.shard == 0
+        if: matrix.shard == 6
         run: |
           python3 - <<'PY'
           from contextlib import redirect_stdout
@@ -1800,7 +1918,7 @@ jobs:
       # Derive standing cases from the baseline; temporary fixtures keep these
       # controls effective when cleanup leaves one entry or none.
       - name: Prove the citation gate rejects duplicates and altered exempted Markdown wording
-        if: matrix.shard == 1
+        if: matrix.shard == 2
         run: |
           python3 - <<'PY'
           from collections import Counter
@@ -1965,7 +2083,7 @@ jobs:
 
       # Unpaired marks fail before attribution, historical skips or reach limits.
       - name: Prove the citation gate rejects unpaired quotation marks at source lines
-        if: matrix.shard == 2
+        if: matrix.shard == 6
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -2039,7 +2157,7 @@ jobs:
       # Reverting closer handling must fail the boundary fixtures, rather than
       # silently dropping quotes or depending on the corpus retaining a misquote.
       - name: Prove the citation gate rejects loss of closing-markup boundaries
-        if: matrix.shard == 3
+        if: matrix.shard == 7
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -2067,3 +2185,28 @@ jobs:
               assert path.read_bytes() == original
           subprocess.run(['python3', str(path)], check=True)
           PY
+
+      # Both heavy proof owners must actually have executed successfully in this
+      # job. Default success gating also excludes failures and cancellation.
+      - name: Record this shard's successful heavy proofs
+        if: >-
+          success() && steps.proof_cache.outputs.skip != 'true' &&
+          steps.guard_proofs.outcome == 'success' &&
+          (matrix.shard != 1 || steps.accepted_proofs.outcome == 'success')
+        env:
+          MARKER_PATH: ${{ runner.temp }}/proofs-pass-${{ matrix.shard }}
+          MARKER_KEY: ${{ steps.proof_inputs.outputs.marker }}
+        run: |
+          mkdir -p "$MARKER_PATH"
+          printf '%s\n' "$MARKER_KEY" > "$MARKER_PATH/pass"
+
+      - name: Save this shard's proof pass marker
+        if: >-
+          success() && steps.proof_cache.outputs.skip != 'true' &&
+          steps.guard_proofs.outcome == 'success' &&
+          (matrix.shard != 1 || steps.accepted_proofs.outcome == 'success')
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/proofs-pass-${{ matrix.shard }}
+          key: ${{ steps.proof_inputs.outputs.marker }}
