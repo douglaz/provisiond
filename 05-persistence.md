@@ -339,7 +339,9 @@ controls do not require a durable external connection-admission authority.
 
 Connection exhaustion MAY prevent application progress and fresh observer access. Recovery MAY
 require stopping application components and shutting down the primary as `STO-7`'s `SyncRep` rule
-permits. No guarantee of continued service or bounded outage duration follows from pool sizing.
+permits. `STO-7` keeps "The deployment MUST NOT cancel or terminate a primary backend while it
+waits for a standby (wait event `SyncRep`), other than by shutting the primary down." No guarantee
+of continued service or bounded outage duration follows from pool sizing.
 
 A request that fails to obtain a checkout within the configured bound MUST start no request
 transaction, create no new refusal receipt, and initiate no provider mutation for that request. The
@@ -355,7 +357,8 @@ apply.
 1. Stop replacement application processes and connection growth through deployment controls.
 2. Quiesce application work, preserving uncertainty about in-flight commits and provider calls.
 3. Restore the standby if that permits existing replication waits to complete.
-4. If recovery still requires primary shutdown, use as `STO-7`'s `SyncRep` rule permits.
+4. If recovery still requires primary shutdown, use as `STO-7`'s `SyncRep` rule permits; `STO-7`
+   keeps "other than by shutting the primary down".
 5. Restart on unchanged intact primary history only after connection and read checks pass; for
    promotion or history replacement, see `STO-54`.
 
@@ -1704,7 +1707,9 @@ establishing the incident is acknowledged. Neither application component may sta
 transaction is acknowledged.
 
 A process successor that finds an open incident MUST continue it using the persisted step marks. A
-new promotion or restoration is a new event and follows the incident supersession rule.
+new promotion or restoration is a new event and follows the incident supersession rule. `STO-56`
+keeps "On a promotion or authoritative-history replacement whose store contains an open incident
+R, the transaction establishing the new record MUST close R by supersession".
 
 In-place process and primary restarts on unchanged intact authoritative history remain ordinary
 restarts when no incident is open, subject to the existing startup and connection safeguards.
@@ -1819,7 +1824,9 @@ engine and `api` process, and MUST start neither component until the transaction
   initialization. Once `true` the column MUST NOT be cleared on that operation, including at
   incident closure or payload purge. Another promotion or authoritative-history replacement applies the initialization again. An
   open incident inherited from the restored store is superseded under `STO-56`; an ordinary process
-  successor never supersedes it. The column is operation metadata and is not added to
+  successor never supersedes it. `STO-56` keeps "the transaction establishing the new record MUST
+  close R by supersession" and "A process crash on the same authoritative history creates and
+  supersedes no incident." The column is operation metadata and is not added to
   `request_summary`'s closed enumeration.
 
   The restore quarantine and each startup pass preserve `restore_markers_untrusted`. In particular a

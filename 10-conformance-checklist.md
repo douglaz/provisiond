@@ -1317,8 +1317,8 @@ takes the machines *and* the float" partly false.
   closes R by supersession and inserts a distinct record naming R in `supersedes_incident_id`, with
   `steps_completed` = 0, `grace_ends_at` null and `closed_at` null; that R is retained; and that
   neither component starts before that transaction is acknowledged. Assert that the new incident's
-  step (3) runs, including its credential-generation bump, although R's step (3) is marked: no
-  predecessor step mark satisfies a new step. (`STO-56`, `STO-54`)
+  step (3) runs, including its credential-generation bump, although R's step (3) is marked:
+  `STO-56` keeps "no predecessor step mark satisfies a new step". (`STO-56`, `STO-54`)
 
   (`STO-5`, `STO-7`, `STO-54`, `STO-56`, `OPS-15`)
   *Added 2026-10-23 (`pv-s4m`; panel r63, `docs/research/panels-2026-10/r63/`; owner decisions Q1 “I think we should just suppose synchronous replication”; S1 “Three servers (Recommended)”; S3 “B: check each new connection (Recommended)”; P “Wait (Recommended)”; `ADR-0045`): added the promotion, connection-check and operator-choice drill.*
