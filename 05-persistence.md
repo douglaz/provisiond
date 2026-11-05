@@ -347,12 +347,17 @@ of continued service or bounded outage duration follows from pool sizing.
 
 A request that fails to obtain a checkout within the configured bound MUST start no request
 transaction, create no new refusal receipt, and initiate no provider mutation for that request. The
-existing overload and idempotent-resend rules apply.
+existing overload and idempotent-resend rules apply. `API-11` keeps "Re-sending the same key with
+a byte-equivalent request MUST return the existing operation.".
 
 Pool checkout failure, connection failure and failed connection checks MUST NOT be interpreted as
 proof that a previously sent COMMIT rolled back or that a previously dispatched provider mutation
 did not execute. Existing commit-uncertainty, stop-record and reconciliation rules continue to
-apply.
+apply. `STO-7` keeps "a deadline or a cancellation of the request or worker that sent it MUST NOT
+release its connection before the reply arrives or the transport is found dead"; `OPS-21` keeps
+"The worker MUST NOT pursue the record past the Stop-record bound (`OVR-19`), and the engine MUST
+NOT wait for it past that bound."; `OPS-15` keeps "Subject to the exceptions below, at startup,
+before any claim, the engine MUST move every `running` operation to `needs_reconciliation`".
 
 **Saturation recovery on unchanged history.** The deployment's procedure MUST follow this order:
 

@@ -6,7 +6,12 @@ promotion enters recovery. Connection/read checks and sent-COMMIT uncertainty re
 `STO-7` keeps "checks each new connection before using it" and "repeat the read-only
 flush-position check"; `STO-55` keeps "Pool checkout failure, connection failure and failed
 connection checks MUST NOT be interpreted as proof that a previously sent COMMIT rolled back or
-that a previously dispatched provider mutation did not execute.".
+that a previously dispatched provider mutation did not execute.". `STO-7` keeps "The deployment
+MUST NOT let the primary acknowledge a provisiond state-changing transaction, a migration or a
+recovery-incident transaction without the designated standby"; `STO-55` keeps "The deployment MUST
+state a phase-appropriate ordinary connection budget" and "Connection exhaustion MAY prevent
+application progress and fresh observer access."; `STO-54` keeps "Every promotion or replacement
+of authoritative history MUST enter the recovery-incident procedure".
 
 **Status:** accepted (2026-10-23; `pv-s4m`). The requirement edits precede this record.
 Decision record: [panel r63](../research/panels-2026-10/r63/), especially
