@@ -4,7 +4,8 @@
 profile; the recovery procedure, its selective freezes, grace and unrepaired-loss limits remain.
 see `STO-54`; `STO-54` keeps "exactly five things are frozen"; `STO-56` keeps "**`grace_ends_at`
 is the unpaused end of the restore grace, one stored instant for the whole incident**"; `STO-54`
-keeps "**an extension lost in Δ is not rebuilt**".
+keeps "**an extension lost in Δ is not rebuilt**" and "Every promotion or replacement of
+authoritative history MUST enter the recovery-incident procedure".
 
 **Status:** accepted (2026-09-12; proposed 2026-09-10, amendments landed 2026-09-12). Amended
 2026-09-20 with the record that decides which boot a process is, under *The decision*. The restore

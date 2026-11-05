@@ -1,7 +1,14 @@
 # The engine is one supervised process, fenced by an epoch, and the leases go
 
 **Amended by `ADR-0048` (2026-11-04)**: the initial profile runs one `api` copy while keeping
-"`api` stays freely replicable". Startup-generation protection remains under `ADR-0047`.
+"`api` stays freely replicable". Startup-generation protection remains under `ADR-0047`. `STO-6`
+keeps "`api` MAY run as any number of replicas against the shared store."; `STO-59` keeps "Every
+startup advance MUST choose a random UUID distinct from the values chosen by earlier startup
+advances, including choices whose effects a restore removed."; `OPS-50` keeps "MUST read
+`STO-59`'s row `FOR SHARE` as its first statement, compare it for equality with the value the
+engine's own startup pass wrote, and hold that lock until it commits" and "Where the values
+differ, the transaction MUST roll back, and the engine MUST log loudly that it was superseded and
+exit non-zero at once, beginning no other transaction.".
 
 **Status:** accepted (2026-09-07). Amends `ADR-0015`'s consequence "the deployable becomes
 replicable": `api` is replicable, `engine` is not.

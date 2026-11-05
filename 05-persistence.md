@@ -162,7 +162,9 @@ exists precisely because a primitive was once left off this list.*
 The supported initial deployment runs one engine, one `api` instance, one PostgreSQL primary and
 one designated synchronous physical standby in separate failure domains (`ADR-0048`). Additional
 `api` replicas and overlapping releases are outside this initial profile; the replica safety
-requirements remain in force.
+requirements remain in force. `STO-6` keeps "`api` MAY run as any number of replicas against the
+shared store." and "the primitives the store provides for that are `STO-1`'s engine-checked atomic
+claim, `STO-51`'s per-machine index and startup lock, `STO-47`'s conditional write (`STO-27`)".
 
 **STO-7** Connection-scoped settings MUST be applied to *every* pooled connection, not once at
 migration time. Applying them inside a migration affects only the connection that ran the
@@ -1713,6 +1715,9 @@ R, the transaction establishing the new record MUST close R by supersession".
 
 In-place process and primary restarts on unchanged intact authoritative history remain ordinary
 restarts when no incident is open, subject to the existing startup and connection safeguards.
+`STO-7` keeps "checks each new connection before using it"; `STO-59` keeps "Every startup advance
+MUST choose a random UUID distinct from the values chosen by earlier startup advances, including
+choices whose effects a restore removed.".
 
 **Formal checking interpretation (2026-11-04, `ADR-0048`).**
 `Provisiond.RecoveryEntry.classify` carries the event-entry policy independently of recovered loss.

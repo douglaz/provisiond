@@ -1986,7 +1986,9 @@ is `STO-31`'s next replay.
 
 Ordinary checkout, connection and connection-check failures are store errors for this loop.
 They consume the same bound and do not prove rollback of a previously sent COMMIT or
-non-execution of a provider mutation.
+non-execution of a provider mutation. `STO-55` keeps "Pool checkout failure, connection failure
+and failed connection checks MUST NOT be interpreted as proof that a previously sent COMMIT rolled
+back or that a previously dispatched provider mutation did not execute.".
 
 - **"Too slow" is `statement_timeout`.** The client-side deadline on a store call MUST NOT be
   shorter than `STO-7`'s server-side timeouts, so the server decides every statement's fate before

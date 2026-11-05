@@ -3,7 +3,13 @@
 **Status:** accepted (2026-11-04). The requirement edits precede this record.
 Amends `ADR-0015`, `ADR-0016`, `ADR-0023`, `ADR-0024` and `ADR-0045`. The pointer in
 `ADR-0019` records initial deployment scope only and withdraws none of its content.
-`ADR-0047`'s startup-generation protection remains in force.
+`ADR-0047`'s startup-generation protection remains in force. `STO-59` keeps "Every startup advance
+MUST choose a random UUID distinct from the values chosen by earlier startup advances, including
+choices whose effects a restore removed."; `OPS-50` keeps "MUST read `STO-59`'s row `FOR SHARE` as
+its first statement, compare it for equality with the value the engine's own startup pass wrote,
+and hold that lock until it commits" and "Where the values differ, the transaction MUST roll back,
+and the engine MUST log loudly that it was superseded and exit non-zero at once, beginning no
+other transaction.".
 
 ## Decision and owners
 

@@ -116,7 +116,7 @@ that followed from them.** They live in `docs/adr/`, and each records what was r
 | `0045` | Every commit waits for a standby, and promotion follows WAL history. Amends `0022`, `0023` and `0042`; amended by `0048` (2026-11-04) |
 | `0046` | Existing-machine failures before the write-started marker settle `failed` |
 | `0047` | A lost startup-lock connection is a stop the engine records, and every engine write checks a startup generation that a later startup pass replaces; a mismatch exits. Adopts the option `0019` rejected; amends `0022` |
-| `0048` | One designated synchronous standby, ordinary pools with accepted saturation outages, every promotion entering recovery, and offline releases; replica safety and startup-generation fencing remain |
+| `0048` | One designated synchronous standby, ordinary pools with accepted saturation outages, every promotion entering recovery, and offline releases; replica safety and startup-generation fencing remain; `STO-6` keeps "`api` MAY run as any number of replicas against the shared store."; `OPS-50` keeps "Where the values differ, the transaction MUST roll back" |
 
 **Read `ADR-0002` through `ADR-0004` before `12-billing-and-ledger.md`**, and read `ADR-0003`'s
 dissent before treating satoshi denomination as settled. The credential question is settled:
