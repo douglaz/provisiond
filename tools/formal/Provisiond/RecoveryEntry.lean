@@ -24,7 +24,7 @@ inductive Entry
   | restart
   deriving DecidableEq, Repr
 
-@[req "STO-54", req "STO-56"]
+@[req "STO-54"]
 def classify (event : Event) (incidentOpen : Bool) : Entry :=
   match event, incidentOpen with
   | .processRestart, false | .primaryRestartSameHistory, false => .restart

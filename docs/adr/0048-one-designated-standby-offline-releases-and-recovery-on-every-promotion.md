@@ -67,7 +67,11 @@ For synchronous business commits, see `STO-7`; the increased outage cost is now 
 The former `STO-54` "Unknown restart eligibility" rule from pv-by1w is superseded together with
 the entire promotion-eligibility branch. Maximal and equal report selection no longer authorizes
 an ordinary restart: `STO-54` states "No promotion is classified as an ordinary restart."
-The operator-restore arm and its evidence rules in `CNF-365` are retained.
+`CNF-365` retains the operator-restore arm, "Promote a lagging standby as an operator restore with
+verified prefix/clock evidence and assert the incident stores certified bounds", and its evidence
+rules: "For these operator-restore arms, supply certified evidence for each asserted known
+`lost_window_starts_at` or `loss_end_at`; store null for each unknown endpoint and retain a
+non-null incident-keyed `history_evidence_ref` identifying evidence or unknown-endpoint reasons".
 For unknown reporting endpoints, see `STO-54`: "A bound without valid evidence is unknown, not an
 invented recovery time."
 
