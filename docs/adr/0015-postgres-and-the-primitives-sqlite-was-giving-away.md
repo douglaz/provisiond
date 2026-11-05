@@ -2,6 +2,8 @@
 
 **Amended by `ADR-0048` (2026-11-04)**: the initial deployment profile and accepted database
 availability costs change; PostgreSQL, transaction primitives and replica safety remain.
+`STO-6` keeps "one PostgreSQL primary" and "per-tenant advisory locks held for the transaction"
+and "`api` MAY run as any number of replicas against the shared store.".
 
 **Status:** accepted (2026-09-06). **Amended by `ADR-0016` (2026-09-07)**: the consequence "the
 deployable becomes replicable" holds for `api` only. `engine` is one supervised process fenced by

@@ -3,7 +3,9 @@
 **Amended by `ADR-0048` (2026-11-04)**: every release is offline, binaries declare supported
 schemas, and ordinary transactional index builds are permitted. Compatibility with a running
 previous release is withdrawn; runner serialization, forward-only migrations and rollback up
-to a contract step remain.
+to a contract step remain. `STO-12` keeps "two runners cannot interleave"; `STO-13` keeps
+"Migrations MUST be forward-only" and "**Rollback is the previous binary against the current
+schema**, admissible up to and not past a contract step".
 
 **Status:** accepted (2026-09-12; amendments landed the same day). The rules are `STO-12` and
 `STO-13`. Answers

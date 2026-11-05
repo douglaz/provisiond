@@ -3,6 +3,10 @@
 **Amended by `ADR-0048` (2026-11-04)**: one designated synchronous standby, ordinary pool
 budgets and accepted saturation outages replace the former topology and external grants; every
 promotion enters recovery. Connection/read checks and sent-COMMIT uncertainty remain.
+`STO-7` keeps "checks each new connection before using it" and "repeat the read-only
+flush-position check"; `STO-55` keeps "Pool checkout failure, connection failure and failed
+connection checks MUST NOT be interpreted as proof that a previously sent COMMIT rolled back or
+that a previously dispatched provider mutation did not execute.".
 
 **Status:** accepted (2026-10-23; `pv-s4m`). The requirement edits precede this record.
 Decision record: [panel r63](../research/panels-2026-10/r63/), especially
